@@ -4,9 +4,8 @@ use anyhow::Context as _;
 use tracing::Instrument;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::interface::{
-    executor::OneshotExecutor,
+    executor::TransactionValidator,
     tracer::{ValidationError as RawValidationError, ValidationParams},
-    TxExecutionArgs,
 };
 use zksync_types::{
     api::state_override::StateOverride, l2::L2Tx, Address, TRUSTED_ADDRESS_SLOTS,
@@ -56,10 +55,9 @@ impl TransactionExecutor {
             apply::prepare_env_and_storage(connection, setup_args, &block_args).await?;
         let storage = StorageWithOverrides::new(storage, &StateOverride::default());
 
-        let execution_args = TxExecutionArgs::for_validation(tx);
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
         let validation_result = self
-            .validate_transaction(storage, env, execution_args, validation_params)
+            .validate_transaction(storage, env, tx, validation_params)
             .instrument(tracing::debug_span!("validation"))
             .await?;
         drop(vm_permit);

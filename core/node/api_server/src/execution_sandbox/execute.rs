@@ -3,13 +3,13 @@
 use async_trait::async_trait;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
-    executor::OneshotExecutor,
+    executor::{OneshotExecutor, TransactionValidator},
     storage::ReadStorage,
     tracer::{ValidationError, ValidationParams},
     Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
     TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
 };
-use zksync_types::api::state_override::StateOverride;
+use zksync_types::{api::state_override::StateOverride, l2::L2Tx};
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
 use super::{apply, storage::StorageWithOverrides, vm_metrics, BlockArgs, TxSetupArgs, VmPermit};
@@ -91,27 +91,6 @@ impl<S> OneshotExecutor<S> for TransactionExecutor
 where
     S: ReadStorage + Send + 'static,
 {
-    async fn validate_transaction(
-        &self,
-        storage: S,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<(), ValidationError>> {
-        match self {
-            Self::Real(executor) => {
-                executor
-                    .validate_transaction(storage, env, args, validation_params)
-                    .await
-            }
-            Self::Mock(executor) => {
-                executor
-                    .validate_transaction(storage, env, args, validation_params)
-                    .await
-            }
-        }
-    }
-
     async fn inspect_transaction_with_bytecode_compression(
         &self,
         storage: S,
@@ -138,6 +117,33 @@ where
                         args,
                         tracing_params,
                     )
+                    .await
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl<S> TransactionValidator<S> for TransactionExecutor
+where
+    S: ReadStorage + Send + 'static,
+{
+    async fn validate_transaction(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        tx: L2Tx,
+        validation_params: ValidationParams,
+    ) -> anyhow::Result<Result<(), ValidationError>> {
+        match self {
+            Self::Real(executor) => {
+                executor
+                    .validate_transaction(storage, env, tx, validation_params)
+                    .await
+            }
+            Self::Mock(executor) => {
+                executor
+                    .validate_transaction(storage, env, tx, validation_params)
                     .await
             }
         }

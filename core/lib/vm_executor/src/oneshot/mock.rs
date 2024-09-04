@@ -2,13 +2,13 @@ use std::fmt;
 
 use async_trait::async_trait;
 use zksync_multivm::interface::{
-    executor::OneshotExecutor,
+    executor::{OneshotExecutor, TransactionValidator},
     storage::ReadStorage,
     tracer::{ValidationError, ValidationParams},
     ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
     TxExecutionArgs, TxExecutionMode, VmExecutionResultAndLogs,
 };
-use zksync_types::Transaction;
+use zksync_types::{l2::L2Tx, Transaction};
 
 type TxResponseFn = dyn Fn(&Transaction, &OneshotEnv) -> VmExecutionResultAndLogs + Send + Sync;
 
@@ -91,19 +91,6 @@ impl<S> OneshotExecutor<S> for MockOneshotExecutor
 where
     S: ReadStorage + Send + 'static,
 {
-    async fn validate_transaction(
-        &self,
-        _storage: S,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        _validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<(), ValidationError>> {
-        Ok(match self.mock_inspect(env, args).result {
-            ExecutionResult::Halt { reason } => Err(ValidationError::FailedTx(reason)),
-            ExecutionResult::Success { .. } | ExecutionResult::Revert { .. } => Ok(()),
-        })
-    }
-
     async fn inspect_transaction_with_bytecode_compression(
         &self,
         _storage: S,
@@ -116,5 +103,29 @@ where
             compression_result: Ok(()),
             call_traces: vec![],
         })
+    }
+}
+
+#[async_trait]
+impl<S> TransactionValidator<S> for MockOneshotExecutor
+where
+    S: ReadStorage + Send + 'static,
+{
+    async fn validate_transaction(
+        &self,
+        _storage: S,
+        env: OneshotEnv,
+        tx: L2Tx,
+        _validation_params: ValidationParams,
+    ) -> anyhow::Result<Result<(), ValidationError>> {
+        Ok(
+            match self
+                .mock_inspect(env, TxExecutionArgs::for_validation(tx))
+                .result
+            {
+                ExecutionResult::Halt { reason } => Err(ValidationError::FailedTx(reason)),
+                ExecutionResult::Success { .. } | ExecutionResult::Revert { .. } => Ok(()),
+            },
+        )
     }
 }

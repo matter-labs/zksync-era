@@ -42,6 +42,7 @@ pub enum VmExecutionStopReason {
     TracerRequestedStop(TracerExecutionStopReason),
 }
 
+/// Transaction validation parameters.
 #[derive(Debug, Clone)]
 pub struct ValidationParams {
     pub user_address: Address,
@@ -58,26 +59,31 @@ pub struct ValidationParams {
     pub computational_gas_limit: u32,
 }
 
+/// Rules that can be violated when validating a transaction.
 #[derive(Debug, Clone)]
 pub enum ViolatedValidationRule {
-    TouchedUnallowedStorageSlots(Address, U256),
+    /// The transaction touched disallowed storage slots during validation.
+    TouchedDisallowedStorageSlots(Address, U256),
+    /// The transaction called a contract without attached bytecode.
     CalledContractWithNoCode(Address),
-    TouchedUnallowedContext,
+    /// The transaction touched disallowed context.
+    TouchedDisallowedContext,
+    /// The transaction used too much gas during validation.
     TookTooManyComputationalGas(u32),
 }
 
 impl fmt::Display for ViolatedValidationRule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ViolatedValidationRule::TouchedUnallowedStorageSlots(contract, key) => write!(
+            ViolatedValidationRule::TouchedDisallowedStorageSlots(contract, key) => write!(
                 f,
-                "Touched unallowed storage slots: address {contract:x}, key: {key:x}",
+                "Touched disallowed storage slots: address {contract:x}, key: {key:x}",
             ),
             ViolatedValidationRule::CalledContractWithNoCode(contract) => {
                 write!(f, "Called contract with no code: {contract:x}")
             }
-            ViolatedValidationRule::TouchedUnallowedContext => {
-                write!(f, "Touched unallowed context")
+            ViolatedValidationRule::TouchedDisallowedContext => {
+                write!(f, "Touched disallowed context")
             }
             ViolatedValidationRule::TookTooManyComputationalGas(gas_limit) => {
                 write!(
@@ -89,9 +95,12 @@ impl fmt::Display for ViolatedValidationRule {
     }
 }
 
+/// Errors returned when validating a transaction.
 #[derive(Debug)]
 pub enum ValidationError {
+    /// VM execution was halted during validation.
     FailedTx(Halt),
+    /// Transaction violated one of account validation rules.
     ViolatedRule(ViolatedValidationRule),
 }
 

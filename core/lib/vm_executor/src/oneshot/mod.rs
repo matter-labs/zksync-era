@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use once_cell::sync::OnceCell;
 use zksync_multivm::{
     interface::{
-        executor::OneshotExecutor,
+        executor::{OneshotExecutor, TransactionValidator},
         storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
         tracer::{ValidationError, ValidationParams},
         ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
@@ -25,6 +25,7 @@ use zksync_multivm::{
 use zksync_types::{
     block::pack_block_info,
     get_nonce_key,
+    l2::L2Tx,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, Nonce, StorageKey, Transaction, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
@@ -57,51 +58,6 @@ impl<S> OneshotExecutor<S> for MainOneshotExecutor
 where
     S: ReadStorage + Send + 'static,
 {
-    async fn validate_transaction(
-        &self,
-        storage: S,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<(), ValidationError>> {
-        let missed_storage_invocation_limit = match env.system.execution_mode {
-            // storage accesses are not limited for tx validation
-            TxExecutionMode::VerifyExecute => usize::MAX,
-            TxExecutionMode::EthCall | TxExecutionMode::EstimateFee => {
-                self.missed_storage_invocation_limit
-            }
-        };
-
-        tokio::task::spawn_blocking(move || {
-            let (validation_tracer, mut validation_result) =
-                ValidationTracer::<HistoryDisabled>::new(
-                    validation_params,
-                    env.system.version.into(),
-                );
-            let tracers = vec![
-                validation_tracer.into_tracer_pointer(),
-                StorageInvocations::new(missed_storage_invocation_limit).into_tracer_pointer(),
-            ];
-
-            let executor = VmSandbox::new(storage, env, args);
-            let exec_result = executor.apply(|vm, transaction| {
-                vm.push_transaction(transaction);
-                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
-            });
-            let validation_result = Arc::make_mut(&mut validation_result)
-                .take()
-                .map_or(Ok(()), Err);
-
-            match (exec_result.result, validation_result) {
-                (_, Err(violated_rule)) => Err(ValidationError::ViolatedRule(violated_rule)),
-                (ExecutionResult::Halt { reason }, _) => Err(ValidationError::FailedTx(reason)),
-                _ => Ok(()),
-            }
-        })
-        .await
-        .context("VM execution panicked")
-    }
-
     async fn inspect_transaction_with_bytecode_compression(
         &self,
         storage: S,
@@ -144,6 +100,57 @@ where
 
             result.call_traces = Arc::make_mut(&mut calls_result).take().unwrap_or_default();
             result
+        })
+        .await
+        .context("VM execution panicked")
+    }
+}
+
+#[async_trait]
+impl<S> TransactionValidator<S> for MainOneshotExecutor
+where
+    S: ReadStorage + Send + 'static,
+{
+    async fn validate_transaction(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        tx: L2Tx,
+        validation_params: ValidationParams,
+    ) -> anyhow::Result<Result<(), ValidationError>> {
+        let missed_storage_invocation_limit = match env.system.execution_mode {
+            // storage accesses are not limited for tx validation
+            TxExecutionMode::VerifyExecute => usize::MAX,
+            TxExecutionMode::EthCall | TxExecutionMode::EstimateFee => {
+                self.missed_storage_invocation_limit
+            }
+        };
+
+        tokio::task::spawn_blocking(move || {
+            let (validation_tracer, mut validation_result) =
+                ValidationTracer::<HistoryDisabled>::new(
+                    validation_params,
+                    env.system.version.into(),
+                );
+            let tracers = vec![
+                validation_tracer.into_tracer_pointer(),
+                StorageInvocations::new(missed_storage_invocation_limit).into_tracer_pointer(),
+            ];
+
+            let executor = VmSandbox::new(storage, env, TxExecutionArgs::for_validation(tx));
+            let exec_result = executor.apply(|vm, transaction| {
+                vm.push_transaction(transaction);
+                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
+            });
+            let validation_result = Arc::make_mut(&mut validation_result)
+                .take()
+                .map_or(Ok(()), Err);
+
+            match (exec_result.result, validation_result) {
+                (_, Err(violated_rule)) => Err(ValidationError::ViolatedRule(violated_rule)),
+                (ExecutionResult::Halt { reason }, _) => Err(ValidationError::FailedTx(reason)),
+                _ => Ok(()),
+            }
         })
         .await
         .context("VM execution panicked")

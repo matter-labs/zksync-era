@@ -3,7 +3,7 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use zksync_types::Transaction;
+use zksync_types::{l2::L2Tx, Transaction};
 
 use crate::{
     storage::{ReadStorage, StorageView},
@@ -48,14 +48,6 @@ pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
 /// VM executor capable of executing isolated transactions / calls (as opposed to [batch execution](BatchExecutor)).
 #[async_trait]
 pub trait OneshotExecutor<S: ReadStorage> {
-    async fn validate_transaction(
-        &self,
-        storage: S,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<(), ValidationError>>;
-
     async fn inspect_transaction_with_bytecode_compression(
         &self,
         storage: S,
@@ -63,4 +55,16 @@ pub trait OneshotExecutor<S: ReadStorage> {
         args: TxExecutionArgs,
         tracing: OneshotTracingParams,
     ) -> anyhow::Result<OneshotTransactionExecutionResult>;
+}
+
+/// VM executor capable of validating transactions.
+#[async_trait]
+pub trait TransactionValidator<S: ReadStorage>: OneshotExecutor<S> {
+    async fn validate_transaction(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        tx: L2Tx,
+        validation_params: ValidationParams,
+    ) -> anyhow::Result<Result<(), ValidationError>>;
 }
