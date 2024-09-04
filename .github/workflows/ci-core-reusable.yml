@@ -69,7 +69,54 @@ jobs:
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
           ci_run zk f cargo test --release -p vm-benchmark --bench oneshot --bench batch
+  
+  config-values:
+    runs-on: [matterlabs-ci-runner]
 
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
+
+      # TODO: Remove when we after upgrade of hardhat-plugins
+      - name: pre-download compilers
+        run: |
+          # Download needed versions of vyper compiler
+          # Not sanitized due to unconventional path and tags
+          mkdir -p ./hardhat-nodejs/compilers-v2/vyper/linux
+          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10+commit.91361694.linux
+          wget -nv -O ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3 https://github.com/vyperlang/vyper/releases/download/v0.3.3/vyper.0.3.3+commit.48e326f0.linux
+          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.10
+          chmod +x  ./hardhat-nodejs/compilers-v2/vyper/linux/0.3.3
+
+          COMPILERS_JSON='${{ inputs.compilers }}'
+          echo "$COMPILERS_JSON" | jq -r '.[] | to_entries[] | .key as $compiler | .value[] | "\(.),\($compiler)"' | while IFS=, read -r version compiler; do
+            mkdir -p "./hardhat-nodejs/compilers-v2/$compiler"
+            wget -nv -O "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}" "https://github.com/matter-labs/${compiler}-bin/releases/download/v${version}/${compiler}-linux-amd64-musl-v${version}"
+            chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
+          done
+
+      - name: Start services
+        run: |
+          ci_localnet_up
+          ci_run sccache --start-server
+
+      - name: Init
+        run: |
+          ci_run zk
+          ci_run run_retried rustup show
+          ci_run zk run yarn
+          ci_run zk db setup
+          ci_run zk compiler all
+          ci_run zk init config 
+  
   # FIXME: support loadtest together with sync layer.
   loadtest:
     runs-on: [matterlabs-ci-runner]
