@@ -3,7 +3,7 @@ mod bootloader;
 mod bytecode_publishing;
 mod default_aa;
 // mod call_tracer; FIXME: requires tracers
-// mod circuits; FIXME: requires tracers / circuit stats
+mod circuits;
 mod code_oracle;
 mod gas_limit;
 mod get_used_contracts;
