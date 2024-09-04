@@ -107,6 +107,11 @@ impl WiringLayer for EthTxAggregatorLayer {
         } else {
             self.contracts_config
         };
+        let eth_client = if self.settlement_mode.is_gateway() {
+            input.eth_client_gateway.unwrap().0
+        } else {
+            input.eth_client.unwrap().0
+        };
         let master_pool = input.master_pool.get().await.unwrap();
         let replica_pool = input.replica_pool.get().await.unwrap();
 
@@ -132,7 +137,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             master_pool.clone(),
             config.clone(),
             aggregator,
-            input.eth_client.unwrap().0,
+            eth_client,
             contracts_config.validator_timelock_addr,
             contracts_config.l1_multicall3_addr,
             contracts_config.diamond_proxy_addr,
