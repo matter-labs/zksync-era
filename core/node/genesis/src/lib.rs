@@ -6,9 +6,12 @@ use std::fmt::Formatter;
 
 use anyhow::Context as _;
 use zksync_config::GenesisConfig;
-use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes, SET_CHAIN_ID_EVENT};
+use zksync_contracts::{
+    hyperchain_contract, verifier_contract, BaseSystemContracts, BaseSystemContractsHashes,
+    SET_CHAIN_ID_EVENT,
+};
 use zksync_dal::{Connection, Core, CoreDal, DalError};
-use zksync_eth_client::EthInterface;
+use zksync_eth_client::{CallFunctionArgs, EthInterface};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_system_constants::PRIORITY_EXPIRATION;
@@ -21,7 +24,7 @@ use zksync_types::{
     system_contracts::get_system_smart_contracts,
     web3::{BlockNumber, FilterBuilder},
     AccountTreeId, Address, Bloom, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
-    ProtocolVersion, ProtocolVersionId, StorageKey, H256,
+    ProtocolVersion, ProtocolVersionId, StorageKey, H256, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
@@ -110,12 +113,9 @@ impl GenesisParams {
                 },
             )));
         }
-        // Try to convert value from config to the real protocol version and return error
-        // if the version doesn't exist
-        let _: ProtocolVersionId = config
-            .protocol_version
-            .map(|p| p.minor)
-            .ok_or(GenesisError::MalformedConfig("protocol_version"))?;
+        if config.protocol_version.is_none() {
+            return Err(GenesisError::MalformedConfig("protocol_version"));
+        }
         Ok(GenesisParams {
             base_system_contracts,
             system_contracts,
@@ -262,6 +262,49 @@ pub async fn insert_genesis_batch(
 
 pub async fn is_genesis_needed(storage: &mut Connection<'_, Core>) -> Result<bool, GenesisError> {
     Ok(storage.blocks_dal().is_genesis_needed().await?)
+}
+
+pub async fn validate_genesis_params(
+    genesis_params: &GenesisParams,
+    query_client: &dyn EthInterface,
+    diamond_proxy_address: Address,
+) -> anyhow::Result<()> {
+    let hyperchain_abi = hyperchain_contract();
+    let verifier_abi = verifier_contract();
+
+    let packed_protocol_version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
+        .for_contract(diamond_proxy_address, &hyperchain_abi)
+        .call(query_client)
+        .await?;
+
+    let protocol_version = ProtocolSemanticVersion::try_from_packed(packed_protocol_version)
+        .map_err(|err| anyhow::format_err!("Failed to unpack semver: {err}"))?;
+
+    if protocol_version != genesis_params.protocol_version() {
+        return Err(anyhow::anyhow!(
+            "Protocol version mismatch: {protocol_version} on contract, {} in config",
+            genesis_params.protocol_version()
+        ));
+    }
+
+    let verifier_address: Address = CallFunctionArgs::new("getVerifier", ())
+        .for_contract(diamond_proxy_address, &hyperchain_abi)
+        .call(query_client)
+        .await?;
+
+    let verification_key_hash: H256 = CallFunctionArgs::new("verificationKeyHash", ())
+        .for_contract(verifier_address, &verifier_abi)
+        .call(query_client)
+        .await?;
+
+    if verification_key_hash != genesis_params.config().recursion_scheduler_level_vk_hash {
+        return Err(anyhow::anyhow!(
+            "Verification key hash mismatch: {verification_key_hash:?} on contract, {:?} in config",
+            genesis_params.config().recursion_scheduler_level_vk_hash
+        ));
+    }
+
+    Ok(())
 }
 
 pub async fn ensure_genesis_state(
