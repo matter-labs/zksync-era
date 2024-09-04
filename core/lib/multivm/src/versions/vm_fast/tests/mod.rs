@@ -1,7 +1,7 @@
+mod block_tip;
 mod bootloader;
-mod default_aa;
-//mod block_tip; FIXME: requires vm metrics
 mod bytecode_publishing;
+mod default_aa;
 // mod call_tracer; FIXME: requires tracers
 // mod circuits; FIXME: requires tracers / circuit stats
 mod code_oracle;
