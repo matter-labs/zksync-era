@@ -188,7 +188,7 @@ pub struct ProverInitArgsFinal {
     pub proof_store: ProofStorageConfig,
     pub public_store: Option<ProofStorageConfig>,
     pub setup_key_config: SetupKeyConfig,
-    pub bellman_cuda_config: InitBellmanCudaArgs,
+    pub bellman_cuda_config: Option<InitBellmanCudaArgs>,
     pub cloud_type: CloudConnectionMode,
     pub database_config: Option<ProverDatabaseConfig>,
 }
@@ -460,8 +460,20 @@ impl ProverInitArgs {
         })
     }
 
-    fn fill_bellman_cuda_values_with_prompt(&self) -> anyhow::Result<InitBellmanCudaArgs> {
-        self.bellman_cuda_config.clone().fill_values_with_prompt()
+    fn fill_bellman_cuda_values_with_prompt(&self) -> anyhow::Result<Option<InitBellmanCudaArgs>> {
+        let init_bellman_cuda = if self.bellman_cuda_config.bellman_cuda_dir.is_none() {
+            PromptConfirm::new("Do you want to setup bellman-cuda?(You can do it later by running `zk_inception prover init-bellman-cuda`)").default(false).ask()
+        } else {
+            true
+        };
+
+        if init_bellman_cuda {
+            Ok(Some(
+                self.bellman_cuda_config.clone().fill_values_with_prompt()?,
+            ))
+        } else {
+            Ok(None)
+        }
     }
 
     fn get_cloud_type_with_prompt(&self) -> CloudConnectionMode {
