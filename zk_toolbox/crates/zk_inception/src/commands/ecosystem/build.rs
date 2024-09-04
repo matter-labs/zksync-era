@@ -7,6 +7,7 @@ use config::{
     traits::{ReadConfigWithBasePath, SaveConfig},
     EcosystemConfig, GenesisConfig,
 };
+use tokio::io::join;
 use types::ProverMode;
 use xshell::Shell;
 
@@ -80,11 +81,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
         .context(MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR)?;
 
     shell.copy_file(
-        format!(
-            "{}/{}",
-            ecosystem_config.link_to_code.to_string_lossy(),
-            DEPLOY_TRANSACTIONS_FILE
-        ),
+        ecosystem_config.link_to_code.join(DEPLOY_TRANSACTIONS_FILE),
         format!("{}/deploy.json", final_ecosystem_args.out),
     )?;
 
