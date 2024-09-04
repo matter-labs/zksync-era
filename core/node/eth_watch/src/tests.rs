@@ -7,7 +7,7 @@ use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_types::{
     abi, ethabi,
-    ethabi::{Hash, Token},
+    ethabi::Token,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
