@@ -27,7 +27,7 @@ impl FromEnv for Wallets {
         )?;
         let gateway = pk_from_env(
             "ETH_SENDER_SENDER_OPERATOR_GATEWAY_PRIVATE_KEY",
-            "Malformed blob operator pk",
+            "Malformed gateway operator pk",
         )?;
 
         let eth_sender = if let Some(operator) = operator {

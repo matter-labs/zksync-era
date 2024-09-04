@@ -97,8 +97,8 @@ impl WiringLayer for PKSigningEthClientLayer {
             );
             BoundEthInterfaceForBlobsResource(Box::new(signing_client_for_blobs))
         });
-        let signing_client_for_gateway = self.wallets.gateway.map(|blob_operator| {
-            let private_key = blob_operator.private_key();
+        let signing_client_for_gateway = self.wallets.gateway.map(|gateway_operator| {
+            let private_key = gateway_operator.private_key();
             let GatewayEthInterfaceResource(gateway_client) = input.gateway_client.unwrap();
             let signing_client_for_blobs = PKSigningClient::new_raw(
                 private_key.clone(),
