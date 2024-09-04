@@ -171,7 +171,6 @@ impl EthWatch {
                     RETRY_LIMIT,
                 )
                 .await?;
-            tracing::info!("Eth-watch iteration for {:?} with source: {:?}, last processed block: {}, last finalized block: {}, events to process: {}", processor.event_type(), processor.event_source(), from_block, finalized_block, processor_events.len());
             let processed_events_count = processor
                 .process_events(storage, &*self.sl_client, processor_events.clone())
                 .await?;

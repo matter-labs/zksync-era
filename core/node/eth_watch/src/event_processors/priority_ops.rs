@@ -91,9 +91,6 @@ impl EventProcessor for PriorityOpsEventProcessor {
         APP_METRICS.processed_txs[&TxStage::added_to_mempool()].inc();
         APP_METRICS.processed_l1_txs[&TxStage::added_to_mempool()].inc();
         let processed_priority_transactions = client.get_total_priority_txs().await?;
-        tracing::info!(
-            "Eth-watch processed_priority_transactions:{processed_priority_transactions}"
-        );
         let mut processed_events_count = 0;
         for new_op in new_ops {
             if processed_priority_transactions <= new_op.serial_id().0 {
