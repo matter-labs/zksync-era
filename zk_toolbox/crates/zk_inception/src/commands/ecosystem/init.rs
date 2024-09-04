@@ -371,5 +371,5 @@ fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<
         "forge build --zksync --zk-enable-eravm-extensions"
     ))
     .run()?;
-    Ok(Cmd::new(cmd!(shell, "yarn build:bootloader")).run()?)
+    Ok(Cmd::new(cmd!(shell, "yarn sc build")).run()?)
 }
