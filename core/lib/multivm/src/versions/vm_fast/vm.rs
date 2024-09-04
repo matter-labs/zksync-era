@@ -63,13 +63,15 @@ pub struct Vm<S> {
     pub(crate) batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
     snapshot: Option<VmSnapshot>,
-    pub(crate) tracer: CircuitsTracer,
+    #[cfg(test)]
+    enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
 impl<S: ReadStorage> Vm<S> {
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,
+        tracer: &mut CircuitsTracer,
         track_refunds: bool,
     ) -> (ExecutionResult, Refunds) {
         let mut refunds = Refunds {
@@ -80,7 +82,7 @@ impl<S: ReadStorage> Vm<S> {
         let mut pubdata_before = self.inner.world_diff.pubdata() as u32;
 
         let result = loop {
-            let hook = match self.inner.run(&mut self.world, &mut self.tracer) {
+            let hook = match self.inner.run(&mut self.world, tracer) {
                 ExecutionEnd::SuspendedOnHook(hook) => hook,
                 ExecutionEnd::ProgramFinished(output) => break ExecutionResult::Success { output },
                 ExecutionEnd::Reverted(output) => {
@@ -213,10 +215,7 @@ impl<S: ReadStorage> Vm<S> {
                         user_logs: extract_l2tol1logs_from_l1_messenger(&events),
                         l2_to_l1_messages: VmEvent::extract_long_l2_to_l1_messages(&events),
                         published_bytecodes,
-                        state_diffs: self
-                            .compute_state_diffs()
-                            .filter(|diff| diff.address != L1_MESSENGER_ADDRESS)
-                            .collect(),
+                        state_diffs: self.compute_state_diffs(),
                     };
 
                     // Save the pubdata for the future initial bootloader memory building
@@ -340,10 +339,19 @@ impl<S: ReadStorage> Vm<S> {
         self.write_to_bootloader_heap(memory);
     }
 
-    fn compute_state_diffs(&mut self) -> impl Iterator<Item = StateDiffRecord> + '_ {
-        let storage = &mut self.world.storage;
+    #[cfg(test)]
+    pub(super) fn enforce_state_diffs(&mut self, diffs: Vec<StateDiffRecord>) {
+        self.enforced_state_diffs = Some(diffs);
+    }
 
-        self.inner.world_diff.get_storage_changes().map(
+    fn compute_state_diffs(&mut self) -> Vec<StateDiffRecord> {
+        #[cfg(test)]
+        if let Some(enforced_diffs) = self.enforced_state_diffs.take() {
+            return enforced_diffs;
+        }
+
+        let storage = &mut self.world.storage;
+        let diffs = self.inner.world_diff.get_storage_changes().map(
             move |((address, key), (initial_value, final_value))| {
                 let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(key));
                 StateDiffRecord {
@@ -360,14 +368,17 @@ impl<S: ReadStorage> Vm<S> {
                     final_value,
                 }
             },
-        )
+        );
+        diffs
+            .filter(|diff| diff.address != L1_MESSENGER_ADDRESS)
+            .collect()
     }
 
     pub(crate) fn decommitted_hashes(&self) -> impl Iterator<Item = U256> + '_ {
         self.inner.world_diff.decommitted_hashes()
     }
 
-    fn gas_remaining(&self) -> u32 {
+    pub(super) fn gas_remaining(&self) -> u32 {
         self.inner.state.current_frame.gas
     }
 }
@@ -414,7 +425,7 @@ impl<S: ReadStorage> Vm<S> {
         inner.state.current_frame.aux_heap_size = u32::MAX;
         inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
 
-        let mut me = Self {
+        let mut this = Self {
             world: World::new(storage, program_cache),
             inner,
             gas_for_account_validation: system_env.default_validation_computational_gas_limit,
@@ -426,12 +437,11 @@ impl<S: ReadStorage> Vm<S> {
             system_env,
             batch_env,
             snapshot: None,
-            tracer: CircuitsTracer::default(),
+            #[cfg(test)]
+            enforced_state_diffs: None,
         };
-
-        me.write_to_bootloader_heap(bootloader_memory);
-
-        me
+        this.write_to_bootloader_heap(bootloader_memory);
+        this
     }
 
     // visible for testing
@@ -493,11 +503,12 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             track_refunds = true;
         }
 
-        self.tracer = CircuitsTracer::default();
+        let mut tracer = CircuitsTracer::default();
         let start = self.inner.world_diff.snapshot();
         let pubdata_before = self.inner.world_diff.pubdata();
+        let gas_before = self.gas_remaining();
 
-        let (result, refunds) = self.run(execution_mode, track_refunds);
+        let (result, refunds) = self.run(execution_mode, &mut tracer, track_refunds);
         let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
             && matches!(result, ExecutionResult::Halt { .. });
 
@@ -549,9 +560,8 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         };
 
         let pubdata_after = self.inner.world_diff.pubdata();
-
-        let circuit_statistic = self.tracer.circuit_statistic();
-
+        let circuit_statistic = tracer.circuit_statistic();
+        let gas_remaining = self.gas_remaining();
         VmExecutionResultAndLogs {
             result,
             logs,
@@ -559,8 +569,8 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             statistics: VmExecutionStatistics {
                 contracts_used: 0,
                 cycles_used: 0,
-                gas_used: 0,
-                gas_remaining: self.gas_remaining(),
+                gas_used: (gas_before - gas_remaining).into(),
+                gas_remaining,
                 computational_gas_used: 0,
                 total_log_queries: 0,
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
