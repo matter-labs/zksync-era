@@ -182,7 +182,6 @@ fn run_prover(
     chain: &ChainConfig,
     docker_image: Option<&str>,
 ) -> anyhow::Result<()> {
-    check_prerequisites(shell, &GPU_PREREQUISITES, false);
     logger::info(MSG_RUNNING_PROVER);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
@@ -190,6 +189,7 @@ fn run_prover(
     if let Some(docker_image) = docker_image {
         run_dockerized_component(shell, docker_image, "", MSG_RUNNING_PROVER_ERR)
     } else {
+        check_prerequisites(shell, &GPU_PREREQUISITES, false);
         let mut cmd = Cmd::new(
             cmd!(shell, "cargo run --features gpu --release --bin zksync_prover_fri -- --config-path={config_path} --secrets-path={secrets_path}"),
         );
