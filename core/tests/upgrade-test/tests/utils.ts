@@ -88,10 +88,10 @@ export function initContracts(pathToHome: string, zkToolbox: boolean): Contracts
                 require(`${CONTRACTS_FOLDER}/l1-contracts/out/ChainAdmin.sol/ChainAdmin.json`).abi
             ),
             l2ForceDeployUpgraderAbi: new ethers.Interface(
-                require(`${CONTRACTS_FOLDER}/l2-contracts/artifacts-zk/contracts/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
+                require(`${CONTRACTS_FOLDER}/l2-contracts/zkout/ForceDeployUpgrader.sol/ForceDeployUpgrader.json`).abi
             ),
             complexUpgraderAbi: new ethers.Interface(
-                require(`${CONTRACTS_FOLDER}/system-contracts/artifacts-zk/contracts-preprocessed/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
+                require(`${CONTRACTS_FOLDER}/system-contracts/zkout/ComplexUpgrader.sol/ComplexUpgrader.json`).abi
             ),
             counterBytecode:
                 require(`${pathToHome}/core/tests/ts-integration/artifacts-zk/contracts/counter/counter.sol/Counter.json`)
