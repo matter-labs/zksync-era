@@ -2,19 +2,16 @@
 //! protocol upgrades etc.
 //! New events are accepted to the ZKsync network once they have the sufficient amount of L1 confirmations.
 
-use std::{
-    ops::{Add, RangeInclusive, Sub},
-    time::Duration,
-};
+use std::time::Duration;
 
 use anyhow::Context as _;
 use tokio::sync::watch;
-use zksync_dal::{eth_watcher_dal::EventType, Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     ethabi::Contract, l1::L1Tx, protocol_version::ProtocolSemanticVersion,
-    web3::BlockNumber as Web3BlockNumber, Address, L1ChainId, PriorityOpId, SLChainId,
+    web3::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
 };
 
 pub use self::client::EthHttpQueryClient;
@@ -24,7 +21,7 @@ use self::{
         EventProcessor, EventProcessorError, GovernanceUpgradesEventProcessor,
         PriorityOpsEventProcessor,
     },
-    metrics::{PollStage, METRICS},
+    metrics::METRICS,
 };
 use crate::event_processors::{DecentralizedUpgradesEventProcessor, EventsSource};
 

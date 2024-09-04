@@ -77,6 +77,7 @@ impl ProtoRepr for proto::L1Secrets {
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             l1_rpc_url: SensitiveUrl::from_str(required(&self.l1_rpc_url).context("l1_rpc_url")?)?,
+            gateway_url: None,
         })
     }
 

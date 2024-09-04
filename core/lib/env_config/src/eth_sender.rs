@@ -23,6 +23,9 @@ impl FromEnv for L1Secrets {
                 .context("ETH_CLIENT_WEB3_URL")?
                 .parse()
                 .context("ETH_CLIENT_WEB3_URL")?,
+            gateway_url: std::env::var("ETH_CLIENT_GATEWAY_WEB3_URL")
+                .ok()
+                .map(|url| url.parse().expect("ETH_CLIENT_GATEWAY_WEB3_URL")),
         })
     }
 }

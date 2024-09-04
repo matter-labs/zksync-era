@@ -1,10 +1,8 @@
-use std::ops::RangeInclusive;
-
 use anyhow::Context as _;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    ethabi::Contract, protocol_version::ProtocolSemanticVersion, web3::Log, L1BatchNumber,
-    ProtocolUpgrade, H256, U256,
+    ethabi::Contract, protocol_version::ProtocolSemanticVersion, web3::Log, ProtocolUpgrade, H256,
+    U256,
 };
 
 use crate::{

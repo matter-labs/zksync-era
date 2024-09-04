@@ -1,4 +1,4 @@
-use std::{convert::TryFrom, ops::RangeInclusive};
+use std::convert::TryFrom;
 
 use anyhow::Context;
 use zksync_contracts::hyperchain_contract;

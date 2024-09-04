@@ -2,7 +2,7 @@ use std::fmt;
 
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core};
 use zksync_eth_client::{ContractCallError, EnrichedClientError};
-use zksync_types::{web3::Log, L1BatchNumber, H256};
+use zksync_types::{web3::Log, H256};
 
 pub(crate) use self::{
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
