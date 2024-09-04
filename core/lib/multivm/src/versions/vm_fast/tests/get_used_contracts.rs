@@ -200,7 +200,7 @@ fn get_used_contracts_with_out_of_gas_far_call() {
     let increment = proxy_counter_abi.function("increment").unwrap();
     let increment_tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: data.proxy_counter_address,
+            contract_address: Some(data.proxy_counter_address),
             calldata: increment
                 .encode_input(&[Token::Uint(1.into()), Token::Uint(u64::MAX.into())])
                 .unwrap(),
