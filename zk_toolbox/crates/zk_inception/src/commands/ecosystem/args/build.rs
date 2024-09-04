@@ -1,21 +1,18 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::{forge::ForgeScriptArgs, PromptConfirm};
+use common::forge::ForgeScriptArgs;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    commands::chain::args::genesis::GenesisArgs,
-    messages::{MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_GENESIS_ARGS_HELP},
-};
+use crate::{commands::chain::args::genesis::GenesisArgs, messages::MSG_GENESIS_ARGS_HELP};
 
 const DEFAULT_OUT_DIR: &str = "transactions";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemArgs {
     /// Deploy ecosystem contracts
-    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
-    pub build_ecosystem: Option<bool>,
+    #[arg(long)]
+    pub build_ecosystem: bool,
     /// Path to ecosystem contracts
     #[clap(long)]
     pub ecosystem_contracts_path: Option<PathBuf>,
@@ -23,14 +20,8 @@ pub struct EcosystemArgs {
 
 impl EcosystemArgs {
     pub fn fill_values_with_prompt(self) -> EcosystemArgsFinal {
-        let build_ecosystem = self.build_ecosystem.unwrap_or_else(|| {
-            PromptConfirm::new(MSG_DEPLOY_ECOSYSTEM_PROMPT)
-                .default(true)
-                .ask()
-        });
-
         EcosystemArgsFinal {
-            build_ecosystem,
+            build_ecosystem: self.build_ecosystem,
             ecosystem_contracts_path: self.ecosystem_contracts_path,
         }
     }
