@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{check_prover_prequisites, cmd::Cmd, config::global_config, logger};
+use common::{check_prerequisites, cmd::Cmd, config::global_config, logger, GPU_PREREQUISITES};
 use config::{ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
@@ -20,7 +20,6 @@ use crate::messages::{
 };
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
-    check_prover_prequisites(shell);
     let args = args.fill_values_with_prompt()?;
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain = ecosystem_config
@@ -97,6 +96,7 @@ fn run_witness_vector_generator(
 }
 
 fn run_prover(shell: &Shell, chain: &ChainConfig) -> anyhow::Result<()> {
+    check_prerequisites(shell, &GPU_PREREQUISITES, false);
     logger::info(MSG_RUNNING_PROVER);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
@@ -113,6 +113,7 @@ fn run_compressor(
     chain: &ChainConfig,
     ecosystem: &EcosystemConfig,
 ) -> anyhow::Result<()> {
+    check_prerequisites(shell, &GPU_PREREQUISITES, false);
     logger::info(MSG_RUNNING_COMPRESSOR);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();

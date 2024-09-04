@@ -21,7 +21,7 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception chain update-token-multiplier-setter`↴](#zk_inception-chain-update-token-multiplier-setter)
 - [`zk_inception prover`↴](#zk_inception-prover)
 - [`zk_inception prover init`↴](#zk_inception-prover-init)
-- [`zk_inception prover generate-sk`↴](#zk_inception-prover-generate-sk)
+- [`zk_inception prover setup-keys`↴](#zk_inception-prover-setup-keys)
 - [`zk_inception prover run`↴](#zk_inception-prover-run)
 - [`zk_inception prover init-bellman-cuda`↴](#zk_inception-prover-init-bellman-cuda)
 - [`zk_inception server`↴](#zk_inception-server)
@@ -475,11 +475,21 @@ Initialize prover
 
   Possible values: `gcp`, `local`
 
-## `zk_inception prover generate-sk`
+## `zk_inception prover setup-keys`
 
-Generate setup keys
+Setup keys
 
-**Usage:** `zk_inception prover generate-sk`
+**Usage:** `zk_inception prover setup-keys`
+
+###### **Options:**
+
+- `--mode`
+
+  Possible valuess: `download`, `generate`
+
+- `--region`
+
+  Possible values: `asia`, `europe`, `us`
 
 ## `zk_inception prover run`
 
