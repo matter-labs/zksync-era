@@ -29,12 +29,12 @@ pub mod gpu_prover {
         CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
     };
     use zksync_prover_fri_utils::region_fetcher::Zone;
+    use zksync_prover_keystore::{keystore::Keystore, GoldilocksGpuProverSetupData};
     use zksync_queued_job_processor::{async_trait, JobProcessor};
     use zksync_types::{
         basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
         prover_dal::SocketAddress,
     };
-    use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
 
     use crate::{
         metrics::METRICS,
