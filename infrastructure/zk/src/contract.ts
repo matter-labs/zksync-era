@@ -111,7 +111,7 @@ async function migrateToSyncLayer() {
 
     // FIXME: consider creating new sync_layer_* variable.
     updateContractsEnv(envFile, migrationLog, ['GATEWAY_DIAMOND_PROXY_ADDR']);
-    env.modify('CONTRACTS_DIAMOND_PROXY_ADDR', process.env.GATEWAY_DIAMOND_PROXY_ADDR!, envFile, true);
+    //env.modify('CONTRACTS_DIAMOND_PROXY_ADDR', process.env.GATEWAY_DIAMOND_PROXY_ADDR!, envFile, true);
     env.modify('ETH_SENDER_SENDER_PUBDATA_SENDING_MODE', 'RelayedL2Calldata', envFile, true);
     env.modify('ETH_SENDER_GAS_ADJUSTER_SETTLEMENT_MODE', 'Gateway', envFile, true);
 }
