@@ -11,7 +11,7 @@ use crate::{
     vm_latest::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
-            utils::read_message_root,
+            utils::read_message_rooot,
         },
         HistoryEnabled,
     },
@@ -36,7 +36,7 @@ fn test_l2_message_root_init_logs() {
         .with_random_rich_accounts(1)
         .build();
 
-    let message_root_bytecode = read_message_root();
+    let message_root_bytecode = read_message_rooot();
     let account = &mut vm.rich_accounts[0];
     let DeployContractsTx { tx, address, .. } = account.get_deploy_tx(
         &message_root_bytecode,

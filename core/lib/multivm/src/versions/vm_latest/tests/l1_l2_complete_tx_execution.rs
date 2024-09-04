@@ -18,7 +18,7 @@ use crate::{
             tester::{VmTester, VmTesterBuilder},
             utils::{
                 deploy_and_verify_contract, read_admin_facet, read_bridgehub, read_diamond,
-                read_diamond_init, read_diamond_proxy, read_mailbox_facet, read_message_root,
+                read_diamond_init, read_diamond_proxy, read_mailbox_facet, read_message_rooot,
                 read_stm, read_transparent_proxy, send_l2_tx_and_verify, send_prank_tx_and_verify,
                 undo_l1_to_l2_alias, BASE_SYSTEM_CONTRACTS,
             },
@@ -53,7 +53,7 @@ fn prepare_environment_and_deploy_contracts(
 
     // Deploy Message Root
 
-    let message_root_contract_bytecode = read_message_root();
+    let message_root_contract_bytecode = read_message_rooot();
     let max_number_of_hyperchains = U256::from(100);
     let constructor_data = &[Token::Address(bridgehub_address)];
     let message_root_address = deploy_and_verify_contract(

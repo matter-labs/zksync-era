@@ -85,16 +85,16 @@ pub(crate) fn read_nonce_holder_tester() -> Vec<u8> {
     read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/custom-account/nonce-holder-test.sol/NonceHolderTest.json")
 }
 
-pub(crate) fn read_message_root() -> Vec<u8> {
-    read_bytecode(
-        "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/MessageRoot.sol/MessageRoot.json",
-    )
-}
-
 pub(crate) fn read_bridgehub() -> (Vec<u8>, Contract) {
     let path =
         "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/Bridgehub.sol/Bridgehub.json";
     (read_bytecode(path), load_contract(path))
+}
+
+pub(crate) fn read_message_rooot() -> Vec<u8> {
+    read_bytecode(
+        "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/MessageRoot.sol/MessageRoot.json",
+    )
 }
 
 pub(crate) fn read_stm() -> (Vec<u8>, Contract) {
