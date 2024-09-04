@@ -266,10 +266,17 @@ fn run_dockerized_component(
     let path_to_artifacts =
         get_link_to_prover(&EcosystemConfig::from_file(shell)?).join("/artifacts");
 
-    let mut cmd = Cmd::new(cmd!(
+    let mut cmd = if additional_args.is_empty() {
+        Cmd::new(cmd!(
+            shell,
+            "docker run --net=host -v {path_to_artifacts}:/zksync-era/prover/artifacts -v {path_to_configs}:/configs {image_name} --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml"
+        ));
+    } else {
+        Cmd::new(cmd!(
             shell,
             "docker run --net=host -v {path_to_artifacts}:/zksync-era/prover/artifacts -v {path_to_configs}:/configs {image_name} --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml {additional_args}"
         ));
+    };
     cmd = cmd.with_force_run();
     cmd.run().map_err(|err| anyhow!(err))
 }
