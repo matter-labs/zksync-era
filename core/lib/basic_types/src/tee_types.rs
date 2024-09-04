@@ -13,9 +13,16 @@ pub enum TeeType {
 mod tests {
     use std::str::FromStr;
 
+    use envy;
+    use serde::Deserialize;
     use serde_json;
 
     use super::TeeType;
+
+    #[derive(Deserialize)]
+    struct Config {
+        tee_type: TeeType,
+    }
 
     #[test]
     fn test_deserialize_teetype() {
@@ -39,5 +46,13 @@ mod tests {
     #[test]
     fn test_display_teetype() {
         assert_eq!(TeeType::Sgx.to_string(), "sgx");
+    }
+
+    #[test]
+    fn test_envy_teetype() {
+        std::env::set_var("TEE_TYPE", "sgx");
+
+        let config = envy::from_env::<Config>().unwrap();
+        assert_eq!(config.tee_type, TeeType::Sgx);
     }
 }
