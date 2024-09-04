@@ -14,7 +14,7 @@ use zksync_types::{
     Address, L1BatchNumber,
 };
 use zksync_web3_decl::{
-    client::{DynClient, L1, L2},
+    client::{ClientMap, DynClient, L1, L2},
     error::EnrichedClientError,
 };
 
@@ -146,12 +146,7 @@ impl TreeDataFetcher {
         Ok(self)
     }
 
-    pub fn with_migration_setup(
-        mut self,
-        client: Box<DynClient<L1>>,
-        diamond_proxy_address: Address,
-        first_migrated_batch: L1BatchNumber,
-    ) -> anyhow::Result<Self> {
+    pub fn with_client_map(mut self, client_map: ClientMap) -> anyhow::Result<Self> {
         anyhow::ensure!(
             self.data_provider.l1.is_some(),
             "L1 data provider is not set up"
@@ -160,15 +155,12 @@ impl TreeDataFetcher {
             self.data_provider
                 .l1
                 .as_ref()
-                .map(|l1| &l1.migration_setup)
+                .map(|l1| &l1.settlement_layer_picker)
                 .is_none(),
-            "Migration setup is already set up"
+            "Client map is already set up"
         );
-        self.data_provider.set_migration_details(
-            client,
-            diamond_proxy_address,
-            first_migrated_batch,
-        );
+        self.data_provider
+            .set_client_map(client_map, self.pool.clone());
         Ok(self)
     }
 

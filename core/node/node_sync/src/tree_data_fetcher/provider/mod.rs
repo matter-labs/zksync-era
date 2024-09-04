@@ -2,10 +2,11 @@ use std::fmt;
 
 use anyhow::Context;
 use async_trait::async_trait;
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::EthInterface;
 use zksync_types::{block::L2BlockHeader, web3, Address, L1BatchNumber, H256, U256, U64};
 use zksync_web3_decl::{
-    client::{DynClient, L1, L2},
+    client::{ClientMap, DynClient, L1, L2},
     error::{ClientRpcContext, EnrichedClientError, EnrichedClientResult},
     jsonrpsee::core::ClientError,
     namespaces::ZksNamespaceClient,
@@ -107,14 +108,13 @@ pub(super) struct L1DataProvider {
     diamond_proxy_address: Address,
     block_commit_signature: H256,
     past_l1_batch: Option<PastL1BatchInfo>,
-    pub migration_setup: Option<MigrationSetup>,
+    pub settlement_layer_picker: Option<SettlementLayerPicker>,
 }
 
 #[derive(Debug)]
-pub(super) struct MigrationSetup {
-    client: Box<DynClient<L1>>,
-    diamond_proxy_address: Address,
-    first_migrated_batch: L1BatchNumber,
+pub struct SettlementLayerPicker {
+    client_map: ClientMap,
+    pool: ConnectionPool<Core>,
 }
 
 impl L1DataProvider {
@@ -137,21 +137,12 @@ impl L1DataProvider {
             diamond_proxy_address,
             block_commit_signature,
             past_l1_batch: None,
-            migration_setup: None,
+            settlement_layer_picker: None,
         })
     }
 
-    pub fn set_migration_details(
-        &mut self,
-        client: Box<DynClient<L1>>,
-        diamond_proxy_address: Address,
-        first_migrated_batch: L1BatchNumber,
-    ) {
-        self.migration_setup = Some(MigrationSetup {
-            client,
-            diamond_proxy_address,
-            first_migrated_batch,
-        });
+    pub fn set_client_map(&mut self, client_map: ClientMap, pool: ConnectionPool<Core>) {
+        self.settlement_layer_picker = Some(SettlementLayerPicker { client_map, pool });
     }
 
     /// Guesses the number of an L1 block with a `BlockCommit` event for the specified L1 batch.
@@ -237,25 +228,36 @@ impl TreeDataProvider for L1DataProvider {
             }
         });
 
-        let (client, diamond_proxy) = match &self.migration_setup {
-            Some(MigrationSetup {
-                client,
-                first_migrated_batch,
-                diamond_proxy_address,
-            }) if *first_migrated_batch <= number => {
-                (client as &dyn EthInterface, *diamond_proxy_address)
+        let (client, diamond_proxy) = match &self.settlement_layer_picker {
+            Some(SettlementLayerPicker { client_map, pool }) => {
+                let sl_chain_id = pool
+                    .connection_tagged("tree_data_fetcher")
+                    .await?
+                    .eth_sender_dal()
+                    .get_batch_commit_chain_id(number)
+                    .await?;
+                match sl_chain_id {
+                    Some(chain_id) => {
+                        let (client, diamond_proxy) =
+                            client_map.get_boxed(chain_id).ok_or_else(|| {
+                                anyhow::anyhow!("No client found for chain id {chain_id}")
+                            })?;
+                        (client.for_component("tree_data_fetcher"), diamond_proxy)
+                    }
+                    None => (self.eth_client.clone(), self.diamond_proxy_address),
+                }
             }
-            _ => (
-                &self.eth_client as &dyn EthInterface,
-                self.diamond_proxy_address,
-            ),
+            None => (self.eth_client.clone(), self.diamond_proxy_address),
         };
 
         let from_block = match from_block {
             Some(number) => number,
             None => {
-                let (approximate_block, steps) =
-                    Self::guess_l1_commit_block_number(client, l1_batch_seal_timestamp).await?;
+                let (approximate_block, steps) = Self::guess_l1_commit_block_number(
+                    &client as &dyn EthInterface,
+                    l1_batch_seal_timestamp,
+                )
+                .await?;
                 tracing::debug!(
                     number = number.0,
                     "Guessed L1 block number for L1 batch #{number} commit in {steps} binary search steps: {approximate_block}"
@@ -345,14 +347,9 @@ impl CombinedDataProvider {
         self.l1 = Some(l1);
     }
 
-    pub fn set_migration_details(
-        &mut self,
-        client: Box<DynClient<L1>>,
-        diamond_proxy_address: Address,
-        first_migrated_batch: L1BatchNumber,
-    ) {
+    pub fn set_client_map(&mut self, client_map: ClientMap, pool: ConnectionPool<Core>) {
         if let Some(l1) = &mut self.l1 {
-            l1.set_migration_details(client, diamond_proxy_address, first_migrated_batch);
+            l1.set_client_map(client_map, pool);
         }
     }
 }

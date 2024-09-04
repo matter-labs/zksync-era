@@ -1,13 +1,15 @@
 use std::{
+    collections::HashMap,
     env,
     ffi::OsString,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     path::PathBuf,
+    str::FromStr,
     time::Duration,
 };
 
 use anyhow::Context;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use zksync_config::{
     configs::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
@@ -473,6 +475,10 @@ pub(crate) struct OptionalENConfig {
     pruning_data_retention_sec: u64,
     /// Gateway RPC URL, needed for operating during migration.
     pub gateway_url: Option<SensitiveUrl>,
+
+    /// Map of settlement layer chain IDs to their respective RPC URLs and diamond proxy addresses.
+    #[serde(default, deserialize_with = "deserialize_sl_client_map")]
+    pub sl_client_map: HashMap<SLChainId, (SensitiveUrl, Address)>,
 }
 
 impl OptionalENConfig {
@@ -698,6 +704,7 @@ impl OptionalENConfig {
             api_namespaces,
             contracts_diamond_proxy_addr: None,
             gateway_url: enconfig.gateway_url.clone(),
+            sl_client_map: enconfig.sl_client_map.clone(),
         })
     }
 
@@ -942,7 +949,7 @@ pub(crate) struct RequiredENConfig {
     pub l1_chain_id: L1ChainId,
     /// The chain ID of the settlement layer (e.g., 1 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual settlement layer network.
-    pub sl_chain_id: Option<SLChainId>,
+    pub sl_chain_id: Option<SLChainId>, // TODO
     /// L2 chain ID (e.g., 270 for ZKsync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L2 network.
     pub l2_chain_id: L2ChainId,
@@ -961,6 +968,32 @@ pub(crate) struct RequiredENConfig {
     pub state_cache_path: String,
     /// Fast SSD path. Used as a RocksDB dir for the Merkle tree (*new* implementation).
     pub merkle_tree_path: String,
+}
+
+fn deserialize_sl_client_map<'de, D>(
+    deserializer: D,
+) -> Result<HashMap<SLChainId, (SensitiveUrl, Address)>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let map: serde_json::Value = serde_json::Value::deserialize(deserializer)?;
+    let mut result = HashMap::new();
+    let error = || {
+        serde::de::Error::custom("invalid sl_client_map: expected object {chainID: [url, address]}")
+    };
+    for (key, val) in map.as_object().ok_or(error())? {
+        let key: u64 = key.parse().map_err(serde::de::Error::custom)?;
+        let val = val.as_array().ok_or(error())?;
+        if val.len() != 2 {
+            return Err(error());
+        }
+        let url = val[0].as_str().ok_or(error())?;
+        let url = url.parse().map_err(serde::de::Error::custom)?;
+        let addr = val[1].as_str().ok_or(error())?;
+        let addr = Address::from_str(addr).map_err(serde::de::Error::custom)?;
+        result.insert(SLChainId(key), (url, addr));
+    }
+    Ok(result)
 }
 
 impl RequiredENConfig {

@@ -5,4 +5,10 @@ l1_batch_commit_data_generator_mode: Rollup
 main_node_url: http://localhost:3050
 main_node_rate_limit_rps: 1000
 
-gateway_url: http://localhost:3052
+sl_client_map: 
+  9: 
+    rpc_url: http://localhost:8545
+    diamond_proxy_address: "0x86Fa049857E0209aa7D9e616F7eb3b3B78ECfdb0"
+  271: 
+    rpc_url: http://localhost:3052
+    diamond_proxy_address: "0xbd8dfe0812df0da534eb95a2d2a4382d65a8172c"

@@ -7,7 +7,7 @@ use tokio::sync::watch;
 use zksync_eth_client::EthInterface;
 use zksync_types::{L2ChainId, SLChainId};
 use zksync_web3_decl::{
-    client::{DynClient, L1, L2},
+    client::{ClientMap, DynClient, L1, L2},
     error::ClientRpcContext,
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
@@ -19,8 +19,10 @@ pub struct ValidateChainIdsTask {
     l2_chain_id: L2ChainId,
     eth_client: Box<DynClient<L1>>,
     main_node_client: Box<DynClient<L2>>,
+    client_map: ClientMap,
 }
 
+// TODO: add validation for the introduced chain_id -> rpc + diamond proxy map
 impl ValidateChainIdsTask {
     const BACKOFF_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -29,12 +31,14 @@ impl ValidateChainIdsTask {
         l2_chain_id: L2ChainId,
         eth_client: Box<DynClient<L1>>,
         main_node_client: Box<DynClient<L2>>,
+        client_map: ClientMap,
     ) -> Self {
         Self {
             sl_chain_id,
             l2_chain_id,
             eth_client: eth_client.for_component("chain_ids_validation"),
             main_node_client: main_node_client.for_component("chain_ids_validation"),
+            client_map,
         }
     }
 
@@ -145,15 +149,26 @@ impl ValidateChainIdsTask {
             Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.sl_chain_id);
         let main_node_l2_check =
             Self::check_l2_chain_using_main_node(self.main_node_client, self.l2_chain_id);
-        let joined_futures =
-            futures::future::try_join3(eth_client_check, main_node_l1_check, main_node_l2_check)
-                .fuse();
+        let client_map_checks = self.client_map.0.keys().map(|key| {
+            let (client, _) = self.client_map.get_boxed(*key).unwrap();
+            let client = client.for_component("chain_ids_validation");
+            Self::check_eth_client(client, self.sl_chain_id)
+        });
+        let joined_client_map_checks = futures::future::try_join_all(client_map_checks).fuse();
+        let joined_futures = futures::future::try_join4(
+            eth_client_check,
+            main_node_l1_check,
+            main_node_l2_check,
+            joined_client_map_checks,
+        )
+        .fuse();
         tokio::select! {
             res = joined_futures => res.map(drop),
             _ = stop_receiver.changed() =>  Ok(()),
         }
     }
 
+    // TODO
     /// Runs the task until the stop signal is received.
     pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
         // Since check futures are fused, they are safe to poll after getting resolved; they will never resolve again,
@@ -195,6 +210,7 @@ mod tests {
             L2ChainId::default(),
             Box::new(eth_client.clone()),
             Box::new(main_node_client.clone()),
+            Default::default(),
         );
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let err = validation_task
@@ -212,6 +228,7 @@ mod tests {
             L2ChainId::from(270),
             Box::new(eth_client.clone()),
             Box::new(main_node_client),
+            Default::default(),
         );
         let err = validation_task
             .run(stop_receiver.clone())
@@ -233,6 +250,7 @@ mod tests {
             L2ChainId::from(271), // << mismatch with the main node client
             Box::new(eth_client),
             Box::new(main_node_client),
+            Default::default(),
         );
         let err = validation_task
             .run(stop_receiver)
@@ -260,6 +278,7 @@ mod tests {
             L2ChainId::default(),
             Box::new(eth_client),
             Box::new(main_node_client),
+            Default::default(),
         );
         let (stop_sender, stop_receiver) = watch::channel(false);
         let task = tokio::spawn(validation_task.run(stop_receiver));

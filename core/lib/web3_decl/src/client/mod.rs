@@ -13,7 +13,7 @@
 
 use std::{
     any,
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     fmt,
     num::NonZeroUsize,
     sync::{Arc, Mutex},
@@ -32,7 +32,7 @@ use jsonrpsee::{
 };
 use serde::de::DeserializeOwned;
 use tokio::time::Instant;
-use zksync_types::url::SensitiveUrl;
+use zksync_types::{url::SensitiveUrl, Address, SLChainId};
 
 use self::metrics::{L2ClientMetrics, METRICS};
 pub use self::{
@@ -490,5 +490,28 @@ impl SharedRateLimit {
             *state = SharedRateLimitState::Limited { until: *until };
         }
         stats
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ClientMap(pub HashMap<SLChainId, (SensitiveUrl, Address)>);
+
+impl From<HashMap<SLChainId, (SensitiveUrl, Address)>> for ClientMap {
+    fn from(map: HashMap<SLChainId, (SensitiveUrl, Address)>) -> Self {
+        Self(map)
+    }
+}
+
+impl ClientMap {
+    pub fn get(&self, chain_id: SLChainId) -> Option<(Client<L1>, Address)> {
+        self.0.get(&chain_id).map(|(url, address)| {
+            let client = Client::<L1>::http(url.clone()).unwrap().build();
+            (client, *address)
+        })
+    }
+
+    pub fn get_boxed(&self, chain_id: SLChainId) -> Option<(Box<DynClient<L1>>, Address)> {
+        self.get(chain_id)
+            .map(|(client, address)| (Box::new(client) as Box<DynClient<L1>>, address))
     }
 }

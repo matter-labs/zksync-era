@@ -1,9 +1,10 @@
 use zksync_consistency_checker::ConsistencyChecker;
+use zksync_eth_client::clients::ClientMap;
 use zksync_types::{commitment::L1BatchCommitmentMode, Address, L1BatchNumber};
 
 use crate::{
     implementations::resources::{
-        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
+        eth_interface::EthInterfaceResource,
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
     },
@@ -20,7 +21,7 @@ pub struct ConsistencyCheckerLayer {
     diamond_proxy_addr: Address,
     max_batches_to_recheck: u32,
     commitment_mode: L1BatchCommitmentMode,
-    migration_details: Option<(L1BatchNumber, Address)>,
+    client_map: ClientMap,
 }
 
 #[derive(Debug, FromContext)]
@@ -30,7 +31,6 @@ pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
-    pub migration_client: Option<GatewayEthInterfaceResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -45,22 +45,14 @@ impl ConsistencyCheckerLayer {
         diamond_proxy_addr: Address,
         max_batches_to_recheck: u32,
         commitment_mode: L1BatchCommitmentMode,
+        client_map: ClientMap,
     ) -> ConsistencyCheckerLayer {
         Self {
             diamond_proxy_addr,
             max_batches_to_recheck,
             commitment_mode,
-            migration_details: None,
+            client_map,
         }
-    }
-
-    pub fn with_migration_details(
-        mut self,
-        first_batch_migrated: L1BatchNumber,
-        diamond_proxy_address: Address,
-    ) -> Self {
-        self.migration_details = Some((first_batch_migrated, diamond_proxy_address));
-        self
     }
 }
 
@@ -84,23 +76,10 @@ impl WiringLayer for ConsistencyCheckerLayer {
             self.max_batches_to_recheck,
             singleton_pool,
             self.commitment_mode,
+            self.client_map,
         )
         .map_err(WiringError::Internal)?
         .with_diamond_proxy_addr(self.diamond_proxy_addr);
-
-        if let Some((first_batch_migrated, diamond_proxy_address)) = self.migration_details {
-            consistency_checker = consistency_checker.with_migration_setup(
-                input
-                    .migration_client
-                    .ok_or_else(|| WiringError::ResourceLacking {
-                        id: ResourceId::of::<GatewayEthInterfaceResource>(),
-                        name: GatewayEthInterfaceResource::name(),
-                    })?
-                    .0,
-                first_batch_migrated,
-                Some(diamond_proxy_address),
-            );
-        }
 
         input
             .app_health

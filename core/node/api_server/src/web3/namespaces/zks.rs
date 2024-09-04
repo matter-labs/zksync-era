@@ -373,6 +373,7 @@ impl ZksNamespace {
 
         println!("Trying to get the final proof! {}", l1_batch_number);
 
+        // TODO
         // FIXME Definitely refactor all of it
         const EXPECTED_SYNC_LAYER_CHAIN_ID: u64 = 270;
 

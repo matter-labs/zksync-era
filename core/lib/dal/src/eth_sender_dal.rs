@@ -421,6 +421,27 @@ impl EthSenderDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn get_batch_commit_chain_id(
+        &mut self,
+        batch: L1BatchNumber,
+    ) -> anyhow::Result<Option<SLChainId>> {
+        let chain_id = sqlx::query_scalar!(
+            r#"
+            SELECT
+                eth_txs.chain_id
+            FROM
+                eth_txs
+                JOIN l1_batches ON eth_commit_tx_id = eth_txs.id
+            WHERE
+                l1_batches.number = $1
+            "#,
+            i64::from(batch.0)
+        )
+        .fetch_one(self.storage.conn())
+        .await?;
+        Ok(chain_id.map(|id| SLChainId(id as u64)))
+    }
+
     pub async fn get_confirmed_tx_hash_by_eth_tx_id(
         &mut self,
         eth_tx_id: u32,

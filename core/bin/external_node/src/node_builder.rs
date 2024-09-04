@@ -278,6 +278,7 @@ impl ExternalNodeBuilder {
         let layer = ValidateChainIdsLayer::new(
             self.config.required.settlement_layer_id(),
             self.config.required.l2_chain_id,
+            self.config.optional.sl_client_map.clone().into(),
         );
         self.node.add_layer(layer);
         Ok(self)
@@ -289,20 +290,8 @@ impl ExternalNodeBuilder {
             self.config.remote.user_facing_diamond_proxy,
             max_batches_to_recheck,
             self.config.optional.l1_batch_commit_data_generator_mode,
+            self.config.optional.sl_client_map.clone().into(),
         );
-
-        if self.config.optional.gateway_url.is_some() {
-            layer = layer.with_migration_details(
-                self.config
-                    .remote
-                    .first_gateway_batch_number
-                    .expect("First gateway batch number is not set"),
-                self.config
-                    .remote
-                    .gateway_diamond_proxy
-                    .expect("Gateway diamond proxy is not set"),
-            );
-        }
 
         self.node.add_layer(layer);
         Ok(self)
@@ -327,20 +316,10 @@ impl ExternalNodeBuilder {
     }
 
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        let mut layer = TreeDataFetcherLayer::new(self.config.remote.user_facing_diamond_proxy);
-
-        if self.config.optional.gateway_url.is_some() {
-            layer = layer.with_migration_details(
-                self.config
-                    .remote
-                    .first_gateway_batch_number
-                    .expect("First gateway batch number is not set"),
-                self.config
-                    .remote
-                    .gateway_diamond_proxy
-                    .expect("Gateway diamond proxy is not set"),
-            );
-        }
+        let mut layer = TreeDataFetcherLayer::new(
+            self.config.remote.user_facing_diamond_proxy,
+            self.config.optional.sl_client_map.clone().into(),
+        );
 
         self.node.add_layer(layer);
         Ok(self)

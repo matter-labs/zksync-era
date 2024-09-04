@@ -1,4 +1,9 @@
-use std::{borrow::Cow, collections::HashSet, fmt, time::Duration};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, HashSet},
+    fmt,
+    time::Duration,
+};
 
 use anyhow::Context as _;
 use serde::Serialize;
@@ -6,7 +11,7 @@ use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
-    clients::{DynClient, L1},
+    clients::{ClientMap, DynClient, L1},
     CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface,
 };
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
@@ -20,7 +25,8 @@ use zksync_types::{
     ethabi,
     ethabi::Token,
     pubdata_da::PubdataDA,
-    Address, L1BatchNumber, ProtocolVersionId, H256, U256,
+    url::SensitiveUrl,
+    Address, L1BatchNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
 
 #[cfg(test)]
@@ -312,7 +318,7 @@ pub struct ConsistencyChecker {
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
     l1_client: Box<DynClient<L1>>,
-    migration_setup: Option<MigrationSetup>,
+    client_map: ClientMap,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
@@ -335,6 +341,7 @@ impl ConsistencyChecker {
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
+        client_map: ClientMap,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Ok(Self {
@@ -343,7 +350,7 @@ impl ConsistencyChecker {
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             l1_client: l1_client.for_component("consistency_checker"),
-            migration_setup: None,
+            client_map,
             event_handler: Box::new(health_updater),
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
@@ -354,20 +361,6 @@ impl ConsistencyChecker {
 
     pub fn with_diamond_proxy_addr(mut self, address: Address) -> Self {
         self.diamond_proxy_addr = Some(address);
-        self
-    }
-
-    pub fn with_migration_setup(
-        mut self,
-        client: Box<DynClient<L1>>,
-        first_batch_migrated: L1BatchNumber,
-        diamond_proxy_address: Option<Address>,
-    ) -> Self {
-        self.migration_setup = Some(MigrationSetup {
-            client: client.for_component("consistency_checker"),
-            diamond_proxy_address,
-            first_batch_migrated,
-        });
         self
     }
 
@@ -384,13 +377,26 @@ impl ConsistencyChecker {
         let commit_tx_hash = local.commit_tx_hash;
         tracing::info!("Checking commit tx {commit_tx_hash} for L1 batch #{batch_number}");
 
-        let client = match &self.migration_setup {
-            Some(MigrationSetup {
-                first_batch_migrated,
-                client,
-                ..
-            }) if *first_batch_migrated <= local.l1_batch.header.number => client.as_ref(),
-            _ => self.l1_client.as_ref(),
+        let sl_chain_id = self
+            .pool
+            .connection_tagged("consistency_checker")
+            .await
+            .map_err(|err| CheckError::Internal(err.into()))?
+            .eth_sender_dal()
+            .get_batch_commit_chain_id(batch_number)
+            .await
+            .map_err(CheckError::Internal)?;
+
+        let (client, diamond_proxy) = match sl_chain_id {
+            Some(chain_id) => {
+                let (client, address) = self
+                    .client_map
+                    .get_boxed(chain_id)
+                    .ok_or_else(|| anyhow::anyhow!("no client found for chain id {}", chain_id))
+                    .map_err(CheckError::Internal)?;
+                (client.for_component("consistency_checker"), Some(address))
+            }
+            None => (self.l1_client.clone(), self.diamond_proxy_addr),
         };
 
         let commit_tx_status = client
@@ -410,7 +416,8 @@ impl ConsistencyChecker {
             .with_context(|| format!("commit transaction {commit_tx_hash:?} not found on L1"))
             .map_err(CheckError::Internal)?; // we've got a transaction receipt previously, thus an internal error
 
-        if let Some(diamond_proxy_addr) = self.diamond_proxy_addr {
+        // TODO
+        if let Some(diamond_proxy_addr) = diamond_proxy {
             let event = self
                 .contract
                 .event("BlockCommit")
@@ -544,11 +551,11 @@ impl ConsistencyChecker {
         let regular = self
             .diamond_proxy_addr
             .map(|addr| (addr, self.l1_client.clone()));
-        let migration = self.migration_setup.as_ref().and_then(|setup| {
-            setup
-                .diamond_proxy_address
-                .map(|addr| (addr, setup.client.clone()))
-        });
+        // let migration = self.migration_setup.as_ref().and_then(|setup| {
+        //     setup
+        //         .diamond_proxy_address
+        //         .map(|addr| (addr, setup.client.clone()))
+        // });
 
         let log_version = |address, client| async move {
             tracing::debug!("Performing sanity checks for diamond proxy contract {address:?}");
@@ -563,9 +570,10 @@ impl ConsistencyChecker {
         if let Some((address, client)) = regular {
             log_version(address, client).await?;
         }
-        if let Some((address, client)) = migration {
-            log_version(address, client).await?;
-        }
+        // if let Some((address, client)) = migration {
+        //     log_version(address, client).await?;
+        // }
+        // TODO check client map!
 
         Ok(())
     }

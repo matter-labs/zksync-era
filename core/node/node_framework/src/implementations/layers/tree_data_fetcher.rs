@@ -1,9 +1,10 @@
+use zksync_eth_client::clients::ClientMap;
 use zksync_node_sync::tree_data_fetcher::TreeDataFetcher;
 use zksync_types::{Address, L1BatchNumber};
 
 use crate::{
     implementations::resources::{
-        eth_interface::{EthInterfaceResource, GatewayEthInterfaceResource},
+        eth_interface::EthInterfaceResource,
         healthcheck::AppHealthCheckResource,
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
@@ -19,7 +20,7 @@ use crate::{
 #[derive(Debug)]
 pub struct TreeDataFetcherLayer {
     diamond_proxy_addr: Address,
-    migration_details: Option<(L1BatchNumber, Address)>,
+    client_map: ClientMap,
 }
 
 #[derive(Debug, FromContext)]
@@ -30,7 +31,6 @@ pub struct Input {
     pub eth_client: EthInterfaceResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
-    pub migration_client: Option<GatewayEthInterfaceResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -41,20 +41,11 @@ pub struct Output {
 }
 
 impl TreeDataFetcherLayer {
-    pub fn new(diamond_proxy_addr: Address) -> Self {
+    pub fn new(diamond_proxy_addr: Address, client_map: ClientMap) -> Self {
         Self {
             diamond_proxy_addr,
-            migration_details: None,
+            client_map,
         }
-    }
-
-    pub fn with_migration_details(
-        mut self,
-        first_batch_migrated: L1BatchNumber,
-        diamond_proxy_address: Address,
-    ) -> Self {
-        self.migration_details = Some((first_batch_migrated, diamond_proxy_address));
-        self
     }
 }
 
@@ -76,22 +67,9 @@ impl WiringLayer for TreeDataFetcherLayer {
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
-        let mut fetcher =
-            TreeDataFetcher::new(client, pool).with_l1_data(eth_client, self.diamond_proxy_addr)?;
-
-        if let Some((first_batch_migrated, diamond_proxy_address)) = self.migration_details {
-            fetcher = fetcher.with_migration_setup(
-                input
-                    .migration_client
-                    .ok_or_else(|| WiringError::ResourceLacking {
-                        id: ResourceId::of::<GatewayEthInterfaceResource>(),
-                        name: GatewayEthInterfaceResource::name(),
-                    })?
-                    .0,
-                diamond_proxy_address,
-                first_batch_migrated,
-            )?;
-        }
+        let mut fetcher = TreeDataFetcher::new(client, pool)
+            .with_l1_data(eth_client, self.diamond_proxy_addr)?
+            .with_client_map(self.client_map)?;
 
         // Insert healthcheck
         input
