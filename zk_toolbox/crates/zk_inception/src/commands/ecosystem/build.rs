@@ -121,7 +121,7 @@ async fn build_ecosystem(
     initial_deployment_config: &InitialDeploymentConfig,
     sender: String,
 ) -> anyhow::Result<ContractsConfig> {
-    if ecosystem.deploy_ecosystem {
+    if ecosystem.build_ecosystem {
         return build_ecosystem_inner(
             shell,
             forge_args,

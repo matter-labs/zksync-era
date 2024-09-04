@@ -15,7 +15,7 @@ const DEFAULT_OUT_DIR: &str = "transactions";
 pub struct EcosystemArgs {
     /// Deploy ecosystem contracts
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
-    pub deploy_ecosystem: Option<bool>,
+    pub build_ecosystem: Option<bool>,
     /// Path to ecosystem contracts
     #[clap(long)]
     pub ecosystem_contracts_path: Option<PathBuf>,
@@ -23,14 +23,14 @@ pub struct EcosystemArgs {
 
 impl EcosystemArgs {
     pub fn fill_values_with_prompt(self) -> EcosystemArgsFinal {
-        let deploy_ecosystem = self.deploy_ecosystem.unwrap_or_else(|| {
+        let build_ecosystem = self.build_ecosystem.unwrap_or_else(|| {
             PromptConfirm::new(MSG_DEPLOY_ECOSYSTEM_PROMPT)
                 .default(true)
                 .ask()
         });
 
         EcosystemArgsFinal {
-            deploy_ecosystem,
+            build_ecosystem,
             ecosystem_contracts_path: self.ecosystem_contracts_path,
         }
     }
@@ -38,7 +38,7 @@ impl EcosystemArgs {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EcosystemArgsFinal {
-    pub deploy_ecosystem: bool,
+    pub build_ecosystem: bool,
     pub ecosystem_contracts_path: Option<PathBuf>,
 }
 
@@ -47,6 +47,7 @@ pub struct EcosystemBuildArgs {
     /// Address of the transaction sender.
     #[arg(long)]
     pub sender: String,
+    /// Output directory for the generated files.
     #[arg(long, short)]
     pub out: Option<String>,
     #[clap(flatten)]
