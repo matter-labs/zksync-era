@@ -1,18 +1,31 @@
 //! Tests for the VM execution sandbox.
 
+use std::collections::HashMap;
+
 use assert_matches::assert_matches;
+use test_casing::test_casing;
 use zksync_dal::ConnectionPool;
 use zksync_multivm::{
-    interface::{executor::OneshotExecutor, OneshotTracingParams, TxExecutionArgs},
+    interface::{
+        executor::{OneshotExecutor, TransactionValidator},
+        tracer::ValidationError,
+        Halt, OneshotTracingParams, TxExecutionArgs,
+    },
     utils::derive_base_fee_and_gas_per_pubdata,
 };
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
-use zksync_types::{api::state_override::StateOverride, ProtocolVersionId, Transaction};
+use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
+use zksync_types::{
+    api::state_override::{OverrideAccount, StateOverride},
+    fee::Fee,
+    l2::L2Tx,
+    transaction_request::PaymasterParams,
+    K256PrivateKey, Nonce, ProtocolVersionId, Transaction, U256,
+};
 use zksync_vm_executor::oneshot::MainOneshotExecutor;
 
-use super::*;
-use crate::{execution_sandbox::storage::StorageWithOverrides, tx_sender::ApiContracts};
+use super::{storage::StorageWithOverrides, *};
+use crate::tx_sender::ApiContracts;
 
 #[tokio::test]
 async fn creating_block_args() {
@@ -169,7 +182,7 @@ async fn creating_block_args_after_snapshot_recovery() {
 }
 
 #[tokio::test]
-async fn instantiating_vm() {
+async fn estimating_gas() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut connection = pool.connection().await.unwrap();
     insert_genesis_batch(&mut connection, &GenesisParams::mock())
@@ -197,9 +210,7 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
         ProtocolVersionId::latest().into(),
     );
     setup_args.enforced_base_fee = Some(base_fee);
-    let mut transaction = create_l2_transaction(base_fee, gas_per_pubdata);
-    transaction.common_data.fee.gas_limit = 200_000.into();
-    let transaction = Transaction::from(transaction);
+    let transaction = Transaction::from(create_transfer(base_fee, gas_per_pubdata));
 
     let execution_args = TxExecutionArgs::for_gas_estimate(transaction.clone());
     let (env, storage) = apply::prepare_env_and_storage(connection, setup_args, &block_args)
@@ -215,4 +226,81 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
     output.compression_result.unwrap();
     let tx_result = *output.tx_result;
     assert!(!tx_result.result.is_failed(), "{tx_result:#?}");
+}
+
+fn create_transfer(fee_per_gas: u64, gas_per_pubdata: u64) -> L2Tx {
+    let fee = Fee {
+        gas_limit: 200_000.into(),
+        max_fee_per_gas: fee_per_gas.into(),
+        max_priority_fee_per_gas: 0_u64.into(),
+        gas_per_pubdata_limit: gas_per_pubdata.into(),
+    };
+    L2Tx::new_signed(
+        Address::random(),
+        vec![],
+        Nonce(0),
+        fee,
+        U256::zero(),
+        L2ChainId::default(),
+        &K256PrivateKey::random(),
+        vec![],
+        PaymasterParams::default(),
+    )
+    .unwrap()
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn validating_transaction(set_balance: bool) {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut connection = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut connection, &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let block_args = BlockArgs::pending(&mut connection).await.unwrap();
+
+    let call_contracts = ApiContracts::load_from_disk().await.unwrap().eth_call;
+    let mut setup_args = TxSetupArgs::mock(TxExecutionMode::VerifyExecute, call_contracts);
+    let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
+        setup_args.fee_input,
+        ProtocolVersionId::latest().into(),
+    );
+    setup_args.enforced_base_fee = Some(base_fee);
+    let transaction = create_transfer(base_fee, gas_per_pubdata);
+
+    let validation_params =
+        validate::get_validation_params(&mut connection, &transaction, u32::MAX, &[])
+            .await
+            .unwrap();
+    let (env, storage) = apply::prepare_env_and_storage(connection, setup_args, &block_args)
+        .await
+        .unwrap();
+    let state_override = if set_balance {
+        let account_override = OverrideAccount {
+            balance: Some(U256::from(1) << 128),
+            ..OverrideAccount::default()
+        };
+        StateOverride::new(HashMap::from([(
+            transaction.initiator_account(),
+            account_override,
+        )]))
+    } else {
+        StateOverride::default()
+    };
+    let storage = StorageWithOverrides::new(storage, &state_override);
+
+    let validation_result = MainOneshotExecutor::new(usize::MAX)
+        .validate_transaction(storage, env, transaction, validation_params)
+        .await
+        .unwrap();
+    if set_balance {
+        validation_result.expect("validation failed");
+    } else {
+        assert_matches!(
+            validation_result.unwrap_err(),
+            ValidationError::FailedTx(Halt::ValidationFailed(reason))
+                if reason.to_string().contains("Not enough balance")
+        );
+    }
 }
