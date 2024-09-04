@@ -1,6 +1,6 @@
 use zksync_consistency_checker::ConsistencyChecker;
 use zksync_eth_client::clients::ClientMap;
-use zksync_types::{commitment::L1BatchCommitmentMode, Address, L1BatchNumber};
+use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 
 use crate::{
     implementations::resources::{
@@ -8,7 +8,6 @@ use crate::{
         healthcheck::AppHealthCheckResource,
         pools::{MasterPool, PoolResource},
     },
-    resource::{Resource, ResourceId},
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
@@ -71,7 +70,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
 
         let singleton_pool = input.master_pool.get_singleton().await?;
 
-        let mut consistency_checker = ConsistencyChecker::new(
+        let consistency_checker = ConsistencyChecker::new(
             l1_client,
             self.max_batches_to_recheck,
             singleton_pool,

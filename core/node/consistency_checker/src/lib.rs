@@ -1,9 +1,4 @@
-use std::{
-    borrow::Cow,
-    collections::{HashMap, HashSet},
-    fmt,
-    time::Duration,
-};
+use std::{borrow::Cow, collections::HashSet, fmt, time::Duration};
 
 use anyhow::Context as _;
 use serde::Serialize;
@@ -25,8 +20,7 @@ use zksync_types::{
     ethabi,
     ethabi::Token,
     pubdata_da::PubdataDA,
-    url::SensitiveUrl,
-    Address, L1BatchNumber, ProtocolVersionId, SLChainId, H256, U256,
+    Address, L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 
 #[cfg(test)]

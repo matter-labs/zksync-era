@@ -162,14 +162,14 @@ fn mock_batch_details(number: u32, stage: L1BatchStage) -> api::L1BatchDetails {
             commit_tx_hash: (stage >= L1BatchStage::Committed).then(|| H256::repeat_byte(1)),
             committed_at: (stage >= L1BatchStage::Committed)
                 .then(|| Utc.timestamp_opt(100, 0).unwrap()),
-            commit_chain_id: Some(SLChainId(0)),
+            commit_chain_id: (stage >= L1BatchStage::Committed).then_some(SLChainId(11)),
             prove_tx_hash: (stage >= L1BatchStage::Proven).then(|| H256::repeat_byte(2)),
             proven_at: (stage >= L1BatchStage::Proven).then(|| Utc.timestamp_opt(200, 0).unwrap()),
-            prove_chain_id: Some(SLChainId(0)),
+            prove_chain_id: (stage >= L1BatchStage::Proven).then_some(SLChainId(22)),
             execute_tx_hash: (stage >= L1BatchStage::Executed).then(|| H256::repeat_byte(3)),
             executed_at: (stage >= L1BatchStage::Executed)
                 .then(|| Utc.timestamp_opt(300, 0).unwrap()),
-            execute_chain_id: Some(SLChainId(0)),
+            execute_chain_id: (stage >= L1BatchStage::Executed).then_some(SLChainId(33)),
             l1_gas_price: 1,
             l2_fair_gas_price: 2,
             fair_pubdata_price: None,

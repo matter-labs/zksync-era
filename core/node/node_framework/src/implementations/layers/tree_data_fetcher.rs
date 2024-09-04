@@ -1,6 +1,6 @@
 use zksync_eth_client::clients::ClientMap;
 use zksync_node_sync::tree_data_fetcher::TreeDataFetcher;
-use zksync_types::{Address, L1BatchNumber};
+use zksync_types::Address;
 
 use crate::{
     implementations::resources::{
@@ -9,7 +9,6 @@ use crate::{
         main_node_client::MainNodeClientResource,
         pools::{MasterPool, PoolResource},
     },
-    resource::{Resource, ResourceId},
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
@@ -67,7 +66,7 @@ impl WiringLayer for TreeDataFetcherLayer {
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
-        let mut fetcher = TreeDataFetcher::new(client, pool)
+        let fetcher = TreeDataFetcher::new(client, pool)
             .with_l1_data(eth_client, self.diamond_proxy_addr)?
             .with_client_map(self.client_map)?;
 
