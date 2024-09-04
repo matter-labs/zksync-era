@@ -31,7 +31,7 @@ use super::{
 use crate::{
     glue::GlueInto,
     interface::{
-        storage::ReadStorage, BytecodeCompressionError, CompressedBytecodeInfo,
+        storage::ReadStorage, BytecodeCompressionError, BytecodeCompressionResult,
         CurrentExecutionState, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
         Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode,
         VmExecutionResultAndLogs, VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled,
@@ -585,17 +585,17 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         (): Self::TracerDispatcher,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> (
-        Result<Vec<CompressedBytecodeInfo>, BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.push_transaction_inner(tx, 0, with_compression);
         let result = self.inspect((), VmExecutionMode::OneTx);
 
         let compression_result = if self.has_unpublished_bytecodes() {
             Err(BytecodeCompressionError::BytecodeCompressionFailed)
         } else {
-            Ok(self.bootloader_state.get_last_tx_compressed_bytecodes())
+            Ok(self
+                .bootloader_state
+                .get_last_tx_compressed_bytecodes()
+                .into())
         };
         (compression_result, result)
     }

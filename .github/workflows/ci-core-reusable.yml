@@ -87,8 +87,10 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'new' && 22000 || 16000 }} >> .env
-          echo ACCOUNTS_AMOUNT="150" >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'new' && 21000 || 16000 }} >> .env
+          echo ACCOUNTS_AMOUNT="100" >> .env
+          echo MAX_INFLIGHT_TXS="10" >> .env
+          echo SYNC_API_REQUESTS_LIMIT="15" >> .env
           echo FAIL_FAST=true >> .env
           echo IN_DOCKER=1 >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
@@ -112,7 +114,8 @@ jobs:
       - name: Run server
         run: |
           EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE=${{ matrix.vm_mode }} \
-          PASSED_ENV_VARS="EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE" \
+          CHAIN_MEMPOOL_DELAY_INTERVAL=50 \
+          PASSED_ENV_VARS="EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE,CHAIN_MEMPOOL_DELAY_INTERVAL" \
             ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
 

@@ -77,7 +77,7 @@ where
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         let tx_hash = tx.hash();
         let main_result = self.main.inspect_transaction_with_bytecode_compression(
             tracer,
