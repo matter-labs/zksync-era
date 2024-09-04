@@ -455,6 +455,30 @@ impl ConsensusDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn attester_committee(&mut self, n : attester::BatchNumber) -> anyhow::Result<Option<attester::Committee>> {
+        // TODO
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                certificate
+            FROM
+                l1_batches_consensus
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::try_from(batch_number.0)?
+        )
+        .instrument("batch_certificate")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
+    
+    }
+
     /// Inserts a certificate for the L1 batch.
     /// Noop if a certificate for the same L1 batch is already present.
     /// Verification against previously stored attester committee is performed.
@@ -464,6 +488,11 @@ impl ConsensusDal<'_, '_> {
         &mut self,
         cert: &attester::BatchQC,
     ) -> anyhow::Result<()> {
+        let genesis = self.genesis().await.context("genesis()").context("genesis is missing")?;
+        let committee = self.attester_committee(cert.message.number).await
+            .context("attester_committee()")
+            .context("attester committee is missing")?;
+        cert.verify(genesis.hash(), &committee).context("cert.verify()")?;
         let res = sqlx::query!(
             r#"
             INSERT INTO
