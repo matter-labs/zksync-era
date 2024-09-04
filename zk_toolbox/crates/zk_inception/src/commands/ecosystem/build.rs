@@ -2,6 +2,7 @@ use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
 use common::{
+    files::save_toml_file,
     forge::{Forge, ForgeScriptArgs},
     git, logger,
     spinner::Spinner,
@@ -38,6 +39,9 @@ use crate::{
     utils::forge::check_the_balance,
 };
 
+const DEPLOY_TRANSACTIONS_FILE: &str =
+    "contracts/l1-contracts/broadcast/DeployL1.s.sol/9/dry-run/run-latest.json";
+
 pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
@@ -53,7 +57,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
-    let _contracts_config = init(
+    let contracts_config = init(
         &mut final_ecosystem_args,
         shell,
         &ecosystem_config,
@@ -62,7 +66,24 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
     )
     .await?;
 
-    logger::outro("TODO");
+    shell
+        .create_dir(&final_ecosystem_args.out)
+        .context("Impossible to create out dir")?;
+
+    save_toml_file(
+        shell,
+        format!("{}/contracts.toml", final_ecosystem_args.out),
+        contracts_config,
+        "",
+    )
+    .context("Impossible to save contracts file")?;
+
+    shell.copy_file(
+        DEPLOY_TRANSACTIONS_FILE,
+        format!("{}/deploy.json", final_ecosystem_args.out),
+    )?;
+
+    logger::outro("Transactions successfully built");
 
     Ok(())
 }
@@ -79,7 +100,7 @@ async fn init(
     build_system_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
 
-    let contracts = deploy_ecosystem(
+    let contracts = build_ecosystem(
         shell,
         &mut init_args.ecosystem,
         init_args.forge_args.clone(),
@@ -92,7 +113,7 @@ async fn init(
     Ok(contracts)
 }
 
-async fn deploy_ecosystem(
+async fn build_ecosystem(
     shell: &Shell,
     ecosystem: &mut EcosystemArgsFinal,
     forge_args: ForgeScriptArgs,
@@ -101,7 +122,7 @@ async fn deploy_ecosystem(
     sender: String,
 ) -> anyhow::Result<ContractsConfig> {
     if ecosystem.deploy_ecosystem {
-        return deploy_ecosystem_inner(
+        return build_ecosystem_inner(
             shell,
             forge_args,
             ecosystem_config,
@@ -162,7 +183,7 @@ async fn deploy_ecosystem(
     ContractsConfig::read(shell, ecosystem_contracts_path)
 }
 
-async fn deploy_ecosystem_inner(
+async fn build_ecosystem_inner(
     shell: &Shell,
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
@@ -176,6 +197,7 @@ async fn deploy_ecosystem_inner(
             .context("Context")?;
 
     let wallets_config = config.get_wallets()?;
+
     // For deploying ecosystem we only need genesis batch params
     let deploy_config = DeployL1Config::new(
         &default_genesis_config,

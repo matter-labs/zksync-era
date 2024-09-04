@@ -117,3 +117,4 @@ chains/era/configs/*
 configs/*
 era-observability/
 core/tests/ts-integration/deployments-zk
+transactions/

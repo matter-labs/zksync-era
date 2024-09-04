@@ -9,6 +9,8 @@ use crate::{
     messages::{MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_GENESIS_ARGS_HELP},
 };
 
+const DEFAULT_OUT_DIR: &str = "transactions";
+
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemArgs {
     /// Deploy ecosystem contracts
@@ -45,6 +47,8 @@ pub struct EcosystemBuildArgs {
     /// Address of the transaction sender.
     #[arg(long)]
     pub sender: String,
+    #[arg(long, short)]
+    pub out: Option<String>,
     #[clap(flatten)]
     #[serde(flatten)]
     pub ecosystem: EcosystemArgs,
@@ -62,6 +66,7 @@ impl EcosystemBuildArgs {
 
         EcosystemBuildArgsFinal {
             sender: self.sender,
+            out: self.out.unwrap_or_else(|| DEFAULT_OUT_DIR.into()),
             ecosystem,
             forge_args: self.forge_args.clone(),
         }
@@ -71,6 +76,7 @@ impl EcosystemBuildArgs {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EcosystemBuildArgsFinal {
     pub sender: String,
+    pub out: String,
     pub ecosystem: EcosystemArgsFinal,
     pub forge_args: ForgeScriptArgs,
 }
