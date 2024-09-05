@@ -26,7 +26,6 @@ pub mod commitment_utils;
 pub mod keystore;
 pub mod setup_data_generator;
 pub mod utils;
-pub mod vk_commitment_helper;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(

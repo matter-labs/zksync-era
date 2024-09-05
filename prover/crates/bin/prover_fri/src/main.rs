@@ -139,6 +139,7 @@ async fn main() -> anyhow::Result<()> {
         public_blob_store,
         pool,
         circuit_ids_for_round_to_be_proven,
+        opt.max_allocation,
         notify,
     )
     .await
@@ -178,6 +179,7 @@ async fn get_prover_tasks(
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
+    _max_allocation: Option<usize>,
     _init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use crate::prover_job_processor::{load_setup_data_cache, Prover};
@@ -213,6 +215,7 @@ async fn get_prover_tasks(
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
+    max_allocation: Option<usize>,
     init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use gpu_prover_job_processor::gpu_prover;
@@ -245,6 +248,7 @@ async fn get_prover_tasks(
         address.clone(),
         zone.clone(),
         protocol_version,
+        max_allocation,
     );
     let producer = shared_witness_vector_queue.clone();
 
@@ -295,4 +299,6 @@ pub(crate) struct Cli {
     pub(crate) config_path: Option<std::path::PathBuf>,
     #[arg(long)]
     pub(crate) secrets_path: Option<std::path::PathBuf>,
+    #[arg(long)]
+    pub(crate) max_allocation: Option<usize>,
 }

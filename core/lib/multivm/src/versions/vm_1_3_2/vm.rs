@@ -83,7 +83,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         if let Some(storage_invocations) = tracer.storage_invocations {
             self.vm
                 .execution_mode
@@ -156,7 +156,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
                 result,
             )
         } else {
-            (Ok(compressed_bytecodes), result)
+            (Ok(compressed_bytecodes.into()), result)
         }
     }
 
