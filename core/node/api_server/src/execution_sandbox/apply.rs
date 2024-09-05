@@ -245,15 +245,6 @@ impl BlockArgs {
         )
     }
 
-    fn is_estimate_like(&self) -> bool {
-        matches!(
-            self.block_id,
-            api::BlockId::Number(api::BlockNumber::Pending)
-                | api::BlockId::Number(api::BlockNumber::Latest)
-                | api::BlockId::Number(api::BlockNumber::Committed)
-        )
-    }
-
     pub(crate) async fn default_eth_call_gas(
         &self,
         connection: &mut Connection<'_, Core>,
@@ -307,7 +298,7 @@ impl BlockArgs {
                 .context("resolved L2 block disappeared from storage")?
         };
 
-        let historical_fee_input = if !self.is_estimate_like() {
+        let historical_fee_input = if !self.resolves_to_latest_sealed_l2_block() {
             let l2_block_header = connection
                 .blocks_dal()
                 .get_l2_block_header(self.resolved_block_number)
