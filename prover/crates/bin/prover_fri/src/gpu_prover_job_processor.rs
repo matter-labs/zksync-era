@@ -181,8 +181,11 @@ pub mod gpu_prover {
                 (),
                 &worker,
             )
-            .unwrap_or_else(|_| {
-                panic!("failed generating GPU proof for id: {}", prover_job.job_id)
+            .unwrap_or_else(|err| {
+                panic!(
+                    "failed generating GPU proof for id: {}, error: {:?}",
+                    prover_job.job_id, err
+                )
             });
             tracing::info!(
                 "Successfully generated gpu proof for job {} took: {:?}",
