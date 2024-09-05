@@ -70,11 +70,13 @@ pub const GPU_PREREQUISITES: [Prerequisite; 3] = [
 pub const WGET_PREREQUISITES: [Prerequisite; 1] = [Prerequisite {
     name: "wget",
     download_link: "https://www.gnu.org/software/wget/",
+    custom_validator: None,
 }];
 
 pub const GCLOUD_PREREQUISITES: [Prerequisite; 1] = [Prerequisite {
     name: "gcloud",
     download_link: "https://cloud.google.com/sdk/docs/install",
+    custom_validator: None,
 }];
 
 pub struct Prerequisite {

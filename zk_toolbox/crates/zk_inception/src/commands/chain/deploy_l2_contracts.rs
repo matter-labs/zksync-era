@@ -1,9 +1,7 @@
-use std::path::Path;
-
 use anyhow::Context;
 use common::{
-    cmd::Cmd,
     config::global_config,
+    contracts::build_l2_contracts,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
@@ -18,7 +16,7 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use crate::{
     messages::{
@@ -95,7 +93,7 @@ pub async fn initialize_bridges(
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
-    build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
     call_forge(
         shell,
         chain_config,
@@ -120,7 +118,7 @@ pub async fn deploy_upgrader(
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
-    build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
     call_forge(
         shell,
         chain_config,
@@ -145,7 +143,7 @@ pub async fn deploy_l2_contracts(
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
-    build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
     call_forge(shell, chain_config, ecosystem_config, forge_args, None).await?;
     let output = InitializeBridgeOutput::read(
         shell,
@@ -207,13 +205,4 @@ async fn call_forge(
     check_the_balance(&forge).await?;
     forge.run(shell)?;
     Ok(())
-}
-
-fn build_l2_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts/l2-contracts"));
-    Ok(Cmd::new(cmd!(
-        shell,
-        "forge build --zksync --zk-enable-eravm-extensions"
-    ))
-    .run()?)
 }

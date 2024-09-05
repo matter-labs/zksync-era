@@ -1,12 +1,9 @@
-use std::{
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
 use common::{
-    cmd::Cmd,
     config::global_config,
+    contracts::build_system_contracts,
     forge::{Forge, ForgeScriptArgs},
     git, logger,
     spinner::Spinner,
@@ -29,7 +26,7 @@ use config::{
     ContractsConfig, EcosystemConfig, GenesisConfig,
 };
 use types::{L1Network, ProverMode};
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
@@ -143,8 +140,7 @@ async fn init(
     initial_deployment_config: &InitialDeploymentConfig,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
-    build_system_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
     spinner.finish();
 
     let contracts = deploy_ecosystem(
@@ -357,25 +353,4 @@ async fn deploy_ecosystem_inner(
     .await?;
 
     Ok(contracts_config)
-}
-
-fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts/system-contracts"));
-    Ok(Cmd::new(cmd!(shell, "yarn install")).run()?)
-}
-
-fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts/system-contracts"));
-    Cmd::new(cmd!(shell, "yarn preprocess:system-contracts")).run()?;
-    Cmd::new(cmd!(
-        shell,
-        "forge build --zksync --zk-enable-eravm-extensions"
-    ))
-    .run()?;
-    Cmd::new(cmd!(shell, "yarn preprocess:bootloader")).run()?;
-    Ok(Cmd::new(cmd!(
-        shell,
-        "forge build --zksync --zk-enable-eravm-extensions"
-    ))
-    .run()?)
 }
