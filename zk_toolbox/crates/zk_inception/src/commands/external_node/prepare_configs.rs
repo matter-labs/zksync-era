@@ -80,7 +80,7 @@ fn prepare_configs(
         }),
         l1: Some(L1Secrets {
             l1_rpc_url: SensitiveUrl::from_str(&args.l1_rpc_url).context("l1_rpc_url")?,
-            gateway_ur: None,
+            gateway_url: None,
         }),
     };
     secrets.save_with_base_path(shell, en_configs_path)?;
