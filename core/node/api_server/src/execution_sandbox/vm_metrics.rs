@@ -19,6 +19,7 @@ pub(super) enum SandboxStage {
     Initialization,
     ValidateInSandbox,
     Validation,
+    Execution,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]

@@ -41,6 +41,7 @@ mod mock;
 #[derive(Debug, Default)]
 pub struct MainOneshotExecutor {
     missed_storage_invocation_limit: usize,
+    execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
 }
 
 impl MainOneshotExecutor {
@@ -49,7 +50,16 @@ impl MainOneshotExecutor {
     pub fn new(missed_storage_invocation_limit: usize) -> Self {
         Self {
             missed_storage_invocation_limit,
+            execution_latency_histogram: None,
         }
+    }
+
+    /// Sets a histogram for measuring VM execution latency.
+    pub fn set_execution_latency_histogram(
+        &mut self,
+        histogram: &'static vise::Histogram<Duration>,
+    ) {
+        self.execution_latency_histogram = Some(histogram);
     }
 }
 
@@ -72,6 +82,7 @@ where
                 self.missed_storage_invocation_limit
             }
         };
+        let execution_latency_histogram = self.execution_latency_histogram;
 
         tokio::task::spawn_blocking(move || {
             let mut tracers = vec![];
@@ -83,7 +94,7 @@ where
                 StorageInvocations::new(missed_storage_invocation_limit).into_tracer_pointer(),
             );
 
-            let executor = VmSandbox::new(storage, env, args);
+            let executor = VmSandbox::new(storage, env, args, execution_latency_histogram);
             let mut result = executor.apply(|vm, transaction| {
                 let (compression_result, tx_result) = vm
                     .inspect_transaction_with_bytecode_compression(
@@ -123,6 +134,7 @@ where
             "Unexpected execution mode for tx validation: {:?} (expected `VerifyExecute`)",
             env.system.execution_mode
         );
+        let execution_latency_histogram = self.execution_latency_histogram;
 
         tokio::task::spawn_blocking(move || {
             let (validation_tracer, mut validation_result) =
@@ -132,7 +144,12 @@ where
                 );
             let tracers = vec![validation_tracer.into_tracer_pointer()];
 
-            let executor = VmSandbox::new(storage, env, TxExecutionArgs::for_validation(tx));
+            let executor = VmSandbox::new(
+                storage,
+                env,
+                TxExecutionArgs::for_validation(tx),
+                execution_latency_histogram,
+            );
             let exec_result = executor.apply(|vm, transaction| {
                 vm.push_transaction(transaction);
                 vm.inspect(tracers.into(), VmExecutionMode::OneTx)
@@ -157,11 +174,17 @@ struct VmSandbox<S: ReadStorage> {
     vm: Box<VmInstance<S, HistoryDisabled>>,
     storage_view: StoragePtr<StorageView<S>>,
     transaction: Transaction,
+    execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
 }
 
 impl<S: ReadStorage> VmSandbox<S> {
     /// This method is blocking.
-    pub fn new(storage: S, mut env: OneshotEnv, execution_args: TxExecutionArgs) -> Self {
+    fn new(
+        storage: S,
+        mut env: OneshotEnv,
+        execution_args: TxExecutionArgs,
+        execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
+    ) -> Self {
         let mut storage_view = StorageView::new(storage);
         Self::setup_storage_view(&mut storage_view, &execution_args, env.current_block);
 
@@ -187,6 +210,7 @@ impl<S: ReadStorage> VmSandbox<S> {
             vm,
             storage_view,
             transaction: execution_args.transaction,
+            execution_latency_histogram,
         }
     }
 
@@ -248,9 +272,13 @@ impl<S: ReadStorage> VmSandbox<S> {
             self.transaction.nonce().unwrap_or(Nonce(0))
         );
 
+        let started_at = Instant::now();
         let result = apply_fn(&mut *self.vm, self.transaction);
-        let vm_execution_took = Duration::ZERO; // FIXME: metric
+        let vm_execution_took = started_at.elapsed();
 
+        if let Some(histogram) = self.execution_latency_histogram {
+            histogram.observe(vm_execution_took);
+        }
         let memory_metrics = self.vm.record_vm_memory_metrics();
         metrics::report_vm_memory_metrics(
             &tx_id,

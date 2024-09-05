@@ -12,7 +12,11 @@ use zksync_multivm::interface::{
 use zksync_types::{api::state_override::StateOverride, l2::L2Tx};
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
-use super::{apply, storage::StorageWithOverrides, vm_metrics, BlockArgs, TxSetupArgs, VmPermit};
+use super::{
+    apply, storage::StorageWithOverrides, vm_metrics, BlockArgs, TxSetupArgs, VmPermit,
+    SANDBOX_METRICS,
+};
+use crate::execution_sandbox::vm_metrics::SandboxStage;
 
 #[derive(Debug, Clone)]
 pub(crate) struct TransactionExecutionOutput {
@@ -36,7 +40,10 @@ pub(crate) enum TransactionExecutor {
 
 impl TransactionExecutor {
     pub fn real(missed_storage_invocation_limit: usize) -> Self {
-        Self::Real(MainOneshotExecutor::new(missed_storage_invocation_limit))
+        let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
+        executor
+            .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
+        Self::Real(executor)
     }
 
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
