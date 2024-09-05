@@ -101,6 +101,13 @@ impl WiringLayer for EthTxAggregatorLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        tracing::info!(
+            "Wiring tx_aggregator in {:?} mode which is {}",
+            self.settlement_mode,
+            self.settlement_mode.is_gateway()
+        );
+        tracing::info!("Contracts: {:?}", self.contracts_config);
+        tracing::info!("Gateway contracts: {:?}", self.gateway_contracts_config);
         // Get resources.
         let contracts_config = if self.settlement_mode.is_gateway() {
             self.gateway_contracts_config.unwrap()
