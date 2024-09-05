@@ -2,10 +2,7 @@ use common::{cmd::Cmd, logger};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
-use crate::{
-    defaults::{TEST_DATABASE_PROVER_URL, TEST_DATABASE_SERVER_URL},
-    messages::MSG_PROVER_TEST_SUCCESS,
-};
+use crate::{defaults::TEST_DATABASE_PROVER_URL, messages::MSG_PROVER_TEST_SUCCESS};
 
 pub fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(shell)?;
@@ -13,7 +10,7 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
 
     Cmd::new(cmd!(shell, "cargo test --release --workspace --locked"))
         .with_force_run()
-        .env("TEST_DATABASE_SERVER_URL", TEST_DATABASE_PROVER_URL)
+        .env("TEST_DATABASE_PROVER_URL", TEST_DATABASE_PROVER_URL)
         .run()?;
 
     logger::outro(MSG_PROVER_TEST_SUCCESS);
