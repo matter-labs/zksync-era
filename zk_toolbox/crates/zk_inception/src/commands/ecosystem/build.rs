@@ -7,7 +7,6 @@ use config::{
     traits::{ReadConfigWithBasePath, SaveConfig},
     EcosystemConfig, GenesisConfig,
 };
-use tokio::io::join;
 use types::ProverMode;
 use xshell::Shell;
 
@@ -16,13 +15,10 @@ use super::{
     create_configs::create_initial_deployments_config,
     utils::{build_system_contracts, install_yarn_dependencies},
 };
-use crate::{
-    messages::{
-        MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_ECOSYSTEM_BUILD_OUTRO,
-        MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR, MSG_INITIALIZING_ECOSYSTEM,
-        MSG_INTALLING_DEPS_SPINNER,
-    },
-    utils::forge::check_the_balance,
+use crate::messages::{
+    MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_ECOSYSTEM_BUILD_OUTRO,
+    MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR, MSG_INITIALIZING_ECOSYSTEM,
+    MSG_INTALLING_DEPS_SPINNER,
 };
 
 const DEPLOY_TRANSACTIONS_FILE: &str =
