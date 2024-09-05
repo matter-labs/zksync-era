@@ -16,10 +16,10 @@ use circuit_definitions::{
 };
 use serde::{Deserialize, Serialize};
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
+use zksync_basic_types::basic_fri_types::AggregationRound;
 use zksync_config::configs::FriProverConfig;
 use zksync_env_config::FromEnv;
 use zksync_prover_fri_types::ProverServiceDataKey;
-use zksync_types::basic_fri_types::AggregationRound;
 
 #[cfg(feature = "gpu")]
 use crate::GoldilocksGpuProverSetupData;
