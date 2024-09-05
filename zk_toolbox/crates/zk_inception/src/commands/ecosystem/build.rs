@@ -18,11 +18,12 @@ use super::{
 use crate::messages::{
     MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_ECOSYSTEM_BUILD_OUTRO,
     MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR, MSG_INITIALIZING_ECOSYSTEM,
-    MSG_INTALLING_DEPS_SPINNER,
+    MSG_INTALLING_DEPS_SPINNER, MSG_WRITING_OUTPUT_FILES_SPINNER,
 };
 
 const DEPLOY_TRANSACTIONS_FILE: &str =
     "contracts/l1-contracts/broadcast/DeployL1.s.sol/9/dry-run/run-latest.json";
+const SCRIPT_CONFIG_FILE: &str = "contracts/l1-contracts/script-config/config-deploy-l1.toml";
 
 pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -71,14 +72,21 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
     forge.run(shell)?;
     spinner.finish();
 
+    let spinner = Spinner::new(MSG_WRITING_OUTPUT_FILES_SPINNER);
     shell
         .create_dir(&final_ecosystem_args.out)
         .context(MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR)?;
 
     shell.copy_file(
         ecosystem_config.link_to_code.join(DEPLOY_TRANSACTIONS_FILE),
-        format!("{}/deploy.json", final_ecosystem_args.out),
+        format!("{}/deploy-l1-txns.json", final_ecosystem_args.out),
     )?;
+
+    shell.copy_file(
+        ecosystem_config.link_to_code.join(SCRIPT_CONFIG_FILE),
+        format!("{}/deploy-l1-config.toml", final_ecosystem_args.out),
+    )?;
+    spinner.finish();
 
     logger::outro(MSG_ECOSYSTEM_BUILD_OUTRO);
 
