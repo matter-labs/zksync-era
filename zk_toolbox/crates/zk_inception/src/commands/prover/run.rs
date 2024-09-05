@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::{anyhow, Context};
 use common::{
     check_prerequisites, cmd::Cmd, config::global_config, logger, spinner::Spinner,
