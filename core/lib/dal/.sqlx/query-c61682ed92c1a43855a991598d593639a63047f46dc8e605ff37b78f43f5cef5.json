@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE processed_events\n            SET\n                next_block_to_process = $3\n            WHERE\n            TYPE = $1\n            AND chain_id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "event_type",
+            "kind": {
+              "Enum": [
+                "ProtocolUpgrades",
+                "PriorityTransactions",
+                "GovernanceUpgrades"
+              ]
+            }
+          }
+        },
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c61682ed92c1a43855a991598d593639a63047f46dc8e605ff37b78f43f5cef5"
+}

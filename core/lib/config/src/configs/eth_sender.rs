@@ -169,6 +169,14 @@ impl SenderConfig {
             .map(|pk| pk.parse().unwrap())
     }
 
+    // Don't load gateway private key, if it's not required
+    #[deprecated]
+    pub fn private_key_gateway(&self) -> Option<H256> {
+        std::env::var("ETH_SENDER_SENDER_OPERATOR_GATEWAY_PRIVATE_KEY")
+            .ok()
+            .map(|pk| pk.parse().unwrap())
+    }
+
     const fn default_tx_aggregation_paused() -> bool {
         false
     }

@@ -1,6 +1,6 @@
 use std::fmt;
 
-use zksync_dal::{Connection, Core};
+use zksync_dal::{eth_watcher_dal::EventType, Connection, Core};
 use zksync_eth_client::{ContractCallError, EnrichedClientError};
 use zksync_types::{web3::Log, H256};
 
@@ -32,6 +32,12 @@ pub(super) enum EventProcessorError {
     Internal(#[from] anyhow::Error),
 }
 
+#[derive(Debug)]
+pub(super) enum EventsSource {
+    L1,
+    SL,
+}
+
 impl EventProcessorError {
     pub fn log_parse(source: impl Into<anyhow::Error>, log_kind: &'static str) -> Self {
         Self::LogParse {
@@ -49,10 +55,14 @@ pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        client: &dyn EthClient,
+        sl_client: &dyn EthClient,
         events: Vec<Log>,
-    ) -> Result<(), EventProcessorError>;
+    ) -> Result<usize, EventProcessorError>;
 
     /// Relevant topic which defines what events to be processed
     fn relevant_topic(&self) -> H256;
+
+    fn event_source(&self) -> EventsSource;
+
+    fn event_type(&self) -> EventType;
 }

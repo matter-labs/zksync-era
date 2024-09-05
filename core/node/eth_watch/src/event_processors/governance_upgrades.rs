@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_dal::{Connection, Core, CoreDal, DalError};
+use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
     ethabi::Contract, protocol_upgrade::GovernanceOperation,
     protocol_version::ProtocolSemanticVersion, web3::Log, Address, ProtocolUpgrade, H256,
@@ -7,7 +7,7 @@ use zksync_types::{
 
 use crate::{
     client::EthClient,
-    event_processors::{EventProcessor, EventProcessorError},
+    event_processors::{EventProcessor, EventProcessorError, EventsSource},
     metrics::{PollStage, METRICS},
 };
 
@@ -44,10 +44,11 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        client: &dyn EthClient,
+        sl_client: &dyn EthClient,
         events: Vec<Log>,
-    ) -> Result<(), EventProcessorError> {
+    ) -> Result<usize, EventProcessorError> {
         let mut upgrades = Vec::new();
+        let events_count = events.len();
         for event in events {
             assert_eq!(event.topics[0], self.upgrade_proposal_signature); // guaranteed by the watcher
 
@@ -69,7 +70,7 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
                 };
                 // Scheduler VK is not present in proposal event. It is hard coded in verifier contract.
                 let scheduler_vk_hash = if let Some(address) = upgrade.verifier_address {
-                    Some(client.scheduler_vk_hash(address).await?)
+                    Some(sl_client.scheduler_vk_hash(address).await?)
                 } else {
                     None
                 };
@@ -83,7 +84,7 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
             .collect();
 
         let Some((last_upgrade, _)) = new_upgrades.last() else {
-            return Ok(());
+            return Ok(events_count);
         };
         let versions: Vec<_> = new_upgrades
             .iter()
@@ -133,10 +134,18 @@ impl EventProcessor for GovernanceUpgradesEventProcessor {
         stage_latency.observe();
 
         self.last_seen_protocol_version = last_version;
-        Ok(())
+        Ok(events_count)
     }
 
     fn relevant_topic(&self) -> H256 {
         self.upgrade_proposal_signature
+    }
+
+    fn event_source(&self) -> EventsSource {
+        EventsSource::SL
+    }
+
+    fn event_type(&self) -> EventType {
+        EventType::GovernanceUpgrades
     }
 }

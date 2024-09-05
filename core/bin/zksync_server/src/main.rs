@@ -26,7 +26,7 @@ use zksync_core_leftovers::{
     temp_config_store::{decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
-use zksync_env_config::FromEnv;
+use zksync_env_config::{FromEnv, FromEnvVariant};
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -143,6 +143,8 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
+    let gateway_contracts_config = ContractsConfig::from_env_variant("GATEWAY_".to_string()).ok();
+
     let genesis = match opt.genesis_path {
         None => GenesisConfig::from_env().context("Genesis config")?,
         Some(path) => {
@@ -174,7 +176,14 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets)?;
+    let node = MainNodeBuilder::new(
+        configs,
+        wallets,
+        genesis,
+        contracts_config,
+        gateway_contracts_config,
+        secrets,
+    )?;
 
     let observability_guard = {
         // Observability initialization should be performed within tokio context.
