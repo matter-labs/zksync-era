@@ -2,7 +2,7 @@ use anyhow::Context;
 use common::{forge::Forge, git, logger, spinner::Spinner};
 use config::{
     forge_interface::{
-        deploy_ecosystem::input::DeployL1Config, script_params::DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
+        deploy_ecosystem::input::DeployL1Config, script_params::BUILD_ECOSYSTEM_SCRIPT_PARAMS,
     },
     traits::{ReadConfigWithBasePath, SaveConfig},
     EcosystemConfig, GenesisConfig,
@@ -56,13 +56,13 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
         ecosystem_config.era_chain_id,
         ecosystem_config.prover_version == ProverMode::NoProofs,
     );
-    let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
+    let deploy_config_path = BUILD_ECOSYSTEM_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
     deploy_config.save(shell, deploy_config_path)?;
 
     let spinner = Spinner::new(MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER);
     let forge = Forge::new(&ecosystem_config.path_to_foundry())
         .script(
-            &DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(),
+            &BUILD_ECOSYSTEM_SCRIPT_PARAMS.script(),
             final_ecosystem_args.forge_args.clone(),
         )
         .with_ffi()
