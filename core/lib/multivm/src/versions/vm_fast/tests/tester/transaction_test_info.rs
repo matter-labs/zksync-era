@@ -175,14 +175,22 @@ impl TransactionTestInfo {
 }
 
 // TODO this doesn't include all the state of ModifiedWorld
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 struct VmStateDump<S> {
     state: vm2::State<CircuitsTracer, World<S, CircuitsTracer>>,
     storage_writes: Vec<((H160, U256), U256)>,
     events: Box<[vm2::Event]>,
 }
 
-impl<S: ReadStorage + Clone + PartialEq> Vm<S> {
+impl<S> PartialEq for VmStateDump<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.state == other.state
+            && self.storage_writes == other.storage_writes
+            && self.events == other.events
+    }
+}
+
+impl<S: ReadStorage> Vm<S> {
     fn dump_state(&self) -> VmStateDump<S> {
         VmStateDump {
             state: self.inner.state.clone(),

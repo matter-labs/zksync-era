@@ -22,6 +22,7 @@ use crate::commands::{clean::CleanCommands, fmt::FmtArgs};
 
 mod commands;
 mod dals;
+mod defaults;
 mod messages;
 
 #[derive(Parser, Debug)]
