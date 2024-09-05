@@ -12,6 +12,7 @@ use zksync_types::{l2::L2Tx, Transaction};
 
 type TxResponseFn = dyn Fn(&Transaction, &OneshotEnv) -> VmExecutionResultAndLogs + Send + Sync;
 
+/// Mock [`OneshotExecutor`] implementation.
 pub struct MockOneshotExecutor {
     call_responses: Box<TxResponseFn>,
     tx_responses: Box<TxResponseFn>,
@@ -39,6 +40,7 @@ impl Default for MockOneshotExecutor {
 }
 
 impl MockOneshotExecutor {
+    /// Sets call response closure used by this executor.
     pub fn set_call_responses<F>(&mut self, responses: F)
     where
         F: Fn(&Transaction, &OneshotEnv) -> ExecutionResult + 'static + Send + Sync,
@@ -46,6 +48,8 @@ impl MockOneshotExecutor {
         self.call_responses = self.wrap_responses(responses);
     }
 
+    /// Sets transaction response closure used by this executor. The closure will be called both for transaction execution / validation,
+    /// and for gas estimation.
     pub fn set_tx_responses<F>(&mut self, responses: F)
     where
         F: Fn(&Transaction, &OneshotEnv) -> ExecutionResult + 'static + Send + Sync,
@@ -69,7 +73,8 @@ impl MockOneshotExecutor {
         )
     }
 
-    pub fn set_tx_responses_with_logs<F>(&mut self, responses: F)
+    /// Same as [`Self::set_tx_responses()`], but allows to customize returned VM logs etc.
+    pub fn set_full_tx_responses<F>(&mut self, responses: F)
     where
         F: Fn(&Transaction, &OneshotEnv) -> VmExecutionResultAndLogs + 'static + Send + Sync,
     {

@@ -32,7 +32,7 @@
 
 use crate::{interface::storage::WriteStorage, tracers::old::OldTracers, HistoryMode};
 
-pub type MultiVmTracerPointer<S, H> = Box<dyn MultiVMTracer<S, H> + Send>;
+pub type MultiVmTracerPointer<S, H> = Box<dyn MultiVMTracer<S, H>>;
 
 pub trait MultiVMTracer<S: WriteStorage, H: HistoryMode>:
     IntoLatestTracer<S, H>
@@ -45,7 +45,7 @@ pub trait MultiVMTracer<S: WriteStorage, H: HistoryMode>:
 {
     fn into_tracer_pointer(self) -> MultiVmTracerPointer<S, H>
     where
-        Self: Sized + Send + 'static,
+        Self: Sized + 'static,
     {
         Box::new(self)
     }

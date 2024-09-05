@@ -48,6 +48,7 @@ pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
 /// VM executor capable of executing isolated transactions / calls (as opposed to [batch execution](BatchExecutor)).
 #[async_trait]
 pub trait OneshotExecutor<S: ReadStorage> {
+    /// Executes a transaction or call with optional tracers.
     async fn inspect_transaction_with_bytecode_compression(
         &self,
         storage: S,
@@ -60,6 +61,7 @@ pub trait OneshotExecutor<S: ReadStorage> {
 /// VM executor capable of validating transactions.
 #[async_trait]
 pub trait TransactionValidator<S: ReadStorage>: OneshotExecutor<S> {
+    /// Validates the provided transaction.
     async fn validate_transaction(
         &self,
         storage: S,

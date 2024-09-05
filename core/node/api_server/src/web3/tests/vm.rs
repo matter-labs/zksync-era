@@ -328,7 +328,7 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
             total_log_queries_count: 0,
         };
 
-        tx_executor.set_tx_responses_with_logs(move |tx, env| {
+        tx_executor.set_full_tx_responses(move |tx, env| {
             assert_eq!(tx.hash(), tx_bytes_and_hash.1);
             assert_eq!(env.l1_batch.first_l2_block.number, 1);
 
