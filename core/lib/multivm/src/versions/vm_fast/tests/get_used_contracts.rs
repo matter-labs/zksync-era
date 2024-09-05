@@ -6,7 +6,7 @@ use itertools::Itertools;
 use zk_evm_1_3_1::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_test_account::Account;
-use zksync_types::{Address, Execute, U256};
+use zksync_types::{AccountTreeId, Address, Execute, StorageKey, H256, U256};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use crate::{
@@ -111,7 +111,13 @@ fn inflated_counter_bytecode() -> Vec<u8> {
     counter_bytecode
 }
 
-fn execute_proxy_counter(gas: u32) -> (VmTester, U256, VmExecutionResultAndLogs) {
+#[derive(Debug)]
+struct ProxyCounterData {
+    proxy_counter_address: Address,
+    counter_bytecode_hash: U256,
+}
+
+fn execute_proxy_counter(gas: u32) -> (VmTester, ProxyCounterData, VmExecutionResultAndLogs) {
     let counter_bytecode = inflated_counter_bytecode();
     let counter_bytecode_hash = h256_to_u256(hash_bytecode(&counter_bytecode));
     let counter_address = Address::repeat_byte(0x23);
@@ -161,27 +167,69 @@ fn execute_proxy_counter(gas: u32) -> (VmTester, U256, VmExecutionResultAndLogs)
         .vm
         .execute_transaction_with_bytecode_compression(increment_tx, true);
     compression_result.unwrap();
-    (vm, counter_bytecode_hash, exec_result)
+    let data = ProxyCounterData {
+        proxy_counter_address: deploy_tx.address,
+        counter_bytecode_hash,
+    };
+    (vm, data, exec_result)
 }
 
 #[test]
 fn get_used_contracts_with_far_call() {
-    let (vm, counter_bytecode_hash, exec_result) = execute_proxy_counter(100_000);
+    let (vm, data, exec_result) = execute_proxy_counter(100_000);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
     let decommitted_hashes = vm.vm.decommitted_hashes().collect::<HashSet<_>>();
     assert!(
-        decommitted_hashes.contains(&counter_bytecode_hash),
+        decommitted_hashes.contains(&data.counter_bytecode_hash),
         "{decommitted_hashes:?}"
     );
 }
 
 #[test]
 fn get_used_contracts_with_out_of_gas_far_call() {
-    let (vm, counter_bytecode_hash, exec_result) = execute_proxy_counter(10_000);
+    let (mut vm, data, exec_result) = execute_proxy_counter(10_000);
     assert_matches!(exec_result.result, ExecutionResult::Revert { .. });
     let decommitted_hashes = vm.vm.decommitted_hashes().collect::<HashSet<_>>();
     assert!(
-        decommitted_hashes.contains(&counter_bytecode_hash),
+        decommitted_hashes.contains(&data.counter_bytecode_hash),
         "{decommitted_hashes:?}"
     );
+
+    // Execute another transaction with a successful far call and check that it's still charged for decommitment.
+    let account = &mut vm.rich_accounts[0];
+    let (_, proxy_counter_abi) = read_proxy_counter_contract();
+    let increment = proxy_counter_abi.function("increment").unwrap();
+    let increment_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: data.proxy_counter_address,
+            calldata: increment
+                .encode_input(&[Token::Uint(1.into()), Token::Uint(u64::MAX.into())])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (compression_result, exec_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(increment_tx, true);
+    compression_result.unwrap();
+    assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
+
+    let proxy_counter_cost_key = StorageKey::new(
+        AccountTreeId::new(data.proxy_counter_address),
+        H256::from_low_u64_be(1),
+    );
+    let far_call_cost_log = exec_result
+        .logs
+        .storage_logs
+        .iter()
+        .find(|log| log.log.key == proxy_counter_cost_key)
+        .expect("no cost log");
+    assert!(
+        far_call_cost_log.previous_value.is_zero(),
+        "{far_call_cost_log:?}"
+    );
+    let far_call_cost = h256_to_u256(far_call_cost_log.log.value);
+    assert!(far_call_cost > 10_000.into(), "{far_call_cost}");
 }

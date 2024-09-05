@@ -79,8 +79,6 @@ members = [
     "core/tests/test_account",
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
-    # Parts of prover workspace that are needed for Core workspace
-    "prover/crates/lib/prover_dal",
 ]
 resolver = "2"
 
@@ -233,7 +231,6 @@ zksync_protobuf_build = "=0.1.0-rc.11"
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }
-zksync_prover_dal = { version = "0.1.0", path = "prover/crates/lib/prover_dal" }
 zksync_vlog = { version = "0.1.0", path = "core/lib/vlog" }
 zksync_vm_interface = { version = "0.1.0", path = "core/lib/vm_interface" }
 zksync_vm_executor = { version = "0.1.0", path = "core/lib/vm_executor" }

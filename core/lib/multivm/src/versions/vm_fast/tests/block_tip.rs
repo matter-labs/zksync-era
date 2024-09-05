@@ -10,22 +10,19 @@ use zksync_types::{
     commitment::SerializeCommitment, fee_model::BatchFeeInput, get_code_key,
     l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address, Execute, H256, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
-use super::utils::{get_complex_upgrade_abi, read_complex_upgrade};
-use crate::versions::vm_fast::tests::tester::{
-    default_l1_batch, get_empty_storage, InMemoryStorageView, VmTesterBuilder,
+use super::{
+    tester::{get_empty_storage, VmTesterBuilder},
+    utils::{get_complex_upgrade_abi, read_complex_upgrade},
 };
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
-        constants::{
-            BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
-            BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD, BOOTLOADER_BATCH_TIP_OVERHEAD,
-            MAX_VM_PUBDATA_PER_BATCH,
-        },
-        tracers::PubdataTracer,
-        L1BatchEnv, TracerDispatcher,
+    interface::{L1BatchEnv, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    versions::testonly::default_l1_batch,
+    vm_latest::constants::{
+        BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
+        BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD, BOOTLOADER_BATCH_TIP_OVERHEAD,
+        MAX_VM_PUBDATA_PER_BATCH,
     },
 };
 
@@ -130,7 +127,6 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
 
     // We are measuring computational cost, so prices for pubdata don't matter, while they artificially dilute
     // the gas limit
-
     let batch_env = L1BatchEnv {
         fee_input: BatchFeeInput::pubdata_independent(100_000, 100_000, 100_000),
         ..default_l1_batch(zksync_types::L1BatchNumber(1))
@@ -143,15 +139,7 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
         .with_l1_batch_env(batch_env)
         .build();
 
-    let bytecodes = test_data
-        .bytecodes
-        .iter()
-        .map(|bytecode| {
-            let hash = hash_bytecode(bytecode);
-            let words = bytes_to_be_words(bytecode.clone());
-            (h256_to_u256(hash), words)
-        })
-        .collect();
+    let bytecodes = test_data.bytecodes.iter().map(Vec::as_slice);
     vm.vm.insert_bytecodes(bytecodes);
 
     let txs_data = populate_mimic_calls(test_data.clone());
@@ -163,7 +151,7 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
                 contract_address: CONTRACT_FORCE_DEPLOYER_ADDRESS,
                 calldata: data,
                 value: U256::zero(),
-                factory_deps: None,
+                factory_deps: vec![],
             },
             None,
         );
@@ -173,44 +161,25 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
         let result = vm.vm.execute(VmExecutionMode::OneTx);
         assert!(
             !result.result.is_failed(),
-            "Transaction {i} wasn't successful for input: {:#?}",
-            test_data
+            "Transaction {i} wasn't successful for input: {test_data:#?}"
         );
     }
 
-    // Now we count how much ergs were spent at the end of the batch
+    // Now we count how much gas was spent at the end of the batch
     // It is assumed that the top level frame is the bootloader
+    vm.vm.enforce_state_diffs(test_data.state_diffs.clone());
+    let gas_before = vm.vm.gas_remaining();
 
-    let ergs_before = vm.vm.gas_remaining();
-
-    // We ensure that indeed the provided state diffs are used
-    let pubdata_tracer = PubdataTracer::<InMemoryStorageView>::new_with_forced_state_diffs(
-        vm.vm.batch_env.clone(),
-        VmExecutionMode::Batch,
-        test_data.state_diffs.clone(),
-    );
-
-    let result = vm.vm.inspect_inner(
-        TracerDispatcher::default(),
-        VmExecutionMode::Batch,
-        Some(pubdata_tracer),
-    );
-
+    let result = vm.vm.execute(VmExecutionMode::Batch);
     assert!(
         !result.result.is_failed(),
-        "Batch wasn't successful for input: {:?}",
-        test_data
+        "Batch wasn't successful for input: {test_data:?}"
     );
-
-    let ergs_after = vm.vm.gas_remaining();
-
-    assert_eq!(
-        (ergs_before - ergs_after) as u64,
-        result.statistics.gas_used
-    );
+    let gas_after = vm.vm.gas_remaining();
+    assert_eq!((gas_before - gas_after) as u64, result.statistics.gas_used);
 
     TestStatistics {
-        max_used_gas: ergs_before - ergs_after,
+        max_used_gas: gas_before - gas_after,
         circuit_statistics: result.statistics.circuit_statistic.total() as u64,
         execution_metrics_size: result.get_execution_metrics(None).size() as u64,
     }

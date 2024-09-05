@@ -266,7 +266,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
                 .unwrap_or_default();
             return Ok(BatchTransactionExecutionResult {
                 tx_result: Box::new(tx_result),
-                compressed_bytecodes,
+                compressed_bytecodes: compressed_bytecodes.into_owned(),
                 call_traces,
             });
         }
@@ -285,8 +285,9 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
 
         let (compression_result, tx_result) =
             vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), false);
-        let compressed_bytecodes =
-            compression_result.context("compression failed when it wasn't applied")?;
+        let compressed_bytecodes = compression_result
+            .context("compression failed when it wasn't applied")?
+            .into_owned();
 
         // TODO implement tracer manager which will be responsible
         //   for collecting result from all tracers and save it to the database
@@ -324,7 +325,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
                 .unwrap_or_default();
             Ok(BatchTransactionExecutionResult {
                 tx_result: Box::new(tx_result),
-                compressed_bytecodes,
+                compressed_bytecodes: compressed_bytecodes.into_owned(),
                 call_traces,
             })
         } else {

@@ -200,13 +200,16 @@ where
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         let tx_hash = tx.hash();
-        let main_result = self.main.inspect_transaction_with_bytecode_compression(
-            tracer,
-            tx.clone(),
-            with_compression,
-        );
+        let (main_bytecodes_result, main_tx_result) = self
+            .main
+            .inspect_transaction_with_bytecode_compression(tracer, tx.clone(), with_compression);
+        // Extend lifetime to `'static` so that the result isn't mutably borrowed from the main VM.
+        // Unfortunately, there's no way to express that this borrow is actually immutable, which would allow not extending the lifetime unless there's a divergence.
+        let main_bytecodes_result =
+            main_bytecodes_result.map(|bytecodes| bytecodes.into_owned().into());
+
         if let Some(shadow) = self.shadow.get_mut() {
             let shadow_result = shadow.vm.inspect_transaction_with_bytecode_compression(
                 Shadow::TracerDispatcher::default(),
@@ -214,7 +217,7 @@ where
                 with_compression,
             );
             let mut errors = DivergenceErrors::new();
-            errors.check_results_match(&main_result.1, &shadow_result.1);
+            errors.check_results_match(&main_tx_result, &shadow_result.1);
             if let Err(err) = errors.into_result() {
                 let ctx = format!(
                     "inspecting transaction {tx_hash:?}, with_compression={with_compression:?}"
@@ -222,7 +225,7 @@ where
                 self.report(err.context(ctx));
             }
         }
-        main_result
+        (main_bytecodes_result, main_tx_result)
     }
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {

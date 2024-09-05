@@ -78,7 +78,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for VmInstance<S, H> {
         dispatcher: Self::TracerDispatcher,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         dispatch_vm!(self.inspect_transaction_with_bytecode_compression(
             dispatcher.into(),
             tx,

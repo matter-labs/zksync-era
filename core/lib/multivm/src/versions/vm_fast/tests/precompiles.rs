@@ -1,9 +1,10 @@
-use zk_evm_1_5_0::zk_evm_abstractions::precompiles::PrecompileAddress;
+use circuit_sequencer_api_1_5_0::geometry_config::get_geometry_config;
 use zksync_types::{Address, Execute};
 
+use super::{tester::VmTesterBuilder, utils::read_precompiles_contract};
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_fast::tests::{tester::VmTesterBuilder, utils::read_precompiles_contract},
+    versions::testonly::ContractToDeploy,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
@@ -18,7 +19,7 @@ fn test_keccak() {
         .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_custom_contracts(vec![(contract, address, true)])
+        .with_custom_contracts(vec![ContractToDeploy::account(contract, address)])
         .build();
 
     // calldata for `doKeccak(1000)`.
@@ -30,25 +31,18 @@ fn test_keccak() {
         Execute {
             contract_address: address,
             calldata: hex::decode(keccak1000_calldata).unwrap(),
-            value: Default::default(),
-            factory_deps: None,
+            value: 0.into(),
+            factory_deps: vec![],
         },
         None,
     );
     vm.vm.push_transaction(tx);
-    let _ = vm.vm.inspect(Default::default(), VmExecutionMode::OneTx);
+    let exec_result = vm.vm.inspect((), VmExecutionMode::OneTx);
+    assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
-    let keccak_count = vm
-        .vm
-        .state
-        .precompiles_processor
-        .precompile_cycles_history
-        .inner()
-        .iter()
-        .filter(|(precompile, _)| precompile == &PrecompileAddress::Keccak256)
-        .count();
-
-    assert!(keccak_count >= 1000);
+    let keccak_count = exec_result.statistics.circuit_statistic.keccak256
+        * get_geometry_config().cycles_per_keccak256_circuit as f32;
+    assert!(keccak_count >= 1000.0, "{keccak_count}");
 }
 
 #[test]
@@ -62,7 +56,7 @@ fn test_sha256() {
         .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_custom_contracts(vec![(contract, address, true)])
+        .with_custom_contracts(vec![ContractToDeploy::account(contract, address)])
         .build();
 
     // calldata for `doSha256(1000)`.
@@ -74,25 +68,18 @@ fn test_sha256() {
         Execute {
             contract_address: address,
             calldata: hex::decode(sha1000_calldata).unwrap(),
-            value: Default::default(),
-            factory_deps: None,
+            value: 0.into(),
+            factory_deps: vec![],
         },
         None,
     );
     vm.vm.push_transaction(tx);
-    let _ = vm.vm.inspect(Default::default(), VmExecutionMode::OneTx);
+    let exec_result = vm.vm.inspect((), VmExecutionMode::OneTx);
+    assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
-    let sha_count = vm
-        .vm
-        .state
-        .precompiles_processor
-        .precompile_cycles_history
-        .inner()
-        .iter()
-        .filter(|(precompile, _)| precompile == &PrecompileAddress::SHA256)
-        .count();
-
-    assert!(sha_count >= 1000);
+    let sha_count = exec_result.statistics.circuit_statistic.sha256
+        * get_geometry_config().cycles_per_sha256_circuit as f32;
+    assert!(sha_count >= 1000.0, "{sha_count}");
 }
 
 #[test]
@@ -110,24 +97,17 @@ fn test_ecrecover() {
     let tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: account.address,
-            calldata: Vec::new(),
-            value: Default::default(),
-            factory_deps: None,
+            calldata: vec![],
+            value: 0.into(),
+            factory_deps: vec![],
         },
         None,
     );
     vm.vm.push_transaction(tx);
-    let _ = vm.vm.inspect(Default::default(), VmExecutionMode::OneTx);
+    let exec_result = vm.vm.inspect((), VmExecutionMode::OneTx);
+    assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
-    let ecrecover_count = vm
-        .vm
-        .state
-        .precompiles_processor
-        .precompile_cycles_history
-        .inner()
-        .iter()
-        .filter(|(precompile, _)| precompile == &PrecompileAddress::Ecrecover)
-        .count();
-
-    assert_eq!(ecrecover_count, 1);
+    let ecrecover_count = exec_result.statistics.circuit_statistic.ecrecover
+        * get_geometry_config().cycles_per_ecrecover_circuit as f32;
+    assert!((ecrecover_count - 1.0).abs() < 1e-4, "{ecrecover_count}");
 }
