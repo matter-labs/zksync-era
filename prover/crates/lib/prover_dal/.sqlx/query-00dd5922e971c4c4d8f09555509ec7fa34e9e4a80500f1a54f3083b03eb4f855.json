@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                recursion_scheduler_level_vk_hash AS snark_wrapper_vk_hash\n            FROM\n                prover_fri_protocol_versions\n            WHERE\n                id = $1\n                AND protocol_version_patch = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snark_wrapper_vk_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "00dd5922e971c4c4d8f09555509ec7fa34e9e4a80500f1a54f3083b03eb4f855"
+}

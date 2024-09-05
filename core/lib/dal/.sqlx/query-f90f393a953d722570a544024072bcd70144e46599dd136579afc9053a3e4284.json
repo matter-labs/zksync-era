@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                recursion_scheduler_level_vk_hash AS snark_wrapper_vk_hash\n            FROM\n                protocol_patches\n            WHERE\n                minor = $1\n                AND patch = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "snark_wrapper_vk_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f90f393a953d722570a544024072bcd70144e46599dd136579afc9053a3e4284"
+}
