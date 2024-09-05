@@ -52,22 +52,19 @@ jobs:
 
       - name: Init
         run: |
-          ci_run zk
           ci_run run_retried rustup show
-          ci_run zk run yarn
-          ci_run zk db setup
-          ci_run zk compiler all
-          ci_run zk contract build
+          ci_run ./bin/zkt
+          ci_run zk_supervisor contracts
 
       - name: Contracts unit tests
         run: ci_run yarn l1-contracts test
 
       - name: Rust unit tests
         run: |
-          ci_run zk test rust
+          ci_run zk_supervisor test rust
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
-          ci_run zk f cargo test --release -p vm-benchmark --bench oneshot --bench batch
+          ci_run cargo test --release -p vm-benchmark --bench oneshot --bench batch
 
   loadtest:
     runs-on: [ matterlabs-ci-runner-high-performance ]
@@ -90,8 +87,10 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'new' && 22000 || 16000 }} >> .env
-          echo ACCOUNTS_AMOUNT="150" >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'new' && 21000 || 16000 }} >> .env
+          echo ACCOUNTS_AMOUNT="100" >> .env
+          echo MAX_INFLIGHT_TXS="10" >> .env
+          echo SYNC_API_REQUESTS_LIMIT="15" >> .env
           echo FAIL_FAST=true >> .env
           echo IN_DOCKER=1 >> .env
           echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
@@ -115,7 +114,8 @@ jobs:
       - name: Run server
         run: |
           EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE=${{ matrix.vm_mode }} \
-          PASSED_ENV_VARS="EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE" \
+          CHAIN_MEMPOOL_DELAY_INTERVAL=50 \
+          PASSED_ENV_VARS="EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE,CHAIN_MEMPOOL_DELAY_INTERVAL" \
             ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
 

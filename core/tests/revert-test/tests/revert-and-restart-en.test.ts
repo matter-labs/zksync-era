@@ -20,6 +20,8 @@ import {
 } from 'utils/build/file-configs';
 import path from 'path';
 import { ChildProcessWithoutNullStreams } from 'child_process';
+import { logsTestPath } from 'utils/build/logs';
+import { killPidWithAllChilds } from 'utils/build/kill';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -50,8 +52,10 @@ if (deploymentMode == 'Validium') {
     mainEnv = process.env.IN_DOCKER ? 'docker' : 'dev';
     extEnv = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
 }
-const mainLogsPath: string = 'revert_main.log';
-const extLogsPath: string = 'revert_ext.log';
+
+async function logsPath(name: string): Promise<string> {
+    return await logsTestPath(fileConfig.chain, 'logs/revert/en', name);
+}
 
 interface SuggestedValues {
     lastExecutedL1BatchNumber: bigint;
@@ -154,15 +158,7 @@ class MainNode {
 
     public async terminate() {
         try {
-            let child = this.proc.pid;
-            while (true) {
-                try {
-                    child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
-                } catch (e) {
-                    break;
-                }
-            }
-            await utils.exec(`kill -9 ${child}`);
+            await killPidWithAllChilds(this.proc.pid!, 9);
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -239,15 +235,7 @@ class ExtNode {
 
     public async terminate() {
         try {
-            let child = this.proc.pid;
-            while (true) {
-                try {
-                    child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
-                } catch (e) {
-                    break;
-                }
-            }
-            await utils.exec(`kill -9 ${child}`);
+            await killPidWithAllChilds(this.proc.pid!, 9);
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -347,8 +335,6 @@ describe('Block reverting test', function () {
             baseTokenAddress = contractsConfig.l1.base_token_addr;
             enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
             operatorAddress = walletsConfig.operator.address;
-            mainLogs = fs.createWriteStream(`${fileConfig.chain}_${mainLogsPath}`, { flags: 'a' });
-            extLogs = fs.createWriteStream(`${fileConfig.chain}_${extLogsPath}`, { flags: 'a' });
         } else {
             let env = fetchEnv(mainEnv);
             ethClientWeb3Url = env.ETH_CLIENT_WEB3_URL;
@@ -357,10 +343,9 @@ describe('Block reverting test', function () {
             enEthClientUrl = `http://127.0.0.1:${env.EN_HTTP_PORT}`;
             // TODO use env variable for this?
             operatorAddress = '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7';
-            mainLogs = fs.createWriteStream(mainLogsPath, { flags: 'a' });
-            extLogs = fs.createWriteStream(extLogsPath, { flags: 'a' });
         }
-
+        mainLogs = fs.createWriteStream(await logsPath('server.log'), { flags: 'a' });
+        extLogs = fs.createWriteStream(await logsPath('external_node.log'), { flags: 'a' });
         if (process.env.SKIP_COMPILATION !== 'true' && !fileConfig.loadFromFile) {
             compileBinaries();
         }
@@ -421,7 +406,6 @@ describe('Block reverting test', function () {
         }
 
         console.log('Restart the main node with L1 batch execution disabled.');
-        await mainNode.terminate();
         await killServerAndWaitForShutdown(mainNode);
         mainNode = await MainNode.spawn(
             mainLogs,

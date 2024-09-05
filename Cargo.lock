@@ -2000,6 +2000,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
+name = "eravm-stable-interface"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
+dependencies = [
+ "primitive-types",
+]
+
+[[package]]
 name = "errno"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5538,6 +5546,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
 dependencies = [
  "secp256k1-sys",
+ "serde",
 ]
 
 [[package]]
@@ -7324,9 +7333,10 @@ dependencies = [
 [[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=2276b7b5af520fca0477bdafe43781b51896d235#2276b7b5af520fca0477bdafe43781b51896d235"
+source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
 dependencies = [
  "enum_dispatch",
+ "eravm-stable-interface",
  "primitive-types",
  "zk_evm_abstractions 0.150.4",
  "zkevm_opcode_defs 0.150.4",
@@ -8834,7 +8844,6 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_dal",
- "zksync_prover_dal",
  "zksync_shared_metrics",
  "zksync_types",
 ]
@@ -9184,7 +9193,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_proof_data_handler",
  "zksync_protobuf_config",
- "zksync_prover_dal",
  "zksync_queued_job_processor",
  "zksync_reorg_detector",
  "zksync_state",
@@ -9194,6 +9202,7 @@ dependencies = [
  "zksync_types",
  "zksync_utils",
  "zksync_vlog",
+ "zksync_vm_executor",
  "zksync_vm_runner",
  "zksync_web3_decl",
 ]
@@ -9280,7 +9289,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
- "zksync_vm_utils",
+ "zksync_vm_executor",
  "zksync_web3_decl",
 ]
 
@@ -9402,16 +9411,6 @@ dependencies = [
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_types",
-]
-
-[[package]]
-name = "zksync_prover_dal"
-version = "0.1.0"
-dependencies = [
- "sqlx",
- "strum",
- "zksync_basic_types",
- "zksync_db_connection",
 ]
 
 [[package]]
@@ -9607,7 +9606,7 @@ dependencies = [
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
- "zksync_vm_utils",
+ "zksync_vm_executor",
 ]
 
 [[package]]
@@ -9638,6 +9637,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "envy",
  "reqwest 0.12.5",
  "secp256k1",
  "serde",
@@ -9693,7 +9693,7 @@ dependencies = [
  "zksync_tee_verifier",
  "zksync_types",
  "zksync_utils",
- "zksync_vm_utils",
+ "zksync_vm_executor",
 ]
 
 [[package]]
@@ -9796,10 +9796,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_vm_executor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "once_cell",
+ "tokio",
+ "tracing",
+ "vise",
+ "zksync_contracts",
+ "zksync_dal",
+ "zksync_multivm",
+ "zksync_types",
+]
+
+[[package]]
 name = "zksync_vm_interface"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "assert_matches",
+ "async-trait",
  "hex",
  "serde",
  "serde_json",
@@ -9831,30 +9849,16 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_health_check",
- "zksync_multivm",
  "zksync_node_genesis",
  "zksync_node_test_utils",
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_state",
- "zksync_state_keeper",
  "zksync_storage",
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
- "zksync_vm_utils",
-]
-
-[[package]]
-name = "zksync_vm_utils"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "tokio",
- "tracing",
- "zksync_contracts",
- "zksync_dal",
- "zksync_types",
+ "zksync_vm_executor",
  "zksync_vm_interface",
 ]
 

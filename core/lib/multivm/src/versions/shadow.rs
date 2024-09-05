@@ -77,7 +77,7 @@ where
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         let tx_hash = tx.hash();
         let main_result = self.main.inspect_transaction_with_bytecode_compression(
             tracer,
@@ -165,6 +165,11 @@ impl DivergenceErrors {
         let shadow_logs = UniqueStorageLogs::new(&shadow_result.logs.storage_logs);
         self.check_match("logs.storage_logs", &main_logs, &shadow_logs);
         self.check_match("refunds", &main_result.refunds, &shadow_result.refunds);
+        self.check_match(
+            "statistics.circuit_statistic",
+            &main_result.statistics.circuit_statistic,
+            &shadow_result.statistics.circuit_statistic,
+        );
         self.check_match(
             "gas_remaining",
             &main_result.statistics.gas_remaining,

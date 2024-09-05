@@ -360,11 +360,11 @@
         "snowfall-lib": "snowfall-lib_2"
       },
       "locked": {
-        "lastModified": 1719916365,
-        "narHash": "sha256-RzCFbGAHq6rTY4ctrmazGIx59qXtfrVfEnIe+L0leTo=",
+        "lastModified": 1723120465,
+        "narHash": "sha256-sWu5lKy71hHnSwydhwzG2XgSehjvLfK2iuUtNimvGkg=",
         "owner": "matter-labs",
         "repo": "nixsgx",
-        "rev": "0309a20ee5bf12b7390aa6795409b448420e80f2",
+        "rev": "b080c32f2aa8b3d4b4bc4356a8a513279b6f82ab",
         "type": "github"
       },
       "original": {
@@ -623,11 +623,11 @@
         "vault-auth-tee-flake": "vault-auth-tee-flake"
       },
       "locked": {
-        "lastModified": 1723034739,
-        "narHash": "sha256-bu4XvqwsPUzfMzk5t10wyHliItfH7FOk42V0CIwl4lg=",
+        "lastModified": 1725354393,
+        "narHash": "sha256-RSiDY3sr0hdlydO3cYtidjVx+OlqIsmcnvsSDSGQPF0=",
         "owner": "matter-labs",
         "repo": "teepot",
-        "rev": "4ed311a16a72521f79418216ad29e6eed8db347d",
+        "rev": "2c21d0161e43dc7a786787c89b84ecd6e8857106",
         "type": "github"
       },
       "original": {

@@ -16,7 +16,10 @@ Recovery from a snapshot consists of several parts.
   to take about 1 hour on the mainnet.
 - **Merkle tree** recovery starts once Postgres is fully recovered. Merkle tree recovery can take about 3 hours on the
   mainnet. Ordinarily, Merkle tree recovery is a blocker for node synchronization; i.e., the node will not process
-  blocks newer than the snapshot block until the Merkle tree is recovered.
+  blocks newer than the snapshot block until the Merkle tree is recovered. If the [treeless mode](10_treeless_mode.md)
+  is enabled, tree recovery is not performed, and the node will start catching up blocks immediately after Postgres
+  recovery. This is still true if the tree data fetcher is enabled _together_ with a Merkle tree; tree recovery is
+  asynchronous in this case.
 - Recovering RocksDB-based **VM state cache** is concurrent with Merkle tree recovery and also depends on Postgres
   recovery. It takes about 1 hour on the mainnet. Unlike Merkle tree recovery, VM state cache is not necessary for node
   operation (the node will get the state from Postgres is if it is absent), although it considerably speeds up VM
@@ -24,7 +27,8 @@ Recovery from a snapshot consists of several parts.
 
 After Postgres recovery is completed, the node becomes operational, providing Web3 API etc. It still needs some time to
 catch up executing blocks after the snapshot (i.e, roughly several hours worth of blocks / transactions). This may take
-order of 1–2 hours on the mainnet. In total, recovery process and catch-up thus should take roughly 5–6 hours.
+order of 1–2 hours on the mainnet. In total, recovery process and catch-up thus should take roughly 5–6 hours with a
+Merkle tree, or 3–4 hours in the treeless mode / with a tree data fetcher.
 
 ## Current limitations
 

@@ -10,14 +10,15 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        BasicWitnessInputProducerConfig, DatabaseSecrets, FriProofCompressorConfig,
-        FriProverConfig, FriProverGatewayConfig, FriWitnessGeneratorConfig,
-        FriWitnessVectorGeneratorConfig, L1Secrets, ObjectStoreConfig, ObservabilityConfig,
-        PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
+        BasicWitnessInputProducerConfig, DatabaseSecrets, ExperimentalVmConfig,
+        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        L1Secrets, ObjectStoreConfig, ObservabilityConfig, PrometheusConfig,
+        ProofDataHandlerConfig, ProtectiveReadsWriterConfig, ProverJobMonitorConfig,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, ContractsConfig,
-    DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig, GasAdjusterConfig, GenesisConfig,
-    PostgresConfig, SnapshotsCreatorConfig,
+    DADispatcherConfig, DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig,
+    GasAdjusterConfig, GenesisConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::temp_config_store::TempConfigStore;
 use zksync_env_config::FromEnv;
@@ -67,6 +68,10 @@ fn load_env_config() -> TempConfigStore {
         commitment_generator: None,
         pruning: None,
         snapshot_recovery: None,
+        external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
+        external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
+        experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
+        prover_job_monitor_config: ProverJobMonitorConfig::from_env().ok(),
     }
 }
 

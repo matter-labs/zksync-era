@@ -2,8 +2,7 @@ use std::{fs, path::PathBuf};
 
 use anyhow::Context as _;
 use toml_edit::{Document, Item, Value};
-
-use crate::utils::core_workspace_dir_or_current_dir;
+use zksync_prover_keystore::utils::core_workspace_dir_or_current_dir;
 
 pub fn get_toml_formatted_value(string_value: String) -> Item {
     let mut value = Value::from(string_value);

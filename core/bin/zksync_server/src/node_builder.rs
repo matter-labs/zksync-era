@@ -122,7 +122,6 @@ impl MainNodeBuilder {
         let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
             .with_replica(true)
-            .with_prover(true) // Used by house keeper.
             .build();
         self.node.add_layer(pools_layer);
         Ok(self)
@@ -446,18 +445,9 @@ impl MainNodeBuilder {
 
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
         let house_keeper_config = try_load_config!(self.configs.house_keeper_config);
-        let fri_prover_config = try_load_config!(self.configs.prover_config);
-        let fri_witness_generator_config = try_load_config!(self.configs.witness_generator_config);
-        let fri_prover_group_config = try_load_config!(self.configs.prover_group_config);
-        let fri_proof_compressor_config = try_load_config!(self.configs.proof_compressor_config);
 
-        self.node.add_layer(HouseKeeperLayer::new(
-            house_keeper_config,
-            fri_prover_config,
-            fri_witness_generator_config,
-            fri_prover_group_config,
-            fri_proof_compressor_config,
-        ));
+        self.node
+            .add_layer(HouseKeeperLayer::new(house_keeper_config));
 
         Ok(self)
     }

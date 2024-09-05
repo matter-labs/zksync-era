@@ -5,12 +5,12 @@ import { Tester } from './tester';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { expect } from 'chai';
-import fs from 'fs';
 import { IZkSyncHyperchain } from 'zksync-ethers/build/typechain';
 import path from 'path';
 import { ChildProcessWithoutNullStreams } from 'child_process';
-
-const fileConfig = shouldLoadConfigFromFile();
+import fs from 'node:fs/promises';
+import { logsTestPath } from 'utils/build/logs';
+import { killPidWithAllChilds } from 'utils/build/kill';
 
 // Parses output of "print-suggested-values" command of the revert block tool.
 function parseSuggestedValues(suggestedValuesString: string): {
@@ -48,16 +48,7 @@ async function killServerAndWaitForShutdown(tester: Tester, serverProcess?: Chil
         await utils.exec('killall -9 zksync_server').catch(ignoreError);
         return;
     }
-
-    let child = serverProcess.pid;
-    while (true) {
-        try {
-            child = +(await utils.exec(`pgrep -P ${child}`)).stdout;
-        } catch (e) {
-            break;
-        }
-    }
-    await utils.exec(`kill -9 ${child}`);
+    await killPidWithAllChilds(serverProcess.pid!, 9).catch(ignoreError);
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
@@ -79,21 +70,24 @@ function ignoreError(_err: any, context?: string) {
     console.info(message);
 }
 
+const fileConfig = shouldLoadConfigFromFile();
 const depositAmount = ethers.parseEther('0.001');
+
+async function logsPath(name: string): Promise<string> {
+    return await logsTestPath(fileConfig.chain, 'logs/revert/', name);
+}
 
 describe('Block reverting test', function () {
     let tester: Tester;
     let alice: zksync.Wallet;
     let mainContract: IZkSyncHyperchain;
     let blocksCommittedBeforeRevert: bigint;
-    let logs: fs.WriteStream;
+    let logs: fs.FileHandle;
     let operatorAddress: string;
     let ethClientWeb3Url: string;
     let apiWeb3JsonRpcHttpUrl: string;
     let serverProcess: ChildProcessWithoutNullStreams | undefined;
-
     const pathToHome = path.join(__dirname, '../../../..');
-
     const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
     const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
     let components = 'api,tree,eth,state_keeper,commitment_generator,da_dispatcher,vm_runner_protective_reads';
@@ -141,7 +135,6 @@ describe('Block reverting test', function () {
         // Create test wallets
         tester = await Tester.init(ethClientWeb3Url, apiWeb3JsonRpcHttpUrl, baseTokenAddress);
         alice = tester.emptyWallet();
-        logs = fs.createWriteStream(`revert_${fileConfig.chain}.log`, { flags: 'a' });
     });
 
     step('run server and execute some transactions', async () => {
@@ -151,6 +144,7 @@ describe('Block reverting test', function () {
         }
 
         // Run server in background.
+        logs = await fs.open(await logsPath('server.log'), 'a');
         serverProcess = runServerInBackground({
             components: [components],
             stdio: ['ignore', logs, logs],
