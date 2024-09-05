@@ -28,11 +28,10 @@ jobs:
 
       - name: Init
         run: |
-          ci_run zk
-          ci_run run_retried rustup show
-          ci_run zk db setup
+          ci_run zkt
 
       # This does both linting and "building". We're using `zk lint prover` as it's common practice within our repo
       # `zk lint prover` = cargo clippy, which does cargo check behind the scenes, which is a lightweight version of cargo build
       - name: Lints
-        run: ci_run zk lint prover
+        run: ci_run zk_supervisor lint -t rs --check
+

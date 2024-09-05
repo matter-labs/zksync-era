@@ -3,7 +3,7 @@ on:
   workflow_call:
 jobs:
   lint:
-    runs-on: [matterlabs-ci-runner-highmem-long]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
 
@@ -27,14 +27,14 @@ jobs:
 
       - name: Init
         run: |
-          ci_run zk
-          ci_run zk db setup
+          ci_run zkt
+          ci_run zks db setup
 
       - name: Formatting
         run: ci_run bash -c "cd prover && cargo fmt --check"
 
   unit-tests:
-    runs-on: [matterlabs-ci-runner-highmem-long]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
     env:
       RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
 
@@ -58,11 +58,11 @@ jobs:
 
       - name: Init
         run: |
-          ci_run zk
+          ci_run zkt
           ci_run run_retried rustup show
-          ci_run zk db setup
+          ci_run zk_supervisor db setup
 
       - name: Prover unit tests
         run: |
           # Not all tests are enabled, since prover and setup_key_generator_and_server requires bellman-cuda to be present
-          ci_run zk test prover
+          ci_run zk_supervisor test prover
