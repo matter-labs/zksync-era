@@ -254,6 +254,7 @@ jobs:
           ci_run zk contract migrate-to-sync-layer 
           ci_run zk contract prepare-sync-layer-validators
           ci_run zk contract update-config-for-sync-layer
+          ci_run zk server --clear-l1-txs-history
           ci_run sleep 120
           ci_run zk server >> server2.log 2>&1 &
           ci_run sleep 5
