@@ -360,20 +360,22 @@ async fn deploy_ecosystem_inner(
 }
 
 fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
+    let _dir_guard = shell.push_dir(link_to_code.join("contracts/system-contracts"));
     Ok(Cmd::new(cmd!(shell, "yarn install")).run()?)
 }
 
 fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    {
-        let _dir_guard = shell.push_dir(link_to_code.join("contracts/system-contracts"));
-        Cmd::new(cmd!(shell, "yarn preprocess:system-contracts")).run()?;
-        Cmd::new(cmd!(
-            shell,
-            "forge build --zksync --zk-enable-eravm-extensions"
-        ))
-        .run()?;
-    }
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Ok(Cmd::new(cmd!(shell, "yarn sc build")).run()?)
+    let _dir_guard = shell.push_dir(link_to_code.join("contracts/system-contracts"));
+    Cmd::new(cmd!(shell, "yarn preprocess:system-contracts")).run()?;
+    Cmd::new(cmd!(
+        shell,
+        "forge build --zksync --zk-enable-eravm-extensions"
+    ))
+    .run()?;
+    Cmd::new(cmd!(shell, "yarn preprocess:bootloader")).run()?;
+    Ok(Cmd::new(cmd!(
+        shell,
+        "forge build --zksync --zk-enable-eravm-extensions"
+    ))
+    .run()?)
 }

@@ -303,6 +303,13 @@ impl SystemContractsRepo {
 }
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
+    if let Some(contract) =
+        read_bytecode_from_path(home_path().join("contracts/system-contracts").join(format!(
+            "zkout/{bootloader_type}.yul/{bootloader_type}.yul.json",
+        )))
+    {
+        return contract;
+    };
     read_zbin_bytecode(format!(
         "contracts/system-contracts/bootloader/build/artifacts/{}.yul.zbin",
         bootloader_type
