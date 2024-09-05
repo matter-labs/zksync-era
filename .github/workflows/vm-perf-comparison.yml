@@ -8,7 +8,7 @@ on:
 jobs:
   vm-benchmarks:
     name: Run VM benchmarks
-    runs-on: [matterlabs-ci-runner-highmem-long]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     steps:
       - name: checkout base branch
@@ -44,11 +44,11 @@ jobs:
       - name: run benchmarks on base branch
         shell: bash
         run: |
-          ci_run zk
-          ci_run zk compiler system-contracts
+          ci_run zkt
+          ci_run zk_supervisor contracts --system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
           ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee base-opcodes || touch base-opcodes
-          ci_run yarn workspace system-contracts clean
+          ci_run zk_supervisor clean contracts
 
       - name: checkout PR
         run: git checkout --force FETCH_HEAD --recurse-submodules
@@ -56,8 +56,8 @@ jobs:
       - name: run benchmarks on PR
         shell: bash
         run: |
-          ci_run zk
-          ci_run zk compiler system-contracts
+          ci_run zkt
+          ci_run zk_supervisor contracts --system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee pr-iai
           ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee pr-opcodes || touch pr-opcodes
 

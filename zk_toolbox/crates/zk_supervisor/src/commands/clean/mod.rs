@@ -43,6 +43,7 @@ pub fn containers(shell: &Shell) -> anyhow::Result<()> {
 
 pub fn contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::Result<()> {
     let path_to_foundry = ecosystem_config.path_to_foundry();
+    let contracts_path = ecosystem_config.link_to_code.join("contracts");
     logger::info(MSG_CONTRACTS_CLEANING);
     shell
         .remove_path(path_to_foundry.join("broadcast"))
@@ -62,6 +63,21 @@ pub fn contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::R
     shell
         .remove_path(path_to_foundry.join("typechain"))
         .context("typechain")?;
+    shell
+        .remove_path(contracts_path.join("l2-contracts/cache-forge"))
+        .context("l2-contracts/cache-forge")?;
+    shell
+        .remove_path(contracts_path.join("l2-contracts/zkout"))
+        .context("l2-contracts/zkout")?;
+    shell
+        .remove_path(contracts_path.join("system-contracts/cache-forge"))
+        .context("system-contracts/cache-forge")?;
+    shell
+        .remove_path(contracts_path.join("system-contracts/zkout"))
+        .context("system-contracts/zkout")?;
+    shell
+        .remove_path(contracts_path.join("system-contracts/contracts-preprocessed"))
+        .context("system-contracts/contracts-preprocessed")?;
     shell
         .remove_path(path_to_foundry.join("script-config"))
         .context("remove script-config")?;
