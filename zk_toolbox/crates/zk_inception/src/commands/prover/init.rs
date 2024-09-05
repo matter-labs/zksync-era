@@ -27,7 +27,7 @@ use super::{
 use crate::{
     consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER,
         MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR, MSG_GENERAL_CONFIG_NOT_FOUND_ERR,
         MSG_INITIALIZING_DATABASES_SPINNER, MSG_INITIALIZING_PROVER_DATABASE,
         MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_PROVER_CONFIG_NOT_FOUND_ERR,
@@ -120,7 +120,7 @@ fn download_setup_key(
     path: &str,
 ) -> anyhow::Result<()> {
     check_prerequisites(shell, &WGET_PREREQUISITES, false);
-    let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_KEY_SPINNER);
+    let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER);
     let compressor_config: zksync_config::configs::FriProofCompressorConfig = general_config
         .proof_compressor_config
         .as_ref()

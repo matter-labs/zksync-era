@@ -374,7 +374,7 @@ impl ProverInitArgs {
 
         if self.setup_keys.unwrap_or_else(|| {
             PromptConfirm::new(MSG_SETUP_KEYS_PROMPT)
-                .default(true)
+                .default(false)
                 .ask()
         }) {
             Some(args)
