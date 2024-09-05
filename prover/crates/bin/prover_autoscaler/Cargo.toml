@@ -1,0 +1,37 @@
+[package]
+name = "zksync_prover_autoscaler"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+zksync_core_leftovers.workspace = true
+zksync_vlog.workspace = true
+zksync_utils.workspace = true
+zksync_types.workspace = true
+zksync_config = { workspace = true, features = ["observability_ext"] }
+
+anyhow.workspace = true
+async-trait.workspace = true
+axum = "0.7.5"
+clap = { workspace = true, features = ["derive"] }
+ctrlc = { workspace = true, features = ["termination"] }
+futures.workspace = true
+k8s-openapi = { version = "0.22.0", features = ["v1_30"] }
+kube = { version = "0.93.1", features = ["runtime", "derive"] }
+reqwest.workspace = true
+ring = "0.17.8"
+rustls = { version = "0.23.12", features = ["ring"] }
+serde = { workspace = true, features = ["derive"] }
+structopt.workspace = true
+tokio = { workspace = true, features = ["time", "macros"] }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+tracing.workspace = true
+vise.workspace = true
+axum-macros = "0.4.1"
+chrono.workspace = true
