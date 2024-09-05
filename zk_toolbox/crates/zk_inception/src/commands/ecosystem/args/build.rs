@@ -17,6 +17,8 @@ const DEFAULT_OUT_DIR: &str = "transactions";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct EcosystemBuildArgs {
+    /// Address of the transaction sender.
+    pub sender: String,
     /// Deploy ecosystem contracts
     #[arg(long)]
     pub build_ecosystem: bool,
@@ -25,9 +27,6 @@ pub struct EcosystemBuildArgs {
     pub ecosystem_contracts_path: Option<PathBuf>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
-    /// Address of the transaction sender.
-    #[arg(long)]
-    pub sender: String,
     /// Output directory for the generated files.
     #[arg(long, short)]
     pub out: Option<String>,
