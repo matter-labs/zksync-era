@@ -33,7 +33,7 @@ jobs:
   compatibility:
     runs-on: [ubuntu-22.04-github-hosted-16core]
     steps:
-      - uses: mozilla-actions/sccache-action@v0.0.3
+      - uses: mozilla-actions/sccache-action@89e9040de88b577a072e3760aaf59f585da083af # v0.0.5
 
       # before
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -69,7 +69,7 @@ jobs:
           | xargs cat > ./after.binpb
 
       # compare
-      - uses: bufbuild/buf-setup-action@v1
+      - uses: bufbuild/buf-setup-action@54abbed4fe8d8d45173eca4798b0c39a53a7b658 # v1.39.0
         with:
           github_token: ${{ github.token }}
       - name: buf breaking

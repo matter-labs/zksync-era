@@ -16,7 +16,6 @@ zksync_vlog.workspace = true
 zksync_types.workspace = true
 zksync_health_check.workspace = true
 zksync_dal.workspace = true
-zksync_prover_dal.workspace = true
 zksync_db_connection.workspace = true
 zksync_config.workspace = true
 zksync_protobuf_config.workspace = true

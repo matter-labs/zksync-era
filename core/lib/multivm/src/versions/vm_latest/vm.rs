@@ -141,7 +141,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.push_transaction_with_compression(tx, with_compression);
         let result = self.inspect_inner(tracer, VmExecutionMode::OneTx, None);
         if self.has_unpublished_bytecodes() {
@@ -151,7 +151,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
             )
         } else {
             (
-                Ok(self.bootloader_state.get_last_tx_compressed_bytecodes()),
+                Ok(self
+                    .bootloader_state
+                    .get_last_tx_compressed_bytecodes()
+                    .into()),
                 result,
             )
         }

@@ -20,11 +20,11 @@ use zksync_prover_fri_types::{
     CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey,
 };
 use zksync_prover_fri_utils::fetch_next_circuit;
+use zksync_prover_keystore::{keystore::Keystore, GoldilocksProverSetupData};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
 };
-use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksProverSetupData};
 
 use crate::{
     metrics::{CircuitLabels, Layer, METRICS},

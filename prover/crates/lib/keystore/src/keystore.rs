@@ -475,6 +475,7 @@ impl Keystore {
     pub fn load_commitments(&self) -> anyhow::Result<VkCommitments> {
         Self::load_json_from_file(self.get_base_path().join("commitments.json"))
     }
+
     pub fn save_commitments(&self, commitments: &VkCommitments) -> anyhow::Result<()> {
         Self::save_json_pretty(self.get_base_path().join("commitments.json"), &commitments)
     }
