@@ -2,26 +2,50 @@ use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
 use zksync_multivm::{
-    tracers::CallTracer, vm_latest::HistoryMode, MultiVMTracer, MultiVmTracerPointer,
+    interface::{storage::WriteStorage, Call},
+    tracers::{CallTracer, ValidationTracer, ValidationTracerParams, ViolatedValidationRule},
+    vm_latest::HistoryDisabled,
+    MultiVMTracer, MultiVmTracerPointer,
 };
-use zksync_state::WriteStorage;
-use zksync_types::vm_trace::Call;
+use zksync_types::ProtocolVersionId;
 
-/// Custom tracers supported by our API
+/// Custom tracers supported by the API sandbox.
 #[derive(Debug)]
 pub(crate) enum ApiTracer {
     CallTracer(Arc<OnceCell<Vec<Call>>>),
+    Validation {
+        params: ValidationTracerParams,
+        result: Arc<OnceCell<ViolatedValidationRule>>,
+    },
 }
 
 impl ApiTracer {
-    pub fn into_boxed<
-        S: WriteStorage,
-        H: HistoryMode + zksync_multivm::HistoryMode<Vm1_5_0 = H> + 'static,
-    >(
+    pub fn validation(
+        params: ValidationTracerParams,
+    ) -> (Self, Arc<OnceCell<ViolatedValidationRule>>) {
+        let result = Arc::<OnceCell<_>>::default();
+        let this = Self::Validation {
+            params,
+            result: result.clone(),
+        };
+        (this, result)
+    }
+
+    pub(super) fn into_boxed<S>(
         self,
-    ) -> MultiVmTracerPointer<S, H> {
+        protocol_version: ProtocolVersionId,
+    ) -> MultiVmTracerPointer<S, HistoryDisabled>
+    where
+        S: WriteStorage,
+    {
         match self {
-            ApiTracer::CallTracer(tracer) => CallTracer::new(tracer.clone()).into_tracer_pointer(),
+            Self::CallTracer(traces) => CallTracer::new(traces).into_tracer_pointer(),
+            Self::Validation { params, result } => {
+                let (mut tracer, _) =
+                    ValidationTracer::<HistoryDisabled>::new(params, protocol_version.into());
+                tracer.result = result;
+                tracer.into_tracer_pointer()
+            }
         }
     }
 }

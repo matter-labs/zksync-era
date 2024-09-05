@@ -287,7 +287,7 @@ impl RpcState {
     #[track_caller]
     pub(crate) fn acquire_connection(
         &self,
-    ) -> impl Future<Output = Result<Connection<'_, Core>, Web3Error>> + '_ {
+    ) -> impl Future<Output = Result<Connection<'static, Core>, Web3Error>> + '_ {
         self.connection_pool
             .connection_tagged("api")
             .map_err(|err| err.generalize().into())

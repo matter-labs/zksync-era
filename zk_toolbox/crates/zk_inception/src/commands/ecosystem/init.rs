@@ -18,7 +18,7 @@ use config::{
             input::{
                 DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, InitialDeploymentConfig,
             },
-            output::{DeployErc20Output, DeployL1Output},
+            output::{DeployL1Output, ERC20Tokens},
         },
         script_params::{DEPLOY_ECOSYSTEM_SCRIPT_PARAMS, DEPLOY_ERC20_SCRIPT_PARAMS},
     },
@@ -26,9 +26,9 @@ use config::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath,
     },
-    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
+    ContractsConfig, EcosystemConfig, GenesisConfig,
 };
-use types::{L1Network, ProverMode, WalletCreation};
+use types::{L1Network, ProverMode};
 use xshell::{cmd, Shell};
 
 use super::{
@@ -38,18 +38,18 @@ use super::{
 use crate::{
     accept_ownership::accept_owner,
     commands::{
-        chain,
+        chain::{self, args::init::PortOffset},
         ecosystem::create_configs::{
             create_erc20_deployment_config, create_initial_deployments_config,
         },
     },
-    consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
     messages::{
-        msg_ecosystem_initialized, msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
+        msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
+        msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
         MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
-        MSG_DEPLOYING_ERC20_SPINNER, MSG_DISTRIBUTING_ETH_SPINNER,
-        MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR, MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT,
-        MSG_INITIALIZING_ECOSYSTEM, MSG_INTALLING_DEPS_SPINNER,
+        MSG_DEPLOYING_ERC20_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
+        MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM,
+        MSG_INTALLING_DEPS_SPINNER,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
@@ -119,6 +119,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             genesis_args: genesis_args.clone().fill_values_with_prompt(&chain_config),
             deploy_paymaster: final_ecosystem_args.deploy_paymaster,
             l1_rpc_url: final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
+            port_offset: PortOffset::from_chain_id(chain_config.id as u16).into(),
         };
 
         chain::init::init(
@@ -132,39 +133,6 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
 
     logger::outro(msg_ecosystem_initialized(&list_of_chains.join(",")));
 
-    Ok(())
-}
-
-// Distribute eth to the chain wallets for localhost environment
-pub async fn distribute_eth(
-    ecosystem_config: &EcosystemConfig,
-    chain_config: &ChainConfig,
-    l1_rpc_url: String,
-) -> anyhow::Result<()> {
-    if chain_config.wallet_creation == WalletCreation::Localhost
-        && ecosystem_config.l1_network == L1Network::Localhost
-    {
-        let spinner = Spinner::new(MSG_DISTRIBUTING_ETH_SPINNER);
-        let wallets = ecosystem_config.get_wallets()?;
-        let chain_wallets = chain_config.get_wallets_config()?;
-        let mut addresses = vec![
-            chain_wallets.operator.address,
-            chain_wallets.blob_operator.address,
-            chain_wallets.governor.address,
-        ];
-        if let Some(deployer) = chain_wallets.deployer {
-            addresses.push(deployer.address)
-        }
-        common::ethereum::distribute_eth(
-            wallets.operator,
-            addresses,
-            l1_rpc_url,
-            ecosystem_config.l1_network.chain_id(),
-            AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
-        )
-        .await?;
-        spinner.finish();
-    }
     Ok(())
 }
 
@@ -198,7 +166,7 @@ async fn deploy_erc20(
     contracts_config: &ContractsConfig,
     forge_args: ForgeScriptArgs,
     l1_rpc_url: String,
-) -> anyhow::Result<DeployErc20Output> {
+) -> anyhow::Result<ERC20Tokens> {
     let deploy_config_path = DEPLOY_ERC20_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
     let wallets = ecosystem_config.get_wallets()?;
     DeployErc20Config::new(
@@ -228,7 +196,7 @@ async fn deploy_erc20(
     forge.run(shell)?;
     spinner.finish();
 
-    let result = DeployErc20Output::read(
+    let result = ERC20Tokens::read(
         shell,
         DEPLOY_ERC20_SCRIPT_PARAMS.output(&ecosystem_config.link_to_code),
     )?;
@@ -276,17 +244,30 @@ async fn deploy_ecosystem(
         }
     };
 
+    let ecosystem_preexisting_configs_path =
+        ecosystem_config
+            .get_preexisting_configs_path()
+            .join(format!(
+                "{}.yaml",
+                ecosystem_config.l1_network.to_string().to_lowercase()
+            ));
+
+    // currently there are not some preexisting ecosystem contracts in
+    // chains, so we need check if this file exists.
+    if ecosystem_contracts_path.is_none() && !ecosystem_preexisting_configs_path.exists() {
+        anyhow::bail!(msg_ecosystem_no_found_preexisting_contract(
+            &ecosystem_config.l1_network.to_string()
+        ))
+    }
+
     let ecosystem_contracts_path =
         ecosystem_contracts_path.unwrap_or_else(|| match ecosystem_config.l1_network {
             L1Network::Localhost => {
                 ContractsConfig::get_path_with_base_path(&ecosystem_config.config)
             }
-            L1Network::Sepolia | L1Network::Mainnet => ecosystem_config
-                .get_preexisting_configs_path()
-                .join(format!(
-                    "{}.yaml",
-                    ecosystem_config.l1_network.to_string().to_lowercase()
-                )),
+            L1Network::Sepolia | L1Network::Holesky | L1Network::Mainnet => {
+                ecosystem_preexisting_configs_path
+            }
         });
 
     ContractsConfig::read(shell, ecosystem_contracts_path)

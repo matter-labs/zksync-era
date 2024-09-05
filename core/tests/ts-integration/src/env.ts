@@ -43,13 +43,17 @@ export async function waitForServer(l2NodeUrl: string) {
     throw new Error('Failed to wait for the server to start');
 }
 
-function getMainWalletPk(pathToHome: string, network: string): string {
-    if (network.toLowerCase() == 'localhost') {
+function getMainWalletPk(pathToHome: string): string {
+    if (process.env.MASTER_WALLET_PK) {
+        return process.env.MASTER_WALLET_PK;
+    } else {
         const testConfigPath = path.join(pathToHome, `etc/test_config/constant`);
         const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
-        return ethers.Wallet.fromPhrase(ethTestConfig.test_mnemonic).privateKey;
-    } else {
-        return ensureVariable(process.env.MASTER_WALLET_PK, 'Main wallet private key');
+
+        let pk = ethers.Wallet.fromPhrase(ethTestConfig['test_mnemonic']).privateKey;
+        process.env.MASTER_WALLET_PK = pk;
+
+        return pk;
     }
 }
 
@@ -73,7 +77,8 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml', configsFolderSuffix });
 
     const network = ecosystem.l1_network.toLowerCase();
-    let mainWalletPK = getMainWalletPk(pathToHome, network);
+    let mainWalletPK = getMainWalletPk(pathToHome);
+
     const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
 
     await waitForServer(l2NodeUrl);
@@ -97,7 +102,6 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
             token = Object.values(tokens.tokens)[1];
         }
     }
-    const weth = tokens.tokens['WETH'];
     let baseToken;
 
     for (const key in tokens.tokens) {
@@ -114,12 +118,6 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(token.address);
 
-    const l2WethAddress = await new zksync.Wallet(
-        mainWalletPK,
-        l2Provider,
-        ethers.getDefaultProvider(l1NodeUrl)
-    ).l2TokenAddress(weth.address);
-
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
     const l2ChainId = BigInt(genesisConfig.l2_chain_id);
     const l1BatchCommitDataGeneratorMode = genesisConfig.l1_batch_commit_data_generator_mode as DataAvailabityMode;
@@ -130,6 +128,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     const priorityTxMaxGasLimit = 72000000n;
     const maxLogsLimit = parseInt(generalConfig.api.web3_json_rpc.req_entities_limit);
 
+    const healthcheckPort = generalConfig.api.healthcheck.port;
     return {
         maxLogsLimit,
         pathToHome,
@@ -145,19 +144,13 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
         l1NodeUrl,
         wsL2NodeUrl,
         contractVerificationUrl,
+        healthcheckPort,
         erc20Token: {
             name: token.name,
             symbol: token.symbol,
             decimals: token.decimals,
             l1Address: token.address,
             l2Address: l2TokenAddress
-        },
-        wethToken: {
-            name: weth.name,
-            symbol: weth.symbol,
-            decimals: weth.decimals,
-            l1Address: weth.address,
-            l2Address: l2WethAddress
         },
         baseToken: {
             name: baseToken?.name || token.name,
@@ -185,7 +178,7 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     const network = process.env.CHAIN_ETH_NETWORK || 'localhost';
     const pathToHome = path.join(__dirname, '../../../../');
 
-    let mainWalletPK = getMainWalletPk(pathToHome, network);
+    let mainWalletPK = getMainWalletPk(pathToHome);
 
     const l2NodeUrl = ensureVariable(
         process.env.ZKSYNC_WEB3_API_URL || process.env.API_WEB3_JSON_RPC_HTTP_URL,
@@ -213,7 +206,6 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     if (!token) {
         token = tokens[0];
     }
-    const weth = tokens.find((token: { symbol: string }) => token.symbol == 'WETH')!;
     const baseToken = tokens.find((token: { address: string }) =>
         zksync.utils.isAddressEq(token.address, baseTokenAddress)
     )!;
@@ -224,12 +216,6 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
         l2Provider,
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(token.address);
-
-    const l2WethAddress = await new zksync.Wallet(
-        mainWalletPK,
-        l2Provider,
-        ethers.getDefaultProvider(l1NodeUrl)
-    ).l2TokenAddress(weth.address);
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
     const l2ChainId = BigInt(process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID!);
@@ -258,6 +244,7 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
         process.env.EN_REQ_ENTITIES_LIMIT ?? process.env.API_WEB3_JSON_RPC_REQ_ENTITIES_LIMIT!
     );
 
+    const healthcheckPort = process.env.API_HEALTHCHECK_PORT ?? '3071';
     return {
         maxLogsLimit,
         pathToHome,
@@ -272,6 +259,7 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
         l2NodeUrl,
         l1NodeUrl,
         wsL2NodeUrl,
+        healthcheckPort,
         contractVerificationUrl,
         erc20Token: {
             name: token.name,
@@ -279,13 +267,6 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
             decimals: token.decimals,
             l1Address: token.address,
             l2Address: l2TokenAddress
-        },
-        wethToken: {
-            name: weth.name,
-            symbol: weth.symbol,
-            decimals: weth.decimals,
-            l1Address: weth.address,
-            l2Address: l2WethAddress
         },
         baseToken: {
             name: baseToken?.name || token.name,

@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use common::logger;
+use common::{config::global_config, logger};
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 use types::{L1Network, ProverMode, WalletCreation};
@@ -13,11 +13,14 @@ use zksync_basic_types::L2ChainId;
 use crate::{
     consts::{
         CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ECOSYSTEM_PATH, ERA_CHAIN_ID,
-        ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY, LOCAL_DB_PATH,
-        WALLETS_FILE,
+        ERC20_CONFIGS_FILE, ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY,
+        LOCAL_ARTIFACTS_PATH, LOCAL_DB_PATH, WALLETS_FILE,
     },
     create_localhost_wallets,
-    forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
+    forge_interface::deploy_ecosystem::{
+        input::{Erc20DeploymentConfig, InitialDeploymentConfig},
+        output::{ERC20Tokens, Erc20Token},
+    },
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkToolboxConfig},
     ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
 };
@@ -136,6 +139,13 @@ impl EcosystemConfig {
         Ok(ecosystem)
     }
 
+    pub fn current_chain(&self) -> &str {
+        global_config()
+            .chain_name
+            .as_deref()
+            .unwrap_or(self.default_chain.as_ref())
+    }
+
     pub fn load_chain(&self, name: Option<String>) -> Option<ChainConfig> {
         let name = name.unwrap_or(self.default_chain.clone());
         self.load_chain_inner(&name)
@@ -143,7 +153,7 @@ impl EcosystemConfig {
 
     fn load_chain_inner(&self, name: &str) -> Option<ChainConfig> {
         let path = self.chains.join(name).join(CONFIG_NAME);
-        let config = ChainConfigInternal::read(self.get_shell(), path).ok()?;
+        let config = ChainConfigInternal::read(self.get_shell(), path.clone()).ok()?;
 
         Some(ChainConfig {
             id: config.id,
@@ -159,6 +169,10 @@ impl EcosystemConfig {
             rocks_db_path: config.rocks_db_path,
             wallet_creation: config.wallet_creation,
             shell: self.get_shell().clone().into(),
+            // It's required for backward compatibility
+            artifacts: config
+                .artifacts_path
+                .unwrap_or_else(|| self.get_chain_artifacts_path(name)),
         })
     }
 
@@ -168,6 +182,11 @@ impl EcosystemConfig {
 
     pub fn get_erc20_deployment_config(&self) -> anyhow::Result<Erc20DeploymentConfig> {
         Erc20DeploymentConfig::read(self.get_shell(), self.config.join(ERC20_DEPLOYMENT_FILE))
+    }
+    pub fn get_erc20_tokens(&self) -> Vec<Erc20Token> {
+        ERC20Tokens::read(self.get_shell(), self.config.join(ERC20_CONFIGS_FILE))
+            .map(|tokens| tokens.tokens.values().cloned().collect())
+            .unwrap_or_default()
     }
 
     pub fn get_wallets(&self) -> anyhow::Result<WalletsConfig> {
@@ -218,6 +237,10 @@ impl EcosystemConfig {
 
     pub fn get_chain_rocks_db_path(&self, chain_name: &str) -> PathBuf {
         self.chains.join(chain_name).join(LOCAL_DB_PATH)
+    }
+
+    pub fn get_chain_artifacts_path(&self, chain_name: &str) -> PathBuf {
+        self.chains.join(chain_name).join(LOCAL_ARTIFACTS_PATH)
     }
 
     fn get_internal(&self) -> EcosystemConfigInternal {

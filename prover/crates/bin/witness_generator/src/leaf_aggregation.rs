@@ -27,12 +27,12 @@ use zksync_prover_fri_types::{
     FriProofWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
     prover_dal::LeafAggregationJobMetadata, L1BatchNumber,
 };
-use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
@@ -72,6 +72,7 @@ pub struct LeafAggregationWitnessGenerator {
     object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
+    setup_data_path: String,
 }
 
 impl LeafAggregationWitnessGenerator {
@@ -80,12 +81,14 @@ impl LeafAggregationWitnessGenerator {
         object_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
+        setup_data_path: String,
     ) -> Self {
         Self {
             config,
             object_store,
             prover_connection_pool,
             protocol_version,
+            setup_data_path,
         }
     }
 
@@ -131,9 +134,13 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
         tracing::info!("Processing leaf aggregation job {:?}", metadata.id);
         Ok(Some((
             metadata.id,
-            prepare_leaf_aggregation_job(metadata, &*self.object_store)
-                .await
-                .context("prepare_leaf_aggregation_job()")?,
+            prepare_leaf_aggregation_job(
+                metadata,
+                &*self.object_store,
+                self.setup_data_path.clone(),
+            )
+            .await
+            .context("prepare_leaf_aggregation_job()")?,
         )))
     }
 
@@ -219,6 +226,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
 pub async fn prepare_leaf_aggregation_job(
     metadata: LeafAggregationJobMetadata,
     object_store: &dyn ObjectStore,
+    setup_data_path: String,
 ) -> anyhow::Result<LeafAggregationWitnessGeneratorJob> {
     let started_at = Instant::now();
     let closed_form_input = get_artifacts(&metadata, object_store).await;
@@ -227,7 +235,7 @@ pub async fn prepare_leaf_aggregation_job(
         .observe(started_at.elapsed());
 
     let started_at = Instant::now();
-    let keystore = Keystore::default();
+    let keystore = Keystore::new_with_setup_data_path(setup_data_path);
     let base_vk = keystore
         .load_base_layer_verification_key(metadata.circuit_id)
         .context("get_base_layer_vk_for_circuit_type()")?;

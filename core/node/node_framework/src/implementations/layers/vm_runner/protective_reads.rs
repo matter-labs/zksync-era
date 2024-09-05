@@ -2,7 +2,8 @@ use zksync_config::configs::vm_runner::ProtectiveReadsWriterConfig;
 use zksync_node_framework_derive::FromContext;
 use zksync_types::L2ChainId;
 use zksync_vm_runner::{
-    ConcurrentOutputHandlerFactoryTask, ProtectiveReadsIo, ProtectiveReadsWriter, StorageSyncTask,
+    impls::{ProtectiveReadsIo, ProtectiveReadsWriter},
+    ConcurrentOutputHandlerFactoryTask, StorageSyncTask,
 };
 
 use crate::{

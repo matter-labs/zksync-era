@@ -19,6 +19,9 @@ import {
     replaceAggregatedBlockExecuteDeadline
 } from 'utils/build/file-configs';
 import path from 'path';
+import { ChildProcessWithoutNullStreams } from 'child_process';
+import { logsTestPath } from 'utils/build/logs';
+import { killPidWithAllChilds } from 'utils/build/kill';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -49,8 +52,10 @@ if (deploymentMode == 'Validium') {
     mainEnv = process.env.IN_DOCKER ? 'docker' : 'dev';
     extEnv = process.env.IN_DOCKER ? 'ext-node-docker' : 'ext-node';
 }
-const mainLogsPath: string = 'revert_main.log';
-const extLogsPath: string = 'revert_ext.log';
+
+async function logsPath(name: string): Promise<string> {
+    return await logsTestPath(fileConfig.chain, 'logs/revert/en', name);
+}
 
 interface SuggestedValues {
     lastExecutedL1BatchNumber: bigint;
@@ -130,13 +135,13 @@ async function runBlockReverter(args: string[]): Promise<string> {
     return executedProcess.stdout;
 }
 
-async function killServerAndWaitForShutdown(tester: Tester, server: string) {
-    await utils.exec(`killall -9 ${server}`);
+async function killServerAndWaitForShutdown(proc: MainNode | ExtNode) {
+    await proc.terminate();
     // Wait until it's really stopped.
     let iter = 0;
     while (iter < 30) {
         try {
-            await tester.syncWallet.provider.getBlockNumber();
+            await proc.tester.syncWallet.provider.getBlockNumber();
             await utils.sleep(2);
             iter += 1;
         } catch (_) {
@@ -149,9 +154,19 @@ async function killServerAndWaitForShutdown(tester: Tester, server: string) {
 }
 
 class MainNode {
-    constructor(public tester: Tester) {}
+    constructor(public tester: Tester, public proc: ChildProcessWithoutNullStreams, public zkInception: boolean) {}
+
+    public async terminate() {
+        try {
+            await killPidWithAllChilds(this.proc.pid!, 9);
+        } catch (err) {
+            console.log(`ignored error: ${err}`);
+        }
+    }
 
     // Terminates all main node processes running.
+    //
+    // WARNING: This is not safe to use when running nodes on multiple chains.
     public static async terminateAll() {
         try {
             await utils.exec('killall -INT zksync_server');
@@ -184,37 +199,51 @@ class MainNode {
         if (enableConsensus) {
             components += ',consensus';
         }
-
+        if (baseTokenAddress != zksync.utils.LEGACY_ETH_ADDRESS) {
+            components += ',base_token_ratio_persister';
+        }
         let proc = runServerInBackground({
             components: [components],
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
             env: env,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
 
         // Wait until the main node starts responding.
         let tester: Tester = await Tester.init(ethClientWeb3Url, apiWeb3JsonRpcHttpUrl, baseTokenAddress);
         while (true) {
             try {
-                await tester.syncWallet.provider.getBlockNumber();
+                console.log(`Web3 ${apiWeb3JsonRpcHttpUrl}`);
+                await tester.syncWallet.provider.getBridgehubContractAddress();
                 break;
             } catch (err) {
                 if (proc.exitCode != null) {
                     assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
                 }
-                console.log('waiting for api endpoint');
+                console.log('MainNode waiting for api endpoint');
                 await utils.sleep(1);
             }
         }
-        return new MainNode(tester);
+        return new MainNode(tester, proc, fileConfig.loadFromFile);
     }
 }
 
 class ExtNode {
-    constructor(public tester: Tester, private proc: child_process.ChildProcess) {}
+    constructor(public tester: Tester, private proc: child_process.ChildProcess, public zkInception: boolean) {}
+
+    public async terminate() {
+        try {
+            await killPidWithAllChilds(this.proc.pid!, 9);
+        } catch (err) {
+            console.log(`ignored error: ${err}`);
+        }
+    }
 
     // Terminates all main node processes running.
+    //
+    // WARNING: This is not safe to use when running nodes on multiple chains.
     public static async terminateAll() {
         try {
             await utils.exec('killall -INT zksync_external_node');
@@ -240,10 +269,11 @@ class ExtNode {
 
         // Run server in background.
         let proc = runExternalNodeInBackground({
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
             env: env,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
 
         // Wait until the node starts responding.
@@ -256,11 +286,11 @@ class ExtNode {
                 if (proc.exitCode != null) {
                     assert.fail(`node failed to start, exitCode = ${proc.exitCode}`);
                 }
-                console.log('waiting for api endpoint');
+                console.log('ExtNode waiting for api endpoint');
                 await utils.sleep(1);
             }
         }
-        return new ExtNode(tester, proc);
+        return new ExtNode(tester, proc, fileConfig.loadFromFile);
     }
 
     // Waits for the node process to exit.
@@ -282,23 +312,28 @@ describe('Block reverting test', function () {
     let extLogs: fs.WriteStream;
     let depositAmount: bigint;
     let enableConsensus: boolean;
+    let mainNode: MainNode;
+    let extNode: ExtNode;
+
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
 
     before('initialize test', async () => {
         if (fileConfig.loadFromFile) {
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
             const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
             const contractsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'contracts.yaml' });
-            const externalNodeConfig = loadConfig({
+            const externalNodeGeneralConfig = loadConfig({
                 pathToHome,
+                configsFolderSuffix: 'external_node',
                 chain: fileConfig.chain,
-                config: 'external_node.yaml'
+                config: 'general.yaml'
             });
             const walletsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
 
             ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
             apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
             baseTokenAddress = contractsConfig.l1.base_token_addr;
-            enEthClientUrl = externalNodeConfig.main_node_url;
+            enEthClientUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
             operatorAddress = walletsConfig.operator.address;
         } else {
             let env = fetchEnv(mainEnv);
@@ -309,25 +344,26 @@ describe('Block reverting test', function () {
             // TODO use env variable for this?
             operatorAddress = '0xde03a0B5963f75f1C8485B355fF6D30f3093BDE7';
         }
-
+        mainLogs = fs.createWriteStream(await logsPath('server.log'), { flags: 'a' });
+        extLogs = fs.createWriteStream(await logsPath('external_node.log'), { flags: 'a' });
         if (process.env.SKIP_COMPILATION !== 'true' && !fileConfig.loadFromFile) {
             compileBinaries();
         }
-        console.log(`PWD = ${process.env.PWD}`);
-        mainLogs = fs.createWriteStream(mainLogsPath, { flags: 'a' });
-        extLogs = fs.createWriteStream(extLogsPath, { flags: 'a' });
         enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
+
         console.log(`enableConsensus = ${enableConsensus}`);
         depositAmount = ethers.parseEther('0.001');
     });
 
     step('run', async () => {
-        console.log('Make sure that nodes are not running');
-        await ExtNode.terminateAll();
-        await MainNode.terminateAll();
+        if (autoKill) {
+            console.log('Make sure that nodes are not running');
+            await ExtNode.terminateAll();
+            await MainNode.terminateAll();
+        }
 
         console.log('Start main node');
-        let mainNode = await MainNode.spawn(
+        mainNode = await MainNode.spawn(
             mainLogs,
             enableConsensus,
             true,
@@ -336,7 +372,7 @@ describe('Block reverting test', function () {
             baseTokenAddress
         );
         console.log('Start ext node');
-        let extNode = await ExtNode.spawn(extLogs, enableConsensus, ethClientWeb3Url, enEthClientUrl, baseTokenAddress);
+        extNode = await ExtNode.spawn(extLogs, enableConsensus, ethClientWeb3Url, enEthClientUrl, baseTokenAddress);
 
         await mainNode.tester.fundSyncWallet();
         await extNode.tester.fundSyncWallet();
@@ -349,17 +385,28 @@ describe('Block reverting test', function () {
         console.log(
             'Finalize an L1 transaction to ensure at least 1 executed L1 batch and that all transactions are processed'
         );
-        const h: zksync.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
-            token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseToken,
-            amount: depositAmount,
-            to: alice.address,
-            approveBaseERC20: true,
-            approveERC20: true
-        });
-        await h.waitFinalize();
+
+        for (let iter = 0; iter < 30; iter++) {
+            try {
+                const h: zksync.types.PriorityOpResponse = await extNode.tester.syncWallet.deposit({
+                    token: isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : baseToken,
+                    amount: depositAmount,
+                    to: alice.address,
+                    approveBaseERC20: true,
+                    approveERC20: true
+                });
+                await h.waitFinalize();
+                break;
+            } catch (error: any) {
+                if (error.message == 'server shutting down') {
+                    await utils.sleep(2);
+                    continue;
+                }
+            }
+        }
 
         console.log('Restart the main node with L1 batch execution disabled.');
-        await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
+        await killServerAndWaitForShutdown(mainNode);
         mainNode = await MainNode.spawn(
             mainLogs,
             enableConsensus,
@@ -405,7 +452,7 @@ describe('Block reverting test', function () {
             console.log(`lastExecuted = ${lastExecuted}, lastCommitted = ${lastCommitted}`);
             if (lastCommitted - lastExecuted >= 2n) {
                 console.log('Terminate the main node');
-                await killServerAndWaitForShutdown(mainNode.tester, 'zksync_server');
+                await killServerAndWaitForShutdown(mainNode);
                 break;
             }
             await utils.sleep(0.3);
@@ -509,8 +556,8 @@ describe('Block reverting test', function () {
     });
 
     after('terminate nodes', async () => {
-        await MainNode.terminateAll();
-        await ExtNode.terminateAll();
+        await mainNode.terminate();
+        await extNode.terminate();
 
         if (fileConfig.loadFromFile) {
             replaceAggregatedBlockExecuteDeadline(pathToHome, fileConfig, 10);

@@ -11,16 +11,16 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         vm_runner::BasicWitnessInputProducerConfig,
-        wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
-        CommitmentGeneratorConfig, DatabaseSecrets, ExternalPriceApiClientConfig,
-        FriProofCompressorConfig, FriProverConfig, FriProverGatewayConfig,
-        FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig, GeneralConfig,
-        ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig, ProtectiveReadsWriterConfig,
-        PruningConfig, SnapshotRecoveryConfig,
+        wallets::{AddressWallet, EthSender, StateKeeper, TokenMultiplierSetter, Wallet, Wallets},
+        CommitmentGeneratorConfig, DatabaseSecrets, ExperimentalVmConfig,
+        ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
+        FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
+        GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
+        ProtectiveReadsWriterConfig, ProverJobMonitorConfig, PruningConfig, SnapshotRecoveryConfig,
     },
     ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
-    EthConfig, EthWatchConfig, GasAdjusterConfig, ObjectStoreConfig, PostgresConfig,
-    SnapshotsCreatorConfig,
+    EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
+    ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_env_config::FromEnv;
 use zksync_protobuf::repr::ProtoRepr;
@@ -77,6 +77,9 @@ pub struct TempConfigStore {
     pub pruning: Option<PruningConfig>,
     pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
+    pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
+    pub experimental_vm_config: Option<ExperimentalVmConfig>,
+    pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
 }
 
 impl TempConfigStore {
@@ -95,7 +98,7 @@ impl TempConfigStore {
             prover_gateway: self.fri_prover_gateway_config.clone(),
             witness_vector_generator: self.fri_witness_vector_generator.clone(),
             prover_group_config: self.fri_prover_group_config.clone(),
-            witness_generator: self.fri_witness_generator_config.clone(),
+            witness_generator_config: self.fri_witness_generator_config.clone(),
             prometheus_config: self.prometheus_config.clone(),
             proof_data_handler_config: self.proof_data_handler_config.clone(),
             db_config: self.db_config.clone(),
@@ -112,6 +115,11 @@ impl TempConfigStore {
             pruning: self.pruning.clone(),
             external_price_api_client_config: self.external_price_api_client_config.clone(),
             consensus_config: None,
+            external_proof_integration_api_config: self
+                .external_proof_integration_api_config
+                .clone(),
+            experimental_vm_config: self.experimental_vm_config.clone(),
+            prover_job_monitor_config: self.prover_job_monitor_config.clone(),
         }
     }
 
@@ -139,9 +147,15 @@ impl TempConfigStore {
                         .expect("Must be presented in env variables"),
                 ),
             });
+        let token_multiplier_setter = self.base_token_adjuster_config.as_ref().and_then(|config| {
+            let pk = config.private_key().ok()??;
+            let wallet = Wallet::new(pk);
+            Some(TokenMultiplierSetter { wallet })
+        });
         Wallets {
             eth_sender,
             state_keeper,
+            token_multiplier_setter,
         }
     }
 }
@@ -183,10 +197,13 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         pruning: None,
         snapshot_recovery: None,
         external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
+        external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
+        experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
+        prover_job_monitor_config: ProverJobMonitorConfig::from_env().ok(),
     })
 }
 
-pub fn load_general_config(path: Option<std::path::PathBuf>) -> anyhow::Result<GeneralConfig> {
+pub fn load_general_config(path: Option<PathBuf>) -> anyhow::Result<GeneralConfig> {
     match path {
         Some(path) => {
             let yaml = std::fs::read_to_string(path).context("Failed to read general config")?;
@@ -198,7 +215,7 @@ pub fn load_general_config(path: Option<std::path::PathBuf>) -> anyhow::Result<G
     }
 }
 
-pub fn load_database_secrets(path: Option<std::path::PathBuf>) -> anyhow::Result<DatabaseSecrets> {
+pub fn load_database_secrets(path: Option<PathBuf>) -> anyhow::Result<DatabaseSecrets> {
     match path {
         Some(path) => {
             let yaml = std::fs::read_to_string(path).context("Failed to read secrets")?;

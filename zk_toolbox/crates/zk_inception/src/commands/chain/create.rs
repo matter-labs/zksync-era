@@ -27,10 +27,12 @@ fn create(
     ecosystem_config: &mut EcosystemConfig,
     shell: &Shell,
 ) -> anyhow::Result<()> {
+    let tokens = ecosystem_config.get_erc20_tokens();
     let args = args
         .fill_values_with_prompt(
             ecosystem_config.list_of_chains().len() as u32,
             &ecosystem_config.l1_network,
+            tokens,
         )
         .context(MSG_ARGS_VALIDATOR_ERR)?;
 
@@ -70,6 +72,7 @@ pub(crate) fn create_chain_inner(
         l1_network: ecosystem_config.l1_network,
         link_to_code: ecosystem_config.link_to_code.clone(),
         rocks_db_path: ecosystem_config.get_chain_rocks_db_path(&default_chain_name),
+        artifacts: ecosystem_config.get_chain_artifacts_path(&default_chain_name),
         configs: chain_configs_path.clone(),
         external_node_config_path: None,
         l1_batch_commit_data_generator_mode: args.l1_batch_commit_data_generator_mode,

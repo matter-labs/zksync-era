@@ -104,7 +104,8 @@ pub(crate) struct RemoteENConfig {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
-    pub diamond_proxy_addr: Address,
+    /// Should not be accessed directly. Use [`ExternalNodeConfig::diamond_proxy_address`] instead.
+    diamond_proxy_addr: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
     // a different name, with names adapted only for consistency.
@@ -390,8 +391,7 @@ pub(crate) struct OptionalENConfig {
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
     /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
     /// (presumably, to participate in L1 batch proving).
-    /// By default, set to `true` as a temporary safety measure.
-    #[serde(default = "OptionalENConfig::default_protective_reads_persistence_enabled")]
+    #[serde(default)]
     pub protective_reads_persistence_enabled: bool,
     /// Address of the L1 diamond proxy contract used by the consistency checker to match with the origin of logs emitted
     /// by commit transactions. If not set, it will not be verified.
@@ -438,6 +438,9 @@ pub(crate) struct OptionalENConfig {
     /// If set to 0, L1 batches will not be retained based on their timestamp. The default value is 7 days.
     #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
     pruning_data_retention_sec: u64,
+    /// Gateway RPC URL, needed for operating during migration.
+    #[allow(dead_code)]
+    pub gateway_url: Option<SensitiveUrl>,
 }
 
 impl OptionalENConfig {
@@ -641,7 +644,7 @@ impl OptionalENConfig {
                 .db_config
                 .as_ref()
                 .map(|a| a.experimental.protective_reads_persistence_enabled)
-                .unwrap_or(true),
+                .unwrap_or_default(),
             merkle_tree_processing_delay_ms: load_config_or_default!(
                 general_config.db_config,
                 experimental.processing_delay_ms,
@@ -662,6 +665,7 @@ impl OptionalENConfig {
                 .unwrap_or_else(Self::default_main_node_rate_limit_rps),
             api_namespaces,
             contracts_diamond_proxy_addr: None,
+            gateway_url: enconfig.gateway_url.clone(),
         })
     }
 
@@ -762,10 +766,6 @@ impl OptionalENConfig {
 
     const fn default_l2_block_seal_queue_capacity() -> usize {
         10
-    }
-
-    const fn default_protective_reads_persistence_enabled() -> bool {
-        true
     }
 
     const fn default_mempool_cache_update_interval_ms() -> u64 {
@@ -1310,6 +1310,19 @@ impl ExternalNodeConfig<()> {
         let remote = RemoteENConfig::fetch(main_node_client)
             .await
             .context("Unable to fetch required config values from the main node")?;
+        let remote_diamond_proxy_addr = remote.diamond_proxy_addr;
+        if let Some(local_diamond_proxy_addr) = self.optional.contracts_diamond_proxy_addr {
+            anyhow::ensure!(
+                local_diamond_proxy_addr == remote_diamond_proxy_addr,
+                "Diamond proxy address {local_diamond_proxy_addr:?} specified in config doesn't match one returned \
+                by main node ({remote_diamond_proxy_addr:?})"
+            );
+        } else {
+            tracing::info!(
+                "Diamond proxy address is not specified in config; will use address \
+                returned by main node: {remote_diamond_proxy_addr:?}"
+            );
+        }
         Ok(ExternalNodeConfig {
             required: self.required,
             postgres: self.postgres,
@@ -1340,6 +1353,16 @@ impl ExternalNodeConfig {
             },
             tree_component: TreeComponentConfig { api_port: None },
         }
+    }
+
+    /// Returns a verified diamond proxy address.
+    /// If local configuration contains the address, it will be checked against the one returned by the main node.
+    /// Otherwise, the remote value will be used. However, using remote value has trust implications for the main
+    /// node so relying on it solely is not recommended.
+    pub fn diamond_proxy_address(&self) -> Address {
+        self.optional
+            .contracts_diamond_proxy_addr
+            .unwrap_or(self.remote.diamond_proxy_addr)
     }
 }
 

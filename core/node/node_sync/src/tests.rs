@@ -13,7 +13,7 @@ use zksync_node_test_utils::{
 use zksync_state_keeper::{
     io::{L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::test_batch_executor::TestBatchExecutorBuilder,
+    testonly::test_batch_executor::{MockReadStorageFactory, TestBatchExecutorBuilder},
     OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
 };
 use zksync_types::{
@@ -121,18 +121,18 @@ impl StateKeeperHandles {
         .unwrap();
 
         let (stop_sender, stop_receiver) = watch::channel(false);
-        let mut batch_executor_base = TestBatchExecutorBuilder::default();
+        let mut batch_executor = TestBatchExecutorBuilder::default();
         for &tx_hashes_in_l1_batch in tx_hashes {
-            batch_executor_base.push_successful_transactions(tx_hashes_in_l1_batch);
+            batch_executor.push_successful_transactions(tx_hashes_in_l1_batch);
         }
 
         let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver,
             Box::new(io),
-            Box::new(batch_executor_base),
+            Box::new(batch_executor),
             output_handler,
             Arc::new(NoopSealer),
-            Arc::new(pool),
+            Arc::new(MockReadStorageFactory),
         );
 
         Self {

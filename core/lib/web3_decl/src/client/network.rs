@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use zksync_types::{L2ChainId, SLChainId};
+use zksync_types::{L1ChainId, L2ChainId, SLChainId};
 
 /// Marker trait for networks. Two standard network kinds are [`L1`] and [`L2`].
 ///
@@ -33,6 +33,12 @@ impl From<SLChainId> for L1 {
     }
 }
 
+impl From<L1ChainId> for L1 {
+    fn from(chain_id: L1ChainId) -> Self {
+        Self(Some(chain_id.into()))
+    }
+}
+
 /// L2 network.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct L2(Option<L2ChainId>);
@@ -55,7 +61,7 @@ impl From<L2ChainId> for L2 {
 
 /// Associates a type with a particular type of RPC networks, such as Ethereum or ZKsync Era. RPC traits created using `jsonrpsee::rpc`
 /// can use `ForNetwork` as a client boundary to restrict which implementations can call their methods.
-pub trait ForNetwork {
+pub trait ForWeb3Network {
     /// Network that the type is associated with.
     type Net: Network;
 
@@ -67,7 +73,7 @@ pub trait ForNetwork {
     fn component(&self) -> &'static str;
 }
 
-impl<T: ?Sized + ForNetwork> ForNetwork for &T {
+impl<T: ?Sized + ForWeb3Network> ForWeb3Network for &T {
     type Net = T::Net;
 
     fn network(&self) -> Self::Net {
@@ -79,7 +85,7 @@ impl<T: ?Sized + ForNetwork> ForNetwork for &T {
     }
 }
 
-impl<T: ?Sized + ForNetwork> ForNetwork for Box<T> {
+impl<T: ?Sized + ForWeb3Network> ForWeb3Network for Box<T> {
     type Net = T::Net;
 
     fn network(&self) -> Self::Net {
@@ -92,7 +98,7 @@ impl<T: ?Sized + ForNetwork> ForNetwork for Box<T> {
 }
 
 /// Client that can be tagged with the component using it.
-pub trait TaggedClient: ForNetwork {
+pub trait TaggedClient: ForWeb3Network {
     /// Tags this client as working for a specific component.
     fn set_component(&mut self, component_name: &'static str);
 }

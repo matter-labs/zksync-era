@@ -14,7 +14,7 @@ use zksync_config::{
 };
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{attester, validator, validator::testonly::Setup};
 use zksync_dal::{CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_metadata_calculator::{
@@ -29,13 +29,16 @@ use zksync_node_sync::{
     ExternalIO, MainNodeClient, SyncState,
 };
 use zksync_node_test_utils::{create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts};
-use zksync_state::RocksdbStorageOptions;
 use zksync_state_keeper::{
+    executor::MainBatchExecutorFactory,
     io::{IoCursor, L1BatchParams, L2BlockParams},
     seal_criteria::NoopSealer,
-    testonly::{fund, l1_transaction, l2_transaction, MockBatchExecutor},
-    AsyncRocksdbCache, MainBatchExecutor, OutputHandler, StateKeeperPersistence,
-    TreeWritesPersistence, ZkSyncStateKeeper,
+    testonly::{
+        fund, l1_transaction, l2_transaction, test_batch_executor::MockReadStorageFactory,
+        MockBatchExecutor,
+    },
+    AsyncRocksdbCache, OutputHandler, StateKeeperPersistence, TreeWritesPersistence,
+    ZkSyncStateKeeper,
 };
 use zksync_test_account::Account;
 use zksync_types::{
@@ -70,55 +73,105 @@ pub(super) struct StateKeeper {
     tree_reader: LazyAsyncTreeReader,
 }
 
-pub(super) fn config(cfg: &network::Config) -> (config::ConsensusConfig, config::ConsensusSecrets) {
-    (
-        config::ConsensusConfig {
-            server_addr: *cfg.server_addr,
-            public_addr: config::Host(cfg.public_addr.0.clone()),
-            max_payload_size: usize::MAX,
-            max_batch_size: usize::MAX,
-            gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
-            gossip_static_inbound: cfg
-                .gossip
-                .static_inbound
-                .iter()
-                .map(|k| config::NodePublicKey(k.encode()))
-                .collect(),
-            gossip_static_outbound: cfg
-                .gossip
-                .static_outbound
-                .iter()
-                .map(|(k, v)| (config::NodePublicKey(k.encode()), config::Host(v.0.clone())))
-                .collect(),
-            genesis_spec: cfg.validator_key.as_ref().map(|key| config::GenesisSpec {
-                chain_id: L2ChainId::default(),
-                protocol_version: config::ProtocolVersion(validator::ProtocolVersion::CURRENT.0),
-                validators: vec![config::WeightedValidator {
-                    key: config::ValidatorPublicKey(key.public().encode()),
-                    weight: 1,
-                }],
-                // We only have access to the main node attester key in the `cfg`, which is fine
-                // for validators because at the moment there is only one leader. It doesn't
-                // allow us to form a full attester committee. However in the current tests
-                // the `new_configs` used to produce the array of `network::Config` doesn't
-                // assign an attester key, so it doesn't matter.
-                attesters: Vec::new(),
-                leader: config::ValidatorPublicKey(key.public().encode()),
-            }),
-            rpc: None,
-        },
-        config::ConsensusSecrets {
-            node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),
-            validator_key: cfg
-                .validator_key
-                .as_ref()
-                .map(|k| config::ValidatorSecretKey(k.encode().into())),
-            attester_key: cfg
-                .attester_key
-                .as_ref()
-                .map(|k| config::AttesterSecretKey(k.encode().into())),
-        },
-    )
+#[derive(Clone)]
+pub(super) struct ConfigSet {
+    net: network::Config,
+    pub(super) config: config::ConsensusConfig,
+    pub(super) secrets: config::ConsensusSecrets,
+}
+
+impl ConfigSet {
+    pub(super) fn new_fullnode(&self, rng: &mut impl Rng) -> ConfigSet {
+        let net = network::testonly::new_fullnode(rng, &self.net);
+        ConfigSet {
+            config: make_config(&net, None),
+            secrets: make_secrets(&net, None),
+            net,
+        }
+    }
+}
+
+pub(super) fn new_configs(
+    rng: &mut impl Rng,
+    setup: &Setup,
+    gossip_peers: usize,
+) -> Vec<ConfigSet> {
+    let genesis_spec = config::GenesisSpec {
+        chain_id: setup.genesis.chain_id.0.try_into().unwrap(),
+        protocol_version: config::ProtocolVersion(setup.genesis.protocol_version.0),
+        validators: setup
+            .validator_keys
+            .iter()
+            .map(|k| config::WeightedValidator {
+                key: config::ValidatorPublicKey(k.public().encode()),
+                weight: 1,
+            })
+            .collect(),
+        attesters: setup
+            .attester_keys
+            .iter()
+            .map(|k| config::WeightedAttester {
+                key: config::AttesterPublicKey(k.public().encode()),
+                weight: 1,
+            })
+            .collect(),
+        leader: config::ValidatorPublicKey(setup.validator_keys[0].public().encode()),
+    };
+    network::testonly::new_configs(rng, setup, gossip_peers)
+        .into_iter()
+        .enumerate()
+        .map(|(i, net)| ConfigSet {
+            config: make_config(&net, Some(genesis_spec.clone())),
+            secrets: make_secrets(&net, setup.attester_keys.get(i).cloned()),
+            net,
+        })
+        .collect()
+}
+
+fn make_secrets(
+    cfg: &network::Config,
+    attester_key: Option<attester::SecretKey>,
+) -> config::ConsensusSecrets {
+    config::ConsensusSecrets {
+        node_key: Some(config::NodeSecretKey(cfg.gossip.key.encode().into())),
+        validator_key: cfg
+            .validator_key
+            .as_ref()
+            .map(|k| config::ValidatorSecretKey(k.encode().into())),
+        attester_key: attester_key.map(|k| config::AttesterSecretKey(k.encode().into())),
+    }
+}
+
+fn make_config(
+    cfg: &network::Config,
+    genesis_spec: Option<config::GenesisSpec>,
+) -> config::ConsensusConfig {
+    config::ConsensusConfig {
+        server_addr: *cfg.server_addr,
+        public_addr: config::Host(cfg.public_addr.0.clone()),
+        max_payload_size: usize::MAX,
+        max_batch_size: usize::MAX,
+        gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
+        gossip_static_inbound: cfg
+            .gossip
+            .static_inbound
+            .iter()
+            .map(|k| config::NodePublicKey(k.encode()))
+            .collect(),
+        gossip_static_outbound: cfg
+            .gossip
+            .static_outbound
+            .iter()
+            .map(|(k, v)| (config::NodePublicKey(k.encode()), config::Host(v.0.clone())))
+            .collect(),
+        // This is only relevant for the main node, which populates the genesis on the first run.
+        // Note that the spec doesn't match 100% the genesis provided.
+        // That's because not all genesis setups are currently supported in zksync-era.
+        // TODO: this might be misleading, so it would be better to write some more custom
+        // genesis generator for zksync-era tests.
+        genesis_spec,
+        rpc: None,
+    }
 }
 
 /// Fake StateKeeper task to be executed in the background.
@@ -391,15 +444,14 @@ impl StateKeeper {
         self,
         ctx: &ctx::Ctx,
         client: Box<DynClient<L2>>,
-        cfg: &network::Config,
+        cfgs: ConfigSet,
     ) -> anyhow::Result<()> {
-        let (cfg, secrets) = config(cfg);
         en::EN {
             pool: self.pool,
             client,
             sync_state: self.sync_state.clone(),
         }
-        .run(ctx, self.actions_sender, cfg, secrets)
+        .run(ctx, self.actions_sender, cfgs.config, cfgs.secrets)
         .await
     }
 }
@@ -522,10 +574,7 @@ impl StateKeeperRunner {
                     .join("cache")
                     .to_string_lossy()
                     .into(),
-                RocksdbStorageOptions {
-                    block_cache_capacity: (1 << 20), // `1MB`
-                    max_open_files: None,
-                },
+                Default::default(),
             );
             s.spawn_bg({
                 let stop_recv = stop_recv.clone();
@@ -544,12 +593,13 @@ impl StateKeeperRunner {
             });
 
             s.spawn_bg({
+                let executor_factory = MainBatchExecutorFactory::new(false, false);
                 let stop_recv = stop_recv.clone();
                 async {
                     ZkSyncStateKeeper::new(
                         stop_recv,
                         Box::new(io),
-                        Box::new(MainBatchExecutor::new(false, false)),
+                        Box::new(executor_factory),
                         OutputHandler::new(Box::new(persistence.with_tx_insertion()))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
@@ -635,7 +685,7 @@ impl StateKeeperRunner {
                             .with_handler(Box::new(tree_writes_persistence))
                             .with_handler(Box::new(self.sync_state.clone())),
                         Arc::new(NoopSealer),
-                        Arc::new(self.pool.0.clone()),
+                        Arc::new(MockReadStorageFactory),
                     )
                     .run()
                     .await

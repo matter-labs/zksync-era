@@ -1,4 +1,4 @@
-name: Compare VM perfomance to base branch
+name: Compare VM performance to base branch
 
 on:
   pull_request:
@@ -8,7 +8,7 @@ on:
 jobs:
   vm-benchmarks:
     name: Run VM benchmarks
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [matterlabs-ci-runner-highmem-long]
 
     steps:
       - name: checkout base branch
@@ -47,7 +47,7 @@ jobs:
           ci_run zk
           ci_run zk compiler system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
-          ci_run cargo run --package vm-benchmark --release --bin instruction-counts | tee base-opcodes || touch base-opcodes
+          ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee base-opcodes || touch base-opcodes
           ci_run yarn workspace system-contracts clean
 
       - name: checkout PR
@@ -59,7 +59,7 @@ jobs:
           ci_run zk
           ci_run zk compiler system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee pr-iai
-          ci_run cargo run --package vm-benchmark --release --bin instruction-counts | tee pr-opcodes || touch pr-opcodes
+          ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee pr-opcodes || touch pr-opcodes
 
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "speedup<<$EOF" >> $GITHUB_OUTPUT
@@ -68,7 +68,7 @@ jobs:
         id: comparison
 
       - name: Comment on PR
-        uses: thollander/actions-comment-pull-request@v2
+        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
         with:
           message: |
             ${{ steps.comparison.outputs.speedup == '' && '## No performance difference detected (anymore)' || '## Detected VM performance changes' }}

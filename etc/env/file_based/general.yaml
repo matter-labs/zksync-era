@@ -41,7 +41,7 @@ api:
     estimate_gas_scale_factor: 1.3
     estimate_gas_acceptable_overestimation: 5000
     max_tx_size: 1000000
-    api_namespaces: [en,eth,net,web3,zks,pubsub,debug]
+    api_namespaces: [ en,eth,net,web3,zks,pubsub,debug ]
 state_keeper:
   transaction_slots: 8192
   max_allowed_l2_tx_gas_limit: 15000000000
@@ -104,7 +104,7 @@ eth:
     aggregated_block_execute_deadline: 10
     timestamp_criteria_max_allowed_lag: 30
     max_eth_tx_data_size: 120000
-    aggregated_proof_sizes: [1]
+    aggregated_proof_sizes: [ 1 ]
     max_aggregated_tx_gas: 15000000
     max_acceptable_priority_fee_in_gwei: 100000000000
     pubdata_sending_mode: BLOBS
@@ -140,7 +140,7 @@ prover:
     file_backed:
       file_backed_base_path: artifacts
     max_retries: 10
-  setup_data_path: vk_setup_data_generator_server_fri/data
+  setup_data_path: data/keys
   prometheus_port: 3315
   max_attempts: 10
   generation_timeout_in_secs: 600
@@ -272,28 +272,37 @@ prover_group:
       aggregation_round: 1
     - circuit_id: 18
       aggregation_round: 1
+prover_job_monitor:
+  prometheus_port: 3317
+  max_db_connections: 9
+  graceful_shutdown_timeout_ms: 5000
+  gpu_prover_archiver_run_interval_ms: 86400000
+  gpu_prover_archiver_archive_prover_after_ms: 172800000
+  prover_jobs_archiver_run_interval_ms: 1800000
+  prover_jobs_archiver_archive_jobs_after_ms: 172800000
+  proof_compressor_job_requeuer_run_interval_ms: 10000
+  prover_job_requeuer_run_interval_ms: 10000
+  witness_generator_job_requeuer_run_interval_ms: 10000
+  proof_compressor_queue_reporter_run_interval_ms: 10000
+  prover_queue_reporter_run_interval_ms: 10000
+  witness_generator_queue_reporter_run_interval_ms: 10000
+  witness_job_queuer_run_interval_ms: 10000
+
+
 base_token_adjuster:
   price_polling_interval_ms: 30000
   price_cache_update_interval_ms: 2000
+  max_tx_gas: 80000
+  default_priority_fee_per_gas: 1000000
 external_price_api_client:
-  source: "no-op"
+  source: "forced"
   client_timeout_ms: 10000
+  forced_numerator: 3
+  forced_denominator: 2
+
 
 house_keeper:
   l1_batch_metrics_reporting_interval_ms: 10000
-  gpu_prover_queue_reporting_interval_ms: 10000
-  prover_job_retrying_interval_ms: 30000
-  witness_generator_job_retrying_interval_ms: 30000
-  witness_generator_stats_reporting_interval_ms: 10000
-  witness_job_moving_interval_ms: 40000
-  prover_db_pool_size: 2
-  prover_stats_reporting_interval_ms: 5000
-  proof_compressor_job_retrying_interval_ms: 30000
-  proof_compressor_stats_reporting_interval_ms: 10000
-  prover_job_archiver_archiving_interval_ms: 1800000
-  prover_job_archiver_archive_after_secs: 172800
-  fri_gpu_prover_archiver_archiving_interval_ms: 86400000
-  fri_gpu_prover_archiver_archive_after_secs: 172800
 
 prometheus:
   listener_port: 3314
@@ -302,7 +311,7 @@ prometheus:
 
 observability:
   log_format: plain
-  log_directives: "zksync_node_test_utils=info,zksync_state_keeper=info,zksync_reorg_detector=info,zksync_consistency_checker=info,zksync_metadata_calculator=info,zksync_node_sync=info,zksync_node_consensus=info,zksync_contract_verification_server=info,zksync_node_api_server=info,zksync_tee_verifier_input_producer=info,zksync_node_framework=info,zksync_block_reverter=info,zksync_commitment_generator=info,zksync_node_db_pruner=info,zksync_eth_sender=info,zksync_node_fee_model=info,zksync_node_genesis=info,zksync_house_keeper=info,zksync_proof_data_handler=info,zksync_shared_metrics=info,zksync_node_test_utils=info,zksync_vm_runner=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core_leftovers=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_db_connection=info,zksync_eth_client=info,zksync_eth_watch=debug,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_web3_decl=debug,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=error,snapshots_creator=debug,zksync_base_token_adjuster=debug,zksync_external_price_api=debug"
+  log_directives: "zksync_node_test_utils=info,zksync_state_keeper=info,zksync_reorg_detector=info,zksync_consistency_checker=info,zksync_metadata_calculator=info,zksync_node_sync=info,zksync_node_consensus=info,zksync_contract_verification_server=info,zksync_node_api_server=info,zksync_tee_verifier_input_producer=info,zksync_node_framework=info,zksync_block_reverter=info,zksync_commitment_generator=info,zksync_node_db_pruner=info,zksync_eth_sender=info,zksync_node_fee_model=info,zksync_node_genesis=info,zksync_house_keeper=info,zksync_proof_data_handler=info,zksync_shared_metrics=info,zksync_node_test_utils=info,zksync_vm_runner=info,zksync_consensus_bft=info,zksync_consensus_network=info,zksync_consensus_storage=info,zksync_core_leftovers=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=info,zksync_db_connection=info,zksync_eth_client=info,zksync_eth_watch=debug,zksync_storage=info,zksync_db_manager=info,zksync_merkle_tree=info,zksync_state=debug,zksync_utils=debug,zksync_queued_job_processor=info,zksync_types=info,zksync_mempool=debug,loadnext=info,vm=info,zksync_object_store=info,zksync_external_node=info,zksync_witness_generator=info,zksync_prover_fri=info,zksync_witness_vector_generator=info,zksync_web3_decl=debug,zksync_health_check=debug,zksync_proof_fri_compressor=info,vise_exporter=error,snapshots_creator=debug,zksync_base_token_adjuster=debug,zksync_external_price_api=debug,zksync_external_proof_integration_api=info"
   # Uncomment only if needed
   # sentry:
   #   url: unset
@@ -322,6 +331,14 @@ basic_witness_input_producer:
   db_path: "./db/main/basic_witness_input_producer"
   window_size: 3
   first_processed_batch: 0
+
+experimental_vm:
+  state_keeper_fast_vm_mode: OLD
+  playground:
+    db_path: "./db/main/vm_playground"
+    fast_vm_mode: SHADOW
+    first_processed_batch: 0
+    window_size: 1
 
 snapshot_recovery:
   enabled: false
@@ -354,3 +371,6 @@ da_dispatcher:
   polling_interval_ms: 5000
   max_rows_to_dispatch: 100
   max_retries: 5
+
+external_proof_integration_api:
+  http_port: 3073

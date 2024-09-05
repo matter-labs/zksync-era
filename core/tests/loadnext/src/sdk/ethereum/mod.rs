@@ -102,6 +102,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         let query_client = Client::http(eth_web3_url)
             .map_err(|err| ClientError::NetworkError(err.to_string()))?
             .for_network(sl_chain_id.into())
+            .report_config(false)
             .build();
         let query_client: Box<DynClient<L1>> = Box::new(query_client);
         let eth_client = SigningClient::new(
@@ -131,7 +132,7 @@ impl<S: EthereumSigner> EthereumProvider<S> {
         &self.eth_client
     }
 
-    pub fn query_client(&self) -> &DynClient<L1> {
+    pub fn query_client(&self) -> &dyn EthInterface {
         self.eth_client.as_ref()
     }
 

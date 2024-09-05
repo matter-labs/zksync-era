@@ -5,6 +5,7 @@ pub mod gpu_prover {
     use anyhow::Context as _;
     use shivini::{
         gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data, ProverContext,
+        ProverContextConfig,
     };
     use tokio::task::JoinHandle;
     use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
@@ -29,12 +30,12 @@ pub mod gpu_prover {
         CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
     };
     use zksync_prover_fri_utils::region_fetcher::Zone;
+    use zksync_prover_keystore::{keystore::Keystore, GoldilocksGpuProverSetupData};
     use zksync_queued_job_processor::{async_trait, JobProcessor};
     use zksync_types::{
         basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
         prover_dal::SocketAddress,
     };
-    use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
 
     use crate::{
         metrics::METRICS,
@@ -82,7 +83,15 @@ pub mod gpu_prover {
             address: SocketAddress,
             zone: Zone,
             protocol_version: ProtocolSemanticVersion,
+            max_allocation: Option<usize>,
         ) -> Self {
+            let prover_context = match max_allocation {
+                Some(max_allocation) => ProverContext::create_with_config(
+                    ProverContextConfig::default().with_maximum_device_allocation(max_allocation),
+                )
+                .expect("failed initializing gpu prover context"),
+                None => ProverContext::create().expect("failed initializing gpu prover context"),
+            };
             Prover {
                 blob_store,
                 public_blob_store,
@@ -91,8 +100,7 @@ pub mod gpu_prover {
                 setup_load_mode,
                 circuit_ids_for_round_to_be_proven,
                 witness_vector_queue,
-                prover_context: ProverContext::create()
-                    .expect("failed initializing gpu prover context"),
+                prover_context,
                 address,
                 zone,
                 protocol_version,
@@ -112,7 +120,8 @@ pub mod gpu_prover {
                     .clone(),
                 SetupLoadMode::FromDisk => {
                     let started_at = Instant::now();
-                    let keystore = Keystore::default();
+                    let keystore =
+                        Keystore::new_with_setup_data_path(self.config.setup_data_path.clone());
                     let artifact: GoldilocksGpuProverSetupData = keystore
                         .load_gpu_setup_data_for_circuit_type(key.clone())
                         .context("load_gpu_setup_data_for_circuit_type()")?;
@@ -154,6 +163,7 @@ pub mod gpu_prover {
                     recursion_layer_proof_config(),
                     circuit.numeric_circuit_type(),
                 ),
+                CircuitWrapper::BasePartial(_) => panic!("Invalid CircuitWrapper received"),
             };
 
             let started_at = Instant::now();
@@ -171,8 +181,11 @@ pub mod gpu_prover {
                 (),
                 &worker,
             )
-            .unwrap_or_else(|_| {
-                panic!("failed generating GPU proof for id: {}", prover_job.job_id)
+            .unwrap_or_else(|err| {
+                panic!(
+                    "failed generating GPU proof for id: {}, error: {:?}",
+                    prover_job.job_id, err
+                )
             });
             tracing::info!(
                 "Successfully generated gpu proof for job {} took: {:?}",
@@ -196,6 +209,7 @@ pub mod gpu_prover {
                 CircuitWrapper::Recursive(_) => FriProofWrapper::Recursive(
                     ZkSyncRecursionLayerProof::from_inner(circuit_id, proof),
                 ),
+                CircuitWrapper::BasePartial(_) => panic!("Received partial base circuit"),
             };
             ProverArtifacts::new(prover_job.block_number, proof_wrapper)
         }
@@ -345,7 +359,7 @@ pub mod gpu_prover {
                     &config.specialized_group_id,
                     prover_setup_metadata_list
                 );
-                let keystore = Keystore::default();
+                let keystore = Keystore::new_with_setup_data_path(config.setup_data_path.clone());
                 for prover_setup_metadata in prover_setup_metadata_list {
                     let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
                     let setup_data = keystore

@@ -5,6 +5,8 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, Context as _};
 use futures::{channel::mpsc, executor::block_on, SinkExt, StreamExt};
+#[cfg(not(target_env = "msvc"))]
+use jemallocator::Jemalloc;
 use structopt::StructOpt;
 use tokio::sync::watch;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
@@ -12,30 +14,16 @@ use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::basic_fri_types::AggregationRound;
+use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion};
 use zksync_utils::wait_for_tasks::ManagedTasks;
-use zksync_vk_setup_data_server_fri::commitment_utils::get_cached_commitments;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
-
-use crate::{
+use zksync_witness_generator::{
     basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
     metrics::SERVER_METRICS, node_aggregation::NodeAggregationWitnessGenerator,
     recursion_tip::RecursionTipWitnessGenerator, scheduler::SchedulerWitnessGenerator,
 };
-
-mod basic_circuits;
-mod leaf_aggregation;
-mod metrics;
-mod node_aggregation;
-mod precalculated_merkle_paths_provider;
-mod recursion_tip;
-mod scheduler;
-mod storage_oracle;
-mod utils;
-
-#[cfg(not(target_env = "msvc"))]
-use jemallocator::Jemalloc;
 
 #[cfg(not(target_env = "msvc"))]
 #[global_allocator]
@@ -66,6 +54,43 @@ struct Opt {
     secrets_path: Option<std::path::PathBuf>,
 }
 
+/// Checks if the configuration locally matches the one in the database.
+/// This function recalculates the commitment in order to check the exact code that
+/// will run, instead of loading `commitments.json` (which also may correct misaligned
+/// information).
+async fn ensure_protocol_alignment(
+    prover_pool: &ConnectionPool<Prover>,
+    protocol_version: ProtocolSemanticVersion,
+    setup_data_path: String,
+) -> anyhow::Result<()> {
+    tracing::info!("Verifying protocol alignment for {:?}", protocol_version);
+    let vk_commitments_in_db = match prover_pool
+        .connection()
+        .await
+        .unwrap()
+        .fri_protocol_versions_dal()
+        .vk_commitments_for(protocol_version)
+        .await
+    {
+        Some(commitments) => commitments,
+        None => {
+            panic!(
+                "No vk commitments available in database for a protocol version {:?}.",
+                protocol_version
+            );
+        }
+    };
+    let keystore = Keystore::new_with_setup_data_path(setup_data_path);
+    // `recursion_scheduler_level_vk_hash` actually stores `scheduler_vk_hash` for historical reasons.
+    let scheduler_vk_hash = vk_commitments_in_db.recursion_scheduler_level_vk_hash;
+    keystore
+        .verify_scheduler_vk_hash(scheduler_vk_hash)
+        .with_context(||
+            format!("VK commitments didn't match commitments from DB for protocol version {protocol_version:?}")
+        )?;
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let opt = Opt::from_args();
@@ -91,10 +116,11 @@ async fn main() -> anyhow::Result<()> {
     );
     let store_factory = ObjectStoreFactory::new(object_store_config.0);
     let config = general_config
-        .witness_generator
-        .context("witness generator config")?;
+        .witness_generator_config
+        .context("witness generator config")?
+        .clone();
 
-    let prometheus_config = general_config.prometheus_config;
+    let prometheus_config = general_config.prometheus_config.clone();
 
     // If the prometheus listener port is not set in the witness generator config, use the one from the prometheus config.
     let prometheus_listener_port = if let Some(port) = config.prometheus_listener_port {
@@ -114,22 +140,13 @@ async fn main() -> anyhow::Result<()> {
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
-    let vk_commitments_in_db = match prover_connection_pool
-        .connection()
-        .await
-        .unwrap()
-        .fri_protocol_versions_dal()
-        .vk_commitments_for(protocol_version)
-        .await
-    {
-        Some(commitments) => commitments,
-        None => {
-            panic!(
-                "No vk commitments available in database for a protocol version {:?}.",
-                protocol_version
-            );
-        }
-    };
+    ensure_protocol_alignment(
+        &prover_connection_pool,
+        protocol_version,
+        prover_config.setup_data_path.clone(),
+    )
+    .await
+    .unwrap_or_else(|err| panic!("Protocol alignment check failed: {:?}", err));
 
     let rounds = match (opt.round, opt.all_rounds) {
         (Some(round), false) => vec![round],
@@ -170,6 +187,8 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = Vec::new();
     tasks.push(tokio::spawn(prometheus_task));
 
+    let setup_data_path = prover_config.setup_data_path.clone();
+
     for round in rounds {
         tracing::info!(
             "initializing the {:?} witness generator, batch size: {:?} with protocol_version: {:?}",
@@ -180,14 +199,6 @@ async fn main() -> anyhow::Result<()> {
 
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
-                let setup_data_path = prover_config.setup_data_path.clone();
-                let vk_commitments = get_cached_commitments(Some(setup_data_path));
-                assert_eq!(
-                    vk_commitments,
-                    vk_commitments_in_db,
-                    "VK commitments didn't match commitments from DB for protocol version {protocol_version:?}. Cached commitments: {vk_commitments:?}, commitments in database: {vk_commitments_in_db:?}"
-                );
-
                 let public_blob_store = match config.shall_save_to_public_bucket {
                     false => None,
                     true => Some(
@@ -216,6 +227,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
+                    setup_data_path.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
@@ -225,6 +237,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
+                    setup_data_path.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
@@ -234,6 +247,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
+                    setup_data_path.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
@@ -243,6 +257,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
+                    setup_data_path.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }

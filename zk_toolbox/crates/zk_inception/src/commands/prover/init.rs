@@ -1,6 +1,16 @@
+use std::path::PathBuf;
+
 use anyhow::Context;
-use common::{check_prover_prequisites, cmd::Cmd, logger, spinner::Spinner};
-use config::EcosystemConfig;
+use common::{
+    check_prerequisites,
+    cmd::Cmd,
+    config::global_config,
+    db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
+    logger,
+    spinner::Spinner,
+    WGET_PREREQUISITES,
+};
+use config::{copy_configs, set_prover_database, traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::{cmd, Shell};
 use zksync_config::{
     configs::{object_store::ObjectStoreMode, GeneralConfig},
@@ -14,27 +24,33 @@ use super::{
     utils::get_link_to_prover,
 };
 use crate::{
-    consts::PROVER_STORE_MAX_RETRIES,
+    consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_KEY_SPINNER,
-        MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR,
-        MSG_PROVER_CONFIG_NOT_FOUND_ERR, MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
+        MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR, MSG_GENERAL_CONFIG_NOT_FOUND_ERR,
+        MSG_INITIALIZING_DATABASES_SPINNER, MSG_INITIALIZING_PROVER_DATABASE,
+        MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_PROVER_CONFIG_NOT_FOUND_ERR,
+        MSG_PROVER_INITIALIZED, MSG_SETUP_KEY_PATH_ERROR,
     },
 };
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    check_prover_prequisites(shell);
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_chain(Some(ecosystem_config.default_chain.clone()))
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-    let mut general_config = chain_config
-        .get_general_config()
-        .context(MSG_GENERAL_CONFIG_NOT_FOUND_ERR)?;
 
     let setup_key_path = get_default_setup_key_path(&ecosystem_config)?;
 
-    let args = args.fill_values_with_prompt(shell, &setup_key_path)?;
+    let chain_config = ecosystem_config
+        .load_chain(global_config().chain_name.clone())
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+    let args = args.fill_values_with_prompt(shell, &setup_key_path, &chain_config)?;
+
+    if chain_config.get_general_config().is_err() || chain_config.get_secrets_config().is_err() {
+        copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
+    }
+
+    let mut general_config = chain_config
+        .get_general_config()
+        .context(MSG_GENERAL_CONFIG_NOT_FOUND_ERR)?;
 
     let proof_object_store_config = get_object_store_config(shell, Some(args.proof_store))?;
     let public_object_store_config = get_object_store_config(shell, args.public_store)?;
@@ -72,6 +88,23 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
     init_bellman_cuda(shell, args.bellman_cuda_config).await?;
 
+    if let Some(prover_db) = &args.database_config {
+        let spinner = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
+
+        let mut secrets = chain_config.get_secrets_config()?;
+        set_prover_database(&mut secrets, &prover_db.database_config)?;
+        secrets.save_with_base_path(shell, &chain_config.configs)?;
+        initialize_prover_database(
+            shell,
+            &prover_db.database_config,
+            ecosystem_config.link_to_code.clone(),
+            prover_db.dont_drop,
+        )
+        .await?;
+
+        spinner.finish();
+    }
+
     logger::outro(MSG_PROVER_INITIALIZED);
     Ok(())
 }
@@ -81,6 +114,7 @@ fn download_setup_key(
     general_config: &GeneralConfig,
     path: &str,
 ) -> anyhow::Result<()> {
+    check_prerequisites(shell, &WGET_PREREQUISITES, false);
     let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_KEY_SPINNER);
     let compressor_config: zksync_config::configs::FriProofCompressorConfig = general_config
         .proof_compressor_config
@@ -137,4 +171,30 @@ fn get_object_store_config(
     };
 
     Ok(object_store)
+}
+
+async fn initialize_prover_database(
+    shell: &Shell,
+    prover_db_config: &DatabaseConfig,
+    link_to_code: PathBuf,
+    dont_drop: bool,
+) -> anyhow::Result<()> {
+    if global_config().verbose {
+        logger::debug(MSG_INITIALIZING_PROVER_DATABASE)
+    }
+    if !dont_drop {
+        drop_db_if_exists(prover_db_config)
+            .await
+            .context(MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR)?;
+        init_db(prover_db_config).await?;
+    }
+    let path_to_prover_migration = link_to_code.join(PROVER_MIGRATIONS);
+    migrate_db(
+        shell,
+        path_to_prover_migration,
+        &prover_db_config.full_url(),
+    )
+    .await?;
+
+    Ok(())
 }

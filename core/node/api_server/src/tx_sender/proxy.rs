@@ -11,8 +11,9 @@ use zksync_dal::{
     helpers::wait_for_l1_batch, transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool,
     Core, CoreDal, DalError,
 };
+use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_types::{api, fee::TransactionExecutionMetrics, l2::L2Tx, Address, Nonce, H256, U256};
+use zksync_types::{api, l2::L2Tx, Address, Nonce, H256, U256};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientResult, Web3Error},

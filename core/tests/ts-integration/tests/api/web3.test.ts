@@ -44,8 +44,14 @@ describe('web3 API compatibility tests', () => {
         const blockHash = (await alice.provider.getBlock(blockNumber)).hash!;
         const blockWithTxsByNumber = await alice.provider.getBlock(blockNumber, true);
         expect(blockWithTxsByNumber.gasLimit).toBeGreaterThan(0n);
-        let sumTxGasUsed = 0n;
 
+        // `ethers.Block` doesn't include `logsBloom` for some reason.
+        const blockByNumberFull = await alice.provider.send('eth_getBlockByNumber', [blockNumberHex, false]);
+        expect(blockByNumberFull.logsBloom).toEqual(expect.stringMatching(HEX_VALUE_REGEX));
+        expect(blockByNumberFull.logsBloom.length).toEqual(514);
+        expect(blockByNumberFull.logsBloom != ethers.zeroPadValue('0x00', 256)).toBeTruthy();
+
+        let sumTxGasUsed = 0n;
         for (const tx of blockWithTxsByNumber.prefetchedTransactions) {
             const receipt = await alice.provider.getTransactionReceipt(tx.hash);
             sumTxGasUsed = sumTxGasUsed + receipt!.gasUsed;
@@ -53,11 +59,20 @@ describe('web3 API compatibility tests', () => {
         expect(blockWithTxsByNumber.gasUsed).toBeGreaterThanOrEqual(sumTxGasUsed);
 
         let expectedReceipts = [];
+        let expectedBloom = blockByNumberFull.logsBloom.toLowerCase();
 
+        let blockBloomFromReceipts = new Uint8Array(256);
         for (const tx of blockWithTxsByNumber.prefetchedTransactions) {
             const receipt = await alice.provider.send('eth_getTransactionReceipt', [tx.hash]);
             expectedReceipts.push(receipt);
+
+            let receiptBloom = ethers.getBytes(receipt.logsBloom);
+            for (let i = 0; i < blockBloomFromReceipts.length; i++) {
+                blockBloomFromReceipts[i] = blockBloomFromReceipts[i] | receiptBloom[i];
+            }
         }
+
+        expect(ethers.hexlify(blockBloomFromReceipts)).toEqual(expectedBloom);
 
         let receipts = await alice.provider.send('eth_getBlockReceipts', [blockNumberHex]);
         expect(receipts).toEqual(expectedReceipts);
@@ -234,14 +249,16 @@ describe('web3 API compatibility tests', () => {
 
     test('Should check transactions from API / Legacy tx', async () => {
         const LEGACY_TX_TYPE = 0;
+        const gasPrice = (await alice._providerL2().getGasPrice()) * 2n;
         const legacyTx = await alice.sendTransaction({
             type: LEGACY_TX_TYPE,
-            to: alice.address
+            to: alice.address,
+            gasPrice
         });
         await legacyTx.wait();
 
         const legacyApiReceipt = await alice.provider.getTransaction(legacyTx.hash);
-        expect(legacyApiReceipt.gasPrice).toBeLessThanOrEqual(legacyTx.gasPrice!);
+        expect(legacyApiReceipt.gasPrice).toEqual(gasPrice);
     });
 
     test('Should check transactions from API / EIP1559 tx', async () => {

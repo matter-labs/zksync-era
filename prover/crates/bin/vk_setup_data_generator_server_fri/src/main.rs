@@ -23,13 +23,13 @@ use zksync_prover_fri_types::{
     circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
     ProverServiceDataKey,
 };
-use zksync_vk_setup_data_server_fri::{
-    commitment_utils::generate_commitments,
+use zksync_prover_keystore::{
     keystore::Keystore,
     setup_data_generator::{CPUSetupDataGenerator, GPUSetupDataGenerator, SetupDataGenerator},
 };
 
 mod commitment_generator;
+mod vk_commitment_helper;
 
 #[cfg(test)]
 mod tests;
@@ -97,7 +97,8 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     }
 
     // Let's also update the commitments file.
-    keystore.save_commitments(&generate_commitments(keystore)?)
+    let commitments = keystore.generate_commitments()?;
+    keystore.save_commitments(&commitments)
 }
 
 #[derive(Debug, Parser)]

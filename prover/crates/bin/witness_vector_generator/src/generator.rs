@@ -17,12 +17,12 @@ use zksync_prover_fri_types::{
 use zksync_prover_fri_utils::{
     fetch_next_circuit, get_numeric_circuit_id, region_fetcher::Zone, socket_utils::send_assembly,
 };
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
     prover_dal::GpuProverInstanceStatus,
 };
-use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;
 
@@ -78,6 +78,9 @@ impl WitnessVectorGenerator {
             }
             CircuitWrapper::Recursive(recursive_circuit) => {
                 recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
+            }
+            CircuitWrapper::BasePartial(_) => {
+                panic!("Invalid circuit wrapper received for witness vector generation");
             }
         };
         Ok(WitnessVectorArtifacts::new(cs.witness.unwrap(), job))

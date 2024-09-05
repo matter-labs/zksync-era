@@ -24,9 +24,9 @@ pub async fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> 
 
     logger::info(msg_database_info(MSG_DATABASE_RESET_GERUND));
 
-    let dals = get_dals(shell, &args.selected_dals)?;
+    let dals = get_dals(shell, &args.selected_dals, &args.urls)?;
     for dal in dals {
-        logger::info(&msg_database_loading(MSG_DATABASE_RESET_GERUND, &dal.path));
+        logger::info(msg_database_loading(MSG_DATABASE_RESET_GERUND, &dal.path));
         reset_database(shell, ecoseystem_config.link_to_code.clone(), dal).await?;
     }
 
@@ -35,7 +35,7 @@ pub async fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> 
     Ok(())
 }
 
-async fn reset_database(
+pub async fn reset_database(
     shell: &Shell,
     link_to_code: impl AsRef<Path>,
     dal: Dal,

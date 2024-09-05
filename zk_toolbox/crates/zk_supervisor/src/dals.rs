@@ -4,10 +4,13 @@ use config::{EcosystemConfig, SecretsConfig};
 use url::Url;
 use xshell::Shell;
 
-use crate::messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_DATABASE_MUST_BE_PRESENTED};
+use crate::{
+    commands::database::args::DalUrls,
+    messages::{MSG_CHAIN_NOT_FOUND_ERR, MSG_DATABASE_MUST_BE_PRESENTED},
+};
 
-const CORE_DAL_PATH: &str = "core/lib/dal";
-const PROVER_DAL_PATH: &str = "prover/crates/lib/prover_dal";
+pub const CORE_DAL_PATH: &str = "core/lib/dal";
+pub const PROVER_DAL_PATH: &str = "prover/crates/lib/prover_dal";
 
 #[derive(Debug, Clone)]
 pub struct SelectedDals {
@@ -28,46 +31,60 @@ pub struct Dal {
     pub url: Url,
 }
 
-pub fn get_dals(shell: &Shell, selected_dals: &SelectedDals) -> anyhow::Result<Vec<Dal>> {
+pub fn get_dals(
+    shell: &Shell,
+    selected_dals: &SelectedDals,
+    urls: &DalUrls,
+) -> anyhow::Result<Vec<Dal>> {
     let mut dals = vec![];
 
     if selected_dals.prover {
-        dals.push(get_prover_dal(shell)?);
+        dals.push(get_prover_dal(shell, urls.prover.clone())?);
     }
     if selected_dals.core {
-        dals.push(get_core_dal(shell)?);
+        dals.push(get_core_dal(shell, urls.core.clone())?);
     }
 
     Ok(dals)
 }
 
-pub fn get_prover_dal(shell: &Shell) -> anyhow::Result<Dal> {
-    let secrets = get_secrets(shell)?;
-
-    Ok(Dal {
-        path: PROVER_DAL_PATH.to_string(),
-        url: secrets
+pub fn get_prover_dal(shell: &Shell, url: Option<String>) -> anyhow::Result<Dal> {
+    let url = if let Some(url) = url {
+        Url::parse(&url)?
+    } else {
+        let secrets = get_secrets(shell)?;
+        secrets
             .database
             .as_ref()
             .context(MSG_DATABASE_MUST_BE_PRESENTED)?
             .prover_url()?
             .expose_url()
-            .clone(),
+            .clone()
+    };
+
+    Ok(Dal {
+        path: PROVER_DAL_PATH.to_string(),
+        url,
     })
 }
 
-pub fn get_core_dal(shell: &Shell) -> anyhow::Result<Dal> {
-    let secrets = get_secrets(shell)?;
-
-    Ok(Dal {
-        path: CORE_DAL_PATH.to_string(),
-        url: secrets
+pub fn get_core_dal(shell: &Shell, url: Option<String>) -> anyhow::Result<Dal> {
+    let url = if let Some(url) = url {
+        Url::parse(&url)?
+    } else {
+        let secrets = get_secrets(shell)?;
+        secrets
             .database
             .as_ref()
             .context(MSG_DATABASE_MUST_BE_PRESENTED)?
             .master_url()?
             .expose_url()
-            .clone(),
+            .clone()
+    };
+
+    Ok(Dal {
+        path: CORE_DAL_PATH.to_string(),
+        url,
     })
 }
 

@@ -2,11 +2,10 @@ use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
 use zksync_types::{L2ChainId, U256};
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 use super::{tx::BootloaderTx, utils::apply_pubdata_to_memory};
 use crate::{
-    interface::{BootloaderMemory, L2BlockEnv, TxExecutionMode},
+    interface::{BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv, TxExecutionMode},
     vm_1_4_1::{
         bootloader_state::{
             l2_block::BootloaderL2Block,
@@ -192,11 +191,11 @@ impl BootloaderState {
         l2_block.first_tx_index + l2_block.txs.len()
     }
 
-    pub(crate) fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
+    pub(crate) fn get_last_tx_compressed_bytecodes(&self) -> &[CompressedBytecodeInfo] {
         if let Some(tx) = self.last_l2_block().txs.last() {
-            tx.compressed_bytecodes.clone()
+            &tx.compressed_bytecodes
         } else {
-            vec![]
+            &[]
         }
     }
 

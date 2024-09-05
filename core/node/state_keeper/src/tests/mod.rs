@@ -11,16 +11,15 @@ use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_multivm::{
     interface::{
         ExecutionResult, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, TxExecutionMode,
-        VmExecutionResultAndLogs, VmExecutionStatistics,
+        VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
     },
-    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, VmExecutionLogs},
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_test_utils::create_l2_transaction;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{BlockGasCount, L2BlockExecutionData, L2BlockHasher},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
-    tx::tx_execution_info::ExecutionMetrics,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageKey,
     StorageLog, StorageLogKind, StorageLogWithPreviousValue, Transaction, H256, U256,
     ZKPORTER_IS_AVAILABLE,
@@ -28,7 +27,6 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    batch_executor::TxExecutionResult,
     io::PendingBatchData,
     keeper::POLL_WAIT_DURATION,
     seal_criteria::{
@@ -38,14 +36,13 @@ use crate::{
     testonly::{
         successful_exec,
         test_batch_executor::{
-            random_tx, random_upgrade_tx, rejected_exec, successful_exec_with_metrics,
+            random_tx, random_upgrade_tx, rejected_exec, successful_exec_with_log,
             MockReadStorageFactory, TestBatchExecutorBuilder, TestIO, TestScenario, FEE_ACCOUNT,
         },
         BASE_SYSTEM_CONTRACTS,
     },
-    types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
-    utils::l1_batch_base_cost,
+    utils::{gas_count_from_tx_and_metrics, l1_batch_base_cost},
     ZkSyncStateKeeper,
 };
 
@@ -195,29 +192,28 @@ async fn sealed_by_number_of_txs() {
 
 #[tokio::test]
 async fn sealed_by_gas() {
+    let first_tx = random_tx(1);
+    let execution_result = successful_exec_with_log();
+    let exec_metrics = execution_result
+        .tx_result
+        .get_execution_metrics(Some(&first_tx));
+    assert!(exec_metrics.size() > 0);
+    let l1_gas_per_tx = gas_count_from_tx_and_metrics(&first_tx, &exec_metrics);
+    assert!(l1_gas_per_tx.commit > 0);
+
     let config = StateKeeperConfig {
-        max_single_tx_gas: 62_002,
+        max_single_tx_gas: 62_000 + l1_gas_per_tx.commit * 2,
         reject_tx_at_gas_percentage: 1.0,
         close_block_at_gas_percentage: 0.5,
         ..StateKeeperConfig::default()
     };
     let sealer = SequencerSealer::with_sealers(config, vec![Box::new(GasCriterion)]);
 
-    let l1_gas_per_tx = BlockGasCount {
-        commit: 1, // Both txs together with `block_base_cost` would bring it over the block `31_001` commit bound.
-        prove: 0,
-        execute: 0,
-    };
-    let execution_result = successful_exec_with_metrics(ExecutionMetricsForCriteria {
-        l1_gas: l1_gas_per_tx,
-        execution_metrics: ExecutionMetrics::default(),
-    });
-
     TestScenario::new()
         .seal_l2_block_when(|updates| {
             updates.l2_block.executed_transactions.len() == 1
         })
-        .next_tx("First tx", random_tx(1), execution_result.clone())
+        .next_tx("First tx", first_tx, execution_result.clone())
         .l2_block_sealed_with("L2 block with a single tx", move |updates| {
             assert_eq!(
                 updates.l2_block.l1_gas_count,
@@ -227,11 +223,11 @@ async fn sealed_by_gas() {
         })
         .next_tx("Second tx", random_tx(1), execution_result)
         .l2_block_sealed("L2 block 2")
-        .batch_sealed_with("Batch sealed with both txs", |updates| {
+        .batch_sealed_with("Batch sealed with both txs", move |updates| {
             assert_eq!(
                 updates.l1_batch.l1_gas_count,
                 BlockGasCount {
-                    commit: l1_batch_base_cost(AggregatedActionType::Commit) + 2,
+                    commit: l1_batch_base_cost(AggregatedActionType::Commit) + l1_gas_per_tx.commit * 2,
                     prove: l1_batch_base_cost(AggregatedActionType::PublishProofOnchain),
                     execute: l1_batch_base_cost(AggregatedActionType::Execute),
                 },
@@ -255,14 +251,7 @@ async fn sealed_by_gas_then_by_num_tx() {
         vec![Box::new(GasCriterion), Box::new(SlotsCriterion)],
     );
 
-    let execution_result = successful_exec_with_metrics(ExecutionMetricsForCriteria {
-        l1_gas: BlockGasCount {
-            commit: 1,
-            prove: 0,
-            execute: 0,
-        },
-        execution_metrics: ExecutionMetrics::default(),
-    });
+    let execution_result = successful_exec_with_log();
 
     // 1st tx is sealed by gas sealer; 2nd, 3rd, & 4th are sealed by slots sealer.
     TestScenario::new()
@@ -317,7 +306,11 @@ async fn rejected_tx() {
     let rejected_tx = random_tx(1);
     TestScenario::new()
         .seal_l2_block_when(|updates| updates.l2_block.executed_transactions.len() == 1)
-        .next_tx("Rejected tx", rejected_tx.clone(), rejected_exec())
+        .next_tx(
+            "Rejected tx",
+            rejected_tx.clone(),
+            rejected_exec(Halt::InnerTxError),
+        )
         .tx_rejected(
             "Tx got rejected",
             rejected_tx,
@@ -350,7 +343,7 @@ async fn bootloader_tip_out_of_gas_flow() {
         .next_tx(
             "Tx -> Bootloader tip out of gas",
             bootloader_out_of_gas_tx.clone(),
-            TxExecutionResult::BootloaderOutOfGasForTx,
+            rejected_exec(Halt::BootloaderOutOfGas),
         )
         .tx_rollback(
             "Last tx rolled back to seal the block",
@@ -425,7 +418,7 @@ async fn pending_batch_is_applied() {
 async fn load_upgrade_tx() {
     let sealer = SequencerSealer::default();
     let scenario = TestScenario::new();
-    let batch_executor_base = TestBatchExecutorBuilder::new(&scenario);
+    let batch_executor = TestBatchExecutorBuilder::new(&scenario);
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     let (mut io, output_handler) = TestIO::new(stop_sender, scenario);
@@ -435,10 +428,10 @@ async fn load_upgrade_tx() {
     let mut sk = ZkSyncStateKeeper::new(
         stop_receiver,
         Box::new(io),
-        Box::new(batch_executor_base),
+        Box::new(batch_executor),
         output_handler,
         Arc::new(sealer),
-        Arc::<MockReadStorageFactory>::default(),
+        Arc::new(MockReadStorageFactory),
     );
 
     // Since the version hasn't changed, and we are not using shared bridge, we should not load any

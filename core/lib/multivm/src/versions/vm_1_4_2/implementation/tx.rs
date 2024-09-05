@@ -1,8 +1,8 @@
 use zk_evm_1_4_1::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
 use zksync_types::{l1::is_l1_tx_type, Transaction};
 
 use crate::{
+    interface::storage::WriteStorage,
     vm_1_4_2::{
         constants::BOOTLOADER_HEAP_PAGE,
         implementation::bytecode::{bytecode_to_factory_dep, compress_bytecodes},
