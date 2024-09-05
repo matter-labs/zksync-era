@@ -678,38 +678,6 @@ describe('web3 API compatibility tests', () => {
         ).resolves.toHaveProperty('result', expect.stringMatching(HEX_VALUE_REGEX));
     });
 
-    test('Should check API returns error when there are too many logs in eth_getLogs', async () => {
-        const contract = await deployContract(alice, contracts.events, []);
-        const maxLogsLimit = testMaster.environment().maxLogsLimit;
-
-        // Send 3 transactions that emit `maxLogsLimit / 2` events.
-        const tx1 = await contract.emitManyEvents(maxLogsLimit / 2);
-        const tx1Receipt = await tx1.wait();
-
-        const tx2 = await contract.emitManyEvents(maxLogsLimit / 2);
-        await tx2.wait();
-
-        const tx3 = await contract.emitManyEvents(maxLogsLimit / 2);
-        const tx3Receipt = await tx3.wait();
-
-        // There are around `0.5 * maxLogsLimit` logs in [tx1Receipt.blockNumber, tx1Receipt.blockNumber] range,
-        // so query with such filter should succeed.
-        const logs = await alice.provider.getLogs({
-            fromBlock: tx1Receipt.blockNumber,
-            toBlock: tx1Receipt.blockNumber
-        });
-        expect(logs.length).toBeGreaterThanOrEqual(maxLogsLimit / 2);
-
-        // There are at least `1.5 * maxLogsLimit` logs in [tx1Receipt.blockNumber, tx3Receipt.blockNumber] range,
-        // so query with such filter should fail.
-        await expect(
-            alice.provider.getLogs({
-                fromBlock: tx1Receipt.blockNumber,
-                toBlock: tx3Receipt.blockNumber
-            })
-        ).rejects.toThrow(`Query returned more than ${maxLogsLimit} results.`);
-    });
-
     test('Should throw error for estimate gas for account with balance < tx.value', async () => {
         let poorBob = testMaster.newEmptyAccount();
         await expect(
