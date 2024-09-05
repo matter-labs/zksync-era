@@ -21,6 +21,7 @@ use super::{
     args::init::{ProofStorageConfig, ProverInitArgs},
     gcs::create_gcs_bucket,
     init_bellman_cuda::run as init_bellman_cuda,
+    setup_keys,
     utils::get_link_to_prover,
 };
 use crate::{
@@ -55,12 +56,16 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     let proof_object_store_config = get_object_store_config(shell, Some(args.proof_store))?;
     let public_object_store_config = get_object_store_config(shell, args.public_store)?;
 
-    if args.setup_key_config.download_key {
+    if args.setup_compressor_key_config.download_key {
         download_setup_key(
             shell,
             &general_config,
-            &args.setup_key_config.setup_key_path,
+            &args.setup_compressor_key_config.setup_key_path,
         )?;
+    }
+
+    if let Some(args) = args.setup_keys {
+        setup_keys::run(args, &shell).await?;
     }
 
     let mut prover_config = general_config
@@ -81,7 +86,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     let mut proof_compressor_config = general_config
         .proof_compressor_config
         .expect(MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR);
-    proof_compressor_config.universal_setup_path = args.setup_key_config.setup_key_path;
+    proof_compressor_config.universal_setup_path = args.setup_compressor_key_config.setup_key_path;
     general_config.proof_compressor_config = Some(proof_compressor_config);
 
     chain_config.save_general_config(&general_config)?;
