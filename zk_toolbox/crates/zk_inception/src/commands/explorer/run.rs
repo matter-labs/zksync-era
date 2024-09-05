@@ -1,19 +1,15 @@
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
 use anyhow::Context;
 use common::{config::global_config, docker, logger};
-use config::{
-    explorer::*,
-    traits::{ReadConfig, SaveConfig},
-    AppsEcosystemConfig, EcosystemConfig,
-};
+use config::{explorer::*, traits::SaveConfig, AppsEcosystemConfig, EcosystemConfig};
 use xshell::Shell;
 
 use crate::{
     consts::{EXPLORER_APP_DOCKER_CONFIG_PATH, EXPLORER_APP_DOCKER_IMAGE},
     messages::{
-        msg_explorer_failed_to_configure_chain, msg_explorer_skipping_not_initialized_chain,
-        msg_explorer_starting_on, MSG_EXPLORER_FAILED_TO_FIND_ANY_VALID,
+        msg_explorer_running_with_config, msg_explorer_starting_on,
+        MSG_EXPLORER_FAILED_TO_CREATE_CONFIG_ERR, MSG_EXPLORER_FAILED_TO_FIND_ANY_CHAIN_ERR,
         MSG_EXPLORER_FAILED_TO_RUN_DOCKER_ERR,
     },
 };
@@ -29,43 +25,46 @@ pub(crate) fn run(shell: &Shell) -> anyhow::Result<()> {
         None => ecosystem_config.list_of_chains(),
     };
 
-    // Read chain configs one by one
-    let mut explorer_chain_configs = Vec::new();
-    for chain_name in chains_enabled.iter() {
-        let explorer_chain_config_path =
-            ExplorerChainConfig::get_config_path(&ecosystem_path, chain_name);
-        if !explorer_chain_config_path.exists() {
-            logger::warn(msg_explorer_skipping_not_initialized_chain(chain_name));
-            continue;
-        }
-        match ExplorerChainConfig::read(shell, &explorer_chain_config_path) {
-            Ok(config) => explorer_chain_configs.push(config),
-            Err(_) => logger::warn(msg_explorer_failed_to_configure_chain(chain_name)),
-        }
-    }
-    if explorer_chain_configs.is_empty() {
-        anyhow::bail!(MSG_EXPLORER_FAILED_TO_FIND_ANY_VALID);
+    // Read explorer config
+    let config_path = ExplorerConfig::get_config_path(&ecosystem_path);
+    let mut explorer_config = ExplorerConfig::read_or_create_default(shell)
+        .context(MSG_EXPLORER_FAILED_TO_CREATE_CONFIG_ERR)?;
+
+    // Validate and update explorer config
+    explorer_config.filter(&ecosystem_config.list_of_chains());
+    explorer_config.hide_except(&chains_enabled);
+    if explorer_config.is_empty() {
+        anyhow::bail!(MSG_EXPLORER_FAILED_TO_FIND_ANY_CHAIN_ERR);
     }
 
-    // Generate and save explorer runtime config (JS)
-    let runtime_config = ExplorerRuntimeConfig::new(explorer_chain_configs);
-    let config_path = ExplorerRuntimeConfig::get_config_path(&ecosystem_path);
-    runtime_config.save(shell, &config_path)?;
+    // Save explorer config
+    explorer_config.save(shell, &config_path)?;
 
-    logger::info(format!(
-        "Using generated explorer config file at {}",
-        config_path.display()
-    ));
+    let config_js_path = explorer_config
+        .save_as_js(shell)
+        .context(MSG_EXPLORER_FAILED_TO_CREATE_CONFIG_ERR)?;
+
+    logger::info(msg_explorer_running_with_config(&config_path));
     logger::info(msg_explorer_starting_on(
         "127.0.0.1",
         apps_config.explorer.http_port,
     ));
-
-    run_explorer(shell, &config_path, apps_config.explorer.http_port)?;
+    let name = explorer_app_name(&ecosystem_config.name);
+    run_explorer(
+        shell,
+        &config_js_path,
+        &name,
+        apps_config.explorer.http_port,
+    )?;
     Ok(())
 }
 
-fn run_explorer(shell: &Shell, config_file_path: &Path, port: u16) -> anyhow::Result<()> {
+fn run_explorer(
+    shell: &Shell,
+    config_file_path: &Path,
+    name: &str,
+    port: u16,
+) -> anyhow::Result<()> {
     let port_mapping = format!("{}:{}", port, port);
     let volume_mapping = format!(
         "{}:{}",
@@ -73,13 +72,27 @@ fn run_explorer(shell: &Shell, config_file_path: &Path, port: u16) -> anyhow::Re
         EXPLORER_APP_DOCKER_CONFIG_PATH
     );
 
-    let mut docker_args: HashMap<String, String> = HashMap::new();
-    docker_args.insert("--platform".to_string(), "linux/amd64".to_string());
-    docker_args.insert("-p".to_string(), port_mapping);
-    docker_args.insert("-v".to_string(), volume_mapping);
-    docker_args.insert("-e".to_string(), format!("PORT={}", port));
+    let docker_args: Vec<String> = vec![
+        "--platform".to_string(),
+        "linux/amd64".to_string(),
+        "--name".to_string(),
+        name.to_string(),
+        "-p".to_string(),
+        port_mapping,
+        "-v".to_string(),
+        volume_mapping,
+        "-e".to_string(),
+        format!("PORT={}", port),
+        "--rm".to_string(),
+    ];
 
     docker::run(shell, EXPLORER_APP_DOCKER_IMAGE, docker_args)
         .with_context(|| MSG_EXPLORER_FAILED_TO_RUN_DOCKER_ERR)?;
     Ok(())
+}
+
+/// Generates a name for the explorer app Docker container.
+/// Will be passed as `--name` argument to `docker run`.
+fn explorer_app_name(ecosystem_name: &str) -> String {
+    format!("{}-explorer-app", ecosystem_name)
 }

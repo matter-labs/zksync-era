@@ -2,11 +2,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use common::{config::global_config, docker};
-use config::{
-    explorer_compose::*,
-    traits::{ConfigWithL2RpcUrl, ReadConfig, SaveConfig},
-    AppsChainConfig, EcosystemConfig,
-};
+use config::{explorer_compose::ExplorerBackendComposeConfig, EcosystemConfig};
 use xshell::Shell;
 
 use crate::messages::{
@@ -20,22 +16,15 @@ pub(crate) fn run(shell: &Shell) -> anyhow::Result<()> {
         .load_chain(global_config().chain_name.clone())
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let chain_name = chain_config.name.clone();
-    // Read chain-level apps.yaml config
+    // Read chain-level explorer backend docker compose file
     let ecosystem_path = shell.current_dir();
-    let apps_chain_config_path = AppsChainConfig::get_config_path(&ecosystem_path, &chain_name);
-    if !apps_chain_config_path.exists() {
+    let backend_config_path =
+        ExplorerBackendComposeConfig::get_config_path(&ecosystem_path, &chain_config.name);
+    if !backend_config_path.exists() {
         anyhow::bail!(msg_explorer_chain_not_initialized(&chain_name));
     }
-    let apps_chain_config = AppsChainConfig::read(shell, &apps_chain_config_path)?;
-    // Build docker compose config with the explorer chain backend services
-    let l2_rpc_url = chain_config.get_general_config()?.get_l2_rpc_url()?;
-    let backend_compose_config =
-        ExplorerBackendComposeConfig::new(&chain_name, l2_rpc_url, &apps_chain_config.explorer)?;
-    let backend_compose_config_path =
-        ExplorerBackendComposeConfig::get_config_path(&ecosystem_path, &chain_config.name);
-    backend_compose_config.save(shell, backend_compose_config_path.clone())?;
     // Run docker compose
-    run_backend(shell, &backend_compose_config_path)?;
+    run_backend(shell, &backend_config_path)?;
     Ok(())
 }
 

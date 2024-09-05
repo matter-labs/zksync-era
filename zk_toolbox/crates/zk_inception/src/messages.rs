@@ -242,11 +242,14 @@ pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
 
 /// Portal related messages
-pub(super) const MSG_PORTAL_FAILED_TO_CREATE_ANY_CHAIN_CONFIG_ERR: &str =
-    "Failed to create any valid hyperchain config";
+pub(super) const MSG_PORTAL_FAILED_TO_FIND_ANY_CHAIN_ERR: &str =
+    "Failed to find any valid chain to run portal for";
 pub(super) const MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR: &str = "Failed to create portal config";
 pub(super) const MSG_PORTAL_FAILED_TO_RUN_DOCKER_ERR: &str =
     "Failed to run portal docker container";
+pub(super) fn msg_portal_running_with_config(path: &Path) -> String {
+    format!("Running portal with configuration from: {}", path.display())
+}
 pub(super) fn msg_portal_starting_on(host: &str, port: u16) -> String {
     format!("Starting portal on http://{host}:{port}")
 }
@@ -258,23 +261,25 @@ pub(super) const MSG_EXPLORER_FAILED_TO_RUN_DOCKER_SERVICES_ERR: &str =
     "Failed to run docker compose with explorer services";
 pub(super) const MSG_EXPLORER_FAILED_TO_RUN_DOCKER_ERR: &str =
     "Failed to run explorer docker container";
+pub(super) const MSG_EXPLORER_FAILED_TO_CREATE_CONFIG_ERR: &str =
+    "Failed to create explorer config";
+pub(super) const MSG_EXPLORER_FAILED_TO_FIND_ANY_CHAIN_ERR: &str =
+    "Failed to find any valid chain to run explorer for. Did you run `zk_inception explorer init`?";
 pub(super) const MSG_EXPLORER_INITIALIZED: &str = "Explorer has been initialized successfully";
-pub(super) const MSG_EXPLORER_FAILED_TO_FIND_ANY_VALID: &str =
-    "Failed to find any valid chains to run explorer for";
 pub(super) fn msg_explorer_initializing_database_for(chain: &str) -> String {
     format!("Initializing explorer database for {chain} chain")
+}
+pub(super) fn msg_explorer_running_with_config(path: &Path) -> String {
+    format!(
+        "Running explorer with configuration from: {}",
+        path.display()
+    )
 }
 pub(super) fn msg_explorer_starting_on(host: &str, port: u16) -> String {
     format!("Starting explorer on http://{host}:{port}")
 }
 pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
     format!("Chain {chain} is not initialized for explorer: run `zk_inception explorer init --chain {chain}` first")
-}
-pub(super) fn msg_explorer_skipping_not_initialized_chain(chain: &str) -> String {
-    format!("Chain {chain} is not initialized for explorer. Skipping..")
-}
-pub(super) fn msg_explorer_failed_to_configure_chain(chain: &str) -> String {
-    format!("Failed to configure explorer for chain {chain}")
 }
 
 /// Forge utils related messages

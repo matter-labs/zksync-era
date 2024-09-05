@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use url::Url;
 use xshell::{cmd, Shell};
 
@@ -19,17 +17,8 @@ pub fn down(shell: &Shell, docker_compose_file: &str) -> anyhow::Result<()> {
     Ok(Cmd::new(cmd!(shell, "docker compose -f {docker_compose_file} down")).run()?)
 }
 
-pub fn run(
-    shell: &Shell,
-    docker_image: &str,
-    docker_args: HashMap<String, String>,
-) -> anyhow::Result<()> {
-    let mut args = vec![];
-    for (key, value) in docker_args.iter() {
-        args.push(key);
-        args.push(value);
-    }
-    Ok(Cmd::new(cmd!(shell, "docker run {args...} {docker_image}")).run()?)
+pub fn run(shell: &Shell, docker_image: &str, docker_args: Vec<String>) -> anyhow::Result<()> {
+    Ok(Cmd::new(cmd!(shell, "docker run {docker_args...} {docker_image}")).run()?)
 }
 
 pub fn adjust_localhost_for_docker(mut url: Url) -> anyhow::Result<Url> {

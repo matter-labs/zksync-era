@@ -11,11 +11,6 @@ lazy_static! {
         Url::parse("postgres://postgres:notsecurepassword@localhost:5432").unwrap();
 }
 
-// Default ports for services
-pub const EXPLORER_WORKER_PORT: u16 = 3001;
-pub const EXPLORER_API_PORT: u16 = 3002;
-pub const EXPLORER_DATA_FETCHER_PORT: u16 = 3040;
-
 pub const ROCKS_DB_STATE_KEEPER: &str = "state_keeper";
 pub const ROCKS_DB_TREE: &str = "tree";
 pub const ROCKS_DB_PROTECTIVE_READS: &str = "protective_reads";

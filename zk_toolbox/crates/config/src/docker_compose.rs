@@ -7,6 +7,10 @@ use crate::traits::ZkToolboxConfig;
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct DockerComposeConfig {
     pub services: HashMap<String, DockerComposeService>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(flatten)]
+    pub other: serde_json::Value,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -33,10 +37,6 @@ pub struct DockerComposeService {
 impl ZkToolboxConfig for DockerComposeConfig {}
 
 impl DockerComposeConfig {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     pub fn add_service(&mut self, name: &str, service: DockerComposeService) {
         self.services.insert(name.to_string(), service);
     }

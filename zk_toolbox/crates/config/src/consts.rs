@@ -40,20 +40,26 @@ pub(crate) const LOCAL_ARTIFACTS_PATH: &str = "artifacts/";
 /// Name of apps config file
 pub const APPS_CONFIG_FILE: &str = "apps.yaml";
 /// Name of portal runtime config file (auto-generated)
-pub const PORTAL_RUNTIME_CONFIG_FILE: &str = "portal.config.js";
-/// Name of chain-level portal config JSON file
-pub const PORTAL_CHAIN_CONFIG_FILE: &str = "portal.config.json";
+pub const PORTAL_JS_CONFIG_FILE: &str = "portal.config.js";
+/// Name of portal config JSON file
+pub const PORTAL_CONFIG_FILE: &str = "portal.config.json";
 /// Name of explorer runtime config file (auto-generated)
-pub const EXPLORER_RUNTIME_CONFIG_FILE: &str = "explorer.config.js";
-/// Name of chain-level explorer config JSON file
-pub const EXPLORER_CHAIN_CONFIG_FILE: &str = "explorer.config.json";
-/// Name of explorer docker compose file (auto-generated)
+pub const EXPLORER_JS_CONFIG_FILE: &str = "explorer.config.js";
+/// Name of explorer config JSON file
+pub const EXPLORER_CONFIG_FILE: &str = "explorer.config.json";
+/// Name of explorer docker compose file
 pub const EXPLORER_DOCKER_COMPOSE_FILE: &str = "explorer-docker-compose.yml";
 
 /// Default port for the explorer app
 pub const DEFAULT_EXPLORER_PORT: u16 = 3010;
 /// Default port for the portal app
 pub const DEFAULT_PORTAL_PORT: u16 = 3030;
+/// Default port for the explorer worker service
+pub const DEFAULT_EXPLORER_WORKER_PORT: u16 = 3001;
+/// Default port for the explorer API service
+pub const DEFAULT_EXPLORER_API_PORT: u16 = 3002;
+/// Default port for the explorer data fetcher service
+pub const DEFAULT_EXPLORER_DATA_FETCHER_PORT: u16 = 3040;
 
 pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api";
 pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-data-fetcher";
