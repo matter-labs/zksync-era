@@ -216,7 +216,7 @@ describe('Upgrade test', function () {
     });
 
     step('Send l1 tx for saving new bootloader', async () => {
-        const path = `${pathToHome}/contracts/system-contracts/playground_batch.yul/contracts-preprocessed/bootloader/playground_batch.yul.json`;
+        const path = `${pathToHome}/contracts/system-contracts/zkout/playground_batch.yul/contracts-preprocessed/bootloader/playground_batch.yul.json`;
         const file = JSON.parse(fs.readFileSync(path, 'utf8'));
         const bootloaderCode = ethers.hexlify(file.bytecode.object);
         bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
