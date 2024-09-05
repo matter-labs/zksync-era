@@ -65,7 +65,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     }
 
     if let Some(args) = args.setup_keys {
-        setup_keys::run(args, &shell).await?;
+        setup_keys::run(args, shell).await?;
     }
 
     let mut prover_config = general_config
