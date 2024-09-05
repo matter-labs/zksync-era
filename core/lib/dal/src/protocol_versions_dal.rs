@@ -71,7 +71,7 @@ impl ProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                protocol_patches (minor, patch, recursion_scheduler_level_vk_hash, created_at)
+                protocol_patches (minor, patch, snark_wrapper_vk_hash, created_at)
             VALUES
                 ($1, $2, $3, NOW())
             ON CONFLICT DO NOTHING
@@ -233,7 +233,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_versions.bootloader_code_hash,
                 protocol_versions.default_account_code_hash,
                 protocol_patches.patch,
-                protocol_patches.recursion_scheduler_level_vk_hash AS snark_wrapper_vk_hash
+                protocol_patches.snark_wrapper_vk_hash
             FROM
                 protocol_versions
                 JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id
@@ -263,11 +263,10 @@ impl ProtocolVersionsDal<'_, '_> {
         &mut self,
         version: ProtocolSemanticVersion,
     ) -> Option<L1VerifierConfig> {
-        // `recursion_scheduler_level_vk_hash` actually stores `snark_wrapper_vk_hash`
         let row = sqlx::query!(
             r#"
             SELECT
-                recursion_scheduler_level_vk_hash AS snark_wrapper_vk_hash
+                snark_wrapper_vk_hash
             FROM
                 protocol_patches
             WHERE
@@ -290,7 +289,6 @@ impl ProtocolVersionsDal<'_, '_> {
         minor_version: ProtocolVersionId,
         snark_wrapper_vk_hash: H256,
     ) -> DalResult<Vec<VersionPatch>> {
-        // `recursion_scheduler_level_vk_hash` actually stores `snark_wrapper_vk_hash`
         let rows = sqlx::query!(
             r#"
             SELECT
@@ -299,7 +297,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_patches
             WHERE
                 minor = $1
-                AND recursion_scheduler_level_vk_hash = $2
+                AND snark_wrapper_vk_hash = $2
             ORDER BY
                 patch DESC
             "#,

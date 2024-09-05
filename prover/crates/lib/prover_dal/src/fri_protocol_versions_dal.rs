@@ -17,11 +17,10 @@ impl FriProtocolVersionsDal<'_, '_> {
         id: ProtocolSemanticVersion,
         l1_verifier_config: L1VerifierConfig,
     ) {
-        // `recursion_scheduler_level_vk_hash` column actually stores `snark_wrapper_vk_hash`
         sqlx::query!(
             r#"
             INSERT INTO
-                prover_fri_protocol_versions (id, recursion_scheduler_level_vk_hash, created_at, protocol_version_patch)
+                prover_fri_protocol_versions (id, snark_wrapper_vk_hash, created_at, protocol_version_patch)
             VALUES
                 ($1, $2, NOW(), $3)
             ON CONFLICT (id, protocol_version_patch) DO NOTHING
@@ -44,7 +43,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             SELECT
-                recursion_scheduler_level_vk_hash AS snark_wrapper_vk_hash
+                snark_wrapper_vk_hash
             FROM
                 prover_fri_protocol_versions
             WHERE
@@ -66,7 +65,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         let result = sqlx::query!(
             r#"
             SELECT
-                recursion_scheduler_level_vk_hash AS snark_wrapper_vk_hash
+                snark_wrapper_vk_hash
             FROM
                 prover_fri_protocol_versions
             ORDER BY
