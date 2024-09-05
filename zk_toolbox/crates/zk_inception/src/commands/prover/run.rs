@@ -1,8 +1,11 @@
-use anyhow::{anyhow, Context};
-use common::spinner::Spinner;
-use common::{check_prerequisites, cmd::Cmd, config::global_config, logger, GPU_PREREQUISITES};
-use config::{ChainConfig, EcosystemConfig};
 use std::path::PathBuf;
+
+use anyhow::{anyhow, Context};
+use common::{
+    check_prerequisites, cmd::Cmd, config::global_config, logger, spinner::Spinner,
+    GPU_PREREQUISITES,
+};
+use config::{ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
 use super::{
