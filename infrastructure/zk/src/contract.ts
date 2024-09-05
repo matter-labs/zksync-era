@@ -141,6 +141,13 @@ async function updateConfigOnSyncLayer() {
 
     console.log('a');
 
+    env.modify(
+        'CONTRACTS_DIAMOND_PROXY_ADDR',
+        fs.readFileSync('backup_diamond.txt', { encoding: 'utf-8' }),
+        envFile,
+        false
+    );
+
     for (const envVar of syncLayerEnvVars) {
         if (specialParams.includes(envVar)) {
             continue;
@@ -165,12 +172,6 @@ async function updateConfigOnSyncLayer() {
     env.modify(
         'ETH_SENDER_SENDER_OPERATOR_GATEWAY_PRIVATE_KEY',
         '0xf12e28c0eb1ef4ff90478f6805b68d63737b7f33abfa091601140805da450d93',
-        envFile,
-        false
-    );
-    env.modify(
-        'CONTRACTS_DIAMOND_PROXY_ADDR',
-        fs.readFileSync('backup_diamond.txt', { encoding: 'utf-8' }),
         envFile,
         false
     );
