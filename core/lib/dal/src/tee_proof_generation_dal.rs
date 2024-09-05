@@ -75,7 +75,7 @@ impl TeeProofGenerationDal<'_, '_> {
                 tee_proof_generation_details.l1_batch_number
             "#,
             TeeProofGenerationJobStatus::PickedByProver.to_string(),
-            serde_json::to_string(&tee_type).unwrap(),
+            tee_type.to_string(),
             TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
             TeeProofGenerationJobStatus::Unpicked.to_string(),
             processing_timeout,
@@ -112,7 +112,7 @@ impl TeeProofGenerationDal<'_, '_> {
             "#,
             TeeProofGenerationJobStatus::Unpicked.to_string(),
             batch_number,
-            serde_json::to_string(&tee_type).unwrap()
+            tee_type.to_string()
         )
         .instrument("unlock_batch")
         .with_arg("l1_batch_number", &batch_number)
@@ -145,7 +145,7 @@ impl TeeProofGenerationDal<'_, '_> {
             WHERE
                 l1_batch_number = $6
             "#,
-            serde_json::to_string(&tee_type).unwrap(),
+            tee_type.to_string(),
             TeeProofGenerationJobStatus::Generated.to_string(),
             pubkey,
             signature,
@@ -189,7 +189,7 @@ impl TeeProofGenerationDal<'_, '_> {
             ON CONFLICT (l1_batch_number, tee_type) DO NOTHING
             "#,
             batch_number,
-            serde_json::to_string(&tee_type).unwrap(),
+            tee_type.to_string(),
             TeeProofGenerationJobStatus::Unpicked.to_string(),
         );
         let instrumentation = Instrumented::new("insert_tee_proof_generation_job")
@@ -259,8 +259,7 @@ impl TeeProofGenerationDal<'_, '_> {
             .bind(TeeProofGenerationJobStatus::Generated.to_string());
 
         if let Some(tee_type) = tee_type {
-            let tee_type = serde_json::to_string(&tee_type).unwrap();
-            query = query.bind(tee_type);
+            query = query.bind(tee_type.to_string());
         }
 
         let proofs: Vec<StorageTeeProof> = query.fetch_all(self.storage.conn()).await.unwrap();

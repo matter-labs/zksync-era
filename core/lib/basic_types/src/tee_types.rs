@@ -1,3 +1,5 @@
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -5,6 +7,14 @@ use serde::{Deserialize, Serialize};
 #[non_exhaustive]
 pub enum TeeType {
     Sgx,
+}
+
+impl fmt::Display for TeeType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TeeType::Sgx => write!(f, "sgx"),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -30,5 +40,10 @@ mod tests {
         let tee_type = TeeType::Sgx;
         let json_str = serde_json::to_string(&tee_type).unwrap();
         assert_eq!(json_str, "\"sgx\"");
+    }
+
+    #[test]
+    fn test_display_teetype() {
+        assert_eq!(TeeType::Sgx.to_string(), "sgx");
     }
 }
