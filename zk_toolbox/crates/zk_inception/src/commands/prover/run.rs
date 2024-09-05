@@ -256,7 +256,7 @@ fn run_dockerized_component(
     shell: &Shell,
     image_name: &str,
     additional_args: &str,
-    error: &str,
+    _error: &str,
 ) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let spinner = Spinner::new(&format!("Pulling image {}...", image_name));
@@ -269,19 +269,17 @@ fn run_dockerized_component(
         .expect(MSG_CHAIN_NOT_FOUND_ERR)
         .configs
         .clone();
-    let mut path_to_artifacts = get_link_to_prover(&ecosystem_config).into_os_string();
-    path_to_artifacts.push("/artifacts");
-    let path_to_artifacts: PathBuf = path_to_artifacts.into();
+    let path_to_prover = get_link_to_prover(&ecosystem_config);
 
     let mut cmd = if additional_args.is_empty() {
         Cmd::new(cmd!(
             shell,
-            "docker run --net=host -v {path_to_artifacts}:/artifacts -v {path_to_configs}:/configs {image_name} --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml"
+            "docker run --net=host --gpus=all -v {path_to_prover}/data/keys:/prover/data/keys -v {path_to_prover}/artifacts:/artifacts -v {path_to_configs}:/configs {image_name} --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml"
         ))
     } else {
         Cmd::new(cmd!(
             shell,
-            "docker run --net=host -v {path_to_artifacts}:/artifacts -v {path_to_configs}:/configs {image_name} --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml {additional_args}"
+            "docker run --net=host --gpus=all -v {path_to_prover}/data/keys:/prover/data/keys -v {path_to_prover}/artifacts:/artifacts -v {path_to_configs}:/configs {image_name} --config-path=/configs/general.yaml --secrets-path=/configs/secrets.yaml {additional_args}"
         ))
     };
     cmd = cmd.with_force_run();
