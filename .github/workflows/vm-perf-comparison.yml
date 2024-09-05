@@ -48,7 +48,7 @@ jobs:
           ci_run zk_supervisor contracts --system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
           ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee base-opcodes || touch base-opcodes
-          ci_run zk_supervisor clean contracts
+          ci_run zk_supervisor clean contracts-cache
 
       - name: checkout PR
         run: git checkout --force FETCH_HEAD --recurse-submodules

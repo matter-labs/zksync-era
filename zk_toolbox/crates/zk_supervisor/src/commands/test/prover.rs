@@ -15,7 +15,7 @@ use crate::{
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(shell)?;
     let dals = vec![Dal {
-        url: Url::from_str(&TEST_DATABASE_PROVER_URL)?,
+        url: Url::from_str(TEST_DATABASE_PROVER_URL)?,
         path: PROVER_DAL_PATH.to_string(),
     }];
     reset_test_databases(shell, &ecosystem.link_to_code, dals).await?;
