@@ -7,9 +7,11 @@ mod run;
 
 #[derive(Subcommand, Debug)]
 pub enum ExplorerCommands {
-    /// Initialize explorer
+    /// Initialize explorer (create database to store explorer data and generate docker
+    /// compose file with explorer services). Runs for all chains, unless --chain is passed
     Init,
-    /// Start explorer backend services (api, data_fetcher, worker)
+    /// Start explorer backend services (api, data_fetcher, worker) for a given chain.
+    /// Uses default chain, unless --chain is passed
     #[command(alias = "backend")]
     RunBackend,
     /// Run explorer app
