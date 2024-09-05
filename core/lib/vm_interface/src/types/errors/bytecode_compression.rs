@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::CompressedBytecodeInfo;
 
 /// Errors related to bytecode compression.
@@ -9,4 +11,5 @@ pub enum BytecodeCompressionError {
 }
 
 /// Result of compressing bytecodes used by a transaction.
-pub type BytecodeCompressionResult = Result<Vec<CompressedBytecodeInfo>, BytecodeCompressionError>;
+pub type BytecodeCompressionResult<'a> =
+    Result<Cow<'a, [CompressedBytecodeInfo]>, BytecodeCompressionError>;

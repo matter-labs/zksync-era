@@ -183,6 +183,7 @@ fn run_prover(
     chain: &ChainConfig,
     docker_image: Option<&str>,
 ) -> anyhow::Result<()> {
+    check_prerequisites(shell, &GPU_PREREQUISITES, false);
     logger::info(MSG_RUNNING_PROVER);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
@@ -205,6 +206,7 @@ fn run_compressor(
     ecosystem: &EcosystemConfig,
     docker_image: Option<&str>,
 ) -> anyhow::Result<()> {
+    check_prerequisites(shell, &GPU_PREREQUISITES, false);
     logger::info(MSG_RUNNING_COMPRESSOR);
 
     if let Some(docker_image) = docker_image {

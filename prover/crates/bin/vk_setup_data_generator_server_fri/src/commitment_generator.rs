@@ -1,8 +1,8 @@
 use anyhow::Context;
-use zksync_vk_setup_data_server_fri::{
-    commitment_utils::generate_commitments,
-    keystore::Keystore,
-    vk_commitment_helper::{get_toml_formatted_value, read_contract_toml, write_contract_toml},
+use zksync_prover_keystore::{commitment_utils::generate_commitments, keystore::Keystore};
+
+use crate::vk_commitment_helper::{
+    get_toml_formatted_value, read_contract_toml, write_contract_toml,
 };
 
 pub fn read_and_update_contract_toml(keystore: &Keystore, dryrun: bool) -> anyhow::Result<()> {

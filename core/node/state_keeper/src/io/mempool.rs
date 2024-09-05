@@ -19,7 +19,7 @@ use zksync_types::{
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
-use zksync_vm_utils::storage::L1BatchParamsProvider;
+use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use crate::{
     io::{

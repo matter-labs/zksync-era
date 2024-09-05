@@ -101,7 +101,9 @@ impl AccountPool {
                 .context("invalid L2 RPC URL")?,
         )?
         .for_network(l2_chain_id.into())
+        .report_config(false)
         .build();
+
         // Perform a health check: check whether ZKsync server is alive.
         let mut server_alive = false;
         for _ in 0usize..3 {

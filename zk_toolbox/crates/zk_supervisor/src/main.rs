@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use commands::{
-    database::DatabaseCommands, lint::LintArgs, snapshot::SnapshotCommands, test::TestCommands,
+    contracts::ContractsArgs, database::DatabaseCommands, lint::LintArgs,
+    snapshot::SnapshotCommands, test::TestCommands,
 };
 use common::{
     check_general_prerequisites,
@@ -10,9 +11,9 @@ use common::{
 };
 use config::EcosystemConfig;
 use messages::{
-    msg_global_chain_does_not_exist, MSG_PROVER_VERSION_ABOUT, MSG_SUBCOMMAND_CLEAN,
-    MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT,
-    MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
+    msg_global_chain_does_not_exist, MSG_CONTRACTS_ABOUT, MSG_PROVER_VERSION_ABOUT,
+    MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT,
+    MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 use xshell::Shell;
 
@@ -20,6 +21,7 @@ use crate::commands::{clean::CleanCommands, fmt::FmtArgs};
 
 mod commands;
 mod dals;
+mod defaults;
 mod messages;
 
 #[derive(Parser, Debug)]
@@ -49,6 +51,8 @@ enum SupervisorSubcommands {
     Markdown,
     #[command(about = MSG_PROVER_VERSION_ABOUT)]
     ProverVersion,
+    #[command(about = MSG_CONTRACTS_ABOUT)]
+    Contracts(ContractsArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -106,6 +110,7 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
         SupervisorSubcommands::Lint(args) => commands::lint::run(shell, args)?,
         SupervisorSubcommands::Fmt(args) => commands::fmt::run(shell.clone(), args).await?,
         SupervisorSubcommands::ProverVersion => commands::prover_version::run(shell).await?,
+        SupervisorSubcommands::Contracts(args) => commands::contracts::run(shell, args)?,
     }
     Ok(())
 }
