@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                protocol_versions.id AS \"minor!\",\n                protocol_versions.timestamp,\n                protocol_versions.bootloader_code_hash,\n                protocol_versions.default_account_code_hash,\n                protocol_patches.patch,\n                protocol_patches.snark_wrapper_vk_hash\n            FROM\n                protocol_versions\n                JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id\n            WHERE\n                id = $1\n            ORDER BY\n                protocol_patches.patch DESC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "minor!",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "timestamp",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "bootloader_code_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "default_account_code_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 4,
+        "name": "patch",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "snark_wrapper_vk_hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "85576fdbb4bd6e3a6e43511c065a2e3eaf72dfe0fa96b335b76c9506cb1ebdcc"
+}

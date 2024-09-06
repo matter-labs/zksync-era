@@ -2,7 +2,8 @@ use std::path::Path;
 
 use config::{
     forge_interface::deploy_ecosystem::input::{Erc20DeploymentConfig, InitialDeploymentConfig},
-    traits::SaveConfigWithCommentAndBasePath,
+    traits::{SaveConfigWithBasePath, SaveConfigWithCommentAndBasePath},
+    AppsEcosystemConfig,
 };
 use xshell::Shell;
 
@@ -31,5 +32,14 @@ pub fn create_erc20_deployment_config(
         ecosystem_configs_path,
         MSG_SAVE_ERC20_CONFIG_ATTENTION,
     )?;
+    Ok(config)
+}
+
+pub fn create_apps_config(
+    shell: &Shell,
+    ecosystem_configs_path: &Path,
+) -> anyhow::Result<AppsEcosystemConfig> {
+    let config = AppsEcosystemConfig::default();
+    config.save_with_base_path(shell, ecosystem_configs_path)?;
     Ok(config)
 }

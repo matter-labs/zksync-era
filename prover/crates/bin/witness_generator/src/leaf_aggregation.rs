@@ -27,12 +27,12 @@ use zksync_prover_fri_types::{
     FriProofWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
     prover_dal::LeafAggregationJobMetadata, L1BatchNumber,
 };
-use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,

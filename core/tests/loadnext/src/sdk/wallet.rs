@@ -45,6 +45,7 @@ where
         let client = Client::http(rpc_address)
             .map_err(|err| ClientError::NetworkError(err.to_string()))?
             .for_network(signer.chain_id.into())
+            .report_config(false)
             .build();
 
         Ok(Wallet {

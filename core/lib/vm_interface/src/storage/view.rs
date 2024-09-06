@@ -102,7 +102,7 @@ where
     }
 }
 
-impl<S: ReadStorage + fmt::Debug> StorageView<S> {
+impl<S: ReadStorage> StorageView<S> {
     /// Creates a new storage view based on the underlying storage.
     pub fn new(storage_handle: S) -> Self {
         Self {

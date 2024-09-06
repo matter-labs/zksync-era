@@ -1,14 +1,17 @@
 //! Test utilities that can be used for testing sequencer that may
 //! be useful outside of this crate.
 
+use async_trait::async_trait;
 use once_cell::sync::Lazy;
-use tokio::sync::mpsc;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal as _};
 use zksync_multivm::interface::{
-    storage::StorageViewCache, CurrentExecutionState, ExecutionResult, FinishedL1Batch, L1BatchEnv,
-    Refunds, SystemEnv, VmExecutionLogs, VmExecutionResultAndLogs, VmExecutionStatistics,
+    executor::{BatchExecutor, BatchExecutorFactory},
+    storage::{InMemoryStorage, StorageView},
+    BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+    SystemEnv, VmExecutionResultAndLogs,
 };
+use zksync_state::OwnedStorage;
 use zksync_test_account::Account;
 use zksync_types::{
     fee::Fee, utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute,
@@ -17,94 +20,62 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_h256;
 
-use crate::{
-    batch_executor::{BatchExecutor, BatchExecutorHandle, Command, TxExecutionResult},
-    types::ExecutionMetricsForCriteria,
-};
-
 pub mod test_batch_executor;
 
 pub(super) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
 
-pub(super) fn default_vm_batch_result() -> FinishedL1Batch {
-    FinishedL1Batch {
-        block_tip_execution_result: VmExecutionResultAndLogs {
-            result: ExecutionResult::Success { output: vec![] },
-            logs: VmExecutionLogs::default(),
-            statistics: VmExecutionStatistics::default(),
-            refunds: Refunds::default(),
-        },
-        final_execution_state: CurrentExecutionState {
-            events: vec![],
-            deduplicated_storage_logs: vec![],
-            used_contract_hashes: vec![],
-            user_l2_to_l1_logs: vec![],
-            system_logs: vec![],
-            storage_refunds: Vec::new(),
-            pubdata_costs: Vec::new(),
-        },
-        final_bootloader_memory: Some(vec![]),
-        pubdata_input: Some(vec![]),
-        state_diffs: Some(vec![]),
-    }
-}
-
 /// Creates a `TxExecutionResult` object denoting a successful tx execution.
-pub(crate) fn successful_exec() -> TxExecutionResult {
-    TxExecutionResult::Success {
+pub(crate) fn successful_exec() -> BatchTransactionExecutionResult {
+    BatchTransactionExecutionResult {
         tx_result: Box::new(VmExecutionResultAndLogs {
             result: ExecutionResult::Success { output: vec![] },
             logs: Default::default(),
             statistics: Default::default(),
             refunds: Default::default(),
         }),
-        tx_metrics: Box::new(ExecutionMetricsForCriteria {
-            l1_gas: Default::default(),
-            execution_metrics: Default::default(),
-        }),
         compressed_bytecodes: vec![],
-        call_tracer_result: vec![],
-        gas_remaining: Default::default(),
+        call_traces: vec![],
     }
-}
-
-pub(crate) fn storage_view_cache() -> StorageViewCache {
-    StorageViewCache::default()
 }
 
 /// `BatchExecutor` which doesn't check anything at all. Accepts all transactions.
 #[derive(Debug)]
 pub struct MockBatchExecutor;
 
-impl BatchExecutor<()> for MockBatchExecutor {
+impl BatchExecutorFactory<OwnedStorage> for MockBatchExecutor {
     fn init_batch(
         &mut self,
-        _storage: (),
-        _l1batch_params: L1BatchEnv,
+        _storage: OwnedStorage,
+        _l1_batch_env: L1BatchEnv,
         _system_env: SystemEnv,
-    ) -> BatchExecutorHandle {
-        let (send, recv) = mpsc::channel(1);
-        let handle = tokio::task::spawn(async {
-            let mut recv = recv;
-            while let Some(cmd) = recv.recv().await {
-                match cmd {
-                    Command::ExecuteTx(_, resp) => resp.send(successful_exec()).unwrap(),
-                    Command::StartNextL2Block(_, resp) => resp.send(()).unwrap(),
-                    Command::RollbackLastTx(_) => panic!("unexpected rollback"),
-                    Command::FinishBatch(resp) => {
-                        // Blanket result, it doesn't really matter.
-                        resp.send(default_vm_batch_result()).unwrap();
-                        break;
-                    }
-                    Command::FinishBatchWithCache(resp) => resp
-                        .send((default_vm_batch_result(), storage_view_cache()))
-                        .unwrap(),
-                }
-            }
-            anyhow::Ok(())
-        });
-        BatchExecutorHandle::from_raw(handle, send)
+    ) -> Box<dyn BatchExecutor<OwnedStorage>> {
+        Box::new(Self)
+    }
+}
+
+#[async_trait]
+impl BatchExecutor<OwnedStorage> for MockBatchExecutor {
+    async fn execute_tx(
+        &mut self,
+        _tx: Transaction,
+    ) -> anyhow::Result<BatchTransactionExecutionResult> {
+        Ok(successful_exec())
+    }
+
+    async fn rollback_last_tx(&mut self) -> anyhow::Result<()> {
+        panic!("unexpected rollback");
+    }
+
+    async fn start_next_l2_block(&mut self, _env: L2BlockEnv) -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    async fn finish_batch(
+        self: Box<Self>,
+    ) -> anyhow::Result<(FinishedL1Batch, StorageView<OwnedStorage>)> {
+        let storage = OwnedStorage::boxed(InMemoryStorage::default());
+        Ok((FinishedL1Batch::mock(), StorageView::new(storage)))
     }
 }
 

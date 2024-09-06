@@ -247,6 +247,53 @@ Run the external node:
 zk_inception en run
 ```
 
+### Portal
+
+Once you have at least one chain initialized, you can run the [portal](https://github.com/matter-labs/dapp-portal) - a
+web-app to bridge tokens between L1 and L2 and more:
+
+```bash
+zk_inception portal
+```
+
+This command will start the dockerized portal app using configuration from `apps/portal.config.json` file inside your
+ecosystem directory. You can edit this file to configure the portal app if needed. By default, portal starts on
+`http://localhost:3030`, you can configure the port in `apps.yaml` file.
+
+### Explorer
+
+For better understanding of the blockchain data, you can use the
+[explorer](https://github.com/matter-labs/block-explorer) - a web-app to view and inspect transactions, blocks,
+contracts and more.
+
+First, each chain should be initialized:
+
+```bash
+zk_inception explorer init
+```
+
+This command creates a database to store explorer data and generatesdocker compose file with explorer services
+(`explorer-docker-compose.yml`).
+
+Next, for each chain you want to have an explorer, you need to start its backend services:
+
+```bash
+zk_inception explorer backend --chain <chain_name>
+```
+
+This command uses previously created docker compose file to start the services (api, data fetcher, worker) required for
+the explorer.
+
+Finally, you can run the explorer app:
+
+```bash
+zk_inception explorer run
+```
+
+This command will start the dockerized explorer app using configuration from `apps/explorer.config.json` file inside
+your ecosystem directory. You can edit this file to configure the app if needed. By default, explorer starts on
+`http://localhost:3010`, you can configure the port in `apps.yaml` file.
+
 ### Update
 
 To update your node:
@@ -318,6 +365,14 @@ Create a snapshot of the current chain:
 
 ```bash
 zks snapshot create
+```
+
+### Contracts
+
+Build contracts:
+
+```bash
+zks contracts
 ```
 
 ### Format

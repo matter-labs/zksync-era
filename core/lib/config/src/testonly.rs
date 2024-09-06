@@ -630,19 +630,6 @@ impl Distribution<configs::house_keeper::HouseKeeperConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::house_keeper::HouseKeeperConfig {
         configs::house_keeper::HouseKeeperConfig {
             l1_batch_metrics_reporting_interval_ms: self.sample(rng),
-            gpu_prover_queue_reporting_interval_ms: self.sample(rng),
-            prover_job_retrying_interval_ms: self.sample(rng),
-            prover_stats_reporting_interval_ms: self.sample(rng),
-            witness_job_moving_interval_ms: self.sample(rng),
-            witness_generator_stats_reporting_interval_ms: self.sample(rng),
-            prover_db_pool_size: self.sample(rng),
-            witness_generator_job_retrying_interval_ms: self.sample(rng),
-            proof_compressor_job_retrying_interval_ms: self.sample(rng),
-            proof_compressor_stats_reporting_interval_ms: self.sample(rng),
-            prover_job_archiver_archiving_interval_ms: self.sample(rng),
-            prover_job_archiver_archive_after_secs: self.sample(rng),
-            fri_gpu_prover_archiver_archiving_interval_ms: self.sample(rng),
-            fri_gpu_prover_archiver_archive_after_secs: self.sample(rng),
         }
     }
 }
@@ -741,7 +728,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             l1_chain_id: L1ChainId(self.sample(rng)),
             sl_chain_id: None,
             l2_chain_id: L2ChainId::default(),
-            recursion_scheduler_level_vk_hash: rng.gen(),
+            snark_wrapper_vk_hash: rng.gen(),
             dummy_verifier: rng.gen(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
                 0 => L1BatchCommitmentMode::Rollup,
