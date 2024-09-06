@@ -1,8 +1,16 @@
 use clap::{Parser, ValueEnum};
 use common::{Prompt, PromptSelect};
+use config::{ChainConfig, EcosystemConfig};
 use strum::{EnumIter, IntoEnumIterator};
+use xshell::Shell;
 
-use crate::messages::{MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT, MSG_THREADS_PROMPT};
+use crate::{
+    commands::prover::utils::get_link_to_prover,
+    messages::{
+        MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT, MSG_THREADS_PROMPT,
+        MSG_WITNESS_GENERATOR_ROUND_ERR,
+    },
+};
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct ProverRunArgs {
@@ -46,6 +54,95 @@ impl ProverComponent {
             Self::Compressor => "matterlabs/proof-fri-gpu-compressor:latest2.0",
             Self::ProverJobMonitor => "matterlabs/prover-job-monitor:latest2.0",
         }
+    }
+
+    pub fn binary_name(&self) -> &'static str {
+        match self {
+            Self::Gateway => "zksync_prover_fri_gateway",
+            Self::WitnessGenerator => "zksync_witness_generator",
+            Self::WitnessVectorGenerator => "zksync_witness_vector_generator",
+            Self::Prover => "zksync_prover_fri",
+            Self::Compressor => "zksync_proof_fri_compressor",
+            Self::ProverJobMonitor => "zksync_prover_job_monitor",
+        }
+    }
+
+    pub fn get_application_args(
+        &self,
+        in_docker: bool,
+        chain: &ChainConfig,
+        shell: &Shell,
+    ) -> anyhow::Result<Option<String>> {
+        let path_to_configs = chain.configs.clone();
+        let ecosystem_config = EcosystemConfig::from_file(shell)?;
+        let path_to_prover = get_link_to_prover(&ecosystem_config);
+
+        let mut application_args = match in_docker{
+            true => format!("--net=host -v {path_to_prover:?}/data/keys:/prover/data/keys -v {path_to_prover:?}/artifacts:/artifacts -v {path_to_configs:?}:/configs"),
+            false => "".to_string(),
+        };
+
+        if self == &Self::Prover || self == &Self::Compressor {
+            if in_docker {
+                application_args += " --gpus=all";
+            } else {
+                application_args += "--features gpu";
+            }
+        }
+
+        if application_args.clone().is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(application_args))
+        }
+    }
+
+    pub fn get_additional_args(
+        &self,
+        args: ProverRunArgs,
+        chain: &ChainConfig,
+    ) -> anyhow::Result<Option<String>> {
+        let general_config = chain.path_to_general_config();
+        let secrets_config = chain.path_to_secrets_config();
+
+        let mut additional_args =
+            format!("--config-path={general_config:?} --secrets-path={secrets_config:?}");
+
+        match self {
+            Self::WitnessGenerator => {
+                additional_args += match args
+                    .witness_generator_args
+                    .round
+                    .expect(MSG_WITNESS_GENERATOR_ROUND_ERR)
+                {
+                    WitnessGeneratorRound::AllRounds => " --all_rounds",
+                    WitnessGeneratorRound::BasicCircuits => " --round=basic_circuits",
+                    WitnessGeneratorRound::LeafAggregation => " --round=leaf_aggregation",
+                    WitnessGeneratorRound::NodeAggregation => " --round=node_aggregation",
+                    WitnessGeneratorRound::RecursionTip => " --round=recursion_tip",
+                    WitnessGeneratorRound::Scheduler => " --round=scheduler",
+                };
+            }
+            Self::WitnessVectorGenerator => {
+                additional_args += format!(
+                    " --threads={}",
+                    args.witness_vector_generator_args.threads.unwrap_or(1)
+                )
+                .as_str();
+            }
+            Self::Prover => {
+                if args.fri_prover_args.max_allocation.is_some() {
+                    additional_args += format!(
+                        " --max-allocation={}",
+                        args.fri_prover_args.max_allocation.unwrap()
+                    )
+                    .as_str();
+                };
+            }
+            _ => {}
+        };
+
+        Ok(Some(additional_args))
     }
 }
 
