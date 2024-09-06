@@ -95,6 +95,7 @@ impl WitnessVectorGeneratorArgs {
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct FriProverRunArgs {
+    #[clap(long)]
     pub max_allocation: Option<usize>,
 }
 
