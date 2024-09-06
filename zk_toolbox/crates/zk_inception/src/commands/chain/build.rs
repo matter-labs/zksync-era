@@ -21,9 +21,13 @@ use crate::{
     },
 };
 
-const CHAIN_TRANSACTIONS_FILE: &str =
+const CHAIN_TRANSACTIONS_FILE_SRC: &str =
     "contracts/l1-contracts/broadcast/RegisterHyperchain.s.sol/9/dry-run/run-latest.json";
-const SCRIPT_CONFIG_FILE: &str = "contracts/l1-contracts/script-config/register-hyperchain.toml";
+const CHAIN_TRANSACTIONS_FILE_DST: &str = "register-hyperchain-txns.json";
+
+const SCRIPT_CONFIG_FILE_SRC: &str =
+    "contracts/l1-contracts/script-config/register-hyperchain.toml";
+const SCRIPT_CONFIG_FILE_DST: &str = "register-hyperchain.toml";
 
 pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<()> {
     let config = EcosystemConfig::from_file(shell)?;
@@ -74,13 +78,13 @@ pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<(
         .context(MSG_CHAIN_BUILD_OUT_PATH_INVALID_ERR)?;
 
     shell.copy_file(
-        config.link_to_code.join(CHAIN_TRANSACTIONS_FILE),
-        args.out.join("register-hyperchain-txns.json"),
+        config.link_to_code.join(CHAIN_TRANSACTIONS_FILE_SRC),
+        args.out.join(CHAIN_TRANSACTIONS_FILE_DST),
     )?;
 
     shell.copy_file(
-        config.link_to_code.join(SCRIPT_CONFIG_FILE),
-        args.out.join("register-hyperchain.toml"),
+        config.link_to_code.join(SCRIPT_CONFIG_FILE_SRC),
+        args.out.join(SCRIPT_CONFIG_FILE_DST),
     )?;
     spinner.finish();
 

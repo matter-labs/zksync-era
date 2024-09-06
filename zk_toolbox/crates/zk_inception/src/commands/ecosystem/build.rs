@@ -22,9 +22,12 @@ use crate::messages::{
     MSG_WRITING_OUTPUT_FILES_SPINNER,
 };
 
-const DEPLOY_TRANSACTIONS_FILE: &str =
+const DEPLOY_TRANSACTIONS_FILE_SRC: &str =
     "contracts/l1-contracts/broadcast/DeployL1.s.sol/9/dry-run/run-latest.json";
-const SCRIPT_CONFIG_FILE: &str = "contracts/l1-contracts/script-config/config-deploy-l1.toml";
+const DEPLOY_TRANSACTIONS_FILE_DST: &str = "deploy-l1-txns.json";
+
+const SCRIPT_CONFIG_FILE_SRC: &str = "contracts/l1-contracts/script-config/config-deploy-l1.toml";
+const SCRIPT_CONFIG_FILE_DST: &str = "config-deploy-l1.toml";
 
 pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
@@ -79,13 +82,15 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
         .context(MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR)?;
 
     shell.copy_file(
-        ecosystem_config.link_to_code.join(DEPLOY_TRANSACTIONS_FILE),
-        args.out.join("deploy-l1-txns.json"),
+        ecosystem_config
+            .link_to_code
+            .join(DEPLOY_TRANSACTIONS_FILE_SRC),
+        args.out.join(DEPLOY_TRANSACTIONS_FILE_DST),
     )?;
 
     shell.copy_file(
-        ecosystem_config.link_to_code.join(SCRIPT_CONFIG_FILE),
-        args.out.join("config-deploy-l1.toml"),
+        ecosystem_config.link_to_code.join(SCRIPT_CONFIG_FILE_SRC),
+        args.out.join(SCRIPT_CONFIG_FILE_DST),
     )?;
     spinner.finish();
 
