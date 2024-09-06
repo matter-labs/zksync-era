@@ -177,7 +177,6 @@ fn run_compressor(
     ecosystem: &EcosystemConfig,
     docker_image: Option<&str>,
 ) -> anyhow::Result<()> {
-    check_prerequisites(shell, &GPU_PREREQUISITES, false);
     logger::info(MSG_RUNNING_COMPRESSOR);
 
     if let Some(docker_image) = docker_image {
@@ -265,3 +264,5 @@ fn change_setup_data_path(
 
     Ok(())
 }
+
+postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_test
