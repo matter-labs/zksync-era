@@ -140,7 +140,6 @@ fn run_prover(
     fri_prover_run_args: FriProverRunArgs,
     docker_image: Option<&str>,
 ) -> anyhow::Result<()> {
-    check_prerequisites(shell, &GPU_PREREQUISITES, false);
     logger::info(MSG_RUNNING_PROVER);
     let config_path = chain.path_to_general_config();
     let secrets_path = chain.path_to_secrets_config();
@@ -155,6 +154,7 @@ fn run_prover(
         change_setup_data_path(shell, "prover/data/keys")?;
         run_dockerized_component(shell, docker_image, chain, &additional_args)
     } else {
+        check_prerequisites(shell, &GPU_PREREQUISITES, false);
         change_setup_data_path(shell, "data/keys")?;
         check_prerequisites(shell, &GPU_PREREQUISITES, false);
         let mut cmd = if additional_args.is_empty() {
