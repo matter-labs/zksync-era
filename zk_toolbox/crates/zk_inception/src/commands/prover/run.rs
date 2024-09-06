@@ -1,11 +1,9 @@
-use crate::commands::prover::args::run::FriProverRunArgs;
 use anyhow::{anyhow, Context};
 use common::{
     check_prerequisites, cmd::Cmd, config::global_config, logger, spinner::Spinner,
     GPU_PREREQUISITES,
 };
-use config::traits::SaveConfigWithBasePath;
-use config::{ChainConfig, EcosystemConfig};
+use config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
 use super::{
@@ -15,13 +13,16 @@ use super::{
     },
     utils::get_link_to_prover,
 };
-use crate::messages::{
-    MSG_BELLMAN_CUDA_DIR_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_MISSING_COMPONENT_ERR,
-    MSG_RUNNING_COMPRESSOR, MSG_RUNNING_COMPRESSOR_ERR, MSG_RUNNING_PROVER, MSG_RUNNING_PROVER_ERR,
-    MSG_RUNNING_PROVER_GATEWAY, MSG_RUNNING_PROVER_GATEWAY_ERR, MSG_RUNNING_PROVER_JOB_MONITOR,
-    MSG_RUNNING_WITNESS_GENERATOR, MSG_RUNNING_WITNESS_GENERATOR_ERR,
-    MSG_RUNNING_WITNESS_VECTOR_GENERATOR, MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR,
-    MSG_WITNESS_GENERATOR_ROUND_ERR,
+use crate::{
+    commands::prover::args::run::FriProverRunArgs,
+    messages::{
+        MSG_BELLMAN_CUDA_DIR_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_MISSING_COMPONENT_ERR,
+        MSG_RUNNING_COMPRESSOR, MSG_RUNNING_COMPRESSOR_ERR, MSG_RUNNING_PROVER,
+        MSG_RUNNING_PROVER_ERR, MSG_RUNNING_PROVER_GATEWAY, MSG_RUNNING_PROVER_GATEWAY_ERR,
+        MSG_RUNNING_PROVER_JOB_MONITOR, MSG_RUNNING_WITNESS_GENERATOR,
+        MSG_RUNNING_WITNESS_GENERATOR_ERR, MSG_RUNNING_WITNESS_VECTOR_GENERATOR,
+        MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR, MSG_WITNESS_GENERATOR_ROUND_ERR,
+    },
 };
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
