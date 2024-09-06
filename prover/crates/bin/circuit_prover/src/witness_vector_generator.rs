@@ -7,9 +7,19 @@ use anyhow::Context;
 use tokio::{sync::watch::Receiver, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_prover_fri_types::ProverJob;
 use zksync_types::protocol_version::ProtocolSemanticVersion;
+use zksync_utils::panic_extractor::try_extract_panic_message;
+
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
+use zksync_prover_fri_types::circuit_definitions::boojum::gadgets::queue::full_state_queue::FullStateCircuitQueueRawWitness;
+use zksync_prover_fri_types::circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerCircuit;
+use zksync_prover_fri_types::keys::{FriCircuitKey, RamPermutationQueueWitnessKey};
+use zksync_prover_fri_types::{
+    get_current_pod_name, CircuitWrapper, ProverJob, ProverServiceDataKey,
+    RamPermutationQueueWitness, WitnessVectorArtifacts,
+};
+use zksync_prover_fri_utils::metrics::CircuitLabels;
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 pub struct WitnessVectorGenerator {
@@ -61,25 +71,39 @@ impl WitnessVectorGenerator {
                 //                     Self::SERVICE_NAME,
                 //                     job_id
                 //                 );
-                let task = self.process_job(&job_id, job, started_at).await;
+                let task = self.process_job(job_id, job, started_at).await;
 
                 tokio::select! {
                     _ = cancellation_token.cancelled() => {
                         tracing::info!("received cancellation!");
                         return Ok(())
                     }
-                    data = task => {
-                        tracing::info!("finished task!");
-                        // tracing::debug!(
-                        //     "{} Job {:?} finished successfully",
-                        //     Self::SERVICE_NAME,
-                        //     job_id
-                        // );
-                        // // METRICS.attempts[&Self::SERVICE_NAME].observe(attempts as usize);
-                        // return self
-                        //     .save_result(job_id, started_at, data)
-                        //     .await
-                        //     .context("save_result()");
+                    result = task => {
+                        let error_message = match result {
+                            Ok(Ok(data)) => {
+                                tracing::info!(
+                                    "{} Job {:?} finished successfully",
+                                    "witness_vector_generator",
+                                    job_id
+                                );
+                // METRICS.attempts[&Self::SERVICE_NAME].observe(attempts as usize);
+                                self
+                                    .save_result(job_id, started_at, data)
+                                    .await;
+                                continue;
+                                    // .context("save_result()");
+                            }
+                            Ok(Err(error)) => error.to_string(),
+                            Err(error) => try_extract_panic_message(error),
+                        };
+                        tracing::error!(
+                            "Error occurred while processing {} job {:?}: {:?}",
+                            "witness_vector_generator",
+                            job_id,
+                            error_message
+                        );
+
+                        self.save_failure(job_id, started_at, error_message).await;
                     }
                 }
                 continue;
@@ -92,133 +116,161 @@ impl WitnessVectorGenerator {
             )
             .await
             .ok();
-            backoff = (backoff * Self::BACKOFF_MULTIPLIER).min(Self::MAX_BACKOFF_MS);
+            const MAX_BACKOFF_MS: u64 = 60_000;
+            const BACKOFF_MULTIPLIER: u64 = 2;
+            backoff = (backoff * BACKOFF_MULTIPLIER).min(MAX_BACKOFF_MS);
         }
         tracing::warn!("Stop signal received, shutting down Witness Vector Generator");
         Ok(())
-
-        // vvv wait for task
-        //     /// Polls task handle, saving its outcome.
-        //     async fn wait_for_task(
-        //         &self,
-        //         job_id: Self::JobId,
-        //         started_at: Instant,
-        //         task: JoinHandle<anyhow::Result<Self::JobArtifacts>>,
-        //         stop_receiver: &mut watch::Receiver<bool>,
-        //     ) -> anyhow::Result<()> {
-        //         let attempts = self.get_job_attempts(&job_id).await?;
-        //         let max_attempts = self.max_attempts();
-        //         if attempts == max_attempts {
-        //             METRICS.max_attempts_reached[&(Self::SERVICE_NAME, format!("{job_id:?}"))].inc();
-        //             tracing::error!(
-        //                 "Max attempts ({max_attempts}) reached for {} job {:?}",
-        //                 Self::SERVICE_NAME,
-        //                 job_id,
-        //             );
-        //         }
-        //
-        //         let result = loop {
-        //             tracing::trace!(
-        //                 "Polling {} task with id {:?}. Is finished: {}",
-        //                 Self::SERVICE_NAME,
-        //                 job_id,
-        //                 task.is_finished()
-        //             );
-        //             if task.is_finished() {
-        //                 break task.await;
-        //             }
-        //             if stop_receiver.changed().await.is_ok() {
-        //                 return Ok(());
-        //             }
-        //         };
-        //         let error_message = match result {
-        //             Ok(Ok(data)) => {
-        //                 tracing::debug!(
-        //                     "{} Job {:?} finished successfully",
-        //                     Self::SERVICE_NAME,
-        //                     job_id
-        //                 );
-        //                 METRICS.attempts[&Self::SERVICE_NAME].observe(attempts as usize);
-        //                 return self
-        //                     .save_result(job_id, started_at, data)
-        //                     .await
-        //                     .context("save_result()");
-        //             }
-        //             Ok(Err(error)) => error.to_string(),
-        //             Err(error) => try_extract_panic_message(error),
-        //         };
-        //         tracing::error!(
-        //             "Error occurred while processing {} job {:?}: {:?}",
-        //             Self::SERVICE_NAME,
-        //             job_id,
-        //             error_message
-        //         );
-        //
-        //         self.save_failure(job_id, started_at, error_message).await;
-        //         Ok(())
-        //     }
-
-        // ----------------------
-
-        // while iterations_left.map_or(true, |i| i > 0) {
-        //     if *stop_receiver.borrow() {
-        //         tracing::warn!(
-        //                     "Stop signal received, shutting down {} component while waiting for a new job",
-        //                     Self::SERVICE_NAME
-        //                 );
-        //         return Ok(());
-        //     }
-        //     if let Some((job_id, job)) =
-        //         Self::get_next_job(&self).await.context("get_next_job()")?
-        //     {
-        //         let started_at = Instant::now();
-        //         backoff = Self::POLLING_INTERVAL_MS;
-        //         iterations_left = iterations_left.map(|i| i - 1);
-        //
-        //         tracing::debug!(
-        //                     "Spawning thread processing {:?} job with id {:?}",
-        //                     Self::SERVICE_NAME,
-        //                     job_id
-        //                 );
-        //         let task = self.process_job(&job_id, job, started_at).await;
-        //
-        //         self.wait_for_task(job_id, started_at, task, &mut stop_receiver)
-        //             .await
-        //             .context("wait_for_task")?;
-        //     } else if iterations_left.is_some() {
-        //         tracing::info!("No more jobs to process. Server can stop now.");
-        //         return Ok(());
-        //     } else {
-        //         tracing::trace!("Backing off for {} ms", backoff);
-        //         // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.
-        //         tokio::time::timeout(Duration::from_millis(backoff), stop_receiver.changed())
-        //             .await
-        //             .ok();
-        //         backoff = (backoff * Self::BACKOFF_MULTIPLIER).min(Self::MAX_BACKOFF_MS);
-        //     }
-        // }
-        // tracing::info!("Requested number of jobs is processed. Server can stop now.");
-        // Ok(())
     }
 
-    async fn get_next_job(&self) -> anyhow::Result<Option<(i32, i32)>> {
-        // TODO: Fix this guy
-        Ok(Some((1, 2)))
+    async fn get_next_job(&self) -> anyhow::Result<Option<(u32, ProverJob)>> {
+        let mut connection = self.connection_pool.connection().await.unwrap();
+        let pod_name = get_current_pod_name();
+        let prover_job_metadata = match connection
+            .fri_prover_jobs_dal()
+            .get_next_job(self.protocol_version, &pod_name)
+            .await
+        {
+            None => return Ok(None),
+            Some(job) => job,
+        };
+        tracing::info!("Started processing prover job: {:?}", prover_job_metadata);
+
+        let circuit_key = FriCircuitKey {
+            block_number: prover_job_metadata.block_number,
+            sequence_number: prover_job_metadata.sequence_number,
+            circuit_id: prover_job_metadata.circuit_id,
+            aggregation_round: prover_job_metadata.aggregation_round,
+            depth: prover_job_metadata.depth,
+        };
+        let started_at = Instant::now();
+        let circuit_wrapper = self
+            .object_store
+            .get(circuit_key)
+            .await
+            .unwrap_or_else(|err| panic!("{err:?}"));
+        let input = match circuit_wrapper {
+            a @ CircuitWrapper::Base(_) => a,
+            a @ CircuitWrapper::Recursive(_) => a,
+            CircuitWrapper::BasePartial((circuit, aux_data)) => {
+                // inject additional data
+                if let ZkSyncBaseLayerCircuit::RAMPermutation(circuit_instance) = circuit {
+                    let sorted_witness_key = RamPermutationQueueWitnessKey {
+                        block_number: prover_job_metadata.block_number,
+                        circuit_subsequence_number: aux_data.circuit_subsequence_number as usize,
+                        is_sorted: true,
+                    };
+
+                    let sorted_witness_handle = self.object_store.get(sorted_witness_key);
+
+                    let unsorted_witness_key = RamPermutationQueueWitnessKey {
+                        block_number: prover_job_metadata.block_number,
+                        circuit_subsequence_number: aux_data.circuit_subsequence_number as usize,
+                        is_sorted: false,
+                    };
+
+                    let unsorted_witness_handle = self.object_store.get(unsorted_witness_key);
+
+                    let unsorted_witness: RamPermutationQueueWitness =
+                        unsorted_witness_handle.await.unwrap();
+                    let sorted_witness: RamPermutationQueueWitness =
+                        sorted_witness_handle.await.unwrap();
+
+                    let mut witness = circuit_instance.witness.take().unwrap();
+                    witness.unsorted_queue_witness = FullStateCircuitQueueRawWitness {
+                        elements: unsorted_witness.witness.into(),
+                    };
+                    witness.sorted_queue_witness = FullStateCircuitQueueRawWitness {
+                        elements: sorted_witness.witness.into(),
+                    };
+                    circuit_instance.witness.store(Some(witness));
+
+                    CircuitWrapper::Base(ZkSyncBaseLayerCircuit::RAMPermutation(circuit_instance))
+                } else {
+                    panic!("Unexpected circuit received with partial witness");
+                }
+            }
+        };
+
+        let label = CircuitLabels {
+            circuit_type: prover_job_metadata.circuit_id,
+            aggregation_round: prover_job_metadata.aggregation_round.into(),
+        };
+        // PROVER_FRI_UTILS_METRICS.blob_fetch_time[&label].observe(started_at.elapsed());
+
+        let setup_data_key = ProverServiceDataKey {
+            circuit_id: prover_job_metadata.circuit_id,
+            round: prover_job_metadata.aggregation_round,
+        };
+        let prover_job = ProverJob::new(
+            prover_job_metadata.block_number,
+            prover_job_metadata.id,
+            input,
+            setup_data_key,
+        );
+        Ok(Some((prover_job.job_id, prover_job)))
     }
 
     //     /// Function that processes a job
     async fn process_job(
         &self,
-        job_id: &i32,
-        job: i32,
+        job_id: u32,
+        job: ProverJob,
         started_at: Instant,
-    ) -> JoinHandle<anyhow::Result<()>> {
-        tokio::task::spawn_blocking(|| {
-            std::thread::sleep(Duration::from_secs(10));
-            Ok(())
+    ) -> JoinHandle<anyhow::Result<WitnessVectorArtifacts>> {
+        let keystore = self.keystore.clone();
+        tokio::task::spawn_blocking(move || {
+            let block_number = job.block_number;
+            let _span = tracing::info_span!("witness_vector_generator", %block_number).entered();
+            Self::generate_witness_vector(job, &keystore)
         })
     }
+
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = % job.block_number)
+    )]
+    pub fn generate_witness_vector(
+        job: ProverJob,
+        keystore: &Keystore,
+    ) -> anyhow::Result<WitnessVectorArtifacts> {
+        let finalization_hints = keystore
+            .load_finalization_hints(job.setup_data_key.clone())
+            .context("get_finalization_hints()")?;
+        let cs = match job.circuit_wrapper.clone() {
+            CircuitWrapper::Base(base_circuit) => {
+                base_circuit.synthesis::<GoldilocksField>(&finalization_hints)
+            }
+            CircuitWrapper::Recursive(recursive_circuit) => {
+                recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
+            }
+            CircuitWrapper::BasePartial(_) => {
+                panic!("Invalid circuit wrapper received for witness vector generation");
+            }
+        };
+        Ok(WitnessVectorArtifacts::new(cs.witness.unwrap(), job))
+    }
+
+    async fn save_result(
+        &self,
+        job_id: u32,
+        started_at: Instant,
+        artifacts: WitnessVectorArtifacts,
+    ) {
+    }
+
+    async fn save_failure(&self, job_id: u32, _started_at: Instant, error: String) {
+        self.connection_pool
+            .connection()
+            .await
+            .unwrap()
+            .fri_prover_jobs_dal()
+            .save_proof_error(job_id, error)
+            .await;
+    }
 }
+
 //     type Job = ProverJob;
 //     type JobId = u32;
 
