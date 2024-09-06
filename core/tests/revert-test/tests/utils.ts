@@ -132,8 +132,8 @@ export function parseSuggestedValues(jsonString: string): SuggestedValues {
 async function runBlockReverter(
     pathToHome: string,
     chain: string | undefined,
-    args: string[],
-    env?: ProcessEnvOptions['env']
+    env: ProcessEnvOptions['env'] | undefined,
+    args: string[]
 ): Promise<string> {
     let fileConfigFlags = '';
     if (chain) {
@@ -169,9 +169,10 @@ export async function executeRevert(
     chain: string | undefined,
     operatorAddress: string,
     batchesCommittedBeforeRevert: bigint,
-    mainContract: IZkSyncHyperchain
+    mainContract: IZkSyncHyperchain,
+    env?: ProcessEnvOptions['env']
 ) {
-    const suggestedValuesOutput = await runBlockReverter(pathToHome, chain, [
+    const suggestedValuesOutput = await runBlockReverter(pathToHome, chain, env, [
         'print-suggested-values',
         '--json',
         '--operator-address',
@@ -186,7 +187,7 @@ export async function executeRevert(
     console.log('Reverting with parameters', values);
 
     console.log('Sending ETH transaction..');
-    await runBlockReverter(pathToHome, chain, [
+    await runBlockReverter(pathToHome, chain, env, [
         'send-eth-transaction',
         '--l1-batch-number',
         values.lastExecutedL1BatchNumber.toString(),
@@ -197,7 +198,7 @@ export async function executeRevert(
     ]);
 
     console.log('Rolling back DB..');
-    await runBlockReverter(pathToHome, chain, [
+    await runBlockReverter(pathToHome, chain, env, [
         'rollback-db',
         '--l1-batch-number',
         values.lastExecutedL1BatchNumber.toString(),

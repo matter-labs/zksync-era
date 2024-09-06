@@ -97,6 +97,7 @@ describe('Block reverting test', function () {
     let operatorAddress: string;
     let depositAmount: bigint;
     let mainNodeSpawner: NodeSpawner;
+    let mainEnv: Record<string, string | undefined>;
     let mainNode: Node<NodeType.MAIN>;
     let extNodeSpawner: NodeSpawner;
     let extNode: Node<NodeType.EXT>;
@@ -113,7 +114,8 @@ describe('Block reverting test', function () {
         let baseTokenAddress: string;
         let enEthClientUrl: string;
 
-        const [mainEnv, extEnv] = loadEnvs();
+        let extEnv;
+        [mainEnv, extEnv] = loadEnvs();
 
         if (fileConfig.loadFromFile) {
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
@@ -228,7 +230,14 @@ describe('Block reverting test', function () {
     });
 
     step('revert batches', async () => {
-        await executeRevert(pathToHome, fileConfig.chain, operatorAddress, batchesCommittedBeforeRevert, mainContract);
+        await executeRevert(
+            pathToHome,
+            fileConfig.chain,
+            operatorAddress,
+            batchesCommittedBeforeRevert,
+            mainContract,
+            mainEnv
+        );
     });
 
     step('restart server', async () => {
