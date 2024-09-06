@@ -1,15 +1,14 @@
 import * as utils from 'utils';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import {
-    executeRevert,
-    MainNode,
-    killServerAndWaitForShutdown,
-    createBatchWithDeposit,
-    waitToExecuteBatch,
-    waitToCommitBatchesWithoutExecution,
-    executeDepositAfterRevert,
     checkRandomTransfer,
-    MainNodeSpawner
+    executeDepositAfterRevert,
+    executeRevert,
+    Node,
+    NodeSpawner,
+    NodeType,
+    waitToCommitBatchesWithoutExecution,
+    waitToExecuteBatch
 } from './utils';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
@@ -34,8 +33,8 @@ describe('Block reverting test', function () {
     let baseTokenAddress: string;
     let ethClientWeb3Url: string;
     let apiWeb3JsonRpcHttpUrl: string;
-    let mainNodeSpawner: MainNodeSpawner;
-    let mainNode: MainNode;
+    let mainNodeSpawner: NodeSpawner;
+    let mainNode: Node<NodeType.MAIN>;
 
     const fileConfig = shouldLoadConfigFromFile();
     const pathToHome = path.join(__dirname, '../../../..');
@@ -85,7 +84,7 @@ describe('Block reverting test', function () {
         mainLogs = await fs.open(pathToMainLogs, 'a');
         console.log(`Writing server logs to ${pathToMainLogs}`);
 
-        mainNodeSpawner = new MainNodeSpawner(pathToHome, mainLogs, fileConfig, {
+        mainNodeSpawner = new NodeSpawner(pathToHome, mainLogs, fileConfig, {
             enableConsensus,
             ethClientWeb3Url,
             apiWeb3JsonRpcHttpUrl,
@@ -96,12 +95,12 @@ describe('Block reverting test', function () {
     step('Make sure that the server is not running', async () => {
         if (autoKill) {
             // Make sure server isn't running.
-            await MainNode.terminateAll();
+            await Node.terminateAll(NodeType.MAIN);
         }
     });
 
     step('start server', async () => {
-        mainNode = await mainNodeSpawner.spawn(true);
+        mainNode = await mainNodeSpawner.spawnMainNode(true);
     });
 
     step('fund wallet', async () => {
@@ -114,7 +113,7 @@ describe('Block reverting test', function () {
     // One is not enough to test the reversion of sk cache because
     // it gets updated with some batch logs only at the start of the next batch.
     step('seal L1 batch', async () => {
-        initialL1BatchNumber = await createBatchWithDeposit(mainNode, alice.address, depositAmount);
+        initialL1BatchNumber = await mainNode.createBatchWithDeposit(alice.address, depositAmount);
     });
 
     step('wait for L1 batch to get executed', async () => {
@@ -122,12 +121,12 @@ describe('Block reverting test', function () {
     });
 
     step('restart server with batch execution turned off', async () => {
-        await killServerAndWaitForShutdown(mainNode);
-        mainNode = await mainNodeSpawner.spawn(false);
+        await mainNode.killAndWaitForShutdown();
+        mainNode = await mainNodeSpawner.spawnMainNode(false);
     });
 
     step('seal another L1 batch', async () => {
-        await createBatchWithDeposit(mainNode, alice.address, depositAmount);
+        await mainNode.createBatchWithDeposit(alice.address, depositAmount);
     });
 
     step('check wallet balance', async () => {
@@ -141,7 +140,7 @@ describe('Block reverting test', function () {
     });
 
     step('stop server', async () => {
-        await killServerAndWaitForShutdown(mainNode);
+        await mainNode.killAndWaitForShutdown();
     });
 
     step('revert batches', async () => {
@@ -149,7 +148,7 @@ describe('Block reverting test', function () {
     });
 
     step('restart server', async () => {
-        mainNode = await mainNodeSpawner.spawn(true);
+        mainNode = await mainNodeSpawner.spawnMainNode(true);
     });
 
     step('wait until last deposit is re-executed', async () => {
@@ -175,10 +174,10 @@ describe('Block reverting test', function () {
         await checkRandomTransfer(alice, 1n);
 
         // Stop server.
-        await killServerAndWaitForShutdown(mainNode);
+        await mainNode.killAndWaitForShutdown();
 
         // Run again.
-        mainNode = await mainNodeSpawner.spawn(true);
+        mainNode = await mainNodeSpawner.spawnMainNode(true);
 
         // Trying to send a transaction from the same address again
         await checkRandomTransfer(alice, 1n);

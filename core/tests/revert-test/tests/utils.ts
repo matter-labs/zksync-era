@@ -218,16 +218,16 @@ export interface MainNodeSpawnOptions {
     baseTokenAddress: string;
 }
 
-export interface NodeInterface {
-    readonly tester: Tester;
-    terminate(): Promise<void>;
+export enum NodeType {
+    MAIN = 'zksync_server',
+    EXT = 'zksync_external_node'
 }
 
-export class MainNode implements NodeInterface {
+export class Node<TYPE extends NodeType> {
     constructor(
         public readonly tester: Tester,
-        public readonly proc: ChildProcessWithoutNullStreams,
-        public zkInception: boolean
+        private readonly proc: ChildProcessWithoutNullStreams,
+        private readonly type: TYPE
     ) {}
 
     public async terminate() {
@@ -238,19 +238,66 @@ export class MainNode implements NodeInterface {
         }
     }
 
-    // Terminates all main node processes running.
-    //
-    // WARNING: This is not safe to use when running nodes on multiple chains.
-    public static async terminateAll() {
+    /**
+     * Terminates all main node processes running.
+     *
+     * WARNING: This is not safe to use when running nodes on multiple chains.
+     */
+    public static async terminateAll(type: NodeType) {
         try {
-            await utils.exec('killall -INT zksync_server');
+            await utils.exec(`killall -INT ${type}`);
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
     }
+
+    /** Waits for the node process to exit. */
+    public async waitForExit(): Promise<number> {
+        while (this.proc.exitCode === null) {
+            await utils.sleep(1);
+        }
+        return this.proc.exitCode;
+    }
+
+    public async killAndWaitForShutdown() {
+        await this.terminate();
+        // Wait until it's really stopped.
+        let iter = 0;
+        while (iter < 30) {
+            try {
+                await this.tester.syncWallet.provider.getBlockNumber();
+                await utils.sleep(2);
+                iter += 1;
+            } catch (_) {
+                // When exception happens, we assume that server died.
+                return;
+            }
+        }
+        // It's going to panic anyway, since the server is a singleton entity, so better to exit early.
+        throw new Error(`${this.type} didn't stop after a kill request`);
+    }
+
+    public async createBatchWithDeposit(to: string, amount: bigint): Promise<number> {
+        const initialL1BatchNumber = await this.tester.web3Provider.getL1BatchNumber();
+        console.log(`Initial L1 batch: ${initialL1BatchNumber}`);
+
+        const depositHandle = await this.tester.syncWallet.deposit({
+            token: this.tester.isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : this.tester.baseTokenAddress,
+            amount,
+            to,
+            approveBaseERC20: true,
+            approveERC20: true
+        });
+        await depositHandle.wait();
+
+        while ((await this.tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
+            await utils.sleep(1);
+        }
+        return initialL1BatchNumber;
+    }
 }
 
-export class MainNodeSpawner {
+export class NodeSpawner {
     public constructor(
         private readonly pathToHome: string,
         private readonly logs: fs.FileHandle,
@@ -259,7 +306,7 @@ export class MainNodeSpawner {
         private readonly env?: ProcessEnvOptions['env']
     ) {}
 
-    public async spawn(enableExecute: boolean): Promise<MainNode> {
+    public async spawnMainNode(enableExecute: boolean): Promise<Node<NodeType.MAIN>> {
         const env = this.env ?? process.env;
         env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_EXECUTE_DEADLINE = enableExecute ? '1' : '10000';
         // Set full mode for the Merkle tree as it is required to get blocks committed.
@@ -288,63 +335,56 @@ export class MainNodeSpawner {
         });
 
         // Wait until the main node starts responding.
-        const tester: Tester = await Tester.init(
+        const tester = await Tester.init(
             options.ethClientWeb3Url,
             options.apiWeb3JsonRpcHttpUrl,
             options.baseTokenAddress
         );
-        while (true) {
-            try {
-                console.log(`Web3 ${options.apiWeb3JsonRpcHttpUrl}`);
-                await tester.syncWallet.provider.getBridgehubContractAddress();
-                break;
-            } catch (err) {
-                if (proc.exitCode != null) {
-                    assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
-                }
-                console.log('MainNode waiting for api endpoint');
-                await utils.sleep(1);
-            }
+        await waitForNodeToStart(tester, proc, options.apiWeb3JsonRpcHttpUrl);
+        return new Node(tester, proc, NodeType.MAIN);
+    }
+
+    public async spawnExtNode(): Promise<Node<NodeType.EXT>> {
+        const env = this.env ?? process.env;
+        const { pathToHome, fileConfig, logs, options } = this;
+
+        let args = []; // FIXME: unused
+        if (options.enableConsensus) {
+            args.push('--enable-consensus');
         }
-        return new MainNode(tester, proc, fileConfig.loadFromFile);
+
+        // Run server in background.
+        let proc = runExternalNodeInBackground({
+            stdio: ['ignore', logs, logs],
+            cwd: pathToHome,
+            env,
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
+        });
+
+        const tester = await Tester.init(
+            options.ethClientWeb3Url,
+            options.apiWeb3JsonRpcHttpUrl,
+            options.baseTokenAddress
+        );
+        await waitForNodeToStart(tester, proc, options.apiWeb3JsonRpcHttpUrl);
+        return new Node(tester, proc, NodeType.EXT);
     }
 }
 
-export async function killServerAndWaitForShutdown(node: NodeInterface) {
-    await node.terminate();
-    // Wait until it's really stopped.
-    let iter = 0;
-    while (iter < 30) {
+async function waitForNodeToStart(tester: Tester, proc: ChildProcessWithoutNullStreams, l2Url: string) {
+    while (true) {
         try {
-            await node.tester.syncWallet.provider.getBlockNumber();
-            await utils.sleep(2);
-            iter += 1;
-        } catch (_) {
-            // When exception happens, we assume that server died.
-            return;
+            await tester.syncWallet.provider.getBridgehubContractAddress();
+            break;
+        } catch (err) {
+            if (proc.exitCode != null) {
+                assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
+            }
+            console.log(`Node waiting for api endpoint on ${l2Url}`);
+            await utils.sleep(1);
         }
     }
-    // It's going to panic anyway, since the server is a singleton entity, so better to exit early.
-    throw new Error("Server didn't stop after a kill request");
-}
-
-export async function createBatchWithDeposit(node: NodeInterface, to: string, amount: bigint): Promise<number> {
-    const initialL1BatchNumber = await node.tester.web3Provider.getL1BatchNumber();
-    console.log(`Initial L1 batch: ${initialL1BatchNumber}`);
-
-    const depositHandle = await node.tester.syncWallet.deposit({
-        token: node.tester.isETHBasedChain ? zksync.utils.LEGACY_ETH_ADDRESS : node.tester.baseTokenAddress,
-        amount,
-        to,
-        approveBaseERC20: true,
-        approveERC20: true
-    });
-    await depositHandle.wait();
-
-    while ((await node.tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
-        await utils.sleep(1);
-    }
-    return initialL1BatchNumber;
 }
 
 export async function waitToExecuteBatch(mainContract: IZkSyncHyperchain, batchNumber: number) {
@@ -401,6 +441,7 @@ export async function executeDepositAfterRevert(tester: Tester, wallet: zksync.W
         receipt = await tester.syncWallet.provider.getTransactionReceipt(l2Tx.hash);
     }
     expect(receipt.status).to.be.eql(1);
+    console.log(`L2 deposit transaction ${l2Tx.hash} is confirmed`);
 
     await depositHandle.waitFinalize();
     console.log('New deposit is finalized');
