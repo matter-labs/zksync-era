@@ -16,7 +16,7 @@ pub struct ForcedPriceClientConfig {
     /// will return the same quote every time it's called. Otherwise, ForcedPriceClient will return
     /// forced_quote +/- forced_fluctuation % from its values.
     pub fluctuation: Option<u32>,
-    /// In order to smoothe out fluctuation consecutive values returned by forced client will not
+    /// In order to smooth out fluctuation consecutive values returned by forced client will not
     /// differ more than next_value_fluctuation percent. If it's None, a default of 3% will be applied.
     #[serde(default = "ExternalPriceApiClientConfig::default_forced_next_value_fluctuation")]
     pub next_value_fluctuation: u32,
