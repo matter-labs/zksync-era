@@ -31,6 +31,9 @@ pub enum ChainCommands {
     /// Deploy all l2 contracts
     #[command(alias = "l2")]
     DeployL2Contracts(ForgeScriptArgs),
+    /// Deploy L2 consensus registry
+    #[command(alias = "consensus")]
+    DeployConsensusRegistry(ForgeScriptArgs),
     /// Deploy Default Upgrader
     Upgrader(ForgeScriptArgs),
     /// Deploy paymaster smart contract
@@ -48,11 +51,14 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::DeployL2Contracts(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::All).await
         }
+        ChainCommands::DeployConsensusRegistry(args) => {
+            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::ConsensusRegistry).await
+        }
         ChainCommands::Upgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await
         }
         ChainCommands::InitializeBridges(args) => {
-            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::IntiailizeBridges).await
+            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::InitiailizeBridges).await
         }
         ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell).await,
         ChainCommands::UpdateTokenMultiplierSetter(args) => {

@@ -28,7 +28,7 @@ use crate::{
             genesis::genesis,
             set_token_multiplier_setter::set_token_multiplier_setter,
         },
-        portal::create_and_save_portal_config,
+        portal::update_portal_config,
     },
     consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
     messages::{
@@ -154,7 +154,7 @@ pub async fn init(
         .await
         .context(MSG_GENESIS_DATABASE_ERR)?;
 
-    create_and_save_portal_config(ecosystem_config, shell)
+    update_portal_config(shell, chain_config)
         .await
         .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?;
 
