@@ -75,6 +75,7 @@ pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
 pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =
     "Minting base token to the governance addresses...";
 pub(super) const MSG_INTALLING_DEPS_SPINNER: &str = "Installing and building dependencies...";
+pub(super) const MSG_PREPARING_CONFIG_SPINNER: &str = "Preparing config files...";
 pub(super) const MSG_DEPLOYING_ERC20_SPINNER: &str = "Deploying ERC20 contracts...";
 pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
     "Deploying ecosystem contracts...";
@@ -227,6 +228,8 @@ pub(super) const MSG_DEPLOYING_L2_CONTRACT_SPINNER: &str = "Deploying l2 contrac
 pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
 
 /// Chain build related messages
+pub(super) const MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER: &str =
+    "Building chain registration transactions...";
 pub(super) const MSG_CHAIN_BUILD_OUT_PATH_INVALID_ERR: &str = "Invalid path";
 pub(super) const MSG_CHAIN_BUILD_MISSING_CONTRACT_CONFIG: &str =
     "Missing contract.yaml, please be sure to run this command within initialized ecosystem";

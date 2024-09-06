@@ -19,7 +19,7 @@ use crate::messages::{
     MSG_BUILDING_ECOSYSTEM, MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER,
     MSG_ECOSYSTEM_BUILD_IMPOSSIBLE_TO_READ_GENESIS_CONFIG, MSG_ECOSYSTEM_BUILD_OUTRO,
     MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR, MSG_INTALLING_DEPS_SPINNER,
-    MSG_WRITING_OUTPUT_FILES_SPINNER,
+    MSG_PREPARING_CONFIG_SPINNER, MSG_WRITING_OUTPUT_FILES_SPINNER,
 };
 
 const DEPLOY_TRANSACTIONS_FILE_SRC: &str =
@@ -47,6 +47,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
     build_system_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
 
+    let spinner = Spinner::new(MSG_PREPARING_CONFIG_SPINNER);
     let default_genesis_config =
         GenesisConfig::read_with_base_path(shell, ecosystem_config.get_default_configs_path())
             .context(MSG_ECOSYSTEM_BUILD_IMPOSSIBLE_TO_READ_GENESIS_CONFIG)?;
@@ -62,6 +63,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
     );
     let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&ecosystem_config.link_to_code);
     deploy_config.save(shell, deploy_config_path)?;
+    spinner.finish();
 
     let spinner = Spinner::new(MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER);
     let forge = Forge::new(&ecosystem_config.path_to_foundry())

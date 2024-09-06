@@ -15,9 +15,9 @@ use xshell::Shell;
 use crate::{
     commands::chain::args::build::ChainBuildArgs,
     messages::{
-        MSG_CHAIN_BUILD_MISSING_CONTRACT_CONFIG, MSG_CHAIN_BUILD_OUT_PATH_INVALID_ERR,
-        MSG_CHAIN_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR, MSG_REGISTERING_CHAIN_SPINNER,
-        MSG_SELECTED_CONFIG,
+        MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER, MSG_CHAIN_BUILD_MISSING_CONTRACT_CONFIG,
+        MSG_CHAIN_BUILD_OUT_PATH_INVALID_ERR, MSG_CHAIN_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR,
+        MSG_PREPARING_CONFIG_SPINNER, MSG_SELECTED_CONFIG, MSG_WRITING_OUTPUT_FILES_SPINNER,
     },
 };
 
@@ -38,6 +38,7 @@ pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<(
 
     let args = args.fill_values_with_prompt(config.default_chain.clone());
 
+    let spinner = Spinner::new(MSG_PREPARING_CONFIG_SPINNER);
     copy_configs(shell, &config.link_to_code, &chain_config.configs)?;
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
@@ -50,12 +51,13 @@ pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<(
         .context(MSG_CHAIN_BUILD_MISSING_CONTRACT_CONFIG)?;
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
 
-    let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
     let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
 
     let deploy_config = RegisterChainL1Config::new(&chain_config, &contracts_config)?;
     deploy_config.save(shell, deploy_config_path)?;
+    spinner.finish();
 
+    let spinner = Spinner::new(MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER);
     Forge::new(&config.path_to_foundry())
         .script(
             &REGISTER_CHAIN_SCRIPT_PARAMS.script(),
@@ -72,7 +74,9 @@ pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<(
     )?;
     contracts_config.set_chain_contracts(&register_chain_output);
     contracts_config.save_with_base_path(shell, &args.out)?;
+    spinner.finish();
 
+    let spinner = Spinner::new(MSG_WRITING_OUTPUT_FILES_SPINNER);
     shell
         .create_dir(&args.out)
         .context(MSG_CHAIN_BUILD_OUT_PATH_INVALID_ERR)?;
