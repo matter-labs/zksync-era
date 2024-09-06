@@ -225,6 +225,8 @@ pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
 
 /// Chain build related messages
 pub(super) const MSG_CHAIN_BUILD_OUT_PATH_INVALID_ERR: &str = "Invalid path";
+pub(super) const MSG_CHAIN_BUILD_MISSING_CONTRACT_CONFIG: &str =
+    "Missing contract.yaml, please be sure to run this command within initialized ecosystem";
 
 /// Run server related messages
 pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run";

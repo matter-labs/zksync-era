@@ -15,8 +15,9 @@ use xshell::Shell;
 use crate::{
     commands::chain::args::build::ChainBuildArgs,
     messages::{
-        MSG_CHAIN_BUILD_OUT_PATH_INVALID_ERR, MSG_CHAIN_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR,
-        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_CHAIN_BUILD_MISSING_CONTRACT_CONFIG, MSG_CHAIN_BUILD_OUT_PATH_INVALID_ERR,
+        MSG_CHAIN_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR, MSG_REGISTERING_CHAIN_SPINNER,
+        MSG_SELECTED_CONFIG,
     },
 };
 
@@ -40,9 +41,9 @@ pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<(
     git::submodule_update(shell, config.link_to_code.clone())?;
 
     // Copy ecosystem contracts
-    let mut contracts_config = config.get_contracts_config().context(
-        "Missing contract.yaml, please be sure to run this command within initialized ecosystem",
-    )?;
+    let mut contracts_config = config
+        .get_contracts_config()
+        .context(MSG_CHAIN_BUILD_MISSING_CONTRACT_CONFIG)?;
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
