@@ -2,13 +2,11 @@ use std::{path::PathBuf, time::Duration};
 
 use secp256k1::SecretKey;
 use serde::Deserialize;
-use serde_with::{serde_as, DurationSecondsWithFrac};
 use url::Url;
 use zksync_env_config::FromEnv;
 use zksync_types::tee_types::TeeType;
 
 /// Configuration for the TEE prover.
-#[serde_with::serde_as]
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct TeeProverConfig {
     /// The private key used to sign the proofs.
@@ -24,13 +22,21 @@ pub(crate) struct TeeProverConfig {
     pub max_retries: usize,
     /// Initial back-off interval when retrying recovery on a retriable error. Each subsequent retry interval
     /// will be multiplied by [`Self.retry_backoff_multiplier`].
-    #[serde_as(as = "DurationSecondsWithFrac")]
-    pub initial_retry_backoff: Duration,
+    pub initial_retry_backoff_sec: u64,
     /// Multiplier for the back-off interval when retrying recovery on a retriable error.
     pub retry_backoff_multiplier: f32,
     /// Maximum back-off interval when retrying recovery on a retriable error.
-    #[serde_as(as = "DurationSecondsWithFrac")]
-    pub max_backoff: Duration,
+    pub max_backoff_sec: u64,
+}
+
+impl TeeProverConfig {
+    pub fn initial_retry_backoff(&self) -> Duration {
+        Duration::from_secs(self.initial_retry_backoff_sec)
+    }
+
+    pub fn max_backoff(&self) -> Duration {
+        Duration::from_secs(self.max_backoff_sec)
+    }
 }
 
 impl FromEnv for TeeProverConfig {
@@ -43,9 +49,9 @@ impl FromEnv for TeeProverConfig {
     /// export TEE_PROVER_TEE_TYPE="sgx"
     /// export TEE_PROVER_API_URL="http://127.0.0.1:3320"
     /// export TEE_PROVER_MAX_RETRIES=10
-    /// export TEE_PROVER_INITIAL_RETRY_BACKOFF=1
+    /// export TEE_PROVER_INITIAL_RETRY_BACKOFF_SEC=1
     /// export TEE_PROVER_RETRY_BACKOFF_MULTIPLIER=2.0
-    /// export TEE_PROVER_MAX_BACKOFF=128
+    /// export TEE_PROVER_MAX_BACKOFF_SEC=128
     /// ```
     fn from_env() -> anyhow::Result<Self> {
         let config: Self = envy::prefixed("TEE_PROVER_").from_env()?;
