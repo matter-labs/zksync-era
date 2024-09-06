@@ -55,6 +55,7 @@ testFees('Test fees', () => {
 
     let tokenDetails: Token;
     let aliceErc20: zksync.Contract;
+    let isETHBasedChain: boolean;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
@@ -72,25 +73,29 @@ testFees('Test fees', () => {
         const bridgehub = await mainWallet.getBridgehubContract();
         const chainId = testMaster.environment().l2ChainId;
         const baseTokenAddress = await bridgehub.baseToken(chainId);
+        isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
 
-        const depositTx = await mainWallet.deposit({
-            token: baseTokenAddress,
-            amount: ethers.parseEther('100'),
-            approveERC20: true,
-            approveBaseERC20: true
-        });
-        await depositTx.wait();
-        await Promise.all(
-            await sendTransfers(
-                zksync.utils.ETH_ADDRESS,
-                mainWallet,
-                { alice: alice.privateKey },
-                ethers.parseEther('100'),
-                undefined,
-                undefined,
-                new Reporter()
-            )
-        );
+        // On non ETH based chains the standard deposit is not enough to run all this tests
+        if (!isETHBasedChain) {
+            const depositTx = await mainWallet.deposit({
+                token: baseTokenAddress,
+                amount: ethers.parseEther('100'),
+                approveERC20: true,
+                approveBaseERC20: true
+            });
+            await depositTx.wait();
+            await Promise.all(
+                await sendTransfers(
+                    zksync.utils.ETH_ADDRESS,
+                    mainWallet,
+                    {alice: alice.privateKey},
+                    ethers.parseEther('100'),
+                    undefined,
+                    undefined,
+                    new Reporter()
+                )
+            );
+        }
     });
 
     test('Test fees', async () => {
@@ -177,8 +182,6 @@ testFees('Test fees', () => {
     test('Test gas price expected value', async () => {
         const receiver = ethers.Wallet.createRandom().address;
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
-        const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
-        const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
 
         await setInternalL1GasPrice(alice._providerL2(), {
             newL1GasPrice: l1GasPrice.toString(),
@@ -228,8 +231,6 @@ testFees('Test fees', () => {
 
     test('Test base token ratio fluctuations', async () => {
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
-        const baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
-        const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
 
         if (isETHBasedChain) return;
 
