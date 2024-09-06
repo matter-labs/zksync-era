@@ -126,6 +126,8 @@ pub(super) const MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER: &str = "Building ecos
 pub(super) const MSG_WRITING_OUTPUT_FILES_SPINNER: &str = "Writing output files...";
 pub(super) const MSG_ECOSYSTEM_BUILD_OUTRO: &str = "Transactions successfully built";
 pub(super) const MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR: &str = "Invalid path";
+pub(super) const MSG_ECOSYSTEM_BUILD_IMPOSSIBLE_TO_READ_GENESIS_CONFIG: &str =
+    "Impossible to read genesis config from file";
 
 /// Chain create related messages
 pub(super) const MSG_PROVER_MODE_HELP: &str = "Prover options";

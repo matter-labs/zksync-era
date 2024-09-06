@@ -16,7 +16,8 @@ use super::{
     utils::{build_system_contracts, install_yarn_dependencies},
 };
 use crate::messages::{
-    MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_ECOSYSTEM_BUILD_OUTRO,
+    MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER,
+    MSG_ECOSYSTEM_BUILD_IMPOSSIBLE_TO_READ_GENESIS_CONFIG, MSG_ECOSYSTEM_BUILD_OUTRO,
     MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR, MSG_INITIALIZING_ECOSYSTEM,
     MSG_INTALLING_DEPS_SPINNER, MSG_WRITING_OUTPUT_FILES_SPINNER,
 };
@@ -45,7 +46,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
 
     let default_genesis_config =
         GenesisConfig::read_with_base_path(shell, ecosystem_config.get_default_configs_path())
-            .context("Context")?;
+            .context(MSG_ECOSYSTEM_BUILD_IMPOSSIBLE_TO_READ_GENESIS_CONFIG)?;
 
     let wallets_config = ecosystem_config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params
