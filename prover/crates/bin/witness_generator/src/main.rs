@@ -81,8 +81,7 @@ async fn ensure_protocol_alignment(
         }
     };
     let keystore = Keystore::new_with_setup_data_path(setup_data_path);
-    // `recursion_scheduler_level_vk_hash` actually stores `scheduler_vk_hash` for historical reasons.
-    let scheduler_vk_hash = vk_commitments_in_db.recursion_scheduler_level_vk_hash;
+    let scheduler_vk_hash = vk_commitments_in_db.snark_wrapper_vk_hash;
     keystore
         .verify_scheduler_vk_hash(scheduler_vk_hash)
         .with_context(||

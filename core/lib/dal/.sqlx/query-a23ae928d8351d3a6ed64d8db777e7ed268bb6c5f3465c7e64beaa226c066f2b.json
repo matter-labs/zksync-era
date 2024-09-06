@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                patch\n            FROM\n                protocol_patches\n            WHERE\n                minor = $1\n                AND snark_wrapper_vk_hash = $2\n            ORDER BY\n                patch DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "patch",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a23ae928d8351d3a6ed64d8db777e7ed268bb6c5f3465c7e64beaa226c066f2b"
+}
