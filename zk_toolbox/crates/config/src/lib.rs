@@ -25,6 +25,7 @@ mod secrets;
 mod wallet_creation;
 mod wallets;
 
+pub mod consensus_config;
 pub mod consensus_secrets;
 pub mod docker_compose;
 pub mod explorer;

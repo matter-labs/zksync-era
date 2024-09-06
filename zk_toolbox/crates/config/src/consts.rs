@@ -11,6 +11,8 @@ pub const GENESIS_FILE: &str = "genesis.yaml";
 
 // Name of external node specific config
 pub const EN_CONFIG_FILE: &str = "external_node.yaml";
+// Name of consensus config
+pub const CONSENSUS_CONFIG_FILE: &str = "consensus_config.yaml";
 pub(crate) const ERC20_CONFIGS_FILE: &str = "erc20.yaml";
 /// Name of the initial deployments config file
 pub(crate) const INITIAL_DEPLOYMENT_FILE: &str = "initial_deployments.yaml";
