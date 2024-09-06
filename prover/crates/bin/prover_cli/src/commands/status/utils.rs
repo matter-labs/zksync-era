@@ -204,7 +204,7 @@ impl StageInfo {
         }
     }
 
-    pub fn prover_jobs_status(&self, max_attempts: u32) -> Option<Status> {
+    pub fn prover_jobs_status(&self, max_attempts: u8) -> Option<Status> {
         match self.clone() {
             StageInfo::BasicWitnessGenerator {
                 prover_jobs_info, ..
@@ -224,7 +224,7 @@ impl StageInfo {
         }
     }
 
-    pub fn witness_generator_jobs_status(&self, max_attempts: u32) -> Status {
+    pub fn witness_generator_jobs_status(&self, max_attempts: u8) -> Status {
         match self.clone() {
             StageInfo::BasicWitnessGenerator {
                 witness_generator_job_info,
@@ -267,12 +267,12 @@ impl StageInfo {
     }
 }
 
-pub fn get_witness_generator_job_status(data: &impl Stallable, max_attempts: u32) -> Status {
+pub fn get_witness_generator_job_status(data: &impl Stallable, max_attempts: u8) -> Status {
     let status = data.get_status();
     if matches!(
         status,
         WitnessJobStatus::Failed(_) | WitnessJobStatus::InProgress,
-    ) && data.get_attempts() >= max_attempts
+    ) && data.get_attempts() >= max_attempts.into()
     {
         return Status::Stuck;
     }
@@ -281,7 +281,7 @@ pub fn get_witness_generator_job_status(data: &impl Stallable, max_attempts: u32
 
 pub fn get_witness_generator_job_status_from_vec(
     prover_jobs: Vec<impl Stallable>,
-    max_attempts: u32,
+    max_attempts: u8,
 ) -> Status {
     if prover_jobs.is_empty() {
         Status::JobsNotFound
@@ -294,7 +294,7 @@ pub fn get_witness_generator_job_status_from_vec(
         matches!(
             job.get_status(),
             WitnessJobStatus::Failed(_) | WitnessJobStatus::InProgress,
-        ) && job.get_attempts() >= max_attempts
+        ) && job.get_attempts() >= max_attempts.into()
     }) {
         Status::Stuck
     } else if prover_jobs.iter().all(|job| {
@@ -312,11 +312,11 @@ pub fn get_witness_generator_job_status_from_vec(
     }
 }
 
-pub fn get_prover_job_status(prover_jobs: ProverJobFriInfo, max_attempts: u32) -> Status {
+pub fn get_prover_job_status(prover_jobs: ProverJobFriInfo, max_attempts: u8) -> Status {
     if matches!(
         prover_jobs.status,
         ProverJobStatus::Failed(_) | ProverJobStatus::InProgress(_),
-    ) && prover_jobs.attempts as u32 >= max_attempts
+    ) && prover_jobs.attempts as u8 >= max_attempts
     {
         return Status::Stuck;
     }
@@ -325,7 +325,7 @@ pub fn get_prover_job_status(prover_jobs: ProverJobFriInfo, max_attempts: u32) -
 
 pub fn get_prover_jobs_status_from_vec(
     prover_jobs: &[ProverJobFriInfo],
-    max_attempts: u32,
+    max_attempts: u8,
 ) -> Status {
     if prover_jobs.is_empty() {
         Status::JobsNotFound
@@ -333,7 +333,7 @@ pub fn get_prover_jobs_status_from_vec(
         matches!(
             job.status,
             ProverJobStatus::Failed(_) | ProverJobStatus::InProgress(_),
-        ) && job.attempts as u32 >= max_attempts
+        ) && job.attempts >= max_attempts
     }) {
         Status::Stuck
     } else if prover_jobs

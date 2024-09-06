@@ -4,8 +4,6 @@ use anyhow::Context as _;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use clap::Args as ClapArgs;
 use colored::*;
-use zksync_config::configs::FriProverConfig;
-use zksync_env_config::FromEnv;
 use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::{
     basic_fri_types::AggregationRound,
@@ -57,9 +55,9 @@ pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<(
         }
 
         if !args.verbose {
-            display_batch_status(batch_data);
+            display_batch_status(batch_data, &config);
         } else {
-            display_batch_info(batch_data);
+            display_batch_info(batch_data, &config);
         }
     }
 
@@ -200,19 +198,17 @@ async fn get_proof_compression_job_info_for_batch<'a>(
         .await
 }
 
-fn display_batch_status(batch_data: BatchData) {
-    display_status_for_stage(batch_data.basic_witness_generator);
-    display_status_for_stage(batch_data.leaf_witness_generator);
-    display_status_for_stage(batch_data.node_witness_generator);
-    display_status_for_stage(batch_data.recursion_tip_witness_generator);
-    display_status_for_stage(batch_data.scheduler_witness_generator);
-    display_status_for_stage(batch_data.compressor);
+fn display_batch_status(batch_data: BatchData, config: &ProverCLIConfig) {
+    display_status_for_stage(batch_data.basic_witness_generator, config);
+    display_status_for_stage(batch_data.leaf_witness_generator, config);
+    display_status_for_stage(batch_data.node_witness_generator, config);
+    display_status_for_stage(batch_data.recursion_tip_witness_generator, config);
+    display_status_for_stage(batch_data.scheduler_witness_generator, config);
+    display_status_for_stage(batch_data.compressor, config);
 }
 
-fn display_status_for_stage(stage_info: StageInfo) {
-    let max_attempts = FriProverConfig::from_env()
-        .expect("Fail to read prover config.")
-        .max_attempts;
+fn display_status_for_stage(stage_info: StageInfo, config: &ProverCLIConfig) {
+    let max_attempts = config.get_max_attempts();
     display_aggregation_round(&stage_info);
     let status = stage_info.witness_generator_jobs_status(max_attempts);
     match status {
@@ -231,19 +227,17 @@ fn display_status_for_stage(stage_info: StageInfo) {
     }
 }
 
-fn display_batch_info(batch_data: BatchData) {
-    display_info_for_stage(batch_data.basic_witness_generator);
-    display_info_for_stage(batch_data.leaf_witness_generator);
-    display_info_for_stage(batch_data.node_witness_generator);
-    display_info_for_stage(batch_data.recursion_tip_witness_generator);
-    display_info_for_stage(batch_data.scheduler_witness_generator);
-    display_info_for_stage(batch_data.compressor);
+fn display_batch_info(batch_data: BatchData, config: &ProverCLIConfig) {
+    display_info_for_stage(batch_data.basic_witness_generator, config);
+    display_info_for_stage(batch_data.leaf_witness_generator, config);
+    display_info_for_stage(batch_data.node_witness_generator, config);
+    display_info_for_stage(batch_data.recursion_tip_witness_generator, config);
+    display_info_for_stage(batch_data.scheduler_witness_generator, config);
+    display_info_for_stage(batch_data.compressor, config);
 }
 
-fn display_info_for_stage(stage_info: StageInfo) {
-    let max_attempts = FriProverConfig::from_env()
-        .expect("Fail to read prover config.")
-        .max_attempts;
+fn display_info_for_stage(stage_info: StageInfo, config: &ProverCLIConfig) {
+    let max_attempts = config.get_max_attempts();
     display_aggregation_round(&stage_info);
     let status = stage_info.witness_generator_jobs_status(max_attempts);
     match status {
@@ -304,7 +298,7 @@ fn display_info_for_stage(stage_info: StageInfo) {
 
 fn display_leaf_witness_generator_jobs_info(
     mut jobs_info: Vec<LeafWitnessGeneratorJobInfo>,
-    max_attempts: u32,
+    max_attempts: u8,
 ) {
     jobs_info.sort_by_key(|job| job.circuit_id);
 
@@ -323,7 +317,7 @@ fn display_leaf_witness_generator_jobs_info(
 
 fn display_node_witness_generator_jobs_info(
     mut jobs_info: Vec<NodeWitnessGeneratorJobInfo>,
-    max_attempts: u32,
+    max_attempts: u8,
 ) {
     jobs_info.sort_by_key(|job| job.circuit_id);
 
@@ -340,7 +334,7 @@ fn display_node_witness_generator_jobs_info(
     });
 }
 
-fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>, max_attempts: u32) {
+fn display_prover_jobs_info(prover_jobs_info: Vec<ProverJobFriInfo>, max_attempts: u8) {
     let prover_jobs_status = get_prover_jobs_status_from_vec(&prover_jobs_info, max_attempts);
 
     if matches!(
@@ -404,7 +398,7 @@ fn display_job_status_count(jobs: Vec<ProverJobFriInfo>) {
     println!("     - Failed: {}", jobs_counts.failed);
 }
 
-fn display_stuck_jobs(jobs: Vec<ProverJobFriInfo>, max_attempts: u32) {
+fn display_stuck_jobs(jobs: Vec<ProverJobFriInfo>, max_attempts: u8) {
     jobs.iter().for_each(|job| {
         if matches!(
             get_prover_job_status(job.clone(), max_attempts),

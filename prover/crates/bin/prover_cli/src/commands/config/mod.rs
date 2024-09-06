@@ -44,6 +44,7 @@ pub fn prompt_config() -> anyhow::Result<ProverCLIConfig> {
             "postgres://postgres:notsecurepassword@localhost/prover_local".into(),
         )
         .ok(),
+        max_attempts: prompt("PORVER JOBS MAX ATTEMPTS", 10).ok(),
     };
     Ok(prompted_config)
 }
@@ -69,15 +70,3 @@ where
         .interact_text()
         .map_err(Into::into)
 }
-
-// pub async fn run(cfg: ProverCLIConfig) -> anyhow::Result<()> {
-//     let path = get_envfile()?;
-//     println!("{:?}", path);
-//     let res = load_envfile(&path);
-//     println!("{:?}", res);
-//     let res2 = update_envfile(&path, "PLI__CONFIG", "asd");
-//     println!("{:?}", res2);
-//     let res = load_envfile(&path);
-//     println!("{:?}", res);
-//     Ok(())
-// }

@@ -12,6 +12,7 @@ use crate::commands::{
 
 pub const VERSION_STRING: &str = env!("CARGO_PKG_VERSION");
 pub const DEFAULT_DB_URL: &str = "postgres://postgres:notsecurepassword@localhost/prover_local";
+pub const DEFAULT_HOUSEKEEPER_MAX_ATTEMPTS: u8 = 10;
 
 #[derive(Parser)]
 #[command(name = "prover-cli", version = VERSION_STRING, about, long_about = None)]
@@ -42,6 +43,7 @@ impl ProverCLI {
 #[derive(Serialize, Deserialize)]
 pub struct ProverCLIConfig {
     pub db_url: Option<String>,
+    pub max_attempts: Option<u8>,
 }
 
 impl ProverCLIConfig {
@@ -49,6 +51,13 @@ impl ProverCLIConfig {
         match &self.db_url {
             Some(url_str) => SensitiveUrl::from_str(url_str).expect("Failed to parse URL"),
             None => SensitiveUrl::from_str(DEFAULT_DB_URL).expect("Failed to parse default URL"),
+        }
+    }
+
+    pub fn get_max_attempts(&self) -> u8 {
+        match &self.max_attempts {
+            Some(max_attempts) => *max_attempts,
+            None => DEFAULT_HOUSEKEEPER_MAX_ATTEMPTS,
         }
     }
 }
