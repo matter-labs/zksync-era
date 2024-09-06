@@ -2,11 +2,13 @@ use std::{path::PathBuf, time::Duration};
 
 use secp256k1::SecretKey;
 use serde::Deserialize;
+use serde_with::{serde_as, DurationSecondsWithFrac};
 use url::Url;
 use zksync_env_config::FromEnv;
 use zksync_types::tee_types::TeeType;
 
 /// Configuration for the TEE prover.
+#[serde_with::serde_as]
 #[derive(Debug, Clone, Deserialize)]
 pub(crate) struct TeeProverConfig {
     /// The private key used to sign the proofs.
@@ -22,10 +24,12 @@ pub(crate) struct TeeProverConfig {
     pub max_retries: usize,
     /// Initial back-off interval when retrying recovery on a retriable error. Each subsequent retry interval
     /// will be multiplied by [`Self.retry_backoff_multiplier`].
+    #[serde_as(as = "DurationSecondsWithFrac")]
     pub initial_retry_backoff: Duration,
     /// Multiplier for the back-off interval when retrying recovery on a retriable error.
     pub retry_backoff_multiplier: f32,
     /// Maximum back-off interval when retrying recovery on a retriable error.
+    #[serde_as(as = "DurationSecondsWithFrac")]
     pub max_backoff: Duration,
 }
 
