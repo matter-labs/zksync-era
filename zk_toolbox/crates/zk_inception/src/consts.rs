@@ -9,6 +9,7 @@ pub const DEFAULT_PROOF_STORE_DIR: &str = "artifacts";
 pub const BELLMAN_CUDA_DIR: &str = "era-bellman-cuda";
 pub const L2_BASE_TOKEN_ADDRESS: &str = "0x000000000000000000000000000000000000800A";
 
+pub const CONSENSUS_CONFIG_PATH: &str = "etc/env/consensus_config.yaml";
 pub const CONSENSUS_SECRETS_PATH: &str = "etc/env/consensus_secrets.yaml";
 
 /// Path to the JS runtime config for the block-explorer-app docker container to be mounted to
