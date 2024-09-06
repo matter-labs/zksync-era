@@ -71,7 +71,7 @@ fn run_gateway(
     logger::info(MSG_RUNNING_PROVER_GATEWAY);
 
     if let Some(docker_image) = docker_image {
-        run_dockerized_component(shell, docker_image, "")
+        run_dockerized_component(shell, docker_image, chain, "")
     } else {
         let config_path = chain.path_to_general_config();
         let secrets_path = chain.path_to_secrets_config();
@@ -102,7 +102,7 @@ fn run_witness_generator(
     };
 
     if let Some(docker_image) = docker_image {
-        run_dockerized_component(shell, docker_image, round_str)
+        run_dockerized_component(shell, docker_image, chain, round_str)
     } else {
         let config_path = chain.path_to_general_config();
         let secrets_path = chain.path_to_secrets_config();
@@ -153,7 +153,7 @@ fn run_prover(
 
     if let Some(docker_image) = docker_image {
         change_setup_data_path(shell, "prover/data/keys")?;
-        run_dockerized_component(shell, docker_image, &additional_args)
+        run_dockerized_component(shell, docker_image, chain, &additional_args)
     } else {
         change_setup_data_path(shell, "data/keys")?;
         check_prerequisites(shell, &GPU_PREREQUISITES, false);
@@ -181,7 +181,7 @@ fn run_compressor(
     logger::info(MSG_RUNNING_COMPRESSOR);
 
     if let Some(docker_image) = docker_image {
-        run_dockerized_component(shell, docker_image, "")
+        run_dockerized_component(shell, docker_image, chain, "")
     } else {
         check_prerequisites(shell, &GPU_PREREQUISITES, false);
         let config_path = chain.path_to_general_config();
@@ -209,7 +209,7 @@ fn run_prover_job_monitor(
     logger::info(MSG_RUNNING_PROVER_JOB_MONITOR);
 
     if let Some(docker_image) = docker_image {
-        run_dockerized_component(shell, docker_image, "")
+        run_dockerized_component(shell, docker_image, chain, "")
     } else {
         let config_path = chain.path_to_general_config();
         let secrets_path = chain.path_to_secrets_config();
@@ -223,19 +223,16 @@ fn run_prover_job_monitor(
 fn run_dockerized_component(
     shell: &Shell,
     image_name: &str,
+    chain_config: &ChainConfig,
     additional_args: &str,
 ) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let spinner = Spinner::new(&format!("Pulling image {}...", image_name));
     let pull_cmd = Cmd::new(cmd!(shell, "docker pull {image_name}"));
     pull_cmd.run()?;
     spinner.finish();
 
-    let path_to_configs = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
-        .expect(MSG_CHAIN_NOT_FOUND_ERR)
-        .configs
-        .clone();
+    let path_to_configs = chain_config.configs.clone();
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let path_to_prover = get_link_to_prover(&ecosystem_config);
 
     let mut cmd = if additional_args.is_empty() {
