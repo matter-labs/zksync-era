@@ -261,7 +261,7 @@ fn change_setup_data_path(
         prover_config.setup_data_path = path.to_string();
     }
 
-    general_config.save_with_base_path(shell, chain_config.configs)?;
+    general_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
     Ok(())
 }
