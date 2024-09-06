@@ -98,10 +98,10 @@ Create a new ecosystem and chain, setting necessary configurations for later ini
 
   Possible values:
 
-  - `localhost`: Load wallets from localhost mnemonic, they are funded for localhost env
-  - `random`: Generate random wallets
-  - `empty`: Generate placeholder wallets
-  - `in-file`: Specify file with wallets
+    - `localhost`: Load wallets from localhost mnemonic, they are funded for localhost env
+    - `random`: Generate random wallets
+    - `empty`: Generate placeholder wallets
+    - `in-file`: Specify file with wallets
 
 - `--wallet-path <WALLET_PATH>` — Wallet path
 - `--l1-batch-commit-data-generator-mode <L1_BATCH_COMMIT_DATA_GENERATOR_MODE>` — Commit data generation mode
@@ -220,10 +220,10 @@ Create a new chain, setting the necessary configurations for later initializatio
 
   Possible values:
 
-  - `localhost`: Load wallets from localhost mnemonic, they are funded for localhost env
-  - `random`: Generate random wallets
-  - `empty`: Generate placeholder wallets
-  - `in-file`: Specify file with wallets
+    - `localhost`: Load wallets from localhost mnemonic, they are funded for localhost env
+    - `random`: Generate random wallets
+    - `empty`: Generate placeholder wallets
+    - `in-file`: Specify file with wallets
 
 - `--wallet-path <WALLET_PATH>` — Wallet path
 - `--l1-batch-commit-data-generator-mode <L1_BATCH_COMMIT_DATA_GENERATOR_MODE>` — Commit data generation mode
@@ -504,11 +504,18 @@ Run prover
   Possible values: `gateway`, `witness-generator`, `witness-vector-generator`, `prover`, `compressor`,
   `prover-job-monitor`
 
+- `--docker` - Whether to run image of the component instead of binary.
+
+  Possible values: `true`, `false`
+
 - `--round <ROUND>`
 
   Possible values: `all-rounds`, `basic-circuits`, `leaf-aggregation`, `node-aggregation`, `recursion-tip`, `scheduler`
 
 - `--threads <THREADS>`
+
+- `--max-allocation <MAX_ALLOCATION>` - in case you are running prover component, the value limits maximum memory
+  allocation of it.
 
 ## `zk_inception prover init-bellman-cuda`
 
