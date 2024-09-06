@@ -1,5 +1,8 @@
+use anyhow::Context as _;
 use std::{fs, path::Path};
 
+use crate::messages::MSG_CHAIN_NOT_FOUND_ERR;
+use common::config::global_config;
 use common::logger;
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
@@ -10,10 +13,16 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 
     let protocol_version = get_protocol_version(shell, &link_to_prover).await?;
     let snark_wrapper = get_snark_wrapper(&link_to_prover).await?;
+    let prover_url = get_database_url(shell).await?;
 
     logger::info(format!(
-        "Current protocol version found in zksync-era: {}, snark_wrapper: {}",
-        protocol_version, snark_wrapper
+        r#"
+    Current prover setup information:
+    Protocol version: {}
+    Snark wrapper: {}
+    Database URL: {}
+    "#,
+        protocol_version, snark_wrapper, prover_url
     ));
 
     Ok(())
@@ -37,4 +46,20 @@ async fn get_snark_wrapper(link_to_prover: &Path) -> anyhow::Result<String> {
         .expect("Could not find snark_wrapper in commitments.json");
 
     Ok(snark_wrapper.to_string())
+}
+
+async fn get_database_url(shell: &Shell) -> anyhow::Result<String> {
+    let ecosystem = EcosystemConfig::from_file(shell)?;
+    let chain_config = ecosystem
+        .load_chain(global_config().chain_name.clone())
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+
+    let prover_url = chain_config
+        .get_secrets_config()?
+        .database
+        .context("Database secrets not found")?
+        .prover_url()?
+        .expose_url()
+        .to_string();
+    Ok(prover_url)
 }
