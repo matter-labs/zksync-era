@@ -182,6 +182,8 @@ async fn get_prover_tasks(
     _max_allocation: Option<usize>,
     _init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
+    use zksync_prover_keystore::keystore::Keystore;
+
     use crate::prover_job_processor::{load_setup_data_cache, Prover};
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
@@ -191,12 +193,15 @@ async fn get_prover_tasks(
         protocol_version
     );
 
+    let keystore =
+        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
     let setup_load_mode =
-        load_setup_data_cache(&prover_config).context("load_setup_data_cache()")?;
+        load_setup_data_cache(&keystore, &prover_config).context("load_setup_data_cache()")?;
     let prover = Prover::new(
         store_factory.create_store().await?,
         public_blob_store,
         prover_config,
+        keystore,
         pool,
         setup_load_mode,
         circuit_ids_for_round_to_be_proven,
@@ -222,9 +227,12 @@ async fn get_prover_tasks(
     use socket_listener::gpu_socket_listener;
     use tokio::sync::Mutex;
     use zksync_prover_fri_types::queue::FixedSizeQueue;
+    use zksync_prover_keystore::keystore::Keystore;
 
-    let setup_load_mode =
-        gpu_prover::load_setup_data_cache(&prover_config).context("load_setup_data_cache()")?;
+    let keystore =
+        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
+    let setup_load_mode = gpu_prover::load_setup_data_cache(&keystore, &prover_config)
+        .context("load_setup_data_cache()")?;
     let witness_vector_queue = FixedSizeQueue::new(prover_config.queue_capacity);
     let shared_witness_vector_queue = Arc::new(Mutex::new(witness_vector_queue));
     let consumer = shared_witness_vector_queue.clone();
@@ -238,6 +246,7 @@ async fn get_prover_tasks(
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     let prover = gpu_prover::Prover::new(
+        keystore,
         store_factory.create_store().await?,
         public_blob_store,
         prover_config.clone(),
