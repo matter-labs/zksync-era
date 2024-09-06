@@ -3,15 +3,18 @@ use std::{path::Path, str::FromStr};
 use anyhow::Context;
 use common::{config::global_config, logger};
 use config::{
-    external_node::ENConfig, ports_config, set_rocks_db_config, traits::SaveConfigWithBasePath,
+    external_node::ENConfig,
+    ports_config, set_rocks_db_config,
+    traits::{ReadConfig, SaveConfigWithBasePath},
     update_ports, ChainConfig, EcosystemConfig, SecretsConfig,
 };
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
-use zksync_config::configs::{DatabaseSecrets, L1Secrets};
+use zksync_config::configs::{consensus::ConsensusSecrets, DatabaseSecrets, L1Secrets};
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
+    consts::CONSENSUS_SECRETS_PATH,
     messages::{
         msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED, MSG_PREPARING_EN_CONFIGS,
     },
@@ -71,8 +74,10 @@ fn prepare_configs(
             .context("da")?
             .next_empty_ports_config(),
     )?;
+    let consensus_secrets_path = config.link_to_code.join(CONSENSUS_SECRETS_PATH);
+    let consensus = ConsensusSecrets::read(shell, consensus_secrets_path)?;
     let secrets = SecretsConfig {
-        consensus: None,
+        consensus: Some(consensus),
         database: Some(DatabaseSecrets {
             server_url: Some(args.db.full_url().into()),
             prover_url: None,
