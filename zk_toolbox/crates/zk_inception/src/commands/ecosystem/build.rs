@@ -26,8 +26,8 @@ const DEPLOY_TRANSACTIONS_FILE: &str =
 const SCRIPT_CONFIG_FILE: &str = "contracts/l1-contracts/script-config/config-deploy-l1.toml";
 
 pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> {
+    let args = args.fill_values_with_prompt();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let final_ecosystem_args = args.fill_values_with_prompt();
 
     git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
 
@@ -63,28 +63,28 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
     let forge = Forge::new(&ecosystem_config.path_to_foundry())
         .script(
             &DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(),
-            final_ecosystem_args.forge_args.clone(),
+            args.forge_args.clone(),
         )
         .with_ffi()
-        .with_rpc_url(final_ecosystem_args.l1_rpc_url)
-        .with_sender(final_ecosystem_args.sender);
+        .with_rpc_url(args.l1_rpc_url)
+        .with_sender(args.sender);
 
     forge.run(shell)?;
     spinner.finish();
 
     let spinner = Spinner::new(MSG_WRITING_OUTPUT_FILES_SPINNER);
     shell
-        .create_dir(&final_ecosystem_args.out)
+        .create_dir(&args.out)
         .context(MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR)?;
 
     shell.copy_file(
         ecosystem_config.link_to_code.join(DEPLOY_TRANSACTIONS_FILE),
-        final_ecosystem_args.out.join("deploy-l1-txns.json"),
+        args.out.join("deploy-l1-txns.json"),
     )?;
 
     shell.copy_file(
         ecosystem_config.link_to_code.join(SCRIPT_CONFIG_FILE),
-        final_ecosystem_args.out.join("deploy-l1-config.toml"),
+        args.out.join("deploy-l1-config.toml"),
     )?;
     spinner.finish();
 
