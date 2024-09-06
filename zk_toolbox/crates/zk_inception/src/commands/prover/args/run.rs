@@ -12,6 +12,8 @@ pub struct ProverRunArgs {
     pub witness_generator_args: WitnessGeneratorArgs,
     #[clap(flatten)]
     pub witness_vector_generator_args: WitnessVectorGeneratorArgs,
+    #[clap(flatten)]
+    pub fri_prover_args: FriProverRunArgs,
     #[clap(long)]
     pub docker: Option<bool>,
 }
@@ -37,12 +39,12 @@ pub enum ProverComponent {
 impl ProverComponent {
     pub fn image_name(&self) -> &'static str {
         match self {
-            Self::Gateway => "matterlabs/prover-fri-gateway:latest",
-            Self::WitnessGenerator => "matterlabs/witness-generator:latest",
-            Self::WitnessVectorGenerator => "matterlabs/witness-vector-generator:latest",
-            Self::Prover => "matterlabs/prover-gpu-fri:latest",
-            Self::Compressor => "matterlabs/proof-fri-gpu-compressor:latest",
-            Self::ProverJobMonitor => "matterlabs/prover-job-monitor:latest",
+            Self::Gateway => "matterlabs/prover-fri-gateway:latest2.0",
+            Self::WitnessGenerator => "matterlabs/witness-generator:latest2.0",
+            Self::WitnessVectorGenerator => "matterlabs/witness-vector-generator:latest2.0",
+            Self::Prover => "matterlabs/prover-gpu-fri:latest2.0",
+            Self::Compressor => "matterlabs/proof-fri-gpu-compressor:latest2.0",
+            Self::ProverJobMonitor => "matterlabs/prover-job-monitor:latest2.0",
         }
     }
 }
@@ -91,6 +93,11 @@ impl WitnessVectorGeneratorArgs {
     }
 }
 
+#[derive(Debug, Clone, Parser, Default)]
+pub struct FriProverRunArgs {
+    pub max_allocation: Option<usize>,
+}
+
 impl ProverRunArgs {
     pub fn fill_values_with_prompt(self) -> anyhow::Result<ProverRunArgs> {
         let component = self.component.unwrap_or_else(|| {
@@ -115,6 +122,7 @@ impl ProverRunArgs {
             component: Some(component),
             witness_generator_args,
             witness_vector_generator_args,
+            fri_prover_args: self.fri_prover_args,
             docker: Some(docker),
         })
     }
