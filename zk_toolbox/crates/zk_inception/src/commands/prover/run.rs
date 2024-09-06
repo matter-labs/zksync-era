@@ -107,6 +107,20 @@ fn run_dockerized_component(
 
     logger::info(message);
 
+    let application_args_raw = application_args.unwrap_or_default();
+    let application_args = if application_args_raw.is_empty() {
+        None
+    } else {
+        Some(application_args_raw.as_str())
+    };
+
+    let args_raw = args.unwrap_or_default();
+    let args = if args_raw.is_empty() {
+        None
+    } else {
+        Some(args_raw.as_str())
+    };
+
     let mut cmd = Cmd::new(cmd!(
         shell,
         "docker run {application_args...} {image_name} {args...}"
@@ -125,6 +139,20 @@ fn run_binary_component(
     error: &'static str,
 ) -> anyhow::Result<()> {
     logger::info(message);
+
+    let application_args_raw = application_args.unwrap_or_default();
+    let application_args = if application_args_raw.is_empty() {
+        None
+    } else {
+        Some(application_args_raw.as_str())
+    };
+
+    let args_raw = args.unwrap_or_default();
+    let args = if args_raw.is_empty() {
+        None
+    } else {
+        Some(args_raw.as_str())
+    };
 
     let mut cmd = Cmd::new(cmd!(
         shell,
