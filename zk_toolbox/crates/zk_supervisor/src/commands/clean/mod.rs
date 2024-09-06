@@ -84,12 +84,14 @@ pub fn contracts(shell: &Shell, ecosystem_config: &EcosystemConfig) -> anyhow::R
     shell
         .create_dir(path_to_foundry.join("script-config"))
         .context("create script-config")?;
+    shell.write_file(path_to_foundry.join("script-config/.gitkeep"), "")?;
     shell
         .remove_path(path_to_foundry.join("script-out"))
         .context("remove script-out")?;
     shell
         .create_dir(path_to_foundry.join("script-out"))
         .context("create script-out")?;
+    shell.write_file(path_to_foundry.join("script-out/.gitkeep"), "")?;
     logger::info(MSG_CONTRACTS_CLEANING_FINISHED);
     Ok(())
 }
