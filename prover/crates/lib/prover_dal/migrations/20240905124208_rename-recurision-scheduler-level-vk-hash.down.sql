@@ -1,0 +1,3 @@
+UPDATE prover_fri_protocol_versions SET recursion_scheduler_level_vk_hash = snark_wrapper_vk_hash WHERE recursion_scheduler_level_vk_hash = ''::bytea;
+ALTER TABLE prover_fri_protocol_versions DROP COLUMN snark_wrapper_vk_hash;
+ALTER TABLE prover_fri_protocol_versions ALTER COLUMN recursion_scheduler_level_vk_hash DROP DEFAULT;
