@@ -13,7 +13,7 @@ use crate::{
 const DEFAULT_OUT_DIR: &str = "transactions/chain";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
-pub struct ChainBuildArgs {
+pub struct ChainTransactionArgs {
     /// Output directory for the generated files.
     #[arg(long, short)]
     pub out: Option<PathBuf>,
@@ -25,8 +25,8 @@ pub struct ChainBuildArgs {
     pub l1_rpc_url: Option<String>,
 }
 
-impl ChainBuildArgs {
-    pub fn fill_values_with_prompt(self, default_chain: String) -> ChainBuildArgsFinal {
+impl ChainTransactionArgs {
+    pub fn fill_values_with_prompt(self, default_chain: String) -> ChainTransactionArgsFinal {
         let chain_name = global_config().chain_name.clone();
 
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
@@ -40,7 +40,7 @@ impl ChainBuildArgs {
                 .ask()
         });
 
-        ChainBuildArgsFinal {
+        ChainTransactionArgsFinal {
             out: self
                 .out
                 .unwrap_or(DEFAULT_OUT_DIR.into())
@@ -52,7 +52,7 @@ impl ChainBuildArgs {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ChainBuildArgsFinal {
+pub struct ChainTransactionArgsFinal {
     pub out: PathBuf,
     pub forge_args: ForgeScriptArgs,
     pub l1_rpc_url: String,

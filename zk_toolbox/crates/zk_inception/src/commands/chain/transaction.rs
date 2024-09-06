@@ -13,23 +13,24 @@ use ethers::utils::hex::ToHex;
 use xshell::Shell;
 
 use crate::{
-    commands::chain::args::build::ChainBuildArgs,
+    commands::chain::args::transaction::ChainTransactionArgs,
     messages::{
-        MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER, MSG_CHAIN_BUILD_MISSING_CONTRACT_CONFIG,
-        MSG_CHAIN_BUILD_OUT_PATH_INVALID_ERR, MSG_CHAIN_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR,
-        MSG_PREPARING_CONFIG_SPINNER, MSG_SELECTED_CONFIG, MSG_WRITING_OUTPUT_FILES_SPINNER,
+        MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER, MSG_CHAIN_INITIALIZED,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG,
+        MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR, MSG_PREPARING_CONFIG_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_WRITING_OUTPUT_FILES_SPINNER,
     },
 };
 
-const CHAIN_TRANSACTIONS_FILE_SRC: &str =
+const CHAIN_TXNS_FILE_SRC: &str =
     "contracts/l1-contracts/broadcast/RegisterHyperchain.s.sol/9/dry-run/run-latest.json";
-const CHAIN_TRANSACTIONS_FILE_DST: &str = "register-hyperchain-txns.json";
+const CHAIN_TXNS_FILE_DST: &str = "register-hyperchain-txns.json";
 
 const SCRIPT_CONFIG_FILE_SRC: &str =
     "contracts/l1-contracts/script-config/register-hyperchain.toml";
 const SCRIPT_CONFIG_FILE_DST: &str = "register-hyperchain.toml";
 
-pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<()> {
+pub(crate) async fn run(args: ChainTransactionArgs, shell: &Shell) -> anyhow::Result<()> {
     let config = EcosystemConfig::from_file(shell)?;
     let chain_name = global_config().chain_name.clone();
     let chain_config = config
@@ -48,7 +49,7 @@ pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<(
     // Copy ecosystem contracts
     let mut contracts_config = config
         .get_contracts_config()
-        .context(MSG_CHAIN_BUILD_MISSING_CONTRACT_CONFIG)?;
+        .context(MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG)?;
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
 
     let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
@@ -79,11 +80,11 @@ pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<(
     let spinner = Spinner::new(MSG_WRITING_OUTPUT_FILES_SPINNER);
     shell
         .create_dir(&args.out)
-        .context(MSG_CHAIN_BUILD_OUT_PATH_INVALID_ERR)?;
+        .context(MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR)?;
 
     shell.copy_file(
-        config.link_to_code.join(CHAIN_TRANSACTIONS_FILE_SRC),
-        args.out.join(CHAIN_TRANSACTIONS_FILE_DST),
+        config.link_to_code.join(CHAIN_TXNS_FILE_SRC),
+        args.out.join(CHAIN_TXNS_FILE_DST),
     )?;
 
     shell.copy_file(
