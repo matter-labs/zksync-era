@@ -9,7 +9,7 @@ use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
 use crate::{
     consts::GENERAL_FILE,
-    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig},
+    traits::{ConfigWithL2RpcUrl, FileConfigWithDefaultName, ReadConfig, SaveConfig},
 };
 
 pub struct RocksDbs {
@@ -209,5 +209,16 @@ impl ReadConfig for GeneralConfig {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let path = shell.current_dir().join(path);
         decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path, false)
+    }
+}
+
+impl ConfigWithL2RpcUrl for GeneralConfig {
+    fn get_l2_rpc_url(&self) -> anyhow::Result<Url> {
+        self.api_config
+            .as_ref()
+            .map(|api_config| &api_config.web3_json_rpc.http_url)
+            .context("API config is missing")?
+            .parse()
+            .context("Failed to parse L2 RPC URL")
     }
 }

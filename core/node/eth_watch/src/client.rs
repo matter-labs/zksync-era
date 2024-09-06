@@ -40,6 +40,7 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
 pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
+const TOO_MANY_RESULTS_RETH: &str = "query exceeds max block range";
 
 /// Implementation of [`EthClient`] based on HTTP JSON-RPC (encapsulated via [`EthInterface`]).
 #[derive(Debug)]
@@ -87,75 +88,34 @@ impl EthHttpQueryClient {
         }
     }
 
-    async fn get_filter_logs(
+    fn get_default_address_list(&self) -> Vec<Address> {
+        [
+            Some(self.diamond_proxy_addr),
+            Some(self.governance_address),
+            self.state_transition_manager_address,
+            self.chain_admin_address,
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
+    }
+
+    async fn get_events_inner(
         &self,
         from: BlockNumber,
         to: BlockNumber,
-        topics: Vec<H256>,
-    ) -> EnrichedClientResult<Vec<Log>> {
-        let filter = FilterBuilder::default()
-            .address(
-                [
-                    Some(self.diamond_proxy_addr),
-                    Some(self.governance_address),
-                    self.state_transition_manager_address,
-                    self.chain_admin_address,
-                ]
-                .into_iter()
-                .flatten()
-                .collect(),
-            )
-            .from_block(from)
-            .to_block(to)
-            .topics(Some(topics), None, None, None)
-            .build();
-        self.client.logs(&filter).await
-    }
-}
-
-#[async_trait::async_trait]
-impl EthClient for EthHttpQueryClient {
-    async fn scheduler_vk_hash(
-        &self,
-        verifier_address: Address,
-    ) -> Result<H256, ContractCallError> {
-        // New verifier returns the hash of the verification key.
-        CallFunctionArgs::new("verificationKeyHash", ())
-            .for_contract(verifier_address, &self.verifier_contract_abi)
-            .call(&self.client)
-            .await
-    }
-
-    async fn diamond_cut_by_version(
-        &self,
-        packed_version: H256,
-    ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
-            return Ok(None);
-        };
-
-        let filter = FilterBuilder::default()
-            .address(vec![state_transition_manager_address])
-            .from_block(BlockNumber::Earliest)
-            .to_block(BlockNumber::Latest)
-            .topics(
-                Some(vec![self.new_upgrade_cut_data_signature]),
-                Some(vec![packed_version]),
-                None,
-                None,
-            )
-            .build();
-        let logs = self.client.logs(&filter).await?;
-        Ok(logs.into_iter().next().map(|log| log.data.0))
-    }
-
-    async fn get_events(
-        &self,
-        from: BlockNumber,
-        to: BlockNumber,
+        topics1: Vec<H256>,
+        topics2: Vec<H256>,
+        addresses: Vec<Address>,
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
-        let mut result = self.get_filter_logs(from, to, self.topics.clone()).await;
+        let filter = FilterBuilder::default()
+            .from_block(from)
+            .to_block(to)
+            .topics(Some(topics1), Some(topics2), None, None)
+            .address(addresses)
+            .build();
+        let mut result = self.client.logs(&filter).await;
 
         // This code is compatible with both Infura and Alchemy API providers.
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
@@ -178,6 +138,7 @@ impl EthClient for EthHttpQueryClient {
             // check whether the error is related to having too many results
             if err_message.contains(TOO_MANY_RESULTS_INFURA)
                 || err_message.contains(TOO_MANY_RESULTS_ALCHEMY)
+                || err_message.contains(TOO_MANY_RESULTS_RETH)
             {
                 // get the numeric block ids
                 let from_number = match from {
@@ -222,6 +183,64 @@ impl EthClient for EthHttpQueryClient {
         }
 
         result
+    }
+}
+
+#[async_trait::async_trait]
+impl EthClient for EthHttpQueryClient {
+    async fn scheduler_vk_hash(
+        &self,
+        verifier_address: Address,
+    ) -> Result<H256, ContractCallError> {
+        // New verifier returns the hash of the verification key.
+        CallFunctionArgs::new("verificationKeyHash", ())
+            .for_contract(verifier_address, &self.verifier_contract_abi)
+            .call(&self.client)
+            .await
+    }
+
+    async fn diamond_cut_by_version(
+        &self,
+        packed_version: H256,
+    ) -> EnrichedClientResult<Option<Vec<u8>>> {
+        const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
+
+        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
+            return Ok(None);
+        };
+
+        let to_block = self.client.block_number().await?;
+        let from_block = to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into());
+
+        let logs = self
+            .get_events_inner(
+                from_block.into(),
+                to_block.into(),
+                vec![self.new_upgrade_cut_data_signature],
+                vec![packed_version],
+                vec![state_transition_manager_address],
+                RETRY_LIMIT,
+            )
+            .await?;
+
+        Ok(logs.into_iter().next().map(|log| log.data.0))
+    }
+
+    async fn get_events(
+        &self,
+        from: BlockNumber,
+        to: BlockNumber,
+        retries_left: usize,
+    ) -> EnrichedClientResult<Vec<Log>> {
+        self.get_events_inner(
+            from,
+            to,
+            self.topics.clone(),
+            Vec::new(),
+            self.get_default_address_list(),
+            retries_left,
+        )
+        .await
     }
 
     async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
