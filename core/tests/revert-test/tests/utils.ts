@@ -243,9 +243,9 @@ export class Node<TYPE extends NodeType> {
      *
      * WARNING: This is not safe to use when running nodes on multiple chains.
      */
-    public static async terminateAll(type: NodeType) {
+    public static async killAll(type: NodeType) {
         try {
-            await utils.exec(`killall -INT ${type}`);
+            await utils.exec(`killall -KILL ${type}`);
         } catch (err) {
             console.log(`ignored error: ${err}`);
         }
@@ -277,7 +277,7 @@ export class Node<TYPE extends NodeType> {
         throw new Error(`${this.type} didn't stop after a kill request`);
     }
 
-    public async createBatchWithDeposit(to: string, amount: bigint): Promise<number> {
+    public async createBatchWithDeposit(to: string, amount: bigint) {
         const initialL1BatchNumber = await this.tester.web3Provider.getL1BatchNumber();
         console.log(`Initial L1 batch: ${initialL1BatchNumber}`);
 
@@ -288,12 +288,15 @@ export class Node<TYPE extends NodeType> {
             approveBaseERC20: true,
             approveERC20: true
         });
-        await depositHandle.wait();
 
-        while ((await this.tester.web3Provider.getL1BatchNumber()) <= initialL1BatchNumber) {
+        let depositBatchNumber;
+        while (!(depositBatchNumber = (await depositHandle.wait()).l1BatchNumber)) {
+            console.log('Deposit is not included in L1 batch; sleeping');
             await utils.sleep(1);
         }
-        return initialL1BatchNumber;
+        console.log(`Deposit was included into L1 batch ${depositBatchNumber}`);
+        expect(depositBatchNumber).to.be.greaterThan(initialL1BatchNumber);
+        return depositBatchNumber;
     }
 }
 
@@ -375,27 +378,39 @@ export class NodeSpawner {
 async function waitForNodeToStart(tester: Tester, proc: ChildProcessWithoutNullStreams, l2Url: string) {
     while (true) {
         try {
-            await tester.syncWallet.provider.getBridgehubContractAddress();
+            const blockNumber = await tester.syncWallet.provider.getBlockNumber();
+            console.log(`Initialized node API on ${l2Url}; latest block: ${blockNumber}`);
             break;
         } catch (err) {
             if (proc.exitCode != null) {
                 assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
             }
-            console.log(`Node waiting for api endpoint on ${l2Url}`);
+            console.log(`Node waiting for API on ${l2Url}`);
             await utils.sleep(1);
         }
     }
 }
 
-export async function waitToExecuteBatch(mainContract: IZkSyncHyperchain, batchNumber: number) {
+export async function waitToExecuteBatch(mainContract: IZkSyncHyperchain, latestBatch: number) {
     let tryCount = 0;
+    const initialExecutedBatch = await mainContract.getTotalBatchesExecuted();
+    console.log(`Initial executed L1 batch: ${initialExecutedBatch}`);
+
+    if (initialExecutedBatch >= latestBatch) {
+        console.log('Latest batch is executed; no need to wait');
+        return;
+    }
+
     let lastExecutedBatch;
-    while ((lastExecutedBatch = (await mainContract.getTotalBatchesExecuted()) - 1n) < batchNumber && tryCount < 100) {
+    while (
+        (lastExecutedBatch = await mainContract.getTotalBatchesExecuted()) === initialExecutedBatch &&
+        tryCount < 100
+    ) {
         console.log(`Last executed batch: ${lastExecutedBatch}`);
         tryCount++;
         await utils.sleep(1);
     }
-    assert(lastExecutedBatch >= batchNumber);
+    assert(lastExecutedBatch > initialExecutedBatch);
 }
 
 export async function waitToCommitBatchesWithoutExecution(mainContract: IZkSyncHyperchain): Promise<bigint> {
@@ -404,7 +419,7 @@ export async function waitToCommitBatchesWithoutExecution(mainContract: IZkSyncH
     console.log(`Batches committed: ${batchesCommitted}, executed: ${batchesExecuted}`);
 
     let tryCount = 0;
-    while (batchesCommitted === batchesExecuted && tryCount < 100) {
+    while ((batchesExecuted === 0n || batchesCommitted === batchesExecuted) && tryCount < 100) {
         await utils.sleep(1);
         batchesCommitted = await mainContract.getTotalBatchesCommitted();
         batchesExecuted = await mainContract.getTotalBatchesExecuted();

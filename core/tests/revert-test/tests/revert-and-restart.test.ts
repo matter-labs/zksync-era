@@ -26,7 +26,7 @@ function ignoreError(_err: any, context?: string) {
 describe('Block reverting test', function () {
     let alice: zksync.Wallet;
     let mainContract: IZkSyncHyperchain;
-    let initialL1BatchNumber: number;
+    let depositL1BatchNumber: number;
     let batchesCommittedBeforeRevert: bigint;
     let mainLogs: fs.FileHandle;
     let operatorAddress: string;
@@ -95,7 +95,7 @@ describe('Block reverting test', function () {
     step('Make sure that the server is not running', async () => {
         if (autoKill) {
             // Make sure server isn't running.
-            await Node.terminateAll(NodeType.MAIN);
+            await Node.killAll(NodeType.MAIN);
         }
     });
 
@@ -113,11 +113,11 @@ describe('Block reverting test', function () {
     // One is not enough to test the reversion of sk cache because
     // it gets updated with some batch logs only at the start of the next batch.
     step('seal L1 batch', async () => {
-        initialL1BatchNumber = await mainNode.createBatchWithDeposit(alice.address, depositAmount);
+        depositL1BatchNumber = await mainNode.createBatchWithDeposit(alice.address, depositAmount);
     });
 
-    step('wait for L1 batch to get executed', async () => {
-        await waitToExecuteBatch(mainContract, initialL1BatchNumber);
+    step('wait for an L1 batch to get executed', async () => {
+        await waitToExecuteBatch(mainContract, depositL1BatchNumber);
     });
 
     step('restart server with batch execution turned off', async () => {

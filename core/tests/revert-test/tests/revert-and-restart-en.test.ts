@@ -102,7 +102,7 @@ describe('Block reverting test', function () {
     let extNode: Node<NodeType.EXT>;
     let mainContract: IZkSyncHyperchain;
     let alice: zksync.Wallet;
-    let initialL1BatchNumber: number;
+    let depositL1BatchNumber: number;
     let batchesCommittedBeforeRevert: bigint;
 
     const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
@@ -175,8 +175,8 @@ describe('Block reverting test', function () {
 
     step('Make sure that nodes are not running', async () => {
         if (autoKill) {
-            await Node.terminateAll(NodeType.MAIN);
-            await Node.terminateAll(NodeType.EXT);
+            await Node.killAll(NodeType.MAIN);
+            await Node.killAll(NodeType.EXT);
         }
     });
 
@@ -195,15 +195,15 @@ describe('Block reverting test', function () {
         alice = extNode.tester.emptyWallet();
     });
 
-    step('seal L1 batch', async () => {
-        initialL1BatchNumber = await extNode.createBatchWithDeposit(alice.address, depositAmount);
+    step('Seal L1 batch', async () => {
+        depositL1BatchNumber = await extNode.createBatchWithDeposit(alice.address, depositAmount);
     });
 
     step('wait for L1 batch to get executed', async () => {
-        await waitToExecuteBatch(mainContract, initialL1BatchNumber);
+        await waitToExecuteBatch(mainContract, depositL1BatchNumber);
     });
 
-    step('restart main node with batch execution turned off', async () => {
+    step('Restart main node with batch execution turned off', async () => {
         await mainNode.killAndWaitForShutdown();
         mainNode = await mainNodeSpawner.spawnMainNode(false);
     });
