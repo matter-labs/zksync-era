@@ -75,12 +75,12 @@ pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<(
 
     shell.copy_file(
         config.link_to_code.join(CHAIN_TRANSACTIONS_FILE),
-        args.out.join("chain-txns.json"),
+        args.out.join("register-hyperchain-txns.json"),
     )?;
 
     shell.copy_file(
         config.link_to_code.join(SCRIPT_CONFIG_FILE),
-        args.out.join("chain-config.toml"),
+        args.out.join("register-hyperchain.toml"),
     )?;
     spinner.finish();
 
