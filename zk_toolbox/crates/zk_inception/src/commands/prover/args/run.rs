@@ -80,24 +80,29 @@ impl ProverComponent {
 
     pub fn get_additional_args(
         &self,
+        in_docker: bool,
         args: ProverRunArgs,
         chain: &ChainConfig,
     ) -> anyhow::Result<Vec<String>> {
-        let general_config = chain
-            .path_to_general_config()
-            .into_os_string()
-            .into_string()
-            .map_err(|_| anyhow!("Failed to convert path to string"))?;
-        let secrets_config = chain
-            .path_to_secrets_config()
-            .into_os_string()
-            .into_string()
-            .map_err(|_| anyhow!("Failed to convert path to string"))?;
+        let mut additional_args = vec![];
+        if in_docker {
+            additional_args.push("--config-path=/configs/general.yaml".to_string());
+            additional_args.push("--secrets-path=/configs/secrets.yaml".to_string());
+        } else {
+            let general_config = chain
+                .path_to_general_config()
+                .into_os_string()
+                .into_string()
+                .map_err(|_| anyhow!("Failed to convert path to string"))?;
+            let secrets_config = chain
+                .path_to_secrets_config()
+                .into_os_string()
+                .into_string()
+                .map_err(|_| anyhow!("Failed to convert path to string"))?;
 
-        let mut additional_args = vec![
-            format!("--config-path={}", general_config),
-            format!("--secrets-path={}", secrets_config),
-        ];
+            additional_args.push(format!("--config-path={}", general_config));
+            additional_args.push(format!("--secrets-path={}", secrets_config));
+        }
 
         match self {
             Self::WitnessGenerator => {

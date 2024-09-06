@@ -34,7 +34,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
     let in_docker = args.docker.unwrap_or(false);
 
     let application_args = component.get_application_args(in_docker)?;
-    let additional_args = component.get_additional_args(args, &chain)?;
+    let additional_args = component.get_additional_args(in_docker, args, &chain)?;
 
     let (message, error) = match component {
         ProverComponent::WitnessGenerator => (
@@ -73,7 +73,6 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
 
     if in_docker {
         let path_to_configs = chain.configs.clone();
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
         let path_to_prover = get_link_to_prover(&ecosystem_config);
         run_dockerized_component(
             shell,
