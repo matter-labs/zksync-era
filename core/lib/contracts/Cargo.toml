@@ -20,4 +20,3 @@ serde.workspace = true
 once_cell.workspace = true
 hex.workspace = true
 envy.workspace = true
-tracing.workspace = true

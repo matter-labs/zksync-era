@@ -3,6 +3,7 @@ use rand::Rng as _;
 use test_casing::test_casing;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, error::Wrap, scope};
+use zksync_config::ContractsConfig;
 use zksync_consensus_roles::{
     attester,
     validator::testonly::{Setup, SetupSpec},
@@ -68,6 +69,12 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
         assert_eq!(
             status.next_batch_to_attest,
             attester::BatchNumber(first_batch.0.into())
+        );
+        assert_eq!(
+            status.consensus_registry_address,
+            ContractsConfig::for_tests()
+                .l2_consensus_registry_addr
+                .map(crate::registry::Address::new),
         );
 
         tracing::info!("Insert a cert");

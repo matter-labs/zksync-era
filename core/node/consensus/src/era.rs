@@ -6,6 +6,7 @@
 
 use zksync_concurrency::ctx;
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
+use zksync_contracts::consensus as contracts;
 use zksync_dal::Core;
 use zksync_node_sync::{sync_action::ActionQueueSender, SyncState};
 use zksync_web3_decl::client::{DynClient, L2};
@@ -18,6 +19,7 @@ pub async fn run_main_node(
     cfg: ConsensusConfig,
     secrets: ConsensusSecrets,
     pool: zksync_dal::ConnectionPool<Core>,
+    registry_addr: Option<contracts::Address<contracts::ConsensusRegistry>>,
 ) -> anyhow::Result<()> {
     tracing::info!(
         is_attester = secrets.attester_key.is_some(),
@@ -27,7 +29,9 @@ pub async fn run_main_node(
     // Consensus is a new component.
     // For now in case of error we just log it and allow the server
     // to continue running.
-    if let Err(err) = mn::run_main_node(ctx, cfg, secrets, ConnectionPool(pool), None).await {
+    if let Err(err) =
+        mn::run_main_node(ctx, cfg, secrets, ConnectionPool(pool), registry_addr).await
+    {
         tracing::error!("Consensus actor failed: {err:#}");
     } else {
         tracing::info!("Consensus actor stopped");

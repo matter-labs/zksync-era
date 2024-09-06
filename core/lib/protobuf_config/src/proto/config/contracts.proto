@@ -21,6 +21,7 @@ message L1 {
 
 message L2 {
   optional string testnet_paymaster_addr = 1; // optional; H160
+  optional string consensus_registry_addr = 2; // optional; H160
 }
 
 message Bridge {

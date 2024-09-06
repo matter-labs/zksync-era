@@ -1,5 +1,6 @@
 use zksync_concurrency::{ctx, scope, sync};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
+use zksync_contracts::consensus as contracts;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_consensus as consensus;
 use zksync_node_framework_derive::FromContext;
@@ -59,6 +60,7 @@ pub struct MainNodeConsensusTask {
     config: ConsensusConfig,
     secrets: ConsensusSecrets,
     pool: ConnectionPool<Core>,
+    registry_addr: Option<contracts::Address<contracts::ConsensusRegistry>>,
 }
 
 #[async_trait::async_trait]
@@ -80,6 +82,7 @@ impl Task for MainNodeConsensusTask {
                 self.config,
                 self.secrets,
                 self.pool,
+                self.registry_addr,
             ));
             // `run_main_node` might return an error or panic,
             // in which case we need to return immediately,
