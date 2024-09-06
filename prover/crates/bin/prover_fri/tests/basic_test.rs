@@ -57,7 +57,7 @@ async fn prover_and_assert_base_layer(
         CircuitWrapper::Base(base) => base.clone(),
         _ => anyhow::bail!("Expected base layer circuit"),
     };
-    let keystore = Keystore::default();
+    let keystore = Keystore::locate();
     let circuit_setup_data = generate_setup_data_common(
         &keystore,
         ProverServiceDataKey::new_basic(circuit.numeric_circuit_type()),
