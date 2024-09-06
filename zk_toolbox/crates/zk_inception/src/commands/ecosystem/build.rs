@@ -16,10 +16,10 @@ use super::{
     utils::{build_system_contracts, install_yarn_dependencies},
 };
 use crate::messages::{
-    MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER,
+    MSG_BUILDING_ECOSYSTEM, MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER,
     MSG_ECOSYSTEM_BUILD_IMPOSSIBLE_TO_READ_GENESIS_CONFIG, MSG_ECOSYSTEM_BUILD_OUTRO,
-    MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR, MSG_INITIALIZING_ECOSYSTEM,
-    MSG_INTALLING_DEPS_SPINNER, MSG_WRITING_OUTPUT_FILES_SPINNER,
+    MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR, MSG_INTALLING_DEPS_SPINNER,
+    MSG_WRITING_OUTPUT_FILES_SPINNER,
 };
 
 const DEPLOY_TRANSACTIONS_FILE: &str =
@@ -37,7 +37,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
 
-    logger::info(MSG_INITIALIZING_ECOSYSTEM);
+    logger::info(MSG_BUILDING_ECOSYSTEM);
 
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;

@@ -122,6 +122,7 @@ pub(super) fn msg_chain_load_err(chain_name: &str) -> String {
 }
 
 /// Ecosystem build related messages
+pub(super) const MSG_BUILDING_ECOSYSTEM: &str = "Building ecosystem";
 pub(super) const MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER: &str = "Building ecosystem contracts...";
 pub(super) const MSG_WRITING_OUTPUT_FILES_SPINNER: &str = "Writing output files...";
 pub(super) const MSG_ECOSYSTEM_BUILD_OUTRO: &str = "Transactions successfully built";
