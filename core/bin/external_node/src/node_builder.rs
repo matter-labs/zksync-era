@@ -56,11 +56,7 @@ use zksync_node_framework::{
 };
 use zksync_state::RocksdbStorageOptions;
 
-use crate::{
-    config::{self, ExternalNodeConfig},
-    metrics::framework::ExternalNodeMetricsLayer,
-    Component,
-};
+use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 
 /// Builder for the external node.
 #[derive(Debug)]
@@ -240,8 +236,7 @@ impl ExternalNodeBuilder {
 
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
         let config = self.config.consensus.clone();
-        let secrets =
-            config::read_consensus_secrets().context("config::read_consensus_secrets()")?;
+        let secrets = self.config.consensus_secrets.clone();
         let layer = ExternalNodeConsensusLayer { config, secrets };
         self.node.add_layer(layer);
         Ok(self)
