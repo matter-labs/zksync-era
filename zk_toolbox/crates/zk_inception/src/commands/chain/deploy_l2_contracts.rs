@@ -125,12 +125,17 @@ pub async fn initialize_bridges(
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
+    let signature = if let Some(true) = chain_config.legacy_bridge {
+        Some("runDeployLegacySharedBridge")
+    } else {
+        Some("runDeploySharedBridge")
+    };
     build_and_deploy(
         shell,
         chain_config,
         ecosystem_config,
         forge_args,
-        Some("runDeploySharedBridge"),
+        signature,
         |shell, out| {
             contracts_config.set_l2_shared_bridge(&InitializeBridgeOutput::read(shell, out)?)
         },
@@ -185,12 +190,17 @@ pub async fn deploy_l2_contracts(
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
+    let signature = if let Some(true) = chain_config.legacy_bridge {
+        Some("runWithLegacyBridge")
+    } else {
+        None
+    };
     build_and_deploy(
         shell,
         chain_config,
         ecosystem_config,
         forge_args,
-        None,
+        signature,
         |shell, out| {
             contracts_config.set_l2_shared_bridge(&InitializeBridgeOutput::read(shell, out)?)?;
             contracts_config.set_default_l2_upgrade(&DefaultL2UpgradeOutput::read(shell, out)?)?;

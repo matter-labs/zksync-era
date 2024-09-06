@@ -227,7 +227,7 @@ fn default_l2_chain_id() -> u64 {
 }
 
 pub fn get_default_l2_rpc_address() -> String {
-    "http://127.0.0.1:3050".to_string()
+    "http://127.0.0.1:3150".to_string()
 }
 
 fn default_l2_rpc_address() -> String {
@@ -239,7 +239,7 @@ fn default_l2_rpc_address() -> String {
 
 fn default_l2_ws_rpc_address() -> String {
     // `ws://z2-dev-api.zksync.dev:80/ws` for stage2
-    let result = "ws://127.0.0.1:3051".to_string();
+    let result = "ws://127.0.0.1:3151".to_string();
     tracing::info!("Using default L2_WS_RPC_ADDRESS: {result}");
     result
 }

@@ -65,6 +65,8 @@ pub struct ChainCreateArgs {
     base_token_price_denominator: Option<u64>,
     #[clap(long, help = MSG_SET_AS_DEFAULT_HELP, default_missing_value = "true", num_args = 0..=1)]
     pub(crate) set_as_default: Option<bool>,
+    #[clap(long, default_value = "false")]
+    pub(crate) legacy_bridge: bool,
 }
 
 impl ChainCreateArgs {
@@ -224,6 +226,7 @@ impl ChainCreateArgs {
             wallet_path,
             base_token,
             set_as_default,
+            legacy_bridge: self.legacy_bridge,
         })
     }
 }
@@ -238,6 +241,7 @@ pub struct ChainCreateArgsFinal {
     pub wallet_path: Option<PathBuf>,
     pub base_token: BaseToken,
     pub set_as_default: bool,
+    pub legacy_bridge: bool,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]

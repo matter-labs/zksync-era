@@ -99,18 +99,22 @@ pub async fn init(
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
     spinner.finish();
-    let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
-    accept_admin(
-        shell,
-        ecosystem_config,
-        contracts_config.l1.chain_admin_addr,
-        chain_config.get_wallets_config()?.governor_private_key(),
-        contracts_config.l1.diamond_proxy_addr,
-        &init_args.forge_args.clone(),
-        init_args.l1_rpc_url.clone(),
-    )
-    .await?;
-    spinner.finish();
+    if let Some(true) = chain_config.legacy_bridge {
+        logger::info("Skip step for legacy bridge")
+    } else {
+        let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
+        accept_admin(
+            shell,
+            ecosystem_config,
+            contracts_config.l1.chain_admin_addr,
+            chain_config.get_wallets_config()?.governor_private_key(),
+            contracts_config.l1.diamond_proxy_addr,
+            &init_args.forge_args.clone(),
+            init_args.l1_rpc_url.clone(),
+        )
+        .await?;
+        spinner.finish();
+    }
 
     let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
     set_token_multiplier_setter(

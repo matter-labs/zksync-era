@@ -1,9 +1,10 @@
 name: zk
 l1_network: Localhost
-link_to_code: .
+link_to_code: /Users/danillugovskoy/matterlabs/zksync-era/.
+bellman_cuda_dir: null
 chains: ./chains
 config: ./configs/
-default_chain: era
+default_chain: ada
 era_chain_id: 270
 prover_version: NoProofs
 wallet_creation: Localhost

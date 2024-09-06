@@ -38,6 +38,8 @@ pub struct ChainConfigInternal {
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub base_token: BaseToken,
     pub wallet_creation: WalletCreation,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub legacy_bridge: Option<bool>,
 }
 
 /// Chain configuration file. This file is created in the chain
@@ -58,6 +60,7 @@ pub struct ChainConfig {
     pub base_token: BaseToken,
     pub wallet_creation: WalletCreation,
     pub shell: OnceCell<Shell>,
+    pub legacy_bridge: Option<bool>,
 }
 
 impl Serialize for ChainConfig {
@@ -153,6 +156,7 @@ impl ChainConfig {
             l1_batch_commit_data_generator_mode: self.l1_batch_commit_data_generator_mode,
             base_token: self.base_token.clone(),
             wallet_creation: self.wallet_creation,
+            legacy_bridge: self.legacy_bridge,
         }
     }
 }
