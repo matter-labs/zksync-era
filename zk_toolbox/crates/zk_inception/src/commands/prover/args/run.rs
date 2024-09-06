@@ -87,7 +87,7 @@ impl ProverComponent {
             .map_err(|_| anyhow!("Failed to convert path to string"))?;
 
         let mut application_args = match in_docker{
-            true => format!("--net=host -v {path_to_prover:?}/data/keys:/prover/data/keys -v {path_to_prover:?}/artifacts:/artifacts -v {path_to_configs:?}:/configs"),
+            true => format!("--net=host -v {path_to_prover}/data/keys:/prover/data/keys -v {path_to_prover}/artifacts:/artifacts -v {path_to_configs}:/configs"),
             false => "".to_string(),
         };
 
@@ -123,7 +123,7 @@ impl ProverComponent {
             .map_err(|_| anyhow!("Failed to convert path to string"))?;
 
         let mut additional_args =
-            format!("--config-path={general_config} --secrets-path={secrets_config:?}");
+            format!("--config-path={general_config} --secrets-path={secrets_config}");
 
         match self {
             Self::WitnessGenerator => {
