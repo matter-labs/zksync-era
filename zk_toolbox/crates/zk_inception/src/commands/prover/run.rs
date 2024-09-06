@@ -151,11 +151,11 @@ fn run_prover(
     };
 
     if let Some(docker_image) = docker_image {
-        change_setup_data_path(shell, "prover/data/keys")?;
+        change_setup_data_path(shell, chain, "prover/data/keys")?;
         run_dockerized_component(shell, docker_image, chain, &additional_args)
     } else {
         check_prerequisites(shell, &GPU_PREREQUISITES, false);
-        change_setup_data_path(shell, "data/keys")?;
+        change_setup_data_path(shell, chain, "data/keys")?;
         check_prerequisites(shell, &GPU_PREREQUISITES, false);
         let mut cmd = if additional_args.is_empty() {
             Cmd::new(
@@ -250,12 +250,11 @@ fn run_dockerized_component(
     cmd.run().map_err(|err| anyhow!(err))
 }
 
-fn change_setup_data_path(shell: &Shell, path: &str) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell).unwrap();
-    let chain_config = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
-        .expect(MSG_CHAIN_NOT_FOUND_ERR);
-
+fn change_setup_data_path(
+    shell: &Shell,
+    chain_config: &ChainConfig,
+    path: &str,
+) -> anyhow::Result<()> {
     let mut general_config = chain_config.get_general_config()?;
 
     if let Some(prover_config) = general_config.prover_config.as_mut() {
