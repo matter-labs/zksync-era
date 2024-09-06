@@ -88,7 +88,7 @@ testFees('Test fees', () => {
                 await sendTransfers(
                     zksync.utils.ETH_ADDRESS,
                     mainWallet,
-                    {alice: alice.privateKey},
+                    { alice: alice.privateKey },
                     ethers.parseEther('100'),
                     undefined,
                     undefined,
@@ -213,8 +213,8 @@ testFees('Test fees', () => {
                 newL1GasPrice: l1GasPrice.toString(),
                 newPubdataPrice: l1GasPrice.toString(),
                 customBaseToken: true,
-                forcedBaseTokenRatioNumerator: 271,
-                forcedBaseTokenRatioDenominator: 100
+                externalPriceApiClientForcedNumerator: 271,
+                externalPriceApiClientForcedDenominator: 100
             });
 
             const receipt2 = await (
@@ -238,10 +238,10 @@ testFees('Test fees', () => {
             newL1GasPrice: l1GasPrice.toString(),
             newPubdataPrice: l1GasPrice.toString(),
             customBaseToken: true,
-            forcedBaseTokenRatioNumerator: 300,
-            forcedBaseTokenRatioDenominator: 100,
-            forcedBaseTokenRatioFluctuationsAmplitude: 20,
-            forcedBaseTokenRatioFluctuationsFrequencyMs: 1000,
+            externalPriceApiClientForcedNumerator: 300,
+            externalPriceApiClientForcedDenominator: 100,
+            externalPriceApiClientForcedFluctuation: 20,
+            baseTokenPricePoolingIntervalMs: 1000,
             baseTokenAdjusterL1UpdateDeviationPercentage: 0
         });
 
@@ -263,7 +263,8 @@ testFees('Test fees', () => {
                 const diff =
                     (newFeeParams.V2 as any)['conversion_ratio'].numerator -
                     (beginFeeParams.V2 as any)['conversion_ratio'].numerator;
-                expect(diff).toBeLessThan(75); //75 = 25%*300
+                // Deviation is 20%, Adding 5% extra for any arithmetic precision issues, 25%*300 = 75
+                expect(diff).toBeLessThan(75);
                 expect(diff).toBeGreaterThan(-75);
                 changedL2 = true;
                 break;
@@ -274,7 +275,7 @@ testFees('Test fees', () => {
             const newL1Nominator = await mainContract.baseTokenGasPriceMultiplierNominator();
             if (newL1Nominator != beginL1Nominator) {
                 const diff = newL1Nominator - beginL1Nominator;
-                expect(diff).toBeLessThan(75); //75 = 25%*300
+                expect(diff).toBeLessThan(75); // as above
                 expect(diff).toBeGreaterThan(-75);
                 changedL1 = true;
                 break;
@@ -443,10 +444,10 @@ async function setInternalL1GasPrice(
         newL1GasPrice?: string;
         newPubdataPrice?: string;
         customBaseToken?: boolean;
-        forcedBaseTokenRatioNumerator?: number;
-        forcedBaseTokenRatioDenominator?: number;
-        forcedBaseTokenRatioFluctuationsAmplitude?: number;
-        forcedBaseTokenRatioFluctuationsFrequencyMs?: number;
+        externalPriceApiClientForcedNumerator?: number;
+        externalPriceApiClientForcedDenominator?: number;
+        externalPriceApiClientForcedFluctuation?: number;
+        baseTokenPricePoolingIntervalMs?: number;
         baseTokenAdjusterL1UpdateDeviationPercentage?: number;
         disconnect?: boolean;
     }
@@ -476,21 +477,22 @@ async function setInternalL1GasPrice(
         command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ${command}`;
     }
 
-    if (options.forcedBaseTokenRatioNumerator !== undefined) {
-        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR=${options.forcedBaseTokenRatioNumerator} ${command}`;
+    if (options.externalPriceApiClientForcedNumerator !== undefined) {
+        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR=${options.externalPriceApiClientForcedNumerator} ${command}`;
     }
 
-    if (options.forcedBaseTokenRatioDenominator !== undefined) {
-        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR=${options.forcedBaseTokenRatioDenominator} ${command}`;
+    if (options.externalPriceApiClientForcedDenominator !== undefined) {
+        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR=${options.externalPriceApiClientForcedDenominator} ${command}`;
     }
 
-    if (options.forcedBaseTokenRatioFluctuationsAmplitude !== undefined) {
-        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_FLUCTUATION=${options.forcedBaseTokenRatioFluctuationsAmplitude} ${command}`;
+    if (options.externalPriceApiClientForcedFluctuation !== undefined) {
+        command = `EXTERNAL_PRICE_API_CLIENT_FORCED_FLUCTUATION=${options.externalPriceApiClientForcedFluctuation} ${command}`;
     }
 
-    if (options.forcedBaseTokenRatioFluctuationsFrequencyMs !== undefined) {
-        const cacheUpdateInterval = options.forcedBaseTokenRatioFluctuationsFrequencyMs / 2;
-        command = `BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS=${options.forcedBaseTokenRatioFluctuationsFrequencyMs} BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS=${options.forcedBaseTokenRatioFluctuationsFrequencyMs} BASE_TOKEN_ADJUSTER_PRICE_POLLING_INTERVAL_MS=${options.forcedBaseTokenRatioFluctuationsFrequencyMs} BASE_TOKEN_ADJUSTER_PRICE_CACHE_UPDATE_INTERVAL_MS=${cacheUpdateInterval} ${command}`;
+    if (options.baseTokenPricePoolingIntervalMs !== undefined) {
+        const cacheUpdateInterval = options.baseTokenPricePoolingIntervalMs / 2;
+        // To reduce price polling interval we also need to reduce base token receipt checking and tx sending sleeps as they are blocking the poller. Also cache update needs to be reduced appropriately.
+        command = `BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS=${options.baseTokenPricePoolingIntervalMs} BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS=${options.baseTokenPricePoolingIntervalMs} BASE_TOKEN_ADJUSTER_PRICE_POLLING_INTERVAL_MS=${options.baseTokenPricePoolingIntervalMs} BASE_TOKEN_ADJUSTER_PRICE_CACHE_UPDATE_INTERVAL_MS=${cacheUpdateInterval} ${command}`;
     }
 
     if (options.baseTokenAdjusterL1UpdateDeviationPercentage !== undefined) {
