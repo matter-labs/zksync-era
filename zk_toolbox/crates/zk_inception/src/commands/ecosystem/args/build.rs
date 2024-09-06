@@ -19,9 +19,6 @@ const DEFAULT_OUT_DIR: &str = "transactions";
 pub struct EcosystemBuildArgs {
     /// Address of the transaction sender.
     pub sender: String,
-    /// Deploy ecosystem contracts
-    #[arg(long)]
-    pub build_ecosystem: bool,
     /// Path to ecosystem contracts
     #[clap(long)]
     pub ecosystem_contracts_path: Option<PathBuf>,
@@ -73,7 +70,6 @@ impl EcosystemBuildArgs {
             sender: self.sender,
             out: self.out.unwrap_or(DEFAULT_OUT_DIR.into()),
             forge_args: self.forge_args.clone(),
-            build_ecosystem: self.build_ecosystem,
             ecosystem_contracts_path,
             l1_rpc_url,
         }
@@ -85,7 +81,6 @@ pub struct EcosystemBuildArgsFinal {
     pub sender: String,
     pub out: PathBuf,
     pub forge_args: ForgeScriptArgs,
-    pub build_ecosystem: bool,
     pub ecosystem_contracts_path: Option<PathBuf>,
     pub l1_rpc_url: String,
 }
