@@ -264,5 +264,3 @@ fn change_setup_data_path(
 
     Ok(())
 }
-
-postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_test
