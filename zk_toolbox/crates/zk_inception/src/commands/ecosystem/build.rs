@@ -85,7 +85,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
 
     shell.copy_file(
         ecosystem_config.link_to_code.join(SCRIPT_CONFIG_FILE),
-        args.out.join("deploy-l1-config.toml"),
+        args.out.join("config-deploy-l1.toml"),
     )?;
     spinner.finish();
 
