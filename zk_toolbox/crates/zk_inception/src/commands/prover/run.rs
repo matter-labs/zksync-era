@@ -123,7 +123,7 @@ fn run_witness_vector_generator(
     let threads = args.threads.unwrap_or(1).to_string();
 
     if let Some(docker_image) = docker_image {
-        run_dockerized_component(shell, docker_image, &format!("--threads={threads}"))
+        run_dockerized_component(shell, docker_image, chain, &format!("--threads={threads}"))
     } else {
         let config_path = chain.path_to_general_config();
         let secrets_path = chain.path_to_secrets_config();
