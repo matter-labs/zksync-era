@@ -26,13 +26,13 @@ const CHAIN_TRANSACTIONS_FILE: &str =
 const SCRIPT_CONFIG_FILE: &str = "contracts/l1-contracts/script-config/register-hyperchain.toml";
 
 pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<()> {
-    let args = args.fill_values_with_prompt();
-
     let config = EcosystemConfig::from_file(shell)?;
     let chain_name = global_config().chain_name.clone();
     let chain_config = config
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
+
+    let args = args.fill_values_with_prompt(config.default_chain.clone());
 
     copy_configs(shell, &config.link_to_code, &chain_config.configs)?;
 
