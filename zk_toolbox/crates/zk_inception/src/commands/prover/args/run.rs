@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use clap::{Parser, ValueEnum};
 use common::{Prompt, PromptSelect};
 use config::{ChainConfig, EcosystemConfig};
@@ -73,9 +74,17 @@ impl ProverComponent {
         chain: &ChainConfig,
         shell: &Shell,
     ) -> anyhow::Result<Option<String>> {
-        let path_to_configs = chain.configs.clone().into_os_string();
+        let path_to_configs = chain
+            .configs
+            .clone()
+            .into_os_string()
+            .into_string()
+            .map_err(|_| anyhow!("Failed to convert path to string"))?;
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
-        let path_to_prover = get_link_to_prover(&ecosystem_config).into_os_string();
+        let path_to_prover = get_link_to_prover(&ecosystem_config)
+            .into_os_string()
+            .into_string()
+            .map_err(|_| anyhow!("Failed to convert path to string"))?;
 
         let mut application_args = match in_docker{
             true => format!("--net=host -v {path_to_prover:?}/data/keys:/prover/data/keys -v {path_to_prover:?}/artifacts:/artifacts -v {path_to_configs:?}:/configs"),
@@ -102,8 +111,16 @@ impl ProverComponent {
         args: ProverRunArgs,
         chain: &ChainConfig,
     ) -> anyhow::Result<Option<String>> {
-        let general_config = chain.path_to_general_config().into_os_string();
-        let secrets_config = chain.path_to_secrets_config().into_os_string();
+        let general_config = chain
+            .path_to_general_config()
+            .into_os_string()
+            .into_string()
+            .map_err(|_| anyhow!("Failed to convert path to string"))?;
+        let secrets_config = chain
+            .path_to_secrets_config()
+            .into_os_string()
+            .into_string()
+            .map_err(|_| anyhow!("Failed to convert path to string"))?;
 
         let mut additional_args =
             format!("--config-path={general_config} --secrets-path={secrets_config:?}");
