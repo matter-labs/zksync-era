@@ -1,2 +1,0 @@
-### PLI__DB_URL: full URL for connecting to the prover DB
-PLI__DB_URL=postgres://postgres:notsecurepassword@localhost/prover_local_default_from_env

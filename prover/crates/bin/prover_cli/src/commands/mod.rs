@@ -1,4 +1,4 @@
-pub(crate) mod config;
+pub mod config;
 pub(crate) mod debug_proof;
 pub(crate) mod delete;
 pub(crate) mod get_file_info;

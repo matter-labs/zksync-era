@@ -1,12 +1,24 @@
 use std::{io::Write, path::PathBuf};
 
-use crate::helper::core_workspace_dir_or_current_dir;
+use anyhow::Context;
+
+use crate::{cli::ProverCLIConfig, commands, helper::config_path};
+
+pub async fn load_config() -> anyhow::Result<ProverCLIConfig> {
+    let config_path = config_path()?;
+    if !config_path.exists() {
+        println!("No config set.");
+        commands::config::ConfigCommand::Set.run().await?;
+    }
+    let config = std::fs::read_to_string(config_path).context("Failed to read config file")?;
+    toml::from_str(&config).context("Failed to parse config file")
+}
 
 pub fn get_envfile() -> anyhow::Result<PathBuf> {
     if let Ok(envfile) = std::env::var("PLI__CONFIG") {
         return Ok(envfile.into());
     }
-    Ok(core_workspace_dir_or_current_dir().join("etc/pliconfig"))
+    Ok(config_path()?)
 }
 
 pub fn load_envfile(path: impl AsRef<std::path::Path>) -> anyhow::Result<()> {

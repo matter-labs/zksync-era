@@ -33,7 +33,7 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let prover_connection_pool = ConnectionPool::<Prover>::singleton(config.db_url)
+    let prover_connection_pool = ConnectionPool::<Prover>::singleton(config.get_db_url())
         .build()
         .await
         .context("failed to build a prover_connection_pool")?;

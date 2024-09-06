@@ -45,3 +45,17 @@ pub fn core_workspace_dir_or_current_dir() -> PathBuf {
         .map(|a| a.join(".."))
         .unwrap_or_else(|| PathBuf::from("."))
 }
+
+pub fn config_dir_path() -> anyhow::Result<std::path::PathBuf> {
+    let config_dir_path = dirs::config_dir()
+        .ok_or_else(|| anyhow::anyhow!("Could not find user's config directory"))?
+        .join("zks_prover_cli");
+    if !config_dir_path.exists() {
+        std::fs::create_dir_all(&config_dir_path)?;
+    }
+    Ok(config_dir_path)
+}
+
+pub fn config_path() -> anyhow::Result<std::path::PathBuf> {
+    Ok(config_dir_path()?.join(format!("config")))
+}
