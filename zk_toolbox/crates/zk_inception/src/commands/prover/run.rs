@@ -123,7 +123,7 @@ fn run_dockerized_component(
 
     let mut cmd = Cmd::new(cmd!(
         shell,
-        "docker run {application_args...} {image_name} {args...}"
+        "docker run {application_args} {image_name} {args}"
     ));
 
     cmd = cmd.with_force_run();
@@ -156,7 +156,7 @@ fn run_binary_component(
 
     let mut cmd = Cmd::new(cmd!(
         shell,
-        "cargo run {application_args...} --release --bin {binary_name} -- {args...}"
+        "cargo run {application_args} --release --bin {binary_name} -- {args}"
     ));
     cmd = cmd.with_force_run();
     cmd.run().context(error)
