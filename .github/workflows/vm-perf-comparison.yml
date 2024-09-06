@@ -51,7 +51,10 @@ jobs:
           ci_run zk_supervisor clean contracts-cache
 
       - name: checkout PR
-        run: git checkout --force FETCH_HEAD --recurse-submodules
+        run:
+          (cd contracts && git reset --hard HEAD)
+          pwd
+          git checkout --force FETCH_HEAD --recurse-submodules
 
       - name: run benchmarks on PR
         shell: bash
