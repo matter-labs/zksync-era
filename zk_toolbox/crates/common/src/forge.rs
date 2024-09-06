@@ -141,6 +141,7 @@ impl ForgeScript {
         });
         self
     }
+
     // Do not start the script if balance is not enough
     pub fn private_key(&self) -> Option<H256> {
         self.args.args.iter().find_map(|a| {
