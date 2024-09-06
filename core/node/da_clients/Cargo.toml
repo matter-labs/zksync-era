@@ -26,7 +26,13 @@ zksync_env_config.workspace = true
 futures.workspace = true
 
 # Avail dependencies
-avail-subxt.workspace = true
-avail-core.workspace = true
+jsonrpsee.workspace = true
 subxt-signer.workspace = true
-reqwest.workspace = true
+scale-encode.workspace = true
+subxt-metadata.workspace = true
+parity-scale-codec.workspace = true
+blake2.workspace = true
+base58.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+blake2b_simd.workspace = true
