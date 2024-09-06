@@ -17,8 +17,6 @@ use circuit_definitions::{
 use serde::{Deserialize, Serialize};
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
 use zksync_basic_types::basic_fri_types::AggregationRound;
-use zksync_config::configs::FriProverConfig;
-use zksync_env_config::FromEnv;
 use zksync_prover_fri_types::ProverServiceDataKey;
 
 #[cfg(feature = "gpu")]
@@ -36,12 +34,12 @@ pub enum ProverServiceDataType {
 /// There are 2 types:
 /// - small verification, finalization keys (used only during verification)
 /// - large setup keys, used during proving.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Keystore {
     /// Directory to store all the small keys.
     basedir: PathBuf,
     /// Directory to store large setup keys.
-    setup_data_path: Option<String>,
+    setup_data_path: PathBuf,
 }
 
 fn get_base_path() -> PathBuf {
@@ -69,41 +67,32 @@ fn get_base_path() -> PathBuf {
     components.as_path().join("prover/data/keys")
 }
 
-impl Default for Keystore {
-    fn default() -> Self {
-        Self {
-            basedir: get_base_path(),
-            setup_data_path: Some(
-                FriProverConfig::from_env()
-                    .expect("FriProverConfig::from_env()")
-                    .setup_data_path,
-            ),
-        }
-    }
-}
-
 impl Keystore {
     /// Base-dir is the location of smaller keys (like verification keys and finalization hints).
     /// Setup data path is used for the large setup keys.
-    pub fn new(basedir: PathBuf, setup_data_path: String) -> Self {
+    pub fn new(basedir: PathBuf) -> Self {
         Keystore {
-            basedir,
-            setup_data_path: Some(setup_data_path),
+            basedir: basedir.clone(),
+            setup_data_path: basedir,
         }
     }
 
-    pub fn new_with_optional_setup_path(basedir: PathBuf, setup_data_path: Option<String>) -> Self {
-        Keystore {
-            basedir,
-            setup_data_path,
+    /// Uses automatic detection of the base path, and assumes that setup keys
+    /// are stored in the same directory.
+    pub fn locate() -> Self {
+        let base_path = get_base_path();
+        Self {
+            basedir: base_path.clone(),
+            setup_data_path: base_path,
         }
     }
 
-    pub fn new_with_setup_data_path(setup_data_path: String) -> Self {
-        Keystore {
-            basedir: get_base_path(),
-            setup_data_path: Some(setup_data_path),
+    /// Will override the setup path, if present.
+    pub fn with_setup_path(mut self, setup_data_path: Option<PathBuf>) -> Self {
+        if let Some(setup_data_path) = setup_data_path {
+            self.setup_data_path = setup_data_path;
         }
+        self
     }
 
     pub fn get_base_path(&self) -> &PathBuf {
@@ -120,13 +109,9 @@ impl Keystore {
             ProverServiceDataType::VerificationKey => {
                 self.basedir.join(format!("verification_{}_key.json", name))
             }
-            ProverServiceDataType::SetupData => PathBuf::from(format!(
-                "{}/setup_{}_data.bin",
-                self.setup_data_path
-                    .as_ref()
-                    .expect("Setup data path not set"),
-                name
-            )),
+            ProverServiceDataType::SetupData => self
+                .setup_data_path
+                .join(format!("setup_{}_data.bin", name)),
             ProverServiceDataType::FinalizationHints => self
                 .basedir
                 .join(format!("finalization_hints_{}.bin", name)),
