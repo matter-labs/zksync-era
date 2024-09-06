@@ -11,14 +11,14 @@ use types::ProverMode;
 use xshell::Shell;
 
 use super::{
-    args::build::EcosystemBuildArgs,
+    args::transaction::EcosystemTransactionArgs,
     create_configs::create_initial_deployments_config,
     utils::{build_system_contracts, install_yarn_dependencies},
 };
 use crate::messages::{
     MSG_BUILDING_ECOSYSTEM, MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER,
-    MSG_ECOSYSTEM_BUILD_IMPOSSIBLE_TO_READ_GENESIS_CONFIG, MSG_ECOSYSTEM_BUILD_OUTRO,
-    MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR, MSG_INTALLING_DEPS_SPINNER,
+    MSG_ECOSYSTEM_TXN_IMPOSSIBLE_TO_READ_GENESIS_CONFIG, MSG_ECOSYSTEM_TXN_OUTRO,
+    MSG_ECOSYSTEM_TXN_OUT_PATH_INVALID_ERR, MSG_INTALLING_DEPS_SPINNER,
     MSG_PREPARING_CONFIG_SPINNER, MSG_WRITING_OUTPUT_FILES_SPINNER,
 };
 
@@ -29,7 +29,7 @@ const DEPLOY_TRANSACTIONS_FILE_DST: &str = "deploy-l1-txns.json";
 const SCRIPT_CONFIG_FILE_SRC: &str = "contracts/l1-contracts/script-config/config-deploy-l1.toml";
 const SCRIPT_CONFIG_FILE_DST: &str = "config-deploy-l1.toml";
 
-pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: EcosystemTransactionArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
@@ -50,7 +50,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
     let spinner = Spinner::new(MSG_PREPARING_CONFIG_SPINNER);
     let default_genesis_config =
         GenesisConfig::read_with_base_path(shell, ecosystem_config.get_default_configs_path())
-            .context(MSG_ECOSYSTEM_BUILD_IMPOSSIBLE_TO_READ_GENESIS_CONFIG)?;
+            .context(MSG_ECOSYSTEM_TXN_IMPOSSIBLE_TO_READ_GENESIS_CONFIG)?;
 
     let wallets_config = ecosystem_config.get_wallets()?;
     // For deploying ecosystem we only need genesis batch params
@@ -81,7 +81,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
     let spinner = Spinner::new(MSG_WRITING_OUTPUT_FILES_SPINNER);
     shell
         .create_dir(&args.out)
-        .context(MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR)?;
+        .context(MSG_ECOSYSTEM_TXN_OUT_PATH_INVALID_ERR)?;
 
     shell.copy_file(
         ecosystem_config
@@ -96,7 +96,7 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
     )?;
     spinner.finish();
 
-    logger::outro(MSG_ECOSYSTEM_BUILD_OUTRO);
+    logger::outro(MSG_ECOSYSTEM_TXN_OUTRO);
 
     Ok(())
 }

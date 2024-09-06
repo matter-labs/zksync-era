@@ -122,13 +122,13 @@ pub(super) fn msg_chain_load_err(chain_name: &str) -> String {
     format!("Failed to load chain config for {chain_name}")
 }
 
-/// Ecosystem build related messages
-pub(super) const MSG_BUILDING_ECOSYSTEM: &str = "Building ecosystem";
+/// Build ecosystem transactions related messages
+pub(super) const MSG_BUILDING_ECOSYSTEM: &str = "Building ecosystem transactions";
 pub(super) const MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER: &str = "Building ecosystem contracts...";
 pub(super) const MSG_WRITING_OUTPUT_FILES_SPINNER: &str = "Writing output files...";
-pub(super) const MSG_ECOSYSTEM_BUILD_OUTRO: &str = "Transactions successfully built";
-pub(super) const MSG_ECOSYSTEM_BUILD_OUT_PATH_INVALID_ERR: &str = "Invalid path";
-pub(super) const MSG_ECOSYSTEM_BUILD_IMPOSSIBLE_TO_READ_GENESIS_CONFIG: &str =
+pub(super) const MSG_ECOSYSTEM_TXN_OUTRO: &str = "Transactions successfully built";
+pub(super) const MSG_ECOSYSTEM_TXN_OUT_PATH_INVALID_ERR: &str = "Invalid path";
+pub(super) const MSG_ECOSYSTEM_TXN_IMPOSSIBLE_TO_READ_GENESIS_CONFIG: &str =
     "Impossible to read genesis config from file";
 
 /// Chain create related messages
