@@ -733,9 +733,9 @@ dependencies = [
 
 [[package]]
 name = "boojum-cuda"
-version = "0.150.4"
+version = "0.150.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c861b4baec895cb8e53b10825407f0844b0eafda2ac79e7f02de95439f0f1e74"
+checksum = "252c28bc729eb32a053de0cbd1c8c55b2f51d00ca0c656f30bc70d255c2d8753"
 dependencies = [
  "boojum",
  "cmake",
@@ -1862,9 +1862,9 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "era_cudart"
-version = "0.150.4"
+version = "0.150.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ac97d833b861e32bc0a71d0542bf5c92094f9818c52d65c695227bfa95ffbe3"
+checksum = "803be147b389086e33254a6c9fe26a0d1d21a11f9f73181cad06cf5b1beb7d16"
 dependencies = [
  "bitflags 2.6.0",
  "era_cudart_sys",
@@ -1873,11 +1873,19 @@ dependencies = [
 
 [[package]]
 name = "era_cudart_sys"
-version = "0.150.4"
+version = "0.150.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee6aed60cf09cb6d0b954d74351acb9beb13daab0bacad279691f6b97504b7e6"
+checksum = "49f9a3d87f3d45d11bc835e5fc78fe6e3fe243355d435f6b3e794b98df7d3323"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "eravm-stable-interface"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
+dependencies = [
+ "primitive-types",
 ]
 
 [[package]]
@@ -3800,9 +3808,9 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 
 [[package]]
 name = "openssl"
-version = "0.10.64"
+version = "0.10.66"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95a0481286a310808298130d22dd1fef0fa571e05a8f44ec801801e84b216b1f"
+checksum = "9529f4786b70a3e8c61e11179af17ab6188ad8d0ded78c5529441ed39d4bd9c1"
 dependencies = [
  "bitflags 2.6.0",
  "cfg-if 1.0.0",
@@ -3832,9 +3840,9 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.102"
+version = "0.9.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c597637d56fbc83893a35eb0dd04b2b8e7a50c91e64e9493e398b5df4fb45fa2"
+checksum = "7f9e8deee91df40a943c71b917e5874b951d32a802526c85721ce3b776c929d6"
 dependencies = [
  "cc",
  "libc",
@@ -5572,9 +5580,9 @@ checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shivini"
-version = "0.150.4"
+version = "0.150.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5e5d862287bb883a4cb0bc4f8ea938ba3fdaa5e495f1a59bc3515231017a0e2"
+checksum = "331868b8d92ffec8887c17e786632cf0c9bd4750986fc1400a6d1fbf3739cba4"
 dependencies = [
  "bincode",
  "blake2 0.10.6",
@@ -6814,43 +6822,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "vk_setup_data_generator_server_fri"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bincode",
- "circuit_definitions",
- "clap 4.5.4",
- "hex",
- "indicatif",
- "itertools 0.10.5",
- "md5",
- "once_cell",
- "proptest",
- "serde",
- "serde_derive",
- "serde_json",
- "sha3 0.10.8",
- "shivini",
- "structopt",
- "toml_edit 0.14.4",
- "tracing",
- "tracing-subscriber",
- "zkevm_test_harness",
- "zksync_config",
- "zksync_env_config",
- "zksync_prover_fri_types",
- "zksync_types",
- "zksync_utils",
- "zksync_vlog",
-]
-
-[[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=9a38900d7af9b1d72b47ce3be980e77c1239a61d#9a38900d7af9b1d72b47ce3be980e77c1239a61d"
+source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
 dependencies = [
  "enum_dispatch",
+ "eravm-stable-interface",
  "primitive-types",
  "zk_evm_abstractions 0.150.4",
  "zkevm_opcode_defs 0.150.4",
@@ -7581,13 +7558,15 @@ dependencies = [
 
 [[package]]
 name = "zksync-gpu-ffi"
-version = "0.150.4"
+version = "0.150.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82fe099f4f4a2cc8ca8ca591d7619ac00b8054f63b712fa6ceee2b84c6e04c62"
+checksum = "ae694dc0ad818e4d45af70b2cf579ff46f1ac938b42ee55543529beb45ba1464"
 dependencies = [
  "bindgen 0.59.2",
+ "cmake",
  "crossbeam 0.8.4",
  "derivative",
+ "era_cudart_sys",
  "futures 0.3.30",
  "futures-locks",
  "num_cpus",
@@ -7595,9 +7574,9 @@ dependencies = [
 
 [[package]]
 name = "zksync-gpu-prover"
-version = "0.150.4"
+version = "0.150.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f73d27e0e4589c7445f5a22e511cb5186e2d205172ca4b26acd7a334b3af9492"
+checksum = "f8156dbaf36764409cc93424d43dc86c993601d73f5aa9a5938e6552a14dc2df"
 dependencies = [
  "bit-vec",
  "cfg-if 1.0.0",
@@ -7612,9 +7591,9 @@ dependencies = [
 
 [[package]]
 name = "zksync-wrapper-prover"
-version = "0.150.4"
+version = "0.150.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cf4c09adf0a84af0d7ded1fd85a2487fef4cbf1cfc1925412717d0eef03dd5a"
+checksum = "83975189451bfacfa97dbcce899fde9db15a0c072196a9b92ddfabbe756bab9d"
 dependencies = [
  "circuit_definitions",
  "zkevm_test_harness",
@@ -8037,7 +8016,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zkevm_test_harness",
  "zksync-wrapper-prover",
  "zksync_config",
@@ -8047,6 +8025,7 @@ dependencies = [
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_interface",
+ "zksync_prover_keystore",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
@@ -8138,7 +8117,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zkevm_test_harness",
  "zksync_config",
  "zksync_core_leftovers",
@@ -8147,6 +8125,7 @@ dependencies = [
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
+ "zksync_prover_keystore",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
@@ -8241,6 +8220,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_prover_keystore"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "circuit_definitions",
+ "hex",
+ "md5",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "sha3 0.10.8",
+ "shivini",
+ "tracing",
+ "zkevm_test_harness",
+ "zksync_basic_types",
+ "zksync_prover_fri_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_queued_job_processor"
 version = "0.1.0"
 dependencies = [
@@ -8329,6 +8329,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_vk_setup_data_generator_server_fri"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "circuit_definitions",
+ "clap 4.5.4",
+ "indicatif",
+ "proptest",
+ "toml_edit 0.14.4",
+ "tracing",
+ "tracing-subscriber",
+ "zkevm_test_harness",
+ "zksync_prover_fri_types",
+ "zksync_prover_keystore",
+ "zksync_types",
+ "zksync_vlog",
+]
+
+[[package]]
 name = "zksync_vlog"
 version = "0.1.0"
 dependencies = [
@@ -8357,6 +8376,8 @@ dependencies = [
 name = "zksync_vm_interface"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "hex",
  "serde",
  "thiserror",
@@ -8407,7 +8428,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zkevm_test_harness",
  "zksync_config",
  "zksync_core_leftovers",
@@ -8418,6 +8438,7 @@ dependencies = [
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
  "zksync_prover_interface",
+ "zksync_prover_keystore",
  "zksync_queued_job_processor",
  "zksync_system_constants",
  "zksync_types",
@@ -8437,7 +8458,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vk_setup_data_generator_server_fri",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",
@@ -8445,6 +8465,7 @@ dependencies = [
  "zksync_prover_dal",
  "zksync_prover_fri_types",
  "zksync_prover_fri_utils",
+ "zksync_prover_keystore",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",

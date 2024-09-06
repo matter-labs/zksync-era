@@ -17,7 +17,10 @@ use crate::interface::storage::ReadStorage;
 pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
 
-pub(crate) fn verify_required_memory(state: &State, required_values: Vec<(U256, HeapId, u32)>) {
+pub(crate) fn verify_required_memory<T, W>(
+    state: &State<T, W>,
+    required_values: Vec<(U256, HeapId, u32)>,
+) {
     for (required_value, memory_page, cell) in required_values {
         let current_value = state.heaps[memory_page].read_u256(cell * 32);
         assert_eq!(current_value, required_value);
@@ -125,5 +128,10 @@ pub(crate) fn get_complex_upgrade_abi() -> Contract {
 pub(crate) fn read_expensive_contract() -> (Vec<u8>, Contract) {
     const PATH: &str =
         "etc/contracts-test-data/artifacts-zk/contracts/expensive/expensive.sol/Expensive.json";
+    (read_bytecode(PATH), load_contract(PATH))
+}
+
+pub(crate) fn read_proxy_counter_contract() -> (Vec<u8>, Contract) {
+    const PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/counter/proxy_counter.sol/ProxyCounter.json";
     (read_bytecode(PATH), load_contract(PATH))
 }

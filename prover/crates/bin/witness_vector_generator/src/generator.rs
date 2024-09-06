@@ -17,12 +17,12 @@ use zksync_prover_fri_types::{
 use zksync_prover_fri_utils::{
     fetch_next_circuit, get_numeric_circuit_id, region_fetcher::Zone, socket_utils::send_assembly,
 };
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
     prover_dal::GpuProverInstanceStatus,
 };
-use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;
 
@@ -34,7 +34,7 @@ pub struct WitnessVectorGenerator {
     config: FriWitnessVectorGeneratorConfig,
     protocol_version: ProtocolSemanticVersion,
     max_attempts: u32,
-    setup_data_path: Option<String>,
+    keystore: Keystore,
 }
 
 impl WitnessVectorGenerator {
@@ -47,7 +47,7 @@ impl WitnessVectorGenerator {
         config: FriWitnessVectorGeneratorConfig,
         protocol_version: ProtocolSemanticVersion,
         max_attempts: u32,
-        setup_data_path: Option<String>,
+        keystore: Keystore,
     ) -> Self {
         Self {
             object_store,
@@ -57,7 +57,7 @@ impl WitnessVectorGenerator {
             config,
             protocol_version,
             max_attempts,
-            setup_data_path,
+            keystore,
         }
     }
 
@@ -127,16 +127,10 @@ impl JobProcessor for WitnessVectorGenerator {
         job: ProverJob,
         _started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
-        let setup_data_path = self.setup_data_path.clone();
-
+        let keystore = self.keystore.clone();
         tokio::task::spawn_blocking(move || {
             let block_number = job.block_number;
             let _span = tracing::info_span!("witness_vector_generator", %block_number).entered();
-            let keystore = if let Some(setup_data_path) = setup_data_path {
-                Keystore::new_with_setup_data_path(setup_data_path)
-            } else {
-                Keystore::default()
-            };
             Self::generate_witness_vector(job, &keystore)
         })
     }

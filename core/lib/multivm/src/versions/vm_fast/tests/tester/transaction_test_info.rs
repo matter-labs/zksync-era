@@ -4,10 +4,10 @@ use super::VmTester;
 use crate::{
     interface::{
         storage::ReadStorage, CurrentExecutionState, ExecutionResult, Halt, TxRevertReason,
-        VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
-        VmRevertReason,
+        VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
+        VmInterfaceHistoryEnabled, VmRevertReason,
     },
-    vm_fast::Vm,
+    vm_fast::{circuits_tracer::CircuitsTracer, vm::World, Vm},
 };
 
 #[derive(Debug, Clone)]
@@ -184,15 +184,23 @@ impl TransactionTestInfo {
 }
 
 // TODO this doesn't include all the state of ModifiedWorld
-#[derive(Debug, PartialEq)]
-struct VmStateDump {
-    state: vm2::State,
+#[derive(Debug)]
+struct VmStateDump<S> {
+    state: vm2::State<CircuitsTracer, World<S, CircuitsTracer>>,
     storage_writes: Vec<((H160, U256), U256)>,
     events: Box<[vm2::Event]>,
 }
 
+impl<S> PartialEq for VmStateDump<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.state == other.state
+            && self.storage_writes == other.storage_writes
+            && self.events == other.events
+    }
+}
+
 impl<S: ReadStorage> Vm<S> {
-    fn dump_state(&self) -> VmStateDump {
+    fn dump_state(&self) -> VmStateDump<S> {
         VmStateDump {
             state: self.inner.state.clone(),
             storage_writes: self

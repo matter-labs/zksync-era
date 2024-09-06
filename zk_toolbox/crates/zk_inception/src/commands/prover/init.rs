@@ -2,12 +2,13 @@ use std::path::PathBuf;
 
 use anyhow::Context;
 use common::{
-    check_prover_prequisites,
+    check_prerequisites,
     cmd::Cmd,
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
     spinner::Spinner,
+    WGET_PREREQUISITES,
 };
 use config::{copy_configs, set_prover_database, traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::{cmd, Shell};
@@ -34,14 +35,12 @@ use crate::{
 };
 
 pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<()> {
-    check_prover_prequisites(shell);
-
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let setup_key_path = get_default_setup_key_path(&ecosystem_config)?;
 
     let chain_config = ecosystem_config
-        .load_chain(Some(ecosystem_config.default_chain.clone()))
+        .load_chain(global_config().chain_name.clone())
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let args = args.fill_values_with_prompt(shell, &setup_key_path, &chain_config)?;
 
@@ -115,6 +114,7 @@ fn download_setup_key(
     general_config: &GeneralConfig,
     path: &str,
 ) -> anyhow::Result<()> {
+    check_prerequisites(shell, &WGET_PREREQUISITES, false);
     let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_KEY_SPINNER);
     let compressor_config: zksync_config::configs::FriProofCompressorConfig = general_config
         .proof_compressor_config

@@ -347,7 +347,7 @@ impl RocksdbStorage {
         let to_l1_batch_number = if let Some(to_l1_batch_number) = to_l1_batch_number {
             if to_l1_batch_number > latest_l1_batch_number {
                 let err = anyhow::anyhow!(
-                    "Requested to update RocksDB to L1 batch number ({current_l1_batch_number}) that \
+                    "Requested to update RocksDB to L1 batch number ({to_l1_batch_number}) that \
                      is greater than the last sealed L1 batch number in Postgres ({latest_l1_batch_number})"
                 );
                 return Err(err.into());

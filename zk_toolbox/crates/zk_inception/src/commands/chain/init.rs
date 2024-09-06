@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{bail, Context};
 use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
@@ -11,9 +11,10 @@ use config::{
         register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
         script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
-    set_l1_rpc_url,
+    ports_config, set_l1_rpc_url,
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    update_from_chain_config, ChainConfig, ContractsConfig, EcosystemConfig,
+    update_from_chain_config, update_ports, ChainConfig, ContractsConfig, EcosystemConfig,
+    GeneralConfig,
 };
 use types::{BaseToken, L1Network, WalletCreation};
 use xshell::Shell;
@@ -27,7 +28,7 @@ use crate::{
             genesis::genesis,
             set_token_multiplier_setter::set_token_multiplier_setter,
         },
-        portal::create_and_save_portal_config,
+        portal::update_portal_config,
     },
     consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
     messages::{
@@ -65,6 +66,10 @@ pub async fn init(
     chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
+
+    let mut general_config = chain_config.get_general_config()?;
+    apply_port_offset(init_args.port_offset, &mut general_config)?;
+    general_config.save_with_base_path(shell, &chain_config.configs)?;
 
     let mut genesis_config = chain_config.get_genesis_config()?;
     update_from_chain_config(&mut genesis_config, chain_config);
@@ -149,7 +154,7 @@ pub async fn init(
         .await
         .context(MSG_GENESIS_DATABASE_ERR)?;
 
-    create_and_save_portal_config(ecosystem_config, shell)
+    update_portal_config(shell, chain_config)
         .await
         .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?;
 
@@ -247,5 +252,17 @@ pub async fn mint_base_token(
         .await?;
         spinner.finish();
     }
+    Ok(())
+}
+
+fn apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> anyhow::Result<()> {
+    let Some(mut ports_config) = ports_config(general_config) else {
+        bail!("Missing ports config");
+    };
+
+    ports_config.apply_offset(port_offset);
+
+    update_ports(general_config, &ports_config)?;
+
     Ok(())
 }

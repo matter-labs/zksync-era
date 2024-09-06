@@ -40,7 +40,7 @@ pub fn initialize_docker(shell: &Shell, ecosystem: &EcosystemConfig) -> anyhow::
 }
 
 fn start_container(shell: &Shell, compose_file: &str, retry_msg: &str) -> anyhow::Result<()> {
-    while let Err(err) = docker::up(shell, compose_file) {
+    while let Err(err) = docker::up(shell, compose_file, true) {
         logger::error(err.to_string());
         if !common::PromptConfirm::new(retry_msg).default(true).ask() {
             return Err(err);

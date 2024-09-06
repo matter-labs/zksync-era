@@ -5,6 +5,7 @@ pub mod gpu_prover {
     use anyhow::Context as _;
     use shivini::{
         gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data, ProverContext,
+        ProverContextConfig,
     };
     use tokio::task::JoinHandle;
     use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
@@ -29,12 +30,12 @@ pub mod gpu_prover {
         CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
     };
     use zksync_prover_fri_utils::region_fetcher::Zone;
+    use zksync_prover_keystore::{keystore::Keystore, GoldilocksGpuProverSetupData};
     use zksync_queued_job_processor::{async_trait, JobProcessor};
     use zksync_types::{
         basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
         prover_dal::SocketAddress,
     };
-    use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
 
     use crate::{
         metrics::METRICS,
@@ -54,6 +55,7 @@ pub mod gpu_prover {
 
     #[allow(dead_code)]
     pub struct Prover {
+        keystore: Keystore,
         blob_store: Arc<dyn ObjectStore>,
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         config: Arc<FriProverConfig>,
@@ -72,6 +74,7 @@ pub mod gpu_prover {
     impl Prover {
         #[allow(dead_code)]
         pub fn new(
+            keystore: Keystore,
             blob_store: Arc<dyn ObjectStore>,
             public_blob_store: Option<Arc<dyn ObjectStore>>,
             config: FriProverConfig,
@@ -82,8 +85,17 @@ pub mod gpu_prover {
             address: SocketAddress,
             zone: Zone,
             protocol_version: ProtocolSemanticVersion,
+            max_allocation: Option<usize>,
         ) -> Self {
+            let prover_context = match max_allocation {
+                Some(max_allocation) => ProverContext::create_with_config(
+                    ProverContextConfig::default().with_maximum_device_allocation(max_allocation),
+                )
+                .expect("failed initializing gpu prover context"),
+                None => ProverContext::create().expect("failed initializing gpu prover context"),
+            };
             Prover {
+                keystore,
                 blob_store,
                 public_blob_store,
                 config: Arc::new(config),
@@ -91,8 +103,7 @@ pub mod gpu_prover {
                 setup_load_mode,
                 circuit_ids_for_round_to_be_proven,
                 witness_vector_queue,
-                prover_context: ProverContext::create()
-                    .expect("failed initializing gpu prover context"),
+                prover_context,
                 address,
                 zone,
                 protocol_version,
@@ -112,9 +123,8 @@ pub mod gpu_prover {
                     .clone(),
                 SetupLoadMode::FromDisk => {
                     let started_at = Instant::now();
-                    let keystore =
-                        Keystore::new_with_setup_data_path(self.config.setup_data_path.clone());
-                    let artifact: GoldilocksGpuProverSetupData = keystore
+                    let artifact: GoldilocksGpuProverSetupData = self
+                        .keystore
                         .load_gpu_setup_data_for_circuit_type(key.clone())
                         .context("load_gpu_setup_data_for_circuit_type()")?;
 
@@ -173,8 +183,11 @@ pub mod gpu_prover {
                 (),
                 &worker,
             )
-            .unwrap_or_else(|_| {
-                panic!("failed generating GPU proof for id: {}", prover_job.job_id)
+            .unwrap_or_else(|err| {
+                panic!(
+                    "failed generating GPU proof for id: {}, error: {:?}",
+                    prover_job.job_id, err
+                )
             });
             tracing::info!(
                 "Successfully generated gpu proof for job {} took: {:?}",
@@ -328,7 +341,10 @@ pub mod gpu_prover {
         }
     }
 
-    pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLoadMode> {
+    pub fn load_setup_data_cache(
+        keystore: &Keystore,
+        config: &FriProverConfig,
+    ) -> anyhow::Result<SetupLoadMode> {
         Ok(match config.setup_load_mode {
             zksync_config::configs::fri_prover::SetupLoadMode::FromDisk => SetupLoadMode::FromDisk,
             zksync_config::configs::fri_prover::SetupLoadMode::FromMemory => {
@@ -348,7 +364,6 @@ pub mod gpu_prover {
                     &config.specialized_group_id,
                     prover_setup_metadata_list
                 );
-                let keystore = Keystore::new_with_setup_data_path(config.setup_data_path.clone());
                 for prover_setup_metadata in prover_setup_metadata_list {
                     let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
                     let setup_data = keystore

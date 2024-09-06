@@ -25,11 +25,11 @@ use zksync_prover_fri_types::{
     keys::FriCircuitKey,
     CircuitWrapper, FriProofWrapper,
 };
+use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
-use zksync_vk_setup_data_server_fri::{keystore::Keystore, utils::get_leaf_vk_params};
 
 use crate::{metrics::WITNESS_GENERATOR_METRICS, utils::SchedulerPartialInputWrapper};
 
@@ -57,7 +57,7 @@ pub struct SchedulerWitnessGenerator {
     object_store: Arc<dyn ObjectStore>,
     prover_connection_pool: ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
-    setup_data_path: String,
+    keystore: Keystore,
 }
 
 impl SchedulerWitnessGenerator {
@@ -66,14 +66,14 @@ impl SchedulerWitnessGenerator {
         object_store: Arc<dyn ObjectStore>,
         prover_connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-        setup_data_path: String,
+        keystore: Keystore,
     ) -> Self {
         Self {
             config,
             object_store,
             prover_connection_pool,
             protocol_version,
-            setup_data_path,
+            keystore,
         }
     }
 
@@ -154,7 +154,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
                 l1_batch_number,
                 recursion_tip_job_id,
                 &*self.object_store,
-                self.setup_data_path.clone(),
+                self.keystore.clone(),
             )
             .await
             .context("prepare_job()")?,
@@ -266,7 +266,7 @@ pub async fn prepare_job(
     l1_batch_number: L1BatchNumber,
     recursion_tip_job_id: u32,
     object_store: &dyn ObjectStore,
-    setup_data_path: String,
+    keystore: Keystore,
 ) -> anyhow::Result<SchedulerWitnessGeneratorJob> {
     let started_at = Instant::now();
     let wrapper = object_store.get(recursion_tip_job_id).await?;
@@ -280,7 +280,6 @@ pub async fn prepare_job(
         .observe(started_at.elapsed());
 
     let started_at = Instant::now();
-    let keystore = Keystore::new_with_setup_data_path(setup_data_path);
     let node_vk = keystore
         .load_recursive_layer_verification_key(
             ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,

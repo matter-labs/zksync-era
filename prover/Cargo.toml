@@ -61,8 +61,8 @@ circuit_sequencer_api = "=0.150.4"
 zkevm_test_harness = "=0.150.4"
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.150.4" }
-shivini = "=0.150.4"
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.150.6" }
+shivini = "=0.150.6"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
@@ -87,7 +87,8 @@ zksync_periodic_job = { path = "../core/lib/periodic_job" }
 zksync_prover_dal = { path = "crates/lib/prover_dal" }
 zksync_prover_fri_types = { path = "crates/lib/prover_fri_types" }
 zksync_prover_fri_utils = { path = "crates/lib/prover_fri_utils" }
-vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
+zksync_prover_keystore = { path = "crates/lib/keystore" }
+zksync_vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
 
 # for `perf` profiling
 [profile.perf]

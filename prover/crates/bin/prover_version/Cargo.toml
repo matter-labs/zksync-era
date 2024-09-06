@@ -1,7 +1,13 @@
 [package]
 name = "prover_version"
-version = "0.1.0"
+version.workspace = true
 edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 zksync_prover_fri_types.workspace = true

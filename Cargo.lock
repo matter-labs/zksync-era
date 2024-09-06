@@ -484,6 +484,7 @@ dependencies = [
  "matchit",
  "memchr",
  "mime",
+ "multer",
  "percent-encoding",
  "pin-project-lite",
  "rustversion",
@@ -2355,6 +2356,14 @@ name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
+
+[[package]]
+name = "eravm-stable-interface"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
+dependencies = [
+ "primitive-types",
+]
 
 [[package]]
 name = "errno"
@@ -4463,6 +4472,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9be0862c1b3f26a88803c4a49de6889c10e608b3ee9344e6ef5b45fb37ad3d1"
 
 [[package]]
+name = "multer"
+version = "3.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83e87776546dc87511aa5ee218730c92b666d7264ab6ed41f9d215af9cd5224b"
+dependencies = [
+ "bytes",
+ "encoding_rs",
+ "futures-util",
+ "http 1.1.0",
+ "httparse",
+ "memchr",
+ "mime",
+ "spin",
+ "version_check",
+]
+
+[[package]]
 name = "multimap"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6448,6 +6474,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25996b82292a7a57ed3508f052cfff8640d38d32018784acd714758b43da9c8f"
 dependencies = [
  "secp256k1-sys 0.8.1",
+ "serde",
 ]
 
 [[package]]
@@ -8595,22 +8622,27 @@ dependencies = [
 name = "vm-benchmark"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "criterion",
  "iai",
+ "once_cell",
  "rand 0.8.5",
  "tokio",
  "vise",
+ "zksync_contracts",
+ "zksync_multivm",
  "zksync_types",
+ "zksync_utils",
  "zksync_vlog",
- "zksync_vm_benchmark_harness",
 ]
 
 [[package]]
 name = "vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=9a38900d7af9b1d72b47ce3be980e77c1239a61d#9a38900d7af9b1d72b47ce3be980e77c1239a61d"
+source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
 dependencies = [
  "enum_dispatch",
+ "eravm-stable-interface",
  "primitive-types",
  "zk_evm_abstractions 0.150.4",
  "zkevm_opcode_defs 0.150.4",
@@ -9393,6 +9425,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bigdecimal",
  "chrono",
  "hex",
  "rand 0.8.5",
@@ -9525,6 +9558,7 @@ dependencies = [
  "rand 0.8.5",
  "secrecy",
  "serde",
+ "serde_json",
  "tracing",
  "url",
  "zksync_basic_types",
@@ -10029,7 +10063,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.21.0"
+version = "24.24.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -10107,13 +10141,14 @@ name = "zksync_external_proof_integration_api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "bincode",
+ "thiserror",
  "tokio",
  "tracing",
  "vise",
  "zksync_basic_types",
- "zksync_config",
  "zksync_dal",
  "zksync_object_store",
  "zksync_prover_interface",
@@ -10173,7 +10208,6 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_dal",
- "zksync_prover_dal",
  "zksync_shared_metrics",
  "zksync_types",
 ]
@@ -10312,6 +10346,7 @@ name = "zksync_multivm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "circuit_sequencer_api 0.133.0",
  "circuit_sequencer_api 0.140.1",
  "circuit_sequencer_api 0.141.1",
@@ -10523,7 +10558,6 @@ dependencies = [
  "zksync_object_store",
  "zksync_proof_data_handler",
  "zksync_protobuf_config",
- "zksync_prover_dal",
  "zksync_queued_job_processor",
  "zksync_reorg_detector",
  "zksync_state",
@@ -10533,6 +10567,7 @@ dependencies = [
  "zksync_types",
  "zksync_utils",
  "zksync_vlog",
+ "zksync_vm_executor",
  "zksync_vm_runner",
  "zksync_web3_decl",
 ]
@@ -10619,7 +10654,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
- "zksync_vm_utils",
+ "zksync_vm_executor",
  "zksync_web3_decl",
 ]
 
@@ -10750,16 +10785,6 @@ dependencies = [
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_types",
-]
-
-[[package]]
-name = "zksync_prover_dal"
-version = "0.1.0"
-dependencies = [
- "sqlx",
- "strum",
- "zksync_basic_types",
- "zksync_db_connection",
 ]
 
 [[package]]
@@ -10955,7 +10980,7 @@ dependencies = [
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
- "zksync_vm_utils",
+ "zksync_vm_executor",
 ]
 
 [[package]]
@@ -10986,6 +11011,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "envy",
  "reqwest 0.12.7",
  "secp256k1 0.27.0",
  "serde",
@@ -11041,7 +11067,7 @@ dependencies = [
  "zksync_tee_verifier",
  "zksync_types",
  "zksync_utils",
- "zksync_vm_utils",
+ "zksync_vm_executor",
 ]
 
 [[package]]
@@ -11063,6 +11089,7 @@ name = "zksync_types"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "bigdecimal",
  "bincode",
  "blake2 0.10.6",
@@ -11143,26 +11170,31 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_vm_benchmark_harness"
+name = "zksync_vm_executor"
 version = "0.1.0"
 dependencies = [
- "assert_matches",
+ "anyhow",
+ "async-trait",
  "once_cell",
- "zk_evm 0.133.0",
+ "tokio",
+ "tracing",
+ "vise",
  "zksync_contracts",
+ "zksync_dal",
  "zksync_multivm",
- "zksync_state",
- "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
 name = "zksync_vm_interface"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "assert_matches",
+ "async-trait",
  "hex",
  "serde",
+ "serde_json",
  "thiserror",
  "tracing",
  "zksync_contracts",
@@ -11175,6 +11207,7 @@ name = "zksync_vm_runner"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "backon",
  "dashmap",
@@ -11190,30 +11223,16 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_health_check",
- "zksync_multivm",
  "zksync_node_genesis",
  "zksync_node_test_utils",
  "zksync_object_store",
  "zksync_prover_interface",
  "zksync_state",
- "zksync_state_keeper",
  "zksync_storage",
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
- "zksync_vm_utils",
-]
-
-[[package]]
-name = "zksync_vm_utils"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "tokio",
- "tracing",
- "zksync_contracts",
- "zksync_dal",
- "zksync_types",
+ "zksync_vm_executor",
  "zksync_vm_interface",
 ]
 

@@ -139,6 +139,7 @@ async fn main() -> anyhow::Result<()> {
         public_blob_store,
         pool,
         circuit_ids_for_round_to_be_proven,
+        opt.max_allocation,
         notify,
     )
     .await
@@ -178,8 +179,11 @@ async fn get_prover_tasks(
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
+    _max_allocation: Option<usize>,
     _init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
+    use zksync_prover_keystore::keystore::Keystore;
+
     use crate::prover_job_processor::{load_setup_data_cache, Prover};
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
@@ -189,12 +193,15 @@ async fn get_prover_tasks(
         protocol_version
     );
 
+    let keystore =
+        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
     let setup_load_mode =
-        load_setup_data_cache(&prover_config).context("load_setup_data_cache()")?;
+        load_setup_data_cache(&keystore, &prover_config).context("load_setup_data_cache()")?;
     let prover = Prover::new(
         store_factory.create_store().await?,
         public_blob_store,
         prover_config,
+        keystore,
         pool,
         setup_load_mode,
         circuit_ids_for_round_to_be_proven,
@@ -213,15 +220,19 @@ async fn get_prover_tasks(
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     pool: ConnectionPool<Prover>,
     circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
+    max_allocation: Option<usize>,
     init_notifier: Arc<Notify>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     use gpu_prover_job_processor::gpu_prover;
     use socket_listener::gpu_socket_listener;
     use tokio::sync::Mutex;
     use zksync_prover_fri_types::queue::FixedSizeQueue;
+    use zksync_prover_keystore::keystore::Keystore;
 
-    let setup_load_mode =
-        gpu_prover::load_setup_data_cache(&prover_config).context("load_setup_data_cache()")?;
+    let keystore =
+        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
+    let setup_load_mode = gpu_prover::load_setup_data_cache(&keystore, &prover_config)
+        .context("load_setup_data_cache()")?;
     let witness_vector_queue = FixedSizeQueue::new(prover_config.queue_capacity);
     let shared_witness_vector_queue = Arc::new(Mutex::new(witness_vector_queue));
     let consumer = shared_witness_vector_queue.clone();
@@ -235,6 +246,7 @@ async fn get_prover_tasks(
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     let prover = gpu_prover::Prover::new(
+        keystore,
         store_factory.create_store().await?,
         public_blob_store,
         prover_config.clone(),
@@ -245,6 +257,7 @@ async fn get_prover_tasks(
         address.clone(),
         zone.clone(),
         protocol_version,
+        max_allocation,
     );
     let producer = shared_witness_vector_queue.clone();
 
@@ -295,4 +308,6 @@ pub(crate) struct Cli {
     pub(crate) config_path: Option<std::path::PathBuf>,
     #[arg(long)]
     pub(crate) secrets_path: Option<std::path::PathBuf>,
+    #[arg(long)]
+    pub(crate) max_allocation: Option<usize>,
 }

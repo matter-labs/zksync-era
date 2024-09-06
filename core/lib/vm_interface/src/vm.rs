@@ -14,9 +14,8 @@
 use zksync_types::Transaction;
 
 use crate::{
-    storage::StoragePtr, BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo,
-    CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-    VmExecutionResultAndLogs, VmMemoryMetrics,
+    storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
+    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmMemoryMetrics,
 };
 
 pub trait VmInterface {
@@ -24,11 +23,6 @@ pub trait VmInterface {
 
     /// Push transaction to bootloader memory.
     fn push_transaction(&mut self, tx: Transaction);
-
-    /// Execute next VM step (either next transaction or bootloader or the whole batch).
-    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        self.inspect(Self::TracerDispatcher::default(), execution_mode)
-    }
 
     /// Execute next VM step (either next transaction or bootloader or the whole batch)
     /// with custom tracers.
@@ -38,33 +32,8 @@ pub trait VmInterface {
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs;
 
-    /// Get bootloader memory.
-    fn get_bootloader_memory(&self) -> BootloaderMemory;
-
-    /// Get last transaction's compressed bytecodes.
-    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo>;
-
     /// Start a new L2 block.
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv);
-
-    /// Get the current state of the virtual machine.
-    fn get_current_execution_state(&self) -> CurrentExecutionState;
-
-    /// Execute transaction with optional bytecode compression.
-    fn execute_transaction_with_bytecode_compression(
-        &mut self,
-        tx: Transaction,
-        with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
-        self.inspect_transaction_with_bytecode_compression(
-            Self::TracerDispatcher::default(),
-            tx,
-            with_compression,
-        )
-    }
 
     /// Execute transaction with optional bytecode compression using custom tracers.
     fn inspect_transaction_with_bytecode_compression(
@@ -72,32 +41,38 @@ pub trait VmInterface {
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    );
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs);
 
     /// Record VM memory metrics.
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics;
 
-    /// How much gas is left in the current stack frame.
-    fn gas_remaining(&self) -> u32;
-
     /// Execute batch till the end and return the result, with final execution state
     /// and bootloader memory.
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.execute(VmExecutionMode::Batch);
-        let execution_state = self.get_current_execution_state();
-        let bootloader_memory = self.get_bootloader_memory();
-        FinishedL1Batch {
-            block_tip_execution_result: result,
-            final_execution_state: execution_state,
-            final_bootloader_memory: Some(bootloader_memory),
-            pubdata_input: None,
-            state_diffs: None,
-        }
+    fn finish_batch(&mut self) -> FinishedL1Batch;
+}
+
+/// Extension trait for [`VmInterface`] that provides some additional methods.
+pub trait VmInterfaceExt: VmInterface {
+    /// Executes the next VM step (either next transaction or bootloader or the whole batch).
+    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
+        self.inspect(Self::TracerDispatcher::default(), execution_mode)
+    }
+
+    /// Executes a transaction with optional bytecode compression.
+    fn execute_transaction_with_bytecode_compression(
+        &mut self,
+        tx: Transaction,
+        with_compression: bool,
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
+        self.inspect_transaction_with_bytecode_compression(
+            Self::TracerDispatcher::default(),
+            tx,
+            with_compression,
+        )
     }
 }
+
+impl<T: VmInterface> VmInterfaceExt for T {}
 
 /// Encapsulates creating VM instance based on the provided environment.
 pub trait VmFactory<S>: VmInterface {

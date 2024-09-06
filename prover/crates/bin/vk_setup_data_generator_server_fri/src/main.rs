@@ -1,7 +1,7 @@
 //! Tool to generate different types of keys used by the proving system.
 //!
 //! It can generate verification keys, setup keys, and also commitments.
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context as _;
 use clap::{Parser, Subcommand};
@@ -23,13 +23,13 @@ use zksync_prover_fri_types::{
     circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
     ProverServiceDataKey,
 };
-use zksync_vk_setup_data_server_fri::{
-    commitment_utils::generate_commitments,
+use zksync_prover_keystore::{
     keystore::Keystore,
     setup_data_generator::{CPUSetupDataGenerator, GPUSetupDataGenerator, SetupDataGenerator},
 };
 
 mod commitment_generator;
+mod vk_commitment_helper;
 
 #[cfg(test)]
 mod tests;
@@ -97,7 +97,8 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     }
 
     // Let's also update the commitments file.
-    keystore.save_commitments(&generate_commitments(keystore)?)
+    let commitments = keystore.generate_commitments()?;
+    keystore.save_commitments(&commitments)
 }
 
 #[derive(Debug, Parser)]
@@ -195,14 +196,14 @@ fn print_stats(digests: HashMap<String, String>) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn keystore_from_optional_path(path: Option<String>, setup_path: Option<String>) -> Keystore {
+fn keystore_from_optional_path(path: Option<String>, setup_data_path: Option<String>) -> Keystore {
     if let Some(path) = path {
-        return Keystore::new_with_optional_setup_path(path.into(), setup_path);
+        return Keystore::new(path.into()).with_setup_path(setup_data_path.map(PathBuf::from));
     }
-    if setup_path.is_some() {
+    if setup_data_path.is_some() {
         panic!("--setup_path must not be set when --path is not set");
     }
-    Keystore::default()
+    Keystore::locate()
 }
 
 fn generate_setup_keys(

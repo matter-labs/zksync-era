@@ -4,7 +4,8 @@ FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 as builder
 ARG DEBIAN_FRONTEND=noninteractive
 
 ARG CUDA_ARCH=89
-ENV CUDAARCHS=${CUDA_ARCH}
+ARG A100_CUDA_ARCH=80
+ENV CUDAARCHS=${CUDA_ARCH};${A100_CUDA_ARCH}
 
 RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ git \
     pkg-config build-essential libclang-dev && \
@@ -37,7 +38,7 @@ FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # copy VK required for proof wrapping
-COPY prover/crates/bin/vk_setup_data_generator_server_fri/data/ /prover/crates/bin/vk_setup_data_generator_server_fri/data/
+COPY prover/data/keys/ /prover/data/keys
 
 COPY setup_2\^24.key /setup_2\^24.key
 

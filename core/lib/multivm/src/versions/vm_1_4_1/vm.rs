@@ -8,7 +8,7 @@ use crate::{
     glue::GlueInto,
     interface::{
         storage::{StoragePtr, WriteStorage},
-        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
+        BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
         FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmMemoryMetrics,
@@ -38,40 +38,11 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
     _phantom: std::marker::PhantomData<H>,
 }
 
-impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
-    type TracerDispatcher = TracerDispatcher<S, H::Vm1_4_1>;
-
-    /// Push tx into memory for the future execution
-    fn push_transaction(&mut self, tx: Transaction) {
-        self.push_transaction_with_compression(tx, true);
+impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
+    pub(super) fn gas_remaining(&self) -> u32 {
+        self.state.local_state.callstack.current.ergs_remaining
     }
 
-    /// Execute VM with custom tracers.
-    fn inspect(
-        &mut self,
-        tracer: Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
-    ) -> VmExecutionResultAndLogs {
-        self.inspect_inner(tracer, execution_mode, None)
-    }
-
-    /// Get current state of bootloader memory.
-    fn get_bootloader_memory(&self) -> BootloaderMemory {
-        self.bootloader_state.bootloader_memory()
-    }
-
-    /// Get compressed bytecodes of the last executed transaction
-    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
-        self.bootloader_state.get_last_tx_compressed_bytecodes()
-    }
-
-    fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
-        self.bootloader_state.start_new_l2_block(l2_block_env);
-    }
-
-    /// Get current state of virtual machine.
-    /// This method should be used only after the batch execution.
-    /// Otherwise it can panic.
     fn get_current_execution_state(&self) -> CurrentExecutionState {
         let (raw_events, l1_messages) = self.state.event_sink.flatten();
         let events: Vec<_> = merge_events(raw_events)
@@ -106,19 +77,35 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
             pubdata_costs: Vec::new(),
         }
     }
+}
 
-    /// Execute transaction with optional bytecode compression.
+impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
+    type TracerDispatcher = TracerDispatcher<S, H::Vm1_4_1>;
 
-    /// Inspect transaction with optional bytecode compression.
+    /// Push tx into memory for the future execution
+    fn push_transaction(&mut self, tx: Transaction) {
+        self.push_transaction_with_compression(tx, true);
+    }
+
+    /// Execute VM with custom tracers.
+    fn inspect(
+        &mut self,
+        tracer: Self::TracerDispatcher,
+        execution_mode: VmExecutionMode,
+    ) -> VmExecutionResultAndLogs {
+        self.inspect_inner(tracer, execution_mode, None)
+    }
+
+    fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
+        self.bootloader_state.start_new_l2_block(l2_block_env);
+    }
+
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.push_transaction_with_compression(tx, with_compression);
         let result = self.inspect_inner(tracer, VmExecutionMode::OneTx, None);
         if self.has_unpublished_bytecodes() {
@@ -127,7 +114,13 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
                 result,
             )
         } else {
-            (Ok(()), result)
+            (
+                Ok(self
+                    .bootloader_state
+                    .get_last_tx_compressed_bytecodes()
+                    .into()),
+                result,
+            )
         }
     }
 
@@ -135,14 +128,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         self.record_vm_memory_metrics_inner()
     }
 
-    fn gas_remaining(&self) -> u32 {
-        self.state.local_state.callstack.current.ergs_remaining
-    }
-
     fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.execute(VmExecutionMode::Batch);
+        let result = self.inspect(TracerDispatcher::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
-        let bootloader_memory = self.get_bootloader_memory();
+        let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {
             block_tip_execution_result: result,
             final_execution_state: execution_state,

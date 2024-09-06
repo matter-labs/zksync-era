@@ -5,9 +5,9 @@ use test_casing::test_casing;
 use tokio::sync::{watch, RwLock};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_state_keeper::MainBatchExecutor;
 use zksync_test_account::Account;
 use zksync_types::{L1BatchNumber, L2ChainId};
+use zksync_vm_executor::batch::MainBatchExecutorFactory;
 
 use super::*;
 use crate::{ConcurrentOutputHandlerFactory, VmRunner, VmRunnerStorage};
@@ -25,17 +25,11 @@ async fn process_batches((batch_count, window): (u32, u32)) -> anyhow::Result<()
     let mut accounts = vec![Account::random(), Account::random()];
     fund(&mut conn, &accounts).await;
 
-    store_l1_batches(
-        &mut conn,
-        1..=batch_count,
-        genesis_params.base_system_contracts().hashes(),
-        &mut accounts,
-    )
-    .await?;
+    store_l1_batches(&mut conn, 1..=batch_count, &genesis_params, &mut accounts).await?;
     drop(conn);
 
     // Fill in missing storage logs for all batches so that running VM for all of them works correctly.
-    storage_writer::write_storage_logs(connection_pool.clone()).await;
+    storage_writer::write_storage_logs(connection_pool.clone(), true).await;
 
     let io = Arc::new(RwLock::new(IoMock {
         current: 0.into(),
@@ -60,7 +54,7 @@ async fn process_batches((batch_count, window): (u32, u32)) -> anyhow::Result<()
     tokio::task::spawn(async move { task.run(output_stop_receiver).await.unwrap() });
 
     let storage = Arc::new(storage);
-    let batch_executor = MainBatchExecutor::new(false, false);
+    let batch_executor = MainBatchExecutorFactory::new(false, false);
     let vm_runner = VmRunner::new(
         connection_pool,
         Box::new(io.clone()),

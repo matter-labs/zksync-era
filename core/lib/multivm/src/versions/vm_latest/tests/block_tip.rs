@@ -15,7 +15,7 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u25
 
 use super::utils::{get_complex_upgrade_abi, read_complex_upgrade};
 use crate::{
-    interface::{L1BatchEnv, TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{L1BatchEnv, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_latest::{
         constants::{
             BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,

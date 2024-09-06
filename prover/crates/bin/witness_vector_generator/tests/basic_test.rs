@@ -1,8 +1,8 @@
 use std::fs;
 
 use zksync_prover_fri_types::{CircuitWrapper, ProverJob, ProverServiceDataKey};
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
-use zksync_vk_setup_data_server_fri::keystore::Keystore;
 use zksync_witness_vector_generator::generator::WitnessVectorGenerator;
 
 #[test]
@@ -22,8 +22,7 @@ fn test_generate_witness_vector() {
         circuit_wrapper,
         setup_data_key: key,
     };
-    let vector =
-        WitnessVectorGenerator::generate_witness_vector(job, &Keystore::default()).unwrap();
+    let vector = WitnessVectorGenerator::generate_witness_vector(job, &Keystore::locate()).unwrap();
     assert!(!vector.witness_vector.all_values.is_empty());
     assert!(!vector.witness_vector.multiplicities.is_empty());
     assert!(!vector.witness_vector.public_inputs_locations.is_empty());

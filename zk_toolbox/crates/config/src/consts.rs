@@ -30,11 +30,43 @@ pub const ERA_OBSERVABILITY_COMPOSE_FILE: &str = "era-observability/docker-compo
 pub const ERA_OBSERBAVILITY_DIR: &str = "era-observability";
 /// Era observability repo link
 pub const ERA_OBSERBAVILITY_GIT_REPO: &str = "https://github.com/matter-labs/era-observability";
+pub(crate) const LOCAL_APPS_PATH: &str = "apps/";
+pub(crate) const LOCAL_CHAINS_PATH: &str = "chains/";
 pub(crate) const LOCAL_CONFIGS_PATH: &str = "configs/";
+pub(crate) const LOCAL_GENERATED_PATH: &str = ".generated/";
 pub(crate) const LOCAL_DB_PATH: &str = "db/";
+pub(crate) const LOCAL_ARTIFACTS_PATH: &str = "artifacts/";
 
-/// Name of portal config file
-pub const PORTAL_CONFIG_FILE: &str = "portal.config.js";
+/// Name of apps config file
+pub const APPS_CONFIG_FILE: &str = "apps.yaml";
+/// Name of portal runtime config file (auto-generated)
+pub const PORTAL_JS_CONFIG_FILE: &str = "portal.config.js";
+/// Name of portal config JSON file
+pub const PORTAL_CONFIG_FILE: &str = "portal.config.json";
+/// Name of explorer runtime config file (auto-generated)
+pub const EXPLORER_JS_CONFIG_FILE: &str = "explorer.config.js";
+/// Name of explorer config JSON file
+pub const EXPLORER_CONFIG_FILE: &str = "explorer.config.json";
+/// Name of explorer docker compose file
+pub const EXPLORER_DOCKER_COMPOSE_FILE: &str = "explorer-docker-compose.yml";
+
+/// Default port for the explorer app
+pub const DEFAULT_EXPLORER_PORT: u16 = 3010;
+/// Default port for the portal app
+pub const DEFAULT_PORTAL_PORT: u16 = 3030;
+/// Default port for the explorer worker service
+pub const DEFAULT_EXPLORER_WORKER_PORT: u16 = 3001;
+/// Default port for the explorer API service
+pub const DEFAULT_EXPLORER_API_PORT: u16 = 3002;
+/// Default port for the explorer data fetcher service
+pub const DEFAULT_EXPLORER_DATA_FETCHER_PORT: u16 = 3040;
+
+pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api";
+pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-data-fetcher";
+pub const EXPLORER_WORKER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-worker";
+
+/// Interval (in milliseconds) for polling new batches to process in explorer app
+pub const EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL: u64 = 1000;
 
 /// Path to ecosystem contacts
 pub(crate) const ECOSYSTEM_PATH: &str = "etc/env/ecosystems";
