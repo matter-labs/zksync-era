@@ -2,9 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use common::{forge::ForgeScriptArgs, Prompt};
-use config::ChainConfig;
 use serde::{Deserialize, Serialize};
-use types::L1Network;
 use url::Url;
 
 use crate::{
@@ -28,13 +26,10 @@ pub struct ChainBuildArgs {
 }
 
 impl ChainBuildArgs {
-    pub fn fill_values_with_prompt(self, config: &ChainConfig) -> ChainBuildArgsFinal {
+    pub fn fill_values_with_prompt(self) -> ChainBuildArgsFinal {
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
-            let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
-            if config.l1_network == L1Network::Localhost {
-                prompt = prompt.default(LOCAL_RPC_URL);
-            }
-            prompt
+            Prompt::new(MSG_L1_RPC_URL_PROMPT)
+                .default(LOCAL_RPC_URL)
                 .validate_with(|val: &String| -> Result<(), String> {
                     Url::parse(val)
                         .map(|_| ())
