@@ -45,7 +45,6 @@ pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<(
         .get_contracts_config()
         .context(MSG_CHAIN_BUILD_MISSING_CONTRACT_CONFIG)?;
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
-    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
     let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
@@ -68,7 +67,7 @@ pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<(
         REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
     )?;
     contracts_config.set_chain_contracts(&register_chain_output);
-    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+    contracts_config.save_with_base_path(shell, &args.out)?;
 
     shell
         .create_dir(&args.out)
