@@ -29,7 +29,7 @@ pub struct EcosystemBuildArgs {
     pub l1_rpc_url: Option<String>,
     /// Output directory for the generated files.
     #[arg(long, short)]
-    pub out: Option<String>,
+    pub out: Option<PathBuf>,
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
@@ -71,7 +71,7 @@ impl EcosystemBuildArgs {
         });
         EcosystemBuildArgsFinal {
             sender: self.sender,
-            out: self.out.unwrap_or_else(|| DEFAULT_OUT_DIR.into()),
+            out: self.out.unwrap_or(DEFAULT_OUT_DIR.into()),
             forge_args: self.forge_args.clone(),
             build_ecosystem: self.build_ecosystem,
             ecosystem_contracts_path,
@@ -83,7 +83,7 @@ impl EcosystemBuildArgs {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EcosystemBuildArgsFinal {
     pub sender: String,
-    pub out: String,
+    pub out: PathBuf,
     pub forge_args: ForgeScriptArgs,
     pub build_ecosystem: bool,
     pub ecosystem_contracts_path: Option<PathBuf>,

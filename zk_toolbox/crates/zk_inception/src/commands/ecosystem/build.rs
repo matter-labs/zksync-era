@@ -79,12 +79,12 @@ pub async fn run(args: EcosystemBuildArgs, shell: &Shell) -> anyhow::Result<()> 
 
     shell.copy_file(
         ecosystem_config.link_to_code.join(DEPLOY_TRANSACTIONS_FILE),
-        format!("{}/deploy-l1-txns.json", final_ecosystem_args.out),
+        final_ecosystem_args.out.join("deploy-l1-txns.json"),
     )?;
 
     shell.copy_file(
         ecosystem_config.link_to_code.join(SCRIPT_CONFIG_FILE),
-        format!("{}/deploy-l1-config.toml", final_ecosystem_args.out),
+        final_ecosystem_args.out.join("deploy-l1-config.toml"),
     )?;
     spinner.finish();
 
