@@ -91,7 +91,9 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
 
     chain_config.save_general_config(&general_config)?;
 
-    init_bellman_cuda(shell, args.bellman_cuda_config).await?;
+    if let Some(args) = args.bellman_cuda_config {
+        init_bellman_cuda(shell, args).await?;
+    }
 
     if let Some(prover_db) = &args.database_config {
         let spinner = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);

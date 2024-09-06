@@ -348,6 +348,8 @@ pub(super) const MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER: &str =
     "Downloading compressor setup key...";
 pub(super) const MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT: &str =
     "Do you want to download the setup key for compressor?";
+pub(super) const MSG_INITIALIZE_BELLMAN_CUDA_PROMPT: &str =
+    "Do you want to initialize bellman-cuda?";
 pub(super) const MSG_SETUP_COMPRESSOR_KEY_PATH_PROMPT: &str = "Provide the path to the setup key:";
 pub(super) const MSG_GETTING_GCP_PROJECTS_SPINNER: &str = "Getting GCP projects...";
 pub(super) const MSG_GETTING_PROOF_STORE_CONFIG: &str = "Getting proof store configuration...";

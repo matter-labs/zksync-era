@@ -19,7 +19,8 @@ use crate::{
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT,
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, MSG_CREATE_GCS_BUCKET_PROMPT,
         MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
-        MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
+        MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_INITIALIZE_BELLMAN_CUDA_PROMPT,
+        MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
         MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR, MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT,
         MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT, MSG_PROVER_DB_NAME_HELP,
         MSG_PROVER_DB_URL_HELP, MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT,
@@ -51,6 +52,8 @@ pub struct ProverInitArgs {
     // Bellman cuda
     #[clap(flatten)]
     pub bellman_cuda_config: InitBellmanCudaArgs,
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
+    pub bellman_cuda: Option<bool>,
 
     #[clap(flatten)]
     pub setup_compressor_key_config: SetupCompressorKeyConfigTmp,
@@ -189,7 +192,7 @@ pub struct ProverInitArgsFinal {
     pub public_store: Option<ProofStorageConfig>,
     pub setup_compressor_key_config: SetupCompressorKeyConfig,
     pub setup_keys: Option<SetupKeysArgs>,
-    pub bellman_cuda_config: InitBellmanCudaArgs,
+    pub bellman_cuda_config: Option<InitBellmanCudaArgs>,
     pub cloud_type: CloudConnectionMode,
     pub database_config: Option<ProverDatabaseConfig>,
 }
@@ -205,7 +208,7 @@ impl ProverInitArgs {
         let public_store = self.fill_public_storage_values_with_prompt(shell)?;
         let setup_compressor_key_config =
             self.fill_setup_compressor_key_values_with_prompt(setup_key_path);
-        let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt()?;
+        let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt();
         let cloud_type = self.get_cloud_type_with_prompt();
         let database_config = self.fill_database_values_with_prompt(chain_config);
         let setup_keys = self.fill_setup_keys_values_with_prompt();
@@ -481,8 +484,17 @@ impl ProverInitArgs {
         })
     }
 
-    fn fill_bellman_cuda_values_with_prompt(&self) -> anyhow::Result<InitBellmanCudaArgs> {
-        self.bellman_cuda_config.clone().fill_values_with_prompt()
+    fn fill_bellman_cuda_values_with_prompt(&self) -> Option<InitBellmanCudaArgs> {
+        let args = self.bellman_cuda_config.clone();
+        if self.bellman_cuda.unwrap_or_else(|| {
+            PromptConfirm::new(MSG_INITIALIZE_BELLMAN_CUDA_PROMPT)
+                .default(false)
+                .ask()
+        }) {
+            Some(args)
+        } else {
+            None
+        }
     }
 
     fn get_cloud_type_with_prompt(&self) -> CloudConnectionMode {
