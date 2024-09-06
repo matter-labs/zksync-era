@@ -44,6 +44,8 @@ pub struct ProverCLIConfig {
         env("PLI__DB_URL")
     )]
     pub db_url: SensitiveUrl,
+    #[clap(default_value = "10")]
+    pub max_failure_attempts: u32,
 }
 
 #[derive(Subcommand)]

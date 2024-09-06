@@ -4,8 +4,6 @@ use anyhow::Context as _;
 use circuit_definitions::zkevm_circuits::scheduler::aux::BaseLayerCircuitType;
 use clap::Args as ClapArgs;
 use colored::*;
-use zksync_config::configs::FriProverConfig;
-use zksync_env_config::FromEnv;
 use zksync_prover_dal::{Connection, ConnectionPool, Prover, ProverDal};
 use zksync_types::{
     basic_fri_types::AggregationRound,
@@ -57,9 +55,9 @@ pub(crate) async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<(
         }
 
         if !args.verbose {
-            display_batch_status(batch_data);
+            display_batch_status(batch_data, config.max_failure_attempts);
         } else {
-            display_batch_info(batch_data);
+            display_batch_info(batch_data, config.max_failure_attempts);
         }
     }
 
@@ -200,19 +198,19 @@ async fn get_proof_compression_job_info_for_batch<'a>(
         .await
 }
 
-fn display_batch_status(batch_data: BatchData) {
-    display_status_for_stage(batch_data.basic_witness_generator);
-    display_status_for_stage(batch_data.leaf_witness_generator);
-    display_status_for_stage(batch_data.node_witness_generator);
-    display_status_for_stage(batch_data.recursion_tip_witness_generator);
-    display_status_for_stage(batch_data.scheduler_witness_generator);
-    display_status_for_stage(batch_data.compressor);
+fn display_batch_status(batch_data: BatchData, max_failure_attempts: u32) {
+    display_status_for_stage(batch_data.basic_witness_generator, max_failure_attempts);
+    display_status_for_stage(batch_data.leaf_witness_generator, max_failure_attempts);
+    display_status_for_stage(batch_data.node_witness_generator, max_failure_attempts);
+    display_status_for_stage(
+        batch_data.recursion_tip_witness_generator,
+        max_failure_attempts,
+    );
+    display_status_for_stage(batch_data.scheduler_witness_generator, max_failure_attempts);
+    display_status_for_stage(batch_data.compressor, max_failure_attempts);
 }
 
-fn display_status_for_stage(stage_info: StageInfo) {
-    let max_attempts = FriProverConfig::from_env()
-        .expect("Fail to read prover config.")
-        .max_attempts;
+fn display_status_for_stage(stage_info: StageInfo, max_attempts: u32) {
     display_aggregation_round(&stage_info);
     let status = stage_info.witness_generator_jobs_status(max_attempts);
     match status {
@@ -231,19 +229,19 @@ fn display_status_for_stage(stage_info: StageInfo) {
     }
 }
 
-fn display_batch_info(batch_data: BatchData) {
-    display_info_for_stage(batch_data.basic_witness_generator);
-    display_info_for_stage(batch_data.leaf_witness_generator);
-    display_info_for_stage(batch_data.node_witness_generator);
-    display_info_for_stage(batch_data.recursion_tip_witness_generator);
-    display_info_for_stage(batch_data.scheduler_witness_generator);
-    display_info_for_stage(batch_data.compressor);
+fn display_batch_info(batch_data: BatchData, max_failure_attempts: u32) {
+    display_info_for_stage(batch_data.basic_witness_generator, max_failure_attempts);
+    display_info_for_stage(batch_data.leaf_witness_generator, max_failure_attempts);
+    display_info_for_stage(batch_data.node_witness_generator, max_failure_attempts);
+    display_info_for_stage(
+        batch_data.recursion_tip_witness_generator,
+        max_failure_attempts,
+    );
+    display_info_for_stage(batch_data.scheduler_witness_generator, max_failure_attempts);
+    display_info_for_stage(batch_data.compressor, max_failure_attempts);
 }
 
-fn display_info_for_stage(stage_info: StageInfo) {
-    let max_attempts = FriProverConfig::from_env()
-        .expect("Fail to read prover config.")
-        .max_attempts;
+fn display_info_for_stage(stage_info: StageInfo, max_attempts: u32) {
     display_aggregation_round(&stage_info);
     let status = stage_info.witness_generator_jobs_status(max_attempts);
     match status {
