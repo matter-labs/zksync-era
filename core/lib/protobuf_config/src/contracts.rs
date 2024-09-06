@@ -92,12 +92,6 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("l2_testnet_paymaster_addr")?,
-            l2_consensus_registry_addr: l2
-                .consensus_registry_addr
-                .as_ref()
-                .map(|x| parse_h160(x))
-                .transpose()
-                .context("l2_consensus_registry_addr")?,
             l1_multicall3_addr: required(&l1.multicall3_addr)
                 .and_then(|x| parse_h160(x))
                 .context("l1_multicall3_addr")?,
@@ -147,10 +141,7 @@ impl ProtoRepr for proto::Contracts {
                 chain_admin_addr: this.chain_admin_addr.map(|a| format!("{:?}", a)),
             }),
             l2: Some(proto::L2 {
-                testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)),
-                consensus_registry_addr: this
-                    .l2_consensus_registry_addr
-                    .map(|a| format!("{:?}", a)),
+                testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)), 
             }),
             bridges: Some(proto::Bridges {
                 shared: Some(proto::Bridge {

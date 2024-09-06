@@ -23,13 +23,43 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::models::{parse_h160, parse_h256};
 
+/// Global config of the consensus.
+#[derive(Debug, PartialEq, Clone)]
+pub struct GlobalConfig {
+    pub genesis: validator::Genesis,
+    pub registry_address: Option<contracts::Address<contracts::ConsensusRegistry>>,
+}
+
+impl ProtoFmt for GlobalConfig {
+    type Proto = proto::GlobalConfig;
+
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        Ok(Self {
+            genesis: read_required(&r.genesis).context("genesis")?,
+            registry_address: r
+                .registry_address
+                .as_ref()
+                .map(|a| parse_h160(a))
+                .transpose()
+                .context("registry_address")?
+                .map(contracts::Address::new),
+        })
+    }
+
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            genesis: Some(self.genesis.build()),
+            registry_address: self.registry_address.map(|a| a.as_bytes().to_vec()),
+        }
+    }
+}
+
 /// Global attestation status served by
 /// `attestationStatus` RPC.
 #[derive(Debug, PartialEq, Clone)]
 pub struct AttestationStatus {
     pub genesis: validator::GenesisHash,
     pub next_batch_to_attest: attester::BatchNumber,
-    pub consensus_registry_address: Option<contracts::Address<contracts::ConsensusRegistry>>,
 }
 
 impl ProtoFmt for AttestationStatus {
@@ -40,14 +70,7 @@ impl ProtoFmt for AttestationStatus {
             genesis: read_required(&r.genesis).context("genesis")?,
             next_batch_to_attest: attester::BatchNumber(
                 *required(&r.next_batch_to_attest).context("next_batch_to_attest")?,
-            ),
-            consensus_registry_address: r
-                .consensus_registry_address
-                .as_ref()
-                .map(|a| parse_h160(a))
-                .transpose()
-                .context("consensus_registry_address")?
-                .map(contracts::Address::new),
+            ), 
         })
     }
 
@@ -55,9 +78,6 @@ impl ProtoFmt for AttestationStatus {
         Self::Proto {
             genesis: Some(self.genesis.build()),
             next_batch_to_attest: Some(self.next_batch_to_attest.0),
-            consensus_registry_address: self
-                .consensus_registry_address
-                .map(|a| a.as_bytes().to_vec()),
         }
     }
 }

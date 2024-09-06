@@ -170,18 +170,18 @@ impl EN {
     async fn run_attestation_controller(
         &self,
         ctx: &ctx::Ctx,
-        genesis: validator::Genesis,
+        cfg: &consensus_dal::GlobalConfig,
         attestation: Arc<attestation::Controller>,
     ) -> ctx::Result<()> {
         const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
-        let registry = registry::Registry::new(genesis.clone(), self.pool.clone()).await;
+        let registry = registry::Registry::new(cfg.genesis.clone(), self.pool.clone()).await;
         let mut next = attester::BatchNumber(0);
         loop {
             let status = loop {
                 match self.fetch_attestation_status(ctx).await {
                     Err(err) => tracing::warn!("{err:#}"),
                     Ok(status) => {
-                        if status.genesis != genesis.hash() {
+                        if status.genesis != cfg.genesis.hash() {
                             return Err(anyhow::format_err!("genesis mismatch").into());
                         }
                         if status.next_batch_to_attest >= next {
@@ -203,7 +203,7 @@ impl EN {
             let Some(committee) = registry
                 .attester_committee_for(
                     ctx,
-                    status.consensus_registry_address,
+                    cfg.registry_address,
                     status.next_batch_to_attest,
                 )
                 .await
@@ -258,24 +258,15 @@ impl EN {
         }
     }
 
-    /// Fetches genesis from the main node.
+    /// Fetches consensus global configuration from the main node.
     #[tracing::instrument(skip_all)]
-    async fn fetch_genesis(&self, ctx: &ctx::Ctx) -> ctx::Result<validator::Genesis> {
-        let genesis = ctx
-            .wait(self.client.fetch_consensus_genesis())
+    async fn fetch_global_config(&self, ctx: &ctx::Ctx) -> ctx::Result<consensus_dal::GlobalConfig> {
+        // TODO: this should internally fallback to fetch_consensus_genesis
+        let cfg = ctx.wait(self.client.fetch_consensus_global_config())
             .await?
-            .context("fetch_consensus_genesis()")?
+            .context("fetch_consensus_global_config()")?
             .context("main node is not running consensus component")?;
-        // Deserialize the json, but don't allow for unknown fields.
-        // We need to compute the hash of the Genesis, so simply ignoring the unknown fields won't
-        // do.
-        Ok(validator::GenesisRaw::read(
-            &zksync_protobuf::serde::deserialize_proto_with_options(
-                &genesis.0, /*deny_unknown_fields=*/ true,
-            )
-            .context("deserialize")?,
-        )?
-        .with_hash())
+        Ok(zksync_protobuf::serde::deserialize(&cfg.0)?)
     }
 
     #[tracing::instrument(skip_all)]

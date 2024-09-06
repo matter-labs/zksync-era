@@ -44,9 +44,17 @@ pub struct SyncBlock {
     pub protocol_version: ProtocolVersionId,
 }
 
-/// Genesis served by the main node to the external nodes.
+/// Global configuration of the consensus served by the main node to the external nodes.
+/// In particular, it contains consensus genesis.
 ///
-/// The wrapped JSON value corresponds to `zksync_consensus_roles::validator::messages::consensus::Genesis`.
+/// The wrapped JSON value corresponds to `zksync_dal::consensus::GlobalConfig`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsensusGlobalConfig(pub serde_json::Value);
+
+/// [DEPRECATED] Genesis served by the main node to the external nodes.
+/// This type is deprecated ConsensusGlobalConfig also contains genesis and is extensible.
+///
+/// The wrapped JSON value corresponds to `zksync_consensus_roles::validator::Genesis`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsensusGenesis(pub serde_json::Value);
 

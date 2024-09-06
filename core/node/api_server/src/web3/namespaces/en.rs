@@ -21,18 +21,33 @@ impl EnNamespace {
         Self { state }
     }
 
+    pub async fn consensus_global_config_impl(&self) -> Result<Option<en::ConsensusGlobalConfig>, Web3Error> {
+        let mut conn = self.state.acquire_connection().await?;
+        let Some(cfg) = conn
+            .consensus_dal()
+            .global_config()
+            .await
+            .context("global_config()")?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(en::ConsensusGlobalConfig(
+            zksync_protobuf::serde::serialize(&cfg, serde_json::value::Serializer).unwrap(),
+        )))
+    }
+
     pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
         let mut conn = self.state.acquire_connection().await?;
-        let Some(genesis) = conn
+        let Some(cfg) = conn
             .consensus_dal()
-            .genesis()
+            .global_config()
             .await
-            .map_err(DalError::generalize)?
+            .context("global_config()")?
         else {
             return Ok(None);
         };
         Ok(Some(en::ConsensusGenesis(
-            zksync_protobuf::serde::serialize(&genesis, serde_json::value::Serializer).unwrap(),
+            zksync_protobuf::serde::serialize(&cfg.genesis, serde_json::value::Serializer).unwrap(),
         )))
     }
 
@@ -40,7 +55,7 @@ impl EnNamespace {
     pub async fn attestation_status_impl(
         &self,
     ) -> Result<Option<en::AttestationStatus>, Web3Error> {
-        let Some(mut status) = self
+        let Some(status) = self
             .state
             .acquire_connection()
             .await?
@@ -58,12 +73,6 @@ impl EnNamespace {
         else {
             return Ok(None);
         };
-
-        status.consensus_registry_address = self
-            .state
-            .api_config
-            .l2_consensus_registry_addr
-            .map(zksync_contracts::consensus::Address::new);
         Ok(Some(en::AttestationStatus(
             zksync_protobuf::serde::serialize(&status, serde_json::value::Serializer).unwrap(),
         )))
