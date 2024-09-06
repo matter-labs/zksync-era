@@ -14,9 +14,9 @@ use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
-use zksync_prover_keystore::commitment_utils::get_cached_commitments;
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
-use zksync_types::basic_fri_types::AggregationRound;
+use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_witness_generator::{
@@ -52,6 +52,42 @@ struct Opt {
     /// Path to the secrets file.
     #[structopt(long)]
     secrets_path: Option<std::path::PathBuf>,
+}
+
+/// Checks if the configuration locally matches the one in the database.
+/// This function recalculates the commitment in order to check the exact code that
+/// will run, instead of loading `commitments.json` (which also may correct misaligned
+/// information).
+async fn ensure_protocol_alignment(
+    prover_pool: &ConnectionPool<Prover>,
+    protocol_version: ProtocolSemanticVersion,
+    setup_data_path: String,
+) -> anyhow::Result<()> {
+    tracing::info!("Verifying protocol alignment for {:?}", protocol_version);
+    let vk_commitments_in_db = match prover_pool
+        .connection()
+        .await
+        .unwrap()
+        .fri_protocol_versions_dal()
+        .vk_commitments_for(protocol_version)
+        .await
+    {
+        Some(commitments) => commitments,
+        None => {
+            panic!(
+                "No vk commitments available in database for a protocol version {:?}.",
+                protocol_version
+            );
+        }
+    };
+    let keystore = Keystore::new_with_setup_data_path(setup_data_path);
+    let scheduler_vk_hash = vk_commitments_in_db.snark_wrapper_vk_hash;
+    keystore
+        .verify_scheduler_vk_hash(scheduler_vk_hash)
+        .with_context(||
+            format!("VK commitments didn't match commitments from DB for protocol version {protocol_version:?}")
+        )?;
+    Ok(())
 }
 
 #[tokio::main]
@@ -103,22 +139,13 @@ async fn main() -> anyhow::Result<()> {
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
-    let vk_commitments_in_db = match prover_connection_pool
-        .connection()
-        .await
-        .unwrap()
-        .fri_protocol_versions_dal()
-        .vk_commitments_for(protocol_version)
-        .await
-    {
-        Some(commitments) => commitments,
-        None => {
-            panic!(
-                "No vk commitments available in database for a protocol version {:?}.",
-                protocol_version
-            );
-        }
-    };
+    ensure_protocol_alignment(
+        &prover_connection_pool,
+        protocol_version,
+        prover_config.setup_data_path.clone(),
+    )
+    .await
+    .unwrap_or_else(|err| panic!("Protocol alignment check failed: {:?}", err));
 
     let rounds = match (opt.round, opt.all_rounds) {
         (Some(round), false) => vec![round],
@@ -171,16 +198,6 @@ async fn main() -> anyhow::Result<()> {
 
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
-                let start = Instant::now();
-                let vk_commitments = get_cached_commitments(Some(setup_data_path.clone()));
-                let end = start.elapsed();
-                tracing::info!("Calculating commitment took: {:?}", end);
-                assert_eq!(
-                    vk_commitments,
-                    vk_commitments_in_db,
-                    "VK commitments didn't match commitments from DB for protocol version {protocol_version:?}. Cached commitments: {vk_commitments:?}, commitments in database: {vk_commitments_in_db:?}"
-                );
-
                 let public_blob_store = match config.shall_save_to_public_bucket {
                     false => None,
                     true => Some(

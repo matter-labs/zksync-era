@@ -24,7 +24,6 @@ use zksync_prover_fri_types::{
     ProverServiceDataKey,
 };
 use zksync_prover_keystore::{
-    commitment_utils::generate_commitments,
     keystore::Keystore,
     setup_data_generator::{CPUSetupDataGenerator, GPUSetupDataGenerator, SetupDataGenerator},
 };
@@ -98,7 +97,8 @@ fn generate_vks(keystore: &Keystore, jobs: usize, quiet: bool) -> anyhow::Result
     }
 
     // Let's also update the commitments file.
-    keystore.save_commitments(&generate_commitments(keystore)?)
+    let commitments = keystore.generate_commitments()?;
+    keystore.save_commitments(&commitments)
 }
 
 #[derive(Debug, Parser)]

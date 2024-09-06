@@ -8213,6 +8213,7 @@ dependencies = [
  "rand 0.8.5",
  "secrecy",
  "serde",
+ "serde_json",
  "tracing",
  "url",
  "zksync_basic_types",
@@ -8709,7 +8710,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.23.0"
+version = "24.24.0"
 dependencies = [
  "anyhow",
  "assert_matches",

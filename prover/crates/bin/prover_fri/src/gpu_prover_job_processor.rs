@@ -5,6 +5,7 @@ pub mod gpu_prover {
     use anyhow::Context as _;
     use shivini::{
         gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data, ProverContext,
+        ProverContextConfig,
     };
     use tokio::task::JoinHandle;
     use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
@@ -82,7 +83,15 @@ pub mod gpu_prover {
             address: SocketAddress,
             zone: Zone,
             protocol_version: ProtocolSemanticVersion,
+            max_allocation: Option<usize>,
         ) -> Self {
+            let prover_context = match max_allocation {
+                Some(max_allocation) => ProverContext::create_with_config(
+                    ProverContextConfig::default().with_maximum_device_allocation(max_allocation),
+                )
+                .expect("failed initializing gpu prover context"),
+                None => ProverContext::create().expect("failed initializing gpu prover context"),
+            };
             Prover {
                 blob_store,
                 public_blob_store,
@@ -91,8 +100,7 @@ pub mod gpu_prover {
                 setup_load_mode,
                 circuit_ids_for_round_to_be_proven,
                 witness_vector_queue,
-                prover_context: ProverContext::create()
-                    .expect("failed initializing gpu prover context"),
+                prover_context,
                 address,
                 zone,
                 protocol_version,
@@ -173,8 +181,11 @@ pub mod gpu_prover {
                 (),
                 &worker,
             )
-            .unwrap_or_else(|_| {
-                panic!("failed generating GPU proof for id: {}", prover_job.job_id)
+            .unwrap_or_else(|err| {
+                panic!(
+                    "failed generating GPU proof for id: {}, error: {:?}",
+                    prover_job.job_id, err
+                )
             });
             tracing::info!(
                 "Successfully generated gpu proof for job {} took: {:?}",

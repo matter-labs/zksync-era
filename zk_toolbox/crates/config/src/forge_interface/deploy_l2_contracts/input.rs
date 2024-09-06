@@ -6,6 +6,8 @@ use crate::{traits::ZkToolboxConfig, ChainConfig};
 
 impl ZkToolboxConfig for DeployL2ContractsInput {}
 
+/// Fields corresponding to `contracts/l1-contracts/deploy-script-config-template/config-deploy-l2-config.toml`
+/// which are read by `contracts/l1-contracts/deploy-scripts/DeployL2Contracts.sol`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeployL2ContractsInput {
     pub era_chain_id: L2ChainId,
@@ -14,6 +16,7 @@ pub struct DeployL2ContractsInput {
     pub bridgehub: Address,
     pub governance: Address,
     pub erc20_bridge: Address,
+    pub consensus_registry_owner: Address,
 }
 
 impl DeployL2ContractsInput {
@@ -27,6 +30,7 @@ impl DeployL2ContractsInput {
             bridgehub: contracts.ecosystem_contracts.bridgehub_proxy_addr,
             governance: wallets.governor.address,
             erc20_bridge: contracts.bridges.erc20.l1_address,
+            consensus_registry_owner: wallets.governor.address,
         })
     }
 }
