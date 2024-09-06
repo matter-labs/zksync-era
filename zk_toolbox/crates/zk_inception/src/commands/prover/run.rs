@@ -95,8 +95,8 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
 fn run_dockerized_component(
     shell: &Shell,
     image_name: &str,
-    application_args: Option<String>,
-    args: Option<String>,
+    application_args: String,
+    args: String,
     message: &'static str,
     error: &'static str,
 ) -> anyhow::Result<()> {
@@ -107,24 +107,14 @@ fn run_dockerized_component(
 
     logger::info(message);
 
-    let application_args_raw = application_args.unwrap_or_default();
-    let application_args = if application_args_raw.is_empty() {
-        None
+    let mut cmd = if application_args.is_empty() {
+        Cmd::new(cmd!(shell, "docker run {image_name} {args}"))
     } else {
-        Some(application_args_raw.as_str())
+        Cmd::new(cmd!(
+            shell,
+            "docker run {application_args} {image_name} {args}"
+        ))
     };
-
-    let args_raw = args.unwrap_or_default();
-    let args = if args_raw.is_empty() {
-        None
-    } else {
-        Some(args_raw.as_str())
-    };
-
-    let mut cmd = Cmd::new(cmd!(
-        shell,
-        "docker run {application_args} {image_name} {args}"
-    ));
 
     cmd = cmd.with_force_run();
     cmd.run().context(error)
@@ -133,31 +123,24 @@ fn run_dockerized_component(
 fn run_binary_component(
     shell: &Shell,
     binary_name: &str,
-    application_args: Option<String>,
-    args: Option<String>,
+    application_args: String,
+    args: String,
     message: &'static str,
     error: &'static str,
 ) -> anyhow::Result<()> {
     logger::info(message);
 
-    let application_args_raw = application_args.unwrap_or_default();
-    let application_args = if application_args_raw.is_empty() {
-        None
+    let mut cmd = if application_args.is_empty() {
+        Cmd::new(cmd!(
+            shell,
+            "cargo run --release --bin {binary_name} -- {args}"
+        ))
     } else {
-        Some(application_args_raw.as_str())
+        Cmd::new(cmd!(
+            shell,
+            "cargo run {application_args} --release --bin {binary_name} -- {args}"
+        ))
     };
-
-    let args_raw = args.unwrap_or_default();
-    let args = if args_raw.is_empty() {
-        None
-    } else {
-        Some(args_raw.as_str())
-    };
-
-    let mut cmd = Cmd::new(cmd!(
-        shell,
-        "cargo run {application_args} --release --bin {binary_name} -- {args}"
-    ));
     cmd = cmd.with_force_run();
     cmd.run().context(error)
 }

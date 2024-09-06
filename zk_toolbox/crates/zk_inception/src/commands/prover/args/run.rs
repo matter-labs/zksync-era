@@ -73,7 +73,7 @@ impl ProverComponent {
         in_docker: bool,
         chain: &ChainConfig,
         shell: &Shell,
-    ) -> anyhow::Result<Option<String>> {
+    ) -> anyhow::Result<String> {
         let path_to_configs = chain
             .configs
             .clone()
@@ -99,18 +99,14 @@ impl ProverComponent {
             }
         }
 
-        if application_args.clone().is_empty() {
-            Ok(None)
-        } else {
-            Ok(Some(application_args))
-        }
+        Ok(application_args)
     }
 
     pub fn get_additional_args(
         &self,
         args: ProverRunArgs,
         chain: &ChainConfig,
-    ) -> anyhow::Result<Option<String>> {
+    ) -> anyhow::Result<String> {
         let general_config = chain
             .path_to_general_config()
             .into_os_string()
@@ -159,7 +155,7 @@ impl ProverComponent {
             _ => {}
         };
 
-        Ok(Some(additional_args))
+        Ok(additional_args)
     }
 }
 
