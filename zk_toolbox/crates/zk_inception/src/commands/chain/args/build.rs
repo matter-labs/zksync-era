@@ -44,7 +44,7 @@ impl ChainBuildArgs {
             out: self
                 .out
                 .unwrap_or(DEFAULT_OUT_DIR.into())
-                .join(&chain_name.unwrap_or(default_chain)),
+                .join(chain_name.unwrap_or(default_chain)),
             forge_args: self.forge_args,
             l1_rpc_url,
         }
