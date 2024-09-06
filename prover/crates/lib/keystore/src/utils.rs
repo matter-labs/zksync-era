@@ -137,7 +137,7 @@ mod tests {
         for entry in std::fs::read_dir(path_to_input.clone()).unwrap().flatten() {
             if entry.metadata().unwrap().is_dir() {
                 let basepath = path_to_input.join(entry.file_name());
-                let keystore = Keystore::new_with_optional_setup_path(basepath.clone(), None);
+                let keystore = Keystore::new(basepath.clone());
 
                 let expected =
                     H256::from_str(&keystore.load_commitments().unwrap().snark_wrapper).unwrap();

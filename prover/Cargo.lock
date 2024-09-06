@@ -8235,8 +8235,6 @@ dependencies = [
  "shivini",
  "tracing",
  "zkevm_test_harness",
- "zksync_config",
- "zksync_env_config",
  "zksync_prover_fri_types",
  "zksync_types",
  "zksync_utils",

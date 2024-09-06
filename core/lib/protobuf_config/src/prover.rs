@@ -1,9 +1,9 @@
 use std::collections::HashSet;
 
 use anyhow::Context as _;
-use zksync_basic_types::basic_fri_types::CircuitIdRoundTuple;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
+use zksync_types::basic_fri_types::CircuitIdRoundTuple;
 
 use crate::proto::prover as proto;
 
