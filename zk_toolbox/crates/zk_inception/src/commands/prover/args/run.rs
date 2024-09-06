@@ -1,16 +1,12 @@
 use anyhow::anyhow;
 use clap::{Parser, ValueEnum};
 use common::{Prompt, PromptSelect};
-use config::{ChainConfig, EcosystemConfig};
+use config::ChainConfig;
 use strum::{EnumIter, IntoEnumIterator};
-use xshell::Shell;
 
-use crate::{
-    commands::prover::utils::get_link_to_prover,
-    messages::{
-        MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT, MSG_THREADS_PROMPT,
-        MSG_WITNESS_GENERATOR_ROUND_ERR,
-    },
+use crate::messages::{
+    MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT, MSG_THREADS_PROMPT,
+    MSG_WITNESS_GENERATOR_ROUND_ERR,
 };
 
 #[derive(Debug, Clone, Parser, Default)]
@@ -68,34 +64,14 @@ impl ProverComponent {
         }
     }
 
-    pub fn get_application_args(
-        &self,
-        in_docker: bool,
-        chain: &ChainConfig,
-        shell: &Shell,
-    ) -> anyhow::Result<String> {
-        let path_to_configs = chain
-            .configs
-            .clone()
-            .into_os_string()
-            .into_string()
-            .map_err(|_| anyhow!("Failed to convert path to string"))?;
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
-        let path_to_prover = get_link_to_prover(&ecosystem_config)
-            .into_os_string()
-            .into_string()
-            .map_err(|_| anyhow!("Failed to convert path to string"))?;
-
-        let mut application_args = match in_docker{
-            true => format!("--net=host -v {path_to_prover}/data/keys:/prover/data/keys -v {path_to_prover}/artifacts:/artifacts -v {path_to_configs}:/configs"),
-            false => "".to_string(),
-        };
+    pub fn get_application_args(&self, in_docker: bool) -> anyhow::Result<Vec<String>> {
+        let mut application_args = vec![];
 
         if self == &Self::Prover || self == &Self::Compressor {
             if in_docker {
-                application_args += " --gpus=all";
+                application_args.push("--gpus=all".to_string());
             } else {
-                application_args += "--features gpu";
+                application_args.push("--features=gpu".to_string());
             }
         }
 
@@ -106,7 +82,7 @@ impl ProverComponent {
         &self,
         args: ProverRunArgs,
         chain: &ChainConfig,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<Vec<String>> {
         let general_config = chain
             .path_to_general_config()
             .into_os_string()
@@ -118,38 +94,41 @@ impl ProverComponent {
             .into_string()
             .map_err(|_| anyhow!("Failed to convert path to string"))?;
 
-        let mut additional_args =
-            format!("--config-path={general_config} --secrets-path={secrets_config}");
+        let mut additional_args = vec![
+            format!("--config-path={}", general_config),
+            format!("--secrets-path={}", secrets_config),
+        ];
 
         match self {
             Self::WitnessGenerator => {
-                additional_args += match args
-                    .witness_generator_args
-                    .round
-                    .expect(MSG_WITNESS_GENERATOR_ROUND_ERR)
-                {
-                    WitnessGeneratorRound::AllRounds => " --all_rounds",
-                    WitnessGeneratorRound::BasicCircuits => " --round=basic_circuits",
-                    WitnessGeneratorRound::LeafAggregation => " --round=leaf_aggregation",
-                    WitnessGeneratorRound::NodeAggregation => " --round=node_aggregation",
-                    WitnessGeneratorRound::RecursionTip => " --round=recursion_tip",
-                    WitnessGeneratorRound::Scheduler => " --round=scheduler",
-                };
+                additional_args.push(
+                    match args
+                        .witness_generator_args
+                        .round
+                        .expect(MSG_WITNESS_GENERATOR_ROUND_ERR)
+                    {
+                        WitnessGeneratorRound::AllRounds => "--all_rounds",
+                        WitnessGeneratorRound::BasicCircuits => "--round=basic_circuits",
+                        WitnessGeneratorRound::LeafAggregation => "--round=leaf_aggregation",
+                        WitnessGeneratorRound::NodeAggregation => "--round=node_aggregation",
+                        WitnessGeneratorRound::RecursionTip => "--round=recursion_tip",
+                        WitnessGeneratorRound::Scheduler => "--round=scheduler",
+                    }
+                    .to_string(),
+                );
             }
             Self::WitnessVectorGenerator => {
-                additional_args += format!(
-                    " --threads={}",
+                additional_args.push(format!(
+                    "--threads={}",
                     args.witness_vector_generator_args.threads.unwrap_or(1)
-                )
-                .as_str();
+                ));
             }
             Self::Prover => {
                 if args.fri_prover_args.max_allocation.is_some() {
-                    additional_args += format!(
-                        " --max-allocation={}",
+                    additional_args.push(format!(
+                        "--max-allocation={}",
                         args.fri_prover_args.max_allocation.unwrap()
-                    )
-                    .as_str();
+                    ));
                 };
             }
             _ => {}

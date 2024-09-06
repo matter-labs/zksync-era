@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::{anyhow, Context};
 use common::{
     check_prerequisites, cmd::Cmd, config::global_config, logger, spinner::Spinner,
@@ -31,7 +33,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
     let component = args.component.context(anyhow!(MSG_MISSING_COMPONENT_ERR))?;
     let in_docker = args.docker.unwrap_or(false);
 
-    let application_args = component.get_application_args(in_docker, &chain, shell)?;
+    let application_args = component.get_application_args(in_docker)?;
     let additional_args = component.get_additional_args(args, &chain)?;
 
     let (message, error) = match component {
@@ -70,20 +72,25 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
     };
 
     if in_docker {
+        let path_to_configs = chain.configs.clone();
+        let ecosystem_config = EcosystemConfig::from_file(shell)?;
+        let path_to_prover = get_link_to_prover(&ecosystem_config);
         run_dockerized_component(
             shell,
             component.image_name(),
-            application_args,
-            additional_args,
+            &application_args,
+            &additional_args,
             message,
             error,
+            &path_to_configs,
+            &path_to_prover,
         )?
     } else {
         run_binary_component(
             shell,
             component.binary_name(),
-            application_args,
-            additional_args,
+            &application_args,
+            &additional_args,
             message,
             error,
         )?
@@ -95,10 +102,12 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
 fn run_dockerized_component(
     shell: &Shell,
     image_name: &str,
-    application_args: String,
-    args: String,
+    application_args: &[String],
+    args: &[String],
     message: &'static str,
     error: &'static str,
+    path_to_configs: &PathBuf,
+    path_to_prover: &PathBuf,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(&format!("Pulling image {}...", image_name));
     let pull_cmd = Cmd::new(cmd!(shell, "docker pull {image_name}"));
@@ -107,14 +116,10 @@ fn run_dockerized_component(
 
     logger::info(message);
 
-    let mut cmd = if application_args.is_empty() {
-        Cmd::new(cmd!(shell, "docker run {image_name} {args}"))
-    } else {
-        Cmd::new(cmd!(
-            shell,
-            "docker run {application_args} {image_name} {args}"
-        ))
-    };
+    let mut cmd = Cmd::new(cmd!(
+        shell,
+        "docker run --net=host -v {path_to_prover}/data/keys:/prover/data/keys -v {path_to_prover}/artifacts:/artifacts -v {path_to_configs}:/configs {application_args...} {image_name} {args...}"
+    ));
 
     cmd = cmd.with_force_run();
     cmd.run().context(error)
@@ -123,24 +128,17 @@ fn run_dockerized_component(
 fn run_binary_component(
     shell: &Shell,
     binary_name: &str,
-    application_args: String,
-    args: String,
+    application_args: &[String],
+    args: &[String],
     message: &'static str,
     error: &'static str,
 ) -> anyhow::Result<()> {
     logger::info(message);
 
-    let mut cmd = if application_args.is_empty() {
-        Cmd::new(cmd!(
-            shell,
-            "cargo run --release --bin {binary_name} -- {args}"
-        ))
-    } else {
-        Cmd::new(cmd!(
-            shell,
-            "cargo run {application_args} --release --bin {binary_name} -- {args}"
-        ))
-    };
+    let mut cmd = Cmd::new(cmd!(
+        shell,
+        "cargo run {application_args...} --release --bin {binary_name} -- {args...}"
+    ));
     cmd = cmd.with_force_run();
     cmd.run().context(error)
 }
