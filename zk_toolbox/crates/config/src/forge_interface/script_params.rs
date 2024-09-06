@@ -50,6 +50,12 @@ pub const REGISTER_CHAIN_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     script_path: "deploy-scripts/RegisterHyperchain.s.sol",
 };
 
+pub const BUILD_CHAIN_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/register-hyperchain.toml",
+    output: "script-out/output-register-hyperchain.toml",
+    script_path: "deploy-scripts/RegisterHyperchain.s.sol",
+};
+
 pub const DEPLOY_ERC20_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-erc20.toml",
     output: "script-out/output-deploy-erc20.toml",

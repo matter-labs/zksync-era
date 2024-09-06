@@ -174,6 +174,7 @@ pub(super) const MSG_INITIALIZING_SERVER_DATABASE: &str = "Initializing server d
 pub(super) const MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR: &str = "Failed to drop server database";
 pub(super) const MSG_INITIALIZING_PROVER_DATABASE: &str = "Initializing prover database";
 pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop prover database";
+
 /// Chain update related messages
 pub(super) const MSG_WALLETS_CONFIG_MUST_BE_PRESENT: &str = "Wallets configuration must be present";
 
@@ -206,6 +207,9 @@ pub(super) const MSG_DEPLOYING_L2_CONTRACT_SPINNER: &str = "Deploying l2 contrac
 
 /// Chain deploy paymaster related messages
 pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
+
+/// Chain build related messages
+pub(super) const MSG_CHAIN_BUILD_OUT_PATH_INVALID_ERR: &str = "Invalid path";
 
 /// Run server related messages
 pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run";

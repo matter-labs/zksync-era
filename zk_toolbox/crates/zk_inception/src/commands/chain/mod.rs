@@ -1,4 +1,4 @@
-use args::build::BuildArgs;
+use args::build::ChainBuildArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::Subcommand;
 use common::forge::ForgeScriptArgs;
@@ -24,7 +24,7 @@ pub enum ChainCommands {
     /// Create a new chain, setting the necessary configurations for later initialization
     Create(ChainCreateArgs),
     /// Create unsigned transactions for chain deployment
-    Build(BuildArgs),
+    Build(ChainBuildArgs),
     /// Initialize chain, deploying necessary contracts and performing on-chain operations
     Init(InitArgs),
     /// Run server genesis
