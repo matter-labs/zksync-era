@@ -110,3 +110,8 @@ impl CoinGeckoPriceResponse {
             .and_then(|price| price.get(currency))
     }
 }
+
+#[cfg(test)]
+mod test {
+    fn setup() {}
+}
