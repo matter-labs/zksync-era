@@ -91,7 +91,7 @@ validation_computational_gas_limit = 300000
 save_call_traces = true
 
 bootloader_hash = "0x010008e742608b21bf7eb23c1a9d0602047e3618b464c9b59c0fba3b3d7ab66e"
-default_aa_hash = "0x01000567eb1d0eac3e32d1a5b5a0ececcbaf7a0b38b3fd7ce1eb8ff8296ef544"
+default_aa_hash = "0x01000567733d4b06580bf578289c772764448ebf93e0da1db85f01da658302a5"
 
 [chain.operations_manager]
 # Sleep time when there is no new input data

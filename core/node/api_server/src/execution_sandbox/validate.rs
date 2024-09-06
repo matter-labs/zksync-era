@@ -11,6 +11,7 @@ use zksync_multivm::{
     vm_latest::HistoryDisabled,
     MultiVMTracer,
 };
+use zksync_system_constants::PASSKEY_BINDER_ADDRESS;
 use zksync_types::{l2::L2Tx, Address, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
 
 use super::{
@@ -148,7 +149,8 @@ async fn get_validation_params(
         .collect();
 
     // We currently don't support any specific trusted addresses.
-    let trusted_addresses = HashSet::new();
+    let mut trusted_addresses = HashSet::new();
+    trusted_addresses.insert(PASSKEY_BINDER_ADDRESS);
 
     // The slots the value of which will be added as allowed address on the fly.
     // Required for working with transparent proxies.
