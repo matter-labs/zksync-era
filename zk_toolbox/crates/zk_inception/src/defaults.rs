@@ -7,6 +7,8 @@ lazy_static! {
         Url::parse("postgres://postgres:notsecurepassword@localhost:5432").unwrap();
     pub static ref DATABASE_PROVER_URL: Url =
         Url::parse("postgres://postgres:notsecurepassword@localhost:5432").unwrap();
+    pub static ref DATABASE_EXPLORER_URL: Url =
+        Url::parse("postgres://postgres:notsecurepassword@localhost:5432").unwrap();
 }
 
 pub const ROCKS_DB_STATE_KEEPER: &str = "state_keeper";
@@ -38,6 +40,14 @@ pub fn generate_db_names(config: &ChainConfig) -> DBNames {
             config.name
         ),
     }
+}
+
+pub fn generate_explorer_db_name(config: &ChainConfig) -> String {
+    format!(
+        "zksync_explorer_{}_{}",
+        config.l1_network.to_string().to_ascii_lowercase(),
+        config.name
+    )
 }
 
 pub fn generate_external_node_db_name(config: &ChainConfig) -> String {
