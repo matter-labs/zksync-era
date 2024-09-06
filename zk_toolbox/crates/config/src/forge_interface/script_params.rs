@@ -32,12 +32,6 @@ pub const DEPLOY_ECOSYSTEM_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams 
     script_path: "deploy-scripts/DeployL1.s.sol",
 };
 
-pub const BUILD_ECOSYSTEM_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/config-deploy-l1.build.toml",
-    output: "script-out/output-deploy-l1.build.toml",
-    script_path: "deploy-scripts/DeployL1.s.sol",
-};
-
 pub const DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/config-deploy-l2-contracts.toml",
     output: "script-out/output-deploy-l2-contracts.toml",
@@ -45,12 +39,6 @@ pub const DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptPara
 };
 
 pub const REGISTER_CHAIN_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/register-hyperchain.toml",
-    output: "script-out/output-register-hyperchain.toml",
-    script_path: "deploy-scripts/RegisterHyperchain.s.sol",
-};
-
-pub const BUILD_CHAIN_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
     input: "script-config/register-hyperchain.toml",
     output: "script-out/output-register-hyperchain.toml",
     script_path: "deploy-scripts/RegisterHyperchain.s.sol",

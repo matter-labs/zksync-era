@@ -4,12 +4,12 @@ use config::{
     copy_configs,
     forge_interface::{
         register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
-        script_params::{BUILD_CHAIN_SCRIPT_PARAMS, REGISTER_CHAIN_SCRIPT_PARAMS},
+        script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     EcosystemConfig,
 };
-use ethers::{abi::AbiEncode, utils::hex::ToHex};
+use ethers::utils::hex::ToHex;
 use xshell::Shell;
 
 use crate::{
@@ -53,7 +53,10 @@ pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<(
     deploy_config.save(shell, deploy_config_path)?;
 
     Forge::new(&config.path_to_foundry())
-        .script(&BUILD_CHAIN_SCRIPT_PARAMS.script(), args.forge_args.clone())
+        .script(
+            &REGISTER_CHAIN_SCRIPT_PARAMS.script(),
+            args.forge_args.clone(),
+        )
         .with_ffi()
         .with_sender(config.get_wallets()?.governor.address.encode_hex_upper())
         .with_rpc_url(args.l1_rpc_url.clone())
@@ -61,7 +64,7 @@ pub(crate) async fn run(args: ChainBuildArgs, shell: &Shell) -> anyhow::Result<(
 
     let register_chain_output = RegisterChainOutput::read(
         shell,
-        BUILD_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
+        REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
     )?;
     contracts_config.set_chain_contracts(&register_chain_output);
 
