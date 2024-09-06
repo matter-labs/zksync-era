@@ -350,7 +350,7 @@ impl ProverInitArgs {
             .download_key
             .unwrap_or_else(|| {
                 PromptConfirm::new(MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT)
-                    .default(true)
+                    .default(false)
                     .ask()
             });
         let setup_key_path = self
