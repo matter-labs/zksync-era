@@ -110,6 +110,7 @@ pub(super) fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<node
 pub(super) fn executor(
     cfg: &ConsensusConfig,
     secrets: &ConsensusSecrets,
+    build_version: Option<semver::Version>,
 ) -> anyhow::Result<executor::Config> {
     let mut gossip_static_outbound = HashMap::new();
     {
@@ -134,8 +135,7 @@ pub(super) fn executor(
     };
 
     Ok(executor::Config {
-        // TODO
-        build_version: None,
+        build_version,
         server_addr: cfg.server_addr,
         public_addr: net::Host(cfg.public_addr.0.clone()),
         max_payload_size: cfg.max_payload_size,

@@ -40,6 +40,7 @@ impl EN {
         actions: ActionQueueSender,
         cfg: ConsensusConfig,
         secrets: ConsensusSecrets,
+        build_version: Option<semver::Version>,
     ) -> anyhow::Result<()> {
         let attester = config::attester_key(&secrets).context("attester_key")?;
 
@@ -124,7 +125,7 @@ impl EN {
             ));
 
             let executor = executor::Executor {
-                config: config::executor(&cfg, &secrets)?,
+                config: config::executor(&cfg, &secrets, build_version)?,
                 block_store,
                 batch_store,
                 validator: config::validator_key(&secrets)
@@ -324,7 +325,7 @@ impl EN {
                 Ok(Some(block)) => return Ok(block.try_into()?),
                 Ok(None) => {}
                 Err(err) if is_retriable(&err) => {}
-                Err(err) => Err(err).with_context(|| format!("client.fetch_l2_block({n})"))?,
+                Err(err) => Err(err).with_context(|| format!("client.sync_l2_block({n})"))?,
             }
             ctx.sleep(RETRY_INTERVAL).await?;
         }

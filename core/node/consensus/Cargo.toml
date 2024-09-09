@@ -47,6 +47,7 @@ tracing.workspace = true
 hex.workspace = true
 tokio.workspace = true
 jsonrpsee.workspace = true
+semver.workspace = true
 
 [dev-dependencies]
 zksync_node_genesis.workspace = true

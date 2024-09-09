@@ -69,16 +69,12 @@ impl VM {
             vec![],
             Default::default(),
         );
-        let args = self
-            .pool
-            .connection(ctx)
-            .await
-            .wrap("connection()")?
+        let permit = ctx.wait(self.limiter.acquire()).await?.unwrap();
+        let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
+        let args = conn
             .vm_block_args(ctx, batch)
             .await
             .wrap("vm_block_args()")?;
-        let permit = ctx.wait(self.limiter.acquire()).await?.unwrap();
-        let conn = self.pool.connection(ctx).await.wrap("connection()")?;
         let output = ctx
             .wait(TransactionExecutor::real(usize::MAX).execute_tx_in_sandbox(
                 permit,

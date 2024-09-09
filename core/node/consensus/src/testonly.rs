@@ -460,7 +460,13 @@ impl StateKeeper {
             client,
             sync_state: self.sync_state.clone(),
         }
-        .run(ctx, self.actions_sender, cfgs.config, cfgs.secrets)
+        .run(
+            ctx,
+            self.actions_sender,
+            cfgs.config,
+            cfgs.secrets,
+            cfgs.net.build_version,
+        )
         .await
     }
 }

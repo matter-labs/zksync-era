@@ -81,7 +81,7 @@ pub async fn run_main_node(
         ));
 
         let executor = executor::Executor {
-            config: config::executor(&cfg, &secrets)?,
+            config: config::executor(&cfg, &secrets, None)?,
             block_store,
             batch_store,
             validator: Some(executor::Validator {
