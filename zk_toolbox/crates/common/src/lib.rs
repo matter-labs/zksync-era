@@ -15,8 +15,8 @@ pub mod server;
 pub mod wallets;
 
 pub use prerequisites::{
-    check_general_prerequisites, check_prerequisites, GCLOUD_PREREQUISITES, GPU_PREREQUISITES,
-    WGET_PREREQUISITES,
+    check_general_prerequisites, check_prerequisites, GCLOUD_PREREQUISITE, GPU_PREREQUISITES,
+    PROVER_CLI_PREREQUISITE, WGET_PREREQUISITE,
 };
 pub use prompt::{init_prompt_theme, Prompt, PromptConfirm, PromptSelect};
 pub use term::{error, logger, spinner};

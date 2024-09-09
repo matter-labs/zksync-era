@@ -1,4 +1,5 @@
 use anyhow::Context as _;
+use std::path::PathBuf;
 use std::{fs, path::Path};
 
 use crate::messages::MSG_CHAIN_NOT_FOUND_ERR;
@@ -16,26 +17,30 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     let prover_url = get_database_url(shell).await?;
 
     logger::info(format!(
-        r#"
-    Current prover setup information:
-    Protocol version: {}
-    Snark wrapper: {}
-    Database URL: {}
-    "#,
+        "
+=============================== \
+Current prover setup information: \
+Protocol version: {} \
+Snark wrapper: {} \
+Database URL: {}\
+===============================",
         protocol_version, snark_wrapper, prover_url
     ));
 
     Ok(())
 }
 
-async fn get_protocol_version(shell: &Shell, link_to_prover: &Path) -> anyhow::Result<String> {
+pub(crate) async fn get_protocol_version(
+    shell: &Shell,
+    link_to_prover: &PathBuf,
+) -> anyhow::Result<String> {
     shell.change_dir(link_to_prover);
     let protocol_version = cmd!(shell, "cargo run --release --bin prover_version").read()?;
 
     Ok(protocol_version)
 }
 
-async fn get_snark_wrapper(link_to_prover: &Path) -> anyhow::Result<String> {
+pub(crate) async fn get_snark_wrapper(link_to_prover: &PathBuf) -> anyhow::Result<String> {
     let path = link_to_prover.join("data/keys/commitments.json");
     let file = fs::File::open(path).expect("Could not find commitments file in zksync-era");
     let json: serde_json::Value =
@@ -48,7 +53,7 @@ async fn get_snark_wrapper(link_to_prover: &Path) -> anyhow::Result<String> {
     Ok(snark_wrapper.to_string())
 }
 
-async fn get_database_url(shell: &Shell) -> anyhow::Result<String> {
+pub(crate) async fn get_database_url(shell: &Shell) -> anyhow::Result<String> {
     let ecosystem = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem
         .load_chain(global_config().chain_name.clone())

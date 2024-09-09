@@ -290,3 +290,10 @@ fn find_file(shell: &Shell, path_buf: PathBuf, file_name: &str) -> Result<PathBu
         find_file(shell, path.to_path_buf(), file_name)
     }
 }
+
+pub fn get_link_to_prover(config: &EcosystemConfig) -> PathBuf {
+    let link_to_code = config.link_to_code.clone();
+    let mut link_to_prover = link_to_code.into_os_string();
+    link_to_prover.push("/prover");
+    link_to_prover.into()
+}

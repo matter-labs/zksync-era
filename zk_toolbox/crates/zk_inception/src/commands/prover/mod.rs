@@ -10,7 +10,6 @@ mod init;
 mod init_bellman_cuda;
 mod run;
 mod setup_keys;
-mod utils;
 
 #[derive(Subcommand, Debug)]
 pub enum ProverCommands {

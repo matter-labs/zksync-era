@@ -1,16 +1,15 @@
 use anyhow::Ok;
 use common::{
-    check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITES,
-    GPU_PREREQUISITES,
+    check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE, GPU_PREREQUISITES,
 };
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
-use super::utils::get_link_to_prover;
 use crate::{
     commands::prover::args::setup_keys::{Mode, Region, SetupKeysArgs},
     messages::{MSG_GENERATING_SK_SPINNER, MSG_SK_GENERATED},
 };
+use config::get_link_to_prover;
 
 pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
@@ -33,7 +32,7 @@ pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()
         spinner.finish();
         logger::outro(MSG_SK_GENERATED);
     } else {
-        check_prerequisites(shell, &GCLOUD_PREREQUISITES, false);
+        check_prerequisites(shell, &GCLOUD_PREREQUISITE, false);
 
         let link_to_setup_keys = get_link_to_prover(&ecosystem_config).join("data/keys");
         let path_to_keys_buckets =
