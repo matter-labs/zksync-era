@@ -176,7 +176,11 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H::Vm1_5_0> for ValidationTrac
         state: &mut ZkSyncVmState<S, H::Vm1_5_0>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
-        self.gas_limiter.finish_cycle(state);
+        self.gas_limiter.finish_cycle(
+            state,
+            self.computational_gas_limit,
+            &mut self.computational_gas_used,
+        );
 
         if self.should_stop_execution {
             return TracerExecutionStatus::Stop(TracerExecutionStopReason::Finish);

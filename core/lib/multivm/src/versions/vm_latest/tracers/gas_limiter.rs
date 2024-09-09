@@ -5,7 +5,6 @@ use crate::vm_latest::{HistoryMode, ZkSyncVmState};
 #[derive(Debug, Clone)]
 pub(crate) struct GasLimiter {
     withheld_gas: WithheldGas,
-    remaining_gas_limit: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -17,10 +16,9 @@ enum WithheldGas {
 }
 
 impl GasLimiter {
-    pub fn new(gas_limit: u32) -> Self {
+    pub fn new() -> Self {
         Self {
             withheld_gas: WithheldGas::None,
-            remaining_gas_limit: gas_limit,
         }
     }
 
@@ -40,6 +38,8 @@ impl GasLimiter {
     pub fn finish_cycle<S: WriteStorage, H: HistoryMode>(
         &mut self,
         state: &mut ZkSyncVmState<S, H>,
+        gas_limit: u32,
+        gas_used: &mut u32,
     ) {
         match self.withheld_gas {
             WithheldGas::Pending => {
@@ -48,7 +48,7 @@ impl GasLimiter {
                     .callstack
                     .current
                     .ergs_remaining
-                    .saturating_sub(self.remaining_gas_limit);
+                    .saturating_sub(gas_limit - *gas_used);
                 state.local_state.callstack.current.ergs_remaining -= to_remove;
                 self.withheld_gas = WithheldGas::Withholding {
                     withheld: to_remove,
@@ -56,8 +56,7 @@ impl GasLimiter {
                 };
             }
             WithheldGas::PendingRelease { withheld, provided } => {
-                self.remaining_gas_limit -=
-                    provided - state.local_state.callstack.current.ergs_remaining;
+                *gas_used += provided - state.local_state.callstack.current.ergs_remaining;
                 state.local_state.callstack.current.ergs_remaining += withheld;
                 self.withheld_gas = WithheldGas::None;
             }

@@ -43,6 +43,9 @@ pub(crate) struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
     execution_mode: VmExecutionMode,
 
     tx_validation_gas_limiter: GasLimiter,
+    computational_gas_limit: u32,
+    computational_gas_used: u32,
+
     final_batch_info_requested: bool,
     pub(crate) result_tracer: ResultTracer<S>,
     // This tracer is designed specifically for calculating refunds. Its separation from the custom tracer
@@ -77,7 +80,9 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         Self {
             tx_has_been_processed: false,
             execution_mode,
-            tx_validation_gas_limiter: GasLimiter::new(computational_gas_limit),
+            tx_validation_gas_limiter: GasLimiter::new(),
+            computational_gas_limit,
+            computational_gas_used: 0,
             final_batch_info_requested: false,
             subversion,
             result_tracer: ResultTracer::new(execution_mode, subversion),
@@ -243,7 +248,11 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
-        self.tx_validation_gas_limiter.finish_cycle(state);
+        self.tx_validation_gas_limiter.finish_cycle(
+            state,
+            self.computational_gas_limit,
+            &mut self.computational_gas_used,
+        );
 
         if self.final_batch_info_requested {
             self.set_fictive_l2_block(state, bootloader_state)
