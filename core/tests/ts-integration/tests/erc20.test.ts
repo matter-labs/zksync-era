@@ -227,7 +227,9 @@ describe('ERC20 contract checks', () => {
         testMaster.reporter.debug('B#');
         // approving the needed allowance for the deposit
         await (
-            await alice.approveERC20(tokenDetails.l1Address, tokenDepositAmount, { gasPerPubdata: 4_000_000_000 } as any)
+            await alice.approveERC20(tokenDetails.l1Address, tokenDepositAmount, {
+                gasPerPubdata: 4_000_000_000
+            } as any)
         ).wait();
 
         testMaster.reporter.debug('C#');
