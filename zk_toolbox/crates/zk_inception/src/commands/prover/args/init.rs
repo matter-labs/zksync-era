@@ -462,7 +462,7 @@ impl ProverInitArgs {
 
     fn fill_bellman_cuda_values_with_prompt(&self) -> anyhow::Result<Option<InitBellmanCudaArgs>> {
         let init_bellman_cuda = if self.bellman_cuda_config.bellman_cuda_dir.is_none() {
-            PromptConfirm::new("Do you want to setup bellman-cuda?(You can do it later by running `zk_inception prover init-bellman-cuda`)").default(false).ask()
+            PromptConfirm::new("Do you want to setup bellman-cuda? (You can do it later by running `zk_inception prover init-bellman-cuda`)").default(false).ask()
         } else {
             true
         };

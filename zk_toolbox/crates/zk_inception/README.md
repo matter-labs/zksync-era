@@ -514,8 +514,8 @@ Run prover
 
 - `--threads <THREADS>`
 
-- `--max-allocation <MAX_ALLOCATION>` - in case you are running prover component, the value limits maximum memory
-  allocation of it.
+- `--max-allocation <MAX_ALLOCATION_IN_BYTES>` - in case you are running prover component, the value limits maximum
+  memory allocation of it in bytes.
 
 ## `zk_inception prover init-bellman-cuda`
 

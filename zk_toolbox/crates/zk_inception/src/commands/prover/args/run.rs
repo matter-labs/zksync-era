@@ -4,9 +4,18 @@ use common::{Prompt, PromptSelect};
 use config::ChainConfig;
 use strum::{EnumIter, IntoEnumIterator};
 
-use crate::messages::{
-    MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT, MSG_THREADS_PROMPT,
-    MSG_WITNESS_GENERATOR_ROUND_ERR,
+use crate::{
+    consts::{
+        COMPRESSOR_BINARY_NAME, COMPRESSOR_DOCKER_IMAGE, PROVER_BINARY_NAME, PROVER_DOCKER_IMAGE,
+        PROVER_GATEWAY_BINARY_NAME, PROVER_GATEWAY_DOCKER_IMAGE, PROVER_JOB_MONITOR_BINARY_NAME,
+        PROVER_JOB_MONITOR_DOCKER_IMAGE, WITNESS_GENERATOR_BINARY_NAME,
+        WITNESS_GENERATOR_DOCKER_IMAGE, WITNESS_VECTOR_GENERATOR_BINARY_NAME,
+        WITNESS_VECTOR_GENERATOR_DOCKER_IMAGE,
+    },
+    messages::{
+        MSG_ROUND_SELECT_PROMPT, MSG_RUN_COMPONENT_PROMPT, MSG_THREADS_PROMPT,
+        MSG_WITNESS_GENERATOR_ROUND_ERR,
+    },
 };
 
 #[derive(Debug, Clone, Parser, Default)]
@@ -44,23 +53,23 @@ pub enum ProverComponent {
 impl ProverComponent {
     pub fn image_name(&self) -> &'static str {
         match self {
-            Self::Gateway => "matterlabs/prover-fri-gateway:latest2.0",
-            Self::WitnessGenerator => "matterlabs/witness-generator:latest2.0",
-            Self::WitnessVectorGenerator => "matterlabs/witness-vector-generator:latest2.0",
-            Self::Prover => "matterlabs/prover-gpu-fri:latest2.0",
-            Self::Compressor => "matterlabs/proof-fri-gpu-compressor:latest2.0",
-            Self::ProverJobMonitor => "matterlabs/prover-job-monitor:latest2.0",
+            Self::Gateway => PROVER_GATEWAY_DOCKER_IMAGE,
+            Self::WitnessGenerator => WITNESS_GENERATOR_DOCKER_IMAGE,
+            Self::WitnessVectorGenerator => WITNESS_VECTOR_GENERATOR_DOCKER_IMAGE,
+            Self::Prover => PROVER_DOCKER_IMAGE,
+            Self::Compressor => COMPRESSOR_DOCKER_IMAGE,
+            Self::ProverJobMonitor => PROVER_JOB_MONITOR_DOCKER_IMAGE,
         }
     }
 
     pub fn binary_name(&self) -> &'static str {
         match self {
-            Self::Gateway => "zksync_prover_fri_gateway",
-            Self::WitnessGenerator => "zksync_witness_generator",
-            Self::WitnessVectorGenerator => "zksync_witness_vector_generator",
-            Self::Prover => "zksync_prover_fri",
-            Self::Compressor => "zksync_proof_fri_compressor",
-            Self::ProverJobMonitor => "zksync_prover_job_monitor",
+            Self::Gateway => PROVER_GATEWAY_BINARY_NAME,
+            Self::WitnessGenerator => WITNESS_GENERATOR_BINARY_NAME,
+            Self::WitnessVectorGenerator => WITNESS_VECTOR_GENERATOR_BINARY_NAME,
+            Self::Prover => PROVER_BINARY_NAME,
+            Self::Compressor => COMPRESSOR_BINARY_NAME,
+            Self::ProverJobMonitor => PROVER_JOB_MONITOR_BINARY_NAME,
         }
     }
 
@@ -189,6 +198,7 @@ impl WitnessVectorGeneratorArgs {
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct FriProverRunArgs {
+    /// Memory allocation limit in bytes (for prover component)
     #[clap(long)]
     pub max_allocation: Option<usize>,
 }

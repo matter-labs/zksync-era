@@ -16,8 +16,9 @@ use crate::messages::{
     MSG_BELLMAN_CUDA_DIR_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_MISSING_COMPONENT_ERR,
     MSG_RUNNING_COMPRESSOR, MSG_RUNNING_COMPRESSOR_ERR, MSG_RUNNING_PROVER, MSG_RUNNING_PROVER_ERR,
     MSG_RUNNING_PROVER_GATEWAY, MSG_RUNNING_PROVER_GATEWAY_ERR, MSG_RUNNING_PROVER_JOB_MONITOR,
-    MSG_RUNNING_WITNESS_GENERATOR, MSG_RUNNING_WITNESS_GENERATOR_ERR,
-    MSG_RUNNING_WITNESS_VECTOR_GENERATOR, MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR,
+    MSG_RUNNING_PROVER_JOB_MONITOR_ERR, MSG_RUNNING_WITNESS_GENERATOR,
+    MSG_RUNNING_WITNESS_GENERATOR_ERR, MSG_RUNNING_WITNESS_VECTOR_GENERATOR,
+    MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR,
 };
 
 pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -66,7 +67,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
         }
         ProverComponent::ProverJobMonitor => (
             MSG_RUNNING_PROVER_JOB_MONITOR,
-            MSG_RUNNING_PROVER_JOB_MONITOR,
+            MSG_RUNNING_PROVER_JOB_MONITOR_ERR,
         ),
         ProverComponent::Gateway => (MSG_RUNNING_PROVER_GATEWAY, MSG_RUNNING_PROVER_GATEWAY_ERR),
     };
@@ -108,11 +109,6 @@ fn run_dockerized_component(
     path_to_configs: &PathBuf,
     path_to_prover: &PathBuf,
 ) -> anyhow::Result<()> {
-    let spinner = Spinner::new(&format!("Pulling image {}...", image_name));
-    let pull_cmd = Cmd::new(cmd!(shell, "docker pull {image_name}"));
-    pull_cmd.run().context(error)?;
-    spinner.finish();
-
     logger::info(message);
 
     let mut cmd = Cmd::new(cmd!(
