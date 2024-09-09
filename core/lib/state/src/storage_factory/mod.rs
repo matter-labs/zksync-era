@@ -7,14 +7,18 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_storage::RocksDB;
 use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 use zksync_utils::u256_to_h256;
-use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot, StorageWithSnapshot};
+use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot};
 
 use self::metrics::{SnapshotStage, SNAPSHOT_METRICS};
-pub use self::rocksdb_with_memory::{BatchDiff, RocksdbWithMemory};
+pub use self::{
+    rocksdb_with_memory::{BatchDiff, RocksdbWithMemory},
+    snapshot::SnapshotStorage,
+};
 use crate::{PostgresStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};
 
 mod metrics;
 mod rocksdb_with_memory;
+mod snapshot;
 
 /// Union of all [`ReadStorage`] implementations that are returned by [`ReadStorageFactory`], such as
 /// Postgres- and RocksDB-backed storages.
@@ -30,7 +34,7 @@ pub enum CommonStorage<'a> {
     /// Implementation over a RocksDB cache instance with in-memory DB diffs.
     RocksdbWithMemory(RocksdbWithMemory),
     /// In-memory storage snapshot with the Postgres storage fallback.
-    Snapshot(StorageWithSnapshot<PostgresStorage<'a>>),
+    Snapshot(SnapshotStorage<'a>),
     /// Generic implementation. Should be used for testing purposes only since it has performance penalty because
     /// of the dynamic dispatch.
     Boxed(Box<dyn ReadStorage + Send + 'a>),
@@ -274,8 +278,8 @@ impl From<RocksdbStorage> for CommonStorage<'_> {
     }
 }
 
-impl<'a> From<StorageWithSnapshot<PostgresStorage<'a>>> for CommonStorage<'a> {
-    fn from(value: StorageWithSnapshot<PostgresStorage<'a>>) -> Self {
+impl<'a> From<SnapshotStorage<'a>> for CommonStorage<'a> {
+    fn from(value: SnapshotStorage<'a>) -> Self {
         Self::Snapshot(value)
     }
 }

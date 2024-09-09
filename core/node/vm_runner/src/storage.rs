@@ -86,7 +86,7 @@ impl StorageLoader for PostgresLoader {
 
         if let Some(snapshot) = OwnedStorage::snapshot(&mut conn, l1_batch_number).await? {
             let postgres = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
-            let storage = snapshot.with_fallback(postgres, self.shadow_snapshots);
+            let storage = snapshot.with_fallback(postgres.into(), self.shadow_snapshots);
             let storage = OwnedStorage::from(storage);
             return Ok(Some((data, storage)));
         }
