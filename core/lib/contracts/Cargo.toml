@@ -13,7 +13,6 @@ categories.workspace = true
 [dependencies]
 zksync_utils.workspace = true
 
-anyhow.workspace = true
 ethabi.workspace = true
 serde_json.workspace = true
 serde.workspace = true

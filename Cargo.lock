@@ -8475,7 +8475,6 @@ dependencies = [
 name = "zksync_contracts"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "envy",
  "ethabi",
  "hex",
@@ -9263,7 +9262,6 @@ dependencies = [
  "async-trait",
  "chrono",
  "futures 0.3.28",
- "jsonrpsee",
  "once_cell",
  "serde",
  "serde_json",
