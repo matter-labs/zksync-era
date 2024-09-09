@@ -1,3 +1,5 @@
+use std::collections::{BTreeMap, BTreeSet};
+
 use anyhow::{bail, Context};
 use common::{
     config::global_config,
@@ -19,7 +21,9 @@ use config::{
 use types::{BaseToken, L1Network, WalletCreation};
 use xshell::Shell;
 use zksync_config::configs::consensus::{
-    AttesterSecretKey, ConsensusSecrets, NodeSecretKey, Secret, ValidatorSecretKey,
+    AttesterPublicKey, AttesterSecretKey, ConsensusConfig, ConsensusSecrets, GenesisSpec, Host,
+    NodeSecretKey, ProtocolVersion, Secret, ValidatorPublicKey, ValidatorSecretKey,
+    WeightedAttester, WeightedValidator,
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
@@ -35,12 +39,15 @@ use crate::{
         },
         portal::update_portal_config,
     },
-    consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
+    consts::{
+        AMOUNT_FOR_DISTRIBUTION_TO_WALLETS, GOSSIP_DYNAMIC_INBOUND_LIMIT, MAX_BATCH_SIZE,
+        MAX_PAYLOAD_SIZE,
+    },
     messages::{
-        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_DISTRIBUTING_ETH_SPINNER, MSG_GENESIS_DATABASE_ERR,
-        MSG_MINT_BASE_TOKEN_SPINNER, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
-        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_API_CONFIG_MISSING_ERR,
+        MSG_CHAIN_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR, MSG_DISTRIBUTING_ETH_SPINNER,
+        MSG_GENESIS_DATABASE_ERR, MSG_MINT_BASE_TOKEN_SPINNER,
+        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
@@ -72,8 +79,28 @@ pub async fn init(
 ) -> anyhow::Result<()> {
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
+    let consensus_keys = generate_consensus_keys();
     let mut general_config = chain_config.get_general_config()?;
+    let genesis_spec = Some(get_genesis_specs(chain_config, &consensus_keys));
+    let api_config = general_config
+        .api_config
+        .clone()
+        .context(MSG_API_CONFIG_MISSING_ERR)?;
+    let public_addr = api_config.web3_json_rpc.http_url.clone();
+    let server_addr = public_addr.parse()?;
+    let consensus_config = ConsensusConfig {
+        server_addr,
+        public_addr: Host(public_addr),
+        genesis_spec,
+        max_payload_size: MAX_PAYLOAD_SIZE,
+        gossip_dynamic_inbound_limit: GOSSIP_DYNAMIC_INBOUND_LIMIT,
+        max_batch_size: MAX_BATCH_SIZE,
+        gossip_static_inbound: BTreeSet::new(),
+        gossip_static_outbound: BTreeMap::new(),
+        rpc: None,
+    };
     apply_port_offset(init_args.port_offset, &mut general_config)?;
+    general_config.consensus_config = Some(consensus_config);
     general_config.save_with_base_path(shell, &chain_config.configs)?;
 
     let mut genesis_config = chain_config.get_genesis_config()?;
@@ -90,7 +117,7 @@ pub async fn init(
 
     let mut secrets = chain_config.get_secrets_config()?;
     set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
-    secrets.consensus = Some(generate_consensus_secrets());
+    secrets.consensus = Some(get_consensus_secrets(&consensus_keys));
     secrets.save_with_base_path(shell, &chain_config.configs)?;
 
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
@@ -273,10 +300,63 @@ fn apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> an
     Ok(())
 }
 
-fn generate_consensus_secrets() -> ConsensusSecrets {
-    let validator_key = roles::validator::SecretKey::generate().encode();
-    let attester_key = roles::attester::SecretKey::generate().encode();
-    let node_key = roles::node::SecretKey::generate().encode();
+struct ConsensusKeys {
+    validator_key: roles::validator::SecretKey,
+    attester_key: roles::attester::SecretKey,
+    node_key: roles::node::SecretKey,
+}
+
+struct ConsensusPublicKeys {
+    validator_key: roles::validator::PublicKey,
+    attester_key: roles::attester::PublicKey,
+    node_key: roles::node::PublicKey,
+}
+
+fn generate_consensus_keys() -> ConsensusKeys {
+    ConsensusKeys {
+        validator_key: roles::validator::SecretKey::generate(),
+        attester_key: roles::attester::SecretKey::generate(),
+        node_key: roles::node::SecretKey::generate(),
+    }
+}
+
+fn get_consensus_public_keys(consensus_keys: &ConsensusKeys) -> ConsensusPublicKeys {
+    ConsensusPublicKeys {
+        validator_key: consensus_keys.validator_key.public(),
+        attester_key: consensus_keys.attester_key.public(),
+        node_key: consensus_keys.node_key.public(),
+    }
+}
+
+fn get_genesis_specs(chain_config: &ChainConfig, consensus_keys: &ConsensusKeys) -> GenesisSpec {
+    let public_keys = get_consensus_public_keys(consensus_keys);
+    let validator_key = public_keys.validator_key.encode();
+    let attester_key = public_keys.attester_key.encode();
+    let node_key = public_keys.node_key.encode();
+
+    let validator = WeightedValidator {
+        key: ValidatorPublicKey(validator_key),
+        weight: 1,
+    };
+    let attester = WeightedAttester {
+        key: AttesterPublicKey(attester_key),
+        weight: 1,
+    };
+    let leader = ValidatorPublicKey(node_key);
+
+    GenesisSpec {
+        chain_id: chain_config.chain_id,
+        protocol_version: ProtocolVersion(1),
+        validators: vec![validator],
+        attesters: vec![attester],
+        leader,
+    }
+}
+
+fn get_consensus_secrets(consensus_keys: &ConsensusKeys) -> ConsensusSecrets {
+    let validator_key = consensus_keys.validator_key.encode();
+    let attester_key = consensus_keys.attester_key.encode();
+    let node_key = consensus_keys.node_key.encode();
 
     ConsensusSecrets {
         validator_key: Some(ValidatorSecretKey(Secret::new(validator_key))),

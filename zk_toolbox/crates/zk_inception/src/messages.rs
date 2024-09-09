@@ -88,6 +88,7 @@ pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db
 pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
     "Downloading era observability...";
+pub(super) const MSG_API_CONFIG_MISSING_ERR: &str = "API config missing";
 
 pub(super) fn msg_ecosystem_no_found_preexisting_contract(chains: &str) -> String {
     format!("Not found preexisting ecosystem Contracts with chains {chains}")
