@@ -1,10 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
-use common::{
-    check_prerequisites, cmd::Cmd, config::global_config, logger, spinner::Spinner,
-    GPU_PREREQUISITES,
-};
+use common::{check_prerequisites, cmd::Cmd, config::global_config, logger, GPU_PREREQUISITES};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
@@ -99,6 +96,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_dockerized_component(
     shell: &Shell,
     image_name: &str,
