@@ -1,22 +1,32 @@
-use std::{path::Path, str::FromStr};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+    str::FromStr,
+};
 
 use anyhow::Context;
-use common::{cmd::Cmd, config::global_config, logger};
+use common::{config::global_config, logger};
 use config::{
     external_node::ENConfig,
     ports_config, set_rocks_db_config,
     traits::{ReadConfig, SaveConfigWithBasePath},
     update_ports, ChainConfig, EcosystemConfig, SecretsConfig,
 };
-use xshell::{cmd, Shell};
+use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
-use zksync_config::configs::{consensus::ConsensusSecrets, DatabaseSecrets, L1Secrets};
+use zksync_config::configs::{
+    consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey},
+    DatabaseSecrets, L1Secrets,
+};
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
-    consts::{CONSENSUS_CONFIG_PATH, CONSENSUS_SECRETS_PATH},
+    consts::{
+        CONSENSUS_SECRETS_PATH, GOSSIP_DYNAMIC_INBOUND_LIMIT, MAX_BATCH_SIZE, MAX_PAYLOAD_SIZE,
+    },
     messages::{
-        msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED, MSG_PREPARING_EN_CONFIGS,
+        msg_preparing_en_config_is_done, MSG_API_CONFIG_MISSING_ERR, MSG_CHAIN_NOT_INITIALIZED,
+        MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_GENESIS_SPEC_MISSING_ERR, MSG_PREPARING_EN_CONFIGS,
     },
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
@@ -75,9 +85,36 @@ fn prepare_configs(
             .next_empty_ports_config(),
     )?;
 
-    let consensus_config_path = config.link_to_code.join(CONSENSUS_CONFIG_PATH);
-    Cmd::new(cmd!(shell, "cp {consensus_config_path} {en_configs_path}")).run()?;
+    // Set consensus config
+    let main_node_consensus_config = general
+        .consensus_config
+        .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
+    let api_config = general_en
+        .api_config
+        .clone()
+        .context(MSG_API_CONFIG_MISSING_ERR)?;
+    let public_addr = api_config.web3_json_rpc.http_url.clone();
+    let server_addr = public_addr.parse()?;
+    let genesis_spec = main_node_consensus_config
+        .genesis_spec
+        .context(MSG_GENESIS_SPEC_MISSING_ERR)?;
+    let mut gossip_static_outbound = BTreeMap::new();
+    let main_node_public_key = NodePublicKey(genesis_spec.leader.0);
+    gossip_static_outbound.insert(main_node_public_key, main_node_consensus_config.public_addr);
+    let en_consensus_config = ConsensusConfig {
+        server_addr,
+        public_addr: Host(public_addr),
+        max_payload_size: MAX_PAYLOAD_SIZE,
+        gossip_dynamic_inbound_limit: GOSSIP_DYNAMIC_INBOUND_LIMIT,
+        max_batch_size: MAX_BATCH_SIZE,
+        gossip_static_outbound,
+        gossip_static_inbound: BTreeSet::new(),
+        genesis_spec: None,
+        rpc: None,
+    };
+    general_en.consensus_config = Some(en_consensus_config);
 
+    // Set secrets config
     let consensus_secrets_path = config.link_to_code.join(CONSENSUS_SECRETS_PATH);
     let consensus_secrets = ConsensusSecrets::read(shell, consensus_secrets_path)?;
     let secrets = SecretsConfig {
