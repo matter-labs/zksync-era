@@ -2,10 +2,11 @@ use anyhow::Context;
 use common::{forge::Forge, git, logger, spinner::Spinner};
 use config::{
     forge_interface::{
-        deploy_ecosystem::input::DeployL1Config, script_params::DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
+        deploy_ecosystem::{input::DeployL1Config, output::DeployL1Output},
+        script_params::DEPLOY_ECOSYSTEM_SCRIPT_PARAMS,
     },
-    traits::{ReadConfigWithBasePath, SaveConfig},
-    EcosystemConfig, GenesisConfig,
+    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
+    ContractsConfig, EcosystemConfig, GenesisConfig,
 };
 use types::ProverMode;
 use xshell::Shell;
@@ -79,6 +80,15 @@ pub async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<(
     spinner.finish();
 
     let spinner = Spinner::new(MSG_WRITING_OUTPUT_FILES_SPINNER);
+
+    let script_output = DeployL1Output::read(
+        shell,
+        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&ecosystem_config.link_to_code),
+    )?;
+    let mut contracts_config = ContractsConfig::default();
+    contracts_config.update_from_l1_output(&script_output);
+    contracts_config.save_with_base_path(shell, &args.out)?;
+
     shell
         .create_dir(&args.out)
         .context(MSG_ECOSYSTEM_TXN_OUT_PATH_INVALID_ERR)?;
