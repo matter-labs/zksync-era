@@ -1,6 +1,9 @@
 use zksync_vm_interface::storage::WriteStorage;
 
-use crate::vm_latest::{HistoryMode, ZkSyncVmState};
+use crate::{
+    tracers::ViolatedValidationRule,
+    vm_latest::{HistoryMode, ZkSyncVmState},
+};
 
 #[derive(Debug, Clone)]
 pub(crate) struct GasLimiter {
@@ -38,7 +41,7 @@ impl GasLimiter {
         state: &mut ZkSyncVmState<S, H>,
         gas_limit: u32,
         gas_used: &mut u32,
-    ) {
+    ) -> Result<(), ViolatedValidationRule> {
         match self.withheld_gas {
             WithheldGas::Pending => {
                 let to_remove = state
@@ -60,5 +63,14 @@ impl GasLimiter {
             }
             _ => {}
         }
+
+        if let WithheldGas::Withholding { .. } = self.withheld_gas {
+            if state.local_state.callstack.current.ergs_remaining == 0 {
+                return Err(ViolatedValidationRule::TookTooManyComputationalGas(
+                    gas_limit,
+                ));
+            }
+        }
+        Ok(())
     }
 }

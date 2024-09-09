@@ -12,6 +12,7 @@ use zk_evm_1_5_0::{
     witness_trace::DummyTracer,
     zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
 };
+use zksync_vm_interface::Halt;
 
 use super::{gas_limiter::GasLimiter, PubdataTracer};
 use crate::{
@@ -248,17 +249,23 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         state: &mut ZkSyncVmState<S, H>,
         bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
-        self.tx_validation_gas_limiter.finish_cycle(
-            state,
-            self.computational_gas_limit,
-            &mut self.computational_gas_used,
-        );
-
         if self.final_batch_info_requested {
             self.set_fictive_l2_block(state, bootloader_state)
         }
 
         let mut result = self.result_tracer.finish_cycle(state, bootloader_state);
+
+        if let Err(error) = self.tx_validation_gas_limiter.finish_cycle(
+            state,
+            self.computational_gas_limit,
+            &mut self.computational_gas_used,
+        ) {
+            result = TracerExecutionStatus::Stop(TracerExecutionStopReason::Abort(
+                Halt::TracerCustom(format!("Validation error: {:#?}", error)),
+            ))
+            .stricter(&result);
+        }
+
         if let Some(refund_tracer) = &mut self.refund_tracer {
             result = refund_tracer
                 .finish_cycle(state, bootloader_state)
