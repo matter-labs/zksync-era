@@ -219,22 +219,22 @@ describe('ERC20 contract checks', () => {
             const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
             await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
         }
-        testMaster.reporter.debug("A#");
+        testMaster.reporter.debug('A#');
 
         // depositing the max amount: the whole balance of the token
         const tokenDepositAmount = await alice.getBalanceL1(tokenDetails.l1Address);
 
-        testMaster.reporter.debug("B#");
+        testMaster.reporter.debug('B#');
         // approving the needed allowance for the deposit
         await (await alice.approveERC20(tokenDetails.l1Address, tokenDepositAmount)).wait();
 
-        testMaster.reporter.debug("C#");
+        testMaster.reporter.debug('C#');
         // fee of the deposit in ether
         const depositFee = await alice.getFullRequiredDepositFee({
             token: tokenDetails.l1Address
         });
 
-        testMaster.reporter.debug("D#");
+        testMaster.reporter.debug('D#');
         // checking if alice has enough funds to pay the fee
         const l1Fee = depositFee.l1GasLimit * (depositFee.maxFeePerGas! || depositFee.gasPrice!);
         const l2Fee = depositFee.baseCost;
@@ -243,7 +243,7 @@ describe('ERC20 contract checks', () => {
             throw new Error('Not enough balance to pay the fee');
         }
 
-        testMaster.reporter.debug("E#");
+        testMaster.reporter.debug('E#');
         // deposit handle with the precalculated max amount
         const depositHandle = await alice.deposit({
             token: tokenDetails.l1Address,
@@ -254,7 +254,7 @@ describe('ERC20 contract checks', () => {
             overrides: depositFee
         });
 
-        testMaster.reporter.debug("F#");
+        testMaster.reporter.debug('F#');
         // checking the l2 balance change
         const l2TokenBalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
             { wallet: alice, change: tokenDepositAmount }
