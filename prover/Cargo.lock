@@ -8236,8 +8236,6 @@ dependencies = [
  "tracing",
  "zkevm_test_harness",
  "zksync_basic_types",
- "zksync_config",
- "zksync_env_config",
  "zksync_prover_fri_types",
  "zksync_utils",
 ]
