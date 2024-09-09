@@ -10,9 +10,6 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use zksync_object_store::ObjectStore;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
-use zksync_utils::panic_extractor::try_extract_panic_message;
-
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -29,6 +26,8 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_fri_utils::metrics::CircuitLabels;
 use zksync_prover_keystore::keystore::Keystore;
+use zksync_types::protocol_version::ProtocolSemanticVersion;
+use zksync_utils::panic_extractor::try_extract_panic_message;
 
 pub struct WitnessVectorGenerator {
     object_store: Arc<dyn ObjectStore>,

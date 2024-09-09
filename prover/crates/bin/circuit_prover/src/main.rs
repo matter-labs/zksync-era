@@ -11,15 +11,14 @@ use anyhow::Context as _;
 use clap::Parser;
 use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
+use zksync_circuit_prover::{CircuitProver, WitnessVectorGenerator};
 // use tokio::sync::{oneshot, watch};
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_utils::wait_for_tasks::ManagedTasks;
-
-use zksync_circuit_prover::{CircuitProver, WitnessVectorGenerator};
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::{WitnessVectorArtifacts, PROVER_PROTOCOL_SEMANTIC_VERSION};
 use zksync_prover_keystore::keystore::Keystore;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
 // use zksync_env_config::object_store::ProverObjectStoreConfig;
 // use zksync_object_store::ObjectStoreFactory;
