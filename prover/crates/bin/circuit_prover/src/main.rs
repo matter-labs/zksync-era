@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 // use zksync_circuit_prover::WitnessVectorGenerator;
 //
@@ -9,13 +9,14 @@ use std::time::Duration;
 //
 use anyhow::Context as _;
 use clap::Parser;
+use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
-use zksync_circuit_prover::WitnessVectorGenerator;
+use zksync_circuit_prover::{CircuitProver, WitnessVectorGenerator};
 // use tokio::sync::{oneshot, watch};
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
-use zksync_object_store::ObjectStoreFactory;
+use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
+use zksync_prover_fri_types::{WitnessVectorArtifacts, PROVER_PROTOCOL_SEMANTIC_VERSION};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
 // use zksync_env_config::object_store::ProverObjectStoreConfig;
@@ -47,6 +48,8 @@ struct Cli {
 //
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // FROM WVG TIMES
+
     let opt = Cli::parse();
     let general_config = load_general_config(opt.config_path).context("general config")?;
     let database_secrets = load_database_secrets(opt.secrets_path).context("database secrets")?;
@@ -84,6 +87,8 @@ async fn main() -> anyhow::Result<()> {
 
     let cancellation_token = CancellationToken::new();
 
+    let (sender, receiver) = tokio::sync::mpsc::channel(5);
+
     for _ in 0..wvg_count {
         let wvg = WitnessVectorGenerator::new(
             object_store.clone(),
@@ -91,9 +96,25 @@ async fn main() -> anyhow::Result<()> {
             protocol_version,
             prover_config.max_attempts,
             Some(prover_config.setup_data_path.clone()),
+            sender.clone(),
         );
         tasks.push(tokio::spawn(wvg.run(cancellation_token.clone())));
     }
+
+    // Prover setup
+    let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
+
+    let prover = CircuitProver::new(
+        connection_pool,
+        object_store,
+        protocol_version,
+        Some(prover_config.setup_data_path),
+        receiver,
+    );
+    tasks.push(tokio::spawn(prover.run(cancellation_token.clone())));
+
+    //
+
     let mut tasks = ManagedTasks::new(tasks);
     tokio::select! {
             _ = tasks.wait_single() => {},
@@ -112,94 +133,38 @@ async fn main() -> anyhow::Result<()> {
     tasks.complete(Duration::from_secs(5)).await;
 
     Ok(())
-    //     let config = general_config
-    //         .witness_vector_generator
-    //         .context("witness vector generator config")?;
-    //     let specialized_group_id = config.specialized_group_id;
-    //     let exporter_config = PrometheusExporterConfig::pull(config.prometheus_listener_port);
-    //
-    //     let pool = ConnectionPool::singleton(database_secrets.prover_url()?)
-    //         .build()
-    //         .await
-    //         .context("failed to build a connection pool")?;
-    //     let object_store_config = ProverObjectStoreConfig(
-    //         general_config
-    //             .prover_config
-    //             .clone()
-    //             .context("prover config")?
-    //             .prover_object_store
-    //             .context("object store")?,
-    //     );
-    //     let object_store = ObjectStoreFactory::new(object_store_config.0)
-    //         .create_store()
-    //         .await?;
-    //     let circuit_ids_for_round_to_be_proven = general_config
-    //         .prover_group_config
-    //         .expect("prover_group_config")
-    //         .get_circuit_ids_for_group_id(specialized_group_id)
-    //         .unwrap_or_default();
-    //     let circuit_ids_for_round_to_be_proven =
-    //         get_all_circuit_id_round_tuples_for(circuit_ids_for_round_to_be_proven);
-    //     let prover_config = general_config.prover_config.context("prover config")?;
-    //     let zone = RegionFetcher::new(
-    //         prover_config.cloud_type,
-    //         prover_config.zone_read_url.clone(),
-    //     )
-    //         .get_zone()
-    //         .await
-    //         .context("get_zone()")?;
-    //
-    //     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
-    //
-    //     let (stop_sender, stop_receiver) = watch::channel(false);
-    //
-    //     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
-    //     let mut stop_signal_sender = Some(stop_signal_sender);
-    //     ctrlc::set_handler(move || {
-    //         if let Some(stop_signal_sender) = stop_signal_sender.take() {
-    //             stop_signal_sender.send(()).ok();
-    //         }
-    //     })
-    //         .expect("Error setting Ctrl+C handler");
-    //
-    //     tracing::info!(
-    //         "Starting {} witness vector generation jobs for group: {} with circuits: {:?} in zone: {} with protocol_version: {:?}",
-    //         opt.threads,
-    //         specialized_group_id,
-    //         circuit_ids_for_round_to_be_proven,
-    //         zone,
-    //         protocol_version
-    //     );
-    //
-    //     let mut tasks = vec![tokio::spawn(exporter_config.run(stop_receiver.clone()))];
-    //
-    //     for _ in 0..opt.threads {
-    //         let witness_vector_generator = WitnessVectorGenerator::new(
-    //             object_store.clone(),
-    //             pool.clone(),
-    //             circuit_ids_for_round_to_be_proven.clone(),
-    //             zone.clone(),
-    //             config.clone(),
-    //             protocol_version,
-    //             prover_config.max_attempts,
-    //             Some(prover_config.setup_data_path.clone()),
-    //         );
-    //         tasks.push(tokio::spawn(
-    //             witness_vector_generator.run(stop_receiver.clone(), opt.n_iterations),
-    //         ));
-    //     }
-    //
-    //     let mut tasks = ManagedTasks::new(tasks);
-    //     tokio::select! {
-    //         _ = tasks.wait_single() => {},
-    //         _ = stop_signal_receiver => {
-    //             tracing::info!("Stop signal received, shutting down");
-    //         }
-    //     };
-    //     stop_sender.send(true).ok();
-    //     tasks.complete(Duration::from_secs(5)).await;
-    //     Ok(())
 }
+
+// async fn get_prover_tasks(
+//     // prover_config: FriProverConfig,
+//     // store_factory: ObjectStoreFactory,
+//     // public_blob_store: Option<Arc<dyn ObjectStore>>,
+//     connection_pool: ConnectionPool<Prover>,
+//     object_store: Arc<dyn ObjectStore>,
+//     receiver: Receiver<WitnessVectorArtifacts>,
+// ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
+//     // use gpu_prover_job_processor::gpu_prover;
+//     // use socket_listener::gpu_socket_listener;
+//     // use tokio::sync::Mutex;
+//     // use zksync_prover_fri_types::queue::FixedSizeQueue;
+//
+//     // let setup_load_mode =
+//     //     gpu_prover::load_setup_data_cache(&prover_config).context("load_setup_data_cache()")?;
+//     // let witness_vector_queue = FixedSizeQueue::new(prover_config.queue_capacity);
+//     // let shared_witness_vector_queue = Arc::new(Mutex::new(witness_vector_queue));
+//     // let consumer = shared_witness_vector_queue.clone();
+//     //
+//     // let local_ip = local_ip().context("Failed obtaining local IP address")?;
+//     // let address = SocketAddress {
+//     //     host: local_ip,
+//     //     port: prover_config.witness_vector_receiver_port,
+//     // };
+//
+//
+//
+//     Ok(vec![tokio::spawn(prover.run())])
+// }
+// }
 
 /*
 

@@ -4,22 +4,29 @@ use std::{
 };
 
 use anyhow::Context;
-use tokio::{sync::watch::Receiver, task::JoinHandle};
+use tokio::{
+    sync::{mpsc::Sender, watch::Receiver},
+    task::JoinHandle,
+};
 use tokio_util::sync::CancellationToken;
 use zksync_object_store::ObjectStore;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
-use zksync_utils::panic_extractor::try_extract_panic_message;
-
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::circuit_definitions::boojum::field::goldilocks::GoldilocksField;
-use zksync_prover_fri_types::circuit_definitions::boojum::gadgets::queue::full_state_queue::FullStateCircuitQueueRawWitness;
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::base_layer::ZkSyncBaseLayerCircuit;
-use zksync_prover_fri_types::keys::{FriCircuitKey, RamPermutationQueueWitnessKey};
 use zksync_prover_fri_types::{
-    get_current_pod_name, CircuitWrapper, ProverJob, ProverServiceDataKey,
-    RamPermutationQueueWitness, WitnessVectorArtifacts,
+    circuit_definitions::{
+        boojum::{
+            field::goldilocks::GoldilocksField,
+            gadgets::queue::full_state_queue::FullStateCircuitQueueRawWitness,
+        },
+        circuit_definitions::base_layer::ZkSyncBaseLayerCircuit,
+    },
+    get_current_pod_name,
+    keys::{FriCircuitKey, RamPermutationQueueWitnessKey},
+    CircuitWrapper, ProverJob, ProverServiceDataKey, RamPermutationQueueWitness,
+    WitnessVectorArtifacts,
 };
 use zksync_prover_fri_utils::metrics::CircuitLabels;
+use zksync_types::protocol_version::ProtocolSemanticVersion;
+use zksync_utils::panic_extractor::try_extract_panic_message;
 use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 pub struct WitnessVectorGenerator {
@@ -28,6 +35,7 @@ pub struct WitnessVectorGenerator {
     protocol_version: ProtocolSemanticVersion,
     max_attempts: u32,
     keystore: Keystore,
+    sender: Sender<WitnessVectorArtifacts>,
 }
 
 impl WitnessVectorGenerator {
@@ -39,6 +47,7 @@ impl WitnessVectorGenerator {
         protocol_version: ProtocolSemanticVersion,
         max_attempts: u32,
         setup_data_path: Option<String>,
+        sender: Sender<WitnessVectorArtifacts>,
     ) -> Self {
         let keystore = if let Some(setup_data_path) = setup_data_path {
             Keystore::new_with_setup_data_path(setup_data_path)
@@ -51,6 +60,7 @@ impl WitnessVectorGenerator {
             protocol_version,
             max_attempts,
             keystore,
+            sender,
         }
     }
 
@@ -58,7 +68,6 @@ impl WitnessVectorGenerator {
         tracing::info!("starting new run");
         let mut backoff: u64 = Self::POLLING_INTERVAL_MS;
         while !cancellation_token.is_cancelled() {
-            tracing::info!("before getting new job");
             if let Some((job_id, job)) = self
                 .get_next_job()
                 .await
@@ -258,6 +267,7 @@ impl WitnessVectorGenerator {
         started_at: Instant,
         artifacts: WitnessVectorArtifacts,
     ) {
+        self.sender.send(artifacts).await.unwrap();
     }
 
     async fn save_failure(&self, job_id: u32, _started_at: Instant, error: String) {
