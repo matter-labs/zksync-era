@@ -157,11 +157,11 @@ impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H::Vm1_5_0>>
             (_, VmHook::NoValidationEntered) => {
                 // Validation can be always turned off
                 self.validation_mode = ValidationTracerMode::NoValidation;
+                self.gas_limiter.stop_limiting();
             }
             (_, VmHook::ValidationStepEndeded) => {
                 // The validation step has ended.
                 self.should_stop_execution = true;
-                self.gas_limiter.stop_limiting();
             }
             (_, _) => {
                 // The hook is not relevant to the validation tracer. Ignore.
