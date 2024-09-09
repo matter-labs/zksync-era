@@ -30,8 +30,6 @@ impl GasLimiter {
     pub fn stop_limiting(&mut self) {
         if let WithheldGas::Withholding { withheld, provided } = self.withheld_gas {
             self.withheld_gas = WithheldGas::PendingRelease { withheld, provided };
-        } else {
-            panic!("Must enter account validation before exiting it");
         }
     }
 
