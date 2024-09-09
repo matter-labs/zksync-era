@@ -18,6 +18,11 @@ use config::{
 };
 use types::{BaseToken, L1Network, WalletCreation};
 use xshell::Shell;
+use zksync_config::configs::consensus::{
+    AttesterSecretKey, ConsensusSecrets, NodeSecretKey, Secret, ValidatorSecretKey,
+};
+use zksync_consensus_crypto::TextFmt;
+use zksync_consensus_roles as roles;
 
 use crate::{
     accept_ownership::accept_admin,
@@ -85,6 +90,7 @@ pub async fn init(
 
     let mut secrets = chain_config.get_secrets_config()?;
     set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
+    secrets.consensus = Some(generate_consensus_secrets());
     secrets.save_with_base_path(shell, &chain_config.configs)?;
 
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
@@ -265,4 +271,16 @@ fn apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> an
     update_ports(general_config, &ports_config)?;
 
     Ok(())
+}
+
+fn generate_consensus_secrets() -> ConsensusSecrets {
+    let validator_key = roles::validator::SecretKey::generate().encode();
+    let attester_key = roles::attester::SecretKey::generate().encode();
+    let node_key = roles::node::SecretKey::generate().encode();
+
+    ConsensusSecrets {
+        validator_key: Some(ValidatorSecretKey(Secret::new(validator_key))),
+        attester_key: Some(AttesterSecretKey(Secret::new(attester_key))),
+        node_key: Some(NodeSecretKey(Secret::new(node_key))),
+    }
 }

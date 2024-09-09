@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use secrecy::{ExposeSecret as _, Secret};
+use secrecy::ExposeSecret as _;
+pub use secrecy::Secret;
 use zksync_basic_types::L2ChainId;
 use zksync_concurrency::{limiter, time};
 
