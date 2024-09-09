@@ -128,6 +128,7 @@ pub(super) fn executor(
     };
 
     Ok(executor::Config {
+        build_version: None, // TODO: To be set after #2684
         server_addr: cfg.server_addr,
         public_addr: net::Host(cfg.public_addr.0.clone()),
         max_payload_size: cfg.max_payload_size,
