@@ -8,7 +8,10 @@ use url::Url;
 use xshell::Shell;
 use zksync_config::configs::fri_prover::CloudConnectionMode;
 
-use super::{init_bellman_cuda::InitBellmanCudaArgs, setup_keys::SetupKeysArgs};
+use super::{
+    compressor_keys::CompressorKeysArgs, init_bellman_cuda::InitBellmanCudaArgs,
+    setup_keys::SetupKeysArgs,
+};
 use crate::{
     commands::prover::gcs::get_project_ids,
     consts::{DEFAULT_CREDENTIALS_FILE, DEFAULT_PROOF_STORE_DIR},
@@ -23,8 +26,7 @@ use crate::{
         MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
         MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR, MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT,
         MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT, MSG_PROVER_DB_NAME_HELP,
-        MSG_PROVER_DB_URL_HELP, MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT,
-        MSG_SETUP_COMPRESSOR_KEY_PATH_PROMPT, MSG_SETUP_KEYS_PROMPT,
+        MSG_PROVER_DB_URL_HELP, MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT, MSG_SETUP_KEYS_PROMPT,
         MSG_USE_DEFAULT_DATABASES_HELP,
     },
 };
@@ -55,8 +57,10 @@ pub struct ProverInitArgs {
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
     pub bellman_cuda: Option<bool>,
 
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
+    pub setup_compressor_keys: Option<bool>,
     #[clap(flatten)]
-    pub setup_compressor_key_config: SetupCompressorKeyConfigTmp,
+    pub compressor_keys_args: CompressorKeysArgs,
 
     #[clap(flatten)]
     pub setup_keys_args: SetupKeysArgs,
@@ -175,12 +179,6 @@ pub enum ProofStorageConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct SetupCompressorKeyConfig {
-    pub download_key: bool,
-    pub setup_key_path: String,
-}
-
-#[derive(Debug, Clone)]
 pub struct ProverDatabaseConfig {
     pub database_config: DatabaseConfig,
     pub dont_drop: bool,
@@ -190,7 +188,7 @@ pub struct ProverDatabaseConfig {
 pub struct ProverInitArgsFinal {
     pub proof_store: ProofStorageConfig,
     pub public_store: Option<ProofStorageConfig>,
-    pub setup_compressor_key_config: SetupCompressorKeyConfig,
+    pub compressor_key_args: Option<CompressorKeysArgs>,
     pub setup_keys: Option<SetupKeysArgs>,
     pub bellman_cuda_config: Option<InitBellmanCudaArgs>,
     pub cloud_type: CloudConnectionMode,
@@ -201,13 +199,13 @@ impl ProverInitArgs {
     pub(crate) fn fill_values_with_prompt(
         &self,
         shell: &Shell,
-        setup_key_path: &str,
+        default_compressor_key_path: &str,
         chain_config: &ChainConfig,
     ) -> anyhow::Result<ProverInitArgsFinal> {
         let proof_store = self.fill_proof_storage_values_with_prompt(shell)?;
         let public_store = self.fill_public_storage_values_with_prompt(shell)?;
-        let setup_compressor_key_config =
-            self.fill_setup_compressor_key_values_with_prompt(setup_key_path);
+        let compressor_key_args =
+            self.fill_setup_compressor_key_values_with_prompt(default_compressor_key_path);
         let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt();
         let cloud_type = self.get_cloud_type_with_prompt();
         let database_config = self.fill_database_values_with_prompt(chain_config);
@@ -216,7 +214,7 @@ impl ProverInitArgs {
         Ok(ProverInitArgsFinal {
             proof_store,
             public_store,
-            setup_compressor_key_config,
+            compressor_key_args,
             setup_keys,
             bellman_cuda_config,
             cloud_type,
@@ -345,30 +343,22 @@ impl ProverInitArgs {
 
     fn fill_setup_compressor_key_values_with_prompt(
         &self,
-        setup_key_path: &str,
-    ) -> SetupCompressorKeyConfig {
-        let download_key = self
-            .clone()
-            .setup_compressor_key_config
-            .download_key
-            .unwrap_or_else(|| {
-                PromptConfirm::new(MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT)
-                    .default(false)
-                    .ask()
-            });
-        let setup_key_path = self
-            .clone()
-            .setup_compressor_key_config
-            .setup_key_path
-            .unwrap_or_else(|| {
-                Prompt::new(MSG_SETUP_COMPRESSOR_KEY_PATH_PROMPT)
-                    .default(setup_key_path)
-                    .ask()
-            });
+        default_path: &str,
+    ) -> Option<CompressorKeysArgs> {
+        let download_key = self.clone().setup_compressor_keys.unwrap_or_else(|| {
+            PromptConfirm::new(MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT)
+                .default(false)
+                .ask()
+        });
 
-        SetupCompressorKeyConfig {
-            download_key,
-            setup_key_path,
+        if download_key {
+            Some(
+                self.compressor_keys_args
+                    .clone()
+                    .fill_values_with_prompt(default_path),
+            )
+        } else {
+            None
         }
     }
 
