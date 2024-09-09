@@ -7,6 +7,18 @@ use zksync_types::ProtocolVersionId;
 use super::*;
 use crate::storage::ConnectionPool;
 
+/// Test checking that parsing logic matches the abi specified in the json file.
+#[test]
+fn test_consensus_registry_abi() {
+    zksync_concurrency::testonly::abort_on_panic();
+    let c = abi::ConsensusRegistry::load();
+    c.call(abi::GetAttesterCommittee).test().unwrap();
+    c.call(abi::Add::default()).test().unwrap();
+    c.call(abi::Initialize::default()).test().unwrap();
+    c.call(abi::CommitAttesterCommittee).test().unwrap();
+    c.call(abi::Owner).test().unwrap();
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn test_attester_committee() {
     zksync_concurrency::testonly::abort_on_panic();

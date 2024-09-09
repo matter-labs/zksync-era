@@ -1,7 +1,6 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_consensus_roles::attester;
-use zksync_contracts::consensus as contracts;
 use zksync_multivm::interface::TxExecutionMode;
 use zksync_node_api_server::{
     execution_sandbox::{TransactionExecutor, TxExecutionArgs, TxSetupArgs, VmConcurrencyLimiter},
@@ -14,7 +13,7 @@ use zksync_types::{
 };
 use zksync_vm_interface::ExecutionResult;
 
-use crate::storage::ConnectionPool;
+use crate::{abi, storage::ConnectionPool};
 
 /// VM executes eth_calls on the db.
 #[derive(Debug)]
@@ -47,12 +46,12 @@ impl VM {
         }
     }
 
-    pub async fn call<F: contracts::Function>(
+    pub async fn call<F: abi::Function>(
         &self,
         ctx: &ctx::Ctx,
         batch: attester::BatchNumber,
-        address: contracts::Address<F::Contract>,
-        call: contracts::Call<F>,
+        address: abi::Address<F::Contract>,
+        call: abi::Call<F>,
     ) -> ctx::Result<F::Outputs> {
         let tx = L2Tx::new(
             *address,

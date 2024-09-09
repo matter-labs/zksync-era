@@ -660,7 +660,6 @@ mod tests {
     use rand::Rng as _;
     use zksync_consensus_roles::{attester, validator};
     use zksync_consensus_storage::ReplicaState;
-    use zksync_contracts::consensus as contracts;
     use zksync_types::ProtocolVersion;
 
     use super::GlobalConfig;
@@ -681,7 +680,7 @@ mod tests {
             genesis.fork_number = validator::ForkNumber(n);
             let cfg = GlobalConfig {
                 genesis: genesis.with_hash(),
-                registry_address: Some(contracts::Address::new(rng.gen())),
+                registry_address: Some(rng.gen()),
             };
             conn.consensus_dal()
                 .try_update_global_config(&cfg)
@@ -715,7 +714,7 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         let cfg = GlobalConfig {
             genesis: setup.genesis.clone(),
-            registry_address: Some(contracts::Address::new(rng.gen())),
+            registry_address: Some(rng.gen()),
         };
         conn.consensus_dal()
             .try_update_global_config(&cfg)

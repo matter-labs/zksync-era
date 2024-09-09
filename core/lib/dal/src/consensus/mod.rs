@@ -7,7 +7,6 @@ mod tests;
 
 use anyhow::{anyhow, Context as _};
 use zksync_consensus_roles::{attester, validator};
-use zksync_contracts::consensus as contracts;
 use zksync_protobuf::{read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi, ethabi,
@@ -27,7 +26,7 @@ use crate::models::{parse_h160, parse_h256};
 #[derive(Debug, PartialEq, Clone)]
 pub struct GlobalConfig {
     pub genesis: validator::Genesis,
-    pub registry_address: Option<contracts::Address<contracts::ConsensusRegistry>>,
+    pub registry_address: Option<ethabi::Address>,
 }
 
 impl ProtoFmt for GlobalConfig {
@@ -41,8 +40,7 @@ impl ProtoFmt for GlobalConfig {
                 .as_ref()
                 .map(|a| parse_h160(a))
                 .transpose()
-                .context("registry_address")?
-                .map(contracts::Address::new),
+                .context("registry_address")?,
         })
     }
 

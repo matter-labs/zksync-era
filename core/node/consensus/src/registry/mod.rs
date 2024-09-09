@@ -2,34 +2,34 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _};
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
-use zksync_contracts::consensus as contracts;
 
 use crate::{storage::ConnectionPool, vm::VM};
 
+mod abi;
 #[cfg(test)]
 pub(crate) mod testonly;
 #[cfg(test)]
 mod tests;
 
-fn decode_attester_key(k: &contracts::Secp256k1PublicKey) -> anyhow::Result<attester::PublicKey> {
+fn decode_attester_key(k: &abi::Secp256k1PublicKey) -> anyhow::Result<attester::PublicKey> {
     let mut x = vec![];
     x.extend(k.tag);
     x.extend(k.x);
     ByteFmt::decode(&x)
 }
 
-fn decode_weighted_attester(a: &contracts::Attester) -> anyhow::Result<attester::WeightedAttester> {
+fn decode_weighted_attester(a: &abi::Attester) -> anyhow::Result<attester::WeightedAttester> {
     Ok(attester::WeightedAttester {
         weight: a.weight.into(),
         key: decode_attester_key(&a.pub_key).context("key")?,
     })
 }
 
-pub type Address = contracts::Address<contracts::ConsensusRegistry>;
+pub type Address = crate::abi::Address<abi::ConsensusRegistry>;
 
 #[derive(Debug)]
 pub(crate) struct Registry {
-    contract: contracts::ConsensusRegistry,
+    contract: abi::ConsensusRegistry,
     genesis: validator::Genesis,
     vm: VM,
 }
@@ -37,7 +37,7 @@ pub(crate) struct Registry {
 impl Registry {
     pub async fn new(genesis: validator::Genesis, pool: ConnectionPool) -> Self {
         Self {
-            contract: contracts::ConsensusRegistry::load(),
+            contract: abi::ConsensusRegistry::load(),
             genesis,
             vm: VM::new(pool).await,
         }
@@ -65,7 +65,7 @@ impl Registry {
                 ctx,
                 batch_defining_committee,
                 address,
-                self.contract.call(contracts::GetAttesterCommittee),
+                self.contract.call(abi::GetAttesterCommittee),
             )
             .await
             .wrap("vm.call()")?;

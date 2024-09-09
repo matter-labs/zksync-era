@@ -12,8 +12,7 @@ use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{attester, node, validator};
 use zksync_dal::consensus_dal;
-
-use crate::registry;
+use zksync_types::ethabi;
 
 fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result<Option<T>> {
     text.map(|text| Text::new(text.expose_secret()).decode())
@@ -44,7 +43,7 @@ pub(super) struct GenesisSpec {
     pub(super) validators: validator::Committee,
     pub(super) attesters: Option<attester::Committee>,
     pub(super) leader_selection: validator::LeaderSelectionMode,
-    pub(super) registry_address: Option<registry::Address>,
+    pub(super) registry_address: Option<ethabi::Address>,
 }
 
 impl GenesisSpec {
@@ -98,7 +97,7 @@ impl GenesisSpec {
             } else {
                 Some(attester::Committee::new(attesters).context("attesters")?)
             },
-            registry_address: x.registry_address.map(registry::Address::new),
+            registry_address: x.registry_address,
         })
     }
 }

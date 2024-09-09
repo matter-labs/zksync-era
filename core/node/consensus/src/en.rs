@@ -215,7 +215,11 @@ impl EN {
                 .wait_for_batch_hash(ctx, status.next_batch_to_attest)
                 .await?;
             let Some(committee) = registry
-                .attester_committee_for(ctx, cfg.registry_address, status.next_batch_to_attest)
+                .attester_committee_for(
+                    ctx,
+                    cfg.registry_address.map(registry::Address::new),
+                    status.next_batch_to_attest,
+                )
                 .await
                 .wrap("attester_committee_for()")?
             else {
