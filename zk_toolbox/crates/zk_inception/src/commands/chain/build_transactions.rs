@@ -13,7 +13,7 @@ use ethers::utils::hex::ToHex;
 use xshell::Shell;
 
 use crate::{
-    commands::chain::args::transaction::ChainTransactionArgs,
+    commands::chain::args::build_transactions::BuildTransactionsArgs,
     messages::{
         MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG,
@@ -30,7 +30,7 @@ const SCRIPT_CONFIG_FILE_SRC: &str =
     "contracts/l1-contracts/script-config/register-hyperchain.toml";
 const SCRIPT_CONFIG_FILE_DST: &str = "register-hyperchain.toml";
 
-pub(crate) async fn run(args: ChainTransactionArgs, shell: &Shell) -> anyhow::Result<()> {
+pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<()> {
     let config = EcosystemConfig::from_file(shell)?;
     let chain_name = global_config().chain_name.clone();
     let chain_config = config
