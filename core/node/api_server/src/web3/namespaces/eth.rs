@@ -142,7 +142,7 @@ impl EthNamespace {
             )
             .await;
         if !fee.is_ok() {
-            tracing::warn!("RESULT################ {:?}", fee);
+            tracing::warn!("RESULT ################ {:?}", fee);
         }
         Ok(fee?.gas_limit)
     }
