@@ -13,7 +13,7 @@ use crate::{
 const DEFAULT_OUT_DIR: &str = "transactions";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
-pub struct EcosystemTransactionArgs {
+pub struct BuildTransactions {
     /// Address of the transaction sender.
     pub sender: String,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
@@ -26,8 +26,8 @@ pub struct EcosystemTransactionArgs {
     pub forge_args: ForgeScriptArgs,
 }
 
-impl EcosystemTransactionArgs {
-    pub fn fill_values_with_prompt(self) -> EcosystemTransactionArgsFinal {
+impl BuildTransactions {
+    pub fn fill_values_with_prompt(self) -> BuildTransactionsFinal {
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
             Prompt::new(MSG_L1_RPC_URL_PROMPT)
                 .default(LOCAL_RPC_URL)
@@ -38,7 +38,7 @@ impl EcosystemTransactionArgs {
                 })
                 .ask()
         });
-        EcosystemTransactionArgsFinal {
+        BuildTransactionsFinal {
             sender: self.sender,
             out: self.out.unwrap_or(DEFAULT_OUT_DIR.into()),
             forge_args: self.forge_args.clone(),
@@ -48,7 +48,7 @@ impl EcosystemTransactionArgs {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct EcosystemTransactionArgsFinal {
+pub struct BuildTransactionsFinal {
     pub sender: String,
     pub out: PathBuf,
     pub forge_args: ForgeScriptArgs,

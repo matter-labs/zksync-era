@@ -11,7 +11,7 @@ use types::ProverMode;
 use xshell::Shell;
 
 use super::{
-    args::transaction::EcosystemTransactionArgs,
+    args::build_transactions::BuildTransactions,
     create_configs::create_initial_deployments_config,
     utils::{build_system_contracts, install_yarn_dependencies},
 };
@@ -29,7 +29,7 @@ const DEPLOY_TRANSACTIONS_FILE_DST: &str = "deploy-l1-txns.json";
 const SCRIPT_CONFIG_FILE_SRC: &str = "contracts/l1-contracts/script-config/config-deploy-l1.toml";
 const SCRIPT_CONFIG_FILE_DST: &str = "config-deploy-l1.toml";
 
-pub async fn run(args: EcosystemTransactionArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: BuildTransactions, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 

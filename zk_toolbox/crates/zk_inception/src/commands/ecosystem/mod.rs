@@ -1,4 +1,4 @@
-use args::transaction::EcosystemTransactionArgs;
+use args::build_transactions::BuildTransactions;
 use clap::Subcommand;
 use xshell::Shell;
 
@@ -7,12 +7,12 @@ use crate::commands::ecosystem::args::{
 };
 
 mod args;
+pub(crate) mod build_transactions;
 mod change_default;
 mod create;
 pub mod create_configs;
 pub(crate) mod init;
 mod setup_observability;
-pub(crate) mod transaction;
 mod utils;
 
 #[derive(Subcommand, Debug)]
@@ -22,7 +22,7 @@ pub enum EcosystemCommands {
     /// setting necessary configurations for later initialization
     Create(EcosystemCreateArgs),
     /// Create transactions to build ecosystem contracts
-    Transaction(EcosystemTransactionArgs),
+    BuildTransactions(BuildTransactions),
     /// Initialize ecosystem and chain,
     /// deploying necessary contracts and performing on-chain operations
     Init(EcosystemInitArgs),
@@ -38,7 +38,7 @@ pub enum EcosystemCommands {
 pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Result<()> {
     match args {
         EcosystemCommands::Create(args) => create::run(args, shell),
-        EcosystemCommands::Transaction(args) => transaction::run(args, shell).await,
+        EcosystemCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
         EcosystemCommands::Init(args) => init::run(args, shell).await,
         EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
