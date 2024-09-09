@@ -150,15 +150,8 @@ impl ZksNamespace {
         self.state.api_config.user_facing_diamond_proxy_addr
     }
 
-    pub fn get_gateway_main_contract_impl(&self) -> Option<Address> {
-        if self.state.api_config.user_facing_diamond_proxy_addr
-            == self.state.api_config.sl_diamond_proxy_addr
-        {
-            // We are not connected to the gateway.
-            None
-        } else {
-            Some(self.state.api_config.sl_diamond_proxy_addr)
-        }
+    pub fn get_settlement_layer_main_contract_impl(&self) -> Address {
+        self.state.api_config.sl_diamond_proxy_addr
     }
 
     pub fn get_testnet_paymaster_impl(&self) -> Option<Address> {

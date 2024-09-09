@@ -5,6 +5,7 @@ import fs from 'fs';
 import * as path from 'path';
 import * as db from './database';
 import * as env from './env';
+import dotenv from 'dotenv';
 // import { time } from 'console';
 
 export async function server(
@@ -61,7 +62,7 @@ export async function server(
     }
 }
 
-export async function externalNode(reinit: boolean = false, args: string[]) {
+export async function externalNode(env: string, reinit: boolean = false, args: string[]) {
     if (process.env.ZKSYNC_ENV != 'ext-node') {
         console.warn(`WARNING: using ${process.env.ZKSYNC_ENV} environment for external node`);
         console.warn('If this is a mistake, set $ZKSYNC_ENV to "ext-node" or other environment');
@@ -77,6 +78,32 @@ export async function externalNode(reinit: boolean = false, args: string[]) {
         await db.reset({ core: true, prover: false });
         clean(path.dirname(process.env.EN_MERKLE_TREE_PATH!));
     }
+
+    // FIXME: make it work with and without sync layer.
+    // set the correct diamond proxy addresses
+    const targetEnv = dotenv.parse(fs.readFileSync(`etc/env/target/${env}.env`));
+    process.env.EN_SL_CLIENT_MAP = JSON.stringify([
+        {
+            chain_id: +targetEnv.CONTRACTS_ERA_CHAIN_ID!,
+            rpc_url: targetEnv.BRIDGE_LAYER_WEB3_URL,
+            diamond_proxy_address: targetEnv.CONTRACTS_USER_FACING_DIAMOND_PROXY_ADDR,
+        },
+        {
+            chain_id: +targetEnv.GATEWAY_CHAIN_ID!,
+            rpc_url: targetEnv.ETH_CLIENT_WEB3_URL,
+            // FIXME: calculate with create2
+            diamond_proxy_address: targetEnv.GATEWAY_DIAMOND_PROXY_ADDR,
+        }
+    ]);
+    process.env.EN_SL_CHAIN_ID = targetEnv.GATEWAY_CHAIN_ID;
+    process.env.EN_L2_CHAIN_ID = targetEnv.CHAIN_ETH_ZKSYNC_NETWORK_ID;
+    process.env.EN_L1_CHAIN_ID = targetEnv.CONTRACTS_ERA_CHAIN_ID;
+    process.env.EN_MAIN_NODE_URL = targetEnv.API_WEB3_JSON_RPC_HTTP_URL;
+    process.env.EN_ETH_CLIENT_URL = targetEnv.ETH_CLIENT_WEB3_URL;
+
+    console.log(`MAIN_NODE_URL for env ${env}: ${process.env.EN_MAIN_NODE_URL}`);
+    console.log(`ETH_CLIENT_URL for env ${env}: ${process.env.EN_ETH_CLIENT_URL}`);
+    console.log(`CLIENT_MAP for env ${env}: ${process.env.EN_SL_CLIENT_MAP}`);
 
     await utils.spawn(`cargo run --release --bin zksync_external_node -- ${args.join(' ')}`);
 }
@@ -140,8 +167,9 @@ export const serverCommand = new Command('server')
 export const enCommand = new Command('external-node')
     .description('start zksync external node')
     .option('--reinit', 'reset postgres and rocksdb before starting')
+    .option('--env <env>', 'environment name of the main node', 'dev')
     .action(async (cmd: Command) => {
-        await externalNode(cmd.reinit, cmd.args);
+        await externalNode(cmd.env, cmd.reinit, cmd.args);
     });
 
 // const fn = async () => {

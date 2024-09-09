@@ -54,8 +54,4 @@ impl EnNamespaceServer for EnNamespace {
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
-
-    async fn get_first_gateway_batch_number(&self) -> RpcResult<Option<L1BatchNumber>> {
-        Ok(self.get_first_gateway_batch_number_impl())
-    }
 }

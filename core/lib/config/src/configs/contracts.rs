@@ -44,7 +44,6 @@ pub struct ContractsConfig {
     pub user_facing_bridgehub_proxy_addr: Option<Address>,
     pub user_facing_diamond_proxy_addr: Option<Address>,
     pub l2_native_token_vault_proxy_addr: Option<Address>,
-    pub first_gateway_batch_number: Option<L1BatchNumber>,
 
     pub l2_da_validator_addr: Option<Address>,
 
@@ -73,7 +72,6 @@ impl ContractsConfig {
             user_facing_diamond_proxy_addr: Some(Address::repeat_byte(0x16)),
             l2_native_token_vault_proxy_addr: Some(Address::repeat_byte(0x0d)),
             chain_admin_addr: Some(Address::repeat_byte(0x18)),
-            first_gateway_batch_number: Some(L1BatchNumber(1000)),
             l2_da_validator_addr: Some(Address::repeat_byte(0x19)),
         }
     }

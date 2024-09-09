@@ -81,7 +81,6 @@ mod tests {
                 "0xfc073319977e314f251eae6ae6be76b0b3baeecf",
             )),
             chain_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
-            first_gateway_batch_number: Some(1000.into()),
             l2_da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
         }
     }
@@ -112,7 +111,6 @@ CONTRACTS_USER_FACING_DIAMOND_PROXY_ADDR="0xF00B988a98Ca742e7958DeF9F7823b590871
 CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR="0xfc073319977e314f251eae6ae6be76b0b3baeecf"
 CONTRACTS_L2_DA_VALIDATOR_ADDR="0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
 CONTRACTS_CHAIN_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
-CONTRACTS_FIRST_GATEWAY_BATCH_NUMBER=1000
         "#;
         lock.set_env(config);
 

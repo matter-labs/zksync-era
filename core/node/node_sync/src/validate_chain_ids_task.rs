@@ -149,10 +149,10 @@ impl ValidateChainIdsTask {
             Self::check_l1_chain_using_main_node(self.main_node_client.clone(), self.sl_chain_id);
         let main_node_l2_check =
             Self::check_l2_chain_using_main_node(self.main_node_client, self.l2_chain_id);
-        let client_map_checks = self.client_map.0.keys().map(|key| {
-            let (client, _) = self.client_map.get_boxed(*key).unwrap();
+        let client_map_checks = self.client_map.0.keys().map(|chain_id| {
+            let (client, _) = self.client_map.get_boxed(*chain_id).unwrap();
             let client = client.for_component("chain_ids_validation");
-            Self::check_eth_client(client, self.sl_chain_id)
+            Self::check_eth_client(client, *chain_id)
         });
         let joined_client_map_checks = futures::future::try_join_all(client_map_checks).fuse();
         let joined_futures = futures::future::try_join4(

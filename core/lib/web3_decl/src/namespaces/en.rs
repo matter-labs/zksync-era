@@ -48,7 +48,4 @@ pub trait EnNamespace {
 
     #[method(name = "getEcosystemContracts")]
     async fn get_ecosystem_contracts(&self) -> RpcResult<EcosystemContracts>;
-
-    #[method(name = "getFirstGatewayBatchNumber")]
-    async fn get_first_gateway_batch_number(&self) -> RpcResult<Option<L1BatchNumber>>;
 }

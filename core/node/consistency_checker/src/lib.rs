@@ -33,10 +33,10 @@ enum CheckError {
     #[error("error calling L1 contract")]
     ContractCall(#[from] ContractCallError),
     /// Error that is caused by the main node providing incorrect information etc.
-    #[error("failed validating commit transaction")]
+    #[error("failed validating commit transaction: {0}")]
     Validation(anyhow::Error),
     /// Error that is caused by violating invariants internal to *this* node (e.g., not having expected data in Postgres).
-    #[error("internal error")]
+    #[error("internal error: {0}")]
     Internal(anyhow::Error),
 }
 
@@ -290,7 +290,23 @@ pub fn detect_da(
             "last reference token has unexpected shape; expected bytes, got {last_reference_token:?}"
         ))),
     };
-    match last_reference_token.first() {
+
+    // The format of this token (`operatorDAInput`) is:
+    // 32 bytes - uncompressed state diff
+    // 32 bytes - hash of the full pubdata
+    // 1 byte - number of blobs
+    // 32 bytes for each blob - hashes of blobs
+    // 1 byte - pubdata source
+    // X bytes - blob/pubdata commitments
+
+    let number_of_blobs = last_reference_token.get(64).copied().ok_or_else(|| {
+        parse_error(format!(
+            "last reference token is too short; expected at least 65 bytes, got {}",
+            last_reference_token.len()
+        ))
+    })? as usize;
+
+    match last_reference_token.get(65 + 32 * number_of_blobs) {
         Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataDA::Calldata),
         Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataDA::Blobs),
         Some(&byte) if byte == PUBDATA_SOURCE_CUSTOM => Ok(PubdataDA::Custom),
@@ -410,7 +426,6 @@ impl ConsistencyChecker {
             .with_context(|| format!("commit transaction {commit_tx_hash:?} not found on L1"))
             .map_err(CheckError::Internal)?; // we've got a transaction receipt previously, thus an internal error
 
-        // TODO
         if let Some(diamond_proxy_addr) = diamond_proxy {
             let event = self
                 .contract
@@ -508,8 +523,7 @@ impl ConsistencyChecker {
         };
         let first_batch_number = first_batch_commitment
             .first()
-            .context("Unexpected signature for L1 commit function")?;
-        let first_batch_number = first_batch_number
+            .context("Unexpected signature for L1 commit function")?
             .clone()
             .into_uint()
             .context("Unexpected signature for L1 commit function")?;
@@ -567,7 +581,7 @@ impl ConsistencyChecker {
         // if let Some((address, client)) = migration {
         //     log_version(address, client).await?;
         // }
-        // TODO check client map!
+        // TODO check client map?
 
         Ok(())
     }

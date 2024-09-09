@@ -4,7 +4,6 @@ use std::{
     ffi::OsString,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
     path::PathBuf,
-    str::FromStr,
     time::Duration,
 };
 
@@ -108,8 +107,7 @@ pub(crate) struct RemoteENConfig {
     pub transparent_proxy_admin_addr: Option<Address>,
     /// Should not be accessed directly. Use [`ExternalNodeConfig::diamond_proxy_address`] instead.
     pub user_facing_diamond_proxy: Address,
-    pub gateway_diamond_proxy: Option<Address>,
-    pub first_gateway_batch_number: Option<L1BatchNumber>,
+    pub settlement_layer_diamond_proxy: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
     // a different name, with names adapted only for consistency.
@@ -152,14 +150,9 @@ impl RemoteENConfig {
             .get_main_contract()
             .rpc_context("get_main_contract")
             .await?;
-        let gateway_diamond_proxy = client
-            .get_gateway_main_contract()
-            .rpc_context("get_gateway_main_contract")
-            .await?;
-
-        let first_gateway_batch_number = client
-            .get_first_gateway_batch_number()
-            .rpc_context("get_first_gateway_batch_number")
+        let settlement_layer_diamond_proxy = client
+            .get_settlement_layer_main_contract()
+            .rpc_context("get_settlement_layer_main_contract")
             .await?;
 
         let user_facing_bridgehub = client
@@ -210,8 +203,7 @@ impl RemoteENConfig {
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
             user_facing_diamond_proxy,
-            gateway_diamond_proxy,
-            first_gateway_batch_number,
+            settlement_layer_diamond_proxy,
             user_facing_bridgehub,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
@@ -252,8 +244,7 @@ impl RemoteENConfig {
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             dummy_verifier: true,
             l2_native_token_vault_proxy_addr: Some(Address::repeat_byte(7)),
-            gateway_diamond_proxy: None,
-            first_gateway_batch_number: None,
+            settlement_layer_diamond_proxy: Address::repeat_byte(8),
         }
     }
 }
@@ -480,6 +471,41 @@ pub(crate) struct OptionalENConfig {
     /// Map of settlement layer chain IDs to their respective RPC URLs and diamond proxy addresses.
     #[serde(default, deserialize_with = "deserialize_sl_client_map")]
     pub sl_client_map: HashMap<SLChainId, (SensitiveUrl, Address)>,
+}
+
+fn deserialize_sl_client_map<'de, D>(
+    deserializer: D,
+) -> Result<HashMap<SLChainId, (SensitiveUrl, Address)>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let mut list: serde_json::Value = serde_json::Value::deserialize(deserializer)?;
+    if list.is_string() {
+        list = serde_json::from_str(list.as_str().unwrap()).map_err(serde::de::Error::custom)?;
+    }
+    let mut result = HashMap::new();
+    let error = || {
+        serde::de::Error::custom(
+            "invalid sl_client_map: expected object [{chain_id: int, rpc_url: str, diamond_proxy_address: str}]",
+        )
+    };
+    let list = list.as_array().ok_or_else(error)?;
+    for client in list {
+        let client = client.as_object().ok_or_else(error)?;
+        let chain_id = client["chain_id"].as_u64().ok_or_else(error)?;
+        let url = client["rpc_url"]
+            .as_str()
+            .ok_or_else(error)?
+            .parse()
+            .map_err(serde::de::Error::custom)?;
+        let addr = client["diamond_proxy_address"]
+            .as_str()
+            .ok_or_else(error)?
+            .parse()
+            .map_err(serde::de::Error::custom)?;
+        result.insert(SLChainId(chain_id), (url, addr));
+    }
+    Ok(result)
 }
 
 impl OptionalENConfig {
@@ -971,32 +997,6 @@ pub(crate) struct RequiredENConfig {
     pub merkle_tree_path: String,
 }
 
-fn deserialize_sl_client_map<'de, D>(
-    deserializer: D,
-) -> Result<HashMap<SLChainId, (SensitiveUrl, Address)>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let map: serde_json::Value = serde_json::Value::deserialize(deserializer)?;
-    let mut result = HashMap::new();
-    let error = || {
-        serde::de::Error::custom("invalid sl_client_map: expected object {chainID: [url, address]}")
-    };
-    for (key, val) in map.as_object().ok_or(error())? {
-        let key: u64 = key.parse().map_err(serde::de::Error::custom)?;
-        let val = val.as_array().ok_or(error())?;
-        if val.len() != 2 {
-            return Err(error());
-        }
-        let url = val[0].as_str().ok_or(error())?;
-        let url = url.parse().map_err(serde::de::Error::custom)?;
-        let addr = val[1].as_str().ok_or(error())?;
-        let addr = Address::from_str(addr).map_err(serde::de::Error::custom)?;
-        result.insert(SLChainId(key), (url, addr));
-    }
-    Ok(result)
-}
-
 impl RequiredENConfig {
     pub fn settlement_layer_id(&self) -> SLChainId {
         self.sl_chain_id.unwrap_or(self.l1_chain_id.into())
@@ -1468,11 +1468,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             l2_native_token_vault_proxy_addr: config.remote.l2_native_token_vault_proxy_addr,
-            sl_diamond_proxy_addr: config
-                .remote
-                .gateway_diamond_proxy
-                .unwrap_or(config.remote.user_facing_diamond_proxy),
-            first_gateway_batch_number: config.remote.first_gateway_batch_number,
+            sl_diamond_proxy_addr: config.remote.settlement_layer_diamond_proxy,
         }
     }
 }

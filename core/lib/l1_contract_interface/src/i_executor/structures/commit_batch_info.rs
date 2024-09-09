@@ -206,14 +206,8 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
                 (
                     L1BatchCommitmentMode::Validium,
-                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata | PubdataDA::Blobs,
                 ) => self
-                    .l1_batch_with_metadata
-                    .metadata
-                    .state_diff_hash
-                    .0
-                    .into(),
-                (L1BatchCommitmentMode::Validium, PubdataDA::Blobs) => self
                     .l1_batch_with_metadata
                     .metadata
                     .state_diff_hash
