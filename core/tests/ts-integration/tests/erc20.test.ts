@@ -226,7 +226,7 @@ describe('ERC20 contract checks', () => {
 
         testMaster.reporter.debug('B#');
         // approving the needed allowance for the deposit
-        testMaster.reporter.debug(`Eth balance: ${await alice.getBalanceL1(zksync.utils.ETH_ADDRESS_IN_CONTRACTS)}`)
+        testMaster.reporter.debug(`Eth balance: ${await alice.getBalanceL1(zksync.utils.ETH_ADDRESS_IN_CONTRACTS)}`);
         await (
             await alice.approveERC20(tokenDetails.l1Address, tokenDepositAmount, {
                 gasPerPubdata: 4_000_000_000
