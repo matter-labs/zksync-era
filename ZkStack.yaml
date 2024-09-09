@@ -4,7 +4,7 @@ link_to_code: /Users/danillugovskoy/matterlabs/zksync-era/.
 bellman_cuda_dir: null
 chains: ./chains
 config: ./configs/
-default_chain: ada
+default_chain: legacy
 era_chain_id: 270
 prover_version: NoProofs
 wallet_creation: Localhost

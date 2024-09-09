@@ -16,6 +16,7 @@ pub mod deploy_paymaster;
 pub mod genesis;
 pub(crate) mod init;
 mod set_token_multiplier_setter;
+mod setup_legacy_bridge;
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {

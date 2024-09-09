@@ -61,3 +61,9 @@ pub const ACCEPT_GOVERNANCE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams
     output: "script-out/output-accept-admin.toml",
     script_path: "deploy-scripts/AcceptAdmin.s.sol",
 };
+
+pub const SETUP_LEGACY_BRIDGE: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/setup-legacy-bridge.toml",
+    output: "script-out/setup-legacy-bridge.toml",
+    script_path: "deploy-scripts/dev/SetupLegacyBridge.s.sol",
+};

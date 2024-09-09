@@ -1,0 +1,15 @@
+id: 2
+name: legacy
+chain_id: 270
+prover_version: NoProofs
+configs: /Users/danillugovskoy/matterlabs/zksync-era/./chains/legacy/configs/
+rocks_db_path: ./chains/legacy/db/
+external_node_config_path: null
+artifacts_path: ./chains/legacy/artifacts/
+l1_batch_commit_data_generator_mode: Rollup
+base_token:
+  address: '0x0000000000000000000000000000000000000001'
+  nominator: 1
+  denominator: 1
+wallet_creation: Localhost
+legacy_bridge: true
