@@ -124,7 +124,6 @@ impl EthNamespace {
         let gas_price = self.state.tx_sender.gas_price().await?;
         tx.common_data.fee.max_fee_per_gas = gas_price.into();
         tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
-        tracing::warn!("############## {:?}", tx.common_data.fee);
 
         // Modify the l1 gas price with the scale factor
         let scale_factor = self.state.api_config.estimate_gas_scale_factor;
@@ -141,9 +140,6 @@ impl EthNamespace {
                 state_override,
             )
             .await;
-        if !fee.is_ok() {
-            tracing::warn!("RESULT ################ {:?}", fee);
-        }
         Ok(fee?.gas_limit)
     }
 
