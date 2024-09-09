@@ -5,22 +5,22 @@ use crate::vm_latest::{HistoryMode, ZkSyncVmState};
 #[derive(Debug, Clone)]
 pub(crate) struct GasLimiter {
     withheld_gas: WithheldGas,
-    pub(crate) gas_limit: u32,
+    remaining_gas_limit: u32,
 }
 
 #[derive(Debug, Clone)]
 enum WithheldGas {
     None,
     Pending,
-    Withheld(u32),
-    PendingRelease(u32),
+    Withholding { withheld: u32, provided: u32 },
+    PendingRelease { withheld: u32, provided: u32 },
 }
 
 impl GasLimiter {
     pub fn new(gas_limit: u32) -> Self {
         Self {
             withheld_gas: WithheldGas::None,
-            gas_limit,
+            remaining_gas_limit: gas_limit,
         }
     }
 
@@ -30,8 +30,8 @@ impl GasLimiter {
     }
 
     pub fn stop_limiting(&mut self) {
-        if let WithheldGas::Withheld(gas) = self.withheld_gas {
-            self.withheld_gas = WithheldGas::PendingRelease(gas);
+        if let WithheldGas::Withholding { withheld, provided } = self.withheld_gas {
+            self.withheld_gas = WithheldGas::PendingRelease { withheld, provided };
         } else {
             panic!("Must enter account validation before exiting it");
         }
@@ -48,12 +48,17 @@ impl GasLimiter {
                     .callstack
                     .current
                     .ergs_remaining
-                    .saturating_sub(self.gas_limit);
+                    .saturating_sub(self.remaining_gas_limit);
                 state.local_state.callstack.current.ergs_remaining -= to_remove;
-                self.withheld_gas = WithheldGas::Withheld(to_remove);
+                self.withheld_gas = WithheldGas::Withholding {
+                    withheld: to_remove,
+                    provided: state.local_state.callstack.current.ergs_remaining,
+                };
             }
-            WithheldGas::PendingRelease(gas) => {
-                state.local_state.callstack.current.ergs_remaining += gas;
+            WithheldGas::PendingRelease { withheld, provided } => {
+                self.remaining_gas_limit -=
+                    provided - state.local_state.callstack.current.ergs_remaining;
+                state.local_state.callstack.current.ergs_remaining += withheld;
                 self.withheld_gas = WithheldGas::None;
             }
             _ => {}
