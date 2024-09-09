@@ -135,14 +135,22 @@ impl Account {
             value: U256::zero(),
         };
 
+        // Although serial_id != to deployment_once, it will be reused for the purpose of testing
+        // In era, the address is determined by the deployer address + deployment nonce (stored separataly from usual nonce)
+        let mut nonce = 0;
         let tx = match tx_type {
             TxType::L2 => self.get_l2_tx_for_execute(execute, None),
-            TxType::L1 { serial_id } => self.get_l1_tx(execute, serial_id),
+            TxType::L1 { serial_id } => {
+                nonce = serial_id;
+                self.get_l1_tx(execute, serial_id)
+            }
         };
 
         let address =
             // For L1Tx we usually use nonce 0
-            deployed_address_create(self.address, (tx.nonce().unwrap_or(Nonce(0)).0).into());
+            // However, as we deploy multiple contracts, we increment the serial_id to achieve the 
+            // desired deployment_nonce number and the correct address is returned.
+            deployed_address_create(self.address, U256::from(nonce));
         DeployContractsTx {
             tx,
             bytecode_hash: code_hash,
@@ -158,6 +166,52 @@ impl Account {
             tx: abi::L2CanonicalTransaction {
                 tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
                 from: address_to_u256(&self.address),
+                to: address_to_u256(&execute.contract_address),
+                gas_limit,
+                gas_per_pubdata_byte_limit: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
+                max_fee_per_gas,
+                max_priority_fee_per_gas: 0.into(),
+                paymaster: 0.into(),
+                nonce: serial_id.into(),
+                value: execute.value,
+                reserved: [
+                    // `to_mint`
+                    gas_limit * max_fee_per_gas + execute.value,
+                    // `refund_recipient`
+                    address_to_u256(&self.address),
+                    0.into(),
+                    0.into(),
+                ],
+                data: execute.calldata,
+                signature: vec![],
+                factory_deps: factory_deps
+                    .iter()
+                    .map(|b| h256_to_u256(hash_bytecode(b)))
+                    .collect(),
+                paymaster_input: vec![],
+                reserved_dynamic: vec![],
+            }
+            .into(),
+            factory_deps,
+            eth_block: 0,
+        }
+        .try_into()
+        .unwrap()
+    }
+
+    pub fn get_l1_tx_custom_sender(
+        &self,
+        execute: Execute,
+        serial_id: u64,
+        prank_address: Address,
+    ) -> Transaction {
+        let max_fee_per_gas = U256::from(0u32);
+        let gas_limit = U256::from(72_000_000);
+        let factory_deps = execute.factory_deps;
+        abi::Transaction::L1 {
+            tx: abi::L2CanonicalTransaction {
+                tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
+                from: address_to_u256(&prank_address),
                 to: address_to_u256(&execute.contract_address),
                 gas_limit,
                 gas_per_pubdata_byte_limit: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),

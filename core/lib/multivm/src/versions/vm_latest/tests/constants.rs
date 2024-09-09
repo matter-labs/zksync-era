@@ -35,7 +35,6 @@ fn test_that_bootloader_encoding_space_is_large_enoguh() {
 //         .with_execution_mode(TxExecutionMode::VerifyExecute)
 //         .with_random_rich_accounts(1)
 //         .build();
-
 //     let message_root_bytecode = read_message_root();
 //     let account = &mut vm.rich_accounts[0];
 //     let DeployContractsTx { tx, address, .. } = account.get_deploy_tx(

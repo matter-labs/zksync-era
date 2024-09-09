@@ -8929,6 +8929,7 @@ dependencies = [
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
  "zk_evm 0.150.4",
+ "zksync_basic_types",
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_mini_merkle_tree",

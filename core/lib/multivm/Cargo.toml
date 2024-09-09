@@ -43,6 +43,7 @@ vise.workspace = true
 [dev-dependencies]
 assert_matches.workspace = true
 tokio = { workspace = true, features = ["time"] }
+zksync_basic_types.workspace = true
 zksync_test_account.workspace = true
 ethabi.workspace = true
 zksync_eth_signer.workspace = true
