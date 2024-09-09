@@ -19,6 +19,8 @@ zksync_config = { workspace = true, features = ["observability_ext"] }
 anyhow.workspace = true
 async-trait.workspace = true
 axum = "0.7.5"
+axum-macros = "0.4.1"
+chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 ctrlc = { workspace = true, features = ["termination"] }
 futures.workspace = true
@@ -28,10 +30,9 @@ reqwest.workspace = true
 ring = "0.17.8"
 rustls = { version = "0.23.12", features = ["ring"] }
 serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 structopt.workspace = true
 tokio = { workspace = true, features = ["time", "macros"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tracing.workspace = true
 vise.workspace = true
-axum-macros = "0.4.1"
-chrono.workspace = true

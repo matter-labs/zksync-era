@@ -6,7 +6,11 @@ use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
-use zksync_prover_autoscaler::{agent, k8s::Watcher, task_wiring::TaskRunner};
+use zksync_prover_autoscaler::{
+    agent,
+    k8s::{Scaler, Watcher},
+    task_wiring::TaskRunner,
+};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
@@ -77,18 +81,20 @@ async fn main() -> anyhow::Result<()> {
     match opt.job {
         ProverJob::Agent => {
             let watcher = Watcher::new(
-                client,
+                client.clone(),
                 vec!["prover-blue".to_string(), "prover-red".to_string()],
             );
+            let scaler = Scaler { client };
             tasks.push(tokio::spawn(watcher.clone().run()));
             tasks.push(tokio::spawn(agent::run_server(
                 8081,
                 watcher,
+                scaler,
                 stop_receiver.clone(),
             )))
         }
         ProverJob::Scaler => {
-            tracing::error!("Not implemented")
+            tracing::error!("Not implemented");
             //tasks.extend(get_tasks(client, stop_receiver)?);
         }
     }
