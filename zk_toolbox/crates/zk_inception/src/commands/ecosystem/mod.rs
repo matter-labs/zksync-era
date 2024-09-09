@@ -1,4 +1,4 @@
-use args::build_transactions::BuildTransactions;
+use args::build_transactions::BuildTransactionsArgs;
 use clap::Subcommand;
 use xshell::Shell;
 
@@ -22,7 +22,7 @@ pub enum EcosystemCommands {
     /// setting necessary configurations for later initialization
     Create(EcosystemCreateArgs),
     /// Create transactions to build ecosystem contracts
-    BuildTransactions(BuildTransactions),
+    BuildTransactions(BuildTransactionsArgs),
     /// Initialize ecosystem and chain,
     /// deploying necessary contracts and performing on-chain operations
     Init(EcosystemInitArgs),

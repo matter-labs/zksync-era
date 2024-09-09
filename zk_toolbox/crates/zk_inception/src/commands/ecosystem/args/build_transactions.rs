@@ -13,7 +13,7 @@ use crate::{
 const DEFAULT_OUT_DIR: &str = "transactions";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
-pub struct BuildTransactions {
+pub struct BuildTransactionsArgs {
     /// Address of the transaction sender.
     pub sender: String,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
@@ -26,7 +26,7 @@ pub struct BuildTransactions {
     pub forge_args: ForgeScriptArgs,
 }
 
-impl BuildTransactions {
+impl BuildTransactionsArgs {
     pub fn fill_values_with_prompt(self) -> BuildTransactionsFinal {
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
             Prompt::new(MSG_L1_RPC_URL_PROMPT)
