@@ -218,7 +218,7 @@ describe('ERC20 contract checks', () => {
             const baseTokenDetails = testMaster.environment().baseToken;
             const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
             let receipt = await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
-            testMaster.reporter.debug(JSON.stringify(receipt))
+            testMaster.reporter.debug(JSON.stringify(receipt));
         }
         testMaster.reporter.debug('A#');
 
