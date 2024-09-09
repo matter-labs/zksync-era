@@ -246,9 +246,9 @@ impl VmPlayground {
         };
         let vm_runner = VmRunner::new(
             self.pool,
-            Box::new(self.io),
+            Arc::new(self.io),
             loader,
-            Box::new(self.output_handler_factory),
+            Arc::new(self.output_handler_factory),
             Box::new(self.batch_executor_factory),
         );
         vm_runner.run(&stop_receiver).await
@@ -412,7 +412,7 @@ impl OutputHandler for VmPlaygroundOutputHandler {
 #[async_trait]
 impl OutputHandlerFactory for VmPlaygroundOutputHandler {
     async fn create_handler(
-        &mut self,
+        &self,
         _system_env: SystemEnv,
         _l1_batch_env: L1BatchEnv,
     ) -> anyhow::Result<Box<dyn OutputHandler>> {

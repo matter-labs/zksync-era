@@ -41,9 +41,9 @@ impl ProtectiveReadsWriter {
         let batch_processor = MainBatchExecutorFactory::new(false, false);
         let vm_runner = VmRunner::new(
             pool,
-            Box::new(io),
+            Arc::new(io),
             Arc::new(loader),
-            Box::new(output_handler_factory),
+            Arc::new(output_handler_factory),
             Box::new(batch_processor),
         );
         Ok((
@@ -219,7 +219,7 @@ struct ProtectiveReadsOutputHandlerFactory {
 #[async_trait]
 impl OutputHandlerFactory for ProtectiveReadsOutputHandlerFactory {
     async fn create_handler(
-        &mut self,
+        &self,
         _system_env: SystemEnv,
         l1_batch_env: L1BatchEnv,
     ) -> anyhow::Result<Box<dyn OutputHandler>> {

@@ -52,9 +52,9 @@ impl BasicWitnessInputProducer {
             ConcurrentOutputHandlerFactory::new(pool.clone(), io.clone(), output_handler_factory);
         let vm_runner = VmRunner::new(
             pool,
-            Box::new(io),
+            Arc::new(io),
             Arc::new(loader),
-            Box::new(output_handler_factory),
+            Arc::new(output_handler_factory),
             batch_executor_factory,
         );
         Ok((
@@ -381,7 +381,7 @@ struct BasicWitnessInputProducerOutputHandlerFactory {
 #[async_trait]
 impl OutputHandlerFactory for BasicWitnessInputProducerOutputHandlerFactory {
     async fn create_handler(
-        &mut self,
+        &self,
         system_env: SystemEnv,
         l1_batch_env: L1BatchEnv,
     ) -> anyhow::Result<Box<dyn OutputHandler>> {

@@ -61,7 +61,7 @@ pub trait OutputHandler: fmt::Debug + Send {
 /// simultaneously. Implementing this trait signifies that this property is held for the data the
 /// implementation is responsible for.
 #[async_trait]
-pub trait OutputHandlerFactory: fmt::Debug + Send {
+pub trait OutputHandlerFactory: fmt::Debug + Send + Sync {
     /// Creates a [`StateKeeperOutputHandler`] implementation for the provided L1 batch. Only
     /// supposed to be used for the L1 batch data it was created against. Using it for anything else
     /// will lead to errors.
@@ -70,7 +70,7 @@ pub trait OutputHandlerFactory: fmt::Debug + Send {
     ///
     /// Propagates DB errors.
     async fn create_handler(
-        &mut self,
+        &self,
         system_env: SystemEnv,
         l1_batch_env: L1BatchEnv,
     ) -> anyhow::Result<Box<dyn OutputHandler>>;
@@ -139,7 +139,7 @@ impl<Io: VmRunnerIo, F: OutputHandlerFactory> OutputHandlerFactory
     for ConcurrentOutputHandlerFactory<Io, F>
 {
     async fn create_handler(
-        &mut self,
+        &self,
         system_env: SystemEnv,
         l1_batch_env: L1BatchEnv,
     ) -> anyhow::Result<Box<dyn OutputHandler>> {

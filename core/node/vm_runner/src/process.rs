@@ -1,19 +1,21 @@
 use std::{sync::Arc, time::Duration};
 
 use anyhow::Context;
-use tokio::{sync::watch, task::JoinHandle};
+use tokio::{
+    sync::{watch, Mutex},
+    task::JoinHandle,
+};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_state::OwnedStorage;
-use zksync_types::{block::L2BlockExecutionData, L1BatchNumber};
-use zksync_vm_interface::{
-    executor::{BatchExecutor, BatchExecutorFactory},
-    L2BlockEnv,
-};
+use zksync_types::L1BatchNumber;
+use zksync_vm_interface::{executor::BatchExecutorFactory, L2BlockEnv};
 
 use crate::{
-    metrics::METRICS, output_handler::OutputHandler, storage::StorageLoader, L1BatchOutput,
-    L2BlockOutput, OutputHandlerFactory, VmRunnerIo,
+    metrics::METRICS, storage::StorageLoader, L1BatchOutput, L2BlockOutput, OutputHandlerFactory,
+    VmRunnerIo,
 };
+
+const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
 
 /// VM runner represents a logic layer of L1 batch / L2 block processing flow akin to that of state
 /// keeper. The difference is that VM runner is designed to be run on batches/blocks that have
@@ -26,13 +28,13 @@ use crate::{
 ///
 /// You can think of VM runner as a concurrent processor of a continuous stream of newly committed
 /// batches/blocks.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct VmRunner {
     pool: ConnectionPool<Core>,
-    io: Box<dyn VmRunnerIo>,
+    io: Arc<dyn VmRunnerIo>,
     loader: Arc<dyn StorageLoader>,
-    output_handler_factory: Box<dyn OutputHandlerFactory>,
-    batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
+    output_handler_factory: Arc<dyn OutputHandlerFactory>,
+    batch_executor_factory: Arc<Mutex<Box<dyn BatchExecutorFactory<OwnedStorage>>>>,
 }
 
 impl VmRunner {
@@ -44,9 +46,9 @@ impl VmRunner {
     /// an underlying implementation of [`OutputHandlerFactory`].
     pub fn new(
         pool: ConnectionPool<Core>,
-        io: Box<dyn VmRunnerIo>,
+        io: Arc<dyn VmRunnerIo>,
         loader: Arc<dyn StorageLoader>,
-        output_handler_factory: Box<dyn OutputHandlerFactory>,
+        output_handler_factory: Arc<dyn OutputHandlerFactory>,
         batch_executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
     ) -> Self {
         Self {
@@ -54,17 +56,36 @@ impl VmRunner {
             io,
             loader,
             output_handler_factory,
-            batch_executor_factory,
+            batch_executor_factory: Arc::new(Mutex::new(batch_executor_factory)),
         }
     }
 
-    async fn process_batch(
-        mut batch_executor: Box<dyn BatchExecutor<OwnedStorage>>,
-        l2_blocks: Vec<L2BlockExecutionData>,
-        mut output_handler: Box<dyn OutputHandler>,
-    ) -> anyhow::Result<()> {
+    async fn process_batch(self, number: L1BatchNumber) -> anyhow::Result<()> {
+        let (batch_data, storage) = loop {
+            match self.loader.load_batch(number).await? {
+                Some(data_and_storage) => break data_and_storage,
+                None => {
+                    // Next batch has not been loaded yet
+                    tokio::time::sleep(SLEEP_INTERVAL).await;
+                }
+            }
+        };
+
+        let mut batch_executor = self.batch_executor_factory.lock().await.init_batch(
+            storage,
+            batch_data.l1_batch_env.clone(),
+            batch_data.system_env.clone(),
+        );
+        let mut output_handler = self
+            .output_handler_factory
+            .create_handler(batch_data.system_env, batch_data.l1_batch_env)
+            .await?;
+        self.io
+            .mark_l1_batch_as_processing(&mut self.pool.connection().await?, number)
+            .await?;
+
         let latency = METRICS.run_vm_time.start();
-        for (i, l2_block) in l2_blocks.into_iter().enumerate() {
+        for (i, l2_block) in batch_data.l2_blocks.into_iter().enumerate() {
             let block_env = L2BlockEnv::from_l2_block_data(&l2_block);
             if i > 0 {
                 // First L2 block in every batch is already preloaded
@@ -112,9 +133,7 @@ impl VmRunner {
 
     /// Consumes VM runner to execute a loop that continuously pulls data from [`VmRunnerIo`] and
     /// processes it.
-    pub async fn run(mut self, stop_receiver: &watch::Receiver<bool>) -> anyhow::Result<()> {
-        const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
-
+    pub async fn run(self, stop_receiver: &watch::Receiver<bool>) -> anyhow::Result<()> {
         // Join handles for asynchronous tasks that are being run in the background
         let mut task_handles: Vec<(L1BatchNumber, JoinHandle<anyhow::Result<()>>)> = Vec::new();
         let mut next_batch = self
@@ -156,31 +175,8 @@ impl VmRunner {
                 tokio::time::sleep(SLEEP_INTERVAL).await;
                 continue;
             }
-            let Some((batch_data, storage)) = self.loader.load_batch(next_batch).await? else {
-                // Next batch has not been loaded yet
-                tokio::time::sleep(SLEEP_INTERVAL).await;
-                continue;
-            };
-            let batch_executor = self.batch_executor_factory.init_batch(
-                storage,
-                batch_data.l1_batch_env.clone(),
-                batch_data.system_env.clone(),
-            );
-            let output_handler = self
-                .output_handler_factory
-                .create_handler(batch_data.system_env, batch_data.l1_batch_env)
-                .await?;
-
-            self.io
-                .mark_l1_batch_as_processing(&mut self.pool.connection().await?, next_batch)
-                .await?;
-            let handle = tokio::task::spawn(Self::process_batch(
-                batch_executor,
-                batch_data.l2_blocks,
-                output_handler,
-            ));
+            let handle = tokio::spawn(self.clone().process_batch(next_batch));
             task_handles.push((next_batch, handle));
-
             next_batch += 1;
         }
     }
