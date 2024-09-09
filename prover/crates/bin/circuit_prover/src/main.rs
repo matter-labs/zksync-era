@@ -17,6 +17,7 @@ use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_gener
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::{WitnessVectorArtifacts, PROVER_PROTOCOL_SEMANTIC_VERSION};
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
 // use zksync_env_config::object_store::ProverObjectStoreConfig;
@@ -83,6 +84,9 @@ async fn main() -> anyhow::Result<()> {
         .expect("failed to create object store");
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
+    let keystore =
+        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
+
     let mut tasks = vec![];
 
     let cancellation_token = CancellationToken::new();
@@ -95,7 +99,7 @@ async fn main() -> anyhow::Result<()> {
             connection_pool.clone(),
             protocol_version,
             prover_config.max_attempts,
-            Some(prover_config.setup_data_path.clone()),
+            keystore.clone(),
             sender.clone(),
         );
         tasks.push(tokio::spawn(wvg.run(cancellation_token.clone())));
@@ -108,7 +112,7 @@ async fn main() -> anyhow::Result<()> {
         connection_pool,
         object_store,
         protocol_version,
-        Some(prover_config.setup_data_path),
+        keystore.clone(),
         receiver,
     );
     tasks.push(tokio::spawn(prover.run(cancellation_token.clone())));

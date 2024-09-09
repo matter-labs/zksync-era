@@ -32,11 +32,11 @@ use zksync_prover_fri_types::{
     },
     CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey, WitnessVectorArtifacts,
 };
+use zksync_prover_keystore::{keystore::Keystore, GoldilocksGpuProverSetupData};
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 use zksync_utils::panic_extractor::try_extract_panic_message;
-use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
 
 type DefaultTranscript = GoldilocksPoisedon2Transcript;
 type DefaultTreeHasher = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
@@ -54,14 +54,9 @@ impl CircuitProver {
         connection_pool: ConnectionPool<Prover>,
         object_store: Arc<dyn ObjectStore>,
         protocol_version: ProtocolSemanticVersion,
-        setup_data_path: Option<String>,
+        keystore: Keystore,
         receiver: Receiver<WitnessVectorArtifacts>,
     ) -> Self {
-        let keystore = if let Some(setup_data_path) = setup_data_path {
-            Keystore::new_with_setup_data_path(setup_data_path)
-        } else {
-            Keystore::default()
-        };
         Self {
             connection_pool,
             object_store,

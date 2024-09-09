@@ -25,9 +25,9 @@ use zksync_prover_fri_types::{
     WitnessVectorArtifacts,
 };
 use zksync_prover_fri_utils::metrics::CircuitLabels;
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::protocol_version::ProtocolSemanticVersion;
 use zksync_utils::panic_extractor::try_extract_panic_message;
-use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 pub struct WitnessVectorGenerator {
     object_store: Arc<dyn ObjectStore>,
@@ -46,14 +46,9 @@ impl WitnessVectorGenerator {
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
         max_attempts: u32,
-        setup_data_path: Option<String>,
+        keystore: Keystore,
         sender: Sender<WitnessVectorArtifacts>,
     ) -> Self {
-        let keystore = if let Some(setup_data_path) = setup_data_path {
-            Keystore::new_with_setup_data_path(setup_data_path)
-        } else {
-            Keystore::default()
-        };
         Self {
             object_store,
             connection_pool,
