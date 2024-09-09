@@ -1,3 +1,5 @@
+-- calculate distribution of event emissions per transaction
+
 with config as (select 40000000 as start_from_miniblock_number,
                        10000    as num_miniblocks)
 select stddev_samp(event_count)                                    as stddev,

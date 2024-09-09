@@ -1,89 +1,39 @@
+-- calculate distribution of storage reads per transaction
 -- does not calculate hot/cold reads
 
-WITH
-	MB AS (
-		SELECT
-			*
-		FROM
-			MINIBLOCKS MB
-		WHERE
-			MB.NUMBER >= 40000000
-		ORDER BY
-			MB.NUMBER ASC
-		LIMIT
-			10000
-	)
-SELECT
-	STDDEV_SAMP(READ_LOGS_PER_TX) AS STDDEV,
-	PERCENTILE_CONT(0.00) WITHIN GROUP (
-		ORDER BY
-			READ_LOGS_PER_TX ASC
-	) AS PCT_00,
-	PERCENTILE_CONT(0.01) WITHIN GROUP (
-		ORDER BY
-			READ_LOGS_PER_TX ASC
-	) AS PCT_01,
-	PERCENTILE_CONT(0.05) WITHIN GROUP (
-		ORDER BY
-			READ_LOGS_PER_TX ASC
-	) AS PCT_05,
-	PERCENTILE_CONT(0.25) WITHIN GROUP (
-		ORDER BY
-			READ_LOGS_PER_TX ASC
-	) AS PCT_25,
-	PERCENTILE_CONT(0.50) WITHIN GROUP (
-		ORDER BY
-			READ_LOGS_PER_TX ASC
-	) AS PCT_50,
-	PERCENTILE_CONT(0.75) WITHIN GROUP (
-		ORDER BY
-			READ_LOGS_PER_TX ASC
-	) AS PCT_75,
-	PERCENTILE_CONT(0.95) WITHIN GROUP (
-		ORDER BY
-			READ_LOGS_PER_TX ASC
-	) AS PCT_95,
-	PERCENTILE_CONT(0.99) WITHIN GROUP (
-		ORDER BY
-			READ_LOGS_PER_TX ASC
-	) AS PCT_99,
-	PERCENTILE_CONT(1.00) WITHIN GROUP (
-		ORDER BY
-			READ_LOGS_PER_TX ASC
-	) AS PCT_100
-FROM
-	(
-		SELECT
-			MINIBLOCK_NUMBER,
-			(SUM(READ_WRITE_LOGS) - SUM(WRITE_LOGS)) / SUM(TRANSACTION_COUNT) AS READ_LOGS_PER_TX,
-			SUM(TRANSACTION_COUNT) AS TRANSACTION_COUNT
-		FROM
-			(
-				SELECT
-					MB.NUMBER AS MINIBLOCK_NUMBER,
-					(TX.EXECUTION_INFO ->> 'storage_logs')::BIGINT AS READ_WRITE_LOGS,
-					NULL AS WRITE_LOGS,
-					1 AS TRANSACTION_COUNT
-				FROM
-					TRANSACTIONS TX,
-					MB
-				WHERE
-					TX.MINIBLOCK_NUMBER = MB.NUMBER
-				UNION
-				SELECT
-					MB.NUMBER AS MINIBLOCK_NUMBER,
-					NULL AS READ_WRITE_LOGS,
-					COUNT(SL.*) AS WRITE_LOGS,
-					0 AS TRANSACTION_COUNT
-				FROM
-					STORAGE_LOGS SL,
-					MB
-				WHERE
-					SL.MINIBLOCK_NUMBER = MB.NUMBER
-				GROUP BY
-					MB.NUMBER
-			) S
-		GROUP BY
-			S.MINIBLOCK_NUMBER
-	) T,
-	GENERATE_SERIES(1, T.TRANSACTION_COUNT);
+with mb as (select *
+            from miniblocks mb
+            where mb.number >= 40000000
+            order by mb.number
+            limit 10000)
+select stddev_samp(avg_read_logs)                                    as stddev,
+       avg(avg_read_logs)                                            as avg,
+       percentile_cont(0.00) within group ( order by avg_read_logs ) as pct_00,
+       percentile_cont(0.01) within group ( order by avg_read_logs ) as pct_01,
+       percentile_cont(0.05) within group ( order by avg_read_logs ) as pct_05,
+       percentile_cont(0.25) within group ( order by avg_read_logs ) as pct_25,
+       percentile_cont(0.50) within group ( order by avg_read_logs ) as pct_50,
+       percentile_cont(0.75) within group ( order by avg_read_logs ) as pct_75,
+       percentile_cont(0.95) within group ( order by avg_read_logs ) as pct_95,
+       percentile_cont(0.99) within group ( order by avg_read_logs ) as pct_99,
+       percentile_cont(1.00) within group ( order by avg_read_logs ) as pct_100
+from (select miniblock_number,
+             (sum(read_write_logs) - sum(write_logs)) / sum(transaction_count) as avg_read_logs,
+             sum(transaction_count)                                            as transaction_count
+      from (select mb.number                                      as miniblock_number,
+                   (tx.execution_info ->> 'storage_logs')::bigint as read_write_logs,
+                   null                                           as write_logs,
+                   1                                              as transaction_count
+            from transactions tx,
+                 mb
+            where tx.miniblock_number = mb.number
+            union
+            select mb.number   as miniblock_number,
+                   null        as read_write_logs,
+                   count(sl.*) as write_logs,
+                   0           as transaction_count
+            from storage_logs sl,
+                 mb
+            where sl.miniblock_number = mb.number
+            group by mb.number) s
+      group by s.miniblock_number) t, generate_series(1, t.transaction_count);
