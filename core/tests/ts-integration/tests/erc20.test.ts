@@ -217,7 +217,8 @@ describe('ERC20 contract checks', () => {
             // approving whole base token balance
             const baseTokenDetails = testMaster.environment().baseToken;
             const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
-            await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
+            let receipt = await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
+            testMaster.reporter.debug(JSON.stringify(receipt))
         }
         testMaster.reporter.debug('A#');
 
@@ -226,12 +227,7 @@ describe('ERC20 contract checks', () => {
 
         testMaster.reporter.debug('B#');
         // approving the needed allowance for the deposit
-        testMaster.reporter.debug(`Eth  balance: ${await alice.getBalanceL1(zksync.utils.ETH_ADDRESS_IN_CONTRACTS)}`);
-        await (
-            await alice.approveERC20(tokenDetails.l1Address, tokenDepositAmount, {
-                gasPerPubdata: 4_000_000_000
-            } as any)
-        ).wait();
+        await (await alice.approveERC20(tokenDetails.l1Address, tokenDepositAmount)).wait();
 
         testMaster.reporter.debug('C#');
         // fee of the deposit in ether
