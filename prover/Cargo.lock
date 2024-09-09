@@ -701,37 +701,6 @@ dependencies = [
 
 [[package]]
 name = "boojum"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df88daa33db46d683967ca09a4f04817c38950483f2501a771d497669a8a4bb1"
-dependencies = [
- "arrayvec 0.7.4",
- "bincode",
- "blake2 0.10.6",
- "const_format",
- "convert_case",
- "crossbeam 0.8.4",
- "crypto-bigint 0.5.5",
- "cs_derive",
- "derivative",
- "ethereum-types",
- "firestorm",
- "itertools 0.10.5",
- "lazy_static",
- "num-modular",
- "num_cpus",
- "pairing_ce",
- "rand 0.8.5",
- "rayon",
- "serde",
- "sha2 0.10.8",
- "sha3_ce",
- "smallvec",
- "unroll",
-]
-
-[[package]]
-name = "boojum"
 version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68ec2f007ff8f90cc459f03e9f30ca1065440170f013c868823646e2e48d0234"
@@ -768,7 +737,7 @@ version = "0.150.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac7735446f2263e8d12435fc4d5a02c7727838eaffc7c518a961b3e839fb59e7"
 dependencies = [
- "boojum 0.30.1",
+ "boojum",
  "cmake",
  "era_cudart",
  "era_cudart_sys",
@@ -2153,7 +2122,7 @@ dependencies = [
  "blake2 0.9.2",
  "blake2-rfc_bellman_edition",
  "blake2s_simd",
- "boojum 0.30.1",
+ "boojum",
  "byteorder",
  "derivative",
  "digest 0.9.0",
@@ -5617,7 +5586,7 @@ checksum = "3f11e6942c89861aecb72261f8220800a1b69b8a5463c07c24df75b81fd809b0"
 dependencies = [
  "bincode",
  "blake2 0.10.6",
- "boojum 0.30.1",
+ "boojum",
  "boojum-cuda",
  "circuit_definitions",
  "derivative",
@@ -7445,7 +7414,7 @@ checksum = "8beed4cc1ab1f9d99a694506d18705e10059534b30742832be49637c4775e1f8"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
- "boojum 0.2.2",
+ "boojum",
  "cs_derive",
  "derivative",
  "hex",
@@ -7467,7 +7436,7 @@ checksum = "20f1a64d256cc5f5c58d19cf976cb45973df54e4e3010ca4a3e6fafe9f06075e"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
- "boojum 0.2.2",
+ "boojum",
  "cs_derive",
  "derivative",
  "hex",
@@ -7488,7 +7457,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "784fa7cfb51e17c5ced112bca43da30b3468b2347b7af0427ad9638759fb140e"
 dependencies = [
  "arrayvec 0.7.4",
- "boojum 0.30.1",
+ "boojum",
  "derivative",
  "hex",
  "itertools 0.10.5",
@@ -7674,9 +7643,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.1.0-rc.11"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0e31a9fc9a390b440cd12bbe040330dc64f64697a8a8ecbc3beb98cd0747909"
+checksum = "c1c8cf6c689ab5922b52d81b775cd2d9cffbfc8fb8da65985e11b06546dfb3bf"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -7710,9 +7679,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.1.0-rc.11"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efb7ff3ec44b7b92fd4e28d9d92b83d61dc74125ccfc90bcfb27a5750d8a8580"
+checksum = "cc7baced4e811015038322dad10239f2d631d9e339e8d6b7b6e6b146bee30f41"
 dependencies = [
  "anyhow",
  "blst",
@@ -7723,7 +7692,6 @@ dependencies = [
  "k256 0.13.3",
  "num-bigint 0.4.5",
  "num-traits",
- "pairing_ce",
  "rand 0.4.6",
  "rand 0.8.5",
  "sha3 0.10.8",
@@ -7734,9 +7702,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.1.0-rc.11"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72223c0b20621775db51bcc4b043addafeaf784d444af2ad4bc8bcdee477367c"
+checksum = "0aab4ddf62f6001903c5fe9f65afb1bdc42464928c9d1c6ce52e4d7e9944f5dc"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -7756,9 +7724,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_storage"
-version = "0.1.0-rc.11"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41d1750ad93f7e3a0c2f5880f9bcc1244a3b46d3e6c124c4f65f545032b87464"
+checksum = "7b9dbcb923fa201af03f49f70c11a923b416915d2ddf8b2de3a2e861f22898a4"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7776,9 +7744,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.1.0-rc.11"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ff679f8b5f671d887a750b8107f3b5c01fd6085f68eef37ab01de8d2bd0736b"
+checksum = "29e69dffc0fbc7c096548c997f5ca157a490b34b3d49fd524fa3d51840f7fb22"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -7979,7 +7947,7 @@ version = "0.150.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edb8a9c76c172a6d639855ee342b9a670e3ba472f5ae302f771b1c3ee777dc88"
 dependencies = [
- "boojum 0.30.1",
+ "boojum",
  "derivative",
  "hex",
  "once_cell",
@@ -8141,9 +8109,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.1.0-rc.11"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4f6ba3bf0aac20de18b4ae18a22d8c81b83f8f72e8fdec1c879525ecdacd2f5"
+checksum = "df5467dfe2f845ca1fd6ceec623bbd32187589793d3c4023dcd2f5172369d198"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -8162,9 +8130,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.1.0-rc.11"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7798c248b9a64505f0586bd5fadad6b26c999be4a8dec6b1a86b10b3888169c5"
+checksum = "33d35280660b11be2a4ebdf531184eb729acebfdc3368d27176ec104f8bf9c5f"
 dependencies = [
  "anyhow",
  "heck 0.5.0",
