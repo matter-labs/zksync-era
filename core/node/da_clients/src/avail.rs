@@ -1,10 +1,11 @@
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use jsonrpsee::{
-    client_transport::ws::{Url, WsTransportClientBuilder},
-    core::client::{Client, ClientBuilder, ClientT, Subscription, SubscriptionClientT},
-    rpc_params, tokio,
+    core::client::{Client, ClientT, Subscription, SubscriptionClientT},
+    rpc_params,
+    ws_client::WsClientBuilder,
 };
 use parity_scale_codec::{Compact, Decode, Encode};
 use scale_encode::EncodeAsFields;
@@ -24,7 +25,7 @@ const PROTOCOL_VERSION: u8 = 4;
 #[derive(Debug)]
 pub struct AvailClient {
     config: AvailConfig,
-    client: Client,
+    client: Arc<Client>,
     keypair: Keypair,
 }
 
@@ -61,12 +62,16 @@ impl DataAvailabilityClient for AvailClient {
             .map_err(to_non_retriable_da_error)?;
 
         let signature = self.get_signature(
-            call_data.clone(),
-            extra_params.clone(),
-            additional_params.clone(),
+            call_data.as_slice(),
+            extra_params.as_slice(),
+            additional_params.as_slice(),
         );
 
-        let ext = self.get_submittable_extrinsic(signature, extra_params, call_data);
+        let ext = self.get_submittable_extrinsic(
+            signature,
+            extra_params.as_slice(),
+            call_data.as_slice(),
+        );
         let hex_ext = hex::encode(&ext);
 
         let block_hash = self
@@ -92,14 +97,9 @@ impl DataAvailabilityClient for AvailClient {
     }
 
     fn clone_boxed(&self) -> Box<dyn DataAvailabilityClient> {
-        let client = tokio::runtime::Runtime::new()
-            .unwrap()
-            .block_on(build_async_client(self.config.api_node_url.as_str()))
-            .expect("Failed to build async client");
-
         Box::new(AvailClient {
             config: self.config.clone(),
-            client,
+            client: self.client.clone(),
             keypair: self.keypair.clone(),
         })
     }
@@ -116,16 +116,18 @@ impl AvailClient {
         let mnemonic = Mnemonic::parse(config.seed.clone())?;
         let keypair = Keypair::from_phrase(&mnemonic, None)?;
 
-        let client = build_async_client(config.api_node_url.as_str()).await?;
+        let client = WsClientBuilder::default()
+            .build(config.api_node_url.as_str())
+            .await?;
 
         Ok(Self {
             config,
-            client,
+            client: Arc::new(client),
             keypair,
         })
     }
 
-    async fn get_encoded_call(&self, data: Vec<u8>) -> anyhow::Result<Vec<u8>> {
+    async fn get_encoded_call(&self, data: Vec<u8>) -> anyhow::Result<Vec<u8>, anyhow::Error> {
         let resp: serde_json::Value = self
             .client
             .request("state_getMetadata", rpc_params![])
@@ -260,14 +262,14 @@ impl AvailClient {
 
     fn get_signature(
         &self,
-        call_data: Vec<u8>,
-        extra_params: Vec<u8>,
-        additional_params: Vec<u8>,
+        call_data: &[u8],
+        extra_params: &[u8],
+        additional_params: &[u8],
     ) -> Signature {
         let mut bytes = vec![];
-        bytes.extend(call_data);
-        bytes.extend(extra_params);
-        bytes.extend(additional_params);
+        bytes.extend_from_slice(call_data);
+        bytes.extend_from_slice(extra_params);
+        bytes.extend_from_slice(additional_params);
 
         if bytes.len() > 256 {
             bytes = blake2::<32>(bytes).to_vec();
@@ -279,8 +281,8 @@ impl AvailClient {
     fn get_submittable_extrinsic(
         &self,
         signature: Signature,
-        extra_params: Vec<u8>,
-        call_data: Vec<u8>,
+        extra_params: &[u8],
+        call_data: &[u8],
     ) -> Vec<u8> {
         let mut encoded_inner = Vec::new();
         (0b10000000 + PROTOCOL_VERSION).encode_to(&mut encoded_inner); // "is signed" + transaction protocol version
@@ -294,10 +296,10 @@ impl AvailClient {
         signature.0.encode_to(&mut encoded_inner);
 
         // extra params
-        encoded_inner.extend(extra_params);
+        encoded_inner.extend_from_slice(extra_params);
 
         // call data
-        encoded_inner.extend(call_data);
+        encoded_inner.extend_from_slice(call_data);
 
         // now, prefix with byte length:
         let len = Compact(
@@ -363,14 +365,6 @@ impl AvailClient {
 
         Ok(tx_id)
     }
-}
-
-async fn build_async_client(url: &str) -> anyhow::Result<Client> {
-    let url = Url::parse(url)?;
-    let (tx, rx) = WsTransportClientBuilder::default().build(url).await?;
-    let client = ClientBuilder::default().build_with_tokio(tx, rx);
-
-    Ok(client)
 }
 
 fn blake2<const N: usize>(data: Vec<u8>) -> [u8; N] {
