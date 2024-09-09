@@ -70,7 +70,7 @@ impl ProtoFmt for AttestationStatus {
             genesis: read_required(&r.genesis).context("genesis")?,
             next_batch_to_attest: attester::BatchNumber(
                 *required(&r.next_batch_to_attest).context("next_batch_to_attest")?,
-            ), 
+            ),
         })
     }
 

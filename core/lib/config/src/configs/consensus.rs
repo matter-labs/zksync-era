@@ -89,7 +89,7 @@ pub struct GenesisSpec {
     /// Leader of the committee. Represents
     /// `zksync_consensus_roles::validator::LeaderSelectionMode::Sticky`.
     pub leader: ValidatorPublicKey,
-    /// Address of the registry contract. 
+    /// Address of the registry contract.
     pub registry_address: Option<ethabi::Address>,
 }
 

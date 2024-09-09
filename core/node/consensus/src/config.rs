@@ -11,6 +11,9 @@ use zksync_config::{
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
 use zksync_consensus_roles::{attester, node, validator};
+use zksync_dal::consensus_dal;
+
+use crate::registry;
 
 fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result<Option<T>> {
     text.map(|text| Text::new(text.expose_secret()).decode())
@@ -41,16 +44,18 @@ pub(super) struct GenesisSpec {
     pub(super) validators: validator::Committee,
     pub(super) attesters: Option<attester::Committee>,
     pub(super) leader_selection: validator::LeaderSelectionMode,
+    pub(super) registry_address: Option<registry::Address>,
 }
 
 impl GenesisSpec {
-    pub(super) fn from_genesis(g: &validator::Genesis) -> Self {
+    pub(super) fn from_global_config(cfg: &consensus_dal::GlobalConfig) -> Self {
         Self {
-            chain_id: g.chain_id,
-            protocol_version: g.protocol_version,
-            validators: g.validators.clone(),
-            attesters: g.attesters.clone(),
-            leader_selection: g.leader_selection.clone(),
+            chain_id: cfg.genesis.chain_id,
+            protocol_version: cfg.genesis.protocol_version,
+            validators: cfg.genesis.validators.clone(),
+            attesters: cfg.genesis.attesters.clone(),
+            leader_selection: cfg.genesis.leader_selection.clone(),
+            registry_address: cfg.registry_address,
         }
     }
 
@@ -93,6 +98,7 @@ impl GenesisSpec {
             } else {
                 Some(attester::Committee::new(attesters).context("attesters")?)
             },
+            registry_address: x.registry_address.map(registry::Address::new),
         })
     }
 }

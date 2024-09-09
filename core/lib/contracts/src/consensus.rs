@@ -59,6 +59,7 @@ impl<C> std::ops::Deref for Address<C> {
 }
 
 /// Represents a call to the function F.
+#[derive(Debug)]
 pub struct Call<F: Function> {
     /// Contract of the function.
     pub contract: F::Contract,
@@ -215,6 +216,7 @@ impl Function for Initialize {
 }
 
 /// ConsensusRegistry.commitAttesterCommittee function.
+#[derive(Debug, Default)]
 pub struct CommitAttesterCommittee;
 
 impl Function for CommitAttesterCommittee {
@@ -231,6 +233,7 @@ impl Function for CommitAttesterCommittee {
 }
 
 /// ConsensusRegistry.owner function.
+#[derive(Debug, Default)]
 pub struct Owner;
 
 impl Function for Owner {

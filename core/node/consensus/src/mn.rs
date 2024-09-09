@@ -6,6 +6,7 @@ use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
+use zksync_dal::consensus_dal;
 
 use crate::{
     config, registry,
@@ -20,7 +21,6 @@ pub async fn run_main_node(
     cfg: ConsensusConfig,
     secrets: ConsensusSecrets,
     pool: ConnectionPool,
-    registry_addr: Option<registry::Address>,
 ) -> anyhow::Result<()> {
     let validator_key = config::validator_key(&secrets)
         .context("validator_key")?
@@ -37,9 +37,9 @@ pub async fn run_main_node(
             pool.connection(ctx)
                 .await
                 .wrap("connection()")?
-                .adjust_genesis(ctx, &spec)
+                .adjust_global_config(ctx, &spec)
                 .await
-                .wrap("adjust_genesis()")?;
+                .wrap("adjust_global_config()")?;
         }
 
         // The main node doesn't have a payload queue as it produces all the L2 blocks itself.
@@ -48,17 +48,24 @@ pub async fn run_main_node(
             .wrap("Store::new()")?;
         s.spawn_bg(runner.run(ctx));
 
+        let global_config = pool
+            .connection(ctx)
+            .await
+            .wrap("connection()")?
+            .global_config(ctx)
+            .await
+            .wrap("global_config()")?
+            .context("global_config() disappeared")?;
+        anyhow::ensure!(
+            global_config.genesis.leader_selection
+                == validator::LeaderSelectionMode::Sticky(validator_key.public()),
+            "unsupported leader selection mode - main node has to be the leader"
+        );
+
         let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
             .await
             .wrap("BlockStore::new()")?;
         s.spawn_bg(runner.run(ctx));
-
-        let genesis = block_store.genesis().clone();
-        anyhow::ensure!(
-            genesis.leader_selection
-                == validator::LeaderSelectionMode::Sticky(validator_key.public()),
-            "unsupported leader selection mode - main node has to be the leader"
-        );
 
         let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
             .await
@@ -69,9 +76,8 @@ pub async fn run_main_node(
         s.spawn_bg(run_attestation_controller(
             ctx,
             &pool,
-            genesis,
+            global_config,
             attestation.clone(),
-            registry_addr,
         ));
 
         let executor = executor::Executor {
@@ -98,12 +104,11 @@ pub async fn run_main_node(
 async fn run_attestation_controller(
     ctx: &ctx::Ctx,
     pool: &ConnectionPool,
-    genesis: validator::Genesis,
+    cfg: consensus_dal::GlobalConfig,
     attestation: Arc<attestation::Controller>,
-    registry_addr: Option<registry::Address>,
 ) -> anyhow::Result<()> {
     const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
-    let registry = registry::Registry::new(genesis, pool.clone()).await;
+    let registry = registry::Registry::new(cfg.genesis, pool.clone()).await;
     let mut next = attester::BatchNumber(0);
     let res = async {
         loop {
@@ -119,14 +124,7 @@ async fn run_attestation_controller(
                     .await
                     .wrap("attestation_status()")?
                 {
-                    Some(mut status) if status.next_batch_to_attest >= next => {
-                        // NOTE: because we use the same struct for db query and api,
-                        // the consensus_registry_address field is not populated by dal.
-                        // It would be nice to clean it up at some point, i.e. make dal
-                        // NOT return partially populated structs.
-                        status.consensus_registry_address = registry_addr;
-                        break status;
-                    }
+                    Some(status) if status.next_batch_to_attest >= next => break status,
                     _ => {}
                 }
                 ctx.sleep(POLL_INTERVAL).await?;
@@ -140,11 +138,7 @@ async fn run_attestation_controller(
                 .wait_for_batch_hash(ctx, status.next_batch_to_attest)
                 .await?;
             let Some(committee) = registry
-                .attester_committee_for(
-                    ctx,
-                    status.consensus_registry_address,
-                    status.next_batch_to_attest,
-                )
+                .attester_committee_for(ctx, cfg.registry_address, status.next_batch_to_attest)
                 .await
                 .wrap("attester_committee_for()")?
             else {

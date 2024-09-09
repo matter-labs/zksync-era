@@ -116,6 +116,7 @@ pub(super) fn new_configs(
             })
             .collect(),
         leader: config::ValidatorPublicKey(setup.validator_keys[0].public().encode()),
+        registry_address: None,
     };
     network::testonly::new_configs(rng, setup, gossip_peers)
         .into_iter()

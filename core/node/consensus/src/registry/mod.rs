@@ -27,6 +27,7 @@ fn decode_weighted_attester(a: &contracts::Attester) -> anyhow::Result<attester:
 
 pub type Address = contracts::Address<contracts::ConsensusRegistry>;
 
+#[derive(Debug)]
 pub(crate) struct Registry {
     contract: contracts::ConsensusRegistry,
     genesis: validator::Genesis,

@@ -25,7 +25,7 @@ pub(crate) struct VM {
 }
 
 impl VM {
-    /// Constructs a new `VMReader` instance.
+    /// Constructs a new `VM` instance.
     pub async fn new(pool: ConnectionPool) -> Self {
         Self {
             pool,
@@ -74,9 +74,9 @@ impl VM {
             .connection(ctx)
             .await
             .wrap("connection()")?
-            .block_args(ctx, batch)
+            .vm_block_args(ctx, batch)
             .await
-            .wrap("block_args()")?;
+            .wrap("vm_block_args()")?;
         let permit = ctx.wait(self.limiter.acquire()).await?.unwrap();
         let conn = self.pool.connection(ctx).await.wrap("connection()")?;
         let output = ctx

@@ -181,16 +181,16 @@ impl ConnectionPool {
         want_last: validator::BlockNumber,
     ) -> ctx::Result<Vec<validator::FinalBlock>> {
         let blocks = self.wait_for_block_certificates(ctx, want_last).await?;
-        let genesis = self
+        let cfg = self
             .connection(ctx)
             .await
             .wrap("connection()")?
-            .genesis(ctx)
+            .global_config(ctx)
             .await
             .wrap("genesis()")?
             .context("genesis is missing")?;
         for block in &blocks {
-            block.verify(&genesis).context(block.number())?;
+            block.verify(&cfg.genesis).context(block.number())?;
         }
         Ok(blocks)
     }
@@ -215,17 +215,17 @@ impl ConnectionPool {
             ctx.sleep(POLL_INTERVAL).await?;
         }
         let mut conn = self.connection(ctx).await.wrap("connection()")?;
-        let genesis = conn
-            .genesis(ctx)
+        let cfg = conn
+            .global_config(ctx)
             .await
-            .wrap("genesis()")?
-            .context("genesis is missing")?;
+            .wrap("global_config()")?
+            .context("global config is missing")?;
         let first = conn
-            .batch_of_block(ctx, genesis.first_block)
+            .batch_of_block(ctx, cfg.genesis.first_block)
             .await
             .wrap("batch_of_block()")?
             .context("batch of first_block is missing")?;
-        let registry = registry::Registry::new(genesis.clone(), self.clone()).await;
+        let registry = registry::Registry::new(cfg.genesis.clone(), self.clone()).await;
         for i in first.0..want_last.0 {
             let i = attester::BatchNumber(i);
             let hash = conn
@@ -246,7 +246,7 @@ impl ConnectionPool {
                 .await
                 .context("attester_committee_for()")?
                 .context("committee not specified")?;
-            cert.verify(genesis.hash(), &committee)
+            cert.verify(cfg.genesis.hash(), &committee)
                 .with_context(|| format!("cert[{i:?}].verify()"))?;
         }
         Ok(())

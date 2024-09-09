@@ -141,7 +141,7 @@ impl ProtoRepr for proto::Contracts {
                 chain_admin_addr: this.chain_admin_addr.map(|a| format!("{:?}", a)),
             }),
             l2: Some(proto::L2 {
-                testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)), 
+                testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)),
             }),
             bridges: Some(proto::Bridges {
                 shared: Some(proto::Bridge {

@@ -7,6 +7,7 @@ use zksync_consensus_roles::{
     validator::testonly::{Setup, SetupSpec},
 };
 use zksync_consensus_storage::BlockStore;
+use zksync_dal::consensus_dal;
 use zksync_test_account::Account;
 use zksync_types::ProtocolVersionId;
 
@@ -43,9 +44,15 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
         setup.first_block = validator::BlockNumber(4);
         let mut setup = Setup::from(setup);
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
-        conn.try_update_genesis(ctx, &setup.genesis)
-            .await
-            .wrap("try_update_genesis()")?;
+        conn.try_update_global_config(
+            ctx,
+            &consensus_dal::GlobalConfig {
+                genesis: setup.genesis.clone(),
+                registry_address: None,
+            },
+        )
+        .await
+        .wrap("try_update_global_config()")?;
         for i in setup.genesis.first_block.0..sk.last_block().next().0 {
             let i = validator::BlockNumber(i);
             let payload = conn
@@ -118,7 +125,7 @@ async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
             scope::run!(ctx, |ctx, s| async {
                 tracing::info!("Start consensus actor");
                 // In the first iteration it will initialize genesis.
-                s.spawn_bg(run_main_node(ctx, cfg.config.clone(), cfg.secrets.clone(), pool.clone(), None));
+                s.spawn_bg(run_main_node(ctx, cfg.config.clone(), cfg.secrets.clone(), pool.clone()));
 
                 tracing::info!("Generate couple more blocks and wait for consensus to catch up.");
                 sk.push_random_blocks(rng, account, 3).await;
@@ -174,7 +181,6 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
             validator_cfg.config.clone(),
             validator_cfg.secrets.clone(),
             validator_pool.clone(),
-            None,
         ));
 
         tracing::info!("produce some batches");
@@ -283,7 +289,6 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
             validator_cfg.config.clone(),
             validator_cfg.secrets.clone(),
             validator_pool.clone(),
-            None,
         ));
 
         tracing::info!("Run nodes.");
@@ -368,7 +373,6 @@ async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
             cfgs[0].config.clone(),
             cfgs[0].secrets.clone(),
             main_node_pool.clone(),
-            None,
         ));
 
         tracing::info!("Run external nodes.");
@@ -431,7 +435,6 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
             validator_cfg.config.clone(),
             validator_cfg.secrets.clone(),
             validator_pool.clone(),
-            None,
         ));
         // API server needs at least 1 L1 batch to start.
         validator.seal_batch().await;
@@ -521,7 +524,6 @@ async fn test_with_pruning(version: ProtocolVersionId) {
                     validator_cfg.config.clone(),
                     validator_cfg.secrets.clone(),
                     validator_pool,
-                    None,
                 )
                 .await
                 .context("run_main_node()")

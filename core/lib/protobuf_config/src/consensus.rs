@@ -65,7 +65,12 @@ impl ProtoRepr for proto::GenesisSpec {
                 .collect::<Result<_, _>>()
                 .context("attesters")?,
             leader: ValidatorPublicKey(required(&self.leader).context("leader")?.clone()),
-            registry_address: self.registry_address.as_ref().map(|x|parse_h160(x)).transpose().context("registry_address")?, 
+            registry_address: self
+                .registry_address
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("registry_address")?,
         })
     }
     fn build(this: &Self::Type) -> Self {

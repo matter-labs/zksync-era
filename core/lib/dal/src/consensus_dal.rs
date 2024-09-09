@@ -6,7 +6,7 @@ use zksync_db_connection::{
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_protobuf::{ProtoRepr as _};
+use zksync_protobuf::ProtoRepr as _;
 use zksync_types::L2BlockNumber;
 
 pub use crate::consensus::{proto, AttestationStatus, GlobalConfig, Payload};
@@ -32,7 +32,7 @@ pub enum InsertCertificateError {
 }
 
 impl ConsensusDal<'_, '_> {
-    /// Fetch consensus global config. 
+    /// Fetch consensus global config.
     pub async fn global_config(&mut self) -> anyhow::Result<Option<GlobalConfig>> {
         // global_config contains a superset of genesis information.
         // genesis column is deprecated and will be removed once the main node
@@ -41,7 +41,8 @@ impl ConsensusDal<'_, '_> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                genesis, global_config
+                genesis,
+                global_config
             FROM
                 consensus_replica_state
             WHERE
@@ -50,13 +51,22 @@ impl ConsensusDal<'_, '_> {
         )
         .instrument("global_config")
         .fetch_optional(self.storage)
-        .await? else { return Ok(None) };
+        .await?
+        else {
+            return Ok(None);
+        };
         if let Some(global_config) = row.global_config {
-            return Ok(Some(zksync_protobuf::serde::deserialize(&global_config).context("global_config")?));
+            return Ok(Some(
+                zksync_protobuf::serde::deserialize(&global_config).context("global_config")?,
+            ));
         }
         if let Some(genesis) = row.genesis {
-            let genesis : validator::Genesis = zksync_protobuf::serde::deserialize(&genesis).context("genesis")?;
-            return Ok(Some(GlobalConfig { genesis, registry_address: None }))
+            let genesis: validator::Genesis =
+                zksync_protobuf::serde::deserialize(&genesis).context("genesis")?;
+            return Ok(Some(GlobalConfig {
+                genesis,
+                registry_address: None,
+            }));
         }
         Ok(None)
     }
@@ -89,8 +99,9 @@ impl ConsensusDal<'_, '_> {
             want.genesis.verify().context("genesis.verify()")?;
         }
         let genesis =
-            zksync_protobuf::serde::serialize(&want.genesis, serde_json::value::Serializer).unwrap();
-        let global_config = 
+            zksync_protobuf::serde::serialize(&want.genesis, serde_json::value::Serializer)
+                .unwrap();
+        let global_config =
             zksync_protobuf::serde::serialize(want, serde_json::value::Serializer).unwrap();
         let state = zksync_protobuf::serde::serialize(
             &ReplicaState::default(),
@@ -148,7 +159,12 @@ impl ConsensusDal<'_, '_> {
             .start_transaction()
             .await
             .context("start_transaction")?;
-        let Some(old) = txn.consensus_dal().global_config().await.context("global_config()")? else {
+        let Some(old) = txn
+            .consensus_dal()
+            .global_config()
+            .await
+            .context("global_config()")?
+        else {
             return Ok(());
         };
         let new = GlobalConfig {
@@ -165,7 +181,8 @@ impl ConsensusDal<'_, '_> {
                 validators: old.genesis.validators.clone(),
                 attesters: old.genesis.attesters.clone(),
                 leader_selection: old.genesis.leader_selection.clone(),
-            }.with_hash(),
+            }
+            .with_hash(),
             registry_address: old.registry_address,
         };
         txn.consensus_dal().try_update_global_config(&new).await?;
@@ -255,7 +272,12 @@ impl ConsensusDal<'_, '_> {
     /// so it might NOT be the certificate for the last L2 block.
     pub async fn block_certificates_range(&mut self) -> anyhow::Result<BlockStoreState> {
         // It cannot be older than genesis first block.
-        let mut start = self.global_config().await?.context("genesis()")?.genesis.first_block;
+        let mut start = self
+            .global_config()
+            .await?
+            .context("genesis()")?
+            .genesis
+            .first_block;
         start = start.max(self.first_block().await.context("first_block()")?);
         let row = sqlx::query!(
             r#"
@@ -638,10 +660,10 @@ mod tests {
     use rand::Rng as _;
     use zksync_consensus_roles::{attester, validator};
     use zksync_consensus_storage::ReplicaState;
-    use zksync_types::ProtocolVersion;
     use zksync_contracts::consensus as contracts;
-    use super::GlobalConfig;
+    use zksync_types::ProtocolVersion;
 
+    use super::GlobalConfig;
     use crate::{
         tests::{create_l1_batch_header, create_l2_block_header},
         ConnectionPool, Core, CoreDal,

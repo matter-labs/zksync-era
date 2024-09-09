@@ -246,22 +246,22 @@ impl<'a> Connection<'a> {
         })
     }
 
-    /// Wrapper for `consensus_dal().genesis()`.
-    pub async fn genesis(&mut self, ctx: &ctx::Ctx) -> ctx::Result<Option<validator::Genesis>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().genesis())
-            .await?
-            .map_err(DalError::generalize)?)
-    }
-
-    /// Wrapper for `consensus_dal().try_update_genesis()`.
-    pub async fn try_update_genesis(
+    /// Wrapper for `consensus_dal().global_config()`.
+    pub async fn global_config(
         &mut self,
         ctx: &ctx::Ctx,
-        genesis: &validator::Genesis,
+    ) -> ctx::Result<Option<consensus_dal::GlobalConfig>> {
+        Ok(ctx.wait(self.0.consensus_dal().global_config()).await??)
+    }
+
+    /// Wrapper for `consensus_dal().try_update_global_config()`.
+    pub async fn try_update_global_config(
+        &mut self,
+        ctx: &ctx::Ctx,
+        cfg: &consensus_dal::GlobalConfig,
     ) -> ctx::Result<()> {
         Ok(ctx
-            .wait(self.0.consensus_dal().try_update_genesis(genesis))
+            .wait(self.0.consensus_dal().try_update_global_config(cfg))
             .await??)
     }
 
@@ -284,7 +284,7 @@ impl<'a> Connection<'a> {
 
     /// (Re)initializes consensus genesis to start at the last L2 block in storage.
     /// Noop if `spec` matches the current genesis.
-    pub(crate) async fn adjust_genesis(
+    pub(crate) async fn adjust_global_config(
         &mut self,
         ctx: &ctx::Ctx,
         spec: &config::GenesisSpec,
@@ -294,31 +294,34 @@ impl<'a> Connection<'a> {
             .await
             .wrap("start_transaction()")?;
 
-        let old = txn.genesis(ctx).await.wrap("genesis()")?;
+        let old = txn.global_config(ctx).await.wrap("genesis()")?;
         if let Some(old) = &old {
-            if &config::GenesisSpec::from_genesis(old) == spec {
+            if &config::GenesisSpec::from_global_config(old) == spec {
                 // Hard fork is not needed.
                 return Ok(());
             }
         }
 
         tracing::info!("Performing a hard fork of consensus.");
-        let genesis = validator::GenesisRaw {
-            chain_id: spec.chain_id,
-            fork_number: old
-                .as_ref()
-                .map_or(validator::ForkNumber(0), |old| old.fork_number.next()),
-            first_block: txn.next_block(ctx).await.context("next_block()")?,
-            protocol_version: spec.protocol_version,
-            validators: spec.validators.clone(),
-            attesters: spec.attesters.clone(),
-            leader_selection: spec.leader_selection.clone(),
-        }
-        .with_hash();
+        let new = consensus_dal::GlobalConfig {
+            genesis: validator::GenesisRaw {
+                chain_id: spec.chain_id,
+                fork_number: old.as_ref().map_or(validator::ForkNumber(0), |old| {
+                    old.genesis.fork_number.next()
+                }),
+                first_block: txn.next_block(ctx).await.context("next_block()")?,
+                protocol_version: spec.protocol_version,
+                validators: spec.validators.clone(),
+                attesters: spec.attesters.clone(),
+                leader_selection: spec.leader_selection.clone(),
+            }
+            .with_hash(),
+            registry_address: spec.registry_address,
+        };
 
-        txn.try_update_genesis(ctx, &genesis)
+        txn.try_update_global_config(ctx, &new)
             .await
-            .wrap("try_update_genesis()")?;
+            .wrap("try_update_global_config()")?;
         txn.commit(ctx).await.wrap("commit()")?;
         Ok(())
     }
@@ -465,8 +468,8 @@ impl<'a> Connection<'a> {
             .context("attestation_status()")?)
     }
 
-    /// Constructs `BlockArgs` for the last block of the batch`.
-    pub async fn block_args(
+    /// Constructs `BlockArgs` for the last block of the batch.
+    pub async fn vm_block_args(
         &mut self,
         ctx: &ctx::Ctx,
         batch: attester::BatchNumber,

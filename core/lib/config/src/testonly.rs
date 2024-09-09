@@ -777,7 +777,7 @@ impl Distribution<configs::consensus::GenesisSpec> for EncodeDist {
             validators: self.sample_collect(rng),
             attesters: self.sample_collect(rng),
             leader: ValidatorPublicKey(self.sample(rng)),
-            registry_address: self.sample_opt(||rng.gen()),
+            registry_address: self.sample_opt(|| rng.gen()),
         }
     }
 }

@@ -3,15 +3,14 @@ use rand::Rng as _;
 use test_casing::test_casing;
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, error::Wrap, scope};
-use zksync_config::ContractsConfig;
 use zksync_consensus_roles::{
     attester,
     validator::testonly::{Setup, SetupSpec},
 };
-use zksync_dal::consensus_dal::AttestationStatus;
-use zksync_node_sync::MainNodeClient;
+use zksync_dal::consensus_dal;
 use zksync_test_account::Account;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
+use zksync_web3_decl::namespaces::EnNamespaceClient as _;
 
 use super::VERSIONS;
 use crate::{
@@ -43,9 +42,15 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
         let first_batch = sk.last_batch();
         let setup = Setup::from(setup);
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
-        conn.try_update_genesis(ctx, &setup.genesis)
-            .await
-            .wrap("try_update_genesis()")?;
+        conn.try_update_global_config(
+            ctx,
+            &consensus_dal::GlobalConfig {
+                genesis: setup.genesis.clone(),
+                registry_address: None,
+            },
+        )
+        .await
+        .wrap("try_update_global_config()")?;
         // Make sure that the first_batch is actually sealed.
         sk.seal_batch().await;
         pool.wait_for_batch(ctx, first_batch).await?;
@@ -53,11 +58,11 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
         // Connect to API endpoint.
         let api = sk.connect(ctx).await?;
         let fetch_status = || async {
-            let s = api
-                .fetch_attestation_status()
-                .await?
+            let s = ctx
+                .wait(api.attestation_status())
+                .await??
                 .context("no attestation_status")?;
-            let s: AttestationStatus =
+            let s: consensus_dal::AttestationStatus =
                 zksync_protobuf::serde::deserialize(&s.0).context("deserialize()")?;
             anyhow::ensure!(s.genesis == setup.genesis.hash(), "genesis hash mismatch");
             Ok(s)
@@ -70,23 +75,17 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
             status.next_batch_to_attest,
             attester::BatchNumber(first_batch.0.into())
         );
-        assert_eq!(
-            status.consensus_registry_address,
-            ContractsConfig::for_tests()
-                .l2_consensus_registry_addr
-                .map(crate::registry::Address::new),
-        );
 
         tracing::info!("Insert a cert");
         {
             let mut conn = pool.connection(ctx).await?;
             let number = status.next_batch_to_attest;
             let hash = conn.batch_hash(ctx, number).await?.unwrap();
-            let genesis = conn.genesis(ctx).await?.unwrap().hash();
+            let gcfg = conn.global_config(ctx).await?.unwrap();
             let m = attester::Batch {
                 number,
                 hash,
-                genesis,
+                genesis: gcfg.genesis.hash(),
             };
             let mut sigs = attester::MultiSig::default();
             for k in &setup.attester_keys {
@@ -132,7 +131,7 @@ async fn test_multiple_attesters(version: ProtocolVersionId) {
     let account = &mut Account::random();
     let to_fund = &[account.address];
     let setup = Setup::new(rng, 4);
-    let cfgs = new_configs(rng, &setup, NODES);
+    let mut cfgs = new_configs(rng, &setup, NODES);
     scope::run!(ctx, |ctx, s| async {
         let validator_pool = ConnectionPool::test(false, version).await;
         let (mut validator, runner) = StateKeeper::new(ctx, validator_pool.clone()).await?;
@@ -148,6 +147,12 @@ async fn test_multiple_attesters(version: ProtocolVersionId) {
         let attesters: Vec<_> = setup.genesis.attesters.as_ref().unwrap().iter().collect();
         let registry = Registry::new(setup.genesis.clone(), validator_pool.clone()).await;
         let (registry_addr, tx) = registry.deploy(account);
+        cfgs[0]
+            .config
+            .genesis_spec
+            .as_mut()
+            .unwrap()
+            .registry_address = Some(*registry_addr);
         let mut txs = vec![tx];
         txs.push(testonly::make_tx(
             account,
@@ -184,7 +189,6 @@ async fn test_multiple_attesters(version: ProtocolVersionId) {
             cfgs[0].config.clone(),
             cfgs[0].secrets.clone(),
             validator_pool.clone(),
-            Some(registry_addr),
         ));
 
         tracing::info!("Run nodes.");

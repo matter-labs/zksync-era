@@ -21,7 +21,9 @@ impl EnNamespace {
         Self { state }
     }
 
-    pub async fn consensus_global_config_impl(&self) -> Result<Option<en::ConsensusGlobalConfig>, Web3Error> {
+    pub async fn consensus_global_config_impl(
+        &self,
+    ) -> Result<Option<en::ConsensusGlobalConfig>, Web3Error> {
         let mut conn = self.state.acquire_connection().await?;
         let Some(cfg) = conn
             .consensus_dal()
