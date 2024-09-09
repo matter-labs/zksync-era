@@ -97,12 +97,12 @@ pub async fn fetch_next_circuit(
                     sorted_witness_handle.await.unwrap();
 
                 let mut witness = circuit_instance.witness.take().unwrap();
-                witness.unsorted_queue_witness = FullStateCircuitQueueRawWitness {
+               /*  witness.unsorted_queue_witness = FullStateCircuitQueueRawWitness {
                     elements: unsorted_witness.witness.into(),
                 };
                 witness.sorted_queue_witness = FullStateCircuitQueueRawWitness {
                     elements: sorted_witness.witness.into(),
-                };
+                };*/
                 circuit_instance.witness.store(Some(witness));
 
                 CircuitWrapper::Base(ZkSyncBaseLayerCircuit::RAMPermutation(circuit_instance))

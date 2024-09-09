@@ -238,7 +238,7 @@ async fn test_basic_witness_gen() {
 
     //snapshot_prof("Before run");
     let (_circuit_urls, _queue_urls, _scheduler_witness, _aux_output_witness) =
-        generate_witness(block_number, object_store, input, 500).await;
+        generate_witness(block_number, object_store, input, 100).await;
     //snapshot_prof("After run");
     println!("Generated witness, {:?}", instant.elapsed());
     //print_peak_mem_snapshots();

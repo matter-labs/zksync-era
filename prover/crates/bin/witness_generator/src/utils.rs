@@ -9,7 +9,7 @@ use circuit_definitions::{
         base_layer::ZkSyncBaseLayerCircuit,
         recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionProof},
     },
-    encodings::memory_query::MemoryQueueStateWitnesses,
+    zkevm_circuits::base_structures::memory_query::MemoryQueryWitness,
 };
 use once_cell::sync::Lazy;
 use zkevm_test_harness::{
@@ -165,7 +165,7 @@ pub async fn save_ram_premutation_queue_witness(
     block_number: L1BatchNumber,
     circuit_subsequence_number: usize,
     is_sorted: bool,
-    witness: MemoryQueueStateWitnesses<GoldilocksField>,
+    witness: Vec<MemoryQueryWitness<GoldilocksField>>,
     object_store: Arc<dyn ObjectStore>,
 ) -> String {
     let witness_key = RamPermutationQueueWitnessKey {

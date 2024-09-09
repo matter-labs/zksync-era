@@ -63,11 +63,7 @@ impl Default for Keystore {
     fn default() -> Self {
         Self {
             basedir: get_base_path(),
-            setup_data_path: Some(
-                FriProverConfig::from_env()
-                    .expect("FriProverConfig::from_env()")
-                    .setup_data_path,
-            ),
+            setup_data_path: None,
         }
     }
 }

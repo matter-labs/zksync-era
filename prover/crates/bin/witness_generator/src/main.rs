@@ -25,10 +25,6 @@ use zksync_witness_generator::{
     recursion_tip::RecursionTipWitnessGenerator, scheduler::SchedulerWitnessGenerator,
 };
 
-#[cfg(not(target_env = "msvc"))]
-#[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
-
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "Run witness generator for different aggregation round",

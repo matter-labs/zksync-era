@@ -1,6 +1,9 @@
 //! Stored objects.
 
-use std::io::{Read, Write};
+use std::{
+    io::{Read, Write},
+    time::Instant,
+};
 
 use anyhow::Context;
 use flate2::{read::GzDecoder, write::GzEncoder, Compression};

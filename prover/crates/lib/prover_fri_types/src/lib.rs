@@ -9,11 +9,13 @@ use circuit_definitions::{
             ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType, ZkSyncRecursiveLayerCircuit,
         },
     },
-    encodings::memory_query::MemoryQueueStateWitnesses,
     zkevm_circuits::scheduler::{
         aux::BaseLayerCircuitType, block_header::BlockAuxilaryOutputWitness,
     },
+    zkevm_circuits::base_structures::memory_query::MemoryQueryWitness,
 };
+
+
 use keys::RamPermutationQueueWitnessKey;
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
@@ -225,7 +227,7 @@ pub fn get_current_pod_name() -> String {
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct RamPermutationQueueWitness {
-    pub witness: MemoryQueueStateWitnesses<GoldilocksField>,
+    pub witness: Vec<MemoryQueryWitness<GoldilocksField>>,
 }
 
 impl StoredObject for RamPermutationQueueWitness {
