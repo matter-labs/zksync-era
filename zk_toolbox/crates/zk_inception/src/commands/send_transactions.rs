@@ -1,7 +1,7 @@
+use std::{fs::File, io::Read};
+
 use common::cmd::Cmd;
 use serde::Deserialize;
-use std::fs::File;
-use std::io::Read;
 use xshell::{cmd, Shell};
 
 use super::args::SendTransactionsArgs;
