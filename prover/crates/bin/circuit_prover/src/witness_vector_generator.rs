@@ -10,6 +10,9 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 use zksync_object_store::ObjectStore;
+use zksync_types::protocol_version::ProtocolSemanticVersion;
+use zksync_utils::panic_extractor::try_extract_panic_message;
+
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -26,8 +29,6 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_fri_utils::metrics::CircuitLabels;
 use zksync_prover_keystore::keystore::Keystore;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
-use zksync_utils::panic_extractor::try_extract_panic_message;
 
 pub struct WitnessVectorGenerator {
     object_store: Arc<dyn ObjectStore>,
@@ -60,7 +61,6 @@ impl WitnessVectorGenerator {
     }
 
     pub async fn run(self, cancellation_token: CancellationToken) -> anyhow::Result<()> {
-        tracing::info!("starting new run");
         let mut backoff: u64 = Self::POLLING_INTERVAL_MS;
         while !cancellation_token.is_cancelled() {
             if let Some((job_id, job)) = self
@@ -85,11 +85,11 @@ impl WitnessVectorGenerator {
                     result = task => {
                         let error_message = match result {
                             Ok(Ok(data)) => {
-                                tracing::info!(
-                                    "{} Job {:?} finished successfully",
-                                    "witness_vector_generator",
-                                    job_id
-                                );
+                                // tracing::info!(
+                                //     "{} Job {:?} finished successfully",
+                                //     "witness_vector_generator",
+                                //     job_id
+                                // );
                 // METRICS.attempts[&Self::SERVICE_NAME].observe(attempts as usize);
                                 self
                                     .save_result(job_id, started_at, data)
@@ -139,7 +139,7 @@ impl WitnessVectorGenerator {
             None => return Ok(None),
             Some(job) => job,
         };
-        tracing::info!("Started processing prover job: {:?}", prover_job_metadata);
+        // tracing::info!("Started processing prover job: {:?}", prover_job_metadata);
 
         let circuit_key = FriCircuitKey {
             block_number: prover_job_metadata.block_number,
@@ -262,7 +262,9 @@ impl WitnessVectorGenerator {
         started_at: Instant,
         artifacts: WitnessVectorArtifacts,
     ) {
+        let now = Instant::now();
         self.sender.send(artifacts).await.unwrap();
+        tracing::info!("Sent job after {:?}", now.elapsed());
     }
 
     async fn save_failure(&self, job_id: u32, _started_at: Instant, error: String) {

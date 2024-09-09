@@ -17,6 +17,7 @@ use circuit_definitions::{
 use serde::{Deserialize, Serialize};
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
 use zksync_basic_types::basic_fri_types::AggregationRound;
+
 use zksync_prover_fri_types::ProverServiceDataKey;
 use zksync_utils::env::Workspace;
 
@@ -294,7 +295,7 @@ impl Keystore {
         file.read_to_end(&mut buffer).with_context(|| {
             format!("Failed reading setup-data to buffer from path: {filepath:?}")
         })?;
-        tracing::info!("loading {:?} setup data from path: {:?}", key, filepath);
+        // tracing::info!("loading {:?} setup data from path: {:?}", key, filepath);
         bincode::deserialize::<GoldilocksGpuProverSetupData>(&buffer).with_context(|| {
             format!("Failed deserializing setup-data at path: {filepath:?} for circuit: {key:?}")
         })

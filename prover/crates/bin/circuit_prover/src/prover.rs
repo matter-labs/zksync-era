@@ -4,11 +4,19 @@ use std::{
 };
 
 use anyhow::{anyhow, Context};
-use shivini::{gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data};
+use shivini::{
+    gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data, ProverContext,
+    ProverContextConfig,
+};
 use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
 use zksync_object_store::ObjectStore;
+use zksync_types::{
+    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
+};
+use zksync_utils::panic_extractor::try_extract_panic_message;
+
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -33,10 +41,6 @@ use zksync_prover_fri_types::{
     CircuitWrapper, FriProofWrapper, ProverJob, ProverServiceDataKey, WitnessVectorArtifacts,
 };
 use zksync_prover_keystore::{keystore::Keystore, GoldilocksGpuProverSetupData};
-use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
-};
-use zksync_utils::panic_extractor::try_extract_panic_message;
 
 type DefaultTranscript = GoldilocksPoisedon2Transcript;
 type DefaultTreeHasher = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
@@ -47,6 +51,7 @@ pub struct CircuitProver {
     protocol_version: ProtocolSemanticVersion,
     keystore: Keystore,
     receiver: Receiver<WitnessVectorArtifacts>,
+    prover_context: ProverContext,
 }
 
 impl CircuitProver {
@@ -56,13 +61,22 @@ impl CircuitProver {
         protocol_version: ProtocolSemanticVersion,
         keystore: Keystore,
         receiver: Receiver<WitnessVectorArtifacts>,
+        max_allocation: Option<usize>,
     ) -> Self {
+        let prover_context = match max_allocation {
+            Some(max_allocation) => ProverContext::create_with_config(
+                ProverContextConfig::default().with_maximum_device_allocation(max_allocation),
+            )
+            .expect("failed initializing gpu prover context"),
+            None => ProverContext::create().expect("failed initializing gpu prover context"),
+        };
         Self {
             connection_pool,
             object_store,
             protocol_version,
             keystore,
             receiver,
+            prover_context,
         }
     }
 
@@ -112,11 +126,11 @@ impl CircuitProver {
             .unwrap_or_else(|_| {
                 panic!("failed generating GPU proof for id: {}", prover_job.job_id)
             });
-        tracing::info!(
-            "Successfully generated gpu proof for job {} took: {:?}",
-            prover_job.job_id,
-            started_at.elapsed()
-        );
+        // tracing::info!(
+        //     "Successfully generated gpu proof for job {} took: {:?}",
+        //     prover_job.job_id,
+        //     started_at.elapsed()
+        // );
         // METRICS.gpu_proof_generation_time[&circuit_id.to_string()]
         //     .observe(started_at.elapsed());
 
@@ -140,10 +154,8 @@ impl CircuitProver {
     }
 
     pub async fn run(mut self, cancellation_token: CancellationToken) -> anyhow::Result<()> {
-        tracing::info!("starting new run");
         let mut backoff: u64 = Self::POLLING_INTERVAL_MS;
         while !cancellation_token.is_cancelled() {
-            tracing::info!("before getting new job");
             if let Some((job_id, job)) = self
                 .get_next_job()
                 .await
@@ -167,11 +179,11 @@ impl CircuitProver {
                     result = task => {
                         let error_message = match result {
                             Ok(Ok(data)) => {
-                                tracing::info!(
-                                    "{} Job {:?} finished successfully",
-                                    "witness_vector_generator",
-                                    job_id
-                                );
+                                // tracing::info!(
+                                //     "{} Job {:?} finished successfully",
+                                //     "witness_vector_generator",
+                                //     job_id
+                                // );
                 // METRICS.attempts[&Self::SERVICE_NAME].observe(attempts as usize);
                                 self
                                     .save_result(job_id, started_at, data)
@@ -221,13 +233,15 @@ impl CircuitProver {
         //         queue.capacity(),
         //         is_full
         //     );
-        match self.receiver.recv().await {
+        let job = match self.receiver.recv().await {
             None => {
                 tracing::error!("No producers available");
                 Err(anyhow!("No producer available"))
             }
             Some(witness_vector) => Ok(Some((witness_vector.prover_job.job_id, witness_vector))),
-        }
+        };
+        tracing::info!("Received job after {:?}", now.elapsed());
+        job
     }
 
     async fn save_failure(&self, job_id: u32, _started_at: Instant, error: String) {
@@ -283,11 +297,11 @@ impl CircuitProver {
         //     connection: &mut Connection<'_, Prover>,
         //     protocol_version: ProtocolSemanticVersion,
         // ) {
-        tracing::info!(
-            "Successfully proven job: {}, total time taken: {:?}",
-            job_id,
-            started_at.elapsed()
-        );
+        // tracing::info!(
+        //     "Successfully proven job: {}, total time taken: {:?}",
+        //     job_id,
+        //     started_at.elapsed()
+        // );
         let proof = artifacts.proof_wrapper;
 
         // We save the scheduler proofs in public bucket,
