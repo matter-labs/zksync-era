@@ -12,7 +12,13 @@ use zksync_types::{L1BatchNumber, StorageKey, StorageValue, H256};
 use zksync_utils::u256_to_h256;
 use zksync_vm_interface::storage::{ReadStorage, StorageSnapshot, StorageWithSnapshot};
 
-use crate::{PostgresStorage, RocksdbStorage, RocksdbStorageBuilder, StateKeeperColumnFamily};
+use self::metrics::SNAPSHOT_METRICS;
+use crate::{
+    storage_factory::metrics::SnapshotStage, PostgresStorage, RocksdbStorage,
+    RocksdbStorageBuilder, StateKeeperColumnFamily,
+};
+
+mod metrics;
 
 /// Storage with a static lifetime that can be sent to Tokio tasks etc.
 pub type OwnedStorage = CommonStorage<'static>;
@@ -176,6 +182,7 @@ impl CommonStorage<'static> {
         connection: &mut Connection<'static, Core>,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<StorageSnapshot>> {
+        let latency = SNAPSHOT_METRICS.load_latency[&SnapshotStage::BatchHeader].start();
         let Some(header) = connection
             .blocks_dal()
             .get_l1_batch_header(l1_batch_number)
@@ -188,8 +195,10 @@ impl CommonStorage<'static> {
             .into_iter()
             .map(u256_to_h256)
             .collect();
+        latency.observe();
 
         // Check protective reads early on.
+        let latency = SNAPSHOT_METRICS.load_latency[&SnapshotStage::ProtectiveReads].start();
         let protective_reads = connection
             .storage_logs_dedup_dal()
             .get_protective_reads_for_l1_batch(l1_batch_number)
@@ -199,14 +208,18 @@ impl CommonStorage<'static> {
             return Ok(None);
         }
         let protective_reads_len = protective_reads.len();
-        tracing::debug!("Loaded {protective_reads_len} protective reads");
+        let latency = latency.observe();
+        tracing::debug!("Loaded {protective_reads_len} protective reads in {latency:?}");
 
+        let latency = SNAPSHOT_METRICS.load_latency[&SnapshotStage::TouchedSlots].start();
         let touched_slots = connection
             .storage_logs_dal()
             .get_touched_slots_for_l1_batch(l1_batch_number)
             .await?;
-        tracing::debug!("Loaded {} touched keys", touched_slots.len());
+        let latency = latency.observe();
+        tracing::debug!("Loaded {} touched keys in {latency:?}", touched_slots.len());
 
+        let latency = SNAPSHOT_METRICS.load_latency[&SnapshotStage::PreviousValues].start();
         let all_accessed_keys: Vec<_> = protective_reads
             .into_iter()
             .map(|key| key.hashed_key())
@@ -216,21 +229,31 @@ impl CommonStorage<'static> {
             .storage_logs_dal()
             .get_previous_storage_values(&all_accessed_keys, l1_batch_number)
             .await?;
+        let latency = latency.observe();
         tracing::debug!(
-            "Obtained {} previous values for accessed keys",
+            "Obtained {} previous values for accessed keys in {latency:?}",
             previous_values.len()
         );
+
+        let latency = SNAPSHOT_METRICS.load_latency[&SnapshotStage::InitialWrites].start();
         let initial_write_info = connection
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&all_accessed_keys)
             .await?;
-        tracing::debug!("Obtained initial write info for accessed keys");
+        let latency = latency.observe();
+        tracing::debug!("Obtained initial write info for accessed keys in {latency:?}");
 
+        let latency = SNAPSHOT_METRICS.load_latency[&SnapshotStage::Bytecodes].start();
         let bytecodes = connection
             .factory_deps_dal()
             .get_factory_deps(&bytecode_hashes)
             .await;
-        tracing::debug!("Loaded {} bytecodes used in the batch", bytecodes.len());
+        let latency = latency.observe();
+        tracing::debug!(
+            "Loaded {} bytecodes used in the batch in {latency:?}",
+            bytecodes.len()
+        );
+
         let factory_deps = bytecodes
             .into_iter()
             .map(|(hash_u256, words)| {

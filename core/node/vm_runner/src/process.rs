@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context;
 use tokio::{
@@ -11,8 +14,9 @@ use zksync_types::L1BatchNumber;
 use zksync_vm_interface::{executor::BatchExecutorFactory, L2BlockEnv};
 
 use crate::{
-    metrics::METRICS, storage::StorageLoader, L1BatchOutput, L2BlockOutput, OutputHandlerFactory,
-    VmRunnerIo,
+    metrics::{StorageKind, METRICS},
+    storage::StorageLoader,
+    L1BatchOutput, L2BlockOutput, OutputHandlerFactory, VmRunnerIo,
 };
 
 const SLEEP_INTERVAL: Duration = Duration::from_millis(50);
@@ -61,6 +65,7 @@ impl VmRunner {
     }
 
     async fn process_batch(self, number: L1BatchNumber) -> anyhow::Result<()> {
+        let stage_started_at = Instant::now();
         let (batch_data, storage) = loop {
             match self.loader.load_batch(number).await? {
                 Some(data_and_storage) => break data_and_storage,
@@ -70,6 +75,8 @@ impl VmRunner {
                 }
             }
         };
+        let kind = StorageKind::new(&storage);
+        METRICS.data_and_storage_latency[&kind].observe(stage_started_at.elapsed());
 
         let mut batch_executor = self.batch_executor_factory.lock().await.init_batch(
             storage,
