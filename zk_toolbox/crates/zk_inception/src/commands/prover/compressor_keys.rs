@@ -5,12 +5,11 @@ use common::{
 use config::{EcosystemConfig, GeneralConfig};
 use xshell::{cmd, Shell};
 
+use super::{args::compressor_keys::CompressorKeysArgs, utils::get_link_to_prover};
 use crate::messages::{
     MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER,
     MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_SETUP_KEY_PATH_ERROR,
 };
-
-use super::{args::compressor_keys::CompressorKeysArgs, utils::get_link_to_prover};
 
 pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
