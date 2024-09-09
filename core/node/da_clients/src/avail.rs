@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc};
+use std::fmt::Debug;
 
 use async_trait::async_trait;
 use jsonrpsee::{
@@ -24,7 +24,6 @@ const PROTOCOL_VERSION: u8 = 4;
 #[derive(Debug)]
 pub struct AvailClient {
     config: AvailConfig,
-    client: Arc<Client>,
     keypair: Keypair,
 }
 
@@ -47,16 +46,20 @@ impl DataAvailabilityClient for AvailClient {
         _: u32, // batch_number
         data: Vec<u8>,
     ) -> anyhow::Result<DispatchResponse, DAError> {
+        let client = WsClientBuilder::default()
+            .build(self.config.api_node_url.as_str())
+            .await
+            .map_err(to_non_retriable_da_error)?;
         let call_data = self
-            .get_encoded_call(data)
+            .get_encoded_call(&client, data)
             .await
             .map_err(to_non_retriable_da_error)?;
         let extra_params = self
-            .get_extended_params()
+            .get_extended_params(&client)
             .await
             .map_err(to_non_retriable_da_error)?;
         let additional_params = self
-            .get_additional_params()
+            .get_additional_params(&client)
             .await
             .map_err(to_non_retriable_da_error)?;
 
@@ -74,11 +77,11 @@ impl DataAvailabilityClient for AvailClient {
         let hex_ext = hex::encode(&ext);
 
         let block_hash = self
-            .submit_extrinsic(hex_ext.as_str())
+            .submit_extrinsic(&client, hex_ext.as_str())
             .await
             .map_err(to_non_retriable_da_error)?;
         let tx_id = self
-            .get_tx_id(block_hash.as_str(), hex_ext.as_str())
+            .get_tx_id(&client, block_hash.as_str(), hex_ext.as_str())
             .await
             .map_err(to_non_retriable_da_error)?;
 
@@ -98,7 +101,6 @@ impl DataAvailabilityClient for AvailClient {
     fn clone_boxed(&self) -> Box<dyn DataAvailabilityClient> {
         Box::new(AvailClient {
             config: self.config.clone(),
-            client: self.client.clone(),
             keypair: self.keypair.clone(),
         })
     }
@@ -115,22 +117,15 @@ impl AvailClient {
         let mnemonic = Mnemonic::parse(config.seed.clone())?;
         let keypair = Keypair::from_phrase(&mnemonic, None)?;
 
-        let client = WsClientBuilder::default()
-            .build(config.api_node_url.as_str())
-            .await?;
-
-        Ok(Self {
-            config,
-            client: Arc::new(client),
-            keypair,
-        })
+        Ok(Self { config, keypair })
     }
 
-    async fn get_encoded_call(&self, data: Vec<u8>) -> anyhow::Result<Vec<u8>, anyhow::Error> {
-        let resp: serde_json::Value = self
-            .client
-            .request("state_getMetadata", rpc_params![])
-            .await?;
+    async fn get_encoded_call(
+        &self,
+        client: &Client,
+        data: Vec<u8>,
+    ) -> anyhow::Result<Vec<u8>, anyhow::Error> {
+        let resp: serde_json::Value = client.request("state_getMetadata", rpc_params![]).await?;
 
         let resp = resp
             .as_str()
@@ -168,10 +163,9 @@ impl AvailClient {
         Ok(bytes)
     }
 
-    async fn fetch_account_nonce(&self) -> anyhow::Result<u64> {
+    async fn fetch_account_nonce(&self, client: &Client) -> anyhow::Result<u64> {
         let address = to_addr(self.keypair.clone());
-        let resp: serde_json::Value = self
-            .client
+        let resp: serde_json::Value = client
             .request("system_accountNextIndex", rpc_params![address])
             .await?;
 
@@ -187,10 +181,10 @@ impl AvailClient {
     // 	CheckNonce
     // 	ChargeTransactionPayment
     // 	CheckAppId
-    async fn get_extended_params(&self) -> anyhow::Result<Vec<u8>> {
+    async fn get_extended_params(&self, client: &Client) -> anyhow::Result<Vec<u8>> {
         let era = 0u8; // immortal era
         let tip = 0u128; // no tip
-        let nonce = self.fetch_account_nonce().await?;
+        let nonce = self.fetch_account_nonce(client).await?;
 
         // Encode the params
         let mut bytes = vec![era];
@@ -205,9 +199,9 @@ impl AvailClient {
     // 	CheckSpecVersion
     // 	CheckTxVersion
     // 	CheckGenesis<AvailConfig>
-    async fn get_additional_params(&self) -> anyhow::Result<Vec<u8>> {
-        let (spec_version, tx_version) = self.get_runtime_version().await?;
-        let genesis_hash = self.fetch_genesis_hash().await?;
+    async fn get_additional_params(&self, client: &Client) -> anyhow::Result<Vec<u8>> {
+        let (spec_version, tx_version) = self.get_runtime_version(client).await?;
+        let genesis_hash = self.fetch_genesis_hash(client).await?;
 
         let mut bytes = Vec::new();
         spec_version.encode_to(&mut bytes);
@@ -220,9 +214,8 @@ impl AvailClient {
     }
 
     // Fetch the runtime versions
-    async fn get_runtime_version(&self) -> anyhow::Result<(u32, u32)> {
-        let resp: serde_json::Value = self
-            .client
+    async fn get_runtime_version(&self, client: &Client) -> anyhow::Result<(u32, u32)> {
+        let resp: serde_json::Value = client
             .request("chain_getRuntimeVersion", rpc_params![])
             .await?;
 
@@ -243,11 +236,8 @@ impl AvailClient {
         Ok((spec_version as u32, transaction_version as u32))
     }
 
-    async fn fetch_genesis_hash(&self) -> anyhow::Result<String> {
-        let resp: serde_json::Value = self
-            .client
-            .request("chain_getBlockHash", rpc_params![0])
-            .await?;
+    async fn fetch_genesis_hash(&self, client: &Client) -> anyhow::Result<String> {
+        let resp: serde_json::Value = client.request("chain_getBlockHash", rpc_params![0]).await?;
 
         let genesis_hash = resp
             .as_str()
@@ -311,9 +301,8 @@ impl AvailClient {
         encoded
     }
 
-    async fn submit_extrinsic(&self, extrinsic: &str) -> anyhow::Result<String> {
-        let mut sub: Subscription<serde_json::Value> = self
-            .client
+    async fn submit_extrinsic(&self, client: &Client, extrinsic: &str) -> anyhow::Result<String> {
+        let mut sub: Subscription<serde_json::Value> = client
             .subscribe(
                 "author_submitAndWatchExtrinsic",
                 rpc_params![extrinsic],
@@ -340,9 +329,13 @@ impl AvailClient {
         Ok(block_hash)
     }
 
-    async fn get_tx_id(&self, block_hash: &str, hex_ext: &str) -> anyhow::Result<usize> {
-        let resp: serde_json::Value = self
-            .client
+    async fn get_tx_id(
+        &self,
+        client: &Client,
+        block_hash: &str,
+        hex_ext: &str,
+    ) -> anyhow::Result<usize> {
+        let resp: serde_json::Value = client
             .request("chain_getBlock", rpc_params![block_hash])
             .await?;
 
