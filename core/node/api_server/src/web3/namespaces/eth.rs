@@ -139,8 +139,8 @@ impl EthNamespace {
                 acceptable_overestimation as u64,
                 state_override,
             )
-            .await;
-        Ok(fee?.gas_limit)
+            .await?;
+        Ok(fee.gas_limit)
     }
 
     pub async fn gas_price_impl(&self) -> Result<U256, Web3Error> {
