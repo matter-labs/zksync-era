@@ -1,3 +1,4 @@
+-- does not calculate hot/cold reads
 
 WITH
 	MB AS (
