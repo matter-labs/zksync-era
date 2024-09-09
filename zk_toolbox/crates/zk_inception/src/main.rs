@@ -1,6 +1,6 @@
 use clap::{command, Parser, Subcommand};
 use commands::{
-    args::{ContainersArgs, UpdateArgs},
+    args::{ContainersArgs, SendTransactionsArgs, UpdateArgs},
     contract_verifier::ContractVerifierCommands,
 };
 use common::{
@@ -66,6 +66,8 @@ pub enum InceptionSubcommands {
     Update(UpdateArgs),
     #[command(hide = true)]
     Markdown,
+    /// Send transactions from file
+    SendTransactions(SendTransactionsArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -129,6 +131,7 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::Markdown => {
             clap_markdown::print_help_markdown::<Inception>();
         }
+        InceptionSubcommands::SendTransactions(args) => commands::send_transactions::run(args)?,
     }
     Ok(())
 }
