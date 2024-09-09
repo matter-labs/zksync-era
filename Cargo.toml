@@ -209,25 +209,25 @@ crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.30.1" }
 kzg = { package = "zksync_kzg", version = "=0.150.5" }
 zk_evm = { version = "=0.133.0" }
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
-zk_evm_1_3_3 = { package = "zk_evm", version = "0.133.0" }
-zk_evm_1_4_0 = { package = "zk_evm", version = "0.140.0" }
-zk_evm_1_4_1 = { package = "zk_evm", version = "0.141.0" }
+zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
+zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
+zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
 zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.5" }
 
 # New VM; pinned to a specific commit because of instability
 vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "4ef15d46410ffc11744771a3a6c7c09dd9470c90" }
 
 # Consensus dependencies.
-zksync_concurrency = "=0.1.0-rc.11"
-zksync_consensus_bft = "=0.1.0-rc.11"
-zksync_consensus_crypto = "=0.1.0-rc.11"
-zksync_consensus_executor = "=0.1.0-rc.11"
-zksync_consensus_network = "=0.1.0-rc.11"
-zksync_consensus_roles = "=0.1.0-rc.11"
-zksync_consensus_storage = "=0.1.0-rc.11"
-zksync_consensus_utils = "=0.1.0-rc.11"
-zksync_protobuf = "=0.1.0-rc.11"
-zksync_protobuf_build = "=0.1.0-rc.11"
+zksync_concurrency = "=0.1.1"
+zksync_consensus_bft = "=0.1.1"
+zksync_consensus_crypto = "=0.1.1"
+zksync_consensus_executor = "=0.1.1"
+zksync_consensus_network = "=0.1.1"
+zksync_consensus_roles = "=0.1.1"
+zksync_consensus_storage = "=0.1.1"
+zksync_consensus_utils = "=0.1.1"
+zksync_protobuf = "=0.1.1"
+zksync_protobuf_build = "=0.1.1"
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }
