@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                genesis, global_config\n            FROM\n                consensus_replica_state\n            WHERE\n                fake_key\n            ",
+  "query": "\n            SELECT\n                genesis,\n                global_config\n            FROM\n                consensus_replica_state\n            WHERE\n                fake_key\n            ",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       true
     ]
   },
-  "hash": "38a9adfa47e86926fa42b3b46c2cb98792f780a8b6759a0a8ba479a56f15cbaf"
+  "hash": "17c760825deaa18fc8862c950dc38ff77f5a0d5dfcc7c3f1519f882d2fa60634"
 }
