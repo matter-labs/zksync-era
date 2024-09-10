@@ -57,9 +57,7 @@ impl DataAvailabilityClient for AvailClient {
             .await
             .map_err(to_non_retriable_da_error)?;
 
-        Ok(DispatchResponse {
-            blob_id: format!("{}:{}", block_hash, tx_id),
-        })
+        Ok(DispatchResponse::from(format!("{}:{}", block_hash, tx_id)))
     }
 
     async fn get_inclusion_data(

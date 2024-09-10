@@ -28,14 +28,14 @@ pub(crate) struct RawAvailClient {
 /// Utility type needed for encoding the call data
 #[derive(parity_scale_codec::Encode, scale_encode::EncodeAsType)]
 #[encode_as_type(crate_path = "scale_encode")]
-pub struct SubmitData {
+struct SubmitData {
     pub data: BoundedVec<u8>,
 }
 
 /// Utility type needed for encoding the call data
 #[derive(parity_scale_codec::Encode, scale_encode::EncodeAsType)]
 #[encode_as_type(crate_path = "scale_encode")]
-pub struct BoundedVec<_0>(pub Vec<_0>);
+struct BoundedVec<_0>(pub Vec<_0>);
 
 impl RawAvailClient {
     pub(crate) const MAX_BLOB_SIZE: usize = 512 * 1024; // 512kb
