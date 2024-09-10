@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use commands::{
     contracts::ContractsArgs, database::DatabaseCommands, lint::LintArgs,
-    snapshot::SnapshotCommands, test::TestCommands,
+    send_transactions::args::SendTransactionsArgs, snapshot::SnapshotCommands, test::TestCommands,
 };
 use common::{
     check_general_prerequisites,
@@ -20,6 +20,7 @@ use xshell::Shell;
 use crate::commands::{clean::CleanCommands, fmt::FmtArgs};
 
 mod commands;
+mod consts;
 mod dals;
 mod defaults;
 mod messages;
@@ -53,6 +54,8 @@ enum SupervisorSubcommands {
     ProverVersion,
     #[command(about = MSG_CONTRACTS_ABOUT)]
     Contracts(ContractsArgs),
+    /// Send transactions from file
+    SendTransactions(SendTransactionsArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -111,6 +114,9 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
         SupervisorSubcommands::Fmt(args) => commands::fmt::run(shell.clone(), args).await?,
         SupervisorSubcommands::ProverVersion => commands::prover_version::run(shell).await?,
         SupervisorSubcommands::Contracts(args) => commands::contracts::run(shell, args)?,
+        SupervisorSubcommands::SendTransactions(args) => {
+            commands::send_transactions::run(shell, args).await?
+        }
     }
     Ok(())
 }

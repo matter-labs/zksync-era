@@ -16,7 +16,6 @@ clap.workspace = true
 cliclack.workspace = true
 config.workspace = true
 console.workspace = true
-futures.workspace = true
 human-panic.workspace = true
 lazy_static.workspace = true
 serde_yaml.workspace = true

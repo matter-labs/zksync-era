@@ -7,6 +7,5 @@ pub mod explorer;
 pub mod external_node;
 pub mod portal;
 pub mod prover;
-pub mod send_transactions;
 pub mod server;
 pub mod update;

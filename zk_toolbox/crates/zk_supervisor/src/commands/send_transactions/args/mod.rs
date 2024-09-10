@@ -4,10 +4,7 @@ use clap::Parser;
 use common::Prompt;
 use url::Url;
 
-use crate::{
-    defaults::LOCAL_RPC_URL,
-    messages::{MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT},
-};
+use crate::defaults::LOCAL_RPC_URL;
 
 #[derive(Debug, Parser)]
 pub struct SendTransactionsArgs {
@@ -17,7 +14,7 @@ pub struct SendTransactionsArgs {
     pub private_key: Option<String>,
     #[clap(long)]
     pub gas_price: Option<String>,
-    #[clap(long, help = MSG_L1_RPC_URL_HELP)]
+    #[clap(long, help = "L1 RPC URL")]
     pub l1_rpc_url: Option<String>,
     #[clap(long)]
     pub confirmations: Option<usize>,
@@ -47,12 +44,12 @@ impl SendTransactionsArgs {
             .unwrap_or_else(|| Prompt::new("Gas price").ask());
 
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
-            Prompt::new(MSG_L1_RPC_URL_PROMPT)
+            Prompt::new("L1 RPC URL")
                 .default(LOCAL_RPC_URL)
                 .validate_with(|val: &String| -> Result<(), String> {
                     Url::parse(val)
                         .map(|_| ())
-                        .map_err(|_| MSG_L1_RPC_URL_INVALID_ERR.to_string())
+                        .map_err(|_| "Invalid L1 RPC URL".to_string())
                 })
                 .ask()
         });

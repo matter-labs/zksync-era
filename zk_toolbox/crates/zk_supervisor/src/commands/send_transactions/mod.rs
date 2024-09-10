@@ -6,6 +6,8 @@ use std::{
     time::Duration,
 };
 
+use anyhow::Context;
+use chrono::Local;
 use common::ethereum::create_ethers_client;
 use config::EcosystemConfig;
 use ethers::{abi::Bytes, providers::Middleware, types::TransactionRequest, utils::hex};
@@ -13,8 +15,10 @@ use serde::Deserialize;
 use xshell::Shell;
 use zksync_basic_types::{H160, U256};
 
-use super::args::SendTransactionsArgs;
 use crate::consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR;
+use args::SendTransactionsArgs;
+
+pub mod args;
 
 #[derive(Deserialize)]
 struct Transaction {
@@ -49,6 +53,12 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
     // Parse the JSON file
     let txns: Txns = serde_json::from_str(&data).expect("Unable to parse JSON");
 
+    let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
+    let log_file = ecosystem_config
+        .link_to_code
+        .join(DEFAULT_UNSIGNED_TRANSACTIONS_DIR)
+        .join(format!("{}_receipt.log", timestamp));
+
     let client = create_ethers_client(args.private_key.parse()?, args.l1_rpc_url, Some(chain_id))?;
     let mut nonce = client.get_transaction_count(client.address(), None).await?;
 
@@ -76,24 +86,19 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
             .confirmations(args.confirmations)
             .interval(Duration::from_millis(30))
             .await?
-            .unwrap();
+            .context("Failed to send transaction")?;
 
-        log_receipt(
-            ecosystem_config
-                .link_to_code
-                .join(DEFAULT_UNSIGNED_TRANSACTIONS_DIR),
-            format!("{:?}", receipt).as_str(),
-        );
+        log_receipt(&log_file, format!("{:?}", receipt).as_str());
     }
 
     Ok(())
 }
 
-fn log_receipt(path: PathBuf, receipt: &str) {
+fn log_receipt(path: &PathBuf, receipt: &str) {
     let mut file = OpenOptions::new()
         .append(true)
         .create(true)
-        .open(path.join("receipt.log"))
+        .open(path)
         .expect("Unable to open file");
 
     writeln!(file, "{}", receipt).expect("Unable to write data");
