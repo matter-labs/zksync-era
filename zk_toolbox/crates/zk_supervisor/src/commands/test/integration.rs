@@ -39,7 +39,7 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
         .init_test_wallet(&ecosystem_config, &chain_config)
         .await?;
 
-    let test_pattern: Option<&str> = args.test_pattern.as_ref().map(|x| x.as_str());
+    let test_pattern = args.test_pattern;
     let mut command = cmd!(
         shell,
         "yarn jest --forceExit --testTimeout 120000 -t {test_pattern...}"
