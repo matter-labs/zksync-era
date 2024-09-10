@@ -309,7 +309,6 @@ pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is m
 pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
 pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
 
-pub(super) const MSG_GENESIS_SPEC_MISSING_ERR: &str = "Genesis spec missing";
 pub(super) const MSG_PUBLIC_ADDR_ERR: &str = "Public address error";
 
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";

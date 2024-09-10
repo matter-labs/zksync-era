@@ -22,16 +22,16 @@ use zksync_consensus_roles as roles;
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
-    consts::{GOSSIP_DYNAMIC_INBOUND_LIMIT, MAX_BATCH_SIZE, MAX_PAYLOAD_SIZE},
+    consts::{
+        CONSENSUS_PORT, CONSENSUS_PUBLIC_ADDRESS_HOST, CONSENSUS_SERVER_ADDRESS_HOST,
+        GOSSIP_DYNAMIC_INBOUND_LIMIT, MAX_BATCH_SIZE, MAX_PAYLOAD_SIZE, NEXT_EMPTY_PORTS_OFFSET,
+    },
     messages::{
-        msg_preparing_en_config_is_done, MSG_API_CONFIG_MISSING_ERR, MSG_CHAIN_NOT_INITIALIZED,
+        msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED,
         MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_CONSENSUS_SECRETS_MISSING_ERR,
         MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR, MSG_PREPARING_EN_CONFIGS,
     },
-    utils::{
-        consensus::parse_public_addr,
-        rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
-    },
+    utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
 
 pub fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
@@ -92,12 +92,10 @@ fn prepare_configs(
     let main_node_consensus_config = general
         .consensus_config
         .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
-    let api_config = general_en
-        .api_config
-        .clone()
-        .context(MSG_API_CONFIG_MISSING_ERR)?;
-    let public_addr = parse_public_addr(&api_config)?;
-    let server_addr = public_addr.parse()?;
+
+    let consensus_port = CONSENSUS_PORT + NEXT_EMPTY_PORTS_OFFSET;
+    let public_addr = format!("{}:{}", CONSENSUS_PUBLIC_ADDRESS_HOST, consensus_port);
+    let server_addr = format!("{}:{}", CONSENSUS_SERVER_ADDRESS_HOST, consensus_port).parse()?;
     let mut gossip_static_outbound = BTreeMap::new();
     let main_node_public_key = node_public_key(
         &config

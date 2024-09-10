@@ -12,6 +12,8 @@ pub const L2_BASE_TOKEN_ADDRESS: &str = "0x0000000000000000000000000000000000008
 #[allow(non_upper_case_globals)]
 const kB: usize = 1024;
 
+pub const NEXT_EMPTY_PORTS_OFFSET: u16 = 100;
+
 /// Max payload size for consensus
 pub const MAX_PAYLOAD_SIZE: usize = 2_500_000;
 /// Max batch size for consensus
@@ -24,6 +26,13 @@ pub const MAX_PAYLOAD_SIZE: usize = 2_500_000;
 pub const MAX_BATCH_SIZE: usize = MAX_PAYLOAD_SIZE * 5000 + kB;
 /// Gossip dynamic inbound limit for consensus
 pub const GOSSIP_DYNAMIC_INBOUND_LIMIT: usize = 1;
+
+/// Consensus port
+pub const CONSENSUS_PORT: u16 = 3054;
+/// Public address for consensus
+pub const CONSENSUS_PUBLIC_ADDRESS_HOST: &str = "0.0.0.0";
+/// Server address for consensus
+pub const CONSENSUS_SERVER_ADDRESS_HOST: &str = "127.0.0.1";
 
 /// Path to the JS runtime config for the block-explorer-app docker container to be mounted to
 pub const EXPLORER_APP_DOCKER_CONFIG_PATH: &str = "/usr/src/app/packages/app/dist/config.js";
