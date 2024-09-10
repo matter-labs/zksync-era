@@ -129,6 +129,7 @@ impl VmPlayground {
 
         let mut batch_executor_factory = MainBatchExecutorFactory::new(false, false);
         batch_executor_factory.set_fast_vm_mode(vm_mode);
+        batch_executor_factory.observe_storage_metrics();
 
         let io = VmPlaygroundIo {
             cursor_file_path,
