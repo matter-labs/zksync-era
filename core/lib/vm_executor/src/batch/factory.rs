@@ -18,9 +18,9 @@ use zksync_types::{vm::FastVmMode, Transaction};
 
 use super::{
     executor::{Command, MainBatchExecutor},
-    metrics::{TxExecutionStage, BATCH_TIP_METRICS, KEEPER_METRICS},
+    metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
 };
-use crate::batch::metrics::{InteractionType, EXECUTOR_METRICS};
+use crate::shared::InteractionType;
 
 /// The default implementation of [`BatchExecutorFactory`].
 /// Creates real batch executors which maintain the VM (as opposed to the test factories which don't use the VM).

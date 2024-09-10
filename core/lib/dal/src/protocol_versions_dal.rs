@@ -73,16 +73,14 @@ impl ProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                protocol_patches (minor, patch, recursion_scheduler_level_vk_hash, created_at)
+                protocol_patches (minor, patch, snark_wrapper_vk_hash, created_at)
             VALUES
                 ($1, $2, $3, NOW())
             ON CONFLICT DO NOTHING
             "#,
             version.minor as i32,
             version.patch.0 as i32,
-            l1_verifier_config
-                .recursion_scheduler_level_vk_hash
-                .as_bytes(),
+            l1_verifier_config.snark_wrapper_vk_hash.as_bytes(),
         )
         .instrument("save_protocol_version#patch")
         .with_arg("version", &version)
@@ -243,7 +241,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_versions.default_account_code_hash,
                 protocol_versions.evm_simulator_code_hash,
                 protocol_patches.patch,
-                protocol_patches.recursion_scheduler_level_vk_hash
+                protocol_patches.snark_wrapper_vk_hash
             FROM
                 protocol_versions
                 JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id
@@ -276,7 +274,7 @@ impl ProtocolVersionsDal<'_, '_> {
         let row = sqlx::query!(
             r#"
             SELECT
-                recursion_scheduler_level_vk_hash
+                snark_wrapper_vk_hash
             FROM
                 protocol_patches
             WHERE
@@ -290,16 +288,14 @@ impl ProtocolVersionsDal<'_, '_> {
         .await
         .unwrap()?;
         Some(L1VerifierConfig {
-            recursion_scheduler_level_vk_hash: H256::from_slice(
-                &row.recursion_scheduler_level_vk_hash,
-            ),
+            snark_wrapper_vk_hash: H256::from_slice(&row.snark_wrapper_vk_hash),
         })
     }
 
     pub async fn get_patch_versions_for_vk(
         &mut self,
         minor_version: ProtocolVersionId,
-        recursion_scheduler_level_vk_hash: H256,
+        snark_wrapper_vk_hash: H256,
     ) -> DalResult<Vec<VersionPatch>> {
         let rows = sqlx::query!(
             r#"
@@ -309,12 +305,12 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_patches
             WHERE
                 minor = $1
-                AND recursion_scheduler_level_vk_hash = $2
+                AND snark_wrapper_vk_hash = $2
             ORDER BY
                 patch DESC
             "#,
             minor_version as i32,
-            recursion_scheduler_level_vk_hash.as_bytes()
+            snark_wrapper_vk_hash.as_bytes()
         )
         .instrument("get_patch_versions_for_vk")
         .fetch_all(self.storage)

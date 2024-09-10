@@ -11,12 +11,10 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_dal.workspace = true
 zksync_config.workspace = true
 zksync_protobuf.workspace = true
 zksync_protobuf_config.workspace = true
 zksync_env_config.workspace = true
-zksync_node_genesis.workspace = true
 
 anyhow.workspace = true
 tokio = { workspace = true, features = ["time"] }

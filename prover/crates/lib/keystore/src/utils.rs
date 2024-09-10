@@ -13,6 +13,7 @@ use zkevm_test_harness::{
     franklin_crypto::bellman::{CurveAffine, PrimeField, PrimeFieldRepr},
     witness::recursive_aggregation::compute_leaf_params,
 };
+use zksync_basic_types::H256;
 use zksync_prover_fri_types::circuit_definitions::{
     boojum::field::goldilocks::GoldilocksField,
     circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type,
@@ -21,7 +22,6 @@ use zksync_prover_fri_types::circuit_definitions::{
         scheduler::aux::BaseLayerCircuitType,
     },
 };
-use zksync_types::H256;
 use zksync_utils::locate_workspace;
 
 use crate::keystore::Keystore;
@@ -137,7 +137,7 @@ mod tests {
         for entry in std::fs::read_dir(path_to_input.clone()).unwrap().flatten() {
             if entry.metadata().unwrap().is_dir() {
                 let basepath = path_to_input.join(entry.file_name());
-                let keystore = Keystore::new_with_optional_setup_path(basepath.clone(), None);
+                let keystore = Keystore::new(basepath.clone());
 
                 let expected =
                     H256::from_str(&keystore.load_commitments().unwrap().snark_wrapper).unwrap();

@@ -17,7 +17,7 @@ pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Res
 
     let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let args = args.fill_values_with_prompt()?;
+    let args = args.fill_values_with_prompt();
 
     let bellman_cuda_dir = args.bellman_cuda_dir.unwrap_or("".to_string());
     let bellman_cuda_dir = if bellman_cuda_dir.is_empty() {
