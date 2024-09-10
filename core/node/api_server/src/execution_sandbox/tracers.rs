@@ -11,7 +11,7 @@ use zksync_types::ProtocolVersionId;
 
 /// Custom tracers supported by the API sandbox.
 #[derive(Debug)]
-pub(crate) enum ApiTracer {
+pub enum ApiTracer {
     CallTracer(Arc<OnceCell<Vec<Call>>>),
     Validation {
         params: ValidationTracerParams,
