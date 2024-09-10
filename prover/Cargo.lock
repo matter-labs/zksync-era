@@ -502,27 +502,6 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.65.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfdf7b466f9a4903edc73f95d6d2bcd5baf8ae620638762244d3f60143643cc5"
-dependencies = [
- "bitflags 1.3.2",
- "cexpr",
- "clang-sys",
- "lazy_static",
- "lazycell",
- "peeking_take_while",
- "prettyplease",
- "proc-macro2 1.0.85",
- "quote 1.0.36",
- "regex",
- "rustc-hash",
- "shlex",
- "syn 2.0.66",
-]
-
-[[package]]
-name = "bindgen"
 version = "0.69.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a00dc851838a2120612785d195287475a3ac45514741da670b735818822129a0"
@@ -825,17 +804,6 @@ name = "bytes"
 version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "514de17de45fdb8dc022b1a7975556c53c86f9f0aa5f534b98977b171857c2c9"
-
-[[package]]
-name = "bzip2-sys"
-version = "0.1.11+1.0.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "736a955f3fa7875102d57c82b8cac37ec45224a07fd32d58f9f7a186b6cd4cdc"
-dependencies = [
- "cc",
- "libc",
- "pkg-config",
-]
 
 [[package]]
 name = "cc"
@@ -3239,12 +3207,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
-name = "leb128"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "884e2677b40cc8c339eaefcb701c32ef1fd2493d71118dc0ca4b6a736c93bd67"
-
-[[package]]
 name = "libc"
 version = "0.2.155"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3267,37 +3229,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
-name = "librocksdb-sys"
-version = "0.11.0+8.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d3386f101bcb4bd252d8e9d2fb41ec3b0862a15a62b478c355b2982efa469e3e"
-dependencies = [
- "bindgen 0.65.1",
- "bzip2-sys",
- "cc",
- "glob",
- "libc",
- "libz-sys",
- "lz4-sys",
- "zstd-sys",
-]
-
-[[package]]
 name = "libsqlite3-sys"
 version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e99fb7a497b1e3339bc746195567ed8d3e24945ecd636e3619d20b9de9e9149"
-dependencies = [
- "cc",
- "pkg-config",
- "vcpkg",
-]
-
-[[package]]
-name = "libz-sys"
-version = "1.1.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c15da26e5af7e25c90b37a2d75cdbf940cf4a55316de9d84c679c9b8bfabf82e"
 dependencies = [
  "cc",
  "pkg-config",
@@ -3368,16 +3303,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dbfc0d229f1f42d790440136d941afd806bc9e949e2bcb8faa813b0f00d1267e"
 dependencies = [
  "logos-codegen",
-]
-
-[[package]]
-name = "lz4-sys"
-version = "1.9.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57d27b317e207b10f69f5e75494119e391a96f48861ae870d1da6edac98ca900"
-dependencies = [
- "cc",
- "libc",
 ]
 
 [[package]]
@@ -4955,16 +4880,6 @@ checksum = "bb919243f34364b6bd2fc10ef797edbfa75f33c252e7998527479c6d6b47e1ec"
 dependencies = [
  "bytes",
  "rustc-hex",
-]
-
-[[package]]
-name = "rocksdb"
-version = "0.21.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bb6f170a4041d50a0ce04b0d2e14916d6ca863ea2e422689a5b694395d299ffe"
-dependencies = [
- "libc",
- "librocksdb-sys",
 ]
 
 [[package]]
@@ -7754,9 +7669,7 @@ dependencies = [
  "serde_yaml",
  "tokio",
  "zksync_config",
- "zksync_dal",
  "zksync_env_config",
- "zksync_node_genesis",
  "zksync_protobuf",
  "zksync_protobuf_config",
 ]
@@ -7824,7 +7737,6 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_basic_types",
- "zksync_health_check",
 ]
 
 [[package]]
@@ -7866,20 +7778,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_health_check"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "futures 0.3.30",
- "serde",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
- "vise",
-]
-
-[[package]]
 name = "zksync_kzg"
 version = "0.150.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7894,25 +7792,6 @@ dependencies = [
  "serde_json",
  "serde_with",
  "zkevm_circuits 0.150.4",
-]
-
-[[package]]
-name = "zksync_merkle_tree"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "leb128",
- "once_cell",
- "rayon",
- "thiserror",
- "thread_local",
- "tracing",
- "vise",
- "zksync_crypto_primitives",
- "zksync_prover_interface",
- "zksync_storage",
- "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -7952,27 +7831,6 @@ dependencies = [
  "zksync_types",
  "zksync_utils",
  "zksync_vm_interface",
-]
-
-[[package]]
-name = "zksync_node_genesis"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "itertools 0.10.5",
- "thiserror",
- "tokio",
- "tracing",
- "vise",
- "zksync_config",
- "zksync_contracts",
- "zksync_dal",
- "zksync_eth_client",
- "zksync_merkle_tree",
- "zksync_multivm",
- "zksync_system_constants",
- "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]
@@ -8253,18 +8111,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_storage"
-version = "0.1.0"
-dependencies = [
- "num_cpus",
- "once_cell",
- "rocksdb",
- "thread_local",
- "tracing",
- "vise",
-]
-
-[[package]]
 name = "zksync_system_constants"
 version = "0.1.0"
 dependencies = [
@@ -8314,7 +8160,6 @@ dependencies = [
  "bigdecimal",
  "futures 0.3.30",
  "hex",
- "itertools 0.10.5",
  "num",
  "once_cell",
  "reqwest 0.12.5",
@@ -8470,14 +8315,4 @@ dependencies = [
  "zksync_types",
  "zksync_utils",
  "zksync_vlog",
-]
-
-[[package]]
-name = "zstd-sys"
-version = "2.0.10+zstd.1.5.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c253a4914af5bafc8fa8c86ee400827e83cf6ec01195ec1f1ed8441bf00d65aa"
-dependencies = [
- "cc",
- "pkg-config",
 ]
