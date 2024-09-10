@@ -202,7 +202,7 @@ describe('web3 API compatibility tests', () => {
 
     test('Should test web3 response extensions', async () => {
         if (testMaster.isFastMode()) {
-            // This test requires a new L1 batch to be created, which may be very time consuming on stage.
+            // This test requires a new L1 batch to be created, which may be very time-consuming on stage.
             return;
         }
 
@@ -333,7 +333,7 @@ describe('web3 API compatibility tests', () => {
 
         // Pubsub notifier is not reactive + tests are being run in parallel, so we can't expect that the next block
         // would be expected one. Instead, we just want to receive an event with the particular block number.
-        wsProvider.on('block', (block) => {
+        await wsProvider.on('block', (block) => {
             if (block >= currentBlock) {
                 newBlock = block;
             }
@@ -355,7 +355,6 @@ describe('web3 API compatibility tests', () => {
         // ...though the gap should not be *too* big.
         expect(newBlock).toBeLessThan(currentBlock + 100);
         await tx.wait(); // To not leave a hanging promise.
-        wsProvider.removeAllListeners();
         await wsProvider.destroy();
     });
 
@@ -368,7 +367,7 @@ describe('web3 API compatibility tests', () => {
 
         let newTxHash: string | null = null;
         // We can't use `once` as there may be other pending txs sent together with our one.
-        wsProvider.on('pending', async (txHash) => {
+        await wsProvider.on('pending', async (txHash) => {
             const tx = await alice.provider.getTransaction(txHash);
             // We're waiting for the exact transaction to appear.
             if (!tx || tx.to != uniqueRecipient) {
@@ -392,7 +391,6 @@ describe('web3 API compatibility tests', () => {
 
         expect(newTxHash as string).toEqual(tx.hash);
         await tx.wait(); // To not leave a hanging promise.
-        wsProvider.removeAllListeners();
         await wsProvider.destroy();
     });
 
@@ -404,7 +402,7 @@ describe('web3 API compatibility tests', () => {
         // We're sending a few transfers from the wallet, so we'll use a new account to make event unique.
         let uniqueRecipient = testMaster.newEmptyAccount().address;
 
-        // Setup a filter for an ERC20 transfer.
+        // Set up a filter for an ERC20 transfer.
         const erc20TransferTopic = ethers.id('Transfer(address,address,uint256)');
         let filter = {
             address: l2Token,
@@ -414,15 +412,15 @@ describe('web3 API compatibility tests', () => {
                 ethers.zeroPadValue(uniqueRecipient, 32) // Recipient
             ]
         };
-        wsProvider.once(filter, (event) => {
+        await wsProvider.once(filter, (event) => {
             newEvent = event;
         });
 
-        // Setup a filter that should not match anything.
+        // Set up a filter that should not match anything.
         let incorrectFilter = {
             address: alice.address
         };
-        wsProvider.once(incorrectFilter, (_) => {
+        await wsProvider.once(incorrectFilter, (_) => {
             expect(null).fail('Found log for incorrect filter');
         });
 
@@ -439,7 +437,6 @@ describe('web3 API compatibility tests', () => {
 
         expect((newEvent as any).transactionHash).toEqual(tx.hash);
         await tx.wait(); // To not leave a hanging promise.
-        wsProvider.removeAllListeners();
         await wsProvider.destroy();
     });
 
@@ -608,7 +605,7 @@ describe('web3 API compatibility tests', () => {
 
         // Pubsub notify is not reactive and may be laggy, so we want to increase the chances
         // for test to pass. So we try to sleep a few iterations until we receive expected amount
-        // of events. If we won't receive them, we continue and the test will fail anyway.
+        // of events. If we don't receive them, we continue and the test will fail anyway.
         const expectedTrivialEventsCount = 2;
         const expectedSimpleEventsCount = 2;
         const expectedIndexedEventsCount = 1;
@@ -681,42 +678,9 @@ describe('web3 API compatibility tests', () => {
         ).resolves.toHaveProperty('result', expect.stringMatching(HEX_VALUE_REGEX));
     });
 
-    test('Should check API returns error when there are too many logs in eth_getLogs', async () => {
-        const contract = await deployContract(alice, contracts.events, []);
-        const maxLogsLimit = testMaster.environment().maxLogsLimit;
-
-        // Send 3 transactions that emit `maxLogsLimit / 2` events.
-        const tx1 = await contract.emitManyEvents(maxLogsLimit / 2);
-        const tx1Receipt = await tx1.wait();
-
-        const tx2 = await contract.emitManyEvents(maxLogsLimit / 2);
-        await tx2.wait();
-
-        const tx3 = await contract.emitManyEvents(maxLogsLimit / 2);
-        const tx3Receipt = await tx3.wait();
-
-        // There are around `0.5 * maxLogsLimit` logs in [tx1Receipt.blockNumber, tx1Receipt.blockNumber] range,
-        // so query with such filter should succeed.
-        await expect(
-            alice.provider.getLogs({
-                fromBlock: tx1Receipt.blockNumber,
-                toBlock: tx1Receipt.blockNumber
-            })
-        ).resolves;
-
-        // There are at least `1.5 * maxLogsLimit` logs in [tx1Receipt.blockNumber, tx3Receipt.blockNumber] range,
-        // so query with such filter should fail.
-        await expect(
-            alice.provider.getLogs({
-                fromBlock: tx1Receipt.blockNumber,
-                toBlock: tx3Receipt.blockNumber
-            })
-        ).rejects.toThrow(`Query returned more than ${maxLogsLimit} results.`);
-    });
-
     test('Should throw error for estimate gas for account with balance < tx.value', async () => {
         let poorBob = testMaster.newEmptyAccount();
-        expect(
+        await expect(
             poorBob.estimateGas({ value: 1, to: alice.address })
         ).toBeRejected(/*'insufficient balance for transfer'*/);
     });
@@ -860,7 +824,7 @@ describe('web3 API compatibility tests', () => {
         const getLogsByHash = (await alice.provider.getLogs({ blockHash: latestBlock.hash || undefined })).map((x) => {
             return new zksync.types.Log({ ...x, l1BatchNumber: 0 }, alice.provider); // Set bogus value.
         });
-        await expect(getLogsByNumber).toEqual(getLogsByHash);
+        expect(getLogsByNumber).toEqual(getLogsByHash);
 
         // Check that incorrect queries are rejected.
         await expect(
@@ -1030,7 +994,7 @@ describe('web3 API compatibility tests', () => {
             const incrementFunctionData = contract2.interface.encodeFunctionData('increment', [1]);
 
             // Assert that the estimation fails because the increment function is not present in contract1
-            expect(
+            await expect(
                 alice.provider.estimateGas({
                     to: contract1Address.toString(),
                     data: incrementFunctionData

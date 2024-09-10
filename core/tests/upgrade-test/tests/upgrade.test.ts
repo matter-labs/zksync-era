@@ -280,9 +280,11 @@ describe('Upgrade test', function () {
         );
         executeOperation = chainUpgradeCalldata;
 
+        console.log('Sending scheduleTransparentOperation');
         await sendGovernanceOperation(stmUpgradeData.scheduleTransparentOperation);
+        console.log('Sending executeOperation');
         await sendGovernanceOperation(stmUpgradeData.executeOperation);
-
+        console.log('Sending chain admin operation');
         await sendChainAdminOperation(setTimestampCalldata);
 
         // Wait for server to process L1 event.
@@ -371,23 +373,25 @@ describe('Upgrade test', function () {
     });
 
     async function sendGovernanceOperation(data: string) {
-        await (
-            await ecosystemGovWallet.sendTransaction({
-                to: await governanceContract.getAddress(),
-                data: data,
-                type: 0
-            })
-        ).wait();
+        const transaction = await ecosystemGovWallet.sendTransaction({
+            to: await governanceContract.getAddress(),
+            data: data,
+            type: 0
+        });
+        console.log(`Sent governance operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
+        await transaction.wait();
+        console.log(`Governance operation succeeded, tx_hash=${transaction.hash}`);
     }
 
     async function sendChainAdminOperation(data: string) {
-        await (
-            await adminGovWallet.sendTransaction({
-                to: await chainAdminContract.getAddress(),
-                data: data,
-                type: 0
-            })
-        ).wait();
+        const transaction = await adminGovWallet.sendTransaction({
+            to: await chainAdminContract.getAddress(),
+            data: data,
+            type: 0
+        });
+        console.log(`Sent chain admin operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
+        await transaction.wait();
+        console.log(`Chain admin operation succeeded, tx_hash=${transaction.hash}`);
     }
 });
 
