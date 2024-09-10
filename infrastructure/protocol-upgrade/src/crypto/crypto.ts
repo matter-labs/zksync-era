@@ -62,13 +62,22 @@ command
     .option('--create2-address <create2Address>')
     .option('--nonce <nonce>')
     .option('--gas-price <gasPrice>')
+    .option('--use-testnet-verifier <useTestnetVerifier>')
     .option('--environment <environment>')
     .description('Deploy verifier contract')
     .action(async (cmd) => {
         console.log('Deploying verifier contract');
         const path = getUpgradePath(cmd.environment);
         const tmpFile = `${path}/cryptoTmp.json`;
-        await deployVerifier(cmd.l1Rpc, cmd.privateKey, cmd.create2Address, tmpFile, cmd.nonce, cmd.gasPrice);
+        await deployVerifier(
+            cmd.l1Rpc,
+            cmd.privateKey,
+            cmd.create2Address,
+            tmpFile,
+            cmd.nonce,
+            cmd.gasPrice,
+            cmd.useTestnetVerifier
+        );
         let tmpData = JSON.parse(fs.readFileSync(tmpFile, 'utf8'));
         console.log(`Verifier contract deployed at ${tmpData.address}`);
         updateCryptoFile('verifier', tmpData, cmd.environment);
