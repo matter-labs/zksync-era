@@ -47,6 +47,7 @@ export class TestMaster {
             throw new Error(`Received invalid test suite path: ${file}`);
         }
         const suiteName = file.substring(markerPos + marker.length);
+        this.reporter.debug(`SUITE NAME: ${suiteName}`);
 
         const suiteWalletPK = context.wallets[suiteName];
         if (!suiteWalletPK) {
