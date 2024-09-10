@@ -16,7 +16,13 @@ use serde::Deserialize;
 use xshell::Shell;
 use zksync_basic_types::{H160, U256};
 
-use crate::consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR;
+use crate::{
+    consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR,
+    messages::{
+        MSG_FAILED_TO_SEND_TXN_ERR, MSG_UNABLE_TO_OPEN_FILE_ERR, MSG_UNABLE_TO_READ_FILE_ERR,
+        MSG_UNABLE_TO_READ_PARSE_JSON_ERR, MSG_UNABLE_TO_WRITE_FILE_ERR,
+    },
+};
 
 pub mod args;
 
@@ -46,12 +52,13 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
     let chain_id = ecosystem_config.l1_network.chain_id();
 
     // Read the JSON file
-    let mut file = File::open(args.file).expect("Unable to open file");
+    let mut file = File::open(args.file).context(MSG_UNABLE_TO_OPEN_FILE_ERR)?;
     let mut data = String::new();
-    file.read_to_string(&mut data).expect("Unable to read file");
+    file.read_to_string(&mut data)
+        .context(MSG_UNABLE_TO_READ_FILE_ERR)?;
 
     // Parse the JSON file
-    let txns: Txns = serde_json::from_str(&data).expect("Unable to parse JSON");
+    let txns: Txns = serde_json::from_str(&data).context(MSG_UNABLE_TO_READ_PARSE_JSON_ERR)?;
 
     let timestamp = Local::now().format("%Y%m%d_%H%M%S").to_string();
     let log_file = ecosystem_config
@@ -86,20 +93,22 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
             .confirmations(args.confirmations)
             .interval(Duration::from_millis(30))
             .await?
-            .context("Failed to send transaction")?;
+            .context(MSG_FAILED_TO_SEND_TXN_ERR)?;
 
-        log_receipt(&log_file, format!("{:?}", receipt).as_str());
+        log_receipt(&log_file, format!("{:?}", receipt).as_str())?;
     }
 
     Ok(())
 }
 
-fn log_receipt(path: &PathBuf, receipt: &str) {
+fn log_receipt(path: &PathBuf, receipt: &str) -> anyhow::Result<()> {
     let mut file = OpenOptions::new()
         .append(true)
         .create(true)
         .open(path)
-        .expect("Unable to open file");
+        .context(MSG_UNABLE_TO_OPEN_FILE_ERR)?;
 
-    writeln!(file, "{}", receipt).expect("Unable to write data");
+    writeln!(file, "{}", receipt).context(MSG_UNABLE_TO_WRITE_FILE_ERR)?;
+
+    Ok(())
 }

@@ -12,8 +12,9 @@ use common::{
 use config::EcosystemConfig;
 use messages::{
     msg_global_chain_does_not_exist, MSG_CONTRACTS_ABOUT, MSG_PROVER_VERSION_ABOUT,
-    MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT,
-    MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
+    MSG_SEND_TXNS_ABOUT, MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT,
+    MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT,
+    MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 use xshell::Shell;
 
@@ -54,7 +55,7 @@ enum SupervisorSubcommands {
     ProverVersion,
     #[command(about = MSG_CONTRACTS_ABOUT)]
     Contracts(ContractsArgs),
-    /// Send transactions from file
+    #[command(about = MSG_SEND_TXNS_ABOUT)]
     SendTransactions(SendTransactionsArgs),
 }
 

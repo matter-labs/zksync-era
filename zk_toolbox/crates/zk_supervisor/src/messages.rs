@@ -199,3 +199,18 @@ pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for
 pub(super) const MSG_TEST_WALLETS_INFO: &str = "Print test wallets information";
 pub(super) const MSG_DESERIALIZE_TEST_WALLETS_ERR: &str = "Impossible to deserialize test wallets";
 pub(super) const MSG_WALLETS_TEST_SUCCESS: &str = "Wallets test success";
+
+// Send transactions related messages
+pub(super) const MSG_SEND_TXNS_ABOUT: &str = "Send transactions from file";
+pub(super) const MSG_PROMPT_TRANSACTION_FILE: &str = "Path to transactions file";
+pub(super) const MSG_PROMPT_SECRET_KEY: &str = "Secret key of the sender";
+pub(super) const MSG_PROMPT_GAS_PRICE: &str = "Gas price";
+pub(super) const MSG_PROMPT_L1_RPC_URL: &str = "L1 RPC URL";
+pub(super) const MSG_TRANSACTION_CONFIRMATIONS: &str = "Confirmations";
+
+pub(super) const MSG_UNABLE_TO_OPEN_FILE_ERR: &str = "Unable to open file";
+pub(super) const MSG_UNABLE_TO_READ_FILE_ERR: &str = "Unable to read file";
+pub(super) const MSG_UNABLE_TO_WRITE_FILE_ERR: &str = "Unable to write data to file";
+pub(super) const MSG_UNABLE_TO_READ_PARSE_JSON_ERR: &str = "Unable to parse JSON";
+pub(super) const MSG_FAILED_TO_SEND_TXN_ERR: &str = "Failed to send transaction";
+pub(super) const MSG_INVALID_L1_RPC_URL_ERR: &str = "Invalid L1 RPC URL";
