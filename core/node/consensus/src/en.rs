@@ -57,7 +57,7 @@ impl EN {
             let global_config = self
                 .fetch_global_config(ctx)
                 .await
-                .wrap("fetch_genesis()")?;
+                .wrap("fetch_global_config()")?;
             let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
 
             conn.try_update_global_config(ctx, &global_config)
@@ -90,7 +90,7 @@ impl EN {
                         if let Ok(new) = self.fetch_global_config(ctx).await {
                             if new != old {
                                 return Err(anyhow::format_err!(
-                                    "genesis changed: old {old:?}, new {new:?}"
+                                    "global config changed: old {old:?}, new {new:?}"
                                 )
                                 .into());
                             }
@@ -282,29 +282,29 @@ impl EN {
         match ctx.wait(self.client.consensus_global_config()).await? {
             Ok(cfg) => {
                 let cfg = cfg.context("main node is not running consensus component")?;
-                Ok(zksync_protobuf::serde::deserialize(&cfg.0).context("deserialize()")?)
+                return Ok(zksync_protobuf::serde::deserialize(&cfg.0).context("deserialize()")?);
             }
-            Err(ClientError::Call(err)) if err.code() == ErrorCode::MethodNotFound.code() => {
-                tracing::info!(
-                    "consensus_global_config() not found, calling consensus_genesis() instead"
-                );
-                let genesis = ctx
-                    .wait(self.client.consensus_genesis())
-                    .await?
-                    .context("consensus_genesis()")?
-                    .context("main node is not running consensus component")?;
-                Ok(consensus_dal::GlobalConfig {
-                    genesis: zksync_protobuf::serde::deserialize(&genesis.0)
-                        .context("deserialize()")?,
-                    registry_address: None,
-                })
-            }
+            // For non-whitelisted methods, proxyd returns HTTP 403 with MethodNotFound in the body.
+            // For some stupid reason ClientError doesn't expose HTTP error codes.
+            Err(ClientError::Transport(_)) => {}
+            // For missing methods api server, returns HTTP 200 with MethodNotFound in the body.
+            Err(ClientError::Call(err)) if err.code() == ErrorCode::MethodNotFound.code() => {}
             Err(err) => {
                 return Err(err)
                     .context("consensus_global_config()")
-                    .map_err(|err| err.into())
+                    .map_err(|err| err.into());
             }
         }
+        tracing::info!("consensus_global_config() not found, calling consensus_genesis() instead");
+        let genesis = ctx
+            .wait(self.client.consensus_genesis())
+            .await?
+            .context("consensus_genesis()")?
+            .context("main node is not running consensus component")?;
+        Ok(consensus_dal::GlobalConfig {
+            genesis: zksync_protobuf::serde::deserialize(&genesis.0).context("deserialize()")?,
+            registry_address: None,
+        })
     }
 
     #[tracing::instrument(skip_all)]
