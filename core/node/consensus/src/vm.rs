@@ -1,7 +1,6 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_consensus_roles::attester;
-use zksync_multivm::interface::TxExecutionMode;
 use zksync_node_api_server::{
     execution_sandbox::{TransactionExecutor, TxSetupArgs, VmConcurrencyLimiter},
     tx_sender::MultiVMBaseSystemContracts,
@@ -11,7 +10,9 @@ use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     ethabi, fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId, Nonce, U256,
 };
-use zksync_vm_interface::{ExecutionResult, OneshotTracingParams, TxExecutionArgs};
+use zksync_vm_interface::{
+    ExecutionResult, OneshotTracingParams, TxExecutionArgs, TxExecutionMode,
+};
 
 use crate::{abi, storage::ConnectionPool};
 
@@ -46,7 +47,7 @@ impl VM {
         }
     }
 
-    // FIXME: switch to oneshot executor
+    // FIXME (PLA-1018): switch to oneshot executor
     pub async fn call<F: abi::Function>(
         &self,
         ctx: &ctx::Ctx,

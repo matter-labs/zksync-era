@@ -12,7 +12,7 @@ use zksync_types::{
     api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
 };
 
-pub use self::execute::TransactionExecutor; // FIXME: remove
+pub use self::execute::TransactionExecutor; // FIXME (PLA-1018): remove
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,

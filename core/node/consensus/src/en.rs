@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use jsonrpsee::{core::ClientError, types::error::ErrorCode};
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
@@ -12,6 +11,7 @@ use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::is_retriable,
+    jsonrpsee::{core::ClientError, types::error::ErrorCode},
     namespaces::{EnNamespaceClient as _, EthNamespaceClient as _},
 };
 
