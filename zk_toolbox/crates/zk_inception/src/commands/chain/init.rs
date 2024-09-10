@@ -40,20 +40,18 @@ use crate::{
         portal::update_portal_config,
     },
     consts::{
-        AMOUNT_FOR_DISTRIBUTION_TO_WALLETS, GOSSIP_DYNAMIC_INBOUND_LIMIT, MAX_BATCH_SIZE,
+        AMOUNT_FOR_DISTRIBUTION_TO_WALLETS, CONSENSUS_PUBLIC_ADDRESS_HOST,
+        CONSENSUS_SERVER_ADDRESS_HOST, GOSSIP_DYNAMIC_INBOUND_LIMIT, MAX_BATCH_SIZE,
         MAX_PAYLOAD_SIZE,
     },
     messages::{
-        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_API_CONFIG_MISSING_ERR,
-        MSG_CHAIN_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR, MSG_DISTRIBUTING_ETH_SPINNER,
-        MSG_GENESIS_DATABASE_ERR, MSG_MINT_BASE_TOKEN_SPINNER,
-        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DISTRIBUTING_ETH_SPINNER, MSG_GENESIS_DATABASE_ERR,
+        MSG_MINT_BASE_TOKEN_SPINNER, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTS_CONFIG_ERR,
+        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
     },
-    utils::{
-        consensus::parse_public_addr,
-        forge::{check_the_balance, fill_forge_private_key},
-    },
+    utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -84,15 +82,14 @@ pub async fn init(
 
     let mut general_config = chain_config.get_general_config()?;
     apply_port_offset(init_args.port_offset, &mut general_config)?;
+    let ports = ports_config(&general_config).context(MSG_PORTS_CONFIG_ERR)?;
 
     let consensus_keys = generate_consensus_keys();
     let genesis_spec = Some(get_genesis_specs(chain_config, &consensus_keys));
-    let api_config = general_config
-        .api_config
-        .clone()
-        .context(MSG_API_CONFIG_MISSING_ERR)?;
-    let public_addr = parse_public_addr(&api_config)?;
-    let server_addr = public_addr.parse()?;
+
+    let public_addr = format!("{}:{}", CONSENSUS_PUBLIC_ADDRESS_HOST, ports.consensus_port);
+    let server_addr =
+        format!("{}:{}", CONSENSUS_SERVER_ADDRESS_HOST, ports.consensus_port).parse()?;
     let consensus_config = ConsensusConfig {
         server_addr,
         public_addr: Host(public_addr),

@@ -88,7 +88,6 @@ pub(super) const MSG_RECREATE_ROCKS_DB_ERRROR: &str = "Failed to create rocks db
 pub(super) const MSG_ERA_OBSERVABILITY_ALREADY_SETUP: &str = "Era observability already setup";
 pub(super) const MSG_DOWNLOADING_ERA_OBSERVABILITY_SPINNER: &str =
     "Downloading era observability...";
-pub(super) const MSG_API_CONFIG_MISSING_ERR: &str = "API config missing";
 
 pub(super) fn msg_ecosystem_no_found_preexisting_contract(chains: &str) -> String {
     format!("Not found preexisting ecosystem Contracts with chains {chains}")
@@ -309,7 +308,7 @@ pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is m
 pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
 pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
 
-pub(super) const MSG_PUBLIC_ADDR_ERR: &str = "Public address error";
+pub(super) const MSG_PORTS_CONFIG_ERR: &str = "Failed to get ports config";
 
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 

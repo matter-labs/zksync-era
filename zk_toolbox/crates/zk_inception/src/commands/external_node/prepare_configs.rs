@@ -23,13 +23,13 @@ use zksync_consensus_roles as roles;
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
     consts::{
-        CONSENSUS_PORT, CONSENSUS_PUBLIC_ADDRESS_HOST, CONSENSUS_SERVER_ADDRESS_HOST,
-        GOSSIP_DYNAMIC_INBOUND_LIMIT, MAX_BATCH_SIZE, MAX_PAYLOAD_SIZE, NEXT_EMPTY_PORTS_OFFSET,
+        CONSENSUS_PUBLIC_ADDRESS_HOST, CONSENSUS_SERVER_ADDRESS_HOST, GOSSIP_DYNAMIC_INBOUND_LIMIT,
+        MAX_BATCH_SIZE, MAX_PAYLOAD_SIZE,
     },
     messages::{
         msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED,
         MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_CONSENSUS_SECRETS_MISSING_ERR,
-        MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR, MSG_PREPARING_EN_CONFIGS,
+        MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR, MSG_PORTS_CONFIG_ERR, MSG_PREPARING_EN_CONFIGS,
     },
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
@@ -80,22 +80,25 @@ fn prepare_configs(
         gateway_url: None,
     };
     let mut general_en = general.clone();
-
-    update_ports(
-        &mut general_en,
-        &ports_config(&general)
-            .context("da")?
-            .next_empty_ports_config(),
-    )?;
+    let next_empty_ports_config = ports_config(&general)
+        .context(MSG_PORTS_CONFIG_ERR)?
+        .next_empty_ports_config();
+    update_ports(&mut general_en, &next_empty_ports_config)?;
 
     // Set consensus config
     let main_node_consensus_config = general
         .consensus_config
         .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
 
-    let consensus_port = CONSENSUS_PORT + NEXT_EMPTY_PORTS_OFFSET;
-    let public_addr = format!("{}:{}", CONSENSUS_PUBLIC_ADDRESS_HOST, consensus_port);
-    let server_addr = format!("{}:{}", CONSENSUS_SERVER_ADDRESS_HOST, consensus_port).parse()?;
+    let public_addr = format!(
+        "{}:{}",
+        CONSENSUS_PUBLIC_ADDRESS_HOST, next_empty_ports_config.consensus_port
+    );
+    let server_addr = format!(
+        "{}:{}",
+        CONSENSUS_SERVER_ADDRESS_HOST, next_empty_ports_config.consensus_port
+    )
+    .parse()?;
     let mut gossip_static_outbound = BTreeMap::new();
     let main_node_public_key = node_public_key(
         &config
