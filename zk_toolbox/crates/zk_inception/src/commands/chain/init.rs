@@ -312,7 +312,6 @@ struct ConsensusKeys {
 struct ConsensusPublicKeys {
     validator_key: roles::validator::PublicKey,
     attester_key: roles::attester::PublicKey,
-    node_key: roles::node::PublicKey,
 }
 
 fn generate_consensus_keys() -> ConsensusKeys {
@@ -327,7 +326,6 @@ fn get_consensus_public_keys(consensus_keys: &ConsensusKeys) -> ConsensusPublicK
     ConsensusPublicKeys {
         validator_key: consensus_keys.validator_key.public(),
         attester_key: consensus_keys.attester_key.public(),
-        node_key: consensus_keys.node_key.public(),
     }
 }
 
