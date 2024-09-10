@@ -1,10 +1,9 @@
-use std::sync::Arc;
-
 use anyhow::Context as _;
-use once_cell::sync::OnceCell;
 use zksync_dal::{CoreDal, DalError};
 use zksync_multivm::{
-    interface::{Call, CallType, ExecutionResult, TxExecutionMode},
+    interface::{
+        Call, CallType, ExecutionResult, OneshotTracingParams, TxExecutionArgs, TxExecutionMode,
+    },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
@@ -19,7 +18,7 @@ use zksync_types::{
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
-    execution_sandbox::{ApiTracer, TxExecutionArgs, TxSetupArgs},
+    execution_sandbox::TxSetupArgs,
     tx_sender::{ApiContracts, TxSenderConfig},
     web3::{backend_jsonrpsee::MethodTracer, state::RpcState},
 };
@@ -190,11 +189,8 @@ impl DebugNamespace {
         let vm_permit = vm_permit.context("cannot acquire VM permit")?;
 
         // We don't need properly trace if we only need top call
-        let call_tracer_result = Arc::new(OnceCell::default());
-        let custom_tracers = if only_top_call {
-            vec![]
-        } else {
-            vec![ApiTracer::CallTracer(call_tracer_result.clone())]
+        let tracing_params = OneshotTracingParams {
+            trace_calls: !only_top_call,
         };
 
         let connection = self.state.acquire_connection().await?;
@@ -207,12 +203,11 @@ impl DebugNamespace {
                 connection,
                 block_args,
                 None,
-                custom_tracers,
+                tracing_params,
             )
-            .await?
-            .vm;
+            .await?;
 
-        let (output, revert_reason) = match result.result {
+        let (output, revert_reason) = match result.vm.result {
             ExecutionResult::Success { output, .. } => (output, None),
             ExecutionResult::Revert { output } => (vec![], Some(output.to_string())),
             ExecutionResult::Halt { reason } => {
@@ -223,19 +218,14 @@ impl DebugNamespace {
             }
         };
 
-        // We had only one copy of Arc this arc is already dropped it's safe to unwrap
-        let trace = Arc::try_unwrap(call_tracer_result)
-            .unwrap()
-            .take()
-            .unwrap_or_default();
         let call = Call::new_high_level(
             tx.common_data.fee.gas_limit.as_u64(),
-            result.statistics.gas_used,
+            result.vm.statistics.gas_used,
             tx.execute.value,
             tx.execute.calldata,
             output,
             revert_reason,
-            trace,
+            result.call_traces,
         );
         Ok(Self::map_call(call, false))
     }

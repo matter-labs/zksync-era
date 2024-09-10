@@ -3,11 +3,13 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use zksync_types::Transaction;
+use zksync_types::{l2::L2Tx, Transaction};
 
 use crate::{
-    storage::StorageView, BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv,
+    storage::{ReadStorage, StorageView},
+    tracer::{ValidationError, ValidationParams},
+    BatchTransactionExecutionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, OneshotEnv,
+    OneshotTracingParams, OneshotTransactionExecutionResult, SystemEnv, TxExecutionArgs,
 };
 
 /// Factory of [`BatchExecutor`]s.
@@ -41,4 +43,30 @@ pub trait BatchExecutor<S>: 'static + Send + fmt::Debug {
 
     /// Finished the current L1 batch.
     async fn finish_batch(self: Box<Self>) -> anyhow::Result<(FinishedL1Batch, StorageView<S>)>;
+}
+
+/// VM executor capable of executing isolated transactions / calls (as opposed to [batch execution](BatchExecutor)).
+#[async_trait]
+pub trait OneshotExecutor<S: ReadStorage> {
+    /// Executes a transaction or call with optional tracers.
+    async fn inspect_transaction_with_bytecode_compression(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracing: OneshotTracingParams,
+    ) -> anyhow::Result<OneshotTransactionExecutionResult>;
+}
+
+/// VM executor capable of validating transactions.
+#[async_trait]
+pub trait TransactionValidator<S: ReadStorage>: OneshotExecutor<S> {
+    /// Validates the provided transaction.
+    async fn validate_transaction(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        tx: L2Tx,
+        validation_params: ValidationParams,
+    ) -> anyhow::Result<Result<(), ValidationError>>;
 }

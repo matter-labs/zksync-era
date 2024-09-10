@@ -11,6 +11,7 @@ use zksync_types::{
     L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue, U256,
 };
 use zksync_utils::u256_to_h256;
+use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::namespaces::DebugNamespaceClient;
 
 use super::*;
@@ -327,7 +328,7 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
             total_log_queries_count: 0,
         };
 
-        tx_executor.set_tx_responses_with_logs(move |tx, env| {
+        tx_executor.set_full_tx_responses(move |tx, env| {
             assert_eq!(tx.hash(), tx_bytes_and_hash.1);
             assert_eq!(env.l1_batch.first_l2_block.number, 1);
 

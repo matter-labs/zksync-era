@@ -29,6 +29,7 @@ zksync_utils.workspace = true
 zksync_protobuf.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_multivm.workspace = true
+zksync_vm_executor.workspace = true
 vise.workspace = true
 
 anyhow.workspace = true

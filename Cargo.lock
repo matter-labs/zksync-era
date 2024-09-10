@@ -9045,6 +9045,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_executor",
  "zksync_web3_decl",
 ]
 
@@ -9055,7 +9056,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "hex",
- "jsonrpsee",
  "rand 0.8.5",
  "secrecy",
  "semver",
@@ -9064,7 +9064,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
- "zksync_basic_types",
  "zksync_concurrency",
  "zksync_config",
  "zksync_consensus_bft",
@@ -9079,7 +9078,6 @@ dependencies = [
  "zksync_l1_contract_interface",
  "zksync_merkle_tree",
  "zksync_metadata_calculator",
- "zksync_multivm",
  "zksync_node_api_server",
  "zksync_node_genesis",
  "zksync_node_sync",
@@ -9087,7 +9085,6 @@ dependencies = [
  "zksync_protobuf",
  "zksync_state",
  "zksync_state_keeper",
- "zksync_storage",
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",
@@ -9803,6 +9800,7 @@ dependencies = [
  "zksync_dal",
  "zksync_multivm",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]

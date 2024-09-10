@@ -9,13 +9,13 @@ use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h25
 use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
-        tracer::{TracerExecutionStatus, TracerExecutionStopReason},
+        tracer::{TracerExecutionStatus, TracerExecutionStopReason, ViolatedValidationRule},
         Halt,
     },
     tracers::{
         dynamic::vm_1_5_0::DynTracer,
         validator::{
-            types::{NewTrustedValidationItems, ValidationTracerMode, ViolatedValidationRule},
+            types::{NewTrustedValidationItems, ValidationTracerMode},
             ValidationRoundResult, ValidationTracer,
         },
     },
@@ -86,7 +86,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
             Opcode::Context(context) => {
                 match context {
                     ContextOpcode::Meta => {
-                        return Err(ViolatedValidationRule::TouchedUnallowedContext);
+                        return Err(ViolatedValidationRule::TouchedDisallowedContext);
                     }
                     ContextOpcode::ErgsLeft => {
                         // TODO (SMA-1168): implement the correct restrictions for the gas left opcode.
@@ -100,7 +100,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
                 let msg_sender = state.vm_local_state.callstack.current.msg_sender;
 
                 if !self.is_allowed_storage_read(storage.clone(), this_address, key, msg_sender) {
-                    return Err(ViolatedValidationRule::TouchedUnallowedStorageSlots(
+                    return Err(ViolatedValidationRule::TouchedDisallowedStorageSlots(
                         this_address,
                         key,
                     ));

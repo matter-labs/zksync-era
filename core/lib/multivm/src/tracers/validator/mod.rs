@@ -11,10 +11,12 @@ use zksync_types::{
 use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};
 
 use self::types::{NewTrustedValidationItems, ValidationTracerMode};
-pub use self::types::{ValidationError, ValidationTracerParams, ViolatedValidationRule};
 use crate::{
     glue::tracers::IntoOldVmTracer,
-    interface::storage::{StoragePtr, WriteStorage},
+    interface::{
+        storage::{StoragePtr, WriteStorage},
+        tracer::{ValidationParams, ViolatedValidationRule},
+    },
 };
 
 mod types;
@@ -50,7 +52,7 @@ type ValidationRoundResult = Result<NewTrustedValidationItems, ViolatedValidatio
 
 impl<H> ValidationTracer<H> {
     pub fn new(
-        params: ValidationTracerParams,
+        params: ValidationParams,
         vm_version: VmVersion,
     ) -> (Self, Arc<OnceCell<ViolatedValidationRule>>) {
         let result = Arc::new(OnceCell::new());
@@ -179,8 +181,8 @@ impl<H> ValidationTracer<H> {
         }
     }
 
-    pub fn params(&self) -> ValidationTracerParams {
-        ValidationTracerParams {
+    pub fn params(&self) -> ValidationParams {
+        ValidationParams {
             user_address: self.user_address,
             paymaster_address: self.paymaster_address,
             trusted_slots: self.trusted_slots.clone(),
