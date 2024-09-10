@@ -200,7 +200,7 @@ impl ZkStackService {
         // Report all the errors we've met during the init.
         if !errors.is_empty() {
             for (layer, error) in &errors {
-                tracing::error!("Wiring layer {layer} can't be initialized: {error:#}");
+                tracing::error!("Wiring layer {layer} can't be initialized: {error:?}");
             }
             return Err(ZkStackServiceError::Wiring(errors));
         }
@@ -302,7 +302,7 @@ impl ZkStackService {
                     tracing::info!("Shutdown hook {name} completed");
                 }
                 Ok(Err(err)) => {
-                    tracing::error!("Shutdown hook {name} failed: {err:#}");
+                    tracing::error!("Shutdown hook {name} failed: {err:?}");
                     self.errors.push(TaskError::ShutdownHookFailed(name, err));
                 }
                 Err(_) => {
@@ -324,7 +324,7 @@ impl ZkStackService {
                 tracing::info!("Task {task_name} finished");
             }
             Ok(Err(err)) => {
-                tracing::error!("Task {task_name} failed: {err:#}");
+                tracing::error!("Task {task_name} failed: {err:?}");
                 self.errors.push(TaskError::TaskFailed(task_name, err));
             }
             Err(panic_err) => {
