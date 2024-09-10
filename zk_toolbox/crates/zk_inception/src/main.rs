@@ -132,7 +132,7 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
             clap_markdown::print_help_markdown::<Inception>();
         }
         InceptionSubcommands::SendTransactions(args) => {
-            commands::send_transactions::run(shell, args)?
+            commands::send_transactions::run(shell, args).await?
         }
     }
     Ok(())

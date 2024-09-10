@@ -6275,6 +6275,7 @@ dependencies = [
  "config",
  "console",
  "ethers",
+ "futures",
  "human-panic",
  "lazy_static",
  "serde",

@@ -2,6 +2,12 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use common::Prompt;
+use url::Url;
+
+use crate::{
+    defaults::LOCAL_RPC_URL,
+    messages::{MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT},
+};
 
 #[derive(Debug, Parser)]
 pub struct SendTransactionsArgs {
@@ -11,6 +17,10 @@ pub struct SendTransactionsArgs {
     pub private_key: Option<String>,
     #[clap(long)]
     pub gas_price: Option<String>,
+    #[clap(long, help = MSG_L1_RPC_URL_HELP)]
+    pub l1_rpc_url: Option<String>,
+    #[clap(long)]
+    pub confirmations: Option<usize>,
 }
 
 #[derive(Debug)]
@@ -18,6 +28,8 @@ pub struct SendTransactionsArgsFinal {
     pub file: PathBuf,
     pub private_key: String,
     pub gas_price: String,
+    pub l1_rpc_url: String,
+    pub confirmations: usize,
 }
 
 impl SendTransactionsArgs {
@@ -34,10 +46,27 @@ impl SendTransactionsArgs {
             .gas_price
             .unwrap_or_else(|| Prompt::new("Gas price").ask());
 
+        let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
+            Prompt::new(MSG_L1_RPC_URL_PROMPT)
+                .default(LOCAL_RPC_URL)
+                .validate_with(|val: &String| -> Result<(), String> {
+                    Url::parse(val)
+                        .map(|_| ())
+                        .map_err(|_| MSG_L1_RPC_URL_INVALID_ERR.to_string())
+                })
+                .ask()
+        });
+
+        let confirmations = self
+            .confirmations
+            .unwrap_or_else(|| Prompt::new("Confirmations").ask());
+
         SendTransactionsArgsFinal {
             file,
             private_key,
             gas_price,
+            l1_rpc_url,
+            confirmations,
         }
     }
 }
