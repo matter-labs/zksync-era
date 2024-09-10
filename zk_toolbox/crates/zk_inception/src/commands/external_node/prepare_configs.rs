@@ -7,23 +7,21 @@ use std::{
 use anyhow::Context;
 use common::{config::global_config, logger};
 use config::{
-    external_node::ENConfig,
-    ports_config, set_rocks_db_config,
-    traits::{ReadConfig, SaveConfigWithBasePath},
+    external_node::ENConfig, ports_config, set_rocks_db_config, traits::SaveConfigWithBasePath,
     update_ports, ChainConfig, EcosystemConfig, SecretsConfig,
 };
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
 use zksync_config::configs::{
-    consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey},
+    consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey, NodeSecretKey, Secret},
     DatabaseSecrets, L1Secrets,
 };
+use zksync_consensus_crypto::TextFmt;
+use zksync_consensus_roles as roles;
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
-    consts::{
-        CONSENSUS_SECRETS_PATH, GOSSIP_DYNAMIC_INBOUND_LIMIT, MAX_BATCH_SIZE, MAX_PAYLOAD_SIZE,
-    },
+    consts::{GOSSIP_DYNAMIC_INBOUND_LIMIT, MAX_BATCH_SIZE, MAX_PAYLOAD_SIZE},
     messages::{
         msg_preparing_en_config_is_done, MSG_API_CONFIG_MISSING_ERR, MSG_CHAIN_NOT_INITIALIZED,
         MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_GENESIS_SPEC_MISSING_ERR, MSG_PREPARING_EN_CONFIGS,
@@ -116,8 +114,12 @@ fn prepare_configs(
     en_consensus_config.save_with_base_path(shell, en_configs_path)?;
 
     // Set secrets config
-    let consensus_secrets_path = config.link_to_code.join(CONSENSUS_SECRETS_PATH);
-    let consensus_secrets = ConsensusSecrets::read(shell, consensus_secrets_path)?;
+    let node_key = roles::node::SecretKey::generate().encode();
+    let consensus_secrets = ConsensusSecrets {
+        validator_key: None,
+        attester_key: None,
+        node_key: Some(NodeSecretKey(Secret::new(node_key))),
+    };
     let secrets = SecretsConfig {
         consensus: Some(consensus_secrets),
         database: Some(DatabaseSecrets {
