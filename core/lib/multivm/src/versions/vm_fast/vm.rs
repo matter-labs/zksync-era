@@ -274,13 +274,7 @@ impl<S: ReadStorage> Vm<S> {
     /// Should only be used when the bootloader is executing (e.g., when handling hooks).
     pub(crate) fn read_word_from_bootloader_heap(&self, word: usize) -> U256 {
         let start_address = word as u32 * 32;
-        let mut bytes = [0_u8; 32];
-        for offset in 0_u32..32 {
-            bytes[offset as usize] = self
-                .inner
-                .read_heap_byte(HeapId::FIRST, start_address + offset);
-        }
-        U256::from_big_endian(&bytes)
+        self.inner.read_heap_u256(HeapId::FIRST, start_address)
     }
 
     fn read_bytes_from_heap(&self, ptr: FatPointer) -> Vec<u8> {
@@ -306,16 +300,9 @@ impl<S: ReadStorage> Vm<S> {
         );
 
         for (slot, value) in memory {
-            let mut bytes = [0_u8; 32];
-            value.to_big_endian(&mut bytes);
             let start_address = slot as u32 * 32;
-            for offset in 0_u32..32 {
-                self.inner.write_heap_byte(
-                    HeapId::FIRST,
-                    start_address + offset,
-                    bytes[offset as usize],
-                );
-            }
+            self.inner
+                .write_heap_u256(HeapId::FIRST, start_address, value);
         }
     }
 

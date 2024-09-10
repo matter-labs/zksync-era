@@ -22,10 +22,7 @@ pub(crate) fn verify_required_memory(
     required_values: Vec<(U256, HeapId, u32)>,
 ) {
     for (required_value, memory_page, cell) in required_values {
-        let word_bytes: Vec<_> = (cell * 32..(cell + 1) * 32)
-            .map(|idx| state.read_heap_byte(memory_page, idx))
-            .collect();
-        let current_value = U256::from_big_endian(&word_bytes);
+        let current_value = state.read_heap_u256(memory_page, cell * 32);
         assert_eq!(current_value, required_value);
     }
 }
