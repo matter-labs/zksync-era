@@ -4,8 +4,7 @@ FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 as builder
 ARG DEBIAN_FRONTEND=noninteractive
 
 ARG CUDA_ARCH=89
-ARG A100_CUDA_ARCH=80
-ENV CUDAARCHS=${CUDA_ARCH};${A100_CUDA_ARCH}
+ENV CUDAARCHS=${CUDA_ARCH}
 
 RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ git \
     pkg-config build-essential libclang-dev && \

@@ -8,7 +8,10 @@ use url::Url;
 use xshell::Shell;
 use zksync_config::configs::fri_prover::CloudConnectionMode;
 
-use super::init_bellman_cuda::InitBellmanCudaArgs;
+use super::{
+    compressor_keys::CompressorKeysArgs, init_bellman_cuda::InitBellmanCudaArgs,
+    setup_keys::SetupKeysArgs,
+};
 use crate::{
     commands::prover::gcs::get_project_ids,
     consts::{DEFAULT_CREDENTIALS_FILE, DEFAULT_PROOF_STORE_DIR},
@@ -18,25 +21,24 @@ use crate::{
         MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT, MSG_CREATE_GCS_BUCKET_NAME_PROMTP,
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_NO_PROJECTS_PROMPT,
         MSG_CREATE_GCS_BUCKET_PROJECT_ID_PROMPT, MSG_CREATE_GCS_BUCKET_PROMPT,
-        MSG_DOWNLOAD_SETUP_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
-        MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
+        MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT, MSG_GETTING_PROOF_STORE_CONFIG,
+        MSG_GETTING_PUBLIC_STORE_CONFIG, MSG_INITIALIZE_BELLMAN_CUDA_PROMPT,
+        MSG_PROOF_STORE_CONFIG_PROMPT, MSG_PROOF_STORE_DIR_PROMPT,
         MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_ERR, MSG_PROOF_STORE_GCS_BUCKET_BASE_URL_PROMPT,
         MSG_PROOF_STORE_GCS_CREDENTIALS_FILE_PROMPT, MSG_PROVER_DB_NAME_HELP,
-        MSG_PROVER_DB_URL_HELP, MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT, MSG_SETUP_KEY_PATH_PROMPT,
+        MSG_PROVER_DB_URL_HELP, MSG_SAVE_TO_PUBLIC_BUCKET_PROMPT, MSG_SETUP_KEYS_PROMPT,
         MSG_USE_DEFAULT_DATABASES_HELP,
     },
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
+#[derive(Debug, Clone, Parser, Default)]
 pub struct ProverInitArgs {
     // Proof store object
     #[clap(long)]
     pub proof_store_dir: Option<String>,
     #[clap(flatten)]
-    #[serde(flatten)]
     pub proof_store_gcs_config: ProofStorageGCSTmp,
     #[clap(flatten)]
-    #[serde(flatten)]
     pub create_gcs_bucket_config: ProofStorageGCSCreateBucketTmp,
 
     // Public store object
@@ -45,20 +47,25 @@ pub struct ProverInitArgs {
     #[clap(long)]
     pub public_store_dir: Option<String>,
     #[clap(flatten)]
-    #[serde(flatten)]
     pub public_store_gcs_config: PublicStorageGCSTmp,
     #[clap(flatten)]
-    #[serde(flatten)]
     pub public_create_gcs_bucket_config: PublicStorageGCSCreateBucketTmp,
 
     // Bellman cuda
     #[clap(flatten)]
-    #[serde(flatten)]
     pub bellman_cuda_config: InitBellmanCudaArgs,
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
+    pub bellman_cuda: Option<bool>,
+
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
+    pub setup_compressor_keys: Option<bool>,
+    #[clap(flatten)]
+    pub compressor_keys_args: CompressorKeysArgs,
 
     #[clap(flatten)]
-    #[serde(flatten)]
-    pub setup_key_config: SetupKeyConfigTmp,
+    pub setup_keys_args: SetupKeysArgs,
+    #[clap(long, default_missing_value = "true", num_args = 0..=1)]
+    pub setup_keys: Option<bool>,
 
     #[clap(long)]
     pub setup_database: Option<bool>,
@@ -137,7 +144,7 @@ pub struct PublicStorageGCSCreateBucketTmp {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Parser, Default)]
-pub struct SetupKeyConfigTmp {
+pub struct SetupCompressorKeyConfigTmp {
     #[clap(long)]
     pub download_key: Option<bool>,
     #[clap(long)]
@@ -172,12 +179,6 @@ pub enum ProofStorageConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct SetupKeyConfig {
-    pub download_key: bool,
-    pub setup_key_path: String,
-}
-
-#[derive(Debug, Clone)]
 pub struct ProverDatabaseConfig {
     pub database_config: DatabaseConfig,
     pub dont_drop: bool,
@@ -187,8 +188,9 @@ pub struct ProverDatabaseConfig {
 pub struct ProverInitArgsFinal {
     pub proof_store: ProofStorageConfig,
     pub public_store: Option<ProofStorageConfig>,
-    pub setup_key_config: SetupKeyConfig,
-    pub bellman_cuda_config: InitBellmanCudaArgs,
+    pub compressor_key_args: Option<CompressorKeysArgs>,
+    pub setup_keys: Option<SetupKeysArgs>,
+    pub bellman_cuda_config: Option<InitBellmanCudaArgs>,
     pub cloud_type: CloudConnectionMode,
     pub database_config: Option<ProverDatabaseConfig>,
 }
@@ -197,20 +199,23 @@ impl ProverInitArgs {
     pub(crate) fn fill_values_with_prompt(
         &self,
         shell: &Shell,
-        setup_key_path: &str,
+        default_compressor_key_path: &str,
         chain_config: &ChainConfig,
     ) -> anyhow::Result<ProverInitArgsFinal> {
         let proof_store = self.fill_proof_storage_values_with_prompt(shell)?;
         let public_store = self.fill_public_storage_values_with_prompt(shell)?;
-        let setup_key_config = self.fill_setup_key_values_with_prompt(setup_key_path);
-        let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt()?;
+        let compressor_key_args =
+            self.fill_setup_compressor_key_values_with_prompt(default_compressor_key_path);
+        let bellman_cuda_config = self.fill_bellman_cuda_values_with_prompt();
         let cloud_type = self.get_cloud_type_with_prompt();
         let database_config = self.fill_database_values_with_prompt(chain_config);
+        let setup_keys = self.fill_setup_keys_values_with_prompt();
 
         Ok(ProverInitArgsFinal {
             proof_store,
             public_store,
-            setup_key_config,
+            compressor_key_args,
+            setup_keys,
             bellman_cuda_config,
             cloud_type,
             database_config,
@@ -336,29 +341,38 @@ impl ProverInitArgs {
         }
     }
 
-    fn fill_setup_key_values_with_prompt(&self, setup_key_path: &str) -> SetupKeyConfig {
-        let download_key = self
-            .clone()
-            .setup_key_config
-            .download_key
-            .unwrap_or_else(|| {
-                PromptConfirm::new(MSG_DOWNLOAD_SETUP_KEY_PROMPT)
-                    .default(true)
-                    .ask()
-            });
-        let setup_key_path = self
-            .clone()
-            .setup_key_config
-            .setup_key_path
-            .unwrap_or_else(|| {
-                Prompt::new(MSG_SETUP_KEY_PATH_PROMPT)
-                    .default(setup_key_path)
-                    .ask()
-            });
+    fn fill_setup_compressor_key_values_with_prompt(
+        &self,
+        default_path: &str,
+    ) -> Option<CompressorKeysArgs> {
+        let download_key = self.clone().setup_compressor_keys.unwrap_or_else(|| {
+            PromptConfirm::new(MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT)
+                .default(false)
+                .ask()
+        });
 
-        SetupKeyConfig {
-            download_key,
-            setup_key_path,
+        if download_key {
+            Some(
+                self.compressor_keys_args
+                    .clone()
+                    .fill_values_with_prompt(default_path),
+            )
+        } else {
+            None
+        }
+    }
+
+    fn fill_setup_keys_values_with_prompt(&self) -> Option<SetupKeysArgs> {
+        let args = self.setup_keys_args.clone();
+
+        if self.setup_keys.unwrap_or_else(|| {
+            PromptConfirm::new(MSG_SETUP_KEYS_PROMPT)
+                .default(false)
+                .ask()
+        }) {
+            Some(args)
+        } else {
+            None
         }
     }
 
@@ -460,8 +474,17 @@ impl ProverInitArgs {
         })
     }
 
-    fn fill_bellman_cuda_values_with_prompt(&self) -> anyhow::Result<InitBellmanCudaArgs> {
-        self.bellman_cuda_config.clone().fill_values_with_prompt()
+    fn fill_bellman_cuda_values_with_prompt(&self) -> Option<InitBellmanCudaArgs> {
+        let args = self.bellman_cuda_config.clone();
+        if self.bellman_cuda.unwrap_or_else(|| {
+            PromptConfirm::new(MSG_INITIALIZE_BELLMAN_CUDA_PROMPT)
+                .default(false)
+                .ask()
+        }) {
+            Some(args)
+        } else {
+            None
+        }
     }
 
     fn get_cloud_type_with_prompt(&self) -> CloudConnectionMode {

@@ -5,6 +5,8 @@ use std::time::Duration;
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zksync_multivm::interface::VmExecutionResultAndLogs;
 
+use crate::shared::InteractionType;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "command", rename_all = "snake_case")]
 pub(super) enum ExecutorCommand {
@@ -24,13 +26,6 @@ const GAS_PER_NANOSECOND_BUCKETS: Buckets = Buckets::values(&[
 pub(super) enum TxExecutionStage {
     Execution,
     TxRollback,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "interaction", rename_all = "snake_case")]
-pub(super) enum InteractionType {
-    GetValue,
-    SetValue,
 }
 
 /// Executor-related metrics.
