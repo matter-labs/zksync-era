@@ -9,19 +9,12 @@
 use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use tokio::runtime::Handle;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::{
-    interface::{
-        storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
-        BytecodeCompressionError, L1BatchEnv, L2BlockEnv, OneshotEnv, StoredL2BlockEnv, SystemEnv,
-        TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
-    },
-    tracers::StorageInvocations,
-    utils::{adjust_pubdata_price_for_tx, get_eth_call_gas_limit},
-    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryDisabled},
-    MultiVMTracer, MultiVmTracerPointer, VmInstance,
+    interface::{L1BatchEnv, L2BlockEnv, OneshotEnv, StoredL2BlockEnv, SystemEnv},
+    utils::get_eth_call_gas_limit,
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_state::PostgresStorage;
 use zksync_system_constants::{
@@ -30,18 +23,15 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     api,
-    block::{pack_block_info, unpack_block_info, L2BlockHasher},
+    block::{unpack_block_info, L2BlockHasher},
     fee_model::BatchFeeInput,
-    get_nonce_key,
-    utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
-    AccountTreeId, L1BatchNumber, L2BlockNumber, Nonce, ProtocolVersionId, StorageKey, Transaction,
-    H256, U256,
+    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256, U256,
 };
-use zksync_utils::{h256_to_u256, time::seconds_since_epoch, u256_to_h256};
+use zksync_utils::{h256_to_u256, time::seconds_since_epoch};
 
 use super::{
-    vm_metrics::{self, SandboxStage, SANDBOX_METRICS},
-    ApiTracer, BlockArgs, OneshotExecutor, TxExecutionArgs, TxSetupArgs,
+    vm_metrics::{SandboxStage, SANDBOX_METRICS},
+    BlockArgs, TxSetupArgs,
 };
 
 pub(super) async fn prepare_env_and_storage(
@@ -207,218 +197,6 @@ fn prepare_env(
     (system_env, l1_batch_env)
 }
 
-// public for testing purposes
-#[derive(Debug)]
-pub(super) struct VmSandbox<S: ReadStorage> {
-    vm: Box<VmInstance<S, HistoryDisabled>>,
-    storage_view: StoragePtr<StorageView<S>>,
-    transaction: Transaction,
-}
-
-impl<S: ReadStorage> VmSandbox<S> {
-    /// This method is blocking.
-    pub fn new(storage: S, mut env: OneshotEnv, execution_args: TxExecutionArgs) -> Self {
-        let mut storage_view = StorageView::new(storage);
-        Self::setup_storage_view(&mut storage_view, &execution_args, env.current_block);
-
-        let protocol_version = env.system.version;
-        if execution_args.adjust_pubdata_price {
-            env.l1_batch.fee_input = adjust_pubdata_price_for_tx(
-                env.l1_batch.fee_input,
-                execution_args.transaction.gas_per_pubdata_byte_limit(),
-                env.l1_batch.enforced_base_fee.map(U256::from),
-                protocol_version.into(),
-            );
-        };
-
-        let storage_view = storage_view.to_rc_ptr();
-        let vm = Box::new(VmInstance::new_with_specific_version(
-            env.l1_batch,
-            env.system,
-            storage_view.clone(),
-            protocol_version.into_api_vm_version(),
-        ));
-
-        Self {
-            vm,
-            storage_view,
-            transaction: execution_args.transaction,
-        }
-    }
-
-    /// This method is blocking.
-    fn setup_storage_view(
-        storage_view: &mut StorageView<S>,
-        execution_args: &TxExecutionArgs,
-        current_block: Option<StoredL2BlockEnv>,
-    ) {
-        let storage_view_setup_started_at = Instant::now();
-        if let Some(nonce) = execution_args.enforced_nonce {
-            let nonce_key = get_nonce_key(&execution_args.transaction.initiator_account());
-            let full_nonce = storage_view.read_value(&nonce_key);
-            let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
-            let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
-            storage_view.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
-        }
-
-        let payer = execution_args.transaction.payer();
-        let balance_key = storage_key_for_eth_balance(&payer);
-        let mut current_balance = h256_to_u256(storage_view.read_value(&balance_key));
-        current_balance += execution_args.added_balance;
-        storage_view.set_value(balance_key, u256_to_h256(current_balance));
-
-        // Reset L2 block info if necessary.
-        if let Some(current_block) = current_block {
-            let l2_block_info_key = StorageKey::new(
-                AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-                SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-            );
-            let l2_block_info =
-                pack_block_info(current_block.number.into(), current_block.timestamp);
-            storage_view.set_value(l2_block_info_key, u256_to_h256(l2_block_info));
-
-            let l2_block_txs_rolling_hash_key = StorageKey::new(
-                AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
-                SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
-            );
-            storage_view.set_value(
-                l2_block_txs_rolling_hash_key,
-                current_block.txs_rolling_hash,
-            );
-        }
-
-        let storage_view_setup_time = storage_view_setup_started_at.elapsed();
-        // We don't want to emit too many logs.
-        if storage_view_setup_time > Duration::from_millis(10) {
-            tracing::debug!("Prepared the storage view (took {storage_view_setup_time:?})",);
-        }
-    }
-
-    fn wrap_tracers(
-        tracers: Vec<ApiTracer>,
-        env: &OneshotEnv,
-        missed_storage_invocation_limit: usize,
-    ) -> Vec<MultiVmTracerPointer<StorageView<S>, HistoryDisabled>> {
-        let storage_invocation_tracer = StorageInvocations::new(missed_storage_invocation_limit);
-        let protocol_version = env.system.version;
-        tracers
-            .into_iter()
-            .map(|tracer| tracer.into_boxed(protocol_version))
-            .chain([storage_invocation_tracer.into_tracer_pointer()])
-            .collect()
-    }
-
-    pub(super) fn apply<T, F>(mut self, apply_fn: F) -> T
-    where
-        F: FnOnce(&mut VmInstance<S, HistoryDisabled>, Transaction) -> T,
-    {
-        let tx_id = format!(
-            "{:?}-{}",
-            self.transaction.initiator_account(),
-            self.transaction.nonce().unwrap_or(Nonce(0))
-        );
-
-        let execution_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Execution].start();
-        let result = apply_fn(&mut *self.vm, self.transaction);
-        let vm_execution_took = execution_latency.observe();
-
-        let memory_metrics = self.vm.record_vm_memory_metrics();
-        vm_metrics::report_vm_memory_metrics(
-            &tx_id,
-            &memory_metrics,
-            vm_execution_took,
-            self.storage_view.as_ref().borrow_mut().metrics(),
-        );
-        result
-    }
-}
-
-/// Main [`OneshotExecutor`] implementation used by the API server.
-#[derive(Debug, Default)]
-pub struct MainOneshotExecutor {
-    missed_storage_invocation_limit: usize,
-}
-
-impl MainOneshotExecutor {
-    /// Creates a new executor with the specified limit of cache misses for storage read operations (an anti-DoS measure).
-    /// The limit is applied for calls and gas estimations, but not during transaction validation.
-    pub fn new(missed_storage_invocation_limit: usize) -> Self {
-        Self {
-            missed_storage_invocation_limit,
-        }
-    }
-}
-
-#[async_trait]
-impl<S> OneshotExecutor<S> for MainOneshotExecutor
-where
-    S: ReadStorage + Send + 'static,
-{
-    type Tracers = Vec<ApiTracer>;
-
-    async fn inspect_transaction(
-        &self,
-        storage: S,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        tracers: Self::Tracers,
-    ) -> anyhow::Result<VmExecutionResultAndLogs> {
-        let missed_storage_invocation_limit = match env.system.execution_mode {
-            // storage accesses are not limited for tx validation
-            TxExecutionMode::VerifyExecute => usize::MAX,
-            TxExecutionMode::EthCall | TxExecutionMode::EstimateFee => {
-                self.missed_storage_invocation_limit
-            }
-        };
-
-        tokio::task::spawn_blocking(move || {
-            let tracers = VmSandbox::wrap_tracers(tracers, &env, missed_storage_invocation_limit);
-            let executor = VmSandbox::new(storage, env, args);
-            executor.apply(|vm, transaction| {
-                vm.push_transaction(transaction);
-                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
-            })
-        })
-        .await
-        .context("VM execution panicked")
-    }
-
-    async fn inspect_transaction_with_bytecode_compression(
-        &self,
-        storage: S,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        tracers: Self::Tracers,
-    ) -> anyhow::Result<(
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    )> {
-        let missed_storage_invocation_limit = match env.system.execution_mode {
-            // storage accesses are not limited for tx validation
-            TxExecutionMode::VerifyExecute => usize::MAX,
-            TxExecutionMode::EthCall | TxExecutionMode::EstimateFee => {
-                self.missed_storage_invocation_limit
-            }
-        };
-
-        tokio::task::spawn_blocking(move || {
-            let tracers = VmSandbox::wrap_tracers(tracers, &env, missed_storage_invocation_limit);
-            let executor = VmSandbox::new(storage, env, args);
-            executor.apply(|vm, transaction| {
-                let (bytecodes_result, exec_result) = vm
-                    .inspect_transaction_with_bytecode_compression(
-                        tracers.into(),
-                        transaction,
-                        true,
-                    );
-                (bytecodes_result.map(drop), exec_result)
-            })
-        })
-        .await
-        .context("VM execution panicked")
-    }
-}
-
 async fn read_stored_l2_block(
     connection: &mut Connection<'_, Core>,
     l2_block_number: L2BlockNumber,
@@ -464,15 +242,6 @@ impl BlockArgs {
         matches!(
             self.block_id,
             api::BlockId::Number(api::BlockNumber::Pending)
-        )
-    }
-
-    fn is_estimate_like(&self) -> bool {
-        matches!(
-            self.block_id,
-            api::BlockId::Number(api::BlockNumber::Pending)
-                | api::BlockId::Number(api::BlockNumber::Latest)
-                | api::BlockId::Number(api::BlockNumber::Committed)
         )
     }
 
@@ -529,7 +298,7 @@ impl BlockArgs {
                 .context("resolved L2 block disappeared from storage")?
         };
 
-        let historical_fee_input = if !self.is_estimate_like() {
+        let historical_fee_input = if !self.resolves_to_latest_sealed_l2_block() {
             let l2_block_header = connection
                 .blocks_dal()
                 .get_l2_block_header(self.resolved_block_number)

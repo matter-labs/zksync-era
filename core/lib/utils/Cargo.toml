@@ -25,7 +25,6 @@ thiserror.workspace = true
 futures.workspace = true
 hex.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
-itertools.workspace = true
 serde_json.workspace = true
 once_cell.workspace = true
 
