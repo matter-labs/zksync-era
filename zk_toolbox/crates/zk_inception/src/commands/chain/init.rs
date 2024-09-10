@@ -335,17 +335,16 @@ fn get_genesis_specs(chain_config: &ChainConfig, consensus_keys: &ConsensusKeys)
     let public_keys = get_consensus_public_keys(consensus_keys);
     let validator_key = public_keys.validator_key.encode();
     let attester_key = public_keys.attester_key.encode();
-    let node_key = public_keys.node_key.encode();
 
     let validator = WeightedValidator {
-        key: ValidatorPublicKey(validator_key),
+        key: ValidatorPublicKey(validator_key.clone()),
         weight: 1,
     };
     let attester = WeightedAttester {
         key: AttesterPublicKey(attester_key),
         weight: 1,
     };
-    let leader = ValidatorPublicKey(node_key);
+    let leader = ValidatorPublicKey(validator_key);
 
     GenesisSpec {
         chain_id: chain_config.chain_id,

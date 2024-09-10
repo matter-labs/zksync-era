@@ -10,13 +10,14 @@ use config::{
     external_node::ENConfig, ports_config, set_rocks_db_config, traits::SaveConfigWithBasePath,
     update_ports, ChainConfig, EcosystemConfig, SecretsConfig,
 };
+use secrecy::ExposeSecret as _;
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
 use zksync_config::configs::{
     consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey, NodeSecretKey, Secret},
     DatabaseSecrets, L1Secrets,
 };
-use zksync_consensus_crypto::TextFmt;
+use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_roles as roles;
 
 use crate::{
@@ -24,7 +25,9 @@ use crate::{
     consts::{GOSSIP_DYNAMIC_INBOUND_LIMIT, MAX_BATCH_SIZE, MAX_PAYLOAD_SIZE},
     messages::{
         msg_preparing_en_config_is_done, MSG_API_CONFIG_MISSING_ERR, MSG_CHAIN_NOT_INITIALIZED,
-        MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_GENESIS_SPEC_MISSING_ERR, MSG_PREPARING_EN_CONFIGS,
+        MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_CONSENSUS_SECRETS_MISSING_ERR,
+        MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR, MSG_GENESIS_SPEC_MISSING_ERR,
+        MSG_PREPARING_EN_CONFIGS,
     },
     utils::{
         consensus::parse_public_addr,
@@ -96,11 +99,15 @@ fn prepare_configs(
         .context(MSG_API_CONFIG_MISSING_ERR)?;
     let public_addr = parse_public_addr(&api_config)?;
     let server_addr = public_addr.parse()?;
-    let genesis_spec = main_node_consensus_config
-        .genesis_spec
-        .context(MSG_GENESIS_SPEC_MISSING_ERR)?;
     let mut gossip_static_outbound = BTreeMap::new();
-    let main_node_public_key = NodePublicKey(genesis_spec.leader.0);
+    let main_node_public_key = node_public_key(
+        &config
+            .get_secrets_config()?
+            .consensus
+            .context(MSG_CONSENSUS_SECRETS_MISSING_ERR)?,
+    )?
+    .context(MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR)?;
+
     gossip_static_outbound.insert(main_node_public_key, main_node_consensus_config.public_addr);
     let en_consensus_config = ConsensusConfig {
         server_addr,
@@ -141,4 +148,17 @@ fn prepare_configs(
     en_config.save_with_base_path(shell, en_configs_path)?;
 
     Ok(())
+}
+
+fn node_public_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<NodePublicKey>> {
+    Ok(node_key(secrets)?.map(|node_secret_key| NodePublicKey(node_secret_key.public().encode())))
+}
+fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<roles::node::SecretKey>> {
+    read_secret_text(secrets.node_key.as_ref().map(|x| &x.0))
+}
+
+fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result<Option<T>> {
+    text.map(|text| Text::new(text.expose_secret()).decode())
+        .transpose()
+        .map_err(|_| anyhow::format_err!("invalid format"))
 }

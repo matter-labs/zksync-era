@@ -61,3 +61,4 @@ toml = "0.8.12"
 url = { version = "2.5.0", features = ["serde"] }
 xshell = "0.2.6"
 clap-markdown = "0.1.4"
+secrecy = "0.8.0"
