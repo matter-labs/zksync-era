@@ -243,17 +243,17 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             default_upgrade_addr: rng.gen(),
             diamond_proxy_addr: rng.gen(),
             validator_timelock_addr: rng.gen(),
-            l1_erc20_bridge_proxy_addr: rng.gen(),
-            l2_erc20_bridge_addr: rng.gen(),
-            l1_shared_bridge_proxy_addr: rng.gen(),
-            l2_shared_bridge_addr: rng.gen(),
-            l1_weth_bridge_proxy_addr: rng.gen(),
-            l2_weth_bridge_addr: rng.gen(),
-            l2_testnet_paymaster_addr: rng.gen(),
+            l1_erc20_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
+            l2_erc20_bridge_addr: self.sample_opt(|| rng.gen()),
+            l1_shared_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
+            l2_shared_bridge_addr: self.sample_opt(|| rng.gen()),
+            l1_weth_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
+            l2_weth_bridge_addr: self.sample_opt(|| rng.gen()),
+            l2_testnet_paymaster_addr: self.sample_opt(|| rng.gen()),
             l1_multicall3_addr: rng.gen(),
-            base_token_addr: rng.gen(),
-            chain_admin_addr: rng.gen(),
             ecosystem_contracts: self.sample(rng),
+            base_token_addr: self.sample_opt(|| rng.gen()),
+            chain_admin_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }
@@ -728,7 +728,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             l1_chain_id: L1ChainId(self.sample(rng)),
             sl_chain_id: None,
             l2_chain_id: L2ChainId::default(),
-            recursion_scheduler_level_vk_hash: rng.gen(),
+            snark_wrapper_vk_hash: rng.gen(),
             dummy_verifier: rng.gen(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
                 0 => L1BatchCommitmentMode::Rollup,
@@ -777,6 +777,7 @@ impl Distribution<configs::consensus::GenesisSpec> for EncodeDist {
             validators: self.sample_collect(rng),
             attesters: self.sample_collect(rng),
             leader: ValidatorPublicKey(self.sample(rng)),
+            registry_address: self.sample_opt(|| rng.gen()),
         }
     }
 }

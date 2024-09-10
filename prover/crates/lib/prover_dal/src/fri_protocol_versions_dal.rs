@@ -20,14 +20,14 @@ impl FriProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                prover_fri_protocol_versions (id, recursion_scheduler_level_vk_hash, created_at, protocol_version_patch)
+                prover_fri_protocol_versions (id, snark_wrapper_vk_hash, created_at, protocol_version_patch)
             VALUES
                 ($1, $2, NOW(), $3)
             ON CONFLICT (id, protocol_version_patch) DO NOTHING
             "#,
             id.minor as i32,
             l1_verifier_config
-                .recursion_scheduler_level_vk_hash
+                .snark_wrapper_vk_hash
                 .as_bytes(),
             id.patch.0 as i32
         )
@@ -43,7 +43,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             SELECT
-                recursion_scheduler_level_vk_hash
+                snark_wrapper_vk_hash
             FROM
                 prover_fri_protocol_versions
             WHERE
@@ -57,9 +57,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| L1VerifierConfig {
-            recursion_scheduler_level_vk_hash: H256::from_slice(
-                &row.recursion_scheduler_level_vk_hash,
-            ),
+            snark_wrapper_vk_hash: H256::from_slice(&row.snark_wrapper_vk_hash),
         })
     }
 
@@ -67,7 +65,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         let result = sqlx::query!(
             r#"
             SELECT
-                recursion_scheduler_level_vk_hash
+                snark_wrapper_vk_hash
             FROM
                 prover_fri_protocol_versions
             ORDER BY
@@ -80,9 +78,7 @@ impl FriProtocolVersionsDal<'_, '_> {
         .await?;
 
         Ok(L1VerifierConfig {
-            recursion_scheduler_level_vk_hash: H256::from_slice(
-                &result.recursion_scheduler_level_vk_hash,
-            ),
+            snark_wrapper_vk_hash: H256::from_slice(&result.snark_wrapper_vk_hash),
         })
     }
 

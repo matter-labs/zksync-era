@@ -4,6 +4,11 @@ on:
 
 env:
   CLICOLOR: 1
+  # We run multiple binaries in parallel, and by default they will try to utilize all the
+  # available CPUs. In tests, there is not much CPU-intensive work (rayon), but a lot of
+  # async work (tokio), so we prioritize tokio.
+  TOKIO_WORKER_THREADS: 4
+  RAYON_NUM_THREADS: 2
 
 jobs:
   lint:

@@ -61,7 +61,7 @@ struct Opt {
 async fn ensure_protocol_alignment(
     prover_pool: &ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
-    setup_data_path: String,
+    keystore: &Keystore,
 ) -> anyhow::Result<()> {
     tracing::info!("Verifying protocol alignment for {:?}", protocol_version);
     let vk_commitments_in_db = match prover_pool
@@ -80,9 +80,7 @@ async fn ensure_protocol_alignment(
             );
         }
     };
-    let keystore = Keystore::new_with_setup_data_path(setup_data_path);
-    // `recursion_scheduler_level_vk_hash` actually stores `scheduler_vk_hash` for historical reasons.
-    let scheduler_vk_hash = vk_commitments_in_db.recursion_scheduler_level_vk_hash;
+    let scheduler_vk_hash = vk_commitments_in_db.snark_wrapper_vk_hash;
     keystore
         .verify_scheduler_vk_hash(scheduler_vk_hash)
         .with_context(||
@@ -119,6 +117,8 @@ async fn main() -> anyhow::Result<()> {
         .witness_generator_config
         .context("witness generator config")?
         .clone();
+    let keystore =
+        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
 
     let prometheus_config = general_config.prometheus_config.clone();
 
@@ -140,13 +140,9 @@ async fn main() -> anyhow::Result<()> {
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
-    ensure_protocol_alignment(
-        &prover_connection_pool,
-        protocol_version,
-        prover_config.setup_data_path.clone(),
-    )
-    .await
-    .unwrap_or_else(|err| panic!("Protocol alignment check failed: {:?}", err));
+    ensure_protocol_alignment(&prover_connection_pool, protocol_version, &keystore)
+        .await
+        .unwrap_or_else(|err| panic!("Protocol alignment check failed: {:?}", err));
 
     let rounds = match (opt.round, opt.all_rounds) {
         (Some(round), false) => vec![round],
@@ -187,8 +183,6 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = Vec::new();
     tasks.push(tokio::spawn(prometheus_task));
 
-    let setup_data_path = prover_config.setup_data_path.clone();
-
     for round in rounds {
         tracing::info!(
             "initializing the {:?} witness generator, batch size: {:?} with protocol_version: {:?}",
@@ -227,7 +221,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                    setup_data_path.clone(),
+                    keystore.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
@@ -237,7 +231,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                    setup_data_path.clone(),
+                    keystore.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
@@ -247,7 +241,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                    setup_data_path.clone(),
+                    keystore.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
@@ -257,7 +251,7 @@ async fn main() -> anyhow::Result<()> {
                     store_factory.create_store().await?,
                     prover_connection_pool.clone(),
                     protocol_version,
-                    setup_data_path.clone(),
+                    keystore.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }

@@ -55,6 +55,7 @@ pub mod gpu_prover {
 
     #[allow(dead_code)]
     pub struct Prover {
+        keystore: Keystore,
         blob_store: Arc<dyn ObjectStore>,
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         config: Arc<FriProverConfig>,
@@ -73,6 +74,7 @@ pub mod gpu_prover {
     impl Prover {
         #[allow(dead_code)]
         pub fn new(
+            keystore: Keystore,
             blob_store: Arc<dyn ObjectStore>,
             public_blob_store: Option<Arc<dyn ObjectStore>>,
             config: FriProverConfig,
@@ -93,6 +95,7 @@ pub mod gpu_prover {
                 None => ProverContext::create().expect("failed initializing gpu prover context"),
             };
             Prover {
+                keystore,
                 blob_store,
                 public_blob_store,
                 config: Arc::new(config),
@@ -120,9 +123,8 @@ pub mod gpu_prover {
                     .clone(),
                 SetupLoadMode::FromDisk => {
                     let started_at = Instant::now();
-                    let keystore =
-                        Keystore::new_with_setup_data_path(self.config.setup_data_path.clone());
-                    let artifact: GoldilocksGpuProverSetupData = keystore
+                    let artifact: GoldilocksGpuProverSetupData = self
+                        .keystore
                         .load_gpu_setup_data_for_circuit_type(key.clone())
                         .context("load_gpu_setup_data_for_circuit_type()")?;
 
@@ -339,7 +341,10 @@ pub mod gpu_prover {
         }
     }
 
-    pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLoadMode> {
+    pub fn load_setup_data_cache(
+        keystore: &Keystore,
+        config: &FriProverConfig,
+    ) -> anyhow::Result<SetupLoadMode> {
         Ok(match config.setup_load_mode {
             zksync_config::configs::fri_prover::SetupLoadMode::FromDisk => SetupLoadMode::FromDisk,
             zksync_config::configs::fri_prover::SetupLoadMode::FromMemory => {
@@ -359,7 +364,6 @@ pub mod gpu_prover {
                     &config.specialized_group_id,
                     prover_setup_metadata_list
                 );
-                let keystore = Keystore::new_with_setup_data_path(config.setup_data_path.clone());
                 for prover_setup_metadata in prover_setup_metadata_list {
                     let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
                     let setup_data = keystore

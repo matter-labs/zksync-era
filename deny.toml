@@ -12,10 +12,10 @@ ignore = [
     "RUSTSEC-2022-0041", # crossbeam-utils vulnerability, dependency coming from bellman_ce
     "RUSTSEC-2024-0320", # yaml_rust dependency being unmaintained, dependency in core, we should consider moving to yaml_rust2 fork
     "RUSTSEC-2020-0168", # mach dependency being unmaintained, dependency in consensus, we should consider moving to mach2 fork
+    "RUSTSEC-2024-0370", # `cs_derive` needs to be updated to not rely on `proc-macro-error`
     # all below caused by StructOpt which we still use and we should move to clap v3 instead
     "RUSTSEC-2021-0145",
     "RUSTSEC-2021-0139",
-
 ]
 
 [licenses]
@@ -51,7 +51,7 @@ ignore = false
 registries = []
 
 [bans]
-multiple-versions = "warn"
+multiple-versions = "allow"
 wildcards = "allow"
 highlight = "all"
 workspace-default-features = "allow"
