@@ -82,10 +82,10 @@ pub async fn init(
 ) -> anyhow::Result<()> {
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
-    let consensus_keys = generate_consensus_keys();
     let mut general_config = chain_config.get_general_config()?;
     apply_port_offset(init_args.port_offset, &mut general_config)?;
 
+    let consensus_keys = generate_consensus_keys();
     let genesis_spec = Some(get_genesis_specs(chain_config, &consensus_keys));
     let api_config = general_config
         .api_config
