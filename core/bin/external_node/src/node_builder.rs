@@ -62,8 +62,6 @@ use crate::{
     Component,
 };
 
-const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");
-
 /// Builder for the external node.
 #[derive(Debug)]
 pub(crate) struct ExternalNodeBuilder {
@@ -245,7 +243,9 @@ impl ExternalNodeBuilder {
         let secrets =
             config::read_consensus_secrets().context("config::read_consensus_secrets()")?;
         let layer = ExternalNodeConsensusLayer {
-            build_version: CRATE_VERSION.parse().context("CRATE_VERSION.parse()")?,
+            build_version: crate::metadata::SERVER_VERSION
+                .parse()
+                .context("CRATE_VERSION.parse()")?,
             config,
             secrets,
         };
