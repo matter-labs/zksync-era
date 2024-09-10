@@ -4,7 +4,7 @@ use serde::Deserialize;
 use tokio::sync::Semaphore;
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{network::Network, Address, L2ChainId, H160};
-use zksync_utils::workspace_dir_or_current_dir;
+use zksync_utils::env::Workspace;
 
 use crate::fs_utils::read_tokens;
 
@@ -190,7 +190,7 @@ fn default_main_token() -> H160 {
 }
 
 fn default_test_contracts_path() -> PathBuf {
-    let test_contracts_path = workspace_dir_or_current_dir().join("etc/contracts-test-data");
+    let test_contracts_path = Workspace::locate().core().join("etc/contracts-test-data");
     tracing::info!("Test contracts path: {}", test_contracts_path.display());
     test_contracts_path
 }

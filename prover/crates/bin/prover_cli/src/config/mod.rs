@@ -1,12 +1,12 @@
 use std::{io::Write, path::PathBuf};
 
-use crate::helper::core_workspace_dir_or_current_dir;
+use zksync_utils::env::Workspace;
 
 pub fn get_envfile() -> anyhow::Result<PathBuf> {
     if let Ok(envfile) = std::env::var("PLI__CONFIG") {
         return Ok(envfile.into());
     }
-    Ok(core_workspace_dir_or_current_dir().join("etc/pliconfig"))
+    Ok(Workspace::locate().core().join("etc/pliconfig"))
 }
 
 pub fn load_envfile(path: impl AsRef<std::path::Path>) -> anyhow::Result<()> {

@@ -17,7 +17,7 @@ use zksync_types::{
     IntrinsicSystemGasConstants, ProtocolVersionId, GUARANTEED_PUBDATA_IN_TX,
     L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
-use zksync_utils::workspace_dir_or_current_dir;
+use zksync_utils::env::Workspace;
 
 // For configs we will use the default value of `800_000` to represent the rough amount of L1 gas
 // needed to cover the batch expenses.
@@ -210,7 +210,7 @@ fn generate_rust_fee_constants(intrinsic_gas_constants: &IntrinsicSystemGasConst
 }
 
 fn save_file(path_in_repo: &str, content: String) {
-    let zksync_home = workspace_dir_or_current_dir();
+    let zksync_home = Workspace::locate().core();
     let fee_constants_path = zksync_home.join(path_in_repo);
 
     fs::write(fee_constants_path, content)

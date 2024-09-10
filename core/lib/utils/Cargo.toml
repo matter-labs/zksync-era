@@ -33,3 +33,4 @@ once_cell.workspace = true
 rand.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }
 bincode.workspace = true
+assert_matches.workspace = true

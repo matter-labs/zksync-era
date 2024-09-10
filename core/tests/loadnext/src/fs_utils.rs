@@ -5,7 +5,7 @@ use std::{fs::File, io::BufReader, path::Path};
 
 use serde::Deserialize;
 use zksync_types::{ethabi::Contract, network::Network, Address};
-use zksync_utils::workspace_dir_or_current_dir;
+use zksync_utils::env::Workspace;
 
 /// A token stored in `etc/tokens/{network}.json` files.
 #[derive(Debug, Deserialize)]
@@ -27,7 +27,7 @@ pub struct TestContract {
 }
 
 pub fn read_tokens(network: Network) -> anyhow::Result<Vec<Token>> {
-    let home = workspace_dir_or_current_dir();
+    let home = Workspace::locate().core();
     let path = home.join(format!("etc/tokens/{network}.json"));
     let file = File::open(path)?;
     let reader = BufReader::new(file);

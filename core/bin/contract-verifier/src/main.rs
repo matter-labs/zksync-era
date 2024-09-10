@@ -9,14 +9,14 @@ use zksync_contract_verifier_lib::ContractVerifier;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::JobProcessor;
-use zksync_utils::{wait_for_tasks::ManagedTasks, workspace_dir_or_current_dir};
+use zksync_utils::{env::Workspace, wait_for_tasks::ManagedTasks};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 async fn update_compiler_versions(connection_pool: &ConnectionPool<Core>) {
     let mut storage = connection_pool.connection().await.unwrap();
     let mut transaction = storage.start_transaction().await.unwrap();
 
-    let zksync_home = workspace_dir_or_current_dir();
+    let zksync_home = Workspace::locate().core();
 
     let zksolc_path = zksync_home.join("etc/zksolc-bin/");
     let zksolc_versions: Vec<String> = std::fs::read_dir(zksolc_path)

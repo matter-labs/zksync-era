@@ -16,7 +16,7 @@ use ethabi::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, workspace_dir_or_current_dir};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, env::Workspace};
 
 pub mod test_contracts;
 
@@ -64,8 +64,8 @@ const LOADNEXT_CONTRACT_FILE: &str =
 const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
 
-fn home_path() -> &'static Path {
-    workspace_dir_or_current_dir()
+fn home_path() -> PathBuf {
+    Workspace::locate().core()
 }
 
 fn read_file_to_json_value(path: impl AsRef<Path> + std::fmt::Debug) -> serde_json::Value {

@@ -8344,6 +8344,7 @@ dependencies = [
  "zksync_prover_fri_types",
  "zksync_prover_keystore",
  "zksync_types",
+ "zksync_utils",
  "zksync_vlog",
 ]
 

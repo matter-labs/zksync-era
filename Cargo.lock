@@ -9734,6 +9734,7 @@ name = "zksync_utils"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "bigdecimal",
  "bincode",
  "futures 0.3.28",

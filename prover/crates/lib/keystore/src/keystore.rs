@@ -18,10 +18,11 @@ use serde::{Deserialize, Serialize};
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
 use zksync_basic_types::basic_fri_types::AggregationRound;
 use zksync_prover_fri_types::ProverServiceDataKey;
+use zksync_utils::env::Workspace;
 
 #[cfg(feature = "gpu")]
 use crate::GoldilocksGpuProverSetupData;
-use crate::{utils::core_workspace_dir_or_current_dir, GoldilocksProverSetupData, VkCommitments};
+use crate::{GoldilocksProverSetupData, VkCommitments};
 
 pub enum ProverServiceDataType {
     VerificationKey,
@@ -42,31 +43,6 @@ pub struct Keystore {
     setup_data_path: PathBuf,
 }
 
-fn get_base_path() -> PathBuf {
-    // This will return the path to the _core_ workspace locally,
-    // otherwise (e.g. in Docker) it will return `.` (which is usually equivalent to `/`).
-    //
-    // Note: at the moment of writing this function, it locates the prover workspace, and uses
-    // `..` to get to the core workspace, so the path returned is something like:
-    // `/path/to/workspace/zksync-era/prover/..` (or `.` for binaries).
-    let path = core_workspace_dir_or_current_dir();
-
-    // Check if we're in the folder equivalent to the core workspace root.
-    // Path we're actually checking is:
-    // `/path/to/workspace/zksync-era/prover/../prover/data/keys`
-    let new_path = path.join("prover/data/keys");
-    if new_path.exists() {
-        return new_path;
-    }
-
-    let mut components = path.components();
-    // This removes the last component of `path`, so:
-    // for local workspace, we're removing `..` and putting ourselves back to the prover workspace.
-    // for binaries, we're removing `.` and getting the empty path.
-    components.next_back().unwrap();
-    components.as_path().join("prover/data/keys")
-}
-
 impl Keystore {
     /// Base-dir is the location of smaller keys (like verification keys and finalization hints).
     /// Setup data path is used for the large setup keys.
@@ -80,7 +56,28 @@ impl Keystore {
     /// Uses automatic detection of the base path, and assumes that setup keys
     /// are stored in the same directory.
     pub fn locate() -> Self {
-        let base_path = get_base_path();
+        // There might be several cases:
+        // - We're running from the prover workspace.
+        // - We're running from the core workspace.
+        // - We're running the binary from the docker.
+        let base_path = match Workspace::locate() {
+            Workspace::None => {
+                // We're running a binary, likely in a docker.
+                // Keys can be in one of a few paths.
+                // We want to be very conservative here, and checking
+                // more locations than we likely need to not accidentally
+                // break something.
+                let paths = ["./prover/data", "./data", "/prover/data", "/data"];
+                paths.iter().map(PathBuf::from).find(|path| path.exists()).unwrap_or_else(|| {
+                    panic!("Failed to locate the prover data directory. Locations checked: {paths:?}")
+                })
+            }
+            ws => {
+                // If we're running in the Cargo workspace, the data *must* be in `prover/data`.
+                ws.prover().join("data")
+            }
+        };
+
         Self {
             basedir: base_path.clone(),
             setup_data_path: base_path,

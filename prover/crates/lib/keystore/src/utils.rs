@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::Context as _;
 use circuit_definitions::{
     circuit_definitions::aux_layer::ZkSyncSnarkWrapperCircuit,
@@ -22,7 +20,6 @@ use zksync_prover_fri_types::circuit_definitions::{
         scheduler::aux::BaseLayerCircuitType,
     },
 };
-use zksync_utils::locate_workspace;
 
 use crate::keystore::Keystore;
 
@@ -115,24 +112,16 @@ pub fn calculate_snark_vk_hash(keystore: &Keystore) -> anyhow::Result<H256> {
     Ok(H256::from_slice(&computed_vk_hash))
 }
 
-/// Returns workspace of the core component, we assume that prover is one folder deeper.
-/// Or fallback to current dir
-pub fn core_workspace_dir_or_current_dir() -> PathBuf {
-    locate_workspace()
-        .map(|a| a.join(".."))
-        .unwrap_or_else(|| PathBuf::from("."))
-}
-
 #[cfg(test)]
 mod tests {
-    use std::{path::PathBuf, str::FromStr};
+    use std::str::FromStr;
+    use zksync_utils::env::Workspace;
 
     use super::*;
 
     #[test]
     fn test_keyhash_generation() {
-        let mut path_to_input = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-        path_to_input.push("../../../data/historical_data");
+        let path_to_input = Workspace::locate().prover().join("data/historical_data");
 
         for entry in std::fs::read_dir(path_to_input.clone()).unwrap().flatten() {
             if entry.metadata().unwrap().is_dir() {
