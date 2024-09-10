@@ -1,3 +1,5 @@
+use std::fmt;
+
 use zksync_types::{ExecuteTransactionCommon, Transaction, H160, U256};
 
 use super::VmTester;
@@ -7,7 +9,7 @@ use crate::{
         VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled, VmRevertReason,
     },
-    vm_fast::{circuits_tracer::CircuitsTracer, vm::World, Vm},
+    vm_fast::Vm,
 };
 
 #[derive(Debug, Clone)]
@@ -186,12 +188,12 @@ impl TransactionTestInfo {
 // TODO this doesn't include all the state of ModifiedWorld
 #[derive(Debug)]
 struct VmStateDump<S> {
-    state: vm2::State<CircuitsTracer, World<S, CircuitsTracer>>,
+    state: S,
     storage_writes: Vec<((H160, U256), U256)>,
     events: Box<[vm2::Event]>,
 }
 
-impl<S> PartialEq for VmStateDump<S> {
+impl<S: PartialEq> PartialEq for VmStateDump<S> {
     fn eq(&self, other: &Self) -> bool {
         self.state == other.state
             && self.storage_writes == other.storage_writes
@@ -200,17 +202,17 @@ impl<S> PartialEq for VmStateDump<S> {
 }
 
 impl<S: ReadStorage> Vm<S> {
-    fn dump_state(&self) -> VmStateDump<S> {
+    fn dump_state(&self) -> VmStateDump<impl PartialEq + fmt::Debug> {
         VmStateDump {
-            state: self.inner.state.clone(),
+            state: self.inner.dump_state(),
             storage_writes: self
                 .inner
-                .world_diff
+                .world_diff()
                 .get_storage_state()
                 .iter()
                 .map(|(k, v)| (*k, *v))
                 .collect(),
-            events: self.inner.world_diff.events().into(),
+            events: self.inner.world_diff().events().into(),
         }
     }
 }

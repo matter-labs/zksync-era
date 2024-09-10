@@ -210,7 +210,7 @@ fn refunds_in_code_oracle() {
 
         let account = &mut vm.rich_accounts[0];
         if decommit {
-            let (_, is_fresh) = vm.vm.inner.world_diff.decommit_opcode(
+            let (_, is_fresh) = vm.vm.inner.world_diff_mut().decommit_opcode(
                 &mut vm.vm.world,
                 &mut CircuitsTracer::default(),
                 h256_to_u256(normal_zkevm_bytecode_hash),

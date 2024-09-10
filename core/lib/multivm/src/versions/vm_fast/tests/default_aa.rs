@@ -61,7 +61,7 @@ fn test_default_aa_interaction() {
     verify_required_storage(
         &expected_slots,
         &mut vm.vm.world.storage,
-        vm.vm.inner.world_diff.get_storage_state(),
+        vm.vm.inner.world_diff().get_storage_state(),
     );
 
     let expected_fee = maximal_fee
@@ -71,7 +71,7 @@ fn test_default_aa_interaction() {
         AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
         &vm.fee_account,
         &mut vm.vm.world.storage,
-        vm.vm.inner.world_diff.get_storage_state(),
+        vm.vm.inner.world_diff().get_storage_state(),
     );
 
     assert_eq!(

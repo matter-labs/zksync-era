@@ -1,4 +1,5 @@
 use assert_matches::assert_matches;
+use vm2::HeapId;
 use zksync_types::U256;
 
 use crate::{
@@ -25,10 +26,7 @@ fn test_dummy_bootloader() {
 
     let correct_first_cell = U256::from_str_radix("123123123", 16).unwrap();
 
-    verify_required_memory(
-        &vm.vm.inner.state,
-        vec![(correct_first_cell, vm2::FIRST_HEAP, 0)],
-    );
+    verify_required_memory(&vm.vm.inner, vec![(correct_first_cell, HeapId::FIRST, 0)]);
 }
 
 #[test]

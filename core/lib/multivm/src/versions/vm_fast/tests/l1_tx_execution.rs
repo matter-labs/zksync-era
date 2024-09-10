@@ -82,7 +82,7 @@ fn test_l1_tx_execution() {
     ] {
         assert_eq!(
             expected_value,
-            vm.vm.inner.world_diff.get_storage_state()[&(
+            vm.vm.inner.world_diff().get_storage_state()[&(
                 *storage_location.address(),
                 h256_to_u256(*storage_location.key())
             )]

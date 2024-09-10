@@ -56,7 +56,7 @@ fn test_vm_rollbacks() {
         TransactionTestInfo::new_rejected(tx_0, TxModifier::NonceReused.into()),
     ]);
 
-    assert_eq!(result_without_rollbacks, result_with_rollbacks);
+    pretty_assertions::assert_eq!(result_without_rollbacks, result_with_rollbacks);
 }
 
 #[test]

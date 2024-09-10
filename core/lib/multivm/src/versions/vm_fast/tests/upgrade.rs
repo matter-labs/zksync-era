@@ -164,7 +164,7 @@ fn test_force_deploy_upgrade() {
     verify_required_storage(
         &expected_slots,
         &mut *vm.storage.borrow_mut(),
-        vm.vm.inner.world_diff.get_storage_state(),
+        vm.vm.inner.world_diff().get_storage_state(),
     );
 }
 
@@ -223,7 +223,7 @@ fn test_complex_upgrader() {
     verify_required_storage(
         &expected_slots,
         &mut *vm.storage.borrow_mut(),
-        vm.vm.inner.world_diff.get_storage_state(),
+        vm.vm.inner.world_diff().get_storage_state(),
     );
 }
 
