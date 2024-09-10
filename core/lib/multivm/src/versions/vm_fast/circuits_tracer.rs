@@ -1,5 +1,5 @@
 use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
-use vm2::{CycleStats, Opcode, OpcodeType, StateInterface, Tracer};
+use zksync_vm2::{CycleStats, Opcode, OpcodeType, StateInterface, Tracer};
 use zksync_vm_interface::CircuitStatistic;
 
 use crate::vm_latest::tracers::circuits_capacity::*;

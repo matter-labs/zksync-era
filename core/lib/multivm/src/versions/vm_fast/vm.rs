@@ -1,9 +1,5 @@
 use std::{collections::HashMap, fmt};
 
-use vm2::{
-    decode::decode_program, CallframeInterface, ExecutionEnd, FatPointer, HeapId, Program,
-    Settings, StateInterface, Tracer, VirtualMachine,
-};
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
@@ -19,6 +15,10 @@ use zksync_types::{
     L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_vm2::{
+    decode::decode_program, CallframeInterface, ExecutionEnd, FatPointer, HeapId, Program,
+    Settings, StateInterface, Tracer, VirtualMachine,
+};
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
@@ -655,7 +655,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
 #[derive(Debug)]
 struct VmSnapshot {
-    vm_snapshot: vm2::Snapshot,
+    vm_snapshot: zksync_vm2::Snapshot,
     bootloader_snapshot: BootloaderStateSnapshot,
     gas_for_account_validation: u32,
 }
@@ -765,7 +765,7 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
     }
 }
 
-impl<S: ReadStorage, T: Tracer> vm2::StorageInterface for World<S, T> {
+impl<S: ReadStorage, T: Tracer> zksync_vm2::StorageInterface for World<S, T> {
     fn read_storage(&mut self, contract: H160, key: U256) -> Option<U256> {
         let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
         if self.storage.is_write_initial(key) {
@@ -810,7 +810,7 @@ impl<S: ReadStorage, T: Tracer> vm2::StorageInterface for World<S, T> {
     }
 }
 
-impl<S: ReadStorage, T: Tracer> vm2::World<T> for World<S, T> {
+impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
     fn decommit(&mut self, hash: U256) -> Program<T, Self> {
         self.program_cache
             .entry(hash)

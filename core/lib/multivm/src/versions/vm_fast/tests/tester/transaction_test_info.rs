@@ -190,7 +190,7 @@ impl TransactionTestInfo {
 struct VmStateDump<S> {
     state: S,
     storage_writes: Vec<((H160, U256), U256)>,
-    events: Box<[vm2::Event]>,
+    events: Box<[zksync_vm2::Event]>,
 }
 
 impl<S: PartialEq> PartialEq for VmStateDump<S> {

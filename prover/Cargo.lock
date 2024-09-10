@@ -1881,14 +1881,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "eravm-stable-interface"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
-dependencies = [
- "primitive-types",
-]
-
-[[package]]
 name = "errno"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6822,18 +6814,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vm2"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
-dependencies = [
- "enum_dispatch",
- "eravm-stable-interface",
- "primitive-types",
- "zk_evm_abstractions 0.150.4",
- "zkevm_opcode_defs 0.150.4",
-]
-
-[[package]]
 name = "wait-timeout"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7941,7 +7921,6 @@ dependencies = [
  "thiserror",
  "tracing",
  "vise",
- "vm2",
  "zk_evm 0.131.0-rc.2",
  "zk_evm 0.133.0",
  "zk_evm 0.140.0",
@@ -7951,6 +7930,7 @@ dependencies = [
  "zksync_system_constants",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm2",
  "zksync_vm_interface",
 ]
 
@@ -8370,6 +8350,26 @@ dependencies = [
  "url",
  "vise",
  "vise-exporter",
+]
+
+[[package]]
+name = "zksync_vm2"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vm2.git?rev=bb5df560b3c063616dbe2ff30ef95ae48124d2f9#bb5df560b3c063616dbe2ff30ef95ae48124d2f9"
+dependencies = [
+ "enum_dispatch",
+ "primitive-types",
+ "zk_evm_abstractions 0.150.4",
+ "zkevm_opcode_defs 0.150.4",
+ "zksync_vm2_interface",
+]
+
+[[package]]
+name = "zksync_vm2_interface"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vm2.git?rev=bb5df560b3c063616dbe2ff30ef95ae48124d2f9#bb5df560b3c063616dbe2ff30ef95ae48124d2f9"
+dependencies = [
+ "primitive-types",
 ]
 
 [[package]]

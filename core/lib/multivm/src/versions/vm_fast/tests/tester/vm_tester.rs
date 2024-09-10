@@ -1,6 +1,5 @@
 use std::{cell::RefCell, rc::Rc};
 
-use vm2::WorldDiff;
 use zksync_contracts::BaseSystemContracts;
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
@@ -13,6 +12,7 @@ use zksync_types::{
     StorageKey, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
+use zksync_vm2::WorldDiff;
 
 use crate::{
     interface::{

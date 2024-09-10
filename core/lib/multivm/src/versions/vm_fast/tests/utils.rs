@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 
 use ethabi::Contract;
 use once_cell::sync::Lazy;
-use vm2::{HeapId, StateInterface};
 use zksync_contracts::{
     load_contract, read_bytecode, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
@@ -11,6 +10,7 @@ use zksync_types::{
     U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_vm2::{HeapId, StateInterface};
 
 use crate::interface::storage::ReadStorage;
 
