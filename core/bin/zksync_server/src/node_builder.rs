@@ -364,6 +364,7 @@ impl MainNodeBuilder {
             subscriptions_limit: Some(rpc_config.subscriptions_limit()),
             batch_request_size_limit: Some(rpc_config.max_batch_request_size()),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
+            with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
         self.node.add_layer(Web3ServerLayer::http(

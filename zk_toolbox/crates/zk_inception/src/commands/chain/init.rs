@@ -348,6 +348,7 @@ fn get_genesis_specs(chain_config: &ChainConfig, consensus_keys: &ConsensusKeys)
         validators: vec![validator],
         attesters: vec![attester],
         leader,
+        registry_address: None,
     }
 }
 

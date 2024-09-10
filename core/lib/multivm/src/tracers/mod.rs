@@ -1,11 +1,6 @@
 pub use self::{
-    call_tracer::CallTracer,
-    multivm_dispatcher::TracerDispatcher,
-    prestate_tracer::PrestateTracer,
-    storage_invocation::StorageInvocations,
-    validator::{
-        ValidationError, ValidationTracer, ValidationTracerParams, ViolatedValidationRule,
-    },
+    call_tracer::CallTracer, multivm_dispatcher::TracerDispatcher, prestate_tracer::PrestateTracer,
+    storage_invocation::StorageInvocations, validator::ValidationTracer,
 };
 
 mod call_tracer;

@@ -64,6 +64,7 @@ futures.workspace = true
 anyhow.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 ctrlc.workspace = true
+semver.workspace = true
 
 [dev-dependencies]
 zksync_env_config.workspace = true
