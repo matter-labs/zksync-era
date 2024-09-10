@@ -5,7 +5,7 @@ use ethers::{
     utils::format_ether,
 };
 
-pub(super) const MSG_SETUP_KEYS_DOWNLOAD_HELP: &str =
+pub(super) const MSG_SETUP_KEYS_DOWNLOAD_SELECTION_PROMPT: &str =
     "Do you want to download the setup keys or generate them?";
 pub(super) const MSG_SETUP_KEYS_REGION_PROMPT: &str =
     "From which region you want setup keys to be downloaded?";
@@ -311,6 +311,7 @@ pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
 pub(super) const MSG_MISSING_COMPONENT_ERR: &str = "Missing component";
 pub(super) const MSG_RUNNING_PROVER_GATEWAY: &str = "Running gateway";
+pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR_ERR: &str = "Failed to run prover job monitor";
 pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR: &str = "Running prover job monitor";
 pub(super) const MSG_RUNNING_WITNESS_GENERATOR: &str = "Running witness generator";
 pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness vector generator";
@@ -344,9 +345,13 @@ pub(super) const MSG_CREATE_GCS_BUCKET_NAME_PROMTP: &str = "What do you want to 
 pub(super) const MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT: &str = "What location do you want to use? Find available locations at https://cloud.google.com/storage/docs/locations";
 pub(super) const MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR: &str =
     "Proof compressor config not found";
-pub(super) const MSG_DOWNLOADING_SETUP_KEY_SPINNER: &str = "Downloading setup key...";
-pub(super) const MSG_DOWNLOAD_SETUP_KEY_PROMPT: &str = "Do you want to download the setup key?";
-pub(super) const MSG_SETUP_KEY_PATH_PROMPT: &str = "Provide the path to the setup key:";
+pub(super) const MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER: &str =
+    "Downloading compressor setup key...";
+pub(super) const MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT: &str =
+    "Do you want to download the setup key for compressor?";
+pub(super) const MSG_INITIALIZE_BELLMAN_CUDA_PROMPT: &str =
+    "Do you want to initialize bellman-cuda?";
+pub(super) const MSG_SETUP_COMPRESSOR_KEY_PATH_PROMPT: &str = "Provide the path to the setup key:";
 pub(super) const MSG_GETTING_GCP_PROJECTS_SPINNER: &str = "Getting GCP projects...";
 pub(super) const MSG_GETTING_PROOF_STORE_CONFIG: &str = "Getting proof store configuration...";
 pub(super) const MSG_GETTING_PUBLIC_STORE_CONFIG: &str = "Getting public store configuration...";
@@ -368,6 +373,7 @@ pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recomme
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
 pub(super) const MSG_CLOUD_TYPE_PROMPT: &str = "Select the cloud connection mode:";
 pub(super) const MSG_THREADS_PROMPT: &str = "Provide the number of threads:";
+pub(super) const MSG_SETUP_KEYS_PROMPT: &str = "Do you want to setup keys?";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")

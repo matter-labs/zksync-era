@@ -43,6 +43,7 @@ pub struct Prover {
     blob_store: Arc<dyn ObjectStore>,
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     config: Arc<FriProverConfig>,
+    keystore: Keystore,
     prover_connection_pool: ConnectionPool<zksync_prover_dal::Prover>,
     setup_load_mode: SetupLoadMode,
     // Only pick jobs for the configured circuit id and aggregation rounds.
@@ -52,11 +53,12 @@ pub struct Prover {
 }
 
 impl Prover {
-    #[allow(dead_code)]
+    #[allow(dead_code, clippy::too_many_arguments)]
     pub fn new(
         blob_store: Arc<dyn ObjectStore>,
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         config: FriProverConfig,
+        keystore: Keystore,
         prover_connection_pool: ConnectionPool<zksync_prover_dal::Prover>,
         setup_load_mode: SetupLoadMode,
         circuit_ids_for_round_to_be_proven: Vec<CircuitIdRoundTuple>,
@@ -66,6 +68,7 @@ impl Prover {
             blob_store,
             public_blob_store,
             config: Arc::new(config),
+            keystore,
             prover_connection_pool,
             setup_load_mode,
             circuit_ids_for_round_to_be_proven,
@@ -85,9 +88,8 @@ impl Prover {
                 .clone(),
             SetupLoadMode::FromDisk => {
                 let started_at = Instant::now();
-                let keystore =
-                    Keystore::new_with_setup_data_path(self.config.setup_data_path.clone());
-                let artifact: GoldilocksProverSetupData = keystore
+                let artifact: GoldilocksProverSetupData = self
+                    .keystore
                     .load_cpu_setup_data_for_circuit_type(key.clone())
                     .context("get_cpu_setup_data_for_circuit_type()")?;
                 METRICS.gpu_setup_data_load_time[&key.circuit_id.to_string()]
@@ -279,7 +281,10 @@ impl JobProcessor for Prover {
 }
 
 #[allow(dead_code)]
-pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLoadMode> {
+pub fn load_setup_data_cache(
+    keystore: &Keystore,
+    config: &FriProverConfig,
+) -> anyhow::Result<SetupLoadMode> {
     Ok(match config.setup_load_mode {
         zksync_config::configs::fri_prover::SetupLoadMode::FromDisk => SetupLoadMode::FromDisk,
         zksync_config::configs::fri_prover::SetupLoadMode::FromMemory => {
@@ -299,7 +304,6 @@ pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLo
                 &config.specialized_group_id,
                 prover_setup_metadata_list
             );
-            let keystore = Keystore::new_with_setup_data_path(config.setup_data_path.clone());
             for prover_setup_metadata in prover_setup_metadata_list {
                 let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
                 let setup_data = keystore

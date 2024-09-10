@@ -1,10 +1,14 @@
-use args::{init::ProverInitArgs, init_bellman_cuda::InitBellmanCudaArgs, run::ProverRunArgs};
+use args::{
+    compressor_keys::CompressorKeysArgs, init::ProverInitArgs,
+    init_bellman_cuda::InitBellmanCudaArgs, run::ProverRunArgs,
+};
 use clap::Subcommand;
 use xshell::Shell;
 
 use crate::commands::prover::args::setup_keys::SetupKeysArgs;
 
 mod args;
+mod compressor_keys;
 mod gcs;
 mod init;
 mod init_bellman_cuda;
@@ -23,6 +27,9 @@ pub enum ProverCommands {
     /// Initialize bellman-cuda
     #[command(alias = "cuda")]
     InitBellmanCuda(Box<InitBellmanCudaArgs>),
+    /// Download compressor keys
+    #[command(alias = "ck")]
+    CompressorKeys(CompressorKeysArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ProverCommands) -> anyhow::Result<()> {
@@ -31,5 +38,6 @@ pub(crate) async fn run(shell: &Shell, args: ProverCommands) -> anyhow::Result<(
         ProverCommands::SetupKeys(args) => setup_keys::run(args, shell).await,
         ProverCommands::Run(args) => run::run(args, shell).await,
         ProverCommands::InitBellmanCuda(args) => init_bellman_cuda::run(shell, *args).await,
+        ProverCommands::CompressorKeys(args) => compressor_keys::run(shell, args).await,
     }
 }
