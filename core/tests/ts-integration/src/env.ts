@@ -110,9 +110,6 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
             baseToken = token;
         }
     }
-    if (token.symbol == baseToken?.symbol) {
-        throw new Error(token.symbol);
-    }
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
 
     const l2TokenAddress = await new zksync.Wallet(
