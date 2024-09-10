@@ -112,7 +112,8 @@ fn prepare_configs(
         genesis_spec: None,
         rpc: None,
     };
-    general_en.consensus_config = Some(en_consensus_config);
+    general_en.consensus_config = Some(en_consensus_config.clone());
+    en_consensus_config.save_with_base_path(shell, en_configs_path)?;
 
     // Set secrets config
     let consensus_secrets_path = config.link_to_code.join(CONSENSUS_SECRETS_PATH);
