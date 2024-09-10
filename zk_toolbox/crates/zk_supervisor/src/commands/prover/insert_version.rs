@@ -1,10 +1,13 @@
-use crate::commands::prover::info;
-use common::cmd::Cmd;
-use common::{check_prerequisites, logger, PROVER_CLI_PREREQUISITE};
+use common::{check_prerequisites, cmd::Cmd, logger, PROVER_CLI_PREREQUISITE};
 use config::{get_link_to_prover, EcosystemConfig};
 use xshell::{cmd, Shell};
 
-pub async fn run(shell: &Shell) -> anyhow::Result<()> {
+use crate::commands::prover::{
+    args::insert_version::{InsertVersionArgs, InsertVersionArgsFinal},
+    info,
+};
+
+pub async fn run(shell: &Shell, args: InsertVersionArgs) -> anyhow::Result<()> {
     check_prerequisites(shell, &PROVER_CLI_PREREQUISITE, false);
 
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -14,7 +17,12 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 
     let prover_url = info::get_database_url(shell).await?;
 
-    let (minor, patch) = parse_version(&version);
+    let InsertVersionArgsFinal {
+        version,
+        snark_wrapper,
+    } = args.fill_values_with_prompts(version, snark_wrapper);
+
+    let (minor, patch) = info::parse_version(&version)?;
 
     logger::info(format!(
         "Inserting protocol version {}, snark wrapper {} into the database",
@@ -27,12 +35,4 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     logger::info("Done.");
 
     Ok(())
-}
-
-fn parse_version(version: &str) -> (&str, &str) {
-    let splitted: Vec<&str> = version.split(".").collect();
-    let minor = splitted[1];
-    let patch = splitted[2];
-
-    (minor, patch)
 }

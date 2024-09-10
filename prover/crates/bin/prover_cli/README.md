@@ -245,24 +245,24 @@ TODO
 ## Development Status
 
 | **Command**   | **Subcommand** | **Flags**                         | **Status** |
-|---------------|----------------|-----------------------------------|------------|
-| `status`      | `batch`        | `-n <BATCH_NUMBER>`               | ✅          |
-|               |                | `-v, --verbose`                   | ✅️         |
-|               | `l1`           |                                   | ✅️         |
-| `restart`     | `batch`        | `-n <BATCH_NUMBER>`               | ✅          |
-|               | `jobs`         | `-n <BATCH_NUMBER>`               | ️🏗️       |
-|               |                | `-bwg, --basic-witness-generator` | 🏗️        |
-|               |                | `-lwg, --leaf-witness-generator`  | 🏗️        |
-|               |                | `-nwg, --node-witness-generator`  | 🏗️        |
-|               |                | `-rt, --recursion-tip`            | 🏗️        |
-|               |                | `-s, --scheduler`                 | 🏗️        |
-|               |                | `-c, --compressor`                | 🏗️        |
-|               |                | `-f, --failed`                    | 🏗         |
-| `delete`      |                | `-n <BATCH_NUMBER>`               | ✅️️        |
-|               |                | `-a, --all`                       | ️️✅️️️️️️  |
-| `requeue`     |                | `—b, --batch <BATCH_NUMBER>`      | ✅️         |
-|               |                | `-a, --all`                       | ✅️️        |
-| `config`      |                | `--db-url <DB_URL>`               | 🏗         |
-| `debug-proof` |                | `--file <FILE>`                   | ✅️         |
-| `file-info`   |                | `--file-path <FILE_PATH>`         | ✅️         |
-| `stats`       |                | `--period <PERIOD>`               | ✅️         |
+| ------------- | -------------- | --------------------------------- | ---------- |
+| `status`      | `batch`        | `-n <BATCH_NUMBER>`               | ✅         |
+|               |                | `-v, --verbose`                   | ✅️        |
+|               | `l1`           |                                   | ✅️        |
+| `restart`     | `batch`        | `-n <BATCH_NUMBER>`               | ✅         |
+|               | `jobs`         | `-n <BATCH_NUMBER>`               | ️🏗️        |
+|               |                | `-bwg, --basic-witness-generator` | 🏗️         |
+|               |                | `-lwg, --leaf-witness-generator`  | 🏗️         |
+|               |                | `-nwg, --node-witness-generator`  | 🏗️         |
+|               |                | `-rt, --recursion-tip`            | 🏗️         |
+|               |                | `-s, --scheduler`                 | 🏗️         |
+|               |                | `-c, --compressor`                | 🏗️         |
+|               |                | `-f, --failed`                    | 🏗          |
+| `delete`      |                | `-n <BATCH_NUMBER>`               | ✅️️       |
+|               |                | `-a, --all`                       | ️️✅️️️️️️ |
+| `requeue`     |                | `—b, --batch <BATCH_NUMBER>`      | ✅️        |
+|               |                | `-a, --all`                       | ✅️️       |
+| `config`      |                | `--db-url <DB_URL>`               | 🏗          |
+| `debug-proof` |                | `--file <FILE>`                   | ✅️        |
+| `file-info`   |                | `--file-path <FILE_PATH>`         | ✅️        |
+| `stats`       |                | `--period <PERIOD>`               | ✅️        |

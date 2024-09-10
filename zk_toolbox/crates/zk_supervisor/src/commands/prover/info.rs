@@ -1,12 +1,11 @@
-use anyhow::Context as _;
-use std::path::PathBuf;
-use std::{fs, path::Path};
+use std::{fs, path::PathBuf};
 
-use crate::messages::MSG_CHAIN_NOT_FOUND_ERR;
-use common::config::global_config;
-use common::logger;
+use anyhow::Context as _;
+use common::{config::global_config, logger};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
+
+use crate::messages::MSG_CHAIN_NOT_FOUND_ERR;
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     let link_to_code = EcosystemConfig::from_file(shell)?.link_to_code;
@@ -71,4 +70,23 @@ pub(crate) async fn get_database_url(shell: &Shell) -> anyhow::Result<String> {
         .expose_url()
         .to_string();
     Ok(prover_url)
+}
+
+pub fn parse_version(version: &str) -> anyhow::Result<(&str, &str)> {
+    let splitted: Vec<&str> = version.split(".").collect();
+
+    assert_eq!(splitted.len(), 3, "Invalid version format");
+    assert_eq!(splitted[0], "0", "Invalid major version, expected 0");
+
+    splitted[1]
+        .parse::<u32>()
+        .context("Could not parse minor version")?;
+    splitted[2]
+        .parse::<u32>()
+        .context("Could not parse patch version")?;
+
+    let minor = splitted[1];
+    let patch = splitted[2];
+
+    Ok((minor, patch))
 }

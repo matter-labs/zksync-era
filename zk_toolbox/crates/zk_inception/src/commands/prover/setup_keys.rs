@@ -2,14 +2,13 @@ use anyhow::Ok;
 use common::{
     check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE, GPU_PREREQUISITES,
 };
-use config::EcosystemConfig;
+use config::{get_link_to_prover, EcosystemConfig};
 use xshell::{cmd, Shell};
 
 use crate::{
     commands::prover::args::setup_keys::{Mode, Region, SetupKeysArgs},
     messages::{MSG_GENERATING_SK_SPINNER, MSG_SK_GENERATED},
 };
-use config::get_link_to_prover;
 
 pub(crate) async fn run(args: SetupKeysArgs, shell: &Shell) -> anyhow::Result<()> {
     let args = args.fill_values_with_prompt();

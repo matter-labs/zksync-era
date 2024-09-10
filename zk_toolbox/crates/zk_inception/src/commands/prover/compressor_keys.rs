@@ -1,11 +1,11 @@
 use anyhow::Context;
 use common::{
-    check_prerequisites, cmd::Cmd, config::global_config, spinner::Spinner, WGET_PREREQUISITES,
+    check_prerequisites, cmd::Cmd, config::global_config, spinner::Spinner, WGET_PREREQUISITE,
 };
-use config::{EcosystemConfig, GeneralConfig};
+use config::{get_link_to_prover, EcosystemConfig, GeneralConfig};
 use xshell::{cmd, Shell};
 
-use super::{args::compressor_keys::CompressorKeysArgs, utils::get_link_to_prover};
+use super::args::compressor_keys::CompressorKeysArgs;
 use crate::messages::{
     MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER,
     MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_SETUP_KEY_PATH_ERROR,
@@ -37,7 +37,7 @@ pub(crate) fn download_compressor_key(
     general_config: &mut GeneralConfig,
     path: &str,
 ) -> anyhow::Result<()> {
-    check_prerequisites(shell, &WGET_PREREQUISITES, false);
+    check_prerequisites(shell, &WGET_PREREQUISITE, false);
     let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER);
     let mut compressor_config: zksync_config::configs::FriProofCompressorConfig = general_config
         .proof_compressor_config
