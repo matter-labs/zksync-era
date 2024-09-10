@@ -1,14 +1,18 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
+use common::cmd::Cmd;
 use common::{
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
     spinner::Spinner,
 };
-use config::{copy_configs, set_prover_database, traits::SaveConfigWithBasePath, EcosystemConfig};
-use xshell::Shell;
+use config::{
+    copy_configs, get_link_to_prover, set_prover_database, traits::SaveConfigWithBasePath,
+    EcosystemConfig,
+};
+use xshell::{cmd, Shell};
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
 use super::{
@@ -18,6 +22,7 @@ use super::{
     init_bellman_cuda::run as init_bellman_cuda,
     setup_keys,
 };
+use crate::commands::prover::args::init::ProofStorageFileBacked;
 use crate::{
     consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
@@ -105,13 +110,11 @@ fn get_object_store_config(
     config: Option<ProofStorageConfig>,
 ) -> anyhow::Result<Option<ObjectStoreConfig>> {
     let object_store = match config {
-        Some(ProofStorageConfig::FileBacked(config)) => Some(ObjectStoreConfig {
-            mode: ObjectStoreMode::FileBacked {
-                file_backed_base_path: config.proof_store_dir,
-            },
-            max_retries: PROVER_STORE_MAX_RETRIES,
-            local_mirror_path: None,
-        }),
+        Some(ProofStorageConfig::FileBacked(config)) => Some(init_file_backed_proof_storage(
+            shell,
+            &EcosystemConfig::from_file(shell)?,
+            config,
+        )?),
         Some(ProofStorageConfig::GCS(config)) => Some(ObjectStoreConfig {
             mode: ObjectStoreMode::GCSWithCredentialFile {
                 bucket_base_url: config.bucket_base_url,
@@ -153,4 +156,28 @@ async fn initialize_prover_database(
     .await?;
 
     Ok(())
+}
+
+fn init_file_backed_proof_storage(
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+    config: ProofStorageFileBacked,
+) -> anyhow::Result<ObjectStoreConfig> {
+    let proof_store_dir = config.proof_store_dir;
+    let prover_path = get_link_to_prover(ecosystem_config);
+
+    let proof_store_dir = prover_path.join(proof_store_dir).join("witness_inputs");
+
+    let cmd = Cmd::new(cmd!(shell, "mkdir -p {proof_store_dir}"));
+    cmd.run()?;
+
+    let object_store_config = ObjectStoreConfig {
+        mode: ObjectStoreMode::FileBacked {
+            file_backed_base_path: proof_store_dir.into_os_string().into_string().unwrap(),
+        },
+        max_retries: PROVER_STORE_MAX_RETRIES,
+        local_mirror_path: None,
+    };
+
+    Ok(object_store_config)
 }
