@@ -236,7 +236,7 @@ describe('ERC20 contract checks', () => {
         const l2Fee = depositFee.baseCost;
         const aliceBalance = await alice.getBalanceL1();
         if (aliceBalance < l1Fee + l2Fee) {
-            throw new Error('Not enough balance to pay the fee');
+            throw new Error('Not enough balance to pay the fee!');
         }
 
         // deposit handle with the precalculated max amount
