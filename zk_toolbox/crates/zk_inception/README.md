@@ -21,7 +21,7 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception chain update-token-multiplier-setter`↴](#zk_inception-chain-update-token-multiplier-setter)
 - [`zk_inception prover`↴](#zk_inception-prover)
 - [`zk_inception prover init`↴](#zk_inception-prover-init)
-- [`zk_inception prover generate-sk`↴](#zk_inception-prover-generate-sk)
+- [`zk_inception prover setup-keys`↴](#zk_inception-prover-setup-keys)
 - [`zk_inception prover run`↴](#zk_inception-prover-run)
 - [`zk_inception prover init-bellman-cuda`↴](#zk_inception-prover-init-bellman-cuda)
 - [`zk_inception server`↴](#zk_inception-server)
@@ -475,11 +475,21 @@ Initialize prover
 
   Possible values: `gcp`, `local`
 
-## `zk_inception prover generate-sk`
+## `zk_inception prover setup-keys`
 
-Generate setup keys
+Setup keys
 
-**Usage:** `zk_inception prover generate-sk`
+**Usage:** `zk_inception prover setup-keys`
+
+###### **Options:**
+
+- `--mode`
+
+  Possible valuess: `download`, `generate`
+
+- `--region`
+
+  Possible values: `asia`, `europe`, `us`
 
 ## `zk_inception prover run`
 
@@ -494,11 +504,18 @@ Run prover
   Possible values: `gateway`, `witness-generator`, `witness-vector-generator`, `prover`, `compressor`,
   `prover-job-monitor`
 
+- `--docker` - Whether to run image of the component instead of binary.
+
+  Possible values: `true`, `false`
+
 - `--round <ROUND>`
 
   Possible values: `all-rounds`, `basic-circuits`, `leaf-aggregation`, `node-aggregation`, `recursion-tip`, `scheduler`
 
 - `--threads <THREADS>`
+
+- `--max-allocation <MAX_ALLOCATION_IN_BYTES>` - in case you are running prover component, the value limits maximum
+  memory allocation of it in bytes.
 
 ## `zk_inception prover init-bellman-cuda`
 

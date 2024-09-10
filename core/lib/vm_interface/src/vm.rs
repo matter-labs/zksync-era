@@ -41,7 +41,7 @@ pub trait VmInterface {
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs);
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs);
 
     /// Record VM memory metrics.
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics;
@@ -63,7 +63,7 @@ pub trait VmInterfaceExt: VmInterface {
         &mut self,
         tx: Transaction,
         with_compression: bool,
-    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.inspect_transaction_with_bytecode_compression(
             Self::TracerDispatcher::default(),
             tx,

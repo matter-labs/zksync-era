@@ -1,6 +1,7 @@
 use test_casing::{test_casing, Product};
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_roles::validator;
+use zksync_test_account::Account;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 use super::{FROM_SNAPSHOT, VERSIONS};
@@ -13,6 +14,7 @@ async fn test_connection_get_batch(from_snapshot: bool, version: ProtocolVersion
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
     let pool = ConnectionPool::test(from_snapshot, version).await;
+    let account = &mut Account::random();
 
     // Fill storage with unsigned L2 blocks and L1 batches in a way that the
     // last L1 batch is guaranteed to have some L2 blocks executed in it.
@@ -23,11 +25,11 @@ async fn test_connection_get_batch(from_snapshot: bool, version: ProtocolVersion
 
         for _ in 0..3 {
             for _ in 0..2 {
-                sk.push_random_block(rng).await;
+                sk.push_random_block(rng, account).await;
             }
             sk.seal_batch().await;
         }
-        sk.push_random_block(rng).await;
+        sk.push_random_block(rng, account).await;
 
         pool.wait_for_payload(ctx, sk.last_block()).await?;
 
@@ -84,11 +86,13 @@ async fn test_batch_witness(version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
+    let account = &mut Account::random();
+    let to_fund = &[account.address];
 
     scope::run!(ctx, |ctx, s| async {
         let pool = ConnectionPool::from_genesis(version).await;
         let (mut node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
-        s.spawn_bg(runner.run_real(ctx));
+        s.spawn_bg(runner.run_real(ctx, to_fund));
 
         tracing::info!("analyzing storage");
         {
@@ -101,7 +105,7 @@ async fn test_batch_witness(version: ProtocolVersionId) {
         }
 
         // Seal a bunch of batches.
-        node.push_random_blocks(rng, 10).await;
+        node.push_random_blocks(rng, account, 10).await;
         node.seal_batch().await;
         pool.wait_for_batch(ctx, node.last_sealed_batch()).await?;
         // We can verify only 2nd batch onward, because

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                protocol_versions.id AS \"minor!\",\n                protocol_versions.timestamp,\n                protocol_versions.bootloader_code_hash,\n                protocol_versions.default_account_code_hash,\n                protocol_patches.patch,\n                protocol_patches.recursion_scheduler_level_vk_hash\n            FROM\n                protocol_versions\n                JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id\n            WHERE\n                id = $1\n            ORDER BY\n                protocol_patches.patch DESC\n            LIMIT\n                1\n            ",
+  "query": "\n            SELECT\n                protocol_versions.id AS \"minor!\",\n                protocol_versions.timestamp,\n                protocol_versions.bootloader_code_hash,\n                protocol_versions.default_account_code_hash,\n                protocol_patches.patch,\n                protocol_patches.snark_wrapper_vk_hash\n            FROM\n                protocol_versions\n                JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id\n            WHERE\n                id = $1\n            ORDER BY\n                protocol_patches.patch DESC\n            LIMIT\n                1\n            ",
   "describe": {
     "columns": [
       {
@@ -30,7 +30,7 @@
       },
       {
         "ordinal": 5,
-        "name": "recursion_scheduler_level_vk_hash",
+        "name": "snark_wrapper_vk_hash",
         "type_info": "Bytea"
       }
     ],
@@ -48,5 +48,5 @@
       false
     ]
   },
-  "hash": "e89e8cc58a2078157d06f3064ccad9773d45ef6d548f03d643007d3bc1072526"
+  "hash": "85576fdbb4bd6e3a6e43511c065a2e3eaf72dfe0fa96b335b76c9506cb1ebdcc"
 }

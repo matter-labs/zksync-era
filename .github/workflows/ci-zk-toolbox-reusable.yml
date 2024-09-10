@@ -4,6 +4,11 @@ on:
 
 env:
   CLICOLOR: 1
+  # We run multiple binaries in parallel, and by default they will try to utilize all the
+  # available CPUs. In tests, there is not much CPU-intensive work (rayon), but a lot of
+  # async work (tokio), so we prioritize tokio.
+  TOKIO_WORKER_THREADS: 4
+  RAYON_NUM_THREADS: 2
 
 jobs:
   lint:
@@ -11,7 +16,7 @@ jobs:
     uses: ./.github/workflows/ci-core-lint-reusable.yml
 
   tests:
-    runs-on: [ matterlabs-ci-runner ]
+    runs-on: [ matterlabs-ci-runner-ultra-performance ]
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -249,7 +254,7 @@ jobs:
 
 
       - name: Upload logs
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
         if: always()
         with:
           name: logs
