@@ -1,10 +1,11 @@
+//! Minimal reimplementation of the Avail SDK client required for the DA client implementation.
+//! This is considered to be a temporary solution until a mature SDK is available on crates.io
+
 use std::fmt::Debug;
 
-use async_trait::async_trait;
 use jsonrpsee::{
     core::client::{Client, ClientT, Subscription, SubscriptionClientT},
     rpc_params,
-    ws_client::WsClientBuilder,
 };
 use parity_scale_codec::{Compact, Decode, Encode};
 use scale_encode::EncodeAsFields;
@@ -12,54 +13,56 @@ use subxt_signer::{
     bip39::Mnemonic,
     sr25519::{Keypair, Signature},
 };
-use zksync_config::AvailConfig;
-use zksync_da_client::{
-    types::{DAError, DispatchResponse, InclusionData},
-    DataAvailabilityClient,
-};
+
+use crate::avail::client::to_non_retriable_da_error;
 
 const PROTOCOL_VERSION: u8 = 4;
 
 /// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.
-#[derive(Debug)]
-pub struct AvailClient {
-    config: AvailConfig,
+#[derive(Debug, Clone)]
+pub(crate) struct RawAvailClient {
+    app_id: u32,
     keypair: Keypair,
 }
 
-// Utility type needed for encoding the call data
+/// Utility type needed for encoding the call data
 #[derive(parity_scale_codec::Encode, scale_encode::EncodeAsType)]
 #[encode_as_type(crate_path = "scale_encode")]
 pub struct SubmitData {
     pub data: BoundedVec<u8>,
 }
 
-// Utility type needed for encoding the call data
+/// Utility type needed for encoding the call data
 #[derive(parity_scale_codec::Encode, scale_encode::EncodeAsType)]
 #[encode_as_type(crate_path = "scale_encode")]
 pub struct BoundedVec<_0>(pub Vec<_0>);
 
-#[async_trait]
-impl DataAvailabilityClient for AvailClient {
-    async fn dispatch_blob(
+impl RawAvailClient {
+    pub(crate) const MAX_BLOB_SIZE: usize = 512 * 1024; // 512kb
+
+    pub(crate) async fn new(app_id: u32, seed: String) -> anyhow::Result<Self> {
+        let mnemonic = Mnemonic::parse(seed)?;
+        let keypair = Keypair::from_phrase(&mnemonic, None)?;
+
+        Ok(Self { app_id, keypair })
+    }
+
+    /// Returns a hex-encoded extrinsic
+    pub(crate) async fn build_extrinsic(
         &self,
-        _: u32, // batch_number
+        client: &Client,
         data: Vec<u8>,
-    ) -> anyhow::Result<DispatchResponse, DAError> {
-        let client = WsClientBuilder::default()
-            .build(self.config.api_node_url.as_str())
-            .await
-            .map_err(to_non_retriable_da_error)?;
+    ) -> anyhow::Result<String> {
         let call_data = self
-            .get_encoded_call(&client, data)
+            .get_encoded_call(client, data)
             .await
             .map_err(to_non_retriable_da_error)?;
         let extra_params = self
-            .get_extended_params(&client)
+            .get_extended_params(client)
             .await
             .map_err(to_non_retriable_da_error)?;
         let additional_params = self
-            .get_additional_params(&client)
+            .get_additional_params(client)
             .await
             .map_err(to_non_retriable_da_error)?;
 
@@ -74,52 +77,11 @@ impl DataAvailabilityClient for AvailClient {
             extra_params.as_slice(),
             call_data.as_slice(),
         );
-        let hex_ext = hex::encode(&ext);
 
-        let block_hash = self
-            .submit_extrinsic(&client, hex_ext.as_str())
-            .await
-            .map_err(to_non_retriable_da_error)?;
-        let tx_id = self
-            .get_tx_id(&client, block_hash.as_str(), hex_ext.as_str())
-            .await
-            .map_err(to_non_retriable_da_error)?;
-
-        Ok(DispatchResponse {
-            blob_id: format!("{}:{}", block_hash, tx_id),
-        })
+        Ok(hex::encode(&ext))
     }
 
-    async fn get_inclusion_data(
-        &self,
-        _blob_id: &str,
-    ) -> anyhow::Result<Option<InclusionData>, DAError> {
-        // TODO: implement inclusion data retrieval
-        Ok(Some(InclusionData { data: vec![] }))
-    }
-
-    fn clone_boxed(&self) -> Box<dyn DataAvailabilityClient> {
-        Box::new(AvailClient {
-            config: self.config.clone(),
-            keypair: self.keypair.clone(),
-        })
-    }
-
-    fn blob_size_limit(&self) -> Option<usize> {
-        Some(AvailClient::MAX_BLOB_SIZE)
-    }
-}
-
-impl AvailClient {
-    const MAX_BLOB_SIZE: usize = 512 * 1024; // 512kb
-
-    pub async fn new(config: AvailConfig) -> anyhow::Result<Self> {
-        let mnemonic = Mnemonic::parse(config.seed.clone())?;
-        let keypair = Keypair::from_phrase(&mnemonic, None)?;
-
-        Ok(Self { config, keypair })
-    }
-
+    /// Returns an encoded call data
     async fn get_encoded_call(
         &self,
         client: &Client,
@@ -163,6 +125,7 @@ impl AvailClient {
         Ok(bytes)
     }
 
+    /// Queries a node for a nonce
     async fn fetch_account_nonce(&self, client: &Client) -> anyhow::Result<u64> {
         let address = to_addr(self.keypair.clone());
         let resp: serde_json::Value = client
@@ -176,11 +139,12 @@ impl AvailClient {
         Ok(nonce)
     }
 
-    // Extrinsic params used here
-    // 	CheckMortality<AvailConfig>
-    // 	CheckNonce
-    // 	ChargeTransactionPayment
-    // 	CheckAppId
+    /// Returns a Compact-encoded extended extrinsic parameters
+    /// Extrinsic params used here:
+    /// - CheckMortality<AvailConfig>
+    /// - CheckNonce
+    /// - ChargeTransactionPayment
+    /// - CheckAppId
     async fn get_extended_params(&self, client: &Client) -> anyhow::Result<Vec<u8>> {
         let era = 0u8; // immortal era
         let tip = 0u128; // no tip
@@ -190,15 +154,16 @@ impl AvailClient {
         let mut bytes = vec![era];
         Compact(nonce).encode_to(&mut bytes);
         Compact(tip).encode_to(&mut bytes);
-        Compact(self.config.app_id).encode_to(&mut bytes);
+        Compact(self.app_id).encode_to(&mut bytes);
 
         Ok(bytes)
     }
 
-    // Extrinsic params used here
-    // 	CheckSpecVersion
-    // 	CheckTxVersion
-    // 	CheckGenesis<AvailConfig>
+    /// Returns a Compact-encoded additional extrinsic parameters
+    /// Extrinsic params used here
+    /// - CheckSpecVersion
+    /// - CheckTxVersion
+    /// - CheckGenesis<AvailConfig>
     async fn get_additional_params(&self, client: &Client) -> anyhow::Result<Vec<u8>> {
         let (spec_version, tx_version) = self.get_runtime_version(client).await?;
         let genesis_hash = self.fetch_genesis_hash(client).await?;
@@ -213,7 +178,7 @@ impl AvailClient {
         Ok(bytes)
     }
 
-    // Fetch the runtime versions
+    /// Returns the specification and transaction versions of a runtime
     async fn get_runtime_version(&self, client: &Client) -> anyhow::Result<(u32, u32)> {
         let resp: serde_json::Value = client
             .request("chain_getRuntimeVersion", rpc_params![])
@@ -249,6 +214,7 @@ impl AvailClient {
             .to_string())
     }
 
+    /// Returns a signature for partially-encoded extrinsic
     fn get_signature(
         &self,
         call_data: &[u8],
@@ -267,6 +233,7 @@ impl AvailClient {
         self.keypair.sign(&bytes)
     }
 
+    /// Encodes all the components of an extrinsic into a single vector
     fn get_submittable_extrinsic(
         &self,
         signature: Signature,
@@ -301,7 +268,13 @@ impl AvailClient {
         encoded
     }
 
-    async fn submit_extrinsic(&self, client: &Client, extrinsic: &str) -> anyhow::Result<String> {
+    /// Submits an extrinsic. Subscribes to a stream and waits for a tx to be included in a block
+    /// to return the block hash
+    pub(crate) async fn submit_extrinsic(
+        &self,
+        client: &Client,
+        extrinsic: &str,
+    ) -> anyhow::Result<String> {
         let mut sub: Subscription<serde_json::Value> = client
             .subscribe(
                 "author_submitAndWatchExtrinsic",
@@ -329,7 +302,8 @@ impl AvailClient {
         Ok(block_hash)
     }
 
-    async fn get_tx_id(
+    /// Iterates over all transaction in the block and finds an ID of the one provided as an argument
+    pub(crate) async fn get_tx_id(
         &self,
         client: &Client,
         block_hash: &str,
@@ -394,11 +368,4 @@ fn ss58hash(data: &[u8]) -> Vec<u8> {
     ctx.update(PREFIX);
     ctx.update(data);
     ctx.finalize().to_vec()
-}
-
-pub fn to_non_retriable_da_error(error: impl Into<anyhow::Error>) -> DAError {
-    DAError {
-        error: error.into(),
-        is_retriable: false,
-    }
 }

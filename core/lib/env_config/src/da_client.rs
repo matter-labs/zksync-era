@@ -43,7 +43,7 @@ mod tests {
 
             DA_BUCKET_BASE_URL="sometestpath"
             DA_MODE="GCS"
-            DA_MAX_RETRIES=5
+            DA_MAX_RETRIES="5"
         "#;
         lock.set_env(config);
         let actual = DAClientConfig::from_env().unwrap();
@@ -81,9 +81,9 @@ mod tests {
             DA_API_NODE_URL="localhost:12345"
             DA_BRIDGE_API_URL="localhost:54321"
             DA_SEED="bottom drive obey lake curtain smoke basket hold race lonely fit walk"
-            DA_APP_ID=1
-            DA_TIMEOUT=2
-            DA_MAX_RETRIES=3
+            DA_APP_ID="1"
+            DA_TIMEOUT="2"
+            DA_MAX_RETRIES="3"
         "#;
 
         lock.set_env(config);

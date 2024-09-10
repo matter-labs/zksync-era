@@ -10,6 +10,8 @@ use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
+#[cfg(test)]
+use zksync_object_store::MockObjectStore;
 use zksync_object_store::{
     Bucket, ObjectStore, ObjectStoreFactory, StoredObject, _reexports::BoxedError,
 };
@@ -91,7 +93,7 @@ impl DataAvailabilityClient for ObjectStoreDAClient {
 
 /// Used as a wrapper for the pubdata to be stored in the GCS.
 #[derive(Debug)]
-pub struct StorablePubdata {
+struct StorablePubdata {
     pub data: Vec<u8>,
 }
 
@@ -120,4 +122,26 @@ impl StoredObject for StorablePubdata {
             data: decompressed_bytes,
         })
     }
+}
+
+#[tokio::test]
+async fn blob_data_serialization() {
+    let batch_number = 123;
+    let data = vec![1, 2, 3, 4, 5, 6, 123, 255, 0, 0];
+
+    let store = MockObjectStore::arc();
+    store
+        .put(
+            L1BatchNumber(batch_number),
+            &StorablePubdata { data: data.clone() },
+        )
+        .await
+        .unwrap();
+
+    let resp = store
+        .get::<StorablePubdata>(L1BatchNumber(batch_number))
+        .await
+        .unwrap();
+
+    assert_eq!(data, resp.data);
 }

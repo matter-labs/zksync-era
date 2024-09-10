@@ -13,7 +13,6 @@ pub struct DAClientConfig {
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(tag = "client")]
 pub enum DAClient {
-    NoDA,
     Avail(AvailConfig),
     ObjectStore(ObjectStoreConfig),
 }

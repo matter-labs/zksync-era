@@ -510,9 +510,6 @@ impl MainNodeBuilder {
         };
 
         match da_client_config.client {
-            DAClient::NoDA => {
-                self.node.add_layer(NoDAClientWiringLayer);
-            }
             DAClient::Avail(config) => {
                 self.node.add_layer(AvailWiringLayer::new(config));
             }
