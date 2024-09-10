@@ -135,10 +135,10 @@ pub fn update_ports(config: &mut GeneralConfig, ports_config: &PortsConfig) -> a
         .prometheus_config
         .as_mut()
         .context("Prometheus config is not presented")?;
-    let consensus = config
-        .consensus_config
-        .as_mut()
-        .context("Consensus config is not presented")?;
+    if let Some(consensus) = config.consensus_config.as_mut() {
+        consensus.server_addr.set_port(ports_config.consensus_port);
+        update_port_in_url(&mut consensus.public_addr.0, ports_config.consensus_port)?;
+    }
 
     api.web3_json_rpc.http_port = ports_config.web3_json_rpc_http_port;
     update_port_in_url(
@@ -160,9 +160,6 @@ pub fn update_ports(config: &mut GeneralConfig, ports_config: &PortsConfig) -> a
     api.prometheus.listener_port = ports_config.prometheus_listener_port;
 
     prometheus.listener_port = ports_config.prometheus_listener_port;
-
-    consensus.server_addr.set_port(ports_config.consensus_port);
-    update_port_in_url(&mut consensus.public_addr.0, ports_config.consensus_port)?;
 
     Ok(())
 }
