@@ -7,14 +7,13 @@ use url::Url;
 use zksync_basic_types::H160;
 
 use crate::{
+    consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR,
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
         MSG_SENDER_ADDRESS_PROMPT,
     },
 };
-
-const DEFAULT_OUT_DIR: &str = "transactions";
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct BuildTransactionsArgs {
@@ -53,7 +52,7 @@ impl BuildTransactionsArgs {
         });
         BuildTransactionsFinal {
             sender,
-            out: self.out.unwrap_or(DEFAULT_OUT_DIR.into()),
+            out: self.out.unwrap_or(DEFAULT_UNSIGNED_TRANSACTIONS_DIR.into()),
             forge_args: self.forge_args.clone(),
             l1_rpc_url,
         }

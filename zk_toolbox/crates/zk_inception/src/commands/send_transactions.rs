@@ -1,4 +1,10 @@
-use std::{fs::File, io::Read, ops::Add, time::Duration};
+use std::{
+    fs::{File, OpenOptions},
+    io::{Read, Write},
+    ops::Add,
+    path::PathBuf,
+    time::Duration,
+};
 
 use common::ethereum::create_ethers_client;
 use config::EcosystemConfig;
@@ -6,6 +12,8 @@ use ethers::{abi::Bytes, providers::Middleware, types::TransactionRequest, utils
 use serde::Deserialize;
 use xshell::Shell;
 use zksync_basic_types::{H160, U256};
+
+use crate::consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR;
 
 use super::args::SendTransactionsArgs;
 
@@ -44,9 +52,7 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
 
     let client = create_ethers_client(args.private_key.parse()?, args.l1_rpc_url, Some(chain_id))?;
     let mut nonce = client.get_transaction_count(client.address(), None).await?;
-    let mut pending_txs = vec![];
 
-    // Iterate over each transaction
     for txn in txns.transactions {
         let to: H160 = txn.contract_address.parse()?;
         let from: H160 = txn.transaction.from.parse()?;
@@ -64,17 +70,32 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
             .chain_id(chain_id);
 
         nonce = nonce.add(1);
-        pending_txs.push(
-            client
-                .send_transaction(tx, None)
-                .await?
-                // It's safe to set such low number of confirmations and low interval for localhost
-                .confirmations(args.confirmations)
-                .interval(Duration::from_millis(30)),
+
+        let receipt = client
+            .send_transaction(tx, None)
+            .await?
+            .confirmations(args.confirmations)
+            .interval(Duration::from_millis(30))
+            .await?
+            .unwrap();
+
+        log_receipt(
+            ecosystem_config
+                .link_to_code
+                .join(DEFAULT_UNSIGNED_TRANSACTIONS_DIR),
+            format!("{:?}", receipt).as_str(),
         );
     }
 
-    futures::future::join_all(pending_txs).await;
-
     Ok(())
+}
+
+fn log_receipt(path: PathBuf, receipt: &str) {
+    let mut file = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open(path.join("receipt.log"))
+        .expect("Unable to open file");
+
+    writeln!(file, "{}", receipt).expect("Unable to write data");
 }
