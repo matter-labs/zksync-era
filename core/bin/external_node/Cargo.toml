@@ -59,7 +59,6 @@ envy.workspace = true
 url.workspace = true
 clap = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-semver.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
