@@ -7,6 +7,7 @@ use std::{
 };
 
 use anyhow::Context;
+use args::SendTransactionsArgs;
 use chrono::Local;
 use common::ethereum::create_ethers_client;
 use config::EcosystemConfig;
@@ -16,7 +17,6 @@ use xshell::Shell;
 use zksync_basic_types::{H160, U256};
 
 use crate::consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR;
-use args::SendTransactionsArgs;
 
 pub mod args;
 
