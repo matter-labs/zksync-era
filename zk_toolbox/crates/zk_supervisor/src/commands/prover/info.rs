@@ -1,5 +1,7 @@
-use std::path::Path;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Context as _;
 use common::{config::global_config, logger};
