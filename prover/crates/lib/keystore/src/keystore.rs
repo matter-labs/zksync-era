@@ -55,12 +55,15 @@ impl Keystore {
 
     /// Uses automatic detection of the base path, and assumes that setup keys
     /// are stored in the same directory.
+    ///
+    /// The "base" path is considered to be equivalent to the `prover/data/keys`
+    /// directory in the repository.
     pub fn locate() -> Self {
         // There might be several cases:
         // - We're running from the prover workspace.
         // - We're running from the core workspace.
         // - We're running the binary from the docker.
-        let base_path = match Workspace::locate() {
+        let data_dir_path = match Workspace::locate() {
             Workspace::None => {
                 // We're running a binary, likely in a docker.
                 // Keys can be in one of a few paths.
@@ -77,6 +80,7 @@ impl Keystore {
                 ws.prover().join("data")
             }
         };
+        let base_path = data_dir_path.join("keys");
 
         Self {
             basedir: base_path.clone(),
