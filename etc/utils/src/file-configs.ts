@@ -2,18 +2,11 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as yaml from 'yaml';
 
-export function shouldLoadConfigFromFile() {
+export type FileConfig = { loadFromFile: false; chain?: undefined } | { loadFromFile: true; chain: string };
+
+export function shouldLoadConfigFromFile(): FileConfig {
     const chain = process.env.CHAIN_NAME;
-    if (chain) {
-        return {
-            loadFromFile: true,
-            chain
-        } as const;
-    } else {
-        return {
-            loadFromFile: false
-        } as const;
-    }
+    return chain ? { loadFromFile: true, chain } : { loadFromFile: false };
 }
 
 export const configNames = [
