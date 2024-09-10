@@ -18,11 +18,11 @@ pub async fn run(shell: &Shell) -> anyhow::Result<()> {
 
     logger::info(format!(
         "
-=============================== \
-Current prover setup information: \
-Protocol version: {} \
-Snark wrapper: {} \
-Database URL: {}\
+=============================== \n
+Current prover setup information: \n
+Protocol version: {} \n
+Snark wrapper: {} \n
+Database URL: {}\n
 ===============================",
         protocol_version, snark_wrapper, prover_url
     ));
@@ -50,7 +50,11 @@ pub(crate) async fn get_snark_wrapper(link_to_prover: &PathBuf) -> anyhow::Resul
         .get("snark_wrapper")
         .expect("Could not find snark_wrapper in commitments.json");
 
-    Ok(snark_wrapper.to_string())
+    let mut snark_wrapper = snark_wrapper.to_string();
+    snark_wrapper.pop();
+    snark_wrapper.remove(0);
+
+    Ok(snark_wrapper)
 }
 
 pub(crate) async fn get_database_url(shell: &Shell) -> anyhow::Result<String> {

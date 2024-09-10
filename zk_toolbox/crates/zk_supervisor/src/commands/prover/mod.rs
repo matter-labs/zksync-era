@@ -1,21 +1,22 @@
 use clap::Subcommand;
 use xshell::Shell;
 
-pub mod cli;
+mod args;
 pub mod info;
-pub mod init_version;
+pub mod insert_batch;
+pub mod insert_version;
 
 #[derive(Subcommand, Debug)]
 pub enum ProverCommands {
     Info,
-    Cli,
-    InitVersion,
+    InsertBatch,
+    InsertVersion,
 }
 
 pub async fn run(shell: &Shell, args: ProverCommands) -> anyhow::Result<()> {
     match args {
         ProverCommands::Info => info::run(shell).await,
-        ProverCommands::Cli => cli::run(shell).await,
-        ProverCommands::InitVersion => init_version::run(shell).await,
+        ProverCommands::InsertBatch => insert_batch::run(shell).await,
+        ProverCommands::InsertVersion => insert_version::run(shell).await,
     }
 }
