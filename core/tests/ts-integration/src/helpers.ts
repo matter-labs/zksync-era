@@ -3,6 +3,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
+import { sleep } from 'utils';
 
 export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 
@@ -142,10 +143,8 @@ export function bigIntMax(...args: bigint[]) {
     return args.reduce((max, current) => (current > max ? current : max), args[0]);
 }
 
-export function goodGasPrice(): ethers.Overrides {
-    let overrides: ethers.Overrides = {};
-    overrides.maxPriorityFeePerGas = 0;
-    // big enough so that transaction can never fail
-    overrides.maxFeePerGas = 1_000_000_000;
-    return overrides;
+export async function waitForIncreasedL1Nonce(nonce: number, account: zksync.Wallet) {
+    while ((await account._signerL1().getNonce()) == nonce) {
+        await sleep(0.1);
+    }
 }
