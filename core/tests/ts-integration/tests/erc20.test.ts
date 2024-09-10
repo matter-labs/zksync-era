@@ -212,13 +212,20 @@ describe('ERC20 contract checks', () => {
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance);
     });
 
+    function goodGasPrice(): ethers.Overrides {
+        let overrides: ethers.Overrides = {};
+        overrides.maxPriorityFeePerGas = 0;
+        // big enough so that transaction can never fail
+        overrides.maxFeePerGas = 1_000_000_000;
+        return overrides;
+    }
+
     test('Can perform a deposit with precalculated max value', async () => {
         if (!isETHBasedChain) {
             // approving whole base token balance
             const baseTokenDetails = testMaster.environment().baseToken;
             const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
-            let receipt = await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
-            testMaster.reporter.debug(JSON.stringify(receipt));
+            await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
         }
         testMaster.reporter.debug('A#');
 
@@ -227,7 +234,7 @@ describe('ERC20 contract checks', () => {
 
         testMaster.reporter.debug('B#');
         // approving the needed allowance for the deposit
-        await (await alice.approveERC20(tokenDetails.l1Address, tokenDepositAmount)).wait();
+        await (await alice.approveERC20(tokenDetails.l1Address, tokenDepositAmount, goodGasPrice())).wait();
 
         testMaster.reporter.debug('C#');
         // fee of the deposit in ether
