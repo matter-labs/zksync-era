@@ -141,3 +141,11 @@ export function bigIntMax(...args: bigint[]) {
 
     return args.reduce((max, current) => (current > max ? current : max), args[0]);
 }
+
+export function goodGasPrice(): ethers.Overrides {
+    let overrides: ethers.Overrides = {};
+    overrides.maxPriorityFeePerGas = 0;
+    // big enough so that transaction can never fail
+    overrides.maxFeePerGas = 1_000_000_000;
+    return overrides;
+}

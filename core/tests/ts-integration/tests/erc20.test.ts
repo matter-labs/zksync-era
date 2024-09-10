@@ -8,7 +8,7 @@ import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/b
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
+import { goodGasPrice, scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 describe('ERC20 contract checks', () => {
@@ -212,14 +212,6 @@ describe('ERC20 contract checks', () => {
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance);
     });
 
-    function goodGasPrice(): ethers.Overrides {
-        let overrides: ethers.Overrides = {};
-        overrides.maxPriorityFeePerGas = 0;
-        // big enough so that transaction can never fail
-        overrides.maxFeePerGas = 1_000_000_000;
-        return overrides;
-    }
-
     test('Can perform a deposit with precalculated max value', async () => {
         if (!isETHBasedChain) {
             // approving whole base token balance
@@ -227,22 +219,18 @@ describe('ERC20 contract checks', () => {
             const baseTokenMaxAmount = await alice.getBalanceL1(baseTokenDetails.l1Address);
             await (await alice.approveERC20(baseTokenDetails.l1Address, baseTokenMaxAmount)).wait();
         }
-        testMaster.reporter.debug('A#');
 
         // depositing the max amount: the whole balance of the token
         const tokenDepositAmount = await alice.getBalanceL1(tokenDetails.l1Address);
 
-        testMaster.reporter.debug('B#');
         // approving the needed allowance for the deposit
         await (await alice.approveERC20(tokenDetails.l1Address, tokenDepositAmount, goodGasPrice())).wait();
 
-        testMaster.reporter.debug('C#');
         // fee of the deposit in ether
         const depositFee = await alice.getFullRequiredDepositFee({
             token: tokenDetails.l1Address
         });
 
-        testMaster.reporter.debug('D#');
         // checking if alice has enough funds to pay the fee
         const l1Fee = depositFee.l1GasLimit * (depositFee.maxFeePerGas! || depositFee.gasPrice!);
         const l2Fee = depositFee.baseCost;
@@ -251,7 +239,6 @@ describe('ERC20 contract checks', () => {
             throw new Error('Not enough balance to pay the fee');
         }
 
-        testMaster.reporter.debug('E#');
         // deposit handle with the precalculated max amount
         const depositHandle = await alice.deposit({
             token: tokenDetails.l1Address,
@@ -262,7 +249,6 @@ describe('ERC20 contract checks', () => {
             overrides: depositFee
         });
 
-        testMaster.reporter.debug('F#');
         // checking the l2 balance change
         const l2TokenBalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
             { wallet: alice, change: tokenDepositAmount }
