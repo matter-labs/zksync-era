@@ -218,16 +218,16 @@ zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.4" }
 vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "4ef15d46410ffc11744771a3a6c7c09dd9470c90" }
 
 # Consensus dependencies.
-zksync_concurrency = "=0.1.0-rc.12"
-zksync_consensus_bft = "=0.1.0-rc.12"
-zksync_consensus_crypto = "=0.1.0-rc.12"
-zksync_consensus_executor = "=0.1.0-rc.12"
-zksync_consensus_network = "=0.1.0-rc.12"
-zksync_consensus_roles = "=0.1.0-rc.12"
-zksync_consensus_storage = "=0.1.0-rc.12"
-zksync_consensus_utils = "=0.1.0-rc.12"
-zksync_protobuf = "=0.1.0-rc.12"
-zksync_protobuf_build = "=0.1.0-rc.12"
+zksync_concurrency = "=0.1.0-rc.11"
+zksync_consensus_bft = "=0.1.0-rc.11"
+zksync_consensus_crypto = "=0.1.0-rc.11"
+zksync_consensus_executor = "=0.1.0-rc.11"
+zksync_consensus_network = "=0.1.0-rc.11"
+zksync_consensus_roles = "=0.1.0-rc.11"
+zksync_consensus_storage = "=0.1.0-rc.11"
+zksync_consensus_utils = "=0.1.0-rc.11"
+zksync_protobuf = "=0.1.0-rc.11"
+zksync_protobuf_build = "=0.1.0-rc.11"
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }

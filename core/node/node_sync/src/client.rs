@@ -42,7 +42,12 @@ pub trait MainNodeClient: 'static + Send + Sync + fmt::Debug {
         with_transactions: bool,
     ) -> EnrichedClientResult<Option<en::SyncBlock>>;
 
+    async fn fetch_consensus_genesis(&self) -> EnrichedClientResult<Option<en::ConsensusGenesis>>;
+
     async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig>;
+
+    async fn fetch_attestation_status(&self)
+        -> EnrichedClientResult<Option<en::AttestationStatus>>;
 }
 
 #[async_trait]
@@ -126,6 +131,20 @@ impl MainNodeClient for Box<DynClient<L2>> {
             .rpc_context("fetch_l2_block")
             .with_arg("number", &number)
             .with_arg("with_transactions", &with_transactions)
+            .await
+    }
+
+    async fn fetch_consensus_genesis(&self) -> EnrichedClientResult<Option<en::ConsensusGenesis>> {
+        self.consensus_genesis()
+            .rpc_context("consensus_genesis")
+            .await
+    }
+
+    async fn fetch_attestation_status(
+        &self,
+    ) -> EnrichedClientResult<Option<en::AttestationStatus>> {
+        self.attestation_status()
+            .rpc_context("attestation_status")
             .await
     }
 }

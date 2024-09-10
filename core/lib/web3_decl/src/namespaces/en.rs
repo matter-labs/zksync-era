@@ -25,9 +25,6 @@ pub trait EnNamespace {
     #[method(name = "consensusGenesis")]
     async fn consensus_genesis(&self) -> RpcResult<Option<en::ConsensusGenesis>>;
 
-    #[method(name = "consensusGlobalConfig")]
-    async fn consensus_global_config(&self) -> RpcResult<Option<en::ConsensusGlobalConfig>>;
-
     /// Lists all tokens created at or before the specified `block_number`.
     ///
     /// This method is used by EN after snapshot recovery in order to recover token records.

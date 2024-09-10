@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use secrecy::{ExposeSecret as _, Secret};
-use zksync_basic_types::{ethabi, L2ChainId};
+use zksync_basic_types::L2ChainId;
 use zksync_concurrency::{limiter, time};
 
 /// `zksync_consensus_crypto::TextFmt` representation of `zksync_consensus_roles::validator::PublicKey`.
@@ -89,8 +89,6 @@ pub struct GenesisSpec {
     /// Leader of the committee. Represents
     /// `zksync_consensus_roles::validator::LeaderSelectionMode::Sticky`.
     pub leader: ValidatorPublicKey,
-    /// Address of the registry contract.
-    pub registry_address: Option<ethabi::Address>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]

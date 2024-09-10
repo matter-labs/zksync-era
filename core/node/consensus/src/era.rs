@@ -45,7 +45,6 @@ pub async fn run_external_node(
     sync_state: SyncState,
     main_node_client: Box<DynClient<L2>>,
     actions: ActionQueueSender,
-    build_version: semver::Version,
 ) -> anyhow::Result<()> {
     let en = en::EN {
         pool: ConnectionPool(pool),
@@ -59,8 +58,7 @@ pub async fn run_external_node(
                 is_validator = secrets.validator_key.is_some(),
                 "running external node"
             );
-            en.run(ctx, actions, cfg, secrets, Some(build_version))
-                .await
+            en.run(ctx, actions, cfg, secrets).await
         }
         None => {
             tracing::info!("running fetcher");

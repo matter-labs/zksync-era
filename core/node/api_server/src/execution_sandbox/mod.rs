@@ -16,10 +16,10 @@ use zksync_types::{
     api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
 };
 
-pub use self::execute::{TransactionExecutor, TxExecutionArgs};
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
+    execute::{TransactionExecutor, TxExecutionArgs},
     tracers::ApiTracer,
     validate::ValidationError,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
@@ -158,7 +158,7 @@ async fn get_pending_state(
 
 /// Arguments for VM execution necessary to set up storage and environment.
 #[derive(Debug, Clone)]
-pub struct TxSetupArgs {
+pub(crate) struct TxSetupArgs {
     pub execution_mode: TxExecutionMode,
     pub operator_account: AccountTreeId,
     pub fee_input: BatchFeeInput,
@@ -215,7 +215,7 @@ impl BlockStartInfoInner {
 
 /// Information about first L1 batch / L2 block in the node storage.
 #[derive(Debug, Clone)]
-pub struct BlockStartInfo {
+pub(crate) struct BlockStartInfo {
     cached_pruning_info: Arc<RwLock<BlockStartInfoInner>>,
     max_cache_age: Duration,
 }
@@ -331,7 +331,7 @@ impl BlockStartInfo {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum BlockArgsError {
+pub(crate) enum BlockArgsError {
     #[error("Block is pruned; first retained block is {0}")]
     Pruned(L2BlockNumber),
     #[error("Block is missing, but can appear in the future")]
@@ -342,7 +342,7 @@ pub enum BlockArgsError {
 
 /// Information about a block provided to VM.
 #[derive(Debug, Clone, Copy)]
-pub struct BlockArgs {
+pub(crate) struct BlockArgs {
     block_id: api::BlockId,
     resolved_block_number: L2BlockNumber,
     l1_batch_timestamp_s: Option<u64>,

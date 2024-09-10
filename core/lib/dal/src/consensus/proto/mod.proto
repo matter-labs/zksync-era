@@ -3,7 +3,6 @@ syntax = "proto3";
 package zksync.dal;
 
 import "zksync/roles/validator.proto";
-import "zksync/roles/attester.proto";
 
 message Payload {
   // zksync-era ProtocolVersionId
@@ -116,15 +115,6 @@ message InputData {
 message PaymasterParams {
   optional bytes paymaster_address = 1; // required; H160
   optional bytes paymaster_input = 2; // required
-}
-
-message AttesterCommittee {
-  repeated roles.attester.WeightedAttester members = 1; // required
-}
-
-message GlobalConfig {
-  optional roles.validator.Genesis genesis = 1; // required
-  optional bytes registry_address = 2; // optional; H160
 }
 
 message AttestationStatus {
