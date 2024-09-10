@@ -504,11 +504,18 @@ Run prover
   Possible values: `gateway`, `witness-generator`, `witness-vector-generator`, `prover`, `compressor`,
   `prover-job-monitor`
 
+- `--docker` - Whether to run image of the component instead of binary.
+
+  Possible values: `true`, `false`
+
 - `--round <ROUND>`
 
   Possible values: `all-rounds`, `basic-circuits`, `leaf-aggregation`, `node-aggregation`, `recursion-tip`, `scheduler`
 
 - `--threads <THREADS>`
+
+- `--max-allocation <MAX_ALLOCATION_IN_BYTES>` - in case you are running prover component, the value limits maximum
+  memory allocation of it in bytes.
 
 ## `zk_inception prover init-bellman-cuda`
 
