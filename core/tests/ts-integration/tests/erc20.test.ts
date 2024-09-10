@@ -8,7 +8,7 @@ import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/b
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice, waitForIncreasedL1Nonce, waitUntilBlockFinalized } from '../src/helpers';
+import {scaledGasPrice, waitForIncreasedL1Nonce, waitUntilBlockFinalized} from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 
 describe('ERC20 contract checks', () => {
@@ -178,7 +178,9 @@ describe('ERC20 contract checks', () => {
                 l1: true
             }
         );
+        let nonce = await alice._signerL1().getNonce();
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
+        await waitForIncreasedL1Nonce(nonce, alice);
     });
 
     test('Should claim failed deposit', async () => {
@@ -243,7 +245,6 @@ describe('ERC20 contract checks', () => {
         }
 
         // deposit handle with the precalculated max amount
-        let nonce = await alice._signerL1().getNonce();
         const depositHandle = await alice.deposit({
             token: tokenDetails.l1Address,
             amount: tokenDepositAmount,
@@ -258,7 +259,6 @@ describe('ERC20 contract checks', () => {
             { wallet: alice, change: tokenDepositAmount }
         ]);
         await expect(depositHandle).toBeAccepted([l2TokenBalanceChange]);
-        await waitForIncreasedL1Nonce(nonce, alice);
     });
 
     afterAll(async () => {
