@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::{fs, path::PathBuf};
 
 use anyhow::Context as _;
@@ -39,7 +40,7 @@ pub(crate) async fn get_protocol_version(
     Ok(protocol_version)
 }
 
-pub(crate) async fn get_snark_wrapper(link_to_prover: &PathBuf) -> anyhow::Result<String> {
+pub(crate) async fn get_snark_wrapper(link_to_prover: &Path) -> anyhow::Result<String> {
     let path = link_to_prover.join("data/keys/commitments.json");
     let file = fs::File::open(path).expect("Could not find commitments file in zksync-era");
     let json: serde_json::Value =
