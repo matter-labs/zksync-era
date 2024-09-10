@@ -19,7 +19,7 @@ use super::{
 use crate::execution_sandbox::vm_metrics::SandboxStage;
 
 #[derive(Debug, Clone)]
-pub(crate) struct TransactionExecutionOutput {
+pub struct TransactionExecutionOutput {
     /// Output of the VM.
     pub vm: VmExecutionResultAndLogs,
     /// Traced calls if requested.
@@ -32,7 +32,7 @@ pub(crate) struct TransactionExecutionOutput {
 
 /// Executor of transactions.
 #[derive(Debug)]
-pub(crate) enum TransactionExecutor {
+pub enum TransactionExecutor {
     Real(MainOneshotExecutor),
     #[doc(hidden)] // Intended for tests only
     Mock(MockOneshotExecutor),

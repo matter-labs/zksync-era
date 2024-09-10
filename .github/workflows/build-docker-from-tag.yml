@@ -23,7 +23,7 @@ concurrency: docker-build
 jobs:
   setup:
     name: Setup
-    runs-on: [ubuntu-latest]
+    runs-on: [ ubuntu-latest ]
     outputs:
       image_tag_suffix: ${{ steps.set.outputs.image_tag_suffix }}
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
@@ -48,7 +48,7 @@ jobs:
 
   build-push-core-images:
     name: Build and push image
-    needs: [setup]
+    needs: [ setup ]
     uses: ./.github/workflows/build-core-template.yml
     if: contains(github.ref_name, 'core')
     secrets:
@@ -60,7 +60,7 @@ jobs:
 
   build-push-tee-prover-images:
     name: Build and push images
-    needs: [setup]
+    needs: [ setup ]
     uses: ./.github/workflows/build-tee-prover-template.yml
     if: contains(github.ref_name, 'core')
     secrets:
@@ -72,7 +72,7 @@ jobs:
 
   build-push-contract-verifier:
     name: Build and push image
-    needs: [setup]
+    needs: [ setup ]
     uses: ./.github/workflows/build-contract-verifier-template.yml
     if: contains(github.ref_name, 'contract_verifier')
     secrets:
@@ -83,20 +83,20 @@ jobs:
 
   build-push-prover-images:
     name: Build and push image
-    needs: [setup]
+    needs: [ setup ]
     uses: ./.github/workflows/build-prover-template.yml
     if: contains(github.ref_name, 'prover')
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-      CUDA_ARCH: "60;70;75;89"
+      CUDA_ARCH: "60;70;75;80;89"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
   build-push-witness-generator-image-avx512:
     name: Build and push image
-    needs: [setup]
+    needs: [ setup ]
     uses: ./.github/workflows/build-witness-generator-template.yml
     if: contains(github.ref_name, 'prover')
     with:
@@ -110,7 +110,7 @@ jobs:
 
   build-gar-prover-fri-gpu:
     name: Build GAR prover FRI GPU
-    needs: [setup, build-push-prover-images]
+    needs: [ setup, build-push-prover-images ]
     uses: ./.github/workflows/build-prover-fri-gpu-gar.yml
     if: contains(github.ref_name, 'prover')
     with:

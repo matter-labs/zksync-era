@@ -8,6 +8,7 @@ use zksync_prover_fri_types::{
     CircuitWrapper,
 };
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::{
     basic_fri_types::AggregationRound,
     prover_dal::{LeafAggregationJobMetadata, NodeAggregationJobMetadata},
@@ -50,13 +51,10 @@ async fn test_leaf_witness_gen() {
         .await
         .unwrap();
 
-    let job = prepare_leaf_aggregation_job(
-        leaf_aggregation_job_metadata,
-        &*object_store,
-        "crates/bin/vk_setup_data_generator/data".to_string(),
-    )
-    .await
-    .unwrap();
+    let keystore = Keystore::locate();
+    let job = prepare_leaf_aggregation_job(leaf_aggregation_job_metadata, &*object_store, keystore)
+        .await
+        .unwrap();
 
     let artifacts = LeafAggregationWitnessGenerator::process_job_impl(
         job,
@@ -143,13 +141,11 @@ async fn test_node_witness_gen() {
         prover_job_ids_for_proofs: vec![5211320],
     };
 
-    let job = node_aggregation::prepare_job(
-        node_aggregation_job_metadata,
-        &*object_store,
-        "crates/bin/vk_setup_data_generator/data".to_string(),
-    )
-    .await
-    .unwrap();
+    let keystore = Keystore::locate();
+    let job =
+        node_aggregation::prepare_job(node_aggregation_job_metadata, &*object_store, keystore)
+            .await
+            .unwrap();
 
     let artifacts = NodeAggregationWitnessGenerator::process_job_impl(
         job,

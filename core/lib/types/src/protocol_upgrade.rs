@@ -282,14 +282,14 @@ impl ProtocolVersion {
     pub fn apply_upgrade(
         &self,
         upgrade: ProtocolUpgrade,
-        new_scheduler_vk_hash: Option<H256>,
+        new_snark_wrapper_vk_hash: Option<H256>,
     ) -> ProtocolVersion {
         ProtocolVersion {
             version: upgrade.version,
             timestamp: upgrade.timestamp,
             l1_verifier_config: L1VerifierConfig {
-                recursion_scheduler_level_vk_hash: new_scheduler_vk_hash
-                    .unwrap_or(self.l1_verifier_config.recursion_scheduler_level_vk_hash),
+                snark_wrapper_vk_hash: new_snark_wrapper_vk_hash
+                    .unwrap_or(self.l1_verifier_config.snark_wrapper_vk_hash),
             },
             base_system_contracts_hashes: BaseSystemContractsHashes {
                 bootloader: upgrade
