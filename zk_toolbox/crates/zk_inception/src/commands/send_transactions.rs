@@ -14,7 +14,6 @@ use xshell::Shell;
 use zksync_basic_types::{H160, U256};
 
 use super::args::SendTransactionsArgs;
-
 use crate::consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR;
 
 #[derive(Deserialize)]
