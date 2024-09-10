@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use url::Url;
 use xshell::Shell;
-use zksync_config::configs::object_store::ObjectStoreMode;
 pub use zksync_config::configs::GeneralConfig;
+use zksync_config::configs::{consensus::Host, object_store::ObjectStoreMode};
 use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
 use crate::{
@@ -137,7 +137,7 @@ pub fn update_ports(config: &mut GeneralConfig, ports_config: &PortsConfig) -> a
         .context("Prometheus config is not presented")?;
     if let Some(consensus) = config.consensus_config.as_mut() {
         consensus.server_addr.set_port(ports_config.consensus_port);
-        update_port_in_url(&mut consensus.public_addr.0, ports_config.consensus_port)?;
+        update_port_in_host(&mut consensus.public_addr, ports_config.consensus_port)?;
     }
 
     api.web3_json_rpc.http_port = ports_config.web3_json_rpc_http_port;
@@ -170,6 +170,12 @@ fn update_port_in_url(http_url: &mut String, port: u16) -> anyhow::Result<()> {
         anyhow::bail!("Wrong url, setting port is impossible");
     }
     *http_url = http_url_url.to_string();
+    Ok(())
+}
+
+fn update_port_in_host(host: &mut Host, port: u16) -> anyhow::Result<()> {
+    let ip = host.0.split(':').next().context("Failed to get IP")?;
+    host.0 = format!("{}:{}", ip, port);
     Ok(())
 }
 
