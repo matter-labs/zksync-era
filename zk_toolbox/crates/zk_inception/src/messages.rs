@@ -305,7 +305,10 @@ pub(super) fn msg_preparing_en_config_is_done(path: &Path) -> String {
 
 pub(super) const MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED: &str =
     "External node is not initialized";
-pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config missing";
+pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is missing";
+pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
+pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
+
 pub(super) const MSG_GENESIS_SPEC_MISSING_ERR: &str = "Genesis spec missing";
 pub(super) const MSG_PUBLIC_ADDR_ERR: &str = "Public address error";
 

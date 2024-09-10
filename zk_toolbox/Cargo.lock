@@ -6440,6 +6440,7 @@ dependencies = [
  "ethers",
  "human-panic",
  "lazy_static",
+ "secrecy",
  "serde",
  "serde_json",
  "serde_yaml",
