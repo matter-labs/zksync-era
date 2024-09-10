@@ -84,6 +84,8 @@ pub async fn init(
 
     let consensus_keys = generate_consensus_keys();
     let mut general_config = chain_config.get_general_config()?;
+    apply_port_offset(init_args.port_offset, &mut general_config)?;
+
     let genesis_spec = Some(get_genesis_specs(chain_config, &consensus_keys));
     let api_config = general_config
         .api_config
@@ -102,7 +104,6 @@ pub async fn init(
         gossip_static_outbound: BTreeMap::new(),
         rpc: None,
     };
-    apply_port_offset(init_args.port_offset, &mut general_config)?;
     general_config.consensus_config = Some(consensus_config);
     general_config.save_with_base_path(shell, &chain_config.configs)?;
 
