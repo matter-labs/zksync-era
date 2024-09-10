@@ -13,9 +13,9 @@ use serde::Deserialize;
 use xshell::Shell;
 use zksync_basic_types::{H160, U256};
 
-use crate::consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR;
-
 use super::args::SendTransactionsArgs;
+
+use crate::consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR;
 
 #[derive(Deserialize)]
 struct Transaction {
