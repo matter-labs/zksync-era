@@ -168,7 +168,7 @@ impl OutputHandler for BasicWitnessInputProducerOutputHandler {
     )]
     async fn handle_l1_batch(self: Box<Self>, output: Arc<L1BatchOutput>) -> anyhow::Result<()> {
         let l1_batch_number = self.l1_batch_number;
-        let mut connection = self.pool.connection().await?;
+        let mut connection = self.pool.connection_tagged("bwip").await?;
 
         tracing::info!(%l1_batch_number, "Started saving VM run data");
 

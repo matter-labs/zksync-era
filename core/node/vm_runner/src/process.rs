@@ -88,7 +88,10 @@ impl VmRunner {
             .create_handler(batch_data.system_env, batch_data.l1_batch_env)
             .await?;
         self.io
-            .mark_l1_batch_as_processing(&mut self.pool.connection().await?, number)
+            .mark_l1_batch_as_processing(
+                &mut self.pool.connection_tagged("vm_runner").await?,
+                number,
+            )
             .await?;
 
         let latency = METRICS.run_vm_time.start();
@@ -145,7 +148,7 @@ impl VmRunner {
         let mut task_handles: Vec<(L1BatchNumber, JoinHandle<anyhow::Result<()>>)> = Vec::new();
         let mut next_batch = self
             .io
-            .latest_processed_batch(&mut self.pool.connection().await?)
+            .latest_processed_batch(&mut self.pool.connection_tagged("vm_runner").await?)
             .await?
             + 1;
         loop {
@@ -174,7 +177,7 @@ impl VmRunner {
 
             let last_ready_batch = self
                 .io
-                .last_ready_to_be_loaded_batch(&mut self.pool.connection().await?)
+                .last_ready_to_be_loaded_batch(&mut self.pool.connection_tagged("vm_runner").await?)
                 .await?;
             METRICS.last_ready_batch.set(last_ready_batch.0.into());
             if next_batch > last_ready_batch {
