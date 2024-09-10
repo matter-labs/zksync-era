@@ -8143,7 +8143,6 @@ name = "zksync_circuit_breaker"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "assert_matches",
  "async-trait",
  "thiserror",
  "tokio",
@@ -8398,7 +8397,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_dal",
  "zksync_eth_client",
- "zksync_eth_sender",
  "zksync_health_check",
  "zksync_l1_contract_interface",
  "zksync_node_genesis",
@@ -8465,7 +8463,6 @@ dependencies = [
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
- "zksync_env_config",
  "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
@@ -8493,9 +8490,7 @@ dependencies = [
  "serde_yaml",
  "tokio",
  "zksync_config",
- "zksync_dal",
  "zksync_env_config",
- "zksync_node_genesis",
  "zksync_protobuf",
  "zksync_protobuf_config",
 ]
@@ -8524,9 +8519,6 @@ dependencies = [
  "anyhow",
  "async-trait",
  "serde",
- "tracing",
- "zksync_config",
- "zksync_types",
 ]
 
 [[package]]
@@ -8597,7 +8589,6 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_basic_types",
- "zksync_health_check",
 ]
 
 [[package]]
@@ -8721,7 +8712,6 @@ dependencies = [
  "envy",
  "futures 0.3.28",
  "rustc_version",
- "semver",
  "serde",
  "serde_json",
  "tempfile",
@@ -9103,7 +9093,6 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
- "test-casing",
  "test-log",
  "tokio",
  "tracing",
@@ -9130,7 +9119,6 @@ dependencies = [
  "zksync_config",
  "zksync_dal",
  "zksync_eth_client",
- "zksync_node_test_utils",
  "zksync_types",
  "zksync_utils",
  "zksync_web3_decl",
@@ -9164,7 +9152,6 @@ dependencies = [
  "zksync_da_dispatcher",
  "zksync_dal",
  "zksync_db_connection",
- "zksync_env_config",
  "zksync_eth_client",
  "zksync_eth_sender",
  "zksync_eth_watch",
@@ -9183,7 +9170,6 @@ dependencies = [
  "zksync_node_sync",
  "zksync_object_store",
  "zksync_proof_data_handler",
- "zksync_protobuf_config",
  "zksync_queued_job_processor",
  "zksync_reorg_detector",
  "zksync_state",
@@ -9343,7 +9329,6 @@ dependencies = [
  "zksync_multivm",
  "zksync_object_store",
  "zksync_prover_interface",
- "zksync_tee_verifier",
  "zksync_types",
 ]
 
@@ -9657,13 +9642,10 @@ dependencies = [
  "zksync_config",
  "zksync_contracts",
  "zksync_crypto_primitives",
- "zksync_dal",
- "zksync_db_connection",
  "zksync_merkle_tree",
  "zksync_multivm",
  "zksync_object_store",
  "zksync_prover_interface",
- "zksync_queued_job_processor",
  "zksync_types",
  "zksync_utils",
 ]
@@ -9746,7 +9728,6 @@ dependencies = [
  "bincode",
  "futures 0.3.28",
  "hex",
- "itertools 0.10.5",
  "num",
  "once_cell",
  "rand 0.8.5",
