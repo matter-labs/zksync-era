@@ -50,7 +50,10 @@ use crate::{
         MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::{
+        consensus::parse_public_addr,
+        forge::{check_the_balance, fill_forge_private_key},
+    },
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -86,7 +89,7 @@ pub async fn init(
         .api_config
         .clone()
         .context(MSG_API_CONFIG_MISSING_ERR)?;
-    let public_addr = api_config.web3_json_rpc.http_url.clone();
+    let public_addr = parse_public_addr(&api_config)?;
     let server_addr = public_addr.parse()?;
     let consensus_config = ConsensusConfig {
         server_addr,

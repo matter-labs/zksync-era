@@ -26,7 +26,10 @@ use crate::{
         msg_preparing_en_config_is_done, MSG_API_CONFIG_MISSING_ERR, MSG_CHAIN_NOT_INITIALIZED,
         MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_GENESIS_SPEC_MISSING_ERR, MSG_PREPARING_EN_CONFIGS,
     },
-    utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
+    utils::{
+        consensus::parse_public_addr,
+        rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
+    },
 };
 
 pub fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
@@ -91,7 +94,7 @@ fn prepare_configs(
         .api_config
         .clone()
         .context(MSG_API_CONFIG_MISSING_ERR)?;
-    let public_addr = api_config.web3_json_rpc.http_url.clone();
+    let public_addr = parse_public_addr(&api_config)?;
     let server_addr = public_addr.parse()?;
     let genesis_spec = main_node_consensus_config
         .genesis_spec
