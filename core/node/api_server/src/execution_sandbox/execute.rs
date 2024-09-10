@@ -25,7 +25,7 @@ use super::{
 /// Please don't add fields that duplicate `SystemEnv` or `L1BatchEnv` information, since both of these
 /// are also provided to an executor.
 #[derive(Debug)]
-pub(crate) struct TxExecutionArgs {
+pub struct TxExecutionArgs {
     /// Transaction / call itself.
     pub transaction: Transaction,
     /// Nonce override for the initiator account.
@@ -80,7 +80,7 @@ impl TxExecutionArgs {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct TransactionExecutionOutput {
+pub struct TransactionExecutionOutput {
     /// Output of the VM.
     pub vm: VmExecutionResultAndLogs,
     /// Execution metrics.
@@ -91,7 +91,7 @@ pub(crate) struct TransactionExecutionOutput {
 
 /// Executor of transactions.
 #[derive(Debug)]
-pub(crate) enum TransactionExecutor {
+pub enum TransactionExecutor {
     Real(MainOneshotExecutor),
     #[doc(hidden)] // Intended for tests only
     Mock(MockOneshotExecutor),
