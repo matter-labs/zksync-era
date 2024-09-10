@@ -224,7 +224,8 @@ describe('ERC20 contract checks', () => {
         const tokenDepositAmount = await alice.getBalanceL1(tokenDetails.l1Address);
 
         // approving the needed allowance for the deposit
-        await (await alice.approveERC20(tokenDetails.l1Address, tokenDepositAmount, goodGasPrice())).wait();
+        const gasPrice = await scaledGasPrice(alice);
+        await (await alice.approveERC20(tokenDetails.l1Address, tokenDepositAmount, { gasPrice })).wait();
 
         // fee of the deposit in ether
         const depositFee = await alice.getFullRequiredDepositFee({
