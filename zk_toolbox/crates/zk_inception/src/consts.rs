@@ -9,8 +9,6 @@ pub const DEFAULT_PROOF_STORE_DIR: &str = "artifacts";
 pub const BELLMAN_CUDA_DIR: &str = "era-bellman-cuda";
 pub const L2_BASE_TOKEN_ADDRESS: &str = "0x000000000000000000000000000000000000800A";
 
-pub const CONSENSUS_SECRETS_PATH: &str = "etc/env/consensus_secrets.yaml";
-
 #[allow(non_upper_case_globals)]
 const kB: usize = 1024;
 
