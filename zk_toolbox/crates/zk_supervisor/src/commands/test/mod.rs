@@ -15,6 +15,7 @@ mod args;
 mod build;
 mod integration;
 mod l1_contracts;
+mod loadtest;
 mod prover;
 mod recovery;
 mod revert;
@@ -43,6 +44,8 @@ pub enum TestCommands {
     Prover,
     #[clap(about = MSG_TEST_WALLETS_INFO)]
     Wallet,
+    #[clap(about = MSG_TEST_WALLETS_INFO)]
+    Loadtest,
 }
 
 pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
@@ -56,5 +59,6 @@ pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
         TestCommands::L1Contracts => l1_contracts::run(shell),
         TestCommands::Prover => prover::run(shell),
         TestCommands::Wallet => wallet::run(shell),
+        TestCommands::Loadtest => loadtest::run(shell),
     }
 }
