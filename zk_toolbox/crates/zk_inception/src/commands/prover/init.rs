@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::cmd::Cmd;
 use common::{
+    cmd::Cmd,
     config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     logger,
@@ -22,8 +22,8 @@ use super::{
     init_bellman_cuda::run as init_bellman_cuda,
     setup_keys,
 };
-use crate::commands::prover::args::init::ProofStorageFileBacked;
 use crate::{
+    commands::prover::args::init::ProofStorageFileBacked,
     consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
