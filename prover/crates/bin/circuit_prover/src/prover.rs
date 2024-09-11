@@ -154,6 +154,7 @@ impl CircuitProver {
 
     pub async fn run(mut self, cancellation_token: CancellationToken) -> anyhow::Result<()> {
         let mut backoff: u64 = Self::POLLING_INTERVAL_MS;
+        let mut start = Instant::now();
         while !cancellation_token.is_cancelled() {
             if let Some((job_id, job)) = self
                 .get_next_job()
@@ -161,6 +162,7 @@ impl CircuitProver {
                 .context("failed during get_next_job()")?
             // .context("failed during get_next_job()")?
             {
+                tracing::info!("Prover received job after: {:?}", start.elapsed());
                 let started_at = Instant::now();
                 backoff = Self::POLLING_INTERVAL_MS;
                 // tracing::debug!(
@@ -187,6 +189,8 @@ impl CircuitProver {
                                 self
                                     .save_result(job_id, started_at, data)
                                     .await;
+                                                tracing::info!("Prover executed job in: {:?}", started_at.elapsed());
+                start = Instant::now();
                                 continue;
                                     // .context("save_result()");
                             }
@@ -203,6 +207,8 @@ impl CircuitProver {
                         self.save_failure(job_id, started_at, error_message).await;
                     }
                 }
+                tracing::info!("Prover executed job in: {:?}", started_at.elapsed());
+                start = Instant::now();
                 continue;
             };
             tracing::info!("Backing off for {} ms", backoff);
@@ -222,7 +228,7 @@ impl CircuitProver {
     }
 
     async fn get_next_job(&mut self) -> anyhow::Result<Option<(u32, WitnessVectorArtifacts)>> {
-        let now = Instant::now();
+        // let now = Instant::now();
         // tracing::info!("Attempting to get new job from assembly queue.");
         // let mut queue = self.receiver.recv().await;
         // let is_full = queue.is_full();
@@ -239,7 +245,7 @@ impl CircuitProver {
             }
             Some(witness_vector) => Ok(Some((witness_vector.prover_job.job_id, witness_vector))),
         };
-        tracing::info!("Received job after {:?}", now.elapsed());
+        // tracing::info!("Received job after {:?}", now.elapsed());
         job
     }
 

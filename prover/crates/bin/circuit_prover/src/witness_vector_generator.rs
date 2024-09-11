@@ -61,12 +61,18 @@ impl WitnessVectorGenerator {
 
     pub async fn run(self, cancellation_token: CancellationToken) -> anyhow::Result<()> {
         let mut backoff: u64 = Self::POLLING_INTERVAL_MS;
+        let mut start = Instant::now();
         while !cancellation_token.is_cancelled() {
             if let Some((job_id, job)) = self
                 .get_next_job()
                 .await
                 .context("failed during get_next_job()")?
             {
+                tracing::info!(
+                    "Witness Vector Generator received job after: {:?}",
+                    start.elapsed()
+                );
+
                 let started_at = Instant::now();
                 backoff = Self::POLLING_INTERVAL_MS;
                 // tracing::debug!(
@@ -93,6 +99,8 @@ impl WitnessVectorGenerator {
                                 self
                                     .save_result(job_id, started_at, data)
                                     .await;
+                                                                                tracing::info!("Witness Vector Generator executed job in: {:?}", started_at.elapsed());
+                start = Instant::now();
                                 continue;
                                     // .context("save_result()");
                             }
@@ -109,6 +117,11 @@ impl WitnessVectorGenerator {
                         self.save_failure(job_id, started_at, error_message).await;
                     }
                 }
+                tracing::info!(
+                    "Witness Vector Generator executed job in: {:?}",
+                    started_at.elapsed()
+                );
+                start = Instant::now();
                 continue;
             };
             tracing::info!("Backing off for {} ms", backoff);
@@ -263,7 +276,7 @@ impl WitnessVectorGenerator {
     ) {
         let now = Instant::now();
         self.sender.send(artifacts).await.unwrap();
-        tracing::info!("Sent job after {:?}", now.elapsed());
+        // tracing::info!("Sent job after {:?}", now.elapsed());
     }
 
     async fn save_failure(&self, job_id: u32, _started_at: Instant, error: String) {
