@@ -1,11 +1,14 @@
+use std::{
+    collections::HashMap,
+    fs::{File, OpenOptions},
+    io::{self},
+};
+
 use clap::Parser;
 use glob::glob;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_reader, to_writer_pretty, Value};
 use sha3::{Digest, Keccak256};
-use std::collections::HashMap;
-use std::fs::{File, OpenOptions};
-use std::io::{self};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ABIEntry {
