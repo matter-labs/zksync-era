@@ -5,7 +5,6 @@ use futures::future;
 use reqwest::Method;
 use tokio::sync::Mutex;
 use url::Url;
-
 use zksync_utils::http_with_retries::send_request_with_retries;
 
 use crate::{
