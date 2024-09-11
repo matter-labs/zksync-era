@@ -23,6 +23,9 @@ describe('ERC20 contract checks', () => {
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
+        const nonce = await alice.getNonce();
+        testMaster.reporter.debug("init " + nonce.toString());
+
         bob = testMaster.newEmptyAccount();
 
         // Get the information about base token address directly from the L2.
@@ -42,8 +45,8 @@ describe('ERC20 contract checks', () => {
 
     test.only('Can perform a deposit qwerty', async () => {
         for (let i = 0; i < 100; ++i) {
-            console.log(i);
-
+            const nonce = await alice.getNonce();
+            testMaster.reporter.debug("iter" + i.toString() + " " + nonce.toString());
 
             const amount = 1n; // 1 wei is enough.
             const gasPrice = await scaledGasPrice(alice);
