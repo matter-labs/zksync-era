@@ -97,6 +97,8 @@ async fn main() -> anyhow::Result<()> {
 
     let (sender, receiver) = tokio::sync::mpsc::channel(5);
 
+    let setup_keys = load_setup_keys(keystore.clone())?;
+
     for _ in 0..wvg_count {
         let wvg = WitnessVectorGenerator::new(
             object_store.clone(),
@@ -111,8 +113,6 @@ async fn main() -> anyhow::Result<()> {
 
     // Prover setup
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
-
-    let setup_keys = load_setup_keys(keystore.clone())?;
 
     let prover = CircuitProver::new(
         connection_pool,
