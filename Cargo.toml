@@ -6,6 +6,7 @@ members = [
     "core/bin/external_node",
     "core/bin/merkle_tree_consistency_checker",
     "core/bin/snapshots_creator",
+    "core/bin/selector_generator",
     "core/bin/system-constants-generator",
     "core/bin/verified_sources_fetcher",
     "core/bin/zksync_server",
@@ -120,6 +121,7 @@ envy = "0.4"
 ethabi = "18.0.0"
 flate2 = "1.0.28"
 futures = "0.3"
+glob = "0.3"
 google-cloud-auth = "0.16.0"
 google-cloud-storage = "0.20.0"
 governor = "0.4.2"
