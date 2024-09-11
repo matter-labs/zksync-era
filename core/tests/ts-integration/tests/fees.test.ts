@@ -183,7 +183,7 @@ testFees('Test fees', () => {
         const receiver = ethers.Wallet.createRandom().address;
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
 
-        await setInternalL1GasPrice(alice._providerL2(), {
+        await setFeeParams(alice._providerL2(), {
             newL1GasPrice: l1GasPrice.toString(),
             newPubdataPrice: l1GasPrice.toString(),
             customBaseToken: !isETHBasedChain
@@ -209,7 +209,7 @@ testFees('Test fees', () => {
         }
 
         if (!isETHBasedChain) {
-            await setInternalL1GasPrice(alice._providerL2(), {
+            await setFeeParams(alice._providerL2(), {
                 newL1GasPrice: l1GasPrice.toString(),
                 newPubdataPrice: l1GasPrice.toString(),
                 customBaseToken: true,
@@ -234,7 +234,7 @@ testFees('Test fees', () => {
 
         if (isETHBasedChain) return;
 
-        await setInternalL1GasPrice(alice._providerL2(), {
+        await setFeeParams(alice._providerL2(), {
             newL1GasPrice: l1GasPrice.toString(),
             newPubdataPrice: l1GasPrice.toString(),
             customBaseToken: true,
@@ -306,7 +306,7 @@ testFees('Test fees', () => {
         // that the gasLimit is indeed over u32::MAX, which is the most important tested property.
         const requiredPubdataPrice = minimalL2GasPrice * 100_000n;
 
-        await setInternalL1GasPrice(alice._providerL2(), {
+        await setFeeParams(alice._providerL2(), {
             newL1GasPrice: requiredPubdataPrice.toString(),
             newPubdataPrice: requiredPubdataPrice.toString()
         });
@@ -350,7 +350,7 @@ testFees('Test fees', () => {
 
     afterAll(async () => {
         // Returning the pubdata price to the default one
-        await setInternalL1GasPrice(alice._providerL2(), { disconnect: true });
+        await setFeeParams(alice._providerL2(), { disconnect: true });
 
         await testMaster.deinitialize();
     });
@@ -364,7 +364,7 @@ async function appendResults(
     reports: string[]
 ): Promise<string[]> {
     // For the sake of simplicity, we'll use the same pubdata price as the L1 gas prifeesce.
-    await setInternalL1GasPrice(sender._providerL2(), {
+    await setFeeParams(sender._providerL2(), {
         newL1GasPrice: newL1GasPrice.toString(),
         newPubdataPrice: newL1GasPrice.toString()
     });
@@ -438,7 +438,7 @@ async function killServerAndWaitForShutdown(provider: zksync.Provider) {
     throw new Error("Server didn't stop after a kill request");
 }
 
-async function setInternalL1GasPrice(
+async function setFeeParams(
     provider: zksync.Provider,
     options: {
         newL1GasPrice?: string;
