@@ -36,7 +36,7 @@ use crate::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DISTRIBUTING_ETH_SPINNER, MSG_GENESIS_DATABASE_ERR,
         MSG_MINT_BASE_TOKEN_SPINNER, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
         MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
-        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
+        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
@@ -112,22 +112,25 @@ pub async fn init(
     .await?;
     spinner.finish();
 
-    let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
-    set_token_multiplier_setter(
-        shell,
-        ecosystem_config,
-        chain_config.get_wallets_config()?.governor_private_key(),
-        contracts_config.l1.chain_admin_addr,
-        ecosystem_config
-            .get_wallets()
-            .unwrap()
-            .token_multiplier_setter
-            .address,
-        &init_args.forge_args.clone(),
-        init_args.l1_rpc_url.clone(),
-    )
-    .await?;
-    spinner.finish();
+    if chain_config.base_token != BaseToken::eth() {
+        let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
+        set_token_multiplier_setter(
+            shell,
+            ecosystem_config,
+            chain_config.get_wallets_config()?.governor_private_key(),
+            contracts_config.l1.chain_admin_addr,
+            chain_config
+                .get_wallets_config()
+                .unwrap()
+                .token_multiplier_setter
+                .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
+                .address,
+            &init_args.forge_args.clone(),
+            init_args.l1_rpc_url.clone(),
+        )
+        .await?;
+        spinner.finish();
+    }
 
     deploy_l2_contracts::deploy_l2_contracts(
         shell,

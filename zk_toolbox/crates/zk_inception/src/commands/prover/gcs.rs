@@ -1,4 +1,4 @@
-use common::{check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITES};
+use common::{check_prerequisites, cmd::Cmd, logger, spinner::Spinner, GCLOUD_PREREQUISITE};
 use xshell::{cmd, Shell};
 use zksync_config::{configs::object_store::ObjectStoreMode, ObjectStoreConfig};
 
@@ -14,7 +14,7 @@ pub(crate) fn create_gcs_bucket(
     shell: &Shell,
     config: ProofStorageGCSCreateBucket,
 ) -> anyhow::Result<ObjectStoreConfig> {
-    check_prerequisites(shell, &GCLOUD_PREREQUISITES, false);
+    check_prerequisites(shell, &GCLOUD_PREREQUISITE, false);
 
     let bucket_name = config.bucket_name;
     let location = config.location;
