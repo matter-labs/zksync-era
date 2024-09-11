@@ -2,6 +2,7 @@ use std::{
     fs::{self, File},
     io::Read,
     path::{Path, PathBuf},
+    time::Instant,
 };
 
 use anyhow::Context as _;
@@ -286,18 +287,23 @@ impl Keystore {
         &self,
         key: ProverServiceDataKey,
     ) -> anyhow::Result<GoldilocksGpuProverSetupData> {
+        // let time = Instant::now();
         let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
-
+        // tracing::info!("Time to get file {:?}", time.elapsed());
         let mut file = File::open(filepath.clone())
             .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
+        // tracing::info!("Time to open file {:?}", time.elapsed());
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer).with_context(|| {
             format!("Failed reading setup-data to buffer from path: {filepath:?}")
         })?;
+        // tracing::info!("Time to read whole file {:?}", time.elapsed());
         // tracing::info!("loading {:?} setup data from path: {:?}", key, filepath);
-        bincode::deserialize::<GoldilocksGpuProverSetupData>(&buffer).with_context(|| {
+        let x = bincode::deserialize::<GoldilocksGpuProverSetupData>(&buffer).with_context(|| {
             format!("Failed deserializing setup-data at path: {filepath:?} for circuit: {key:?}")
-        })
+        });
+        // tracing::info!("Time to deserialize key {:?}", time.elapsed());
+        x
     }
 
     pub fn is_setup_data_present(&self, key: &ProverServiceDataKey) -> bool {

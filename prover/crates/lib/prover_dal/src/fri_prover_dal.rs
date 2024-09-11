@@ -74,8 +74,9 @@ impl FriProverDal<'_, '_> {
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
-                        aggregation_round DESC,
                         l1_batch_number ASC,
+                        aggregation_round ASC,
+                        circuit_id ASC,
                         id ASC
                     LIMIT
                         1
