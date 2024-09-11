@@ -34,14 +34,17 @@ use zksync_types::{
     prover_dal::LeafAggregationJobMetadata, L1BatchNumber,
 };
 
-use crate::traits::{ArtifactsManager, BlobUrls};
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
+    traits::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
     utils::{
         load_proofs_for_job_ids, save_node_aggregations_artifacts,
         save_recursive_layer_prover_input_artifacts, ClosedFormInputWrapper,
     },
 };
+
+mod artifacts;
+mod job_processor;
 
 pub struct LeafAggregationWitnessGeneratorJob {
     pub(crate) circuit_id: u8,
@@ -68,53 +71,6 @@ pub struct LeafAggregationArtifacts {
     pub circuit_ids_and_urls: Vec<(u8, String)>,
     #[allow(dead_code)]
     closed_form_inputs: Vec<ZkSyncBaseLayerClosedFormInput<GoldilocksField>>,
-}
-
-impl ArtifactsManager for LeafAggregationWitnessGenerator {
-    type Metadata = LeafAggregationJobMetadata;
-    type InputArtifacts = ClosedFormInputWrapper;
-    type OutputArtifacts = LeafAggregationArtifacts;
-
-    async fn get_artifacts(
-        metadata: &Self::Metadata,
-        object_store: &dyn ObjectStore,
-    ) -> Self::InputArtifacts {
-        let key = ClosedFormInputKey {
-            block_number: metadata.block_number,
-            circuit_id: metadata.circuit_id,
-        };
-
-        object_store
-            .get(key)
-            .await
-            .unwrap_or_else(|_| panic!("leaf aggregation job artifacts missing: {:?}", key))
-    }
-
-    #[tracing::instrument(
-        skip_all,
-        fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
-    )]
-    async fn save_artifacts(
-        artifacts: Self::OutputArtifacts,
-        object_store: &dyn ObjectStore,
-    ) -> BlobUrls {
-        let started_at = Instant::now();
-        let aggregations_urls = save_node_aggregations_artifacts(
-            artifacts.block_number,
-            get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
-            0,
-            artifacts.aggregations,
-            object_store,
-        )
-        .await;
-        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::LeafAggregation.into()]
-            .observe(started_at.elapsed());
-
-        BlobUrls {
-            aggregations_urls,
-            circuit_ids_and_urls: artifacts.circuit_ids_and_urls,
-        }
-    }
 }
 
 impl LeafAggregationWitnessGenerator {
@@ -152,108 +108,6 @@ impl LeafAggregationWitnessGenerator {
         );
         process_leaf_aggregation_job(started_at, leaf_job, object_store, max_circuits_in_flight)
             .await
-    }
-}
-
-#[async_trait]
-impl JobProcessor for LeafAggregationWitnessGenerator {
-    type Job = LeafAggregationWitnessGeneratorJob;
-    type JobId = u32;
-    type JobArtifacts = LeafAggregationArtifacts;
-
-    const SERVICE_NAME: &'static str = "fri_leaf_aggregation_witness_generator";
-
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.connection().await?;
-        let pod_name = get_current_pod_name();
-        let Some(metadata) = prover_connection
-            .fri_witness_generator_dal()
-            .get_next_leaf_aggregation_job(self.protocol_version, &pod_name)
-            .await
-        else {
-            return Ok(None);
-        };
-        tracing::info!("Processing leaf aggregation job {:?}", metadata.id);
-        Ok(Some((
-            metadata.id,
-            prepare_leaf_aggregation_job(metadata, &*self.object_store, self.keystore.clone())
-                .await
-                .context("prepare_leaf_aggregation_job()")?,
-        )))
-    }
-
-    async fn save_failure(&self, job_id: u32, _started_at: Instant, error: String) -> () {
-        self.prover_connection_pool
-            .connection()
-            .await
-            .unwrap()
-            .fri_witness_generator_dal()
-            .mark_leaf_aggregation_job_failed(&error, job_id)
-            .await;
-    }
-
-    #[allow(clippy::async_yields_async)]
-    async fn process_job(
-        &self,
-        _job_id: &Self::JobId,
-        job: LeafAggregationWitnessGeneratorJob,
-        started_at: Instant,
-    ) -> tokio::task::JoinHandle<anyhow::Result<LeafAggregationArtifacts>> {
-        let object_store = self.object_store.clone();
-        let max_circuits_in_flight = self.config.max_circuits_in_flight;
-        tokio::spawn(async move {
-            Ok(Self::process_job_impl(job, started_at, object_store, max_circuits_in_flight).await)
-        })
-    }
-
-    async fn save_result(
-        &self,
-        job_id: u32,
-        started_at: Instant,
-        artifacts: LeafAggregationArtifacts,
-    ) -> anyhow::Result<()> {
-        let block_number = artifacts.block_number;
-        let circuit_id = artifacts.circuit_id;
-        tracing::info!(
-            "Saving leaf aggregation artifacts for block {} with circuit {}",
-            block_number.0,
-            circuit_id,
-        );
-        let blob_urls = Self::save_artifacts(artifacts, &*self.object_store).await;
-        tracing::info!(
-            "Saved leaf aggregation artifacts for block {} with circuit {} (count: {})",
-            block_number.0,
-            circuit_id,
-            blob_urls.circuit_ids_and_urls.len(),
-        );
-        update_database(
-            &self.prover_connection_pool,
-            started_at,
-            block_number,
-            job_id,
-            blob_urls,
-            circuit_id,
-        )
-        .await;
-        Ok(())
-    }
-
-    fn max_attempts(&self) -> u32 {
-        self.config.max_attempts
-    }
-
-    async fn get_job_attempts(&self, job_id: &u32) -> anyhow::Result<u32> {
-        let mut prover_storage = self
-            .prover_connection_pool
-            .connection()
-            .await
-            .context("failed to acquire DB connection for LeafAggregationWitnessGenerator")?;
-        prover_storage
-            .fri_witness_generator_dal()
-            .get_leaf_aggregation_job_attempts(*job_id)
-            .await
-            .map(|attempts| attempts.unwrap_or(0))
-            .context("failed to get job attempts for LeafAggregationWitnessGenerator")
     }
 }
 
@@ -410,82 +264,4 @@ pub async fn process_leaf_aggregation_job(
         circuit_ids_and_urls,
         closed_form_inputs: job.closed_form_inputs.0,
     }
-}
-
-#[tracing::instrument(
-    skip_all,
-    fields(l1_batch = %block_number, circuit_id = %circuit_id)
-)]
-async fn update_database(
-    prover_connection_pool: &ConnectionPool<Prover>,
-    started_at: Instant,
-    block_number: L1BatchNumber,
-    job_id: u32,
-    blob_urls: BlobUrls,
-    circuit_id: u8,
-) {
-    tracing::info!(
-        "Updating database for job_id {}, block {} with circuit id {}",
-        job_id,
-        block_number.0,
-        circuit_id,
-    );
-    let mut prover_connection = prover_connection_pool.connection().await.unwrap();
-    let mut transaction = prover_connection.start_transaction().await.unwrap();
-    let number_of_dependent_jobs = blob_urls.circuit_ids_and_urls.len();
-    let protocol_version_id = transaction
-        .fri_witness_generator_dal()
-        .protocol_version_for_l1_batch(block_number)
-        .await;
-    tracing::info!(
-        "Inserting {} prover jobs for job_id {}, block {} with circuit id {}",
-        blob_urls.circuit_ids_and_urls.len(),
-        job_id,
-        block_number.0,
-        circuit_id,
-    );
-    transaction
-        .fri_prover_jobs_dal()
-        .insert_prover_jobs(
-            block_number,
-            blob_urls.circuit_ids_and_urls,
-            AggregationRound::LeafAggregation,
-            0,
-            protocol_version_id,
-        )
-        .await;
-    tracing::info!(
-        "Updating node aggregation jobs url for job_id {}, block {} with circuit id {}",
-        job_id,
-        block_number.0,
-        circuit_id,
-    );
-    transaction
-        .fri_witness_generator_dal()
-        .update_node_aggregation_jobs_url(
-            block_number,
-            get_recursive_layer_circuit_id_for_base_layer(circuit_id),
-            number_of_dependent_jobs,
-            0,
-            blob_urls.aggregations_urls,
-        )
-        .await;
-    tracing::info!(
-        "Marking leaf aggregation job as successful for job id {}, block {} with circuit id {}",
-        job_id,
-        block_number.0,
-        circuit_id,
-    );
-    transaction
-        .fri_witness_generator_dal()
-        .mark_leaf_aggregation_as_successful(job_id, started_at.elapsed())
-        .await;
-
-    tracing::info!(
-        "Committing transaction for job_id {}, block {} with circuit id {}",
-        job_id,
-        block_number.0,
-        circuit_id,
-    );
-    transaction.commit().await.unwrap();
 }
