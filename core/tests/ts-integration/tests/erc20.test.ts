@@ -46,7 +46,8 @@ describe('ERC20 contract checks', () => {
     test.only('Can perform a deposit qwerty', async () => {
         for (let i = 0; i < 100; ++i) {
             const nonce = await alice._signerL1().getNonce();
-            testMaster.reporter.debug("iter" + i.toString() + " " + nonce.toString());
+            const allowance = await alice.getAllowanceL1(tokenDetails.l1Address);
+            testMaster.reporter.debug("iter" + i.toString() + " " + nonce.toString() + " " + allowance.toString());
 
             const amount = 1n; // 1 wei is enough.
             const gasPrice = await scaledGasPrice(alice);
@@ -63,7 +64,9 @@ describe('ERC20 contract checks', () => {
                     }
                 });
             const l1Receipt = await handle.waitL1Commit();
+            const tx = await alice._providerL1().getTransaction(l1Receipt.hash);
             console.log(l1Receipt);
+            console.log(tx!.hash);
         }
     });
 
