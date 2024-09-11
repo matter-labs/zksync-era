@@ -190,7 +190,7 @@ describe('ERC20 contract checks', () => {
 
         const amount = 1n;
         const initialBalance = await alice.getBalanceL1(tokenDetails.l1Address);
-        testMaster.reporter.debug("A#");
+        testMaster.reporter.debug('A#');
         // Deposit to the zero address is forbidden and should fail with the current implementation.
         const depositHandle = await alice.deposit({
             token: tokenDetails.l1Address,
@@ -200,7 +200,7 @@ describe('ERC20 contract checks', () => {
             approveBaseERC20: true,
             l2GasLimit: 5_000_000 // Setting the limit manually to avoid estimation for L1->L2 transaction
         });
-        testMaster.reporter.debug("B#");
+        testMaster.reporter.debug('B#');
         const l1Receipt = await depositHandle.waitL1Commit();
 
         // L1 balance should change, but tx should fail in L2.
@@ -214,7 +214,7 @@ describe('ERC20 contract checks', () => {
         const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
         await waitUntilBlockFinalized(alice, l2TxReceipt!.blockNumber);
         // Claim failed deposit.
-        testMaster.reporter.debug("C#");
+        testMaster.reporter.debug('C#');
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance);
     });
