@@ -1,12 +1,14 @@
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { Reporter } from './reporter';
+import { AugmentedTransactionResponse } from './transaction-response';
 
 /**
  * RetryProvider retries every RPC request if it detects a timeout-related issue on the server side.
  */
 export class RetryProvider extends zksync.Provider {
     private readonly reporter: Reporter;
+    private readonly knownTransactionHashes: Set<string> = new Set();
 
     constructor(_url?: string | { url: string; timeout: number }, network?: ethers.Networkish, reporter?: Reporter) {
         let url;
@@ -55,15 +57,44 @@ export class RetryProvider extends zksync.Provider {
         }
     }
 
+    override _wrapTransactionResponse(txResponse: any): L2TransactionResponse {
+        const base = super._wrapTransactionResponse(txResponse);
+        this.knownTransactionHashes.add(base.hash);
+        return new L2TransactionResponse(base, this.reporter);
+    }
+
     override _wrapTransactionReceipt(receipt: any): zksync.types.TransactionReceipt {
         const wrapped = super._wrapTransactionReceipt(receipt);
-        this.reporter.debug(
-            `Obtained receipt for transaction ${receipt.transactionHash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
-        );
+        if (!this.knownTransactionHashes.has(receipt.transactionHash)) {
+            this.knownTransactionHashes.add(receipt.transactionHash);
+            this.reporter.debug(
+                `Obtained receipt for L2 transaction ${receipt.transactionHash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
+            );
+        }
         return wrapped;
     }
 }
 
-export interface AugmentedTransactionResponse extends zksync.types.TransactionResponse {
-    readonly reporter?: Reporter;
+class L2TransactionResponse extends zksync.types.TransactionResponse implements AugmentedTransactionResponse {
+    public readonly kind = 'L2';
+
+    constructor(base: zksync.types.TransactionResponse, public readonly reporter: Reporter) {
+        super(base, base.provider);
+    }
+
+    override async wait(confirmations?: number) {
+        this.reporter.debug(`Started waiting for L2 transaction ${this.hash} (from=${this.from}, nonce=${this.nonce})`);
+        const receipt = await super.wait(confirmations);
+        if (receipt !== null) {
+            this.reporter.debug(
+                `Obtained receipt for L2 transaction ${this.hash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
+            );
+        }
+        return receipt;
+    }
+
+    override replaceableTransaction(startBlock: number): L2TransactionResponse {
+        const base = super.replaceableTransaction(startBlock);
+        return new L2TransactionResponse(base, this.reporter);
+    }
 }

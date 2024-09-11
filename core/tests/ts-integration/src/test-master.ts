@@ -5,6 +5,7 @@ import { claimEtherBack } from './context-owner';
 import { RetryProvider } from './retry-provider';
 import { Reporter } from './reporter';
 import { bigIntReviver } from './helpers';
+import { L1Provider } from './l1-provider';
 
 /**
  * Test master is a singleton class (per suite) that is capable of providing wallets to the suite.
@@ -52,7 +53,7 @@ export class TestMaster {
         if (!suiteWalletPK) {
             throw new Error(`Wallet for ${suiteName} suite was not provided`);
         }
-        this.l1Provider = new ethers.JsonRpcProvider(this.env.l1NodeUrl);
+        this.l1Provider = new L1Provider(this.env.l1NodeUrl, this.reporter);
         this.l2Provider = new RetryProvider(
             {
                 url: this.env.l2NodeUrl,
