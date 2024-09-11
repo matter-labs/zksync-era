@@ -48,8 +48,8 @@ RUN cargo install sccache
 
 RUN git clone https://github.com/matter-labs/foundry-zksync
 RUN cd foundry-zksync && cargo build --release --bins
-RUN mv ./foundry-zksync/target/release/forge /usr/local/bin/
-RUN mv ./foundry-zksync/target/release/cast /usr/local/bin/
+RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
+RUN mv ./foundry-zksync/target/release/cast /usr/local/cargo/bin/
 
 # Main builder.
 FROM debian:bookworm as rust-lightweight-base
@@ -173,5 +173,6 @@ FROM rust-lightweight-base as rust-lightweight
 RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
 
 
-RUN rustup install nightly-2024-08-01 && \
-    rustup default nightly-2024-08-01
+# If target is nightly - then install only nightly rust.
+FROM rust-lightweight-base as rust-lightweight-nightly
+RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y --default-toolchain nightly-2024-08-01
