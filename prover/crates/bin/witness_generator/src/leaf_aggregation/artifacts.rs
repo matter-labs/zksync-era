@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::keys::ClosedFormInputKey;
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_types::{
@@ -15,13 +15,17 @@ use crate::{
     utils::{save_node_aggregations_artifacts, ClosedFormInputWrapper},
 };
 
+pub struct LeafAggregationArtifactsMetadata {
+    pub job_id: u32,
+    pub circuit_id: u8,
+}
+
 impl ArtifactsManager for LeafAggregationWitnessGenerator {
-    type Metadata = LeafAggregationJobMetadata;
+    type InputMetadata = LeafAggregationJobMetadata;
     type InputArtifacts = ClosedFormInputWrapper;
     type OutputArtifacts = LeafAggregationArtifacts;
-
     async fn get_artifacts(
-        metadata: &Self::Metadata,
+        metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
     ) -> Self::InputArtifacts {
         let key = ClosedFormInputKey {
@@ -61,11 +65,86 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
         })
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %block_number, circuit_id = %circuit_id)
+    )]
     async fn update_database(
-        connection_pool: ConnectionPool<Prover>,
-        block_number: L1BatchNumber,
+        connection_pool: &ConnectionPool<Prover>,
+        job_id: u32,
         started_at: Instant,
+        blob_urls: BlobUrls,
+        artifacts: Self::OutputArtifacts,
     ) {
-        todo!()
+        tracing::info!(
+            "Updating database for job_id {}, block {} with circuit id {}",
+            job_id,
+            artifacts.block_number.0,
+            artifacts.circuit_id,
+        );
+
+        let blob_urls = match blob_urls {
+            BlobUrls::Aggregation(blob_urls) => blob_urls,
+            _ => panic!("Unexpected blob urls type"),
+        };
+
+        let mut prover_connection = connection_pool.connection().await.unwrap();
+        let mut transaction = prover_connection.start_transaction().await.unwrap();
+        let number_of_dependent_jobs = blob_urls.circuit_ids_and_urls.len();
+        let protocol_version_id = transaction
+            .fri_witness_generator_dal()
+            .protocol_version_for_l1_batch(artifacts.block_number)
+            .await;
+        tracing::info!(
+            "Inserting {} prover jobs for job_id {}, block {} with circuit id {}",
+            blob_urls.circuit_ids_and_urls.len(),
+            job_id,
+            artifacts.block_number.0,
+            artifacts.circuit_id,
+        );
+        transaction
+            .fri_prover_jobs_dal()
+            .insert_prover_jobs(
+                artifacts.block_number,
+                blob_urls.circuit_ids_and_urls,
+                AggregationRound::LeafAggregation,
+                0,
+                protocol_version_id,
+            )
+            .await;
+        tracing::info!(
+            "Updating node aggregation jobs url for job_id {}, block {} with circuit id {}",
+            job_id,
+            artifacts.block_number.0,
+            artifacts.circuit_id,
+        );
+        transaction
+            .fri_witness_generator_dal()
+            .update_node_aggregation_jobs_url(
+                artifacts.block_number,
+                get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
+                number_of_dependent_jobs,
+                0,
+                blob_urls.aggregations_urls,
+            )
+            .await;
+        tracing::info!(
+            "Marking leaf aggregation job as successful for job id {}, block {} with circuit id {}",
+            job_id,
+            artifacts.block_number.0,
+            artifacts.circuit_id,
+        );
+        transaction
+            .fri_witness_generator_dal()
+            .mark_leaf_aggregation_as_successful(job_id, started_at.elapsed())
+            .await;
+
+        tracing::info!(
+            "Committing transaction for job_id {}, block {} with circuit id {}",
+            job_id,
+            artifacts.block_number.0,
+            artifacts.circuit_id,
+        );
+        transaction.commit().await.unwrap();
     }
 }

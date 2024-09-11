@@ -9,10 +9,10 @@ use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
     basic_circuits::{
-        artifacts::SchedulerArtifacts, update_database, BasicCircuitArtifacts,
-        BasicWitnessGenerator, BasicWitnessGeneratorJob,
+        artifacts::SchedulerArtifacts, BasicCircuitArtifacts, BasicWitnessGenerator,
+        BasicWitnessGeneratorJob,
     },
-    traits::{ArtifactsManager, BlobUrls},
+    traits::{ArtifactsManager, BlobUrls, SchedulerBlobUrls},
 };
 
 #[async_trait]
@@ -95,35 +95,36 @@ impl JobProcessor for BasicWitnessGenerator {
             None => Ok(()),
             Some(artifacts) => {
                 let blob_started_at = Instant::now();
-                let scheduler_witness_url = match Self::save_artifacts(
-                    SchedulerArtifacts {
-                        block_number: job_id,
-                        scheduler_partial_input: artifacts.scheduler_witness,
-                        aux_output_witness: artifacts.aux_output_witness,
-                        public_object_store: self.public_blob_store.as_deref(),
-                        shall_save_to_public_bucket: self.config.shall_save_to_public_bucket,
-                    },
-                    &*self.object_store,
-                )
-                .await
-                {
-                    BlobUrls::Url(url) => url,
-                    _ => unreachable!(),
+                let circuit_urls = artifacts.circuit_urls;
+                let queue_urls = artifacts.queue_urls;
+                let artifacts = SchedulerArtifacts {
+                    block_number: job_id,
+                    scheduler_partial_input: artifacts.scheduler_witness,
+                    aux_output_witness: artifacts.aux_output_witness,
+                    public_object_store: self.public_blob_store.as_deref(),
+                    shall_save_to_public_bucket: self.config.shall_save_to_public_bucket,
                 };
+
+                let scheduler_witness_url =
+                    match Self::save_artifacts(artifacts.clone(), &*self.object_store).await {
+                        BlobUrls::Url(url) => url,
+                        _ => unreachable!(),
+                    };
 
                 crate::metrics::WITNESS_GENERATOR_METRICS.blob_save_time
                     [&AggregationRound::BasicCircuits.into()]
                     .observe(blob_started_at.elapsed());
 
-                update_database(
+                Self::update_database(
                     &self.prover_connection_pool,
+                    job_id.0,
                     started_at,
-                    job_id,
-                    BlobUrls {
-                        circuit_ids_and_urls: artifacts.circuit_urls,
-                        closed_form_inputs_and_urls: artifacts.queue_urls,
+                    BlobUrls::Scheduler(SchedulerBlobUrls {
+                        circuit_ids_and_urls: circuit_urls,
+                        closed_form_inputs_and_urls: queue_urls,
                         scheduler_witness_url,
-                    },
+                    }),
+                    artifacts,
                 )
                 .await;
                 Ok(())

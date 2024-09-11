@@ -1,7 +1,7 @@
 use std::time::Instant;
 
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::keys::AggregationsKey;
 use zksync_types::{
     basic_fri_types::AggregationRound, prover_dal::NodeAggregationJobMetadata, L1BatchNumber,
@@ -14,8 +14,15 @@ use crate::{
     utils::{save_node_aggregations_artifacts, AggregationWrapper},
 };
 
+pub struct NodeAggregationArtifactsMetadata {
+    pub id: u32,
+    pub depth: u16,
+    pub circuit_id: u8,
+    pub shall_continue_node_aggregations: bool,
+}
+
 impl ArtifactsManager for NodeAggregationWitnessGenerator {
-    type Metadata = NodeAggregationJobMetadata;
+    type InputMetadata = NodeAggregationJobMetadata;
     type InputArtifacts = AggregationWrapper;
     type OutputArtifacts = NodeAggregationArtifacts;
 
@@ -24,7 +31,7 @@ impl ArtifactsManager for NodeAggregationWitnessGenerator {
         fields(l1_batch = % metadata.block_number, circuit_id = % metadata.circuit_id)
     )]
     async fn get_artifacts(
-        metadata: &Self::Metadata,
+        metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
     ) -> Self::InputArtifacts {
         let key = AggregationsKey {
@@ -67,11 +74,76 @@ impl ArtifactsManager for NodeAggregationWitnessGenerator {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = % block_number, circuit_id = % circuit_id)
+    )]
     async fn update_database(
-        connection_pool: ConnectionPool<Prover>,
-        block_number: L1BatchNumber,
+        connection_pool: &ConnectionPool<Prover>,
+        job_id: u32,
         started_at: Instant,
+        blob_urls: BlobUrls,
+        artifacts: Self::OutputArtifacts,
     ) {
-        todo!()
+        let mut prover_connection = connection_pool.connection().await.unwrap();
+        let blob_urls = match blob_urls {
+            BlobUrls::Aggregation(blobs) => blobs,
+            _ => unreachable!(),
+        };
+        let mut transaction = prover_connection.start_transaction().await.unwrap();
+        let dependent_jobs = blob_urls.circuit_ids_and_urls.len();
+        let protocol_version_id = transaction
+            .fri_witness_generator_dal()
+            .protocol_version_for_l1_batch(artifacts.block_number)
+            .await;
+        match artifacts.next_aggregations.len() > 1 {
+            true => {
+                transaction
+                    .fri_prover_jobs_dal()
+                    .insert_prover_jobs(
+                        artifacts.block_number,
+                        blob_urls.circuit_ids_and_urls,
+                        AggregationRound::NodeAggregation,
+                        artifacts.depth,
+                        protocol_version_id,
+                    )
+                    .await;
+                transaction
+                    .fri_witness_generator_dal()
+                    .insert_node_aggregation_jobs(
+                        artifacts.block_number,
+                        artifacts.circuit_id,
+                        Some(dependent_jobs as i32),
+                        artifacts.depth,
+                        &blob_urls.aggregations_urls,
+                        protocol_version_id,
+                    )
+                    .await;
+            }
+            false => {
+                let (_, blob_url) = blob_urls.circuit_ids_and_urls[0].clone();
+                transaction
+                    .fri_prover_jobs_dal()
+                    .insert_prover_job(
+                        artifacts.block_number,
+                        artifacts.circuit_id,
+                        artifacts.depth,
+                        0,
+                        AggregationRound::NodeAggregation,
+                        &blob_url,
+                        true,
+                        protocol_version_id,
+                    )
+                    .await
+            }
+        }
+
+        transaction
+            .fri_witness_generator_dal()
+            .mark_node_aggregation_as_successful(job_id, started_at.elapsed())
+            .await;
+
+        transaction.commit().await.unwrap();
     }
 }

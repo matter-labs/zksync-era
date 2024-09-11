@@ -8,7 +8,8 @@ use zksync_queued_job_processor::JobProcessor;
 
 use crate::{
     leaf_aggregation::{
-        prepare_leaf_aggregation_job, LeafAggregationArtifacts, LeafAggregationWitnessGenerator,
+        artifacts::LeafAggregationArtifactsMetadata, prepare_leaf_aggregation_job,
+        LeafAggregationArtifacts, LeafAggregationWitnessGenerator,
         LeafAggregationWitnessGeneratorJob,
     },
     traits::{ArtifactsManager, BlobUrls},
@@ -78,7 +79,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
             block_number.0,
             circuit_id,
         );
-        let blob_urls = match Self::save_artifacts(artifacts, &*self.object_store).await {
+        let blob_urls = match Self::save_artifacts(artifacts.clone(), &*self.object_store).await {
             BlobUrls::Aggregation(blob_urls) => blob_urls,
             _ => unreachable!(),
         };
@@ -89,13 +90,12 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
             circuit_id,
             blob_urls.circuit_ids_and_urls.len(),
         );
-        update_database(
+        Self::update_database(
             &self.prover_connection_pool,
-            started_at,
-            block_number,
             job_id,
-            blob_urls,
-            circuit_id,
+            started_at,
+            BlobUrls::Aggregation(blob_urls),
+            artifacts,
         )
         .await;
         Ok(())

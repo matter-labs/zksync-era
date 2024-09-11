@@ -8,8 +8,8 @@ use zksync_queued_job_processor::JobProcessor;
 
 use crate::{
     node_aggregation::{
-        prepare_job, NodeAggregationArtifacts, NodeAggregationWitnessGenerator,
-        NodeAggregationWitnessGeneratorJob,
+        artifacts::NodeAggregationArtifactsMetadata, prepare_job, NodeAggregationArtifacts,
+        NodeAggregationWitnessGenerator, NodeAggregationWitnessGeneratorJob,
     },
     traits::{ArtifactsManager, BlobUrls},
 };
@@ -75,24 +75,17 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         started_at: Instant,
         artifacts: NodeAggregationArtifacts,
     ) -> anyhow::Result<()> {
-        let block_number = artifacts.block_number;
-        let circuit_id = artifacts.circuit_id;
-        let depth = artifacts.depth;
-        let shall_continue_node_aggregations = artifacts.next_aggregations.len() > 1;
-        let blob_urls = match Self::save_artifacts(artifacts, &*self.object_store).await {
+        let blob_urls = match Self::save_artifacts(artifacts.clone(), &*self.object_store).await {
             BlobUrls::Aggregation(blob_urls) => blob_urls,
             _ => unreachable!(),
         };
 
-        update_database(
+        Self::update_database(
             &self.prover_connection_pool,
-            started_at,
             job_id,
-            block_number,
-            depth,
-            circuit_id,
-            blob_urls,
-            shall_continue_node_aggregations,
+            started_at,
+            BlobUrls::Aggregation(blob_urls),
+            artifacts,
         )
         .await;
         Ok(())

@@ -45,7 +45,6 @@ use zksync_types::{
 };
 
 use crate::{
-    basic_circuits::types::{BasicCircuitArtifacts, BasicWitnessGeneratorJob, BlobUrls},
     metrics::WITNESS_GENERATOR_METRICS,
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
     storage_oracle::StorageOracle,
@@ -59,7 +58,23 @@ use crate::{
 
 mod artifacts;
 pub mod job_processor;
-mod types;
+
+pub struct BasicCircuitArtifacts {
+    pub(super) circuit_urls: Vec<(u8, String)>,
+    pub(super) queue_urls: Vec<(u8, String, usize)>,
+    pub(super) scheduler_witness: SchedulerCircuitInstanceWitness<
+        GoldilocksField,
+        CircuitGoldilocksPoseidon2Sponge,
+        GoldilocksExt2,
+    >,
+    pub(super) aux_output_witness: BlockAuxilaryOutputWitness<GoldilocksField>,
+}
+
+#[derive(Clone)]
+pub struct BasicWitnessGeneratorJob {
+    pub(super) block_number: L1BatchNumber,
+    pub(super) job: WitnessInputData,
+}
 
 #[derive(Debug)]
 pub struct BasicWitnessGenerator {
@@ -69,6 +84,17 @@ pub struct BasicWitnessGenerator {
     prover_connection_pool: ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
 }
+
+type Witness = (
+    Vec<(u8, String)>,
+    Vec<(u8, String, usize)>,
+    SchedulerCircuitInstanceWitness<
+        GoldilocksField,
+        CircuitGoldilocksPoseidon2Sponge,
+        GoldilocksExt2,
+    >,
+    BlockAuxilaryOutputWitness<GoldilocksField>,
+);
 
 impl BasicWitnessGenerator {
     pub fn new(
@@ -161,17 +187,6 @@ async fn save_recursion_queue(
     let blob_url = object_store.put(key, &wrapper).await.unwrap();
     (circuit_id, blob_url, basic_circuit_count)
 }
-
-type Witness = (
-    Vec<(u8, String)>,
-    Vec<(u8, String, usize)>,
-    SchedulerCircuitInstanceWitness<
-        GoldilocksField,
-        CircuitGoldilocksPoseidon2Sponge,
-        GoldilocksExt2,
-    >,
-    BlockAuxilaryOutputWitness<GoldilocksField>,
-);
 
 #[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
 async fn generate_witness(

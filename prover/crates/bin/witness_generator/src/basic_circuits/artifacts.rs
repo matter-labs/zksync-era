@@ -9,12 +9,13 @@ use zksync_multivm::circuit_sequencer_api_latest::boojum::{
     gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
 };
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::AuxOutputWitnessWrapper;
-use zksync_types::L1BatchNumber;
+use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
+use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
-    basic_circuits::{types::BlobUrls, BasicWitnessGenerator, BasicWitnessGeneratorJob},
+    basic_circuits::{BasicWitnessGenerator, BasicWitnessGeneratorJob},
     traits::{ArtifactsManager, BlobUrls},
     utils::SchedulerPartialInputWrapper,
 };
@@ -34,12 +35,12 @@ pub struct SchedulerArtifacts<'a> {
 
 #[async_trait]
 impl ArtifactsManager for BasicWitnessGenerator {
-    type Metadata = L1BatchNumber;
+    type InputMetadata = L1BatchNumber;
     type InputArtifacts = BasicWitnessGeneratorJob;
     type OutputArtifacts = SchedulerArtifacts<'_>;
 
     async fn get_artifacts(
-        metadata: &Self::Metadata,
+        metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
     ) -> Self::InputArtifacts {
         let l1_batch_number = metadata;
@@ -72,11 +73,58 @@ impl ArtifactsManager for BasicWitnessGenerator {
         BlobUrls::Url(url)
     }
 
+    #[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
     async fn update_database(
-        connection_pool: ConnectionPool<Prover>,
-        block_number: L1BatchNumber,
+        connection_pool: &ConnectionPool<Prover>,
+        _job_id: u32,
         started_at: Instant,
+        blob_urls: BlobUrls,
+        artifacts: Self::OutputArtifacts,
     ) {
-        todo!()
+        let blob_urls = match blob_urls {
+            BlobUrls::Scheduler(blobs) => blobs,
+            _ => unreachable!(),
+        };
+
+        let mut connection = connection_pool
+            .connection()
+            .await
+            .expect("failed to get database connection");
+        let mut transaction = connection
+            .start_transaction()
+            .await
+            .expect("failed to get database transaction");
+        let protocol_version_id = transaction
+            .fri_witness_generator_dal()
+            .protocol_version_for_l1_batch(artifacts.block_number)
+            .await;
+        transaction
+            .fri_prover_jobs_dal()
+            .insert_prover_jobs(
+                artifacts.block_number,
+                blob_urls.circuit_ids_and_urls,
+                AggregationRound::BasicCircuits,
+                0,
+                protocol_version_id,
+            )
+            .await;
+        transaction
+            .fri_witness_generator_dal()
+            .create_aggregation_jobs(
+                artifacts.block_number,
+                &blob_urls.closed_form_inputs_and_urls,
+                &blob_urls.scheduler_witness_url,
+                get_recursive_layer_circuit_id_for_base_layer,
+                protocol_version_id,
+            )
+            .await;
+        transaction
+            .fri_witness_generator_dal()
+            .mark_witness_job_as_successful(artifacts.block_number, started_at.elapsed())
+            .await;
+        transaction
+            .commit()
+            .await
+            .expect("failed to commit database transaction");
     }
 }
