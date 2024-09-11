@@ -13,7 +13,7 @@ use config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::commands::{
-    args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands,
+    args::RunServerArgs, consensus, chain::ChainCommands, ecosystem::EcosystemCommands,
     explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 
@@ -62,6 +62,8 @@ pub enum InceptionSubcommands {
     #[command(subcommand)]
     Explorer(ExplorerCommands),
     /// Update ZKsync
+    #[command(subcommand)]
+    Consensus(consensus::Command),
     #[command(alias = "u")]
     Update(UpdateArgs),
     #[command(hide = true)]
@@ -124,6 +126,7 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
             commands::contract_verifier::run(shell, args).await?
         }
         InceptionSubcommands::Explorer(args) => commands::explorer::run(shell, args).await?,
+        InceptionSubcommands::Consensus(cmd) => cmd.run(shell).await?,
         InceptionSubcommands::Portal => commands::portal::run(shell).await?,
         InceptionSubcommands::Update(args) => commands::update::run(shell, args)?,
         InceptionSubcommands::Markdown => {
