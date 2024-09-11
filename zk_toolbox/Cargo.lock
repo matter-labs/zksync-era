@@ -6549,9 +6549,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.1.0-rc.11"
+version = "0.1.0-rc.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efb7ff3ec44b7b92fd4e28d9d92b83d61dc74125ccfc90bcfb27a5750d8a8580"
+checksum = "ace39bdf50b8421c4d546381fe1ecc5212f953ce61cf93d4fa69172078dbe4af"
 dependencies = [
  "anyhow",
  "blst",
@@ -6573,9 +6573,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.1.0-rc.11"
+version = "0.1.0-rc.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72223c0b20621775db51bcc4b043addafeaf784d444af2ad4bc8bcdee477367c"
+checksum = "06277266e31efdc1465f6a27ce96c7435392a270978a91956b8a848732df2cfa"
 dependencies = [
  "anyhow",
  "bit-vec",
