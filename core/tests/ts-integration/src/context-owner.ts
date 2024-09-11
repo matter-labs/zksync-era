@@ -79,7 +79,7 @@ export class TestContextOwner {
 
         if (env.network == 'localhost') {
             // Setup small polling interval on localhost to speed up tests.
-            this.l1Provider.pollingInterval = 100;
+            this.l1Provider.pollingInterval = 300;
             this.l2Provider.pollingInterval = 100;
         }
 
