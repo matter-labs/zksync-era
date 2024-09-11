@@ -16,13 +16,13 @@ use crate::consts::{
 };
 
 #[derive(Debug, Clone)]
-struct ConsensusKeys {
+pub struct ConsensusKeys {
     validator_key: roles::validator::SecretKey,
     attester_key: roles::attester::SecretKey,
     node_key: roles::node::SecretKey,
 }
 
-struct ConsensusPublicKeys {
+pub struct ConsensusPublicKeys {
     validator_key: roles::validator::PublicKey,
     attester_key: roles::attester::PublicKey,
 }
