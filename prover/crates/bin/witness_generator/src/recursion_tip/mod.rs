@@ -1,4 +1,5 @@
 mod artifacts;
+mod job_processor;
 
 use std::{sync::Arc, time::Instant};
 
@@ -53,6 +54,7 @@ use zksync_types::{
 
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
+    traits::{ArtifactsManager, BlobUrls},
     utils::{load_proofs_for_recursion_tip, ClosedFormInputWrapper},
 };
 
@@ -137,148 +139,6 @@ impl RecursionTipWitnessGenerator {
                 recursive_tip_circuit,
             ),
         }
-    }
-}
-
-#[async_trait]
-impl JobProcessor for RecursionTipWitnessGenerator {
-    type Job = RecursionTipWitnessGeneratorJob;
-    type JobId = L1BatchNumber;
-    type JobArtifacts = RecursionTipArtifacts;
-
-    const SERVICE_NAME: &'static str = "recursion_tip_witness_generator";
-
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.connection().await?;
-        let pod_name = get_current_pod_name();
-        let Some((l1_batch_number, number_of_final_node_jobs)) = prover_connection
-            .fri_witness_generator_dal()
-            .get_next_recursion_tip_witness_job(self.protocol_version, &pod_name)
-            .await
-        else {
-            return Ok(None);
-        };
-
-        let final_node_proof_job_ids = prover_connection
-            .fri_prover_jobs_dal()
-            .get_final_node_proof_job_ids_for(l1_batch_number)
-            .await;
-
-        assert_eq!(
-            final_node_proof_job_ids.len(),
-            number_of_final_node_jobs as usize,
-            "recursion tip witness job was scheduled without all final node jobs being completed; expected {}, got {}",
-            number_of_final_node_jobs, final_node_proof_job_ids.len()
-        );
-
-        Ok(Some((
-            l1_batch_number,
-            prepare_job(
-                l1_batch_number,
-                final_node_proof_job_ids,
-                &*self.object_store,
-                self.keystore.clone(),
-            )
-            .await
-            .context("prepare_job()")?,
-        )))
-    }
-
-    async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
-        self.prover_connection_pool
-            .connection()
-            .await
-            .unwrap()
-            .fri_witness_generator_dal()
-            .mark_recursion_tip_job_failed(&error, job_id)
-            .await;
-    }
-
-    #[allow(clippy::async_yields_async)]
-    async fn process_job(
-        &self,
-        _job_id: &Self::JobId,
-        job: RecursionTipWitnessGeneratorJob,
-        started_at: Instant,
-    ) -> tokio::task::JoinHandle<anyhow::Result<RecursionTipArtifacts>> {
-        tokio::task::spawn_blocking(move || Ok(Self::process_job_sync(job, started_at)))
-    }
-
-    #[tracing::instrument(
-        skip_all,
-        fields(l1_batch = %job_id)
-    )]
-    async fn save_result(
-        &self,
-        job_id: L1BatchNumber,
-        started_at: Instant,
-        artifacts: RecursionTipArtifacts,
-    ) -> anyhow::Result<()> {
-        let key = FriCircuitKey {
-            block_number: job_id,
-            circuit_id: 255,
-            sequence_number: 0,
-            depth: 0,
-            aggregation_round: AggregationRound::RecursionTip,
-        };
-        let blob_save_started_at = Instant::now();
-
-        let recursion_tip_circuit_blob_url = self
-            .object_store
-            .put(
-                key,
-                &CircuitWrapper::Recursive(artifacts.recursion_tip_circuit),
-            )
-            .await?;
-
-        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::RecursionTip.into()]
-            .observe(blob_save_started_at.elapsed());
-
-        let mut prover_connection = self.prover_connection_pool.connection().await?;
-        let mut transaction = prover_connection.start_transaction().await?;
-        let protocol_version_id = transaction
-            .fri_witness_generator_dal()
-            .protocol_version_for_l1_batch(job_id)
-            .await;
-        transaction
-            .fri_prover_jobs_dal()
-            .insert_prover_job(
-                job_id,
-                ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
-                0,
-                0,
-                AggregationRound::RecursionTip,
-                &recursion_tip_circuit_blob_url,
-                false,
-                protocol_version_id,
-            )
-            .await;
-
-        transaction
-            .fri_witness_generator_dal()
-            .mark_recursion_tip_job_as_successful(job_id, started_at.elapsed())
-            .await;
-
-        transaction.commit().await?;
-        Ok(())
-    }
-
-    fn max_attempts(&self) -> u32 {
-        self.config.max_attempts
-    }
-
-    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
-        let mut prover_storage = self
-            .prover_connection_pool
-            .connection()
-            .await
-            .context("failed to acquire DB connection for RecursionTipWitnessGenerator")?;
-        prover_storage
-            .fri_witness_generator_dal()
-            .get_recursion_tip_witness_job_attempts(*job_id)
-            .await
-            .map(|attempts| attempts.unwrap_or(0))
-            .context("failed to get job attempts for RecursionTipWitnessGenerator")
     }
 }
 
