@@ -46,10 +46,6 @@ pub async fn deploy_l1(
         .with_ffi()
         .with_rpc_url(l1_rpc_url.to_string());
 
-    if broadcast {
-        forge = forge.with_broadcast();
-    }
-
     if config.l1_network == L1Network::Localhost {
         // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
         forge = forge.with_slow();
@@ -59,7 +55,11 @@ pub async fn deploy_l1(
         forge = forge.with_sender(address);
     } else {
         forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
+    }
+
+    if broadcast {
         check_the_balance(&forge).await?;
+        forge = forge.with_broadcast();
     }
 
     forge.run(shell)?;

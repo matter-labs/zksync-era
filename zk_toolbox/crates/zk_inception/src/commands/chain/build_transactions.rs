@@ -15,9 +15,9 @@ use crate::{
     },
 };
 
-const CHAIN_TXNS_FILE_SRC: &str =
+const REGISTER_CHAIN_TXNS_FILE_SRC: &str =
     "contracts/l1-contracts/broadcast/RegisterHyperchain.s.sol/9/dry-run/run-latest.json";
-const CHAIN_TXNS_FILE_DST: &str = "register-hyperchain-txns.json";
+const REGISTER_CHAIN_TXNS_FILE_DST: &str = "register-hyperchain-txns.json";
 
 const SCRIPT_CONFIG_FILE_SRC: &str =
     "contracts/l1-contracts/script-config/register-hyperchain.toml";
@@ -47,6 +47,7 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     spinner.finish();
 
     let spinner = Spinner::new(MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER);
+    let governor: String = config.get_wallets()?.governor.address.encode_hex_upper();
 
     register_chain(
         shell,
@@ -55,7 +56,7 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
         &chain_config,
         &mut contracts_config,
         args.l1_rpc_url.clone(),
-        Some(config.get_wallets()?.governor.address.encode_hex_upper()),
+        Some(governor),
         false,
     )
     .await?;
@@ -69,8 +70,8 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
         .context(MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR)?;
 
     shell.copy_file(
-        config.link_to_code.join(CHAIN_TXNS_FILE_SRC),
-        args.out.join(CHAIN_TXNS_FILE_DST),
+        config.link_to_code.join(REGISTER_CHAIN_TXNS_FILE_SRC),
+        args.out.join(REGISTER_CHAIN_TXNS_FILE_DST),
     )?;
 
     shell.copy_file(

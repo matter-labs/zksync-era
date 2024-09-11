@@ -20,8 +20,8 @@ use crate::{
     },
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
-        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR,
+        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
     },
 };
@@ -127,15 +127,18 @@ pub async fn init(
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     if init_args.deploy_paymaster {
+        let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
         deploy_paymaster::deploy_paymaster(
             shell,
             chain_config,
             &mut contracts_config,
             init_args.forge_args.clone(),
+            None,
             true,
         )
         .await?;
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+        spinner.finish();
     }
 
     genesis(init_args.genesis_args.clone(), shell, chain_config)
