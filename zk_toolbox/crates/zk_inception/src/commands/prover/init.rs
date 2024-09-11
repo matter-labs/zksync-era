@@ -163,7 +163,7 @@ fn init_file_backed_proof_storage(
     ecosystem_config: &EcosystemConfig,
     config: ProofStorageFileBacked,
 ) -> anyhow::Result<ObjectStoreConfig> {
-    let proof_store_dir = config.proof_store_dir;
+    let proof_store_dir = config.proof_store_dir.clone();
     let prover_path = get_link_to_prover(ecosystem_config);
 
     let proof_store_dir = prover_path.join(proof_store_dir).join("witness_inputs");
@@ -173,7 +173,7 @@ fn init_file_backed_proof_storage(
 
     let object_store_config = ObjectStoreConfig {
         mode: ObjectStoreMode::FileBacked {
-            file_backed_base_path: proof_store_dir.into_os_string().into_string().unwrap(),
+            file_backed_base_path: config.proof_store_dir,
         },
         max_retries: PROVER_STORE_MAX_RETRIES,
         local_mirror_path: None,
