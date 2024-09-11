@@ -41,10 +41,10 @@ enum CheckError {
 }
 
 impl CheckError {
-    fn is_transient(&self) -> bool {
+    fn is_retriable(&self) -> bool {
         match self {
             Self::Web3(err) | Self::ContractCall(ContractCallError::EthereumGateway(err)) => {
-                err.is_transient()
+                err.is_retriable()
             }
             _ => false,
         }
@@ -262,6 +262,7 @@ pub fn detect_da(
     /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
     const PUBDATA_SOURCE_CALLDATA: u8 = 0;
     const PUBDATA_SOURCE_BLOBS: u8 = 1;
+    const PUBDATA_SOURCE_CUSTOM: u8 = 2;
 
     fn parse_error(message: impl Into<Cow<'static, str>>) -> ethabi::Error {
         ethabi::Error::Other(message.into())
@@ -292,6 +293,7 @@ pub fn detect_da(
     match last_reference_token.first() {
         Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataDA::Calldata),
         Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataDA::Blobs),
+        Some(&byte) if byte == PUBDATA_SOURCE_CUSTOM => Ok(PubdataDA::Custom),
         Some(&byte) => Err(parse_error(format!(
             "unexpected first byte of the last reference token; expected one of [{PUBDATA_SOURCE_CALLDATA}, {PUBDATA_SOURCE_BLOBS}], \
                 got {byte}"
@@ -302,9 +304,9 @@ pub fn detect_da(
 
 #[derive(Debug)]
 pub struct ConsistencyChecker {
-    /// ABI of the zkSync contract
+    /// ABI of the ZKsync contract
     contract: ethabi::Contract,
-    /// Address of the zkSync diamond proxy on L1
+    /// Address of the ZKsync diamond proxy on L1
     diamond_proxy_addr: Option<Address>,
     /// How many past batches to check when starting
     max_batches_to_recheck: u32,
@@ -382,7 +384,7 @@ impl ConsistencyChecker {
             let event = self
                 .contract
                 .event("BlockCommit")
-                .context("`BlockCommit` event not found for zkSync L1 contract")
+                .context("`BlockCommit` event not found for ZKsync L1 contract")
                 .map_err(CheckError::Internal)?;
 
             let committed_batch_numbers_by_logs =
@@ -516,7 +518,7 @@ impl ConsistencyChecker {
 
         let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
             .for_contract(address, &self.contract)
-            .call(self.l1_client.as_ref())
+            .call(&self.l1_client)
             .await?;
         tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
         Ok(())
@@ -533,7 +535,7 @@ impl ConsistencyChecker {
         self.event_handler.initialize();
 
         while let Err(err) = self.sanity_check_diamond_proxy_addr().await {
-            if err.is_transient() {
+            if err.is_retriable() {
                 tracing::warn!(
                     "Transient error checking diamond proxy contract; will retry after a delay: {:#}",
                     anyhow::Error::from(err)
@@ -633,7 +635,7 @@ impl ConsistencyChecker {
                         }
                     }
                 }
-                Err(err) if err.is_transient() => {
+                Err(err) if err.is_retriable() => {
                     tracing::warn!(
                         "Transient error while verifying L1 batch #{batch_number}; will retry after a delay: {:#}",
                         anyhow::Error::from(err)

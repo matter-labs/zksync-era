@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                base_token_ratios (numerator, denominator, ratio_timestamp, created_at, updated_at)\n            VALUES\n                ($1, $2, $3, NOW(), NOW())\n            RETURNING\n                id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Numeric",
+        "Numeric",
+        "Timestamp"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "c5aef75dbeb520c965a0996abed9713f437db492e2075ca69e11e2ef5728ccaa"
+}

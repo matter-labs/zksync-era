@@ -23,7 +23,7 @@ pub async fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> 
 
     logger::info(msg_database_info(MSG_DATABASE_DROP_GERUND));
 
-    let dals = get_dals(shell, &args.selected_dals)?;
+    let dals = get_dals(shell, &args.selected_dals, &args.urls)?;
     for dal in dals {
         drop_database(dal).await?;
     }
@@ -35,7 +35,7 @@ pub async fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> 
 
 pub async fn drop_database(dal: Dal) -> anyhow::Result<()> {
     let spinner = Spinner::new(&msg_database_loading(MSG_DATABASE_DROP_GERUND, &dal.path));
-    let db = DatabaseConfig::from_url(dal.url)?;
+    let db = DatabaseConfig::from_url(&dal.url)?;
     drop_db_if_exists(&db).await?;
     spinner.finish();
     Ok(())

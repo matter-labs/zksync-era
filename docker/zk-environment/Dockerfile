@@ -1,6 +1,11 @@
 # Building solidity from sources so binary is available for any architecture
 FROM debian:bookworm as solidity-builder
 
+# Link Docker Image with repository
+# https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package#connecting-a-repository-to-a-container-image-using-the-command-line
+LABEL org.opencontainers.image.source=https://github.com/matter-labs/zksync-era
+LABEL org.opencontainers.image.licenses="MIT OR Apache-2.0"
+
 # Install prerequisites
 RUN apt-get update && apt-get install -y \
     build-essential \
@@ -35,13 +40,15 @@ RUN apt-get update && apt-get install -y \
     g++ \
     cmake
 
-RUN cargo install --version=0.7.3 sqlx-cli
+RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install cargo-nextest
 RUN cargo install cargo-spellcheck
 RUN cargo install sccache
 
-RUN cargo install --git https://github.com/foundry-rs/foundry \
-    --profile local --locked forge cast
+RUN git clone https://github.com/matter-labs/foundry-zksync
+RUN cd foundry-zksync && cargo build --release --bins
+RUN mv ./foundry-zksync/target/release/forge /usr/local/bin/
+RUN mv ./foundry-zksync/target/release/cast /usr/local/bin/
 
 # Main builder.
 FROM debian:bookworm as rust-lightweight-base
@@ -105,7 +112,7 @@ RUN mkdir -p /etc/apt/keyrings && \
     wget -c -O - https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && apt-get install nodejs -y && \
-    npm install -g yarn && npm install -g cspell
+    npm install -g yarn
 
 # Install Rust and required cargo packages
 ENV RUSTUP_HOME=/usr/local/rustup \
@@ -165,6 +172,5 @@ FROM rust-lightweight-base as rust-lightweight
 RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y
 
 
-# If target is nightly - then install only nightly rust.
-FROM rust-lightweight-base as rust-lightweight-nightly
-RUN wget -c -O - https://sh.rustup.rs | bash -s -- -y --default-toolchain nightly-2024-05-07
+RUN rustup install nightly-2024-08-01 && \
+    rustup default nightly-2024-08-01

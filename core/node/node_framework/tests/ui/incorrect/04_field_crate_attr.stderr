@@ -1,0 +1,17 @@
+error: `crate` attribute is not allowed for fields
+  --> tests/ui/incorrect/04_field_crate_attr.rs:30:5
+   |
+30 |     _field: ResourceA,
+   |     ^^^^^^
+
+error: `crate` attribute is not allowed for fields
+  --> tests/ui/incorrect/04_field_crate_attr.rs:36:5
+   |
+36 |     _field: ResourceA,
+   |     ^^^^^^
+
+error: `crate` attribute is not allowed for fields
+  --> tests/ui/incorrect/04_field_crate_attr.rs:45:5
+   |
+45 |     _field_2: TaskA,
+   |     ^^^^^^^^

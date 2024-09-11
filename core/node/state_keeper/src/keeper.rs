@@ -5,20 +5,27 @@ use std::{
 };
 
 use anyhow::Context as _;
-use multivm::interface::{Halt, L1BatchEnv, SystemEnv};
 use tokio::sync::watch;
-use zksync_state::ReadStorageFactory;
+use tracing::{info_span, Instrument};
+use zksync_multivm::{
+    interface::{
+        executor::{BatchExecutor, BatchExecutorFactory},
+        Halt, L1BatchEnv, SystemEnv,
+    },
+    utils::StorageWritesDeduplicator,
+};
+use zksync_shared_metrics::{TxStage, APP_METRICS};
+use zksync_state::{OwnedStorage, ReadStorageFactory};
 use zksync_types::{
     block::L2BlockExecutionData, l2::TransactionType, protocol_upgrade::ProtocolUpgradeTx,
-    protocol_version::ProtocolVersionId, storage_writes_deduplicator::StorageWritesDeduplicator,
-    utils::display_timestamp, L1BatchNumber, Transaction,
+    protocol_version::ProtocolVersionId, utils::display_timestamp, L1BatchNumber, Transaction,
 };
 
-use super::{
-    batch_executor::{BatchExecutor, BatchExecutorHandle, TxExecutionResult},
+use crate::{
+    executor::TxExecutionResult,
     io::{IoCursor, L1BatchParams, L2BlockParams, OutputHandler, PendingBatchData, StateKeeperIO},
     metrics::{AGGREGATION_METRICS, KEEPER_METRICS, L1_BATCH_METRICS},
-    seal_criteria::{ConditionalSealer, SealData, SealResolution},
+    seal_criteria::{ConditionalSealer, SealData, SealResolution, UnexecutableReason},
     types::ExecutionMetricsForCriteria,
     updates::UpdatesManager,
     utils::gas_count_from_writes,
@@ -60,7 +67,7 @@ pub struct ZkSyncStateKeeper {
     stop_receiver: watch::Receiver<bool>,
     io: Box<dyn StateKeeperIO>,
     output_handler: OutputHandler,
-    batch_executor_base: Box<dyn BatchExecutor>,
+    batch_executor: Box<dyn BatchExecutorFactory<OwnedStorage>>,
     sealer: Arc<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
 }
@@ -69,7 +76,7 @@ impl ZkSyncStateKeeper {
     pub fn new(
         stop_receiver: watch::Receiver<bool>,
         sequencer: Box<dyn StateKeeperIO>,
-        batch_executor_base: Box<dyn BatchExecutor>,
+        batch_executor: Box<dyn BatchExecutorFactory<OwnedStorage>>,
         output_handler: OutputHandler,
         sealer: Arc<dyn ConditionalSealer>,
         storage_factory: Arc<dyn ReadStorageFactory>,
@@ -77,7 +84,7 @@ impl ZkSyncStateKeeper {
         Self {
             stop_receiver,
             io: sequencer,
-            batch_executor_base,
+            batch_executor,
             output_handler,
             sealer,
             storage_factory,
@@ -144,24 +151,20 @@ impl ZkSyncStateKeeper {
             .await?;
 
         let mut batch_executor = self
-            .batch_executor_base
-            .init_batch(
-                self.storage_factory.clone(),
-                l1_batch_env.clone(),
-                system_env.clone(),
-                &self.stop_receiver,
-            )
-            .await
-            .ok_or(Error::Canceled)?;
-
-        self.restore_state(&mut batch_executor, &mut updates_manager, pending_l2_blocks)
+            .create_batch_executor(l1_batch_env.clone(), system_env.clone())
             .await?;
+        self.restore_state(
+            &mut *batch_executor,
+            &mut updates_manager,
+            pending_l2_blocks,
+        )
+        .await?;
 
         let mut l1_batch_seal_delta: Option<Instant> = None;
         while !self.is_canceled() {
             // This function will run until the batch can be sealed.
             self.process_l1_batch(
-                &mut batch_executor,
+                &mut *batch_executor,
                 &mut updates_manager,
                 protocol_upgrade_tx,
             )
@@ -177,12 +180,12 @@ impl ZkSyncStateKeeper {
                 Self::start_next_l2_block(
                     new_l2_block_params,
                     &mut updates_manager,
-                    &mut batch_executor,
+                    &mut *batch_executor,
                 )
                 .await?;
             }
 
-            let finished_batch = batch_executor.finish_batch().await?;
+            let (finished_batch, _) = batch_executor.finish_batch().await?;
             let sealed_batch_protocol_version = updates_manager.protocol_version();
             updates_manager.finish_batch(finished_batch);
             let mut next_cursor = updates_manager.io_cursor();
@@ -201,15 +204,8 @@ impl ZkSyncStateKeeper {
             (system_env, l1_batch_env) = self.wait_for_new_batch_env(&next_cursor).await?;
             updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
             batch_executor = self
-                .batch_executor_base
-                .init_batch(
-                    self.storage_factory.clone(),
-                    l1_batch_env.clone(),
-                    system_env.clone(),
-                    &self.stop_receiver,
-                )
-                .await
-                .ok_or(Error::Canceled)?;
+                .create_batch_executor(l1_batch_env.clone(), system_env.clone())
+                .await?;
 
             let version_changed = system_env.version != sealed_batch_protocol_version;
             protocol_upgrade_tx = if version_changed {
@@ -219,6 +215,22 @@ impl ZkSyncStateKeeper {
             };
         }
         Err(Error::Canceled)
+    }
+
+    async fn create_batch_executor(
+        &mut self,
+        l1_batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+    ) -> Result<Box<dyn BatchExecutor<OwnedStorage>>, Error> {
+        let storage = self
+            .storage_factory
+            .access_storage(&self.stop_receiver, l1_batch_env.number - 1)
+            .await
+            .context("failed creating VM storage")?
+            .ok_or(Error::Canceled)?;
+        Ok(self
+            .batch_executor
+            .init_batch(storage, l1_batch_env, system_env))
     }
 
     /// This function is meant to be called only once during the state-keeper initialization.
@@ -284,6 +296,12 @@ impl ZkSyncStateKeeper {
             .with_context(|| format!("failed loading upgrade transaction for {protocol_version:?}"))
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            l1_batch = %cursor.l1_batch,
+        )
+    )]
     async fn wait_for_new_batch_params(
         &mut self,
         cursor: &IoCursor,
@@ -300,6 +318,12 @@ impl ZkSyncStateKeeper {
         Err(Error::Canceled)
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            l1_batch = %cursor.l1_batch,
+        )
+    )]
     async fn wait_for_new_batch_env(
         &mut self,
         cursor: &IoCursor,
@@ -328,10 +352,18 @@ impl ZkSyncStateKeeper {
         }
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            l1_batch = %updates.l1_batch.number,
+            l2_block = %updates.l2_block.number,
+        )
+    )]
     async fn wait_for_new_l2_block_params(
         &mut self,
         updates: &UpdatesManager,
     ) -> Result<L2BlockParams, Error> {
+        let latency = KEEPER_METRICS.wait_for_l2_block_params.start();
         let cursor = updates.io_cursor();
         while !self.is_canceled() {
             if let Some(params) = self
@@ -340,16 +372,24 @@ impl ZkSyncStateKeeper {
                 .await
                 .context("error waiting for new L2 block params")?
             {
+                latency.observe();
                 return Ok(params);
             }
         }
         Err(Error::Canceled)
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            l1_batch = %updates_manager.l1_batch.number,
+            l2_block = %updates_manager.l2_block.number,
+        )
+    )]
     async fn start_next_l2_block(
         params: L2BlockParams,
         updates_manager: &mut UpdatesManager,
-        batch_executor: &mut BatchExecutorHandle,
+        batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
     ) -> anyhow::Result<()> {
         updates_manager.push_l2_block(params);
         let block_env = updates_manager.l2_block.get_env();
@@ -361,6 +401,13 @@ impl ZkSyncStateKeeper {
             })
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(
+            l1_batch = %updates_manager.l1_batch.number,
+            l2_block = %updates_manager.l2_block.number,
+        )
+    )]
     async fn seal_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
         self.output_handler
             .handle_l2_block(updates_manager)
@@ -378,9 +425,13 @@ impl ZkSyncStateKeeper {
     /// batch, we need to restore the state. We must ensure that every transaction is executed successfully.
     ///
     /// Additionally, it initialized the next L2 block timestamp.
+    #[tracing::instrument(
+        skip_all,
+        fields(n_blocks = %l2_blocks_to_reexecute.len())
+    )]
     async fn restore_state(
         &mut self,
-        batch_executor: &mut BatchExecutorHandle,
+        batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
         l2_blocks_to_reexecute: Vec<L2BlockExecutionData>,
     ) -> Result<(), Error> {
@@ -411,6 +462,10 @@ impl ZkSyncStateKeeper {
                     .execute_tx(tx.clone())
                     .await
                     .with_context(|| format!("failed re-executing transaction {:?}", tx.hash()))?;
+                let result = TxExecutionResult::new(result, &tx);
+
+                APP_METRICS.processed_txs[&TxStage::StateKeeper].inc();
+                APP_METRICS.processed_l1_txs[&TxStage::StateKeeper].inc_by(tx.is_l1().into());
 
                 let TxExecutionResult::Success {
                     tx_result,
@@ -478,9 +533,13 @@ impl ZkSyncStateKeeper {
         Ok(())
     }
 
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %updates_manager.l1_batch.number)
+    )]
     async fn process_l1_batch(
         &mut self,
-        batch_executor: &mut BatchExecutorHandle,
+        batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
         protocol_upgrade_tx: Option<ProtocolUpgradeTx>,
     ) -> Result<(), Error> {
@@ -490,6 +549,8 @@ impl ZkSyncStateKeeper {
         }
 
         while !self.is_canceled() {
+            let full_latency = KEEPER_METRICS.process_l1_batch_loop_iteration.start();
+
             if self
                 .io
                 .should_seal_l1_batch_unconditionally(updates_manager)
@@ -515,7 +576,7 @@ impl ZkSyncStateKeeper {
                     .map_err(|e| e.context("wait_for_new_l2_block_params"))?;
                 tracing::debug!(
                     "Initialized new L2 block #{} (L1 batch #{}) with timestamp {}",
-                    updates_manager.l2_block.number,
+                    updates_manager.l2_block.number + 1,
                     updates_manager.l1_batch.number,
                     display_timestamp(new_l2_block_params.timestamp)
                 );
@@ -527,6 +588,7 @@ impl ZkSyncStateKeeper {
             let Some(tx) = self
                 .io
                 .wait_for_next_tx(POLL_WAIT_DURATION)
+                .instrument(info_span!("wait_for_next_tx"))
                 .await
                 .context("error waiting for next transaction")?
             else {
@@ -541,6 +603,7 @@ impl ZkSyncStateKeeper {
                 .process_one_tx(batch_executor, updates_manager, tx.clone())
                 .await?;
 
+            let latency = KEEPER_METRICS.match_seal_resolution.start();
             match &seal_resolution {
                 SealResolution::NoSeal | SealResolution::IncludeAndSeal => {
                     let TxExecutionResult::Success {
@@ -581,11 +644,12 @@ impl ZkSyncStateKeeper {
                         format!("failed rolling back transaction {tx_hash:?} in batch executor")
                     })?;
                     self.io
-                        .reject(&tx, reason)
+                        .reject(&tx, reason.clone())
                         .await
                         .with_context(|| format!("cannot reject transaction {tx_hash:?}"))?;
                 }
             };
+            latency.observe();
 
             if seal_resolution.should_seal() {
                 tracing::debug!(
@@ -593,15 +657,17 @@ impl ZkSyncStateKeeper {
                      transaction {tx_hash}",
                     updates_manager.l1_batch.number
                 );
+                full_latency.observe();
                 return Ok(());
             }
+            full_latency.observe();
         }
         Err(Error::Canceled)
     }
 
     async fn process_upgrade_tx(
         &mut self,
-        batch_executor: &mut BatchExecutorHandle,
+        batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
         protocol_upgrade_tx: ProtocolUpgradeTx,
     ) -> anyhow::Result<()> {
@@ -665,16 +731,25 @@ impl ZkSyncStateKeeper {
     /// 2. Seal manager decided that batch is ready to be sealed.
     /// Note: this method doesn't mutate `updates_manager` in the end. However, reference should be mutable
     /// because we use `apply_and_rollback` method of `updates_manager.storage_writes_deduplicator`.
+    #[tracing::instrument(skip_all)]
     async fn process_one_tx(
         &mut self,
-        batch_executor: &mut BatchExecutorHandle,
+        batch_executor: &mut dyn BatchExecutor<OwnedStorage>,
         updates_manager: &mut UpdatesManager,
         tx: Transaction,
     ) -> anyhow::Result<(SealResolution, TxExecutionResult)> {
+        let latency = KEEPER_METRICS.execute_tx_outer_time.start();
         let exec_result = batch_executor
             .execute_tx(tx.clone())
             .await
             .with_context(|| format!("failed executing transaction {:?}", tx.hash()))?;
+        let exec_result = TxExecutionResult::new(exec_result, &tx);
+        latency.observe();
+
+        APP_METRICS.processed_txs[&TxStage::StateKeeper].inc();
+        APP_METRICS.processed_l1_txs[&TxStage::StateKeeper].inc_by(tx.is_l1().into());
+
+        let latency = KEEPER_METRICS.determine_seal_resolution.start();
         // All of `TxExecutionResult::BootloaderOutOfGasForTx`,
         // `Halt::NotEnoughGasProvided` correspond to out-of-gas errors but of different nature.
         // - `BootloaderOutOfGasForTx`: it is returned when bootloader stack frame run out of gas before tx execution finished.
@@ -690,23 +765,29 @@ impl ZkSyncStateKeeper {
             | TxExecutionResult::RejectedByVm {
                 reason: Halt::NotEnoughGasProvided,
             } => {
-                let error_message = match &exec_result {
-                    TxExecutionResult::BootloaderOutOfGasForTx => "bootloader_tx_out_of_gas",
+                let (reason, criterion) = match &exec_result {
+                    TxExecutionResult::BootloaderOutOfGasForTx => (
+                        UnexecutableReason::BootloaderOutOfGas,
+                        "bootloader_tx_out_of_gas",
+                    ),
                     TxExecutionResult::RejectedByVm {
                         reason: Halt::NotEnoughGasProvided,
-                    } => "not_enough_gas_provided_to_start_tx",
+                    } => (
+                        UnexecutableReason::NotEnoughGasProvided,
+                        "not_enough_gas_provided_to_start_tx",
+                    ),
                     _ => unreachable!(),
                 };
                 let resolution = if is_first_tx {
-                    SealResolution::Unexecutable(error_message.to_string())
+                    SealResolution::Unexecutable(reason)
                 } else {
                     SealResolution::ExcludeAndSeal
                 };
-                AGGREGATION_METRICS.inc(error_message, &resolution);
+                AGGREGATION_METRICS.l1_batch_reason_inc(criterion, &resolution);
                 resolution
             }
             TxExecutionResult::RejectedByVm { reason } => {
-                SealResolution::Unexecutable(reason.to_string())
+                UnexecutableReason::Halt(reason.clone()).into()
             }
             TxExecutionResult::Success {
                 tx_result,
@@ -785,6 +866,7 @@ impl ZkSyncStateKeeper {
                 )
             }
         };
+        latency.observe();
         Ok((resolution, exec_result))
     }
 }

@@ -1,14 +1,14 @@
 use ethabi::Token;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_state::WriteStorage;
 use zksync_types::{get_nonce_key, Execute, U256};
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_5_0::DynTracer,
+        storage::WriteStorage,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled,
+        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
     },
+    tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
         tests::{
             tester::{DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder},
@@ -103,7 +103,7 @@ fn test_vm_loadnext_rollbacks() {
             }
             .to_bytes(),
             value: Default::default(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -121,7 +121,7 @@ fn test_vm_loadnext_rollbacks() {
             }
             .to_bytes(),
             value: Default::default(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );

@@ -6,17 +6,32 @@ use crate::{
     implementations::resources::{
         healthcheck::AppHealthCheckResource, web3_api::TreeApiClientResource,
     },
-    service::ServiceContext,
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
-/// Layer that inserts the `TreeApiHttpClient` into the `ServiceContext` resources, if there is no
+/// Wiring layer that provides the `TreeApiHttpClient` into the `ServiceContext` resources, if there is no
 /// other client already inserted.
 ///
-/// In case a client is already provided in the contest, the layer does nothing.
+/// In case a client is already provided in the context, this layer does nothing.
 #[derive(Debug)]
 pub struct TreeApiClientLayer {
     url: Option<String>,
+}
+
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    /// Fetched to check whether the `TreeApiClientResource` was already provided by another layer.
+    pub tree_api_client: Option<TreeApiClientResource>,
+    #[context(default)]
+    pub app_health: AppHealthCheckResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    pub tree_api_client: Option<TreeApiClientResource>,
 }
 
 impl TreeApiClientLayer {
@@ -27,33 +42,36 @@ impl TreeApiClientLayer {
 
 #[async_trait::async_trait]
 impl WiringLayer for TreeApiClientLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "tree_api_client_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        if let Some(url) = &self.url {
-            let client = Arc::new(TreeApiHttpClient::new(url));
-            match context.insert_resource(TreeApiClientResource(client.clone())) {
-                Ok(()) => {
-                    // There was no client added before, we added one.
-                }
-                Err(WiringError::ResourceAlreadyProvided { .. }) => {
-                    // Some other client was already added. We don't want to replace it.
-                    return Ok(());
-                }
-                err @ Err(_) => {
-                    // Propagate any other error.
-                    return err;
-                }
-            }
-
-            // Only provide the health check if necessary.
-            let AppHealthCheckResource(app_health) = context.get_resource_or_default().await;
-            app_health
-                .insert_custom_component(client)
-                .map_err(WiringError::internal)?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        if input.tree_api_client.is_some() {
+            tracing::info!("Tree API client is already provided");
+            return Ok(Output {
+                tree_api_client: None,
+            });
         }
-        Ok(())
+
+        let Some(url) = &self.url else {
+            tracing::info!("No Tree API client URL provided, not adding a fallback client");
+            return Ok(Output {
+                tree_api_client: None,
+            });
+        };
+
+        let client = Arc::new(TreeApiHttpClient::new(url));
+        input
+            .app_health
+            .0
+            .insert_custom_component(client.clone())
+            .map_err(WiringError::internal)?;
+        Ok(Output {
+            tree_api_client: Some(client.into()),
+        })
     }
 }

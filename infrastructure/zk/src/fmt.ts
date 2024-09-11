@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { formatSqlxQueries } from './format_sql';
-import * as utils from './utils';
+import * as utils from 'utils';
 
 const EXTENSIONS = ['ts', 'md', 'js'];
 const CONFIG_PATH = 'etc/prettier-config';

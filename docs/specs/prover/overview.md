@@ -1,4 +1,4 @@
-# Intro to zkSync’s ZK
+# Intro to ZKsync’s ZK
 
 This page is specific to our cryptography. For a general introduction, please read:
 [https://docs.zksync.io/build/developer-reference/rollups.html](https://docs.zksync.io/build/developer-reference/rollups.html)
@@ -6,8 +6,8 @@ This page is specific to our cryptography. For a general introduction, please re
 As a ZK rollup, we want everything to be verified by cryptography and secured by Ethereum. The power of ZK allows for
 transaction compression, reducing fees for users while inheriting the same security.
 
-ZK Proofs allow a verifier to easily check whether a prover has done a computation correctly. For zkSync, the prover
-will prove the correct execution of zkSync’s EVM, and a smart contract on Ethereum will verify the proof is correct.
+ZK Proofs allow a verifier to easily check whether a prover has done a computation correctly. For ZKsync, the prover
+will prove the correct execution of ZKsync’s EVM, and a smart contract on Ethereum will verify the proof is correct.
 
 In more detail, there are several steps.
 
@@ -46,7 +46,7 @@ It is very important that every step is actually “constrained”. The prover m
 If the circuit is missing a constraint, then a malicious prover can create proofs that will pass verification but not be
 valid. The ZK terminology for this is that an underconstrained circuit could lead to a soundness error.
 
-### What do zkSync’s circuits prove
+### What do ZKsync’s circuits prove
 
 The main goal of our circuits is to prove correct execution of our VM. This includes proving each opcode run within the
 VM, as well as other components such as precompiles, storage, and circuits that connect everything else together. This

@@ -37,8 +37,8 @@ use zksync_types::url::SensitiveUrl;
 use self::metrics::{L2ClientMetrics, METRICS};
 pub use self::{
     boxed::{DynClient, ObjectSafeClient},
-    mock::MockClient,
-    network::{ForNetwork, Network, TaggedClient, L1, L2},
+    mock::{MockClient, MockClientBuilder},
+    network::{ForWeb3Network, Network, TaggedClient, L1, L2},
     shared::Shared,
 };
 
@@ -46,6 +46,7 @@ mod boxed;
 mod metrics;
 mod mock;
 mod network;
+mod rustls;
 mod shared;
 #[cfg(test)]
 mod tests;
@@ -140,6 +141,8 @@ impl<Net: fmt::Debug, C: 'static> fmt::Debug for Client<Net, C> {
 impl<Net: Network> Client<Net> {
     /// Creates an HTTP-backed client.
     pub fn http(url: SensitiveUrl) -> anyhow::Result<ClientBuilder<Net>> {
+        crate::client::rustls::set_rustls_backend_if_required();
+
         let client = HttpClientBuilder::default().build(url.expose_str())?;
         Ok(ClientBuilder::new(client, url))
     }
@@ -150,6 +153,8 @@ impl<Net: Network> WsClient<Net> {
     pub async fn ws(
         url: SensitiveUrl,
     ) -> anyhow::Result<ClientBuilder<Net, Shared<ws_client::WsClient>>> {
+        crate::client::rustls::set_rustls_backend_if_required();
+
         let client = ws_client::WsClientBuilder::default()
             .build(url.expose_str())
             .await?;
@@ -222,7 +227,7 @@ impl<Net: Network, C: ClientBase> Client<Net, C> {
     }
 }
 
-impl<Net: Network, C: ClientBase> ForNetwork for Client<Net, C> {
+impl<Net: Network, C: ClientBase> ForWeb3Network for Client<Net, C> {
     type Net = Net;
 
     fn network(&self) -> Self::Net {
@@ -313,6 +318,7 @@ pub struct ClientBuilder<Net, C = HttpClient> {
     client: C,
     url: SensitiveUrl,
     rate_limit: (usize, Duration),
+    report_config: bool,
     network: Net,
 }
 
@@ -323,6 +329,7 @@ impl<Net: fmt::Debug, C: 'static> fmt::Debug for ClientBuilder<Net, C> {
             .field("client", &any::type_name::<C>())
             .field("url", &self.url)
             .field("rate_limit", &self.rate_limit)
+            .field("report_config", &self.report_config)
             .field("network", &self.network)
             .finish_non_exhaustive()
     }
@@ -335,6 +342,7 @@ impl<Net: Network, C: ClientBase> ClientBuilder<Net, C> {
             client,
             url,
             rate_limit: (1, Duration::ZERO),
+            report_config: true,
             network: Net::default(),
         }
     }
@@ -361,16 +369,25 @@ impl<Net: Network, C: ClientBase> ClientBuilder<Net, C> {
         self
     }
 
+    /// Allows switching off config reporting for this client in logs and metrics. This is useful if a client is a short-living one
+    /// and is not injected as a dependency.
+    pub fn report_config(mut self, report: bool) -> Self {
+        self.report_config = report;
+        self
+    }
+
     /// Builds the client.
     pub fn build(self) -> Client<Net, C> {
-        tracing::info!(
-            "Creating JSON-RPC client for network {:?} with inner client: {:?} and rate limit: {:?}",
-            self.network,
-            self.client,
-            self.rate_limit
-        );
         let rate_limit = SharedRateLimit::new(self.rate_limit.0, self.rate_limit.1);
-        METRICS.observe_config(self.network.metric_label(), &rate_limit);
+        if self.report_config {
+            tracing::info!(
+                "Creating JSON-RPC client for network {:?} with inner client: {:?} and rate limit: {:?}",
+                self.network,
+                self.client,
+                self.rate_limit
+            );
+            METRICS.observe_config(self.network.metric_label(), &rate_limit);
+        }
 
         Client {
             inner: self.client,

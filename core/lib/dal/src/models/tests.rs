@@ -20,7 +20,7 @@ fn default_execute() -> Execute {
     8cdfd0000000000000000000000000000000000000000000000000000000157d600d0",
         )
         .unwrap(),
-        factory_deps: None,
+        factory_deps: vec![],
     }
 }
 

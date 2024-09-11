@@ -1,21 +1,24 @@
-//! Helper module to submit transactions into the zkSync Network.
+//! Helper module to submit transactions into the ZKsync Network.
 
 use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
-use multivm::{
-    interface::VmExecutionResultAndLogs,
-    utils::{
-        adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
-        get_eth_call_gas_limit, get_max_batch_gas_limit,
-    },
-    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
-};
 use tokio::sync::RwLock;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
+};
+use zksync_multivm::{
+    interface::{
+        OneshotTracingParams, TransactionExecutionMetrics, TxExecutionArgs, TxExecutionMode,
+        VmExecutionResultAndLogs,
+    },
+    utils::{
+        adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
+        get_max_batch_gas_limit,
+    },
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
 use zksync_state::PostgresStorageCaches;
@@ -24,15 +27,16 @@ use zksync_state_keeper::{
     SequencerSealer,
 };
 use zksync_types::{
-    fee::{Fee, TransactionExecutionMetrics},
+    api::state_override::StateOverride,
+    fee::Fee,
     fee_model::BatchFeeInput,
     get_code_key, get_intrinsic_constants,
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
+    vm::VmVersion,
     AccountTreeId, Address, ExecuteTransactionCommon, L2ChainId, Nonce, PackedEthSignature,
-    ProtocolVersionId, Transaction, VmVersion, H160, H256, MAX_L2_TX_GAS_LIMIT,
-    MAX_NEW_FACTORY_DEPS, U256,
+    ProtocolVersionId, Transaction, H160, H256, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
 
@@ -40,8 +44,8 @@ pub(super) use self::result::SubmitTxError;
 use self::{master_pool_sink::MasterPoolSink, tx_sink::TxSink};
 use crate::{
     execution_sandbox::{
-        BlockArgs, SubmitTxStage, TransactionExecutor, TxExecutionArgs, TxSharedArgs,
-        VmConcurrencyBarrier, VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
+        BlockArgs, SubmitTxStage, TransactionExecutor, TxSetupArgs, VmConcurrencyBarrier,
+        VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
     },
     tx_sender::result::ApiCallResult,
 };
@@ -61,7 +65,7 @@ pub async fn build_tx_sender(
     master_pool: ConnectionPool<Core>,
     batch_fee_model_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     storage_caches: PostgresStorageCaches,
-) -> (TxSender, VmConcurrencyBarrier) {
+) -> anyhow::Result<(TxSender, VmConcurrencyBarrier)> {
     let sequencer_sealer = SequencerSealer::new(state_keeper_config.clone());
     let master_pool_sink = MasterPoolSink::new(master_pool);
     let tx_sender_builder = TxSenderBuilder::new(
@@ -77,15 +81,13 @@ pub async fn build_tx_sender(
     let batch_fee_input_provider =
         ApiFeeInputProvider::new(batch_fee_model_input_provider, replica_pool);
 
-    let tx_sender = tx_sender_builder
-        .build(
-            Arc::new(batch_fee_input_provider),
-            Arc::new(vm_concurrency_limiter),
-            ApiContracts::load_from_disk(),
-            storage_caches,
-        )
-        .await;
-    (tx_sender, vm_barrier)
+    let tx_sender = tx_sender_builder.build(
+        Arc::new(batch_fee_input_provider),
+        Arc::new(vm_concurrency_limiter),
+        ApiContracts::load_from_disk().await?,
+        storage_caches,
+    );
+    Ok((tx_sender, vm_barrier))
 }
 
 #[derive(Debug, Clone)]
@@ -141,6 +143,38 @@ impl MultiVMBaseSystemContracts {
             }
         }
     }
+
+    pub fn load_estimate_gas_blocking() -> Self {
+        Self {
+            pre_virtual_blocks: BaseSystemContracts::estimate_gas_pre_virtual_blocks(),
+            post_virtual_blocks: BaseSystemContracts::estimate_gas_post_virtual_blocks(),
+            post_virtual_blocks_finish_upgrade_fix:
+                BaseSystemContracts::estimate_gas_post_virtual_blocks_finish_upgrade_fix(),
+            post_boojum: BaseSystemContracts::estimate_gas_post_boojum(),
+            post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
+            post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
+            post_1_4_2: BaseSystemContracts::estimate_gas_post_1_4_2(),
+            vm_1_5_0_small_memory: BaseSystemContracts::estimate_gas_1_5_0_small_memory(),
+            vm_1_5_0_increased_memory:
+                BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
+        }
+    }
+
+    pub fn load_eth_call_blocking() -> Self {
+        Self {
+            pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
+            post_virtual_blocks: BaseSystemContracts::playground_post_virtual_blocks(),
+            post_virtual_blocks_finish_upgrade_fix:
+                BaseSystemContracts::playground_post_virtual_blocks_finish_upgrade_fix(),
+            post_boojum: BaseSystemContracts::playground_post_boojum(),
+            post_allowlist_removal: BaseSystemContracts::playground_post_allowlist_removal(),
+            post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
+            post_1_4_2: BaseSystemContracts::playground_post_1_4_2(),
+            vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
+            vm_1_5_0_increased_memory: BaseSystemContracts::playground_post_1_5_0_increased_memory(
+            ),
+        }
+    }
 }
 
 /// Smart contracts to be used in the API sandbox requests, e.g. for estimating gas and
@@ -161,34 +195,17 @@ impl ApiContracts {
     /// Loads the contracts from the local file system.
     /// This method is *currently* preferred to be used in all contexts,
     /// given that there is no way to fetch "playground" contracts from the main node.
-    pub fn load_from_disk() -> Self {
+    pub async fn load_from_disk() -> anyhow::Result<Self> {
+        tokio::task::spawn_blocking(Self::load_from_disk_blocking)
+            .await
+            .context("loading `ApiContracts` panicked")
+    }
+
+    /// Blocking version of [`Self::load_from_disk()`].
+    pub fn load_from_disk_blocking() -> Self {
         Self {
-            estimate_gas: MultiVMBaseSystemContracts {
-                pre_virtual_blocks: BaseSystemContracts::estimate_gas_pre_virtual_blocks(),
-                post_virtual_blocks: BaseSystemContracts::estimate_gas_post_virtual_blocks(),
-                post_virtual_blocks_finish_upgrade_fix:
-                    BaseSystemContracts::estimate_gas_post_virtual_blocks_finish_upgrade_fix(),
-                post_boojum: BaseSystemContracts::estimate_gas_post_boojum(),
-                post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
-                post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
-                post_1_4_2: BaseSystemContracts::estimate_gas_post_1_4_2(),
-                vm_1_5_0_small_memory: BaseSystemContracts::estimate_gas_1_5_0_small_memory(),
-                vm_1_5_0_increased_memory:
-                    BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
-            },
-            eth_call: MultiVMBaseSystemContracts {
-                pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
-                post_virtual_blocks: BaseSystemContracts::playground_post_virtual_blocks(),
-                post_virtual_blocks_finish_upgrade_fix:
-                    BaseSystemContracts::playground_post_virtual_blocks_finish_upgrade_fix(),
-                post_boojum: BaseSystemContracts::playground_post_boojum(),
-                post_allowlist_removal: BaseSystemContracts::playground_post_allowlist_removal(),
-                post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
-                post_1_4_2: BaseSystemContracts::playground_post_1_4_2(),
-                vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
-                vm_1_5_0_increased_memory:
-                    BaseSystemContracts::playground_post_1_5_0_increased_memory(),
-            },
+            estimate_gas: MultiVMBaseSystemContracts::load_estimate_gas_blocking(),
+            eth_call: MultiVMBaseSystemContracts::load_eth_call_blocking(),
         }
     }
 }
@@ -233,7 +250,7 @@ impl TxSenderBuilder {
         self
     }
 
-    pub async fn build(
+    pub fn build(
         self,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
@@ -246,6 +263,10 @@ impl TxSenderBuilder {
             self.whitelisted_tokens_for_aa_cache.unwrap_or_else(|| {
                 Arc::new(RwLock::new(self.config.whitelisted_tokens_for_aa.clone()))
             });
+        let missed_storage_invocation_limit = self
+            .config
+            .vm_execution_cache_misses_limit
+            .unwrap_or(usize::MAX);
 
         TxSender(Arc::new(TxSenderInner {
             sender_config: self.config,
@@ -257,7 +278,7 @@ impl TxSenderBuilder {
             storage_caches,
             whitelisted_tokens_for_aa_cache,
             sealer,
-            executor: TransactionExecutor::Real,
+            executor: TransactionExecutor::real(missed_storage_invocation_limit),
         }))
     }
 }
@@ -314,7 +335,7 @@ pub struct TxSenderInner {
     // Cache for white-listed tokens.
     pub(super) whitelisted_tokens_for_aa_cache: Arc<RwLock<Vec<Address>>>,
     /// Batch sealer used to check whether transaction can be executed by the sequencer.
-    sealer: Arc<dyn ConditionalSealer>,
+    pub(super) sealer: Arc<dyn ConditionalSealer>,
     pub(super) executor: TransactionExecutor,
 }
 
@@ -340,7 +361,7 @@ impl TxSender {
         self.0.whitelisted_tokens_for_aa_cache.read().await.clone()
     }
 
-    async fn acquire_replica_connection(&self) -> anyhow::Result<Connection<'_, Core>> {
+    async fn acquire_replica_connection(&self) -> anyhow::Result<Connection<'static, Core>> {
         self.0
             .replica_connection_pool
             .connection_tagged("api")
@@ -362,25 +383,23 @@ impl TxSender {
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
-        let shared_args = self.shared_args().await?;
+        let setup_args = self.call_args(&tx, None).await?;
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
         let mut connection = self.acquire_replica_connection().await?;
         let block_args = BlockArgs::pending(&mut connection).await?;
-        drop(connection);
 
         let execution_output = self
             .0
             .executor
             .execute_tx_in_sandbox(
                 vm_permit.clone(),
-                shared_args.clone(),
-                true,
-                TxExecutionArgs::for_validation(&tx),
-                self.0.replica_connection_pool.clone(),
-                tx.clone().into(),
+                setup_args.clone(),
+                TxExecutionArgs::for_validation(tx.clone()),
+                connection,
                 block_args,
-                vec![],
+                None,
+                OneshotTracingParams::default(),
             )
             .await?;
         tracing::info!(
@@ -391,15 +410,16 @@ impl TxSender {
 
         let stage_latency =
             SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::VerifyExecute);
+        let connection = self.acquire_replica_connection().await?;
         let computational_gas_limit = self.0.sender_config.validation_computational_gas_limit;
         let validation_result = self
             .0
             .executor
             .validate_tx_in_sandbox(
-                self.0.replica_connection_pool.clone(),
+                connection,
                 vm_permit,
                 tx.clone(),
-                shared_args,
+                setup_args,
                 block_args,
                 computational_gas_limit,
             )
@@ -455,14 +475,23 @@ impl TxSender {
 
     /// **Important.** For the main node, this method acquires a DB connection inside `get_batch_fee_input()`.
     /// Thus, you shouldn't call it if you're holding a DB connection already.
-    async fn shared_args(&self) -> anyhow::Result<TxSharedArgs> {
+    async fn call_args(
+        &self,
+        tx: &L2Tx,
+        call_overrides: Option<&CallOverrides>,
+    ) -> anyhow::Result<TxSetupArgs> {
         let fee_input = self
             .0
             .batch_fee_input_provider
             .get_batch_fee_input()
             .await
             .context("cannot get batch fee input")?;
-        Ok(TxSharedArgs {
+        Ok(TxSetupArgs {
+            execution_mode: if call_overrides.is_some() {
+                TxExecutionMode::EthCall
+            } else {
+                TxExecutionMode::VerifyExecute
+            },
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
             fee_input,
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
@@ -473,6 +502,11 @@ impl TxSender {
                 .validation_computational_gas_limit,
             chain_id: self.0.sender_config.chain_id,
             whitelisted_tokens_for_aa: self.read_whitelisted_tokens_for_aa_cache().await,
+            enforced_base_fee: if let Some(overrides) = call_overrides {
+                overrides.enforced_base_fee
+            } else {
+                Some(tx.common_data.fee.max_fee_per_gas.as_u64())
+            },
         })
     }
 
@@ -510,11 +544,16 @@ impl TxSender {
             );
             return Err(SubmitTxError::GasLimitIsTooBig);
         }
-        if tx.common_data.fee.max_fee_per_gas < fee_input.fair_l2_gas_price().into() {
+
+        // At the moment fair_l2_gas_price is rarely changed for ETH-based chains. But for CBT
+        // chains it gets changed every few blocks because of token price change. We want to avoid
+        // situations when transactions with low gas price gets into mempool and sit there for a
+        // long time, so we require max_fee_per_gas to be at least current_l2_fair_gas_price / 2
+        if tx.common_data.fee.max_fee_per_gas < (fee_input.fair_l2_gas_price() / 2).into() {
             tracing::info!(
                 "Submitted Tx is Unexecutable {:?} because of MaxFeePerGasTooLow {}",
                 tx.hash(),
-                tx.common_data.fee.max_fee_per_gas
+                tx.common_data.fee.max_fee_per_gas,
             );
             return Err(SubmitTxError::MaxFeePerGasTooLow);
         }
@@ -526,9 +565,9 @@ impl TxSender {
             );
             return Err(SubmitTxError::MaxPriorityFeeGreaterThanMaxFee);
         }
-        if tx.execute.factory_deps_length() > MAX_NEW_FACTORY_DEPS {
+        if tx.execute.factory_deps.len() > MAX_NEW_FACTORY_DEPS {
             return Err(SubmitTxError::TooManyFactoryDependencies(
-                tx.execute.factory_deps_length(),
+                tx.execute.factory_deps.len(),
                 MAX_NEW_FACTORY_DEPS,
             ));
         }
@@ -651,6 +690,7 @@ impl TxSender {
         block_args: BlockArgs,
         base_fee: u64,
         vm_version: VmVersion,
+        state_override: Option<StateOverride>,
     ) -> anyhow::Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics)> {
         let gas_limit_with_overhead = tx_gas_limit
             + derive_overhead(
@@ -683,31 +723,29 @@ impl TxSender {
             }
         }
 
-        let shared_args = self.shared_args_for_gas_estimate(fee_model_params).await;
-        let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
-        let execution_args =
-            TxExecutionArgs::for_gas_estimate(vm_execution_cache_misses_limit, &tx, base_fee);
+        let setup_args = self.args_for_gas_estimate(fee_model_params, base_fee).await;
+        let execution_args = TxExecutionArgs::for_gas_estimate(tx);
+        let connection = self.acquire_replica_connection().await?;
         let execution_output = self
             .0
             .executor
             .execute_tx_in_sandbox(
                 vm_permit,
-                shared_args,
-                true,
+                setup_args,
                 execution_args,
-                self.0.replica_connection_pool.clone(),
-                tx.clone(),
+                connection,
                 block_args,
-                vec![],
+                state_override,
+                OneshotTracingParams::default(),
             )
             .await?;
         Ok((execution_output.vm, execution_output.metrics))
     }
 
-    async fn shared_args_for_gas_estimate(&self, fee_input: BatchFeeInput) -> TxSharedArgs {
+    async fn args_for_gas_estimate(&self, fee_input: BatchFeeInput, base_fee: u64) -> TxSetupArgs {
         let config = &self.0.sender_config;
-
-        TxSharedArgs {
+        TxSetupArgs {
+            execution_mode: TxExecutionMode::EstimateFee,
             operator_account: AccountTreeId::new(config.fee_account_addr),
             fee_input,
             // We want to bypass the computation gas limit check for gas estimation
@@ -716,6 +754,7 @@ impl TxSender {
             caches: self.storage_caches(),
             chain_id: config.chain_id,
             whitelisted_tokens_for_aa: self.read_whitelisted_tokens_for_aa_cache().await,
+            enforced_base_fee: Some(base_fee),
         }
     }
 
@@ -728,6 +767,7 @@ impl TxSender {
         mut tx: Transaction,
         estimated_fee_scale_factor: f64,
         acceptable_overestimation: u64,
+        state_override: Option<StateOverride>,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
 
@@ -781,17 +821,25 @@ impl TxSender {
                 )
             })?;
 
-        if !tx.is_l1()
-            && account_code_hash == H256::zero()
-            && tx.execute.value > self.get_balance(&tx.initiator_account()).await?
-        {
-            tracing::info!(
-                "fee estimation failed on validation step.
-                account: {} does not have enough funds for for transferring tx.value: {}.",
-                &tx.initiator_account(),
-                tx.execute.value
-            );
-            return Err(SubmitTxError::InsufficientFundsForTransfer);
+        if !tx.is_l1() && account_code_hash == H256::zero() {
+            let balance = match state_override
+                .as_ref()
+                .and_then(|overrides| overrides.get(&tx.initiator_account()))
+                .and_then(|account| account.balance)
+            {
+                Some(balance) => balance,
+                None => self.get_balance(&tx.initiator_account()).await?,
+            };
+
+            if tx.execute.value > balance {
+                tracing::info!(
+                    "fee estimation failed on validation step.
+                    account: {} does not have enough funds for for transferring tx.value: {}.",
+                    tx.initiator_account(),
+                    tx.execute.value
+                );
+                return Err(SubmitTxError::InsufficientFundsForTransfer);
+            }
         }
 
         // For L2 transactions we need a properly formatted signature
@@ -831,6 +879,7 @@ impl TxSender {
                     block_args,
                     base_fee,
                     protocol_version.into(),
+                    state_override.clone(),
                 )
                 .await
                 .context("estimate_gas step failed")?;
@@ -866,6 +915,7 @@ impl TxSender {
                     block_args,
                     base_fee,
                     protocol_version.into(),
+                    state_override.clone(),
                 )
                 .await
                 .context("estimate_gas step failed")?;
@@ -898,6 +948,7 @@ impl TxSender {
                 block_args,
                 base_fee,
                 protocol_version.into(),
+                state_override,
             )
             .await
             .context("final estimate_gas step failed")?;
@@ -963,30 +1014,32 @@ impl TxSender {
             .await
     }
 
-    pub(super) async fn eth_call(
+    pub async fn eth_call(
         &self,
         block_args: BlockArgs,
         call_overrides: CallOverrides,
         tx: L2Tx,
+        state_override: Option<StateOverride>,
     ) -> Result<Vec<u8>, SubmitTxError> {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
+        let setup_args = self.call_args(&tx, Some(&call_overrides)).await?;
 
-        let vm_execution_cache_misses_limit = self.0.sender_config.vm_execution_cache_misses_limit;
-        self.0
+        let connection = self.acquire_replica_connection().await?;
+        let result = self
+            .0
             .executor
-            .execute_tx_eth_call(
+            .execute_tx_in_sandbox(
                 vm_permit,
-                self.shared_args().await?,
-                self.0.replica_connection_pool.clone(),
-                call_overrides,
-                tx,
+                setup_args,
+                TxExecutionArgs::for_eth_call(tx),
+                connection,
                 block_args,
-                vm_execution_cache_misses_limit,
-                vec![],
+                state_override,
+                OneshotTracingParams::default(),
             )
-            .await?
-            .into_api_call_result()
+            .await?;
+        result.vm.into_api_call_result()
     }
 
     pub async fn gas_price(&self) -> anyhow::Result<u64> {
@@ -1038,20 +1091,5 @@ impl TxSender {
             return Err(SubmitTxError::Unexecutable(message));
         }
         Ok(())
-    }
-
-    pub(crate) async fn get_default_eth_call_gas(
-        &self,
-        block_args: BlockArgs,
-    ) -> anyhow::Result<u64> {
-        let mut connection = self.acquire_replica_connection().await?;
-
-        let protocol_version = block_args
-            .resolve_block_info(&mut connection)
-            .await
-            .context("failed to resolve block info")?
-            .protocol_version;
-
-        Ok(get_eth_call_gas_limit(protocol_version.into()))
     }
 }

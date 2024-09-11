@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                eth_commit_tx_id,\n                eth_prove_tx_id,\n                eth_execute_tx_id\n            FROM\n                l1_batches\n            WHERE\n                number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "eth_commit_tx_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 1,
+        "name": "eth_prove_tx_id",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "eth_execute_tx_id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "05ba766701795f258d9d8480b69357e734d864cf9f2506794b5a59348fc06ccf"
+}

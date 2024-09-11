@@ -1,8 +1,6 @@
 //! Basic benchmarks for `MiniMerkleTree`.
 
-use criterion::{
-    criterion_group, criterion_main, BatchSize, Bencher, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{criterion_group, criterion_main, Bencher, BenchmarkId, Criterion, Throughput};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 
 const TREE_SIZES: &[usize] = &[32, 64, 128, 256, 512, 1_024];
@@ -10,21 +8,13 @@ const TREE_SIZES: &[usize] = &[32, 64, 128, 256, 512, 1_024];
 fn compute_merkle_root(bencher: &mut Bencher<'_>, tree_size: usize) {
     let leaves = (0..tree_size).map(|i| [i as u8; 88]);
     let tree = MiniMerkleTree::new(leaves, None);
-    bencher.iter_batched(
-        || tree.clone(),
-        MiniMerkleTree::merkle_root,
-        BatchSize::SmallInput,
-    );
+    bencher.iter(|| tree.merkle_root());
 }
 
 fn compute_merkle_path(bencher: &mut Bencher<'_>, tree_size: usize) {
     let leaves = (0..tree_size).map(|i| [i as u8; 88]);
     let tree = MiniMerkleTree::new(leaves, None);
-    bencher.iter_batched(
-        || tree.clone(),
-        |tree| tree.merkle_root_and_path(tree_size / 3),
-        BatchSize::SmallInput,
-    );
+    bencher.iter(|| tree.merkle_root_and_path(tree_size / 3));
 }
 
 fn basic_benches(criterion: &mut Criterion) {

@@ -1,22 +1,29 @@
 use clap::{command, Parser, Subcommand};
+use commands::{
+    args::{ContainersArgs, UpdateArgs},
+    contract_verifier::ContractVerifierCommands,
+};
 use common::{
-    check_prerequisites,
+    check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
+    error::log_error,
     init_prompt_theme, logger,
 };
 use config::EcosystemConfig;
 use xshell::Shell;
 
-use crate::commands::{args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands};
+use crate::commands::{
+    args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands,
+    explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
+};
 
 pub mod accept_ownership;
 mod commands;
-mod config_manipulations;
 mod consts;
 mod defaults;
-pub mod forge_utils;
+pub mod external_node;
 mod messages;
-pub mod server;
+mod utils;
 
 #[derive(Parser, Debug)]
 #[command(version, about)]
@@ -30,15 +37,35 @@ struct Inception {
 #[derive(Subcommand, Debug)]
 pub enum InceptionSubcommands {
     /// Ecosystem related commands
-    #[command(subcommand)]
+    #[command(subcommand, alias = "e")]
     Ecosystem(EcosystemCommands),
     /// Chain related commands
-    #[command(subcommand)]
+    #[command(subcommand, alias = "c")]
     Chain(ChainCommands),
+    /// Prover related commands
+    #[command(subcommand, alias = "p")]
+    Prover(ProverCommands),
     /// Run server
     Server(RunServerArgs),
+    ///  External Node related commands
+    #[command(subcommand, alias = "en")]
+    ExternalNode(ExternalNodeCommands),
     /// Run containers for local development
-    Containers,
+    #[command(alias = "up")]
+    Containers(ContainersArgs),
+    /// Run contract verifier
+    #[command(subcommand)]
+    ContractVerifier(ContractVerifierCommands),
+    /// Run dapp-portal
+    Portal,
+    /// Run block-explorer
+    #[command(subcommand)]
+    Explorer(ExplorerCommands),
+    /// Update ZKsync
+    #[command(alias = "u")]
+    Update(UpdateArgs),
+    #[command(hide = true)]
+    Markdown,
 }
 
 #[derive(Parser, Debug)]
@@ -70,27 +97,13 @@ async fn main() -> anyhow::Result<()> {
     init_global_config_inner(&shell, &inception_args.global)?;
 
     if !global_config().ignore_prerequisites {
-        check_prerequisites(&shell);
+        check_general_prerequisites(&shell);
     }
 
     match run_subcommand(inception_args, &shell).await {
         Ok(_) => {}
-        Err(e) => {
-            logger::error(e.to_string());
-
-            if e.chain().count() > 1 {
-                logger::error_note(
-                    "Caused by:",
-                    &e.chain()
-                        .skip(1)
-                        .enumerate()
-                        .map(|(i, cause)| format!("  {i}: {}", cause))
-                        .collect::<Vec<_>>()
-                        .join("\n"),
-                );
-            }
-
-            logger::outro("Failed");
+        Err(error) => {
+            log_error(error);
             std::process::exit(1);
         }
     }
@@ -101,8 +114,21 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
     match inception_args.command {
         InceptionSubcommands::Ecosystem(args) => commands::ecosystem::run(shell, args).await?,
         InceptionSubcommands::Chain(args) => commands::chain::run(shell, args).await?,
+        InceptionSubcommands::Prover(args) => commands::prover::run(shell, args).await?,
         InceptionSubcommands::Server(args) => commands::server::run(shell, args)?,
-        InceptionSubcommands::Containers => commands::containers::run(shell)?,
+        InceptionSubcommands::Containers(args) => commands::containers::run(shell, args)?,
+        InceptionSubcommands::ExternalNode(args) => {
+            commands::external_node::run(shell, args).await?
+        }
+        InceptionSubcommands::ContractVerifier(args) => {
+            commands::contract_verifier::run(shell, args).await?
+        }
+        InceptionSubcommands::Explorer(args) => commands::explorer::run(shell, args).await?,
+        InceptionSubcommands::Portal => commands::portal::run(shell).await?,
+        InceptionSubcommands::Update(args) => commands::update::run(shell, args)?,
+        InceptionSubcommands::Markdown => {
+            clap_markdown::print_help_markdown::<Inception>();
+        }
     }
     Ok(())
 }

@@ -1,10 +1,10 @@
 use zksync_types::{
     api::{
-        Block, BlockId, BlockIdVariant, BlockNumber, Log, Transaction, TransactionId,
-        TransactionReceipt, TransactionVariant,
+        state_override::StateOverride, Block, BlockId, BlockIdVariant, BlockNumber, FeeHistory,
+        Log, Transaction, TransactionId, TransactionReceipt, TransactionVariant,
     },
     transaction_request::CallRequest,
-    web3::{Bytes, FeeHistory, Index, SyncState},
+    web3::{Bytes, Index, SyncState},
     Address, H256, U256, U64,
 };
 use zksync_web3_decl::{
@@ -27,14 +27,24 @@ impl EthNamespaceServer for EthNamespace {
         Ok(self.chain_id_impl())
     }
 
-    async fn call(&self, req: CallRequest, block: Option<BlockIdVariant>) -> RpcResult<Bytes> {
-        self.call_impl(req, block.map(Into::into))
+    async fn call(
+        &self,
+        req: CallRequest,
+        block: Option<BlockIdVariant>,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<Bytes> {
+        self.call_impl(req, block.map(Into::into), state_override)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn estimate_gas(&self, req: CallRequest, block: Option<BlockNumber>) -> RpcResult<U256> {
-        self.estimate_gas_impl(req, block)
+    async fn estimate_gas(
+        &self,
+        req: CallRequest,
+        block: Option<BlockNumber>,
+        state_override: Option<StateOverride>,
+    ) -> RpcResult<U256> {
+        self.estimate_gas_impl(req, block, state_override)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }

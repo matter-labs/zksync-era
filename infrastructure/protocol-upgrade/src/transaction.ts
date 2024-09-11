@@ -1,11 +1,11 @@
-import { BigNumberish } from '@ethersproject/bignumber';
-import { BytesLike, ethers } from 'ethers';
+import { BytesLike, ethers, BigNumberish } from 'ethers';
 import { ForceDeployUpgraderFactory as ForceDeployUpgraderFactoryL2 } from 'l2-contracts/typechain';
 import {
     DefaultUpgradeFactory as DefaultUpgradeFactoryL1,
     AdminFacetFactory,
     GovernanceFactory,
-    StateTransitionManagerFactory
+    StateTransitionManagerFactory,
+    ChainAdminFactory
 } from 'l1-contracts/typechain';
 import { FacetCut } from 'l1-contracts/src.ts/diamondCut';
 import { IZkSyncFactory } from '../pre-boojum/IZkSyncFactory';
@@ -23,7 +23,7 @@ import {
 } from './utils';
 import fs from 'fs';
 import { Command } from 'commander';
-import { web3Url } from 'zk/build/utils';
+import { web3Url } from 'utils';
 import * as path from 'path';
 
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
@@ -208,6 +208,19 @@ function prepareGovernanceTxs(target: string, data: BytesLike): GovernanceTx {
     };
 }
 
+function prepareChainAdminCalldata(target: string, data: BytesLike): string {
+    const call = {
+        target: target,
+        value: 0,
+        data: data
+    };
+
+    const chainAdmin = new ChainAdminFactory();
+    const calldata = chainAdmin.interface.encodeFunctionData('multicall', [[call], true]);
+
+    return calldata;
+}
+
 export function prepareTransparentUpgradeCalldataForNewGovernance(
     oldProtocolVersion,
     oldProtocolVersionDeadline,
@@ -250,6 +263,8 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         operation: governanceOperation
     } = prepareGovernanceTxs(zksyncAddress, diamondProxyUpgradeCalldata);
 
+    const newExecuteChainUpgradeCalldata = prepareChainAdminCalldata(zksyncAddress, diamondProxyUpgradeCalldata);
+
     const legacyScheduleTransparentOperation = adminFacet.interface.encodeFunctionData('executeUpgrade', [diamondCut]);
     const { scheduleCalldata: legacyScheduleOperation, executeCalldata: legacyExecuteOperation } = prepareGovernanceTxs(
         zksyncAddress,
@@ -261,6 +276,7 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         stmExecuteOperation,
         scheduleTransparentOperation,
         executeOperation,
+        newExecuteChainUpgradeCalldata,
         diamondCut,
         governanceOperation,
         legacyScheduleOperation,

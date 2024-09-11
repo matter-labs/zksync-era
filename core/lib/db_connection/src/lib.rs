@@ -3,7 +3,6 @@
 pub mod connection;
 pub mod connection_pool;
 pub mod error;
-pub mod healthcheck;
 pub mod instrument;
 pub mod metrics;
 #[macro_use]

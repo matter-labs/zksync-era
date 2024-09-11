@@ -6,13 +6,15 @@ use zk_evm_1_4_1::{
         DecommittmentQuery, MemoryIndex, MemoryLocation, MemoryPage, MemoryQuery, Timestamp,
     },
 };
-use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::U256;
 use zksync_utils::{bytecode::bytecode_len_in_words, bytes_to_be_words, u256_to_h256};
 
 use super::OracleWithHistory;
-use crate::vm_1_4_2::old_vm::history_recorder::{
-    HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
+use crate::{
+    interface::storage::{ReadStorage, StoragePtr},
+    vm_1_4_2::old_vm::history_recorder::{
+        HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
+    },
 };
 /// The main job of the DecommiterOracle is to implement the DecommittmentProcessor trait - that is
 /// used by the VM to 'load' bytecodes into memory.

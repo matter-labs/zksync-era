@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import * as utils from './utils';
+import * as utils from 'utils';
 import { format } from 'sql-formatter';
 
 function formatQuery(query: string) {
@@ -159,7 +159,7 @@ async function formatFile(filePath: string, check: boolean) {
 export async function formatSqlxQueries(check: boolean) {
     process.chdir(`${process.env.ZKSYNC_HOME}`);
     const { stdout: filesRaw } = await utils.exec(
-        'find core/lib/dal -type f -name "*.rs" && find prover/prover_dal -type f -name "*.rs"'
+        'find core/lib/dal -type f -name "*.rs" && find prover/crates/lib/prover_dal -type f -name "*.rs"'
     );
     const files = filesRaw.trim().split('\n');
     const formatResults = await Promise.all(files.map((file) => formatFile(file, check)));

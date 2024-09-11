@@ -1,16 +1,27 @@
 use clap::{Parser, Subcommand};
-use commands::database::DatabaseCommands;
+use commands::{
+    contracts::ContractsArgs, database::DatabaseCommands, lint::LintArgs, prover::ProverCommands,
+    snapshot::SnapshotCommands, test::TestCommands,
+};
 use common::{
-    check_prerequisites,
+    check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
+    error::log_error,
     init_prompt_theme, logger,
 };
 use config::EcosystemConfig;
-use messages::msg_global_chain_does_not_exist;
+use messages::{
+    msg_global_chain_does_not_exist, MSG_CONTRACTS_ABOUT, MSG_PROVER_VERSION_ABOUT,
+    MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT,
+    MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
+};
 use xshell::Shell;
+
+use crate::commands::{clean::CleanCommands, fmt::FmtArgs};
 
 mod commands;
 mod dals;
+mod defaults;
 mod messages;
 
 #[derive(Parser, Debug)]
@@ -24,9 +35,24 @@ struct Supervisor {
 
 #[derive(Subcommand, Debug)]
 enum SupervisorSubcommands {
-    /// Database related commands
-    #[command(subcommand)]
+    #[command(subcommand, about = MSG_SUBCOMMAND_DATABASE_ABOUT, alias = "db")]
     Database(DatabaseCommands),
+    #[command(subcommand, about = MSG_SUBCOMMAND_TESTS_ABOUT, alias = "t")]
+    Test(TestCommands),
+    #[command(subcommand, about = MSG_SUBCOMMAND_CLEAN)]
+    Clean(CleanCommands),
+    #[command(subcommand, about = MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT)]
+    Snapshot(SnapshotCommands),
+    #[command(about = MSG_SUBCOMMAND_LINT_ABOUT, alias = "l")]
+    Lint(LintArgs),
+    #[command(about = MSG_SUBCOMMAND_FMT_ABOUT)]
+    Fmt(FmtArgs),
+    #[command(hide = true)]
+    Markdown,
+    #[command(subcommand, about = MSG_PROVER_VERSION_ABOUT)]
+    Prover(ProverCommands),
+    #[command(about = MSG_CONTRACTS_ABOUT)]
+    Contracts(ContractsArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -58,27 +84,13 @@ async fn main() -> anyhow::Result<()> {
     init_global_config_inner(&shell, &args.global)?;
 
     if !global_config().ignore_prerequisites {
-        check_prerequisites(&shell);
+        check_general_prerequisites(&shell);
     }
 
     match run_subcommand(args, &shell).await {
         Ok(_) => {}
-        Err(e) => {
-            logger::error(e.to_string());
-
-            if e.chain().count() > 1 {
-                logger::error_note(
-                    "Caused by:",
-                    &e.chain()
-                        .skip(1)
-                        .enumerate()
-                        .map(|(i, cause)| format!("  {i}: {}", cause))
-                        .collect::<Vec<_>>()
-                        .join("\n"),
-                );
-            }
-
-            logger::outro("Failed");
+        Err(error) => {
+            log_error(error);
             std::process::exit(1);
         }
     }
@@ -89,6 +101,16 @@ async fn main() -> anyhow::Result<()> {
 async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
     match args.command {
         SupervisorSubcommands::Database(command) => commands::database::run(shell, command).await?,
+        SupervisorSubcommands::Test(command) => commands::test::run(shell, command).await?,
+        SupervisorSubcommands::Clean(command) => commands::clean::run(shell, command)?,
+        SupervisorSubcommands::Snapshot(command) => commands::snapshot::run(shell, command).await?,
+        SupervisorSubcommands::Markdown => {
+            clap_markdown::print_help_markdown::<Supervisor>();
+        }
+        SupervisorSubcommands::Lint(args) => commands::lint::run(shell, args)?,
+        SupervisorSubcommands::Fmt(args) => commands::fmt::run(shell.clone(), args).await?,
+        SupervisorSubcommands::Prover(command) => commands::prover::run(shell, command).await?,
+        SupervisorSubcommands::Contracts(args) => commands::contracts::run(shell, args)?,
     }
     Ok(())
 }

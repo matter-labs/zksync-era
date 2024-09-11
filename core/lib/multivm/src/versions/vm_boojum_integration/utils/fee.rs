@@ -3,10 +3,10 @@ use zksync_types::fee_model::L1PeggedBatchFeeModelInput;
 use zksync_utils::ceil_div;
 
 use crate::{
+    interface::L1BatchEnv,
     vm_boojum_integration::{
         constants::MAX_GAS_PER_PUBDATA_BYTE, old_vm::utils::eth_price_per_pubdata_byte,
     },
-    vm_latest::L1BatchEnv,
 };
 
 /// Calculates the amount of gas required to publish one byte of pubdata

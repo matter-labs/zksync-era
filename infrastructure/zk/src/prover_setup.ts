@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from './utils';
+import * as utils from 'utils';
 import fs from 'fs';
 import enquirer from 'enquirer';
 import { BasePromptOptions } from './hyperchain_wizard';
@@ -204,7 +204,7 @@ async function downloadDefaultSetupKeys(proverType: ProverType, region: string) 
     );
 
     await utils.spawn(
-        `cp -r ${process.env.ZKSYNC_HOME}/prover/vk_setup_data_generator_server_fri/data/* ${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`
+        `cp -r ${process.env.ZKSYNC_HOME}/prover/data/keys/* ${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${currentEnv}/${proverType}/`
     );
 }
 

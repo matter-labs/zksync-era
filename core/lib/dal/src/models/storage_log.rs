@@ -12,11 +12,10 @@ pub struct DbInitialWrite {
 #[derive(Debug, PartialEq)]
 pub struct DbStorageLog {
     pub hashed_key: H256,
-    pub address: H160,
-    pub key: H256,
+    pub address: Option<H160>,
+    pub key: Option<H256>,
     pub value: H256,
     pub operation_number: u64,
-    pub tx_hash: H256,
     pub l2_block_number: L2BlockNumber,
 }
 

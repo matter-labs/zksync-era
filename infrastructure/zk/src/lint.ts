@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import * as utils from './utils';
+import * as utils from 'utils';
 
 // Note that `rust` is not noted here, as clippy isn't run via `yarn`.
 // `rust` option is still supported though.
@@ -35,7 +35,7 @@ async function clippy() {
 
 async function proverClippy() {
     process.chdir(`${process.env.ZKSYNC_HOME}/prover`);
-    await utils.spawn('cargo clippy --tests --locked -- -D warnings -A incomplete_features');
+    await utils.spawn('cargo clippy --tests --locked -- -D warnings');
 }
 
 async function toolboxClippy() {

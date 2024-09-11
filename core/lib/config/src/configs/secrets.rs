@@ -30,9 +30,11 @@ impl DatabaseSecrets {
 
     /// Returns a copy of the replica database URL as a `Result` to simplify error propagation.
     pub fn replica_url(&self) -> anyhow::Result<SensitiveUrl> {
-        self.server_replica_url
-            .clone()
-            .context("Replica DB URL is absent")
+        if let Some(replica_url) = &self.server_replica_url {
+            Ok(replica_url.clone())
+        } else {
+            self.master_url()
+        }
     }
 
     /// Returns a copy of the prover database URL as a `Result` to simplify error propagation.

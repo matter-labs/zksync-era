@@ -155,7 +155,7 @@ where
             Execute {
                 contract_address: to,
                 calldata: Default::default(),
-                factory_deps: None,
+                factory_deps: vec![],
                 value: amount,
             }
         } else {
@@ -163,7 +163,7 @@ where
             Execute {
                 contract_address: token,
                 calldata: create_transfer_calldata(to, amount),
-                factory_deps: None,
+                factory_deps: vec![],
                 value: Default::default(),
             }
         };
@@ -181,7 +181,7 @@ where
         };
         self.wallet
             .provider
-            .estimate_fee(l2_tx.into())
+            .estimate_fee(l2_tx.into(), None)
             .await
             .map_err(Into::into)
     }

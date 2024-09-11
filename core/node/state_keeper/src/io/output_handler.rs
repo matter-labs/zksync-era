@@ -64,6 +64,11 @@ impl OutputHandler {
         Ok(())
     }
 
+    #[tracing::instrument(
+        name = "OutputHandler::handle_l2_block"
+        skip_all,
+        fields(l2_block = %updates_manager.l2_block.number)
+    )]
     pub(crate) async fn handle_l2_block(
         &mut self,
         updates_manager: &UpdatesManager,
@@ -82,6 +87,11 @@ impl OutputHandler {
         Ok(())
     }
 
+    #[tracing::instrument(
+        name = "OutputHandler::handle_l1_batch"
+        skip_all,
+        fields(l1_batch = %updates_manager.l1_batch.number)
+    )]
     pub(crate) async fn handle_l1_batch(
         &mut self,
         updates_manager: Arc<UpdatesManager>,

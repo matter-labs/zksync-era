@@ -1,6 +1,7 @@
 [package]
 name = "zksync_queued_job_processor"
-version = "0.1.0"
+description = "Abstract queued job processor"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

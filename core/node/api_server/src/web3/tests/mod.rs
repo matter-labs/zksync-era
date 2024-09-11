@@ -7,7 +7,6 @@ use std::{
 
 use assert_matches::assert_matches;
 use async_trait::async_trait;
-use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::sync::watch;
 use zksync_config::{
     configs::{
@@ -18,28 +17,32 @@ use zksync_config::{
     GenesisConfig,
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
+use zksync_multivm::interface::{
+    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
+    VmExecutionMetrics,
+};
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
 };
+use zksync_system_constants::{
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+};
 use zksync_types::{
     api,
-    block::L2BlockHeader,
-    fee::TransactionExecutionMetrics,
+    block::{pack_block_info, L2BlockHeader},
     get_nonce_key,
     l2::L2Tx,
     storage::get_code_key,
     tokens::{TokenInfo, TokenMetadata},
-    tx::{
-        tx_execution_info::TxExecutionStatus, ExecutionMetrics, IncludedTxLocation,
-        TransactionExecutionResult,
-    },
+    tx::IncludedTxLocation,
     utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
-    AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog,
-    VmEvent, H256, U64,
+    AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog, H256,
+    U256, U64,
 };
 use zksync_utils::u256_to_h256;
+use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
     jsonrpsee::{
@@ -55,10 +58,7 @@ use zksync_web3_decl::{
 };
 
 use super::*;
-use crate::{
-    execution_sandbox::testonly::MockTransactionExecutor,
-    web3::testonly::{spawn_http_server, spawn_ws_server},
-};
+use crate::web3::testonly::{spawn_http_server, spawn_ws_server};
 
 mod debug;
 mod filters;
@@ -73,13 +73,13 @@ const POLL_INTERVAL: Duration = Duration::from_millis(50);
 async fn setting_response_size_limits() {
     let mut rpc_module = RpcModule::new(());
     rpc_module
-        .register_method("test_limited", |params, _ctx| {
+        .register_method("test_limited", |params, _ctx, _ext| {
             let response_size: usize = params.one()?;
             Ok::<_, ErrorObjectOwned>("!".repeat(response_size))
         })
         .unwrap();
     rpc_module
-        .register_method("test_unlimited", |params, _ctx| {
+        .register_method("test_unlimited", |params, _ctx, _ext| {
             let response_size: usize = params.one()?;
             Ok::<_, ErrorObjectOwned>("!".repeat(response_size))
         })
@@ -136,8 +136,8 @@ trait HttpTest: Send + Sync {
         StorageInitialization::Genesis
     }
 
-    fn transaction_executor(&self) -> MockTransactionExecutor {
-        MockTransactionExecutor::default()
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        MockOneshotExecutor::default()
     }
 
     fn method_tracer(&self) -> Arc<MethodTracer> {
@@ -175,7 +175,7 @@ impl StorageInitialization {
     }
 
     async fn prepare_storage(
-        &self,
+        self,
         network_config: &NetworkConfig,
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
@@ -190,17 +190,33 @@ impl StorageInitialization {
                     insert_genesis_batch(storage, &params).await?;
                 }
             }
-            Self::Recovery { logs, factory_deps } => {
+            Self::Recovery {
+                mut logs,
+                factory_deps,
+            } => {
+                let l2_block_info_key = StorageKey::new(
+                    AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+                    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+                );
+                let block_info = pack_block_info(
+                    Self::SNAPSHOT_RECOVERY_BLOCK.0.into(),
+                    Self::SNAPSHOT_RECOVERY_BLOCK.0.into(),
+                );
+                logs.push(StorageLog::new_write_log(
+                    l2_block_info_key,
+                    u256_to_h256(block_info),
+                ));
+
                 prepare_recovery_snapshot(
                     storage,
                     Self::SNAPSHOT_RECOVERY_BATCH,
                     Self::SNAPSHOT_RECOVERY_BLOCK,
-                    logs,
+                    &logs,
                 )
                 .await;
                 storage
                     .factory_deps_dal()
-                    .insert_factory_deps(Self::SNAPSHOT_RECOVERY_BLOCK, factory_deps)
+                    .insert_factory_deps(Self::SNAPSHOT_RECOVERY_BLOCK, &factory_deps)
                     .await?;
 
                 // Insert the next L1 batch in the storage so that the API server doesn't hang up.
@@ -273,7 +289,7 @@ fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
     TransactionExecutionResult {
         hash: transaction.hash(),
         transaction: transaction.into(),
-        execution_info: ExecutionMetrics::default(),
+        execution_info: VmExecutionMetrics::default(),
         execution_status: TxExecutionStatus::Success,
         refunded_gas: 0,
         operator_suggested_refund: 0,
@@ -283,7 +299,7 @@ fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
     }
 }
 
-/// Stores L2 block with a single transaction and returns the L2 block header + transaction hash.
+/// Stores L2 block and returns the L2 block header.
 async fn store_l2_block(
     storage: &mut Connection<'_, Core>,
     number: L2BlockNumber,
@@ -298,6 +314,18 @@ async fn store_l2_block(
             .unwrap();
         assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
     }
+
+    // Record L2 block info which is read by the VM sandbox logic
+    let l2_block_info_key = StorageKey::new(
+        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+        SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    );
+    let block_info = pack_block_info(number.0.into(), number.0.into());
+    let l2_block_log = StorageLog::new_write_log(l2_block_info_key, u256_to_h256(block_info));
+    storage
+        .storage_logs_dal()
+        .append_storage_logs(number, &[l2_block_log])
+        .await?;
 
     let new_l2_block = create_l2_block(number.0);
     storage.blocks_dal().insert_l2_block(&new_l2_block).await?;
@@ -673,7 +701,7 @@ impl HttpTest for TransactionCountTest {
             );
             storage
                 .storage_logs_dal()
-                .insert_storage_logs(l2_block_number, &[(H256::zero(), vec![nonce_log])])
+                .insert_storage_logs(l2_block_number, &[nonce_log])
                 .await?;
         }
 
@@ -887,7 +915,7 @@ impl HttpTest for AllAccountBalancesTest {
         let eth_balance_log = StorageLog::new_write_log(eth_balance_key, u256_to_h256(eth_balance));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(1), &[(H256::zero(), vec![eth_balance_log])])
+            .insert_storage_logs(L2BlockNumber(1), &[eth_balance_log])
             .await?;
         // Create a custom token, but don't set balance for it yet.
         let custom_token = TokenInfo {
@@ -913,7 +941,7 @@ impl HttpTest for AllAccountBalancesTest {
             StorageLog::new_write_log(token_balance_key, u256_to_h256(token_balance));
         storage
             .storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(2), &[(H256::zero(), vec![token_balance_log])])
+            .insert_storage_logs(L2BlockNumber(2), &[token_balance_log])
             .await?;
 
         let balances = client.get_all_account_balances(Self::ADDRESS).await?;
@@ -954,7 +982,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert!(calls[0].response.is_success());
+        assert!(calls[0].error_code.is_none());
         assert_eq!(calls[0].metadata.name, "eth_blockNumber");
         assert_eq!(calls[0].metadata.block_id, None);
         assert_eq!(calls[0].metadata.block_diff, None);
@@ -965,7 +993,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert!(calls[0].response.is_success());
+        assert!(calls[0].error_code.is_none());
         assert_eq!(calls[0].metadata.name, "eth_getBlockByNumber");
         assert_eq!(
             calls[0].metadata.block_id,
@@ -978,7 +1006,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert!(calls[0].response.is_success());
+        assert!(calls[0].error_code.is_none());
         assert_eq!(calls[0].metadata.name, "eth_getBlockByNumber");
         assert_eq!(
             calls[0].metadata.block_id,
@@ -993,10 +1021,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert_eq!(
-            calls[0].response.as_error_code(),
-            Some(ErrorCode::MethodNotFound.code())
-        );
+        assert_eq!(calls[0].error_code, Some(ErrorCode::MethodNotFound.code()));
         assert!(!calls[0].metadata.has_app_error);
 
         ClientT::request::<serde_json::Value, _>(&client, "eth_getBlockByNumber", rpc_params![0])
@@ -1005,10 +1030,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert_eq!(
-            calls[0].response.as_error_code(),
-            Some(ErrorCode::InvalidParams.code())
-        );
+        assert_eq!(calls[0].error_code, Some(ErrorCode::InvalidParams.code()));
         assert!(!calls[0].metadata.has_app_error);
 
         // Check app-level error.
@@ -1022,10 +1044,7 @@ impl HttpTest for RpcCallsTracingTest {
 
         let calls = self.tracer.recorded_calls().take();
         assert_eq!(calls.len(), 1);
-        assert_eq!(
-            calls[0].response.as_error_code(),
-            Some(ErrorCode::InvalidParams.code())
-        );
+        assert_eq!(calls[0].error_code, Some(ErrorCode::InvalidParams.code()));
         assert!(calls[0].metadata.has_app_error);
 
         // Check batch RPC request.

@@ -7,7 +7,7 @@ use rand::{
     Rng, SeedableRng,
 };
 use test_casing::test_casing;
-use zksync_crypto::hasher::blake2::Blake2Hasher;
+use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_types::{H256, U256};
 
 use super::*;

@@ -1,6 +1,7 @@
 [package]
 name = "zksync_snapshots_applier"
-version = "0.1.0"
+description = "Library for applying ZKsync state snapshots"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

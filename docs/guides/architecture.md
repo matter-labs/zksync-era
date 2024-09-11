@@ -1,7 +1,7 @@
-# zkSync v2 Project Architecture
+# ZKsync v2 Project Architecture
 
 This document will help you answer the question: _where can I find the logic for x?_ by giving a directory-tree style
-structure of the physical architecture of the zkSync Era project.
+structure of the physical architecture of the ZKsync Era project.
 
 ## High-Level Overview
 
@@ -10,15 +10,15 @@ The zksync-2-dev repository has the following main units:
 <ins>**Smart Contracts:**</ins> All the smart contracts in charge of the protocols on the L1 & L2. Some main contracts:
 
 - L1 & L2 bridge contracts.
-- The zkSync rollup contract on Ethereum.
+- The ZKsync rollup contract on Ethereum.
 - The L1 proof verifier contract.
 
-**<ins>Core App:**</ins> The execution layer. A node running the zkSync network in charge of the following components:
+**<ins>Core App:**</ins> The execution layer. A node running the ZKsync network in charge of the following components:
 
 - Monitoring the L1 smart contract for deposits or priority operations.
 - Maintaining a mempool that receives transactions.
 - Picking up transactions from the mempool, executing them in a VM, and changing the state accordingly.
-- Generating zkSync chain blocks.
+- Generating ZKsync chain blocks.
 - Preparing circuits for executed blocks to be proved.
 - Submitting blocks and proofs to the L1 smart contract.
 - Exposing the Ethereum-compatible web3 API.
@@ -36,27 +36,27 @@ This section provides a physical map of folders & files in this repository.
 - `/contracts`
 
   - `/ethereum`: Smart contracts deployed on the Ethereum L1.
-  - `/zksync`: Smart contracts deployed on the zkSync L2.
+  - `/zksync`: Smart contracts deployed on the ZKsync L2.
 
 - `/core`
 
-  - `/bin`: Executables for the microservices components comprising zkSync Core Node.
+  - `/bin`: Executables for the microservices components comprising ZKsync Core Node.
 
     - `/admin-tools`: CLI tools for admin operations (e.g. restarting prover jobs).
     - `/external_node`: A read replica that can sync from the main node.
 
   - `/lib`: All the library crates used as dependencies of the binary crates above.
 
-    - `/basic_types`: Crate with essential zkSync primitive types.
-    - `/config`: All the configured values used by the different zkSync apps.
+    - `/basic_types`: Crate with essential ZKsync primitive types.
+    - `/config`: All the configured values used by the different ZKsync apps.
     - `/contracts`: Contains definitions of commonly used smart contracts.
-    - `/crypto`: Cryptographical primitives used by the different zkSync crates.
+    - `/crypto`: Cryptographical primitives used by the different ZKsync crates.
     - `/dal`: Data availability layer
       - `/migrations`: All the db migrations applied to create the storage layer.
       - `/src`: Functionality to interact with the different db tables.
     - `/eth_client`: Module providing an interface to interact with an Ethereum node.
     - `/eth_signer`: Module to sign messages and txs.
-    - `/mempool`: Implementation of the zkSync transaction pool.
+    - `/mempool`: Implementation of the ZKsync transaction pool.
     - `/merkle_tree`: Implementation of a sparse Merkle tree.
     - `/mini_merkle_tree`: In-memory implementation of a sparse Merkle tree.
     - `/multivm`: A wrapper over several versions of VM that have been used by the main node.
@@ -65,47 +65,47 @@ This section provides a physical map of folders & files in this repository.
     - `/queued_job_processor`: An abstraction for async job processing
     - `/state`: A state keeper responsible for handling transaction execution and creating miniblocks and L1 batches.
     - `/storage`: An encapsulated database interface.
-    - `/test_account`: A representation of zkSync account.
-    - `/types`: zkSync network operations, transactions, and common types.
-    - `/utils`: Miscellaneous helpers for zkSync crates.
-    - `/vlog`: zkSync logging utility.
+    - `/test_account`: A representation of ZKsync account.
+    - `/types`: ZKsync network operations, transactions, and common types.
+    - `/utils`: Miscellaneous helpers for ZKsync crates.
+    - `/vlog`: ZKsync logging utility.
     - `/vm`: ULightweight out-of-circuit VM interface.
     - `/web3_decl`: Declaration of the Web3 API.
     - `zksync_core/src`
       - `/api_server` Externally facing APIs.
-        - `/web3`: zkSync implementation of the Web3 API.
+        - `/web3`: ZKsync implementation of the Web3 API.
         - `/tx_sender`: Helper module encapsulating the transaction processing logic.
-      - `/bin`: The executable main starting point for the zkSync server.
-      - `/consistency_checker`: zkSync watchdog.
-      - `/eth_sender`: Submits transactions to the zkSync smart contract.
+      - `/bin`: The executable main starting point for the ZKsync server.
+      - `/consistency_checker`: ZKsync watchdog.
+      - `/eth_sender`: Submits transactions to the ZKsync smart contract.
       - `/eth_watch`: Fetches data from the L1. for L2 censorship resistance.
       - `/fee_monitor`: Monitors the ratio of fees collected by executing txs over the costs of interacting with
         Ethereum.
       - `/fee_ticker`: Module to define the price components of L2 transactions.
       - `/gas_adjuster`: Module to determine the fees to pay in txs containing blocks submitted to the L1.
       - `/gas_tracker`: Module for predicting L1 gas cost for the Commit/PublishProof/Execute operations.
-      - `/metadata_calculator`: Module to maintain the zkSync state tree.
+      - `/metadata_calculator`: Module to maintain the ZKsync state tree.
       - `/state_keeper`: The sequencer. In charge of collecting the pending txs from the mempool, executing them in the
         VM, and sealing them in blocks.
       - `/witness_generator`: Takes the sealed blocks and generates a _Witness_, the input for the prover containing the
         circuits to be proved.
 
-  - `/tests`: Testing infrastructure for zkSync network.
+  - `/tests`: Testing infrastructure for ZKsync network.
     - `/cross_external_nodes_checker`: A tool for checking external nodes consistency against the main node.
-    - `/loadnext`: An app for load testing the zkSync server.
+    - `/loadnext`: An app for load testing the ZKsync server.
     - `/ts-integration`: Integration tests set implemented in TypeScript.
 
-- `/prover`: zkSync prover orchestrator application.
+- `/prover`: ZKsync prover orchestrator application.
 
 - `/docker`: Project docker files.
 
-- `/bin` & `/infrastructure`: Infrastructure scripts that help to work with zkSync applications.
+- `/bin` & `/infrastructure`: Infrastructure scripts that help to work with ZKsync applications.
 
 - `/etc`: Configuration files.
 
-  - `/env`:`.env` files that contain environment variables for different configurations of zkSync Server / Prover.
+  - `/env`:`.env` files that contain environment variables for different configurations of ZKsync Server / Prover.
 
 - `/keys`: Verification keys for `circuit` module.
 
-- `/sdk`: Implementation of client libraries for the zkSync network in different programming languages.
-  - `/zksync-rs`: Rust client library for zkSync.
+- `/sdk`: Implementation of client libraries for the ZKsync network in different programming languages.
+  - `/zksync-rs`: Rust client library for ZKsync.

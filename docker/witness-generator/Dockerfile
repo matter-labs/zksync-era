@@ -1,6 +1,8 @@
 FROM matterlabs/zksync-build-base:latest AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
+ARG RUST_FLAGS=""
+ENV RUSTFLAGS=${RUST_FLAGS}
 
 WORKDIR /usr/src/zksync
 COPY . .
@@ -11,7 +13,7 @@ FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
-COPY prover/vk_setup_data_generator_server_fri/data/ /prover/vk_setup_data_generator_server_fri/data/
+COPY prover/data/keys/ /prover/data/keys/
 
 COPY --from=builder /usr/src/zksync/prover/target/release/zksync_witness_generator /usr/bin/
 

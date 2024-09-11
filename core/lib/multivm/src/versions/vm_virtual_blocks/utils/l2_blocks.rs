@@ -1,4 +1,3 @@
-use zksync_state::{ReadStorage, StoragePtr};
 use zksync_system_constants::{
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION,
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
@@ -9,7 +8,10 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-use crate::interface::{L2Block, L2BlockEnv};
+use crate::interface::{
+    storage::{ReadStorage, StoragePtr},
+    L2Block, L2BlockEnv,
+};
 
 pub(crate) fn get_l2_block_hash_key(block_number: u32) -> StorageKey {
     let position = h256_to_u256(SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION)

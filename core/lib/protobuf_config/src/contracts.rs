@@ -101,6 +101,12 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("base_token_addr")?,
+            chain_admin_addr: l1
+                .chain_admin_addr
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("chain_admin_addr")?,
         })
     }
 
@@ -132,6 +138,7 @@ impl ProtoRepr for proto::Contracts {
                 default_upgrade_addr: Some(format!("{:?}", this.default_upgrade_addr)),
                 multicall3_addr: Some(format!("{:?}", this.l1_multicall3_addr)),
                 base_token_addr: this.base_token_addr.map(|a| format!("{:?}", a)),
+                chain_admin_addr: this.chain_admin_addr.map(|a| format!("{:?}", a)),
             }),
             l2: Some(proto::L2 {
                 testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)),

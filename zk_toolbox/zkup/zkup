@@ -1,0 +1,240 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
+ZKT_DIR=${ZKT_DIR:-"$BASE_DIR/.zkt"}
+ZKT_BIN_DIR="$ZKT_DIR/bin"
+
+ZKUP_SKIP_ZK_SUPERVISOR=0
+ZKUP_ALIAS=0
+
+BINS=(zk_inception zk_supervisor)
+
+main() {
+  parse_args "$@"
+
+  zktoolbox_banner
+
+  check_prerequisites
+  mkdir -p "$ZKT_BIN_DIR"
+
+  if [ -n "$ZKUP_PATH" ]; then
+    install_local
+  else
+    install_from_repo
+  fi
+
+  zktoolbox_banner
+
+  for bin in "${BINS[@]}"; do
+    success "Installed $bin to $ZKT_BIN_DIR/$bin"
+  done
+
+  if [ $ZKUP_ALIAS -eq 1 ]; then
+    create_alias
+  fi
+}
+
+PREREQUISITES=(cargo git)
+
+check_prerequisites() {
+  say "Checking prerequisites"
+
+  failed_prerequisites=()
+  for prerequisite in "${PREREQUISITES[@]}"; do
+    if ! check_prerequisite "$prerequisite"; then
+      failed_prerequisites+=("$prerequisite")
+    fi
+  done
+  if [ ${#failed_prerequisites[@]} -gt 0 ]; then
+    err "The following prerequisites are missing: ${failed_prerequisites[*]}"
+    exit 1
+  fi
+}
+
+check_prerequisite() {
+  command -v "$1" &>/dev/null
+}
+
+parse_args() {
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+    --)
+      shift
+      break
+      ;;
+
+    -p | --path)
+      shift
+      ZKUP_PATH=$1
+      ;;
+    -r | --repo)
+      shift
+      ZKUP_REPO=$1
+      ;;
+    -b | --branch)
+      shift
+      ZKUP_BRANCH=$1
+      ;;
+    -c | --commit)
+      shift
+      ZKUP_COMMIT=$1
+      ;;
+    -v | --version)
+      shift
+      ZKUP_VERSION=$1
+      ;;
+    --skip-zk-supervisor) ZKUP_SKIP_ZK_SUPERVISOR=1 ;;
+    -a | --alias) ZKUP_ALIAS=1 ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      err "Unknown argument: $1"
+      usage
+      exit 1
+      ;;
+    esac
+    shift
+  done
+}
+
+usage() {
+  cat <<EOF
+zkup - A tool for managing zk_toolbox installation.
+
+Usage: $(basename "$0") [OPTIONS]
+
+Options:
+  -p, --path <path>         Specify a local path to install zk_toolbox from. Ignored if --repo is provided.
+  -r, --repo <repo>         GitHub repository to install from (e.g., "matter-labs/zksync-era"). Defaults to "matter-labs/zksync-era".
+  -b, --branch <branch>     Git branch to use when installing from a repository. Ignored if --commit or --version is provided.
+  -c, --commit <commit>     Git commit hash to use when installing from a repository. Ignored if --branch or --version is provided.
+  -v, --version <version>   Git tag to use when installing from a repository. Ignored if --branch or --commit is provided.
+  -a, --alias               Create aliases zki and zks for zk_inception and zk_supervisor binaries.
+  --skip-zk-supervisor      Skip installation of the zk_supervisor binary.
+  -h, --help                Show this help message and exit.
+
+Examples:
+  $(basename "$0") --repo matter-labs/zksync-era --version 0.1.1
+  $(basename "$0") --path /path/to/local/zk_toolbox --skip-zk-supervisor
+EOF
+}
+
+install_local() {
+  if [ ! -d "$ZKUP_PATH/zk_toolbox" ]; then
+    err "Path $ZKUP_PATH does not contain zk_toolbox"
+    exit 1
+  fi
+
+  if [ -n "$ZKUP_BRANCH" ] || [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_VERSION" ] || [ -n "$ZKUP_REPO" ]; then
+    warn "Ignoring --repo, --branch, --commit and --version arguments when installing from local path"
+  fi
+
+  say "Installing zk_toolbox from $ZKUP_PATH"
+  ensure cd "$ZKUP_PATH"/zk_toolbox
+
+  if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 1 ]; then
+    BINS=(zk_inception)
+  fi
+
+  for bin in "${BINS[@]}"; do
+    say "Installing $bin"
+    ensure cargo install --root $ZKT_DIR --path ./crates/$bin --force
+  done
+}
+
+install_from_repo() {
+  if [ -n "$ZKUP_PATH" ]; then
+    warn "Ignoring --path argument when installing from repository"
+  fi
+
+  ZKUP_REPO=${ZKUP_REPO:-"matter-labs/zksync-era"}
+
+  say "Installing zk_toolbox from $ZKUP_REPO"
+
+  if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 1 ]; then
+    BINS=(zk_inception)
+  fi
+
+  if [ -n "$ZKUP_VERSION" ]; then
+    if [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_BRANCH" ]; then
+      warn "Ignoring --commit and --branch arguments when installing by version"
+    fi
+    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --tag "zk_toolbox-v$ZKUP_VERSION" --locked "${BINS[@]}" --force
+  elif [ -n "$ZKUP_COMMIT" ]; then
+    if [ -n "$ZKUP_BRANCH" ]; then
+      warn "Ignoring --branch argument when installing by commit"
+    fi
+    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --rev "$ZKUP_COMMIT" --locked "${BINS[@]}" --force
+  elif [ -n "$ZKUP_BRANCH" ]; then
+    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --branch "$ZKUP_BRANCH" --locked "${BINS[@]}" --force
+  else
+    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --locked "${BINS[@]}" --force
+  fi
+}
+
+create_alias() {
+  say "Creating alias 'zki' for zk_inception"
+  ensure ln -sf "$ZKT_BIN_DIR/zk_inception" "$ZKT_BIN_DIR/zki"
+
+  if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 0 ]; then
+    say "Creating alias 'zks' for zk_supervisor"
+    ensure ln -sf "$ZKT_BIN_DIR/zk_supervisor" "$ZKT_BIN_DIR/zks"
+  fi
+}
+
+ensure() {
+  if ! "$@"; then
+    err "command failed: $*"
+    exit 1
+  fi
+}
+
+say() {
+  local action="${1%% *}"
+  local rest="${1#"$action" }"
+
+  echo -e "\033[1;32m$action\033[0m $rest"
+}
+
+success() {
+  echo -e "\033[1;32m$1\033[0m"
+}
+
+warn() {
+  echo -e "\033[1;33mWARNING: $1\033[0m"
+}
+
+err() {
+  echo -e "\033[1;31mERROR: $1\033[0m" >&2
+}
+
+zktoolbox_banner() {
+  printf '
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+███████╗██╗  ██╗    ████████╗ ██████╗  ██████╗ ██╗     ██████╗  ██████╗ ██╗  ██╗
+╚══███╔╝██║ ██╔╝    ╚══██╔══╝██╔═══██╗██╔═══██╗██║     ██╔══██╗██╔═══██╗╚██╗██╔╝
+  ███╔╝ █████╔╝        ██║   ██║   ██║██║   ██║██║     ██████╔╝██║   ██║ ╚███╔╝
+ ███╔╝  ██╔═██╗        ██║   ██║   ██║██║   ██║██║     ██╔══██╗██║   ██║ ██╔██╗
+███████╗██║  ██╗       ██║   ╚██████╔╝╚██████╔╝███████╗██████╔╝╚██████╔╝██╔╝ ██╗
+╚══════╝╚═╝  ╚═╝       ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝╚═════╝  ╚═════╝ ╚═╝  ╚═╝
+
+
+    A Comprehensive Toolkit for Creating and Managing ZK Stack Chains
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+Repo       : https://github.com/matter-labs/zksync-era/
+Docs       : https://docs.zksync.io/
+Contribute : https://github.com/matter-labs/zksync-era/pulls
+
+=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+'
+}
+
+main "$@"

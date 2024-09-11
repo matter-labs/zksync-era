@@ -11,17 +11,29 @@ import {
     sleep,
     NodeComponents,
     NodeProcess,
-    dropNodeDatabase,
-    dropNodeStorage,
+    dropNodeData,
     executeCommandWithLogs,
     FundedWallet
 } from '../src';
+import {
+    setChunkSize,
+    setDataRetentionSec,
+    setRemovalDelaySec,
+    setSnapshotRecovery,
+    setTreeRecoveryParallelPersistenceBuffer
+} from './utils';
+import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import { logsTestPath } from 'utils/build/logs';
+
+const pathToHome = path.join(__dirname, '../../../..');
+const fileConfig = shouldLoadConfigFromFile();
 
 interface AllSnapshotsResponse {
     readonly snapshotsL1BatchNumbers: number[];
 }
 
 interface GetSnapshotResponse {
+    readonly version: number;
     readonly miniblockNumber: number;
     readonly l1BatchNumber: number;
     readonly storageLogsChunks: Array<StorageLogChunkMetadata>;
@@ -46,6 +58,10 @@ interface StorageLog {
 interface TokenInfo {
     readonly l1_address: string;
     readonly l2_address: string;
+}
+
+async function logsPath(name: string): Promise<string> {
+    return await logsTestPath(fileConfig.chain, 'logs/recovery/snapshot/', name);
 }
 
 /**
@@ -77,8 +93,12 @@ describe('snapshot recovery', () => {
     let externalNodeEnv: { [key: string]: string } = {
         ...process.env,
         ZKSYNC_ENV: externalNodeEnvProfile,
-        EN_SNAPSHOTS_RECOVERY_ENABLED: 'true'
+        EN_SNAPSHOTS_RECOVERY_ENABLED: 'true',
+        // Test parallel persistence for tree recovery, which is (yet) not enabled by default
+        EN_EXPERIMENTAL_SNAPSHOTS_RECOVERY_TREE_PARALLEL_PERSISTENCE_BUFFER: '4'
     };
+
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
 
     let snapshotMetadata: GetSnapshotResponse;
     let mainNode: zksync.Provider;
@@ -87,18 +107,50 @@ describe('snapshot recovery', () => {
 
     let fundedWallet: FundedWallet;
 
+    let apiWeb3JsonRpcHttpUrl: string;
+    let ethRpcUrl: string;
+    let externalNodeUrl: string;
+    let extNodeHealthUrl: string;
+
     before('prepare environment', async () => {
         expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
             .to.be.undefined;
-        mainNode = new zksync.Provider('http://127.0.0.1:3050');
-        externalNode = new zksync.Provider('http://127.0.0.1:3060');
-        await NodeProcess.stopAll('KILL');
+
+        if (fileConfig.loadFromFile) {
+            const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
+            const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+            const externalNodeGeneralConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                configsFolderSuffix: 'external_node',
+                config: 'general.yaml'
+            });
+
+            ethRpcUrl = secretsConfig.l1.l1_rpc_url;
+            apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
+
+            externalNodeUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
+            extNodeHealthUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.healthcheck.port}/health`;
+
+            setSnapshotRecovery(pathToHome, fileConfig, true);
+            setTreeRecoveryParallelPersistenceBuffer(pathToHome, fileConfig, 4);
+        } else {
+            ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
+            apiWeb3JsonRpcHttpUrl = 'http://127.0.0.1:3050';
+            externalNodeUrl = 'http://127.0.0.1:3060';
+            extNodeHealthUrl = 'http://127.0.0.1:3081/health';
+        }
+
+        mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
+        externalNode = new zksync.Provider(externalNodeUrl);
+        if (autoKill) {
+            await NodeProcess.stopAll('KILL');
+        }
     });
 
     before('create test wallet', async () => {
-        const ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
         console.log(`Using L1 RPC at ${ethRpcUrl}`);
-        const eth = new ethers.providers.JsonRpcProvider(ethRpcUrl);
+        const eth = new ethers.JsonRpcProvider(ethRpcUrl);
         fundedWallet = await FundedWallet.create(mainNode, eth);
     });
 
@@ -106,6 +158,14 @@ describe('snapshot recovery', () => {
         if (externalNodeProcess) {
             await externalNodeProcess.stopAndWait('KILL');
             await externalNodeProcess.logs.close();
+        }
+
+        if (fileConfig.loadFromFile) {
+            setSnapshotRecovery(pathToHome, fileConfig, false);
+            setChunkSize(pathToHome, fileConfig, 10);
+            setDataRetentionSec(pathToHome, fileConfig, 3600);
+            setRemovalDelaySec(pathToHome, fileConfig, 60);
+            setTreeRecoveryParallelPersistenceBuffer(pathToHome, fileConfig, 1);
         }
     });
 
@@ -125,7 +185,7 @@ describe('snapshot recovery', () => {
     }
 
     step('create snapshot', async () => {
-        await executeCommandWithLogs('zk run snapshots-creator', 'snapshot-creator.log');
+        await createSnapshot(fileConfig.loadFromFile);
     });
 
     step('validate snapshot', async () => {
@@ -136,6 +196,7 @@ describe('snapshot recovery', () => {
         const l1BatchNumber = Math.max(...newBatchNumbers);
         snapshotMetadata = await getSnapshot(l1BatchNumber);
         console.log('Obtained latest snapshot', snapshotMetadata);
+        expect(snapshotMetadata.version).to.be.oneOf([0, 1]);
         const l2BlockNumber = snapshotMetadata.miniblockNumber;
 
         const protoPath = path.join(homeDir, 'core/lib/types/src/proto/mod.proto');
@@ -158,32 +219,38 @@ describe('snapshot recovery', () => {
                 }
                 sampledCount++;
 
-                const snapshotAccountAddress = '0x' + storageLog.accountAddress.toString('hex');
-                const snapshotKey = '0x' + storageLog.storageKey.toString('hex');
-                const snapshotValue = '0x' + storageLog.storageValue.toString('hex');
                 const snapshotL1BatchNumber = storageLog.l1BatchNumberOfInitialWrite;
-                const valueOnBlockchain = await mainNode.getStorageAt(
-                    snapshotAccountAddress,
-                    snapshotKey,
-                    l2BlockNumber
-                );
-                expect(snapshotValue).to.equal(valueOnBlockchain);
                 expect(snapshotL1BatchNumber).to.be.lessThanOrEqual(l1BatchNumber);
+
+                if (snapshotMetadata.version === 0) {
+                    const snapshotAccountAddress = '0x' + storageLog.accountAddress.toString('hex');
+                    const snapshotKey = '0x' + storageLog.storageKey.toString('hex');
+                    const snapshotValue = '0x' + storageLog.storageValue.toString('hex');
+                    const valueOnBlockchain = await mainNode.getStorage(
+                        snapshotAccountAddress,
+                        snapshotKey,
+                        l2BlockNumber
+                    );
+                    expect(snapshotValue).to.equal(valueOnBlockchain);
+                }
             }
             console.log(`Checked random ${sampledCount} logs in the chunk`);
         }
     });
 
-    step('drop external node database', async () => {
-        await dropNodeDatabase(externalNodeEnv);
-    });
-
-    step('drop external node storage', async () => {
-        await dropNodeStorage(externalNodeEnv);
+    step('drop external node data', async () => {
+        await dropNodeData(externalNodeEnv, fileConfig.loadFromFile, fileConfig.chain);
     });
 
     step('initialize external node', async () => {
-        externalNodeProcess = await NodeProcess.spawn(externalNodeEnv, 'snapshot-recovery.log');
+        externalNodeProcess = await NodeProcess.spawn(
+            externalNodeEnv,
+            await logsPath('external_node.log'),
+            pathToHome,
+            NodeComponents.STANDARD,
+            fileConfig.loadFromFile,
+            fileConfig.chain
+        );
 
         let recoveryFinished = false;
         let consistencyCheckerSucceeded = false;
@@ -191,7 +258,7 @@ describe('snapshot recovery', () => {
 
         while (!recoveryFinished || !consistencyCheckerSucceeded || !reorgDetectorSucceeded) {
             await sleep(1000);
-            const health = await getExternalNodeHealth();
+            const health = await getExternalNodeHealth(extNodeHealthUrl);
             if (health === null) {
                 continue;
             }
@@ -292,15 +359,29 @@ describe('snapshot recovery', () => {
             EN_PRUNING_CHUNK_SIZE: '1'
         };
         externalNodeEnv = { ...externalNodeEnv, ...pruningParams };
+
+        if (fileConfig.loadFromFile) {
+            setChunkSize(pathToHome, fileConfig, 1);
+            setDataRetentionSec(pathToHome, fileConfig, 0);
+            setRemovalDelaySec(pathToHome, fileConfig, 1);
+        }
+
         console.log('Starting EN with pruning params', pruningParams);
-        externalNodeProcess = await NodeProcess.spawn(externalNodeEnv, externalNodeProcess.logs, components);
+        externalNodeProcess = await NodeProcess.spawn(
+            externalNodeEnv,
+            externalNodeProcess.logs,
+            pathToHome,
+            components,
+            fileConfig.loadFromFile,
+            fileConfig.chain
+        );
 
         let isDbPrunerReady = false;
         let isTreePrunerReady = disableTreeDuringPruning; // skip health checks if we don't run the tree
         let isTreeFetcherReady = false;
         while (!isDbPrunerReady || !isTreePrunerReady || !isTreeFetcherReady) {
             await sleep(1000);
-            const health = await getExternalNodeHealth();
+            const health = await getExternalNodeHealth(extNodeHealthUrl);
             if (health === null) {
                 continue;
             }
@@ -343,7 +424,7 @@ describe('snapshot recovery', () => {
 
         while (!isDbPruned || !isTreePruned) {
             await sleep(1000);
-            const health = (await getExternalNodeHealth())!;
+            const health = (await getExternalNodeHealth(extNodeHealthUrl))!;
 
             const dbPrunerHealth = health.components.db_pruner!;
             console.log('DB pruner health', dbPrunerHealth);
@@ -375,4 +456,15 @@ async function decompressGzip(filePath: string): Promise<Buffer> {
         gunzip.on('error', reject);
         readStream.pipe(gunzip);
     });
+}
+
+async function createSnapshot(zkSupervisor: boolean) {
+    let command = '';
+    if (zkSupervisor) {
+        command = `zk_supervisor snapshot create`;
+        command += ` --chain ${fileConfig.chain}`;
+    } else {
+        command = `zk run snapshots-creator`;
+    }
+    await executeCommandWithLogs(command, 'snapshot-creator.log');
 }

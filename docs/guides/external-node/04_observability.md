@@ -1,6 +1,6 @@
-# zkSync node Observability
+# ZKsync node Observability
 
-The zkSync node provides several options for setting up observability. Configuring logs and sentry is described in the
+The ZKsync node provides several options for setting up observability. Configuring logs and sentry is described in the
 [configuration](./02_configuration.md) section, so this section focuses on the exposed metrics.
 
 This section is written with the assumption that you're familiar with
@@ -16,7 +16,7 @@ By default, latency histograms are distributed in the following buckets (in seco
 
 ## Metrics
 
-zkSync node exposes a lot of metrics, a significant amount of which aren't interesting outside the development flow.
+ZKsync node exposes a lot of metrics, a significant amount of which aren't interesting outside the development flow.
 This section's purpose is to highlight metrics that may be worth observing in the external setup.
 
 If you are not planning to scrape Prometheus metrics, please unset `EN_PROMETHEUS_PORT` environment variable to prevent
@@ -25,7 +25,7 @@ memory leaking.
 | Metric name                                    | Type      | Labels                                | Description                                                        |
 | ---------------------------------------------- | --------- | ------------------------------------- | ------------------------------------------------------------------ |
 | `external_node_synced`                         | Gauge     | -                                     | 1 if synced, 0 otherwise. Matches `eth_call` behavior              |
-| `external_node_sync_lag`                       | Gauge     | -                                     | How many blocks behind the main node the zkSync node is            |
+| `external_node_sync_lag`                       | Gauge     | -                                     | How many blocks behind the main node the ZKsync node is            |
 | `external_node_fetcher_requests`               | Histogram | `stage`, `actor`                      | Duration of requests performed by the different fetcher components |
 | `external_node_fetcher_cache_requests`         | Histogram | -                                     | Duration of requests performed by the fetcher cache layer          |
 | `external_node_fetcher_miniblock`              | Gauge     | `status`                              | The number of the last L2 block update fetched from the main node  |
@@ -40,12 +40,12 @@ memory leaking.
 
 ## Interpretation
 
-After applying a dump, the zkSync node has to rebuild the Merkle tree to verify the correctness of the state in
+After applying a dump, the ZKsync node has to rebuild the Merkle tree to verify the correctness of the state in
 PostgreSQL. During this stage, `server_block_number { stage='tree_lightweight_mode' }` is increasing from 0 to
-`server_block_number { stage='sealed' }`, while the latter does not increase (zkSync node needs the tree to be
+`server_block_number { stage='sealed' }`, while the latter does not increase (ZKsync node needs the tree to be
 up-to-date to progress).
 
-After that, the zkSync node has to sync with the main node. `server_block_number { stage='sealed' }` is increasing, and
+After that, the ZKsync node has to sync with the main node. `server_block_number { stage='sealed' }` is increasing, and
 `external_node_sync_lag` is decreasing.
 
 Once the node is synchronized, it is indicated by the `external_node_synced`.

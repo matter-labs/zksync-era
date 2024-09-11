@@ -15,7 +15,7 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u25
 
 use super::utils::{get_complex_upgrade_abi, read_complex_upgrade};
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{L1BatchEnv, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_latest::{
         constants::{
             BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
@@ -26,7 +26,7 @@ use crate::{
             default_l1_batch, get_empty_storage, InMemoryStorageView, VmTesterBuilder,
         },
         tracers::PubdataTracer,
-        HistoryEnabled, L1BatchEnv, TracerDispatcher,
+        HistoryEnabled, TracerDispatcher,
     },
 };
 
@@ -167,7 +167,7 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
                 contract_address: CONTRACT_FORCE_DEPLOYER_ADDRESS,
                 calldata: data,
                 value: U256::zero(),
-                factory_deps: None,
+                factory_deps: vec![],
             },
             None,
         );

@@ -1,10 +1,18 @@
 use std::{cell::RefCell, rc::Rc};
 
-use multivm::{
+use once_cell::sync::Lazy;
+use zksync_contracts::{
+    load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, read_zbin_bytecode,
+    BaseSystemContracts, ContractLanguage, SystemContractCode,
+};
+use zksync_multivm::{
     interface::{
-        dyn_tracers::vm_1_5_0::DynTracer, tracer::VmExecutionStopReason, L1BatchEnv, L2BlockEnv,
-        SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+        storage::{InMemoryStorage, StorageView, WriteStorage},
+        tracer::VmExecutionStopReason,
+        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
+        VmInterface, VmInterfaceExt,
     },
+    tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
         constants::{BATCH_COMPUTATIONAL_GAS_LIMIT, BOOTLOADER_HEAP_PAGE},
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
@@ -12,12 +20,6 @@ use multivm::{
     },
     zk_evm_latest::aux_structures::Timestamp,
 };
-use once_cell::sync::Lazy;
-use zksync_contracts::{
-    load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, read_zbin_bytecode,
-    BaseSystemContracts, ContractLanguage, SystemContractCode,
-};
-use zksync_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_types::{
     block::L2BlockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
     utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, K256PrivateKey,
@@ -99,7 +101,7 @@ pub(super) fn get_l2_tx(
         U256::from(0),
         L2ChainId::from(270),
         signer,
-        None,
+        vec![],
         Default::default(),
     )
     .unwrap()
@@ -128,7 +130,7 @@ pub(super) fn get_l1_tx(
     pubdata_price: u32,
     custom_gas_limit: Option<U256>,
     custom_calldata: Option<Vec<u8>>,
-    factory_deps: Option<Vec<Vec<u8>>>,
+    factory_deps: Vec<Vec<u8>>,
 ) -> L1Tx {
     L1Tx {
         execute: Execute {
@@ -157,10 +159,10 @@ pub(super) fn get_l1_txs(number_of_txs: usize) -> (Vec<Transaction>, Vec<Transac
         let contract_address = Address::random();
 
         txs_without_pubdata_price
-            .push(get_l1_tx(id as u64, sender, contract_address, 0, None, None, None).into());
+            .push(get_l1_tx(id as u64, sender, contract_address, 0, None, None, vec![]).into());
 
         txs_with_pubdata_price
-            .push(get_l1_tx(id as u64, sender, contract_address, 1, None, None, None).into());
+            .push(get_l1_tx(id as u64, sender, contract_address, 1, None, None, vec![]).into());
     }
 
     (txs_with_pubdata_price, txs_without_pubdata_price)
@@ -260,8 +262,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         output: tracer_result.clone(),
     }
     .into_tracer_pointer();
-    let mut vm: Vm<_, HistoryEnabled> =
-        Vm::new(l1_batch, system_env, Rc::new(RefCell::new(storage_view)));
+    let mut vm: Vm<_, HistoryEnabled> = Vm::new(l1_batch, system_env, storage_view.to_rc_ptr());
     let result = vm.inspect(tracer.into(), VmExecutionMode::Bootloader);
 
     assert!(!result.result.is_failed(), "The internal call has reverted");

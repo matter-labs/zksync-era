@@ -2,7 +2,6 @@ use std::{num::NonZeroU32, ops, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use itertools::Itertools;
-use multivm::zk_evm_latest::ethereum_types::U256;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
@@ -13,15 +12,14 @@ use zksync_types::{
         AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchAuxiliaryOutput,
         L1BatchCommitment, L1BatchCommitmentArtifacts, L1BatchCommitmentMode,
     },
-    event::convert_vm_events_to_log_queries,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
-    L1BatchNumber, ProtocolVersionId, StorageKey, H256,
+    L1BatchNumber, ProtocolVersionId, StorageKey, H256, U256,
 };
 use zksync_utils::h256_to_u256;
 
 use crate::{
     metrics::{CommitmentStage, METRICS},
-    utils::{CommitmentComputer, RealCommitmentComputer},
+    utils::{convert_vm_events_to_log_queries, CommitmentComputer, RealCommitmentComputer},
 };
 
 mod metrics;
@@ -75,6 +73,7 @@ impl CommitmentGenerator {
         self.health_updater.subscribe()
     }
 
+    #[tracing::instrument(skip(self))]
     async fn calculate_aux_commitments(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -145,6 +144,7 @@ impl CommitmentGenerator {
         })
     }
 
+    #[tracing::instrument(skip(self))]
     async fn prepare_input(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -180,7 +180,7 @@ impl CommitmentGenerator {
         };
         let touched_slots = connection
             .storage_logs_dal()
-            .get_touched_slots_for_l1_batch(l1_batch_number)
+            .get_touched_slots_for_executed_l1_batch(l1_batch_number)
             .await?;
         let touched_hashed_keys: Vec<_> =
             touched_slots.keys().map(|key| key.hashed_key()).collect();
@@ -285,6 +285,7 @@ impl CommitmentGenerator {
         Ok(input)
     }
 
+    #[tracing::instrument(skip(self))]
     async fn process_batch(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -307,6 +308,7 @@ impl CommitmentGenerator {
         Ok(artifacts)
     }
 
+    #[tracing::instrument(skip(self))]
     async fn step(
         &self,
         l1_batch_numbers: ops::RangeInclusive<L1BatchNumber>,
@@ -384,6 +386,7 @@ impl CommitmentGenerator {
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn next_batch_range(&self) -> anyhow::Result<Option<ops::RangeInclusive<L1BatchNumber>>> {
         let mut connection = self
             .connection_pool

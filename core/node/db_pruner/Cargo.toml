@@ -1,5 +1,6 @@
 [package]
 name = "zksync_node_db_pruner"
+description = "ZKsync database pruner"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -25,7 +26,6 @@ serde_json.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
-test-casing.workspace = true
 test-log.workspace = true
 
 zksync_node_genesis.workspace = true

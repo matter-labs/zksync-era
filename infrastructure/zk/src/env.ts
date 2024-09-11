@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import fs from 'fs';
 import dotenv from 'dotenv';
-import * as utils from './utils';
+import * as utils from 'utils';
 import * as config from './config';
 
 export const getAvailableEnvsFromFiles = () => {

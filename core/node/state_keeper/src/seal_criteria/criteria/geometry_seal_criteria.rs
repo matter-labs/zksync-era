@@ -1,11 +1,11 @@
-use multivm::utils::{
+use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_multivm::utils::{
     circuit_statistics_bootloader_batch_tip_overhead, get_max_batch_base_layer_circuits,
 };
-use zksync_config::configs::chain::StateKeeperConfig;
 use zksync_types::ProtocolVersionId;
 
 // Local uses
-use crate::seal_criteria::{SealCriterion, SealData, SealResolution};
+use crate::seal_criteria::{SealCriterion, SealData, SealResolution, UnexecutableReason};
 
 // Collected vm execution metrics should fit into geometry limits.
 // Otherwise witness generation will fail and proof won't be generated.
@@ -52,7 +52,7 @@ impl SealCriterion for CircuitsCriterion {
         let used_circuits_batch = block_data.execution_metrics.circuit_statistic.total();
 
         if used_circuits_tx + batch_tip_circuit_overhead >= reject_bound {
-            SealResolution::Unexecutable("ZK proof cannot be generated for a transaction".into())
+            UnexecutableReason::ProofWillFail.into()
         } else if used_circuits_batch + batch_tip_circuit_overhead >= config.max_circuits_per_batch
         {
             SealResolution::ExcludeAndSeal
@@ -69,7 +69,7 @@ impl SealCriterion for CircuitsCriterion {
 }
 #[cfg(test)]
 mod tests {
-    use zksync_types::{circuit::CircuitStatistic, tx::ExecutionMetrics};
+    use zksync_multivm::interface::{CircuitStatistic, VmExecutionMetrics};
 
     use super::*;
 
@@ -85,7 +85,7 @@ mod tests {
     }
 
     fn test_no_seal_block_resolution(
-        block_execution_metrics: ExecutionMetrics,
+        block_execution_metrics: VmExecutionMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
     ) {
@@ -105,7 +105,7 @@ mod tests {
     }
 
     fn test_include_and_seal_block_resolution(
-        block_execution_metrics: ExecutionMetrics,
+        block_execution_metrics: VmExecutionMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
     ) {
@@ -125,7 +125,7 @@ mod tests {
     }
 
     fn test_exclude_and_seal_block_resolution(
-        block_execution_metrics: ExecutionMetrics,
+        block_execution_metrics: VmExecutionMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
     ) {
@@ -145,7 +145,7 @@ mod tests {
     }
 
     fn test_unexecutable_tx_resolution(
-        tx_execution_metrics: ExecutionMetrics,
+        tx_execution_metrics: VmExecutionMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
     ) {
@@ -162,22 +162,19 @@ mod tests {
             protocol_version,
         );
 
-        assert_eq!(
-            block_resolution,
-            SealResolution::Unexecutable("ZK proof cannot be generated for a transaction".into())
-        );
+        assert_eq!(block_resolution, UnexecutableReason::ProofWillFail.into());
     }
 
     #[test]
     fn circuits_seal_criterion() {
         let config = get_config();
         let protocol_version = ProtocolVersionId::latest();
-        let block_execution_metrics = ExecutionMetrics {
+        let block_execution_metrics = VmExecutionMetrics {
             circuit_statistic: CircuitStatistic {
                 main_vm: (MAX_CIRCUITS_PER_BATCH / 4) as f32,
                 ..CircuitStatistic::default()
             },
-            ..ExecutionMetrics::default()
+            ..VmExecutionMetrics::default()
         };
         test_no_seal_block_resolution(
             block_execution_metrics,
@@ -185,7 +182,7 @@ mod tests {
             protocol_version,
         );
 
-        let block_execution_metrics = ExecutionMetrics {
+        let block_execution_metrics = VmExecutionMetrics {
             circuit_statistic: CircuitStatistic {
                 main_vm: (MAX_CIRCUITS_PER_BATCH
                     - 1
@@ -194,7 +191,7 @@ mod tests {
                     )) as f32,
                 ..CircuitStatistic::default()
             },
-            ..ExecutionMetrics::default()
+            ..VmExecutionMetrics::default()
         };
 
         test_include_and_seal_block_resolution(
@@ -203,12 +200,12 @@ mod tests {
             protocol_version,
         );
 
-        let block_execution_metrics = ExecutionMetrics {
+        let block_execution_metrics = VmExecutionMetrics {
             circuit_statistic: CircuitStatistic {
                 main_vm: MAX_CIRCUITS_PER_BATCH as f32,
                 ..CircuitStatistic::default()
             },
-            ..ExecutionMetrics::default()
+            ..VmExecutionMetrics::default()
         };
 
         test_exclude_and_seal_block_resolution(
@@ -217,14 +214,14 @@ mod tests {
             protocol_version,
         );
 
-        let tx_execution_metrics = ExecutionMetrics {
+        let tx_execution_metrics = VmExecutionMetrics {
             circuit_statistic: CircuitStatistic {
                 main_vm: MAX_CIRCUITS_PER_BATCH as f32
                     * config.reject_tx_at_geometry_percentage as f32
                     + 1.0,
                 ..CircuitStatistic::default()
             },
-            ..ExecutionMetrics::default()
+            ..VmExecutionMetrics::default()
         };
 
         test_unexecutable_tx_resolution(tx_execution_metrics, &CircuitsCriterion, protocol_version);

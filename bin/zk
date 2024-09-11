@@ -41,7 +41,7 @@ check_subdirectory
 check_yarn_version
 if [ -z "$1" ]; then
     cd $ZKSYNC_HOME
-    run_retried yarn install --frozen-lockfile && yarn zk build
+    run_retried yarn install --frozen-lockfile && yarn utils build && yarn zk build
 else
     # can't start this with yarn since it has quirks with `--` as an argument
     node -- $ZKSYNC_HOME/infrastructure/zk/build/index.js "$@"

@@ -3,19 +3,22 @@
 
 #![warn(missing_debug_implementations, missing_docs)]
 
-mod impls;
+pub mod impls;
 mod io;
 mod output_handler;
 mod process;
 mod storage;
 
+mod metrics;
 #[cfg(test)]
 mod tests;
 
-pub use impls::{ProtectiveReadsWriter, ProtectiveReadsWriterTasks};
-pub use io::VmRunnerIo;
-pub use output_handler::{
-    ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, OutputHandlerFactory,
+pub use self::{
+    io::VmRunnerIo,
+    output_handler::{
+        ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, L1BatchOutput,
+        L2BlockOutput, OutputHandler, OutputHandlerFactory,
+    },
+    process::VmRunner,
+    storage::{BatchExecuteData, StorageSyncTask, VmRunnerStorage},
 };
-pub use process::VmRunner;
-pub use storage::{BatchExecuteData, StorageSyncTask, VmRunnerStorage};

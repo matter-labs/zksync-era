@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use zk_evm_1_5_0::{aux_structures::Timestamp, vm_state::VmLocalState};
-use zksync_state::WriteStorage;
 use zksync_types::{StorageKey, StorageValue, U256};
 
 use crate::{
+    interface::storage::WriteStorage,
     vm_latest::{
         old_vm::{
             event_sink::InMemoryEventSink,
@@ -43,7 +43,7 @@ pub(crate) struct DecommitterTestInnerState<H: HistoryMode> {
     /// so we just compare the modified keys. This is reasonable enough.
     pub(crate) modified_storage_keys: ModifiedKeysMap,
     pub(crate) known_bytecodes: HistoryRecorder<HashMap<U256, Vec<U256>>, H>,
-    pub(crate) decommitted_code_hashes: HistoryRecorder<HashMap<U256, u32>, HistoryEnabled>,
+    pub(crate) decommitted_code_hashes: HistoryRecorder<HashMap<U256, Option<u32>>, HistoryEnabled>,
 }
 
 #[derive(Clone, PartialEq, Debug)]

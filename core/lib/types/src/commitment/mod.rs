@@ -1,7 +1,7 @@
 //! Data structures that have more metadata than their primary versions declared in this crate.
 //! For example, L1 batch defined here has the `root_hash` field which is absent in `L1BatchHeader`.
 //!
-//! Existence of this module is caused by the execution model of zkSync: when executing transactions,
+//! Existence of this module is caused by the execution model of ZKsync: when executing transactions,
 //! we aim to avoid expensive operations like the state root hash recalculation. State root hash is not
 //! required for the rollup to execute L1 batches, it's needed for the proof generation and the Ethereum
 //! transactions, thus the calculations are done separately and asynchronously.
@@ -536,7 +536,7 @@ pub struct L1BatchCommitment {
     pub meta_parameters: L1BatchMetaParameters,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
 pub struct L1BatchCommitmentHash {
     pub pass_through_data: H256,
@@ -720,7 +720,7 @@ impl CommitmentInput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct L1BatchCommitmentArtifacts {
     pub commitment_hash: L1BatchCommitmentHash,
     pub l2_l1_merkle_root: H256,

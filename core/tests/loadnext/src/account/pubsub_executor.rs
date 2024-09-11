@@ -3,7 +3,10 @@ use std::time::{Duration, Instant};
 use futures::{stream, TryStreamExt};
 use zksync_web3_decl::{
     jsonrpsee::{
-        core::client::{Subscription, SubscriptionClientT},
+        core::{
+            client::{Subscription, SubscriptionClientT},
+            ClientError as RpcError,
+        },
         rpc_params,
         ws_client::WsClientBuilder,
     },
@@ -86,7 +89,7 @@ impl AccountLifespan {
             {
                 match resp {
                     None => return Err(ClientError::OperationTimeout),
-                    Some(Err(err)) => return Err(err.into()),
+                    Some(Err(err)) => return Err(RpcError::ParseError(err).into()),
                     _ => {}
                 }
             }

@@ -1,6 +1,6 @@
-# Base configuration for zkSync stack
+# Base configuration for ZKsync stack
 
-This folder contains the template for generating the configuration for zkSync applications. Configs in this folder are
+This folder contains the template for generating the configuration for ZKsync applications. Configs in this folder are
 assigned default values suitable for development.
 
 Since all the applications expect configuration to be set via the environment variables, these configs are compiled into

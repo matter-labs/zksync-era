@@ -2,6 +2,36 @@
 bellman-cuda
 sdk/zksync-rs/CHANGELOG.md
 CHANGELOG.md
+core/lib/dal/.sqlx
+prover/lib/dal/.sqlx
+node_modules
 
 # Ignore contract submodules
 contracts
+
+**/target/**
+**/node_modules
+volumes
+**/build/**
+dist
+.git
+generated
+grafonnet-lib
+prettier-config
+lint-config
+**/cache
+**/artifacts
+**/typechain
+binaryen
+system-contracts
+artifacts-zk
+cache-zk
+# Ignore directories with OZ and forge submodules.
+contracts/l1-contracts/lib
+
+# Ignore ecosystem configs
+/configs/
+
+**/.git
+**/node_modules
+configs/portal.config.js

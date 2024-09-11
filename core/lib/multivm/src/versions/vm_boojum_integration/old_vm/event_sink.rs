@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use itertools::Itertools;
 use zk_evm_1_4_0::{
     abstractions::EventSink,
     aux_structures::{LogQuery, Timestamp},
@@ -9,7 +8,6 @@ use zk_evm_1_4_0::{
         BOOTLOADER_FORMAL_ADDRESS, EVENT_AUX_BYTE, L1_MESSAGE_AUX_BYTE,
     },
 };
-use zksync_types::U256;
 
 use crate::vm_boojum_integration::old_vm::{
     history_recorder::{AppDataFrameManagerWithHistory, HistoryEnabled, HistoryMode},
@@ -31,7 +29,7 @@ impl OracleWithHistory for InMemoryEventSink<HistoryEnabled> {
 // otherwise we carry rollbacks to the parent's frames
 
 impl<H: HistoryMode> InMemoryEventSink<H> {
-    pub fn flatten(&self) -> (Vec<LogQuery>, Vec<EventMessage>, Vec<EventMessage>) {
+    pub fn flatten(&self) -> (Vec<EventMessage>, Vec<EventMessage>) {
         assert_eq!(
             self.frames_stack.len(),
             1,
@@ -40,10 +38,7 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
         // we forget rollbacks as we have finished the execution and can just apply them
         let history = self.frames_stack.forward().current_frame();
 
-        let (events, l1_messages) = Self::events_and_l1_messages_from_history(history);
-        let events_logs = Self::events_logs_from_history(history);
-
-        (events_logs, events, l1_messages)
+        Self::events_and_l1_messages_from_history(history)
     }
 
     pub fn get_log_queries(&self) -> usize {
@@ -67,92 +62,6 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
         from_timestamp: Timestamp,
     ) -> (Vec<EventMessage>, Vec<EventMessage>) {
         Self::events_and_l1_messages_from_history(self.log_queries_after_timestamp(from_timestamp))
-    }
-
-    fn events_logs_from_history(history: &[Box<LogQuery>]) -> Vec<LogQuery> {
-        // Filter out all the L2->L1 logs and leave only events
-        let mut events = history
-            .iter()
-            .filter_map(|log_query| (log_query.aux_byte == EVENT_AUX_BYTE).then_some(**log_query))
-            .collect_vec();
-
-        // Sort the events by timestamp and rollback flag, basically ensuring that
-        // if an event has been rolled back, the original event and its rollback will be put together
-        events.sort_by_key(|log| (log.timestamp, log.rollback));
-
-        let mut stack = Vec::<LogQuery>::new();
-        let mut net_history = vec![];
-        for el in events.iter() {
-            assert_eq!(el.shard_id, 0, "only rollup shard is supported");
-            if stack.is_empty() {
-                assert!(!el.rollback);
-                stack.push(*el);
-            } else {
-                // we can always pop as it's either one to add to queue, or discard
-                let previous = stack.pop().unwrap();
-                if previous.timestamp == el.timestamp {
-                    // Only rollback can have the same timestamp, so here we do nothing and simply
-                    // double check the invariants
-                    assert!(!previous.rollback);
-                    assert!(el.rollback);
-                    assert!(previous.rw_flag);
-                    assert!(el.rw_flag);
-                    assert_eq!(previous.tx_number_in_block, el.tx_number_in_block);
-                    assert_eq!(previous.shard_id, el.shard_id);
-                    assert_eq!(previous.address, el.address);
-                    assert_eq!(previous.key, el.key);
-                    assert_eq!(previous.written_value, el.written_value);
-                    assert_eq!(previous.is_service, el.is_service);
-                    continue;
-                } else {
-                    // The event on the stack has not been rolled back. It must be a different event,
-                    // with a different timestamp.
-                    assert!(!el.rollback);
-                    stack.push(*el);
-
-                    // cleanup some fields
-                    // flags are conventions
-                    let sorted_log_query = LogQuery {
-                        timestamp: Timestamp(0),
-                        tx_number_in_block: previous.tx_number_in_block,
-                        aux_byte: 0,
-                        shard_id: previous.shard_id,
-                        address: previous.address,
-                        key: previous.key,
-                        read_value: U256::zero(),
-                        written_value: previous.written_value,
-                        rw_flag: false,
-                        rollback: false,
-                        is_service: previous.is_service,
-                    };
-
-                    net_history.push(sorted_log_query);
-                }
-            }
-        }
-
-        // In case the stack is non-empty, then the last element of it has not been rolled back.
-        if let Some(previous) = stack.pop() {
-            // cleanup some fields
-            // flags are conventions
-            let sorted_log_query = LogQuery {
-                timestamp: Timestamp(0),
-                tx_number_in_block: previous.tx_number_in_block,
-                aux_byte: 0,
-                shard_id: previous.shard_id,
-                address: previous.address,
-                key: previous.key,
-                read_value: U256::zero(),
-                written_value: previous.written_value,
-                rw_flag: false,
-                rollback: false,
-                is_service: previous.is_service,
-            };
-
-            net_history.push(sorted_log_query);
-        }
-
-        net_history
     }
 
     fn events_and_l1_messages_from_history(

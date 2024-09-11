@@ -34,7 +34,7 @@ fn test_keccak() {
             contract_address: address,
             calldata: hex::decode(keccak1000_calldata).unwrap(),
             value: Default::default(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -78,7 +78,7 @@ fn test_sha256() {
             contract_address: address,
             calldata: hex::decode(sha1000_calldata).unwrap(),
             value: Default::default(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -115,7 +115,7 @@ fn test_ecrecover() {
             contract_address: account.address,
             calldata: Vec::new(),
             value: Default::default(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );

@@ -1,16 +1,17 @@
 use ethabi::Token;
 use zksync_contracts::l1_messenger_contract;
 use zksync_system_constants::{BOOTLOADER_ADDRESS, L1_MESSENGER_ADDRESS};
+use zksync_test_account::Account;
 use zksync_types::{
     get_code_key, get_known_code_key,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    storage_writes_deduplicator::StorageWritesDeduplicator,
-    Execute, ExecuteTransactionCommon, U256,
+    Execute, ExecuteTransactionCommon, K256PrivateKey, U256,
 };
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    utils::StorageWritesDeduplicator,
     vm_latest::{
         tests::{
             tester::{TxType, VmTesterBuilder},
@@ -98,7 +99,7 @@ fn test_l1_tx_execution() {
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
 
     // Tx panicked
-    assert_eq!(res.initial_storage_writes - basic_initial_writes, 0);
+    assert_eq!(res.initial_storage_writes, basic_initial_writes);
 
     let tx = account.get_test_contract_transaction(
         deploy_tx.address,
@@ -154,7 +155,9 @@ fn test_l1_tx_execution_high_gas_limit() {
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(vec![Account::new(
+            K256PrivateKey::from_bytes([0xad; 32].into()).unwrap(),
+        )])
         .build();
 
     let account = &mut vm.rich_accounts[0];
@@ -172,7 +175,7 @@ fn test_l1_tx_execution_high_gas_limit() {
         Execute {
             contract_address: L1_MESSENGER_ADDRESS,
             value: 0.into(),
-            factory_deps: None,
+            factory_deps: vec![],
             calldata,
         },
         0,

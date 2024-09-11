@@ -7,4 +7,6 @@ message SnapshotsCreator {
   optional uint64 storage_logs_chunk_size = 1; // optional
   optional uint32 concurrent_queries_count = 2; // optional
   optional config.object_store.ObjectStore object_store = 3;
+  optional uint32 version = 4; // optional; defaults to 0
+  optional uint32 l1_batch_number = 5; // optional
 }

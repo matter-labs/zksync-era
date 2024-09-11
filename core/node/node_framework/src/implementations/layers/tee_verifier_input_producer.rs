@@ -7,11 +7,13 @@ use crate::{
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource},
     },
-    service::{ServiceContext, StopReceiver},
+    service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
+    FromContext, IntoContext,
 };
 
+/// Wiring layer for [`TeeVerifierInputProducer`].
 #[derive(Debug)]
 pub struct TeeVerifierInputProducerLayer {
     l2_chain_id: L2ChainId,
@@ -23,40 +25,45 @@ impl TeeVerifierInputProducerLayer {
     }
 }
 
+#[derive(Debug, FromContext)]
+#[context(crate = crate)]
+pub struct Input {
+    pub master_pool: PoolResource<MasterPool>,
+    pub object_store: ObjectStoreResource,
+}
+
+#[derive(Debug, IntoContext)]
+#[context(crate = crate)]
+pub struct Output {
+    #[context(task)]
+    pub task: TeeVerifierInputProducer,
+}
+
 #[async_trait::async_trait]
 impl WiringLayer for TeeVerifierInputProducerLayer {
+    type Input = Input;
+    type Output = Output;
+
     fn layer_name(&self) -> &'static str {
         "tee_verifier_input_producer_layer"
     }
 
-    async fn wire(self: Box<Self>, mut context: ServiceContext<'_>) -> Result<(), WiringError> {
-        // Get resources.
-        let pool_resource = context
-            .get_resource::<PoolResource<MasterPool>>()
-            .await?
-            .get()
-            .await?;
-        let object_store = context.get_resource::<ObjectStoreResource>().await?;
-        let tee =
-            TeeVerifierInputProducer::new(pool_resource, object_store.0, self.l2_chain_id).await?;
+    async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        let pool = input.master_pool.get().await?;
+        let ObjectStoreResource(object_store) = input.object_store;
+        let task = TeeVerifierInputProducer::new(pool, object_store, self.l2_chain_id).await?;
 
-        context.add_task(Box::new(TeeVerifierInputProducerTask { tee }));
-
-        Ok(())
+        Ok(Output { task })
     }
 }
 
-pub struct TeeVerifierInputProducerTask {
-    tee: TeeVerifierInputProducer,
-}
-
 #[async_trait::async_trait]
-impl Task for TeeVerifierInputProducerTask {
+impl Task for TeeVerifierInputProducer {
     fn id(&self) -> TaskId {
         "tee_verifier_input_producer".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        self.tee.run(stop_receiver.0, None).await
+        (*self).run(stop_receiver.0, None).await
     }
 }

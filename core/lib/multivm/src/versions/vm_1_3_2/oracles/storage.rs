@@ -5,20 +5,22 @@ use zk_evm_1_3_3::{
     aux_structures::{LogQuery, Timestamp},
     zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
-    utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogQueryType,
+    utils::storage_key_for_eth_balance, AccountTreeId, Address, StorageKey, StorageLogKind,
     BOOTLOADER_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 
 use super::OracleWithHistory;
-use crate::vm_1_3_2::{
-    history_recorder::{
-        AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
-        HistoryRecorder, StorageWrapper, WithHistory,
+use crate::{
+    interface::storage::{StoragePtr, WriteStorage},
+    vm_1_3_2::{
+        history_recorder::{
+            AppDataFrameManagerWithHistory, HashMapHistoryEvent, HistoryEnabled, HistoryMode,
+            HistoryRecorder, StorageWrapper, WithHistory,
+        },
+        utils::StorageLogQuery,
     },
-    utils::StorageLogQuery,
 };
 
 // While the storage does not support different shards, it was decided to write the
@@ -84,7 +86,7 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
         self.frames_stack.push_forward(
             Box::new(StorageLogQuery {
                 log_query: query,
-                log_type: StorageLogQueryType::Read,
+                log_type: StorageLogKind::Read,
             }),
             query.timestamp,
         );
@@ -100,9 +102,9 @@ impl<S: WriteStorage, H: HistoryMode> StorageOracle<S, H> {
 
         let is_initial_write = self.storage.get_ptr().borrow_mut().is_write_initial(&key);
         let log_query_type = if is_initial_write {
-            StorageLogQueryType::InitialWrite
+            StorageLogKind::InitialWrite
         } else {
-            StorageLogQueryType::RepeatedWrite
+            StorageLogKind::RepeatedWrite
         };
 
         query.read_value = current_value;
@@ -284,12 +286,12 @@ impl<S: WriteStorage, H: HistoryMode> VmStorageOracle for StorageOracle<S, H> {
             // perform actual rollback
             for query in self.frames_stack.rollback().current_frame().iter().rev() {
                 let read_value = match query.log_type {
-                    StorageLogQueryType::Read => {
+                    StorageLogKind::Read => {
                         // Having Read logs in rollback is not possible
                         tracing::warn!("Read log in rollback queue {:?}", query);
                         continue;
                     }
-                    StorageLogQueryType::InitialWrite | StorageLogQueryType::RepeatedWrite => {
+                    StorageLogKind::InitialWrite | StorageLogKind::RepeatedWrite => {
                         query.log_query.read_value
                     }
                 };

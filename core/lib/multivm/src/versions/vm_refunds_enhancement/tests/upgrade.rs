@@ -11,7 +11,7 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use zksync_contracts::{deployer_contract, load_contract, load_sys_contract, read_bytecode};
-use zksync_state::WriteStorage;
+use crate::interface::storage::WriteStorage;
 use zksync_test_account::TxType;
 
 use crate::interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode};

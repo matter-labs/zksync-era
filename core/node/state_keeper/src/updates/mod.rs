@@ -1,20 +1,20 @@
-use multivm::{
-    interface::{FinishedL1Batch, L1BatchEnv, SystemEnv, VmExecutionResultAndLogs},
-    utils::get_batch_base_fee,
-};
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_multivm::{
+    interface::{
+        storage::StorageViewCache, Call, CompressedBytecodeInfo, FinishedL1Batch, L1BatchEnv,
+        SystemEnv, VmExecutionMetrics, VmExecutionResultAndLogs,
+    },
+    utils::{get_batch_base_fee, StorageWritesDeduplicator},
+};
 use zksync_types::{
-    block::BlockGasCount, fee_model::BatchFeeInput,
-    storage_writes_deduplicator::StorageWritesDeduplicator,
-    tx::tx_execution_info::ExecutionMetrics, vm_trace::Call, Address, L1BatchNumber, L2BlockNumber,
+    block::BlockGasCount, fee_model::BatchFeeInput, Address, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, Transaction,
 };
-use zksync_utils::bytecode::CompressedBytecodeInfo;
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
 use super::{
     io::{IoCursor, L2BlockParams},
-    metrics::BATCH_TIP_METRICS,
+    metrics::{BATCH_TIP_METRICS, UPDATES_MANAGER_METRICS},
 };
 use crate::types::ExecutionMetricsForCriteria;
 
@@ -35,6 +35,7 @@ pub struct UpdatesManager {
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
     protocol_version: ProtocolVersionId,
+    storage_view_cache: Option<StorageViewCache>,
     pub l1_batch: L1BatchUpdates,
     pub l2_block: L2BlockUpdates,
     pub storage_writes_deduplicator: StorageWritesDeduplicator,
@@ -59,6 +60,7 @@ impl UpdatesManager {
                 protocol_version,
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
+            storage_view_cache: None,
         }
     }
 
@@ -66,7 +68,7 @@ impl UpdatesManager {
         self.batch_timestamp
     }
 
-    pub(crate) fn base_system_contract_hashes(&self) -> BaseSystemContractsHashes {
+    pub fn base_system_contract_hashes(&self) -> BaseSystemContractsHashes {
         self.base_system_contract_hashes
     }
 
@@ -98,7 +100,7 @@ impl UpdatesManager {
         }
     }
 
-    pub(crate) fn protocol_version(&self) -> ProtocolVersionId {
+    pub fn protocol_version(&self) -> ProtocolVersionId {
         self.protocol_version
     }
 
@@ -108,9 +110,12 @@ impl UpdatesManager {
         tx_execution_result: VmExecutionResultAndLogs,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
         tx_l1_gas_this_tx: BlockGasCount,
-        execution_metrics: ExecutionMetrics,
+        execution_metrics: VmExecutionMetrics,
         call_traces: Vec<Call>,
     ) {
+        let latency = UPDATES_MANAGER_METRICS
+            .extend_from_executed_transaction
+            .start();
         self.storage_writes_deduplicator
             .apply(&tx_execution_result.logs.storage_logs);
         self.l2_block.extend_from_executed_transaction(
@@ -121,9 +126,11 @@ impl UpdatesManager {
             compressed_bytecodes,
             call_traces,
         );
+        latency.observe();
     }
 
     pub fn finish_batch(&mut self, finished_batch: FinishedL1Batch) {
+        let latency = UPDATES_MANAGER_METRICS.finish_batch.start();
         assert!(
             self.l1_batch.finished.is_none(),
             "Cannot finish already finished batch"
@@ -144,6 +151,16 @@ impl UpdatesManager {
             batch_tip_metrics.execution_metrics,
         );
         self.l1_batch.finished = Some(finished_batch);
+
+        latency.observe();
+    }
+
+    pub fn update_storage_view_cache(&mut self, storage_view_cache: StorageViewCache) {
+        self.storage_view_cache = Some(storage_view_cache);
+    }
+
+    pub fn storage_view_cache(&self) -> Option<StorageViewCache> {
+        self.storage_view_cache.clone()
     }
 
     /// Pushes a new L2 block with the specified timestamp into this manager. The previously
@@ -169,7 +186,7 @@ impl UpdatesManager {
         self.l1_batch.l1_gas_count + self.l2_block.l1_gas_count
     }
 
-    pub(crate) fn pending_execution_metrics(&self) -> ExecutionMetrics {
+    pub(crate) fn pending_execution_metrics(&self) -> VmExecutionMetrics {
         self.l1_batch.block_execution_metrics + self.l2_block.block_execution_metrics
     }
 
@@ -214,10 +231,10 @@ mod tests {
         let tx = create_transaction(10, 100);
         updates_manager.extend_from_executed_transaction(
             tx,
-            create_execution_result(0, []),
+            create_execution_result([]),
             vec![],
             new_block_gas_count(),
-            ExecutionMetrics::default(),
+            VmExecutionMetrics::default(),
             vec![],
         );
 

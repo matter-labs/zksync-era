@@ -1,4 +1,4 @@
-//! Definition of errors that can occur in the zkSync Web3 API.
+//! Definition of errors that can occur in the ZKsync Web3 API.
 
 use std::{
     collections::HashMap,
@@ -60,6 +60,19 @@ pub struct EnrichedClientError {
     args: HashMap<&'static str, String>,
 }
 
+/// Whether the error should be considered retriable.
+pub fn is_retriable(err: &ClientError) -> bool {
+    match err {
+        ClientError::Transport(_) | ClientError::RequestTimeout => true,
+        ClientError::Call(err) => {
+            // At least some RPC providers use "internal error" in case of the server being overloaded
+            err.code() == ErrorCode::ServerIsBusy.code()
+                || err.code() == ErrorCode::InternalError.code()
+        }
+        _ => false,
+    }
+}
+
 /// Alias for a result with enriched client RPC error.
 pub type EnrichedClientResult<T> = Result<T, EnrichedClientError>;
 
@@ -85,17 +98,9 @@ impl EnrichedClientError {
         self
     }
 
-    /// Whether the error should be considered transient.
-    pub fn is_transient(&self) -> bool {
-        match self.as_ref() {
-            ClientError::Transport(_) | ClientError::RequestTimeout => true,
-            ClientError::Call(err) => {
-                // At least some RPC providers use "internal error" in case of the server being overloaded
-                err.code() == ErrorCode::ServerIsBusy.code()
-                    || err.code() == ErrorCode::InternalError.code()
-            }
-            _ => false,
-        }
+    /// Whether the error should be considered retriable.
+    pub fn is_retriable(&self) -> bool {
+        is_retriable(&self.inner_error)
     }
 }
 

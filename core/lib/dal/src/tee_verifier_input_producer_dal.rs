@@ -17,7 +17,7 @@ pub struct TeeVerifierInputProducerDal<'a, 'c> {
 }
 
 /// The amount of attempts to process a job before giving up.
-pub const JOB_MAX_ATTEMPT: i16 = 2;
+pub const JOB_MAX_ATTEMPT: i16 = 5;
 
 /// Time to wait for job to be processed
 const JOB_PROCESSING_TIMEOUT: PgInterval = pg_interval_from_duration(Duration::from_secs(10 * 60));
@@ -33,7 +33,7 @@ pub enum TeeVerifierInputProducerJobStatus {
     /// It is expected to be used if some jobs should be skipped like:
     /// - testing purposes (want to check a specific L1 Batch, I can mark everything before it skipped)
     /// - trim down costs on some environments (if I've done breaking changes,
-    /// makes no sense to wait for everything to be processed, I can just skip them and save resources)
+    ///   makes no sense to wait for everything to be processed, I can just skip them and save resources)
     ManuallySkipped,
     /// Currently being processed by one of the jobs. Transitory state, will transition to either
     /// [`TeeVerifierInputProducerStatus::Successful`] or [`TeeVerifierInputProducerStatus::Failed`].

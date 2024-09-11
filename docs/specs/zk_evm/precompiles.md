@@ -19,7 +19,7 @@ nor the instructions to put the parameters in memory.
 
 For Go-Ethereum, the code being run is written in Go, and the gas costs are defined in each precompile spec.
 
-In the case of zkSync Era, ecAdd and ecMul precompiles are written as a smart contract for two reasons:
+In the case of ZKsync Era, ecAdd and ecMul precompiles are written as a smart contract for two reasons:
 
 - zkEVM needs to be able to prove their execution (and at the moment it cannot do that if the code being run is executed
   outside the VM)
@@ -36,7 +36,7 @@ The arithmetic is carried out with the field elements encoded in the Montgomery 
 operating in the Montgomery form speeds up the computation but also because the native modular multiplication, which is
 carried out by Yul's `mulmod` opcode, is very inefficient.
 
-Instructions set on zkSync and EVM are different, so the performance of the same Yul/Solidity code can be efficient on
+Instructions set on ZKsync and EVM are different, so the performance of the same Yul/Solidity code can be efficient on
 EVM, but not on zkEVM and opposite.
 
 One such very inefficient command is `mulmod`. On EVM there is a native opcode that makes modulo multiplication and it

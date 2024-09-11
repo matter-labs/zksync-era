@@ -1,6 +1,6 @@
-# zkSync deeper dive
+# ZKsync deeper dive
 
-The goal of this doc is to show you some more details on how zkSync works internally.
+The goal of this doc is to show you some more details on how ZKsync works internally.
 
 Please do the dev_setup.md and development.md (these commands do all the heavy lifting on starting the components of the
 system).
@@ -20,9 +20,9 @@ there, make sure to run `zk` (that compiles this code), before re-running `zk in
 
 As first step, it gets the docker images for postgres and reth.
 
-Reth (one of the Ethereum clients) will be used to setup our own copy of L1 chain (that our local zkSync would use).
+Reth (one of the Ethereum clients) will be used to setup our own copy of L1 chain (that our local ZKsync would use).
 
-Postgres is one of the two databases, that is used by zkSync (the other one is RocksDB). Currently most of the data is
+Postgres is one of the two databases, that is used by ZKsync (the other one is RocksDB). Currently most of the data is
 stored in postgres (blocks, transactions etc) - while RocksDB is only storing the state (Tree & Map) - and it used by
 VM.
 
@@ -116,7 +116,7 @@ This is one of the "rich wallets" we predefined for local L1.
 **Note:** This reth shell is running official Ethereum JSON RPC with Reth-specific extensions documented at
 [reth docs](https://paradigmxyz.github.io/reth/jsonrpc/intro.html)
 
-In order to communicate with L2 (our zkSync) - we have to deploy multiple contracts onto L1 (our local reth created
+In order to communicate with L2 (our ZKsync) - we have to deploy multiple contracts onto L1 (our local reth created
 Ethereum). You can look on the `deployL1.log` file - to see the list of contracts that were deployed and their accounts.
 
 First thing in the file, is the deployer/governor wallet - this is the account that can change, freeze and unfreeze the

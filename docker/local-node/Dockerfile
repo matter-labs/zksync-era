@@ -24,7 +24,7 @@ ENV RUSTUP_HOME=/usr/local/rustup \
 RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
     rustup install stable
 
-RUN cargo install sqlx-cli --version 0.7.3
+RUN cargo install sqlx-cli --version 0.8.0
 
 # Copy required packages while preserving the folders structure from the repo
 # It's required because these packages use relative paths to the SDK
@@ -64,7 +64,7 @@ COPY package.json /
 
 # Copy DAL - needed to setup database schemas.
 COPY core/lib/dal core/lib/dal
-COPY prover/prover_dal prover/prover_dal
+COPY prover/crates/lib/prover_dal prover/crates/lib/prover_dal
 
 RUN mkdir /etc/env/l1-inits && mkdir /etc/env/l2-inits
 

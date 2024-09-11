@@ -10,6 +10,20 @@ pub enum SetupLoadMode {
     FromMemory,
 }
 
+/// Kind of cloud environment prover subsystem runs in.
+///
+/// Currently will only affect how the prover zone is chosen.
+#[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq, Eq)]
+pub enum CloudConnectionMode {
+    /// Assumes that the prover runs in GCP.
+    /// Will use zone information to make sure that the direct network communication
+    /// between components is performed only within the same zone.
+    #[default]
+    GCP,
+    /// Assumes that the prover subsystem runs locally.
+    Local,
+}
+
 /// Configuration for the fri prover application
 #[derive(Debug, Deserialize, Clone, PartialEq)]
 pub struct FriProverConfig {
@@ -26,7 +40,10 @@ pub struct FriProverConfig {
 
     // whether to write to public GCS bucket for https://github.com/matter-labs/era-boojum-validator-cli
     pub shall_save_to_public_bucket: bool,
-    pub object_store: Option<ObjectStoreConfig>,
+    pub prover_object_store: Option<ObjectStoreConfig>,
+    pub public_object_store: Option<ObjectStoreConfig>,
+    #[serde(default)]
+    pub cloud_type: CloudConnectionMode,
 }
 
 impl FriProverConfig {

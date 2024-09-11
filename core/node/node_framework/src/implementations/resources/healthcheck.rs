@@ -6,6 +6,7 @@ pub use zksync_health_check::{CheckHealth, ReactiveHealthCheck};
 
 use crate::resource::Resource;
 
+/// A resource that provides [`AppHealthCheck`] to the service.
 #[derive(Debug, Clone, Default)]
 pub struct AppHealthCheckResource(pub Arc<AppHealthCheck>);
 

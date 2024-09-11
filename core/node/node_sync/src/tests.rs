@@ -77,10 +77,11 @@ impl MockMainNodeClient {
 
     pub fn insert_protocol_version(&mut self, version: api::ProtocolVersion) {
         self.system_contracts
-            .insert(version.base_system_contracts.bootloader, vec![]);
+            .insert(version.bootloader_code_hash.unwrap(), vec![]);
         self.system_contracts
-            .insert(version.base_system_contracts.default_aa, vec![]);
-        self.protocol_versions.insert(version.version_id, version);
+            .insert(version.default_account_code_hash.unwrap(), vec![]);
+        self.protocol_versions
+            .insert(version.minor_version.unwrap(), version);
     }
 }
 
@@ -112,24 +113,23 @@ impl StateKeeperHandles {
 
         tokio::spawn(l2_block_sealer.run());
         let io = ExternalIO::new(
-            pool,
+            pool.clone(),
             actions,
             Box::new(main_node_client),
             L2ChainId::default(),
         )
-        .await
         .unwrap();
 
         let (stop_sender, stop_receiver) = watch::channel(false);
-        let mut batch_executor_base = TestBatchExecutorBuilder::default();
+        let mut batch_executor = TestBatchExecutorBuilder::default();
         for &tx_hashes_in_l1_batch in tx_hashes {
-            batch_executor_base.push_successful_transactions(tx_hashes_in_l1_batch);
+            batch_executor.push_successful_transactions(tx_hashes_in_l1_batch);
         }
 
         let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver,
             Box::new(io),
-            Box::new(batch_executor_base),
+            Box::new(batch_executor),
             output_handler,
             Arc::new(NoopSealer),
             Arc::new(MockReadStorageFactory),
@@ -229,7 +229,7 @@ async fn external_io_basics(snapshot_recovery: bool) {
         &[&extract_tx_hashes(&actions)],
     )
     .await;
-    actions_sender.push_actions(actions).await;
+    actions_sender.push_actions(actions).await.unwrap();
     // Wait until the L2 block is sealed.
     state_keeper
         .wait_for_local_block(snapshot.l2_block_number + 1)
@@ -300,12 +300,10 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
     let (actions_sender, action_queue) = ActionQueue::new();
     let mut client = MockMainNodeClient::default();
     let next_protocol_version = api::ProtocolVersion {
-        version_id: ProtocolVersionId::next() as u16,
+        minor_version: Some(ProtocolVersionId::next() as u16),
         timestamp: snapshot.l2_block_timestamp + 1,
-        base_system_contracts: BaseSystemContractsHashes {
-            bootloader: H256::repeat_byte(1),
-            default_aa: H256::repeat_byte(2),
-        },
+        bootloader_code_hash: Some(H256::repeat_byte(1)),
+        default_account_code_hash: Some(H256::repeat_byte(1)),
         ..api::ProtocolVersion::default()
     };
     client.insert_protocol_version(next_protocol_version.clone());
@@ -317,7 +315,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         &[&extract_tx_hashes(&actions)],
     )
     .await;
-    actions_sender.push_actions(actions).await;
+    actions_sender.push_actions(actions).await.unwrap();
     // Wait until the L2 block is sealed.
     state_keeper
         .wait_for_local_block(snapshot.l2_block_number + 1)
@@ -335,8 +333,16 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         next_protocol_version.timestamp
     );
     assert_eq!(
-        persisted_protocol_version.base_system_contracts_hashes,
-        next_protocol_version.base_system_contracts
+        persisted_protocol_version
+            .base_system_contracts_hashes
+            .bootloader,
+        next_protocol_version.bootloader_code_hash.unwrap()
+    );
+    assert_eq!(
+        persisted_protocol_version
+            .base_system_contracts_hashes
+            .default_aa,
+        next_protocol_version.default_account_code_hash.unwrap()
     );
 
     let l2_block = storage
@@ -400,8 +406,14 @@ pub(super) async fn run_state_keeper_with_multiple_l2_blocks(
     let (actions_sender, action_queue) = ActionQueue::new();
     let client = MockMainNodeClient::default();
     let state_keeper = StateKeeperHandles::new(pool, client, action_queue, &[&tx_hashes]).await;
-    actions_sender.push_actions(first_l2_block_actions).await;
-    actions_sender.push_actions(second_l2_block_actions).await;
+    actions_sender
+        .push_actions(first_l2_block_actions)
+        .await
+        .unwrap();
+    actions_sender
+        .push_actions(second_l2_block_actions)
+        .await
+        .unwrap();
     // Wait until both L2 blocks are sealed.
     state_keeper
         .wait_for_local_block(snapshot.l2_block_number + 2)
@@ -483,7 +495,7 @@ async fn test_external_io_recovery(
         number: snapshot.l2_block_number + 3,
     };
     let actions = vec![open_l2_block, new_tx.into(), SyncAction::SealL2Block];
-    actions_sender.push_actions(actions).await;
+    actions_sender.push_actions(actions).await.unwrap();
     state_keeper
         .wait_for_local_block(snapshot.l2_block_number + 3)
         .await;
@@ -573,9 +585,18 @@ pub(super) async fn run_state_keeper_with_multiple_l1_batches(
         &[&[first_tx_hash], &[second_tx_hash]],
     )
     .await;
-    actions_sender.push_actions(first_l1_batch_actions).await;
-    actions_sender.push_actions(fictive_l2_block_actions).await;
-    actions_sender.push_actions(second_l1_batch_actions).await;
+    actions_sender
+        .push_actions(first_l1_batch_actions)
+        .await
+        .unwrap();
+    actions_sender
+        .push_actions(fictive_l2_block_actions)
+        .await
+        .unwrap();
+    actions_sender
+        .push_actions(second_l1_batch_actions)
+        .await
+        .unwrap();
 
     let hash_task = tokio::spawn(mock_l1_batch_hash_computation(
         pool.clone(),

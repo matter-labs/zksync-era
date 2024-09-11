@@ -1,5 +1,6 @@
 [package]
 name = "zksync_l1_contract_interface"
+description = "Interfaces for interacting with ZKsync contracts"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

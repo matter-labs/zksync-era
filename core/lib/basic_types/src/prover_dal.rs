@@ -5,14 +5,8 @@ use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
 use strum::{Display, EnumString};
 
 use crate::{
-    basic_fri_types::{AggregationRound, Eip4844Blobs},
-    protocol_version::ProtocolVersionId,
-    L1BatchNumber,
+    basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId, L1BatchNumber,
 };
-
-// This currently lives in `zksync_prover_types` -- we don't want a dependency between prover types (`zkevm_test_harness`) and DAL.
-// This will be gone as part of 1.5.0, when EIP4844 becomes normal jobs, rather than special cased ones.
-pub const EIP_4844_CIRCUIT_ID: u8 = 255;
 
 #[derive(Debug, Clone)]
 pub struct FriProverJobMetadata {
@@ -58,6 +52,8 @@ pub struct StuckJobs {
     pub status: String,
     pub attempts: u64,
     pub circuit_id: Option<u32>,
+    pub picked_by: Option<String>,
+    pub error: Option<String>,
 }
 
 // TODO (PLA-774): Redundant structure, should be replaced with `std::net::SocketAddr`.
@@ -259,7 +255,6 @@ pub struct ProverJobFriInfo {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
     pub time_taken: Option<NaiveTime>,
-    pub is_blob_cleaned: Option<bool>,
     pub depth: u32,
     pub is_node_final_proof: bool,
     pub proof_blob_url: Option<String>,
@@ -267,10 +262,15 @@ pub struct ProverJobFriInfo {
     pub picked_by: Option<String>,
 }
 
+pub trait Stallable {
+    fn get_status(&self) -> WitnessJobStatus;
+    fn get_attempts(&self) -> u32;
+}
+
 #[derive(Debug, Clone)]
 pub struct BasicWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
-    pub merkle_tree_paths_blob_url: Option<String>,
+    pub witness_inputs_blob_url: Option<String>,
     pub attempts: u32,
     pub status: WitnessJobStatus,
     pub error: Option<String>,
@@ -278,10 +278,18 @@ pub struct BasicWitnessGeneratorJobInfo {
     pub updated_at: NaiveDateTime,
     pub processing_started_at: Option<NaiveDateTime>,
     pub time_taken: Option<NaiveTime>,
-    pub is_blob_cleaned: Option<bool>,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
-    pub eip_4844_blobs: Option<Eip4844Blobs>,
+}
+
+impl Stallable for BasicWitnessGeneratorJobInfo {
+    fn get_status(&self) -> WitnessJobStatus {
+        self.status.clone()
+    }
+
+    fn get_attempts(&self) -> u32 {
+        self.attempts
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -297,10 +305,19 @@ pub struct LeafWitnessGeneratorJobInfo {
     pub updated_at: NaiveDateTime,
     pub processing_started_at: Option<NaiveDateTime>,
     pub time_taken: Option<NaiveTime>,
-    pub is_blob_cleaned: Option<bool>,
     pub number_of_basic_circuits: Option<i32>,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
+}
+
+impl Stallable for LeafWitnessGeneratorJobInfo {
+    fn get_status(&self) -> WitnessJobStatus {
+        self.status.clone()
+    }
+
+    fn get_attempts(&self) -> u32 {
+        self.attempts
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -322,6 +339,16 @@ pub struct NodeWitnessGeneratorJobInfo {
     pub picked_by: Option<String>,
 }
 
+impl Stallable for NodeWitnessGeneratorJobInfo {
+    fn get_status(&self) -> WitnessJobStatus {
+        self.status.clone()
+    }
+
+    fn get_attempts(&self) -> u32 {
+        self.attempts
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RecursionTipWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
@@ -332,9 +359,19 @@ pub struct RecursionTipWitnessGeneratorJobInfo {
     pub error: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
-    pub number_of_final_node_jobs: Option<i32>,
+    pub number_of_final_node_jobs: i32,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
+}
+
+impl Stallable for RecursionTipWitnessGeneratorJobInfo {
+    fn get_status(&self) -> WitnessJobStatus {
+        self.status.clone()
+    }
+
+    fn get_attempts(&self) -> u32 {
+        self.attempts
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -350,6 +387,16 @@ pub struct SchedulerWitnessGeneratorJobInfo {
     pub attempts: u32,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
+}
+
+impl Stallable for SchedulerWitnessGeneratorJobInfo {
+    fn get_status(&self) -> WitnessJobStatus {
+        self.status.clone()
+    }
+
+    fn get_attempts(&self) -> u32 {
+        self.attempts
+    }
 }
 
 #[derive(Debug, EnumString, Display, Clone)]
@@ -383,14 +430,11 @@ pub struct ProofCompressionJobInfo {
     pub picked_by: Option<String>,
 }
 
-// This function corrects circuit IDs for the node witness generator.
-//
-// - Circuit IDs in the node witness generator are 2 higher than in other rounds.
-// - The `EIP4844Repack` circuit (ID 255) is an exception and is set to 18.
-pub fn correct_circuit_id(circuit_id: i16, aggregation_round: AggregationRound) -> u32 {
-    match (circuit_id, aggregation_round) {
-        (18, AggregationRound::NodeAggregation) => 255,
-        (circuit_id, AggregationRound::NodeAggregation) => (circuit_id as u32) - 2,
-        _ => circuit_id as u32,
-    }
+// Used for transferring information about L1 Batches from DAL to public interfaces (currently prover_cli stats).
+/// DTO containing information about L1 Batch Proof.
+#[derive(Debug, Clone)]
+pub struct ProofGenerationTime {
+    pub l1_batch_number: L1BatchNumber,
+    pub time_taken: NaiveTime,
+    pub created_at: NaiveDateTime,
 }

@@ -1,7 +1,7 @@
 use zksync_db_connection::{connection::Connection, error::DalResult, instrument::InstrumentExt};
 use zksync_types::api::ProtocolVersion;
 
-use crate::{models::storage_protocol_version::StorageProtocolVersion, Core, CoreDal};
+use crate::{models::storage_protocol_version::StorageApiProtocolVersion, Core, CoreDal};
 
 #[derive(Debug)]
 pub struct ProtocolVersionsWeb3Dal<'a, 'c> {
@@ -14,28 +14,18 @@ impl ProtocolVersionsWeb3Dal<'_, '_> {
         version_id: u16,
     ) -> DalResult<Option<ProtocolVersion>> {
         let storage_protocol_version = sqlx::query_as!(
-            StorageProtocolVersion,
+            StorageApiProtocolVersion,
             r#"
             SELECT
-                protocol_versions.id AS "minor!",
-                protocol_versions.timestamp,
-                protocol_versions.bootloader_code_hash,
-                protocol_versions.default_account_code_hash,
-                protocol_versions.upgrade_tx_hash,
-                protocol_patches.patch,
-                protocol_patches.recursion_scheduler_level_vk_hash,
-                protocol_patches.recursion_node_level_vk_hash,
-                protocol_patches.recursion_leaf_level_vk_hash,
-                protocol_patches.recursion_circuits_set_vks_hash
+                id AS "minor!",
+                timestamp,
+                bootloader_code_hash,
+                default_account_code_hash,
+                upgrade_tx_hash
             FROM
                 protocol_versions
-                JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id
             WHERE
                 id = $1
-            ORDER BY
-                protocol_patches.patch DESC
-            LIMIT
-                1
             "#,
             i32::from(version_id)
         )

@@ -1,4 +1,4 @@
-import { spawn } from 'zk/build/utils';
+import { spawn } from 'utils';
 
 export async function callFacetDeployer(
     l1RpcProvider: string,

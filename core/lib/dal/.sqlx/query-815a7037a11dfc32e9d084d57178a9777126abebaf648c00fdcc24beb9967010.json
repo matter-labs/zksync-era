@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l1_batch_number\n            FROM\n                proof_generation_details\n            WHERE\n                status = 'unpicked'\n            ORDER BY\n                l1_batch_number ASC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "815a7037a11dfc32e9d084d57178a9777126abebaf648c00fdcc24beb9967010"
+}

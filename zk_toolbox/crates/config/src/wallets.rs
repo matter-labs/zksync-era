@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     consts::WALLETS_FILE,
-    traits::{FileConfig, FileConfigWithDefaultName},
+    traits::{FileConfigWithDefaultName, ZkToolboxConfig},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,6 +15,7 @@ pub struct WalletsConfig {
     pub blob_operator: Wallet,
     pub fee_account: Wallet,
     pub governor: Wallet,
+    pub token_multiplier_setter: Wallet,
 }
 
 impl WalletsConfig {
@@ -26,6 +27,7 @@ impl WalletsConfig {
             blob_operator: Wallet::random(rng),
             fee_account: Wallet::random(rng),
             governor: Wallet::random(rng),
+            token_multiplier_setter: Wallet::random(rng),
         }
     }
 
@@ -37,6 +39,7 @@ impl WalletsConfig {
             blob_operator: Wallet::empty(),
             fee_account: Wallet::empty(),
             governor: Wallet::empty(),
+            token_multiplier_setter: Wallet::empty(),
         }
     }
     pub fn deployer_private_key(&self) -> Option<H256> {
@@ -60,4 +63,6 @@ pub(crate) struct EthMnemonicConfig {
     pub(crate) base_path: String,
 }
 
-impl FileConfig for EthMnemonicConfig {}
+impl ZkToolboxConfig for EthMnemonicConfig {}
+
+impl ZkToolboxConfig for WalletsConfig {}

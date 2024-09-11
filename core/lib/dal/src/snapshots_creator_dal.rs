@@ -55,9 +55,74 @@ impl SnapshotsCreatorDal<'_, '_> {
         let storage_logs = sqlx::query!(
             r#"
             SELECT
+                storage_logs.hashed_key AS "hashed_key!",
+                storage_logs.value AS "value!",
+                storage_logs.miniblock_number AS "miniblock_number!",
+                initial_writes.l1_batch_number AS "l1_batch_number!",
+                initial_writes.index
+            FROM
+                (
+                    SELECT
+                        hashed_key,
+                        MAX(ARRAY[miniblock_number, operation_number]::INT[]) AS op
+                    FROM
+                        storage_logs
+                    WHERE
+                        miniblock_number <= $1
+                        AND hashed_key >= $3
+                        AND hashed_key <= $4
+                    GROUP BY
+                        hashed_key
+                    ORDER BY
+                        hashed_key
+                ) AS keys
+                INNER JOIN storage_logs ON keys.hashed_key = storage_logs.hashed_key
+                AND storage_logs.miniblock_number = keys.op[1]
+                AND storage_logs.operation_number = keys.op[2]
+                INNER JOIN initial_writes ON keys.hashed_key = initial_writes.hashed_key
+            WHERE
+                initial_writes.l1_batch_number <= $2
+            "#,
+            i64::from(l2_block_number.0),
+            i64::from(l1_batch_number.0),
+            hashed_keys_range.start().as_bytes(),
+            hashed_keys_range.end().as_bytes()
+        )
+        .instrument("get_storage_logs_chunk")
+        .with_arg("l2_block_number", &l2_block_number)
+        .with_arg("min_hashed_key", &hashed_keys_range.start())
+        .with_arg("max_hashed_key", &hashed_keys_range.end())
+        .report_latency()
+        .expect_slow_query()
+        .fetch_all(self.storage)
+        .await?
+        .iter()
+        .map(|row| SnapshotStorageLog {
+            key: H256::from_slice(&row.hashed_key),
+            value: H256::from_slice(&row.value),
+            l1_batch_number_of_initial_write: L1BatchNumber(row.l1_batch_number as u32),
+            enumeration_index: row.index as u64,
+        })
+        .collect();
+        Ok(storage_logs)
+    }
+
+    /// Same as [`Self::get_storage_logs_chunk()`], but returns full keys.
+    #[deprecated(
+        note = "will fail if called on a node restored from a v1 snapshot; use `get_storage_logs_chunk()` instead"
+    )]
+    pub async fn get_storage_logs_chunk_with_key_preimages(
+        &mut self,
+        l2_block_number: L2BlockNumber,
+        l1_batch_number: L1BatchNumber,
+        hashed_keys_range: std::ops::RangeInclusive<H256>,
+    ) -> DalResult<Vec<SnapshotStorageLog<StorageKey>>> {
+        let storage_logs = sqlx::query!(
+            r#"
+            SELECT
+                storage_logs.address AS "address!",
                 storage_logs.key AS "key!",
                 storage_logs.value AS "value!",
-                storage_logs.address AS "address!",
                 storage_logs.miniblock_number AS "miniblock_number!",
                 initial_writes.l1_batch_number AS "l1_batch_number!",
                 initial_writes.index
@@ -164,11 +229,12 @@ mod tests {
         logs.sort_unstable_by_key(|log| log.key.hashed_key());
 
         conn.storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(1), &[(H256::zero(), logs.clone())])
+            .insert_storage_logs(L2BlockNumber(1), &logs)
             .await
             .unwrap();
         let mut written_keys: Vec<_> = logs.iter().map(|log| log.key).collect();
         written_keys.sort_unstable();
+        let written_keys: Vec<_> = written_keys.iter().map(StorageKey::hashed_key).collect();
         conn.storage_logs_dedup_dal()
             .insert_initial_writes(L1BatchNumber(1), &written_keys)
             .await
@@ -190,7 +256,7 @@ mod tests {
             );
             StorageLog::new_write_log(key, H256::repeat_byte(1))
         });
-        let new_written_keys: Vec<_> = new_logs.clone().map(|log| log.key).collect();
+        let new_written_keys: Vec<_> = new_logs.clone().map(|log| log.key.hashed_key()).collect();
         let updated_logs = logs.iter().step_by(3).map(|&log| StorageLog {
             value: H256::repeat_byte(23),
             ..log
@@ -198,7 +264,7 @@ mod tests {
         let all_new_logs: Vec<_> = new_logs.chain(updated_logs).collect();
         let all_new_logs_len = all_new_logs.len();
         conn.storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(2), &[(H256::zero(), all_new_logs)])
+            .insert_storage_logs(L2BlockNumber(2), &all_new_logs)
             .await
             .unwrap();
         conn.storage_logs_dedup_dal()
@@ -238,7 +304,7 @@ mod tests {
             .unwrap();
         assert_eq!(all_logs.len(), expected_logs.len());
         for (log, expected_log) in all_logs.iter().zip(expected_logs) {
-            assert_eq!(log.key, expected_log.key);
+            assert_eq!(log.key, expected_log.key.hashed_key());
             assert_eq!(log.value, expected_log.value);
             assert_eq!(log.l1_batch_number_of_initial_write, l1_batch_number);
         }
@@ -253,7 +319,7 @@ mod tests {
                     .unwrap();
                 assert_eq!(logs.len(), chunk.len());
                 for (log, expected_log) in logs.iter().zip(chunk) {
-                    assert_eq!(log.key, expected_log.key);
+                    assert_eq!(log.key, expected_log.key.hashed_key());
                     assert_eq!(log.value, expected_log.value);
                 }
             }
@@ -271,18 +337,18 @@ mod tests {
             StorageLog::new_write_log(key, H256::zero()),
         ];
         conn.storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(1), &[(H256::zero(), phantom_writes)])
+            .insert_storage_logs(L2BlockNumber(1), &phantom_writes)
             .await
             .unwrap();
         // initial writes are intentionally not inserted.
 
         let real_write = StorageLog::new_write_log(key, H256::repeat_byte(2));
         conn.storage_logs_dal()
-            .insert_storage_logs(L2BlockNumber(2), &[(H256::zero(), vec![real_write])])
+            .insert_storage_logs(L2BlockNumber(2), &[real_write])
             .await
             .unwrap();
         conn.storage_logs_dedup_dal()
-            .insert_initial_writes(L1BatchNumber(2), &[key])
+            .insert_initial_writes(L1BatchNumber(2), &[key.hashed_key()])
             .await
             .unwrap();
 
@@ -307,7 +373,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(logs.len(), 1);
-        assert_eq!(logs[0].key, key);
+        assert_eq!(logs[0].key, key.hashed_key());
         assert_eq!(logs[0].value, real_write.value);
         assert_eq!(logs[0].l1_batch_number_of_initial_write, L1BatchNumber(2));
     }

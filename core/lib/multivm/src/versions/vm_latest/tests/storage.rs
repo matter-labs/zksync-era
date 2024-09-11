@@ -1,9 +1,12 @@
 use ethabi::Token;
 use zksync_contracts::{load_contract, read_bytecode};
+use zksync_test_account::Account;
 use zksync_types::{fee::Fee, Address, Execute, U256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled},
+    interface::{
+        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
+    },
     vm_latest::{tests::tester::VmTesterBuilder, HistoryEnabled},
 };
 
@@ -50,7 +53,7 @@ fn test_storage(txs: Vec<TestTxInfo>) -> u32 {
                 contract_address: test_contract_address,
                 calldata,
                 value: 0.into(),
-                factory_deps: None,
+                factory_deps: vec![],
             },
             fee_overrides,
         );
@@ -164,7 +167,7 @@ fn test_transient_storage_behavior_panic() {
     let small_fee = Fee {
         // Something very-very small to make the validation fail
         gas_limit: 10_000.into(),
-        ..Default::default()
+        ..Account::default_fee()
     };
 
     test_storage(vec![

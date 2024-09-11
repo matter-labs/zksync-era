@@ -42,12 +42,12 @@ fn parsing_observability_config() {
     assert_eq!(config.prometheus_port, Some(3322));
     assert_eq!(config.sentry_url.unwrap(), "https://example.com/");
     assert_eq!(config.sentry_environment.unwrap(), "mainnet - mainnet2");
-    assert_matches!(config.log_format, vlog::LogFormat::Plain);
+    assert_matches!(config.log_format, zksync_vlog::logs::LogFormat::Plain);
     assert_eq!(config.prometheus_push_interval_ms, 10_000);
 
     env_vars.0.insert("MISC_LOG_FORMAT", "json");
     let config = ObservabilityENConfig::new(&env_vars).unwrap();
-    assert_matches!(config.log_format, vlog::LogFormat::Json);
+    assert_matches!(config.log_format, zksync_vlog::logs::LogFormat::Json);
 
     // If both the canonical and obsolete vars are specified, the canonical one should prevail.
     env_vars.0.insert("EN_LOG_FORMAT", "plain");
@@ -55,7 +55,7 @@ fn parsing_observability_config() {
         .0
         .insert("EN_SENTRY_URL", "https://example.com/new");
     let config = ObservabilityENConfig::new(&env_vars).unwrap();
-    assert_matches!(config.log_format, vlog::LogFormat::Plain);
+    assert_matches!(config.log_format, zksync_vlog::logs::LogFormat::Plain);
     assert_eq!(config.sentry_url.unwrap(), "https://example.com/new");
 }
 

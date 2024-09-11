@@ -1,8 +1,8 @@
-use anyhow::Context;
+use anyhow::{bail, Context};
 use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
-    logger,
+    git, logger,
     spinner::Spinner,
 };
 use config::{
@@ -11,24 +11,34 @@ use config::{
         register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
         script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
     },
-    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig,
+    ports_config, set_l1_rpc_url,
+    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    update_from_chain_config, update_ports, ChainConfig, ContractsConfig, EcosystemConfig,
+    GeneralConfig,
 };
+use types::{BaseToken, L1Network, WalletCreation};
 use xshell::Shell;
 
-use super::args::init::InitArgsFinal;
 use crate::{
     accept_ownership::accept_admin,
-    commands::chain::{
-        args::init::InitArgs, deploy_paymaster, genesis::genesis, initialize_bridges,
+    commands::{
+        chain::{
+            args::init::{InitArgs, InitArgsFinal},
+            deploy_l2_contracts, deploy_paymaster,
+            genesis::genesis,
+            set_token_multiplier_setter::set_token_multiplier_setter,
+        },
+        portal::update_portal_config,
     },
-    config_manipulations::{update_genesis, update_l1_contracts, update_l1_rpc_url_secret},
-    forge_utils::{check_the_balance, fill_forge_private_key},
+    consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_CONTRACTS_CONFIG_NOT_FOUND_ERR, MSG_GENESIS_DATABASE_ERR,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DISTRIBUTING_ETH_SPINNER, MSG_GENESIS_DATABASE_ERR,
+        MSG_MINT_BASE_TOKEN_SPINNER, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
         MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
     },
+    utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -41,6 +51,7 @@ pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
     logger::info(msg_initializing_chain(""));
+    git::submodule_update(shell, config.link_to_code.clone())?;
 
     init(&mut args, shell, &config, &chain_config).await?;
 
@@ -56,29 +67,43 @@ pub async fn init(
 ) -> anyhow::Result<()> {
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
-    update_genesis(shell, chain_config)?;
-    update_l1_rpc_url_secret(shell, chain_config, init_args.l1_rpc_url.clone())?;
-    let mut contracts_config =
-        ContractsConfig::read_with_base_path(shell, &ecosystem_config.config)?;
-    contracts_config.l1.base_token_addr = chain_config.base_token.address;
+    let mut general_config = chain_config.get_general_config()?;
+    apply_port_offset(init_args.port_offset, &mut general_config)?;
+    general_config.save_with_base_path(shell, &chain_config.configs)?;
+
+    let mut genesis_config = chain_config.get_genesis_config()?;
+    update_from_chain_config(&mut genesis_config, chain_config);
+    genesis_config.save_with_base_path(shell, &chain_config.configs)?;
+
     // Copy ecosystem contracts
+    let mut contracts_config = ecosystem_config.get_contracts_config()?;
+    contracts_config.l1.base_token_addr = chain_config.base_token.address;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
+    distribute_eth(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
+    mint_base_token(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
+
+    let mut secrets = chain_config.get_secrets_config()?;
+    set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
+    secrets.save_with_base_path(shell, &chain_config.configs)?;
+
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
-    contracts_config = register_chain(
+    register_chain(
         shell,
         init_args.forge_args.clone(),
         ecosystem_config,
         chain_config,
+        &mut contracts_config,
         init_args.l1_rpc_url.clone(),
     )
     .await?;
+    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
     spinner.finish();
     let spinner = Spinner::new(MSG_ACCEPTING_ADMIN_SPINNER);
     accept_admin(
         shell,
         ecosystem_config,
-        contracts_config.l1.governance_addr,
+        contracts_config.l1.chain_admin_addr,
         chain_config.get_wallets_config()?.governor_private_key(),
         contracts_config.l1.diamond_proxy_addr,
         &init_args.forge_args.clone(),
@@ -87,22 +112,51 @@ pub async fn init(
     .await?;
     spinner.finish();
 
-    initialize_bridges::initialize_bridges(
+    let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
+    set_token_multiplier_setter(
+        shell,
+        ecosystem_config,
+        chain_config.get_wallets_config()?.governor_private_key(),
+        contracts_config.l1.chain_admin_addr,
+        ecosystem_config
+            .get_wallets()
+            .unwrap()
+            .token_multiplier_setter
+            .address,
+        &init_args.forge_args.clone(),
+        init_args.l1_rpc_url.clone(),
+    )
+    .await?;
+    spinner.finish();
+
+    deploy_l2_contracts::deploy_l2_contracts(
         shell,
         chain_config,
         ecosystem_config,
+        &mut contracts_config,
         init_args.forge_args.clone(),
     )
     .await?;
+    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     if init_args.deploy_paymaster {
-        deploy_paymaster::deploy_paymaster(shell, chain_config, init_args.forge_args.clone())
-            .await?;
+        deploy_paymaster::deploy_paymaster(
+            shell,
+            chain_config,
+            &mut contracts_config,
+            init_args.forge_args.clone(),
+        )
+        .await?;
+        contracts_config.save_with_base_path(shell, &chain_config.configs)?;
     }
 
     genesis(init_args.genesis_args.clone(), shell, chain_config)
         .await
         .context(MSG_GENESIS_DATABASE_ERR)?;
+
+    update_portal_config(shell, chain_config)
+        .await
+        .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?;
 
     Ok(())
 }
@@ -112,14 +166,12 @@ async fn register_chain(
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
+    contracts: &mut ContractsConfig,
     l1_rpc_url: String,
-) -> anyhow::Result<ContractsConfig> {
+) -> anyhow::Result<()> {
     let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
 
-    let contracts = config
-        .get_contracts_config()
-        .context(MSG_CONTRACTS_CONFIG_NOT_FOUND_ERR)?;
-    let deploy_config = RegisterChainL1Config::new(chain_config, &contracts)?;
+    let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
     deploy_config.save(shell, deploy_config_path)?;
 
     let mut forge = Forge::new(&config.path_to_foundry())
@@ -136,5 +188,81 @@ async fn register_chain(
         shell,
         REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
     )?;
-    update_l1_contracts(shell, chain_config, &register_chain_output)
+    contracts.set_chain_contracts(&register_chain_output);
+    Ok(())
+}
+
+// Distribute eth to the chain wallets for localhost environment
+pub async fn distribute_eth(
+    ecosystem_config: &EcosystemConfig,
+    chain_config: &ChainConfig,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    if chain_config.wallet_creation == WalletCreation::Localhost
+        && ecosystem_config.l1_network == L1Network::Localhost
+    {
+        let spinner = Spinner::new(MSG_DISTRIBUTING_ETH_SPINNER);
+        let wallets = ecosystem_config.get_wallets()?;
+        let chain_wallets = chain_config.get_wallets_config()?;
+        let mut addresses = vec![
+            chain_wallets.operator.address,
+            chain_wallets.blob_operator.address,
+            chain_wallets.governor.address,
+        ];
+        if let Some(deployer) = chain_wallets.deployer {
+            addresses.push(deployer.address)
+        }
+        common::ethereum::distribute_eth(
+            wallets.operator,
+            addresses,
+            l1_rpc_url,
+            ecosystem_config.l1_network.chain_id(),
+            AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
+        )
+        .await?;
+        spinner.finish();
+    }
+    Ok(())
+}
+
+pub async fn mint_base_token(
+    ecosystem_config: &EcosystemConfig,
+    chain_config: &ChainConfig,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    if chain_config.wallet_creation == WalletCreation::Localhost
+        && ecosystem_config.l1_network == L1Network::Localhost
+        && chain_config.base_token != BaseToken::eth()
+    {
+        let spinner = Spinner::new(MSG_MINT_BASE_TOKEN_SPINNER);
+        let wallets = ecosystem_config.get_wallets()?;
+        let chain_wallets = chain_config.get_wallets_config()?;
+        let base_token = &chain_config.base_token;
+        let addresses = vec![wallets.governor.address, chain_wallets.governor.address];
+        let amount = AMOUNT_FOR_DISTRIBUTION_TO_WALLETS * base_token.nominator as u128
+            / base_token.denominator as u128;
+        common::ethereum::mint_token(
+            wallets.operator,
+            base_token.address,
+            addresses,
+            l1_rpc_url,
+            ecosystem_config.l1_network.chain_id(),
+            amount,
+        )
+        .await?;
+        spinner.finish();
+    }
+    Ok(())
+}
+
+fn apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> anyhow::Result<()> {
+    let Some(mut ports_config) = ports_config(general_config) else {
+        bail!("Missing ports config");
+    };
+
+    ports_config.apply_offset(port_offset);
+
+    update_ports(general_config, &ports_config)?;
+
+    Ok(())
 }

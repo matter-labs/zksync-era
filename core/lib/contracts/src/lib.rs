@@ -6,6 +6,7 @@
 
 use std::{
     fs::{self, File},
+    io::BufReader,
     path::{Path, PathBuf},
 };
 
@@ -15,7 +16,7 @@ use ethabi::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, workspace_dir_or_current_dir};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, env::Workspace};
 
 pub mod test_contracts;
 
@@ -38,14 +39,20 @@ const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "IStateTransitionManager.sol/IStateTransitionManager.json",
 );
 const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: (&str, &str) = (
-    "state-transition/",
-    "chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json",
+    "state-transition/chain-interfaces",
+    "IZkSyncHyperchain.sol/IZkSyncHyperchain.json",
 );
 const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
     "chain-interfaces/IDiamondInit.sol/IDiamondInit.json",
 );
 const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/IGovernance.json");
+const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = ("governance", "IChainAdmin.sol/IChainAdmin.json");
+const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
+    "state-transition/chain-deps/facets",
+    "Getters.sol/GettersFacet.json",
+);
+
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
 const _IERC20_CONTRACT_FILE: &str =
@@ -57,17 +64,17 @@ const LOADNEXT_CONTRACT_FILE: &str =
 const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
 
-fn home_path() -> &'static Path {
-    workspace_dir_or_current_dir()
+fn home_path() -> PathBuf {
+    Workspace::locate().core()
 }
 
 fn read_file_to_json_value(path: impl AsRef<Path> + std::fmt::Debug) -> serde_json::Value {
     let zksync_home = home_path();
     let path = Path::new(&zksync_home).join(path);
-    serde_json::from_reader(
-        File::open(&path).unwrap_or_else(|e| panic!("Failed to open file {:?}: {}", path, e)),
-    )
-    .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e))
+    let file =
+        File::open(&path).unwrap_or_else(|e| panic!("Failed to open file {:?}: {}", path, e));
+    serde_json::from_reader(BufReader::new(file))
+        .unwrap_or_else(|e| panic!("Failed to parse file {:?}: {}", path, e))
 }
 
 fn load_contract_if_present<P: AsRef<Path> + std::fmt::Debug>(path: P) -> Option<Contract> {
@@ -125,6 +132,14 @@ pub fn bridgehub_contract() -> Contract {
 
 pub fn governance_contract() -> Contract {
     load_contract_for_both_compilers(GOVERNANCE_CONTRACT_FILE)
+}
+
+pub fn chain_admin_contract() -> Contract {
+    load_contract_for_both_compilers(CHAIN_ADMIN_CONTRACT_FILE)
+}
+
+pub fn getters_facet_contract() -> Contract {
+    load_contract_for_both_compilers(GETTERS_FACET_CONTRACT_FILE)
 }
 
 pub fn state_transition_manager_contract() -> Contract {
@@ -797,6 +812,63 @@ pub static ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION: Lazy<Function> = Lazy::new
           }
         ],
         "name": "upgradeChainFromVersion",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }"#;
+    serde_json::from_str(abi).unwrap()
+});
+
+pub static DIAMOND_CUT: Lazy<Function> = Lazy::new(|| {
+    let abi = r#"
+    {
+        "inputs": [
+          {
+            "components": [
+              {
+                "components": [
+                  {
+                    "internalType": "address",
+                    "name": "facet",
+                    "type": "address"
+                  },
+                  {
+                    "internalType": "enum Diamond.Action",
+                    "name": "action",
+                    "type": "uint8"
+                  },
+                  {
+                    "internalType": "bool",
+                    "name": "isFreezable",
+                    "type": "bool"
+                  },
+                  {
+                    "internalType": "bytes4[]",
+                    "name": "selectors",
+                    "type": "bytes4[]"
+                  }
+                ],
+                "internalType": "struct Diamond.FacetCut[]",
+                "name": "facetCuts",
+                "type": "tuple[]"
+              },
+              {
+                "internalType": "address",
+                "name": "initAddress",
+                "type": "address"
+              },
+              {
+                "internalType": "bytes",
+                "name": "initCalldata",
+                "type": "bytes"
+              }
+            ],
+            "internalType": "struct Diamond.DiamondCutData",
+            "name": "_diamondCut",
+            "type": "tuple"
+          }
+        ],
+        "name": "diamondCut",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"

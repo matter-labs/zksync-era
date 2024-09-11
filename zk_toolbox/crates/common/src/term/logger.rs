@@ -14,7 +14,7 @@ fn term_write(msg: impl Display) {
 }
 
 pub fn intro() {
-    cliclak_intro(style(" zkSync toolbox ").on_cyan().black()).unwrap();
+    cliclak_intro(style(" ZKsync toolbox ").on_cyan().black()).unwrap();
 }
 
 pub fn outro(msg: impl Display) {

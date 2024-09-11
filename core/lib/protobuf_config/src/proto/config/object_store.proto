@@ -27,4 +27,5 @@ message ObjectStore {
     FileBacked file_backed = 4;
   }
   optional uint32 max_retries = 5; // required
+  optional string local_mirror_path = 6; // optional; fs path
 }

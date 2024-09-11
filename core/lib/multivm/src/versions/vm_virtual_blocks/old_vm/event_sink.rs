@@ -29,7 +29,7 @@ impl OracleWithHistory for InMemoryEventSink<HistoryEnabled> {
 // otherwise we carry rollbacks to the parent's frames
 
 impl<H: HistoryMode> InMemoryEventSink<H> {
-    pub fn flatten(&self) -> (Vec<LogQuery>, Vec<EventMessage>, Vec<EventMessage>) {
+    pub fn flatten(&self) -> (Vec<EventMessage>, Vec<EventMessage>) {
         assert_eq!(
             self.frames_stack.len(),
             1,
@@ -38,8 +38,7 @@ impl<H: HistoryMode> InMemoryEventSink<H> {
         // we forget rollbacks as we have finished the execution and can just apply them
         let history = self.frames_stack.forward().current_frame();
 
-        let (events, l1_messages) = Self::events_and_l1_messages_from_history(history);
-        (history.iter().map(|x| **x).collect(), events, l1_messages)
+        Self::events_and_l1_messages_from_history(history)
     }
 
     pub fn get_log_queries(&self) -> usize {

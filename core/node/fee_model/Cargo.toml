@@ -1,5 +1,6 @@
 [package]
 name = "zksync_node_fee_model"
+description = "ZKsync fee model"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -17,6 +18,7 @@ zksync_config.workspace = true
 zksync_eth_client.workspace = true
 zksync_utils.workspace = true
 zksync_web3_decl.workspace = true
+bigdecimal.workspace = true
 
 tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
@@ -25,4 +27,3 @@ tracing.workspace = true
 
 [dev-dependencies]
 test-casing.workspace = true
-zksync_node_test_utils.workspace = true

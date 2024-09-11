@@ -1,4 +1,4 @@
-//! The declaration of the most primitive types used in zkSync network.
+//! The declaration of the most primitive types used in ZKsync network.
 //!
 //! Most of them are just re-exported from the `web3` crate.
 
@@ -15,7 +15,9 @@ use std::{
 
 pub use ethabi::{
     self,
-    ethereum_types::{Address, Bloom as H2048, H128, H160, H256, H512, H520, H64, U128, U256, U64},
+    ethereum_types::{
+        Address, Bloom, BloomInput, H128, H160, H256, H512, H520, H64, U128, U256, U64,
+    },
 };
 use serde::{de, Deserialize, Deserializer, Serialize};
 
@@ -26,8 +28,10 @@ pub mod commitment;
 pub mod network;
 pub mod protocol_version;
 pub mod prover_dal;
+pub mod settlement;
+pub mod tee_types;
 pub mod url;
-pub mod vm_version;
+pub mod vm;
 pub mod web3;
 
 /// Account place in the global state tree is uniquely identified by its address.
@@ -86,7 +90,7 @@ impl TryFrom<U256> for AccountTreeId {
     }
 }
 
-/// ChainId in the zkSync network.
+/// ChainId in the ZKsync network.
 #[derive(Copy, Clone, Debug, Serialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct L2ChainId(u64);
 
@@ -183,13 +187,13 @@ impl From<u32> for L2ChainId {
 }
 
 basic_type!(
-    /// zkSync network block sequential index.
+    /// ZKsync network block sequential index.
     L2BlockNumber,
     u32
 );
 
 basic_type!(
-    /// zkSync L1 batch sequential index.
+    /// ZKsync L1 batch sequential index.
     L1BatchNumber,
     u32
 );
@@ -201,22 +205,38 @@ basic_type!(
 );
 
 basic_type!(
-    /// zkSync account nonce.
+    /// ZKsync account nonce.
     Nonce,
     u32
 );
 
 basic_type!(
-    /// Unique identifier of the priority operation in the zkSync network.
+    /// Unique identifier of the priority operation in the ZKsync network.
     PriorityOpId,
     u64
 );
 
 basic_type!(
+    /// ChainId of a settlement layer.
+    SLChainId,
+    u64
+);
+
+basic_type!(
     /// ChainId in the Ethereum network.
+    /// IMPORTANT: Please, use this method when exactly the L1 chain id is required.
+    /// Note, that typically this is not the case and the majority of methods need to work
+    /// with *settlement layer* chain id, which is represented by `SLChainId`.
     L1ChainId,
     u64
 );
+
+// Every L1 can be a settlement layer.
+impl From<L1ChainId> for SLChainId {
+    fn from(value: L1ChainId) -> Self {
+        SLChainId(value.0)
+    }
+}
 
 #[allow(clippy::derivable_impls)]
 impl Default for L2BlockNumber {

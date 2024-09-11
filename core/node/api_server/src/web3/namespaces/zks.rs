@@ -1,15 +1,15 @@
 use std::{collections::HashMap, convert::TryInto};
 
 use anyhow::Context as _;
-use multivm::interface::VmExecutionResultAndLogs;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiError;
 use zksync_mini_merkle_tree::MiniMerkleTree;
+use zksync_multivm::interface::VmExecutionResultAndLogs;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        BlockDetails, BridgeAddresses, GetLogsFilter, L1BatchDetails, L2ToL1LogProof, Proof,
-        ProtocolVersion, StorageProof, TransactionDetails,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, GetLogsFilter,
+        L1BatchDetails, L2ToL1LogProof, Proof, ProtocolVersion, StorageProof, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -29,7 +29,10 @@ use zksync_web3_decl::{
     types::{Address, Token, H256},
 };
 
-use crate::web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState};
+use crate::{
+    utils::open_readonly_transaction,
+    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
+};
 
 #[derive(Debug)]
 pub(crate) struct ZksNamespace {
@@ -45,7 +48,11 @@ impl ZksNamespace {
         &self.state.current_method
     }
 
-    pub async fn estimate_fee_impl(&self, request: CallRequest) -> Result<Fee, Web3Error> {
+    pub async fn estimate_fee_impl(
+        &self,
+        request: CallRequest,
+        state_override: Option<StateOverride>,
+    ) -> Result<Fee, Web3Error> {
         let mut request_with_gas_per_pubdata_overridden = request;
         self.state
             .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)
@@ -64,12 +71,13 @@ impl ZksNamespace {
         // not consider provided ones.
         tx.common_data.fee.max_priority_fee_per_gas = 0u64.into();
         tx.common_data.fee.gas_per_pubdata_limit = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
-        self.estimate_fee(tx.into()).await
+        self.estimate_fee(tx.into(), state_override).await
     }
 
     pub async fn estimate_l1_to_l2_gas_impl(
         &self,
         request: CallRequest,
+        state_override: Option<StateOverride>,
     ) -> Result<U256, Web3Error> {
         let mut request_with_gas_per_pubdata_overridden = request;
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
@@ -84,11 +92,15 @@ impl ZksNamespace {
             .try_into()
             .map_err(Web3Error::SerializationError)?;
 
-        let fee = self.estimate_fee(tx.into()).await?;
+        let fee = self.estimate_fee(tx.into(), state_override).await?;
         Ok(fee.gas_limit)
     }
 
-    async fn estimate_fee(&self, tx: Transaction) -> Result<Fee, Web3Error> {
+    async fn estimate_fee(
+        &self,
+        tx: Transaction,
+        state_override: Option<StateOverride>,
+    ) -> Result<Fee, Web3Error> {
         let scale_factor = self.state.api_config.estimate_gas_scale_factor;
         let acceptable_overestimation =
             self.state.api_config.estimate_gas_acceptable_overestimation;
@@ -96,7 +108,12 @@ impl ZksNamespace {
         Ok(self
             .state
             .tx_sender
-            .get_txs_fee_in_wei(tx, scale_factor, acceptable_overestimation as u64)
+            .get_txs_fee_in_wei(
+                tx,
+                scale_factor,
+                acceptable_overestimation as u64,
+                state_override,
+            )
             .await?)
     }
 
@@ -399,15 +416,20 @@ impl ZksNamespace {
         hash: H256,
     ) -> Result<Option<TransactionDetails>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
+        // Open a readonly transaction to have a consistent view of Postgres
+        let mut storage = open_readonly_transaction(&mut storage).await?;
         let mut tx_details = storage
             .transactions_web3_dal()
             .get_transaction_details(hash)
             .await
             .map_err(DalError::generalize)?;
-        drop(storage);
 
         if tx_details.is_none() {
-            tx_details = self.state.tx_sink().lookup_tx_details(hash).await?;
+            tx_details = self
+                .state
+                .tx_sink()
+                .lookup_tx_details(&mut storage, hash)
+                .await?;
         }
         Ok(tx_details)
     }

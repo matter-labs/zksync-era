@@ -1,5 +1,5 @@
-use multivm::interface::{Halt, TxRevertReason};
 use thiserror::Error;
+use zksync_multivm::interface::{Halt, TxRevertReason};
 
 #[derive(Debug, Error)]
 pub(crate) enum SandboxExecutionError {

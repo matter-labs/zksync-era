@@ -56,6 +56,7 @@ mod tests {
                 gcs_credential_file_path: "/path/to/credentials.json".to_owned(),
             },
             max_retries: 5,
+            local_mirror_path: Some("/var/cache".to_owned()),
         }
     }
 
@@ -67,6 +68,7 @@ mod tests {
             OBJECT_STORE_MODE="GCSWithCredentialFile"
             OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
             OBJECT_STORE_MAX_RETRIES="5"
+            OBJECT_STORE_LOCAL_MIRROR_PATH="/var/cache"
         "#;
         lock.set_env(config);
         let actual = ObjectStoreConfig::from_env().unwrap();
@@ -117,6 +119,7 @@ mod tests {
             PROVER_OBJECT_STORE_MODE="GCSWithCredentialFile"
             PROVER_OBJECT_STORE_GCS_CREDENTIAL_FILE_PATH="/path/to/credentials.json"
             PROVER_OBJECT_STORE_MAX_RETRIES="5"
+            PROVER_OBJECT_STORE_LOCAL_MIRROR_PATH="/var/cache"
         "#;
         lock.set_env(config);
         let actual = ProverObjectStoreConfig::from_env().unwrap().0;

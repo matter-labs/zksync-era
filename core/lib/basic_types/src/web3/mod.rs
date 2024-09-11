@@ -13,7 +13,7 @@ use serde::{
 };
 use serde_json::Value;
 
-use crate::{H160, H2048, H256, U256, U64};
+use crate::{Bloom, H160, H256, U256, U64};
 
 pub mod contract;
 #[cfg(test)]
@@ -327,6 +327,9 @@ pub struct Log {
     pub log_type: Option<String>,
     /// Removed
     pub removed: Option<bool>,
+    /// L2 block timestamp
+    #[serde(rename = "blockTimestamp")]
+    pub block_timestamp: Option<U64>,
 }
 
 impl Log {
@@ -386,7 +389,7 @@ pub struct BlockHeader {
     pub extra_data: Bytes,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
-    pub logs_bloom: H2048,
+    pub logs_bloom: Bloom,
     /// Timestamp
     pub timestamp: U256,
     /// Difficulty
@@ -438,7 +441,7 @@ pub struct Block<TX> {
     pub extra_data: Bytes,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
-    pub logs_bloom: Option<H2048>,
+    pub logs_bloom: Option<Bloom>,
     /// Timestamp
     pub timestamp: U256,
     /// Difficulty
@@ -724,7 +727,7 @@ pub struct TransactionReceipt {
     pub root: Option<H256>,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
-    pub logs_bloom: H2048,
+    pub logs_bloom: Bloom,
     /// Transaction type, Some(1) for AccessList transaction, None for Legacy
     #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub transaction_type: Option<U64>,
@@ -827,6 +830,7 @@ pub enum TransactionCondition {
 }
 
 // `FeeHistory`: from `web3::types::fee_history`
+// Adapted to support blobs.
 
 /// The fee history type returned from `eth_feeHistory` call.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -834,14 +838,25 @@ pub enum TransactionCondition {
 pub struct FeeHistory {
     /// Lowest number block of the returned range.
     pub oldest_block: BlockNumber,
-    /// A vector of block base fees per gas. This includes the next block after the newest of the returned range, because this value can be derived from the newest block. Zeroes are returned for pre-EIP-1559 blocks.
+    /// A vector of block base fees per gas. This includes the next block after the newest of the returned range,
+    /// because this value can be derived from the newest block. Zeroes are returned for pre-EIP-1559 blocks.
     #[serde(default)] // some node implementations skip empty lists
     pub base_fee_per_gas: Vec<U256>,
     /// A vector of block gas used ratios. These are calculated as the ratio of gas used and gas limit.
     #[serde(default)] // some node implementations skip empty lists
     pub gas_used_ratio: Vec<f64>,
-    /// A vector of effective priority fee per gas data points from a single block. All zeroes are returned if the block is empty. Returned only if requested.
+    /// A vector of effective priority fee per gas data points from a single block. All zeroes are returned if
+    /// the block is empty. Returned only if requested.
     pub reward: Option<Vec<Vec<U256>>>,
+    /// An array of base fees per blob gas for blocks. This includes the next block following the newest in the
+    /// returned range, as this value can be derived from the latest block. For blocks before EIP-4844, zeroes
+    /// are returned.
+    #[serde(default)] // some node implementations skip empty lists
+    pub base_fee_per_blob_gas: Vec<U256>,
+    /// An array showing the ratios of blob gas used in blocks. These ratios are calculated by dividing blobGasUsed
+    /// by the maximum blob gas per block.
+    #[serde(default)] // some node implementations skip empty lists
+    pub blob_gas_used_ratio: Vec<f64>,
 }
 
 // `SyncInfo`, `SyncState`: from `web3::types::sync_state`

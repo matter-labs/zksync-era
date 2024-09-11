@@ -11,9 +11,7 @@ impl ProtoRepr for proto::Prometheus {
             listener_port: required(&self.listener_port)
                 .and_then(|p| Ok((*p).try_into()?))
                 .context("listener_port")?,
-            pushgateway_url: required(&self.pushgateway_url)
-                .context("pushgateway_url")?
-                .clone(),
+            pushgateway_url: self.pushgateway_url.clone(),
             push_interval_ms: self.push_interval_ms,
         })
     }
@@ -21,7 +19,7 @@ impl ProtoRepr for proto::Prometheus {
     fn build(this: &Self::Type) -> Self {
         Self {
             listener_port: Some(this.listener_port.into()),
-            pushgateway_url: Some(this.pushgateway_url.clone()),
+            pushgateway_url: this.pushgateway_url.clone(),
             push_interval_ms: this.push_interval_ms,
         }
     }

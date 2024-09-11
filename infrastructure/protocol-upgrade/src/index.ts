@@ -15,7 +15,7 @@ async function main() {
     const ZKSYNC_HOME = process.env.ZKSYNC_HOME;
 
     if (!ZKSYNC_HOME) {
-        throw new Error('Please set $ZKSYNC_HOME to the root of zkSync repo!');
+        throw new Error('Please set $ZKSYNC_HOME to the root of ZKsync repo!');
     } else {
         process.chdir(ZKSYNC_HOME);
     }

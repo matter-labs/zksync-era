@@ -198,7 +198,7 @@ async fn wrapping_mock_client() {
             Ok("slow")
         })
         .method("rate_limit", || {
-            let http_err = transport::Error::RequestFailure { status_code: 429 };
+            let http_err = transport::Error::Rejected { status_code: 429 };
             Err::<(), _>(Error::Transport(http_err.into()))
         })
         .method("eth_getBlockNumber", || Ok(U64::from(1)))

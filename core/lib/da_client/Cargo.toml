@@ -1,0 +1,16 @@
+[package]
+name = "zksync_da_client"
+description = "ZKsync DA client definition"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+async-trait.workspace = true
+anyhow.workspace = true

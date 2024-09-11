@@ -8,8 +8,14 @@ mod publish_criterion;
 mod utils;
 mod zksync_functions;
 
+mod abstract_l1_interface;
+
+mod eth_fees_oracle;
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod tester;
 
 pub use self::{
     aggregator::Aggregator, error::EthSenderError, eth_tx_aggregator::EthTxAggregator,

@@ -12,6 +12,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
+use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
 use zksync_merkle_tree::NoVersionError;
 use zksync_types::{L1BatchNumber, H256, U256};
@@ -34,7 +35,7 @@ struct TreeProofsResponse {
     entries: Vec<TreeEntryWithProof>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TreeEntryWithProof {
     #[serde(default, skip_serializing_if = "H256::is_zero")]
     pub value: H256,
@@ -58,6 +59,21 @@ impl TreeEntryWithProof {
             index: src.base.leaf_index,
             merkle_path,
         }
+    }
+
+    /// Verifies the entry.
+    pub fn verify(&self, key: U256, trusted_root_hash: H256) -> anyhow::Result<()> {
+        let mut merkle_path = self.merkle_path.clone();
+        merkle_path.reverse();
+        zksync_merkle_tree::TreeEntryWithProof {
+            base: zksync_merkle_tree::TreeEntry {
+                value: self.value,
+                leaf_index: self.index,
+                key,
+            },
+            merkle_path,
+        }
+        .verify(&Blake2Hasher, trusted_root_hash)
     }
 }
 
@@ -224,8 +240,8 @@ impl CheckHealth for TreeApiHttpClient {
             // Tree API is not a critical component, so its errors are not considered fatal for the app health.
             Err(err) => Health::from(HealthStatus::Affected).with_details(serde_json::json!({
                 "error": err.to_string(),
-                // Transient error detection is a best-effort estimate
-                "is_transient_error": matches!(err, TreeApiError::NotReady(_)),
+                // Retriable error detection is a best-effort estimate
+                "is_retriable_error": matches!(err, TreeApiError::NotReady(_)),
             })),
         }
     }
@@ -327,7 +343,7 @@ impl AsyncTreeReader {
         Ok(Json(response))
     }
 
-    fn create_api_server(
+    async fn create_api_server(
         self,
         bind_address: &SocketAddr,
         mut stop_receiver: watch::Receiver<bool>,
@@ -339,10 +355,11 @@ impl AsyncTreeReader {
             .route("/proofs", routing::post(Self::get_proofs_handler))
             .with_state(self);
 
-        let server = axum::Server::try_bind(bind_address)
-            .with_context(|| format!("Failed binding Merkle tree API server to {bind_address}"))?
-            .serve(app.into_make_service());
-        let local_addr = server.local_addr();
+        let listener = tokio::net::TcpListener::bind(bind_address)
+            .await
+            .with_context(|| format!("Failed binding Merkle tree API server to {bind_address}"))?;
+        let local_addr = listener.local_addr()?;
+        let server = axum::serve(listener, app);
         let server_future = async move {
             server.with_graceful_shutdown(async move {
                 if stop_receiver.changed().await.is_err() {
@@ -371,7 +388,8 @@ impl AsyncTreeReader {
         bind_address: SocketAddr,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<()> {
-        self.create_api_server(&bind_address, stop_receiver)?
+        self.create_api_server(&bind_address, stop_receiver)
+            .await?
             .run()
             .await
     }

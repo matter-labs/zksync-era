@@ -1,16 +1,16 @@
 use zk_evm_1_4_1::tracing::{BeforeExecutionData, VmLocalStateData};
-use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::StorageKey;
+use zksync_types::{StorageKey, U256};
 
 use super::{
     get_account_data, process_modified_storage_keys, process_result, PrestateTracer, State,
     StorageAccess,
 };
 use crate::{
-    interface::dyn_tracers::vm_1_4_1::DynTracer,
-    tracers::prestate_tracer::U256,
+    interface::storage::{StoragePtr, WriteStorage},
+    tracers::dynamic::vm_1_4_1::DynTracer,
     vm_1_4_1::{BootloaderState, HistoryMode, SimpleMemory, VmTracer, ZkSyncVmState},
 };
+
 impl<S: WriteStorage, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for PrestateTracer {
     fn before_execution(
         &mut self,
@@ -52,7 +52,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PrestateTracer {
     }
 }
 
-impl<S: zksync_state::WriteStorage, H: HistoryMode> StorageAccess for ZkSyncVmState<S, H> {
+impl<S: WriteStorage, H: HistoryMode> StorageAccess for ZkSyncVmState<S, H> {
     fn read_from_storage(&self, key: &StorageKey) -> U256 {
         self.storage.storage.read_from_storage(key)
     }

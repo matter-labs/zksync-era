@@ -1,6 +1,7 @@
 [package]
 name = "zksync_contracts"
-version = "0.1.0"
+description = "Definitions of main ZKsync smart contracts"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true

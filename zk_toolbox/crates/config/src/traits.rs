@@ -5,9 +5,11 @@ use common::files::{
     read_json_file, read_toml_file, read_yaml_file, save_json_file, save_toml_file, save_yaml_file,
 };
 use serde::{de::DeserializeOwned, Serialize};
+use url::Url;
 use xshell::Shell;
 
-pub trait FileConfig {}
+// Configs that we use only inside zk toolbox, we don't have protobuf implementation for them.
+pub trait ZkToolboxConfig {}
 
 pub trait FileConfigWithDefaultName {
     const FILE_NAME: &'static str;
@@ -17,17 +19,38 @@ pub trait FileConfigWithDefaultName {
     }
 }
 
-impl<T> FileConfig for T where T: FileConfigWithDefaultName {}
-impl<T> ReadConfig for T where T: FileConfig + Clone + DeserializeOwned {}
-impl<T> SaveConfig for T where T: FileConfig + Serialize {}
-impl<T> SaveConfigWithComment for T where T: FileConfig + Serialize {}
-impl<T> ReadConfigWithBasePath for T where T: FileConfigWithDefaultName + Clone + DeserializeOwned {}
-impl<T> SaveConfigWithBasePath for T where T: FileConfigWithDefaultName + Serialize {}
-impl<T> SaveConfigWithCommentAndBasePath for T where T: FileConfigWithDefaultName + Serialize {}
+impl<T: Serialize + ZkToolboxConfig> SaveConfig for T {
+    fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
+        save_with_comment(shell, path, self, "")
+    }
+}
+
+impl<T> ReadConfigWithBasePath for T
+where
+    T: FileConfigWithDefaultName + Clone + ReadConfig,
+{
+    fn read_with_base_path(shell: &Shell, base_path: impl AsRef<Path>) -> anyhow::Result<Self> {
+        <Self as ReadConfig>::read(shell, base_path.as_ref().join(Self::FILE_NAME))
+    }
+}
+
+impl<T> SaveConfigWithBasePath for T where T: FileConfigWithDefaultName + SaveConfig {}
+
+impl<T> SaveConfigWithCommentAndBasePath for T where
+    T: FileConfigWithDefaultName + Serialize + SaveConfig
+{
+}
 
 /// Reads a config file from a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
-pub trait ReadConfig: DeserializeOwned + Clone {
+pub trait ReadConfig: Sized {
+    fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self>;
+}
+
+impl<T> ReadConfig for T
+where
+    T: DeserializeOwned + Clone + ZkToolboxConfig,
+{
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let error_context = || format!("Failed to parse config file {:?}.", path.as_ref());
 
@@ -45,18 +68,14 @@ pub trait ReadConfig: DeserializeOwned + Clone {
 
 /// Reads a config file from a base path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
-pub trait ReadConfigWithBasePath: ReadConfig + FileConfigWithDefaultName {
-    fn read_with_base_path(shell: &Shell, base_path: impl AsRef<Path>) -> anyhow::Result<Self> {
-        <Self as ReadConfig>::read(shell, base_path.as_ref().join(Self::FILE_NAME))
-    }
+pub trait ReadConfigWithBasePath: ReadConfig + FileConfigWithDefaultName + Clone {
+    fn read_with_base_path(shell: &Shell, base_path: impl AsRef<Path>) -> anyhow::Result<Self>;
 }
 
 /// Saves a config file to a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`, `json`.
-pub trait SaveConfig: Serialize + Sized {
-    fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
-        save_with_comment(shell, path, self, "")
-    }
+pub trait SaveConfig {
+    fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()>;
 }
 
 /// Saves a config file from a base path, correctly parsing file extension.
@@ -73,7 +92,16 @@ pub trait SaveConfigWithBasePath: SaveConfig + FileConfigWithDefaultName {
 
 /// Saves a config file to a given path, correctly parsing file extension.
 /// Supported file extensions are: `yaml`, `yml`, `toml`.
-pub trait SaveConfigWithComment: Serialize + Sized {
+pub trait SaveConfigWithComment: Sized {
+    fn save_with_comment(
+        &self,
+        shell: &Shell,
+        path: impl AsRef<Path>,
+        comment: &str,
+    ) -> anyhow::Result<()>;
+}
+
+impl<T: Sized + Serialize> SaveConfigWithComment for T {
     fn save_with_comment(
         &self,
         shell: &Shell,
@@ -128,4 +156,8 @@ fn save_with_comment(
         _ => bail!("Unsupported file extension for config file."),
     }
     Ok(())
+}
+
+pub trait ConfigWithL2RpcUrl {
+    fn get_l2_rpc_url(&self) -> anyhow::Result<Url>;
 }

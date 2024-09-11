@@ -95,6 +95,7 @@ impl BlockStartInfo {
 /// The intention is to only keep the actually used information here.
 #[derive(Debug, Clone)]
 pub struct InternalApiConfig {
+    /// Chain ID of the L1 network. Note, that it may be different from the chain id of the settlement layer.
     pub l1_chain_id: L1ChainId,
     pub l2_chain_id: L2ChainId,
     pub max_tx_size: usize,
@@ -132,8 +133,16 @@ impl InternalApiConfig {
                 l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
                 l1_shared_default_bridge: contracts_config.l1_shared_bridge_proxy_addr,
                 l2_shared_default_bridge: contracts_config.l2_shared_bridge_addr,
-                l1_weth_bridge: contracts_config.l1_weth_bridge_proxy_addr,
-                l2_weth_bridge: contracts_config.l2_weth_bridge_addr,
+                l1_weth_bridge: Some(
+                    contracts_config
+                        .l1_weth_bridge_proxy_addr
+                        .unwrap_or_default(),
+                ),
+                l2_weth_bridge: Some(
+                    contracts_config
+                        .l1_weth_bridge_proxy_addr
+                        .unwrap_or_default(),
+                ),
             },
             bridgehub_proxy_addr: contracts_config
                 .ecosystem_contracts
@@ -278,7 +287,7 @@ impl RpcState {
     #[track_caller]
     pub(crate) fn acquire_connection(
         &self,
-    ) -> impl Future<Output = Result<Connection<'_, Core>, Web3Error>> + '_ {
+    ) -> impl Future<Output = Result<Connection<'static, Core>, Web3Error>> + '_ {
         self.connection_pool
             .connection_tagged("api")
             .map_err(|err| err.generalize().into())

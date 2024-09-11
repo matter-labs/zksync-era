@@ -7,6 +7,8 @@ use zksync_types::L1BatchNumber;
 
 #[async_trait]
 pub(crate) trait PruneCondition: fmt::Debug + fmt::Display + Send + Sync + 'static {
+    fn metric_label(&self) -> &'static str;
+
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool>;
 }
 
@@ -24,6 +26,10 @@ impl fmt::Display for L1BatchOlderThanPruneCondition {
 
 #[async_trait]
 impl PruneCondition for L1BatchOlderThanPruneCondition {
+    fn metric_label(&self) -> &'static str {
+        "l1_batch_older_than_minimum_age"
+    }
+
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.pool.connection_tagged("db_pruner").await?;
         let l1_batch_header = storage
@@ -50,6 +56,10 @@ impl fmt::Display for NextL1BatchWasExecutedCondition {
 
 #[async_trait]
 impl PruneCondition for NextL1BatchWasExecutedCondition {
+    fn metric_label(&self) -> &'static str {
+        "next_l1_batch_was_executed"
+    }
+
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.pool.connection_tagged("db_pruner").await?;
         let next_l1_batch_number = L1BatchNumber(l1_batch_number.0 + 1);
@@ -76,6 +86,10 @@ impl fmt::Display for NextL1BatchHasMetadataCondition {
 
 #[async_trait]
 impl PruneCondition for NextL1BatchHasMetadataCondition {
+    fn metric_label(&self) -> &'static str {
+        "next_l1_batch_has_metadata"
+    }
+
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.pool.connection_tagged("db_pruner").await?;
         let next_l1_batch_number = L1BatchNumber(l1_batch_number.0 + 1);
@@ -117,6 +131,10 @@ impl fmt::Display for L1BatchExistsCondition {
 
 #[async_trait]
 impl PruneCondition for L1BatchExistsCondition {
+    fn metric_label(&self) -> &'static str {
+        "l1_batch_exists"
+    }
+
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.pool.connection_tagged("db_pruner").await?;
         let l1_batch_header = storage
@@ -140,6 +158,10 @@ impl fmt::Display for ConsistencyCheckerProcessedBatch {
 
 #[async_trait]
 impl PruneCondition for ConsistencyCheckerProcessedBatch {
+    fn metric_label(&self) -> &'static str {
+        "l1_batch_consistency_checked"
+    }
+
     async fn is_batch_prunable(&self, l1_batch_number: L1BatchNumber) -> anyhow::Result<bool> {
         let mut storage = self.pool.connection_tagged("db_pruner").await?;
         let last_processed_l1_batch = storage

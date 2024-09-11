@@ -3,13 +3,13 @@ use zksync_dal::{CoreDal, DalError};
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
-        BlockId, BlockNumber, GetLogsFilter, Transaction, TransactionId, TransactionReceipt,
-        TransactionVariant,
+        state_override::StateOverride, BlockId, BlockNumber, FeeHistory, GetLogsFilter,
+        Transaction, TransactionId, TransactionReceipt, TransactionVariant,
     },
     l2::{L2Tx, TransactionType},
     transaction_request::CallRequest,
     utils::decompose_full_nonce,
-    web3::{self, Bytes, FeeHistory, SyncInfo, SyncState},
+    web3::{self, Bytes, SyncInfo, SyncState},
     AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
@@ -18,8 +18,9 @@ use zksync_web3_decl::{
     types::{Address, Block, Filter, FilterChanges, Log, U64},
 };
 
-use crate::web3::{
-    backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter,
+use crate::{
+    utils::open_readonly_transaction,
+    web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
 };
 
 pub const EVENT_TOPIC_NUMBER_LIMIT: usize = 4;
@@ -54,6 +55,7 @@ impl EthNamespace {
         &self,
         mut request: CallRequest,
         block_id: Option<BlockId>,
+        state_override: Option<StateOverride>,
     ) -> Result<Bytes, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
@@ -68,18 +70,11 @@ impl EthNamespace {
                 .last_sealed_l2_block
                 .diff_with_block_args(&block_args),
         );
+        if request.gas.is_none() {
+            request.gas = Some(block_args.default_eth_call_gas(&mut connection).await?);
+        }
         drop(connection);
 
-        if request.gas.is_none() {
-            request.gas = Some(
-                self.state
-                    .tx_sender
-                    .get_default_eth_call_gas(block_args)
-                    .await
-                    .map_err(Web3Error::InternalError)?
-                    .into(),
-            )
-        }
         let call_overrides = request.get_call_overrides()?;
         let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
 
@@ -87,7 +82,7 @@ impl EthNamespace {
         let call_result: Vec<u8> = self
             .state
             .tx_sender
-            .eth_call(block_args, call_overrides, tx)
+            .eth_call(block_args, call_overrides, tx, state_override)
             .await?;
         Ok(call_result.into())
     }
@@ -96,6 +91,7 @@ impl EthNamespace {
         &self,
         request: CallRequest,
         _block: Option<BlockNumber>,
+        state_override: Option<StateOverride>,
     ) -> Result<U256, Web3Error> {
         let mut request_with_gas_per_pubdata_overridden = request;
         self.state
@@ -137,7 +133,12 @@ impl EthNamespace {
         let fee = self
             .state
             .tx_sender
-            .get_txs_fee_in_wei(tx.into(), scale_factor, acceptable_overestimation as u64)
+            .get_txs_fee_in_wei(
+                tx.into(),
+                scale_factor,
+                acceptable_overestimation as u64,
+                state_override,
+            )
             .await?;
         Ok(fee.gas_limit)
     }
@@ -223,8 +224,15 @@ impl EthNamespace {
         full_transactions: bool,
     ) -> Result<Option<Block<TransactionVariant>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        let mut storage = self.state.acquire_connection().await?;
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // Shortcut here on a somewhat unlikely case of the client requesting a pending block.
+            // Otherwise, since we don't read DB data in a transaction,
+            // we might resolve a block number to a block that will be inserted to the DB immediately after,
+            // and return `Ok(Some(_))`.
+            return Ok(None);
+        }
 
+        let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_id, &mut storage)
@@ -288,8 +296,12 @@ impl EthNamespace {
         block_id: BlockId,
     ) -> Result<Option<U256>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        let mut storage = self.state.acquire_connection().await?;
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // See `get_block_impl()` for an explanation why this check is needed.
+            return Ok(None);
+        }
 
+        let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_id, &mut storage)
@@ -319,8 +331,12 @@ impl EthNamespace {
         block_id: BlockId,
     ) -> Result<Option<Vec<TransactionReceipt>>, Web3Error> {
         self.current_method().set_block_id(block_id);
-        let mut storage = self.state.acquire_connection().await?;
+        if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+            // See `get_block_impl()` for an explanation why this check is needed.
+            return Ok(None);
+        }
 
+        let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
             .ensure_not_pruned(block_id, &mut storage)
@@ -391,7 +407,7 @@ impl EthNamespace {
         self.set_block_diff(block_number);
         let value = connection
             .storage_web3_dal()
-            .get_historical_value_unchecked(&storage_key, block_number)
+            .get_historical_value_unchecked(storage_key.hashed_key(), block_number)
             .await
             .map_err(DalError::generalize)?;
         Ok(value)
@@ -448,6 +464,9 @@ impl EthNamespace {
         id: TransactionId,
     ) -> Result<Option<Transaction>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
+        // Open a readonly transaction to have a consistent view of Postgres
+        let mut storage = open_readonly_transaction(&mut storage).await?;
+
         let chain_id = self.state.api_config.l2_chain_id;
         let mut transaction = match id {
             TransactionId::Hash(hash) => storage
@@ -457,6 +476,11 @@ impl EthNamespace {
                 .map_err(DalError::generalize)?,
 
             TransactionId::Block(block_id, idx) => {
+                if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
+                    // See `get_block_impl()` for an explanation why this check is needed.
+                    return Ok(None);
+                }
+
                 let Ok(idx) = u32::try_from(idx) else {
                     return Ok(None); // index overflow means no transaction
                 };
@@ -477,7 +501,7 @@ impl EthNamespace {
         };
 
         if transaction.is_none() {
-            transaction = self.state.tx_sink().lookup_tx(id).await?;
+            transaction = self.state.tx_sink().lookup_tx(&mut storage, id).await?;
         }
         Ok(transaction)
     }
@@ -647,13 +671,15 @@ impl EthNamespace {
             .await?;
         self.set_block_diff(newest_l2_block);
 
-        let mut base_fee_per_gas = connection
+        let (mut base_fee_per_gas, mut effective_pubdata_price_history) = connection
             .blocks_web3_dal()
             .get_fee_history(newest_l2_block, block_count)
             .await
             .map_err(DalError::generalize)?;
+
         // DAL method returns fees in DESC order while we need ASC.
         base_fee_per_gas.reverse();
+        effective_pubdata_price_history.reverse();
 
         let oldest_block = newest_l2_block.0 + 1 - base_fee_per_gas.len() as u32;
         // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
@@ -664,13 +690,22 @@ impl EthNamespace {
             base_fee_per_gas.len()
         ]);
 
+        // We do not support EIP-4844, but per API specification we should return 0 for pre EIP-4844 blocks.
+        let base_fee_per_blob_gas = vec![U256::zero(); base_fee_per_gas.len()];
+        let blob_gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
+
         // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
         base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
         Ok(FeeHistory {
-            oldest_block: web3::BlockNumber::Number(oldest_block.into()),
-            base_fee_per_gas,
-            gas_used_ratio,
-            reward,
+            inner: web3::FeeHistory {
+                oldest_block: zksync_types::web3::BlockNumber::Number(oldest_block.into()),
+                base_fee_per_gas,
+                gas_used_ratio,
+                reward,
+                base_fee_per_blob_gas,
+                blob_gas_used_ratio,
+            },
+            l2_pubdata_price: effective_pubdata_price_history,
         })
     }
 
@@ -816,17 +851,17 @@ impl EthNamespace {
     }
 
     pub fn uncle_count_impl(&self, _block: BlockId) -> Option<U256> {
-        // We don't have uncles in zkSync.
+        // We don't have uncles in ZKsync.
         Some(0.into())
     }
 
     pub fn hashrate_impl(&self) -> U256 {
-        // zkSync is not a PoW chain.
+        // ZKsync is not a PoW chain.
         U256::zero()
     }
 
     pub fn mining_impl(&self) -> bool {
-        // zkSync is not a PoW chain.
+        // ZKsync is not a PoW chain.
         false
     }
 

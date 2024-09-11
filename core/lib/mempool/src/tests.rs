@@ -377,7 +377,7 @@ fn gen_l2_tx_with_timestamp(address: Address, nonce: Nonce, received_at_ms: u64)
         Fee::default(),
         address,
         U256::zero(),
-        None,
+        vec![],
         Default::default(),
     );
     txn.received_timestamp_ms = received_at_ms;
@@ -388,7 +388,7 @@ fn gen_l1_tx(priority_id: PriorityOpId) -> Transaction {
     let execute = Execute {
         contract_address: Address::repeat_byte(0x11),
         calldata: vec![1, 2, 3],
-        factory_deps: None,
+        factory_deps: vec![],
         value: U256::zero(),
     };
     let op_data = L1TxCommonData {

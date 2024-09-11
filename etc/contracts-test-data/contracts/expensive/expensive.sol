@@ -12,4 +12,10 @@ contract Expensive {
         }
         return keccak256(abi.encodePacked(array));
     }
+
+    function cleanUp() public {
+        for (uint i = 0; i < array.length; i++) {
+            array[i] = 0;
+        }
+    }
 }

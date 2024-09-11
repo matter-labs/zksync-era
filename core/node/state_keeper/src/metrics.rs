@@ -5,14 +5,13 @@ use std::{
     time::Duration,
 };
 
-use multivm::interface::VmExecutionResultAndLogs;
 use vise::{
     Buckets, Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, LatencyObserver,
     Metrics,
 };
 use zksync_mempool::MempoolStore;
-use zksync_shared_metrics::InteractionType;
-use zksync_types::{tx::tx_execution_info::DeduplicatedWritesMetrics, ProtocolVersionId};
+use zksync_multivm::interface::{DeduplicatedWritesMetrics, VmRevertReason};
+use zksync_types::ProtocolVersionId;
 
 use super::seal_criteria::SealResolution;
 
@@ -28,6 +27,20 @@ pub enum TxExecutionStage {
 pub enum TxExecutionType {
     L1,
     L2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue)]
+#[metrics(rename_all = "snake_case")]
+pub enum TxExecutionStatus {
+    Success,
+    Rejected,
+    Reverted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, EncodeLabelSet)]
+pub struct TxExecutionResult {
+    status: TxExecutionStatus,
+    reason: Option<&'static str>,
 }
 
 impl TxExecutionType {
@@ -57,8 +70,8 @@ pub struct StateKeeperMetrics {
     /// Latency of the state keeper getting a transaction from the mempool.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub get_tx_from_mempool: Histogram<Duration>,
-    /// Number of transactions rejected by the state keeper.
-    pub rejected_transactions: Counter,
+    /// Number of transactions completed with a specific result.
+    pub tx_execution_result: Family<TxExecutionResult, Counter>,
     /// Time spent waiting for the hash of a previous L1 batch.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub wait_for_prev_hash_time: Histogram<Duration>,
@@ -68,13 +81,59 @@ pub struct StateKeeperMetrics {
     /// The time it takes for transactions to be included in a block. Representative of the time user must wait before their transaction is confirmed.
     #[metrics(buckets = INCLUSION_DELAY_BUCKETS)]
     pub transaction_inclusion_delay: Family<TxExecutionType, Histogram<Duration>>,
-    /// Time spent by the state keeper on transaction execution.
+    /// The time it takes to match seal resolution for each tx.
     #[metrics(buckets = Buckets::LATENCIES)]
-    pub tx_execution_time: Family<TxExecutionStage, Histogram<Duration>>,
-    /// Number of times gas price was reported as too high.
-    pub gas_price_too_high: Counter,
-    /// Number of times blob base fee was reported as too high.
-    pub blob_base_fee_too_high: Counter,
+    pub match_seal_resolution: Histogram<Duration>,
+    /// The time it takes to determine seal resolution for each tx.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub determine_seal_resolution: Histogram<Duration>,
+    /// The time it takes for state keeper to wait for tx execution result from batch executor.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub execute_tx_outer_time: Histogram<Duration>,
+    /// The time it takes for one iteration of the main loop in `process_l1_batch`.
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub process_l1_batch_loop_iteration: Histogram<Duration>,
+    /// The time it takes to wait for new L2 block parameters
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub wait_for_l2_block_params: Histogram<Duration>,
+}
+
+fn vm_revert_reason_as_metric_label(reason: &VmRevertReason) -> &'static str {
+    match reason {
+        VmRevertReason::General { .. } => "General",
+        VmRevertReason::InnerTxError => "InnerTxError",
+        VmRevertReason::VmError => "VmError",
+        _ => "Unknown",
+    }
+}
+
+impl StateKeeperMetrics {
+    pub fn inc_rejected_txs(&self, reason: &'static str) {
+        let result = TxExecutionResult {
+            status: TxExecutionStatus::Rejected,
+            reason: Some(reason),
+        };
+
+        self.tx_execution_result[&result].inc();
+    }
+
+    pub fn inc_succeeded_txs(&self) {
+        let result = TxExecutionResult {
+            status: TxExecutionStatus::Success,
+            reason: None,
+        };
+
+        self.tx_execution_result[&result].inc();
+    }
+
+    pub fn inc_reverted_txs(&self, reason: &VmRevertReason) {
+        let result = TxExecutionResult {
+            status: TxExecutionStatus::Reverted,
+            reason: Some(vm_revert_reason_as_metric_label(reason)),
+        };
+
+        self.tx_execution_result[&result].inc();
+    }
 }
 
 #[vise::register]
@@ -139,6 +198,13 @@ impl From<&SealResolution> for SealResolutionLabel {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
+#[metrics(label = "reason", rename_all = "snake_case")]
+pub(super) enum L2BlockSealReason {
+    Timeout,
+    PayloadSize,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
 struct TxAggregationLabels {
     criterion: &'static str,
@@ -149,10 +215,11 @@ struct TxAggregationLabels {
 #[metrics(prefix = "server_tx_aggregation")]
 pub(super) struct TxAggregationMetrics {
     reason: Family<TxAggregationLabels, Counter>,
+    l2_block_reason: Family<L2BlockSealReason, Counter>,
 }
 
 impl TxAggregationMetrics {
-    pub fn inc(&self, criterion: &'static str, resolution: &SealResolution) {
+    pub fn l1_batch_reason_inc(&self, criterion: &'static str, resolution: &SealResolution) {
         let labels = TxAggregationLabels {
             criterion,
             seal_resolution: Some(resolution.into()),
@@ -160,12 +227,16 @@ impl TxAggregationMetrics {
         self.reason[&labels].inc();
     }
 
-    pub fn inc_criterion(&self, criterion: &'static str) {
+    pub fn l1_batch_reason_inc_criterion(&self, criterion: &'static str) {
         let labels = TxAggregationLabels {
             criterion,
             seal_resolution: None,
         };
         self.reason[&labels].inc();
+    }
+
+    pub fn l2_block_reason_inc(&self, reason: &L2BlockSealReason) {
+        self.l2_block_reason[reason].inc();
     }
 }
 
@@ -267,6 +338,7 @@ pub(super) enum L2BlockSealStage {
     ExtractL2ToL1Logs,
     InsertL2ToL1Logs,
     ReportTxMetrics,
+    CalculateLogsBloom,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet)]
@@ -357,51 +429,9 @@ impl SealProgress<'_> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
-#[metrics(label = "command", rename_all = "snake_case")]
-pub(super) enum ExecutorCommand {
-    ExecuteTx,
-    #[metrics(name = "start_next_miniblock")]
-    StartNextL2Block,
-    RollbackLastTx,
-    FinishBatch,
-}
-
-const GAS_PER_NANOSECOND_BUCKETS: Buckets = Buckets::values(&[
-    0.01, 0.03, 0.1, 0.3, 0.5, 0.75, 1., 1.5, 3., 5., 10., 20., 50.,
-]);
-
-/// Executor-related state keeper metrics.
-#[derive(Debug, Metrics)]
-#[metrics(prefix = "state_keeper")]
-pub(super) struct ExecutorMetrics {
-    /// Latency to process a single command sent to the batch executor.
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub batch_executor_command_response_time: Family<ExecutorCommand, Histogram<Duration>>,
-    /// Cumulative latency of interacting with the storage when executing a transaction
-    /// in the batch executor.
-    #[metrics(buckets = Buckets::LATENCIES)]
-    pub batch_storage_interaction_duration: Family<InteractionType, Histogram<Duration>>,
-    #[metrics(buckets = GAS_PER_NANOSECOND_BUCKETS)]
-    pub computational_gas_per_nanosecond: Histogram<f64>,
-    #[metrics(buckets = GAS_PER_NANOSECOND_BUCKETS)]
-    pub failed_tx_gas_limit_per_nanosecond: Histogram<f64>,
-}
-
-#[vise::register]
-pub(super) static EXECUTOR_METRICS: vise::Global<ExecutorMetrics> = vise::Global::new();
-
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "batch_tip")]
 pub(crate) struct BatchTipMetrics {
-    #[metrics(buckets = Buckets::exponential(60000.0..=80000000.0, 2.0))]
-    gas_used: Histogram<usize>,
-    #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
-    pubdata_published: Histogram<usize>,
-    #[metrics(buckets = Buckets::exponential(1.0..=4096.0, 2.0))]
-    circuit_statistic: Histogram<usize>,
-    #[metrics(buckets = Buckets::exponential(1.0..=4096.0, 2.0))]
-    execution_metrics_size: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
     block_writes_metrics_positive_size: Histogram<usize>,
     #[metrics(buckets = Buckets::exponential(1.0..=60000.0, 2.0))]
@@ -409,17 +439,6 @@ pub(crate) struct BatchTipMetrics {
 }
 
 impl BatchTipMetrics {
-    pub fn observe(&self, execution_result: &VmExecutionResultAndLogs) {
-        self.gas_used
-            .observe(execution_result.statistics.gas_used as usize);
-        self.pubdata_published
-            .observe(execution_result.statistics.pubdata_published as usize);
-        self.circuit_statistic
-            .observe(execution_result.statistics.circuit_statistic.total());
-        self.execution_metrics_size
-            .observe(execution_result.get_execution_metrics(None).size());
-    }
-
     pub fn observe_writes_metrics(
         &self,
         initial_writes_metrics: &DeduplicatedWritesMetrics,
@@ -441,3 +460,16 @@ impl BatchTipMetrics {
 
 #[vise::register]
 pub(crate) static BATCH_TIP_METRICS: vise::Global<BatchTipMetrics> = vise::Global::new();
+
+#[derive(Debug, Metrics)]
+#[metrics(prefix = "server_state_keeper_updates_manager")]
+pub struct UpdatesManagerMetrics {
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub finish_batch: Histogram<Duration>,
+    #[metrics(buckets = Buckets::LATENCIES)]
+    pub extend_from_executed_transaction: Histogram<Duration>,
+}
+
+#[vise::register]
+pub(crate) static UPDATES_MANAGER_METRICS: vise::Global<UpdatesManagerMetrics> =
+    vise::Global::new();

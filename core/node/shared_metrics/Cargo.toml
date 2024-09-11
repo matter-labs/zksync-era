@@ -1,6 +1,7 @@
 [package]
 name = "zksync_shared_metrics"
-version = "0.1.0"
+description = "ZKsync shared metrics"
+version.workspace = true
 edition.workspace = true
 authors.workspace = true
 homepage.workspace = true
@@ -11,5 +12,9 @@ categories.workspace = true
 
 [dependencies]
 vise.workspace = true
+tracing.workspace = true
 zksync_types.workspace = true
 zksync_dal.workspace = true
+
+[build-dependencies]
+rustc_version.workspace = true

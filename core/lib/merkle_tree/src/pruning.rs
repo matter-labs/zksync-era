@@ -166,7 +166,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
                 break;
             }
         }
-        load_stale_keys_latency.observe();
+        let load_stale_keys_latency = load_stale_keys_latency.observe();
 
         if pruned_keys.is_empty() {
             tracing::debug!("No stale keys to remove; skipping");
@@ -174,7 +174,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         }
         let deleted_stale_key_versions = min_stale_key_version..(max_stale_key_version + 1);
         tracing::info!(
-            "Collected {} stale keys with new versions in {deleted_stale_key_versions:?}",
+            "Collected {} stale keys with new versions in {deleted_stale_key_versions:?} in {load_stale_keys_latency:?}",
             pruned_keys.len()
         );
 
@@ -186,7 +186,8 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
         let patch = PrunePatchSet::new(pruned_keys, deleted_stale_key_versions);
         let apply_patch_latency = PRUNING_TIMINGS.apply_patch.start();
         self.db.prune(patch)?;
-        apply_patch_latency.observe();
+        let apply_patch_latency = apply_patch_latency.observe();
+        tracing::info!("Pruned stale keys in {apply_patch_latency:?}: {stats:?}");
         Ok(Some(stats))
     }
 
@@ -230,6 +231,7 @@ impl<DB: PruneDatabase> MerkleTreePruner<DB> {
                 self.poll_interval
             };
         }
+        tracing::info!("Stop signal received, tree pruning is shut down");
         Ok(())
     }
 }

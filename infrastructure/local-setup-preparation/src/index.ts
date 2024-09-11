@@ -16,7 +16,7 @@ async function depositWithRichAccounts() {
     const handles: Promise<any>[] = [];
 
     if (!process.env.CONTRACTS_BRIDGEHUB_PROXY_ADDR) {
-        throw new Error('zkSync L1 Main contract address was not found');
+        throw new Error('ZKsync L1 Main contract address was not found');
     }
 
     // During the preparation for the local node, the L2 server is not available, so

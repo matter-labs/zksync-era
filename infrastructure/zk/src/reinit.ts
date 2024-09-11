@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 
 import { up } from './up';
-import { announced } from './utils';
+import { announced } from 'utils';
 import { initDevCmdAction, initHyperCmdAction } from './init';
 import { DeploymentMode } from './contract';
 
@@ -16,11 +16,15 @@ const reinitDevCmdAction = async (): Promise<void> => {
         skipTestTokenDeployment: true,
         // TODO(EVM-573): support Validium mode
         runObservability: true,
-        deploymentMode: DeploymentMode.Rollup
+        deploymentMode: DeploymentMode.Rollup,
+        shouldCheckPostgres: false
     });
 };
 
-type ReinitHyperCmdActionOptions = { baseTokenName?: string; validiumMode: boolean };
+type ReinitHyperCmdActionOptions = {
+    baseTokenName?: string;
+    validiumMode: boolean;
+};
 const reinitHyperCmdAction = async ({ baseTokenName, validiumMode }: ReinitHyperCmdActionOptions): Promise<void> => {
     // skipSetupCompletely, because we only want to compile
     // bumpChainId, because we want to reinitialize hyperchain with a new chain id

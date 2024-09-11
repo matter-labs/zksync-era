@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                address AS \"address!\",\n                key AS \"key!\",\n                value\n            FROM\n                storage_logs\n            WHERE\n                miniblock_number BETWEEN (\n                    SELECT\n                        MIN(number)\n                    FROM\n                        miniblocks\n                    WHERE\n                        l1_batch_number = $1\n                ) AND (\n                    SELECT\n                        MAX(number)\n                    FROM\n                        miniblocks\n                    WHERE\n                        l1_batch_number = $1\n                )\n            ORDER BY\n                miniblock_number,\n                operation_number\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "address!",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "key!",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 2,
+        "name": "value",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "89d58c9735adbd9f40791d61bd63a0a2691a4b3238fce9dbc3a7d2861a4ca967"
+}

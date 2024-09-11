@@ -14,6 +14,9 @@ impl ProtoRepr for proto::ProofDataHandler {
             proof_generation_timeout_in_secs: required(&self.proof_generation_timeout_in_secs)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("proof_generation_timeout_in_secs")?,
+            tee_support: required(&self.tee_support)
+                .copied()
+                .context("tee_support")?,
         })
     }
 
@@ -21,6 +24,7 @@ impl ProtoRepr for proto::ProofDataHandler {
         Self {
             http_port: Some(this.http_port.into()),
             proof_generation_timeout_in_secs: Some(this.proof_generation_timeout_in_secs.into()),
+            tee_support: Some(this.tee_support),
         }
     }
 }

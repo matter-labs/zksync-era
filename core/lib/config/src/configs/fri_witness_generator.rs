@@ -23,6 +23,25 @@ pub struct FriWitnessGeneratorConfig {
 
     // whether to write to public GCS bucket for https://github.com/matter-labs/era-boojum-validator-cli
     pub shall_save_to_public_bucket: bool,
+
+    pub prometheus_listener_port: Option<u16>,
+
+    /// This value corresponds to the maximum number of circuits kept in memory at any given time for a BWG/LWG/NWG.
+    /// Acts as a throttling mechanism for circuits; the trade-off here is speed vs memory usage.
+    ///
+    /// BWG:
+    /// With more circuits in flight, harness does not need to wait for BWG runner to process them.
+    /// But every single circuit in flight eats memory (up to 50MB).
+    ///
+    /// LWG/NWG:
+    /// Each circuit is processed in parallel.
+    /// Each circuit requires downloading RECURSION_ARITY (32) proofs, each of which can be roughly estimated at 1 MB.
+    /// So every single circuit should use ~32 MB of RAM + some overhead during serialization
+    ///
+    /// WARNING: Do NOT change this value unless you're absolutely sure you know what you're doing.
+    /// It affects the performance and resource usage of WGs.
+    #[serde(default = "FriWitnessGeneratorConfig::default_max_circuits_in_flight")]
+    pub max_circuits_in_flight: usize,
 }
 
 #[derive(Debug)]
@@ -84,5 +103,14 @@ impl FriWitnessGeneratorConfig {
 
     pub fn last_l1_batch_to_process(&self) -> u32 {
         self.last_l1_batch_to_process.unwrap_or(u32::MAX)
+    }
+
+    /// 500 was picked as a mid-ground between allowing enough circuits in flight to speed up BWG circuit generation,
+    /// whilst keeping memory as low as possible. At the moment, max size of a circuit in BWG is ~50MB.
+    /// This number is important when there are issues with saving circuits (network issues, service unavailability, etc.)
+    /// Maximum theoretic extra memory consumed by BWG is up to 25GB (50MB * 500 circuits), but in reality, worse case scenarios are closer to 5GB (the average space distribution).
+    /// During normal operations (> P95), this will incur an overhead of ~100MB.
+    const fn default_max_circuits_in_flight() -> usize {
+        500
     }
 }

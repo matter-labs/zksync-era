@@ -1,9 +1,9 @@
 use std::{collections::HashMap, time::Duration};
 
 use anyhow::Context as _;
-use prometheus_exporter::PrometheusExporterConfig;
 use serde::Deserialize;
-use vlog::LogFormat;
+use zksync_config::configs::GeneralConfig;
+use zksync_vlog::{logs::LogFormat, prometheus::PrometheusExporterConfig};
 
 use super::{ConfigurationSource, Environment};
 
@@ -26,6 +26,8 @@ pub(crate) struct ObservabilityENConfig {
     /// Log format to use: either `plain` (default) or `json`.
     #[serde(default)]
     pub log_format: LogFormat,
+    // Log directives in format that is used in `RUST_LOG`
+    pub log_directives: Option<String>,
 }
 
 impl ObservabilityENConfig {
@@ -78,24 +80,61 @@ impl ObservabilityENConfig {
         }
     }
 
-    pub fn build_observability(&self) -> anyhow::Result<vlog::ObservabilityGuard> {
-        let mut builder = vlog::ObservabilityBuilder::new().with_log_format(self.log_format);
+    pub fn build_observability(&self) -> anyhow::Result<zksync_vlog::ObservabilityGuard> {
+        let logs = zksync_vlog::Logs::from(self.log_format)
+            .with_log_directives(self.log_directives.clone());
+
         // Some legacy deployments use `unset` as an equivalent of `None`.
         let sentry_url = self.sentry_url.as_deref().filter(|&url| url != "unset");
-        if let Some(sentry_url) = sentry_url {
-            builder = builder
-                .with_sentry_url(sentry_url)
-                .context("Invalid Sentry URL")?
-                .with_sentry_environment(self.sentry_environment.clone());
-        }
-        let guard = builder.build();
-
-        // Report whether sentry is running after the logging subsystem was initialized.
-        if let Some(sentry_url) = sentry_url {
-            tracing::info!("Sentry configured with URL: {sentry_url}");
-        } else {
-            tracing::info!("No sentry URL was provided");
-        }
+        let sentry = sentry_url
+            .map(|url| {
+                anyhow::Ok(
+                    zksync_vlog::Sentry::new(url)
+                        .context("Invalid Sentry URL")?
+                        .with_environment(self.sentry_environment.clone()),
+                )
+            })
+            .transpose()?;
+        let guard = zksync_vlog::ObservabilityBuilder::new()
+            .with_logs(Some(logs))
+            .with_sentry(sentry)
+            .build();
         Ok(guard)
+    }
+
+    pub(crate) fn from_configs(general_config: &GeneralConfig) -> anyhow::Result<Self> {
+        let (sentry_url, sentry_environment, log_format, log_directives) =
+            if let Some(observability) = general_config.observability.as_ref() {
+                (
+                    observability.sentry_url.clone(),
+                    observability.sentry_environment.clone(),
+                    observability
+                        .log_format
+                        .parse()
+                        .context("Invalid log format")?,
+                    observability.log_directives.clone(),
+                )
+            } else {
+                (None, None, LogFormat::default(), None)
+            };
+        let (prometheus_port, prometheus_pushgateway_url, prometheus_push_interval_ms) =
+            if let Some(prometheus) = general_config.prometheus_config.as_ref() {
+                (
+                    Some(prometheus.listener_port),
+                    prometheus.pushgateway_url.clone(),
+                    prometheus.push_interval_ms.unwrap_or_default(),
+                )
+            } else {
+                (None, None, 0)
+            };
+        Ok(Self {
+            prometheus_port,
+            prometheus_pushgateway_url,
+            prometheus_push_interval_ms,
+            sentry_url,
+            sentry_environment,
+            log_format,
+            log_directives,
+        })
     }
 }

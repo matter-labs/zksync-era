@@ -10,3 +10,12 @@ pub enum EthSenderError {
     #[error("Token parsing error: {0}")]
     Parse(#[from] contract::Error),
 }
+
+impl EthSenderError {
+    pub fn is_retriable(&self) -> bool {
+        match self {
+            EthSenderError::EthereumGateway(err) => err.is_retriable(),
+            _ => false,
+        }
+    }
+}

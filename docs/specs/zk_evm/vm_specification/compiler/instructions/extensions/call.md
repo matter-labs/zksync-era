@@ -1,4 +1,4 @@
-# zkSync Era Extension Simulation (call)
+# ZKsync Era Extension Simulation (call)
 
 NOTES:
 

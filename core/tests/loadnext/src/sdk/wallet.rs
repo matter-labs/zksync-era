@@ -45,6 +45,7 @@ where
         let client = Client::http(rpc_address)
             .map_err(|err| ClientError::NetworkError(err.to_string()))?
             .for_network(signer.chain_id.into())
+            .report_config(false)
             .build();
 
         Ok(Wallet {
@@ -96,7 +97,7 @@ where
             };
             let bytes = self
                 .provider
-                .call(req, Some(BlockIdVariant::BlockNumber(block_number)))
+                .call(req, Some(BlockIdVariant::BlockNumber(block_number)), None)
                 .await?;
             if bytes.0.len() == 32 {
                 U256::from_big_endian(&bytes.0)
@@ -155,6 +156,7 @@ where
                 meta.custom_signature = None;
             }
             req.from = Some(self.address());
+            req.chain_id = Some(self.signer.chain_id.as_u64());
             req
         };
         let domain = Eip712Domain::new(self.signer.chain_id);
@@ -164,7 +166,9 @@ where
             .sign_typed_data(&domain, &transaction_request)
             .await?;
 
-        let encoded_tx = transaction_request.get_signed_bytes(&signature, self.signer.chain_id);
+        let encoded_tx = transaction_request
+            .get_signed_bytes(&signature)
+            .map_err(|_| ClientError::Other)?;
         let bytes = Bytes(encoded_tx);
 
         let tx_hash = self.provider.send_raw_transaction(bytes).await?;

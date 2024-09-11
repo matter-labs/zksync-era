@@ -318,11 +318,15 @@ fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     assert!(storage.is_write_initial(&logs[0].key));
     assert!(storage.is_write_initial(&non_existing_key));
     assert_eq!(
-        caches.negative_initial_writes.get(&logs[0].key),
+        caches
+            .negative_initial_writes
+            .get(&logs[0].key.hashed_key()),
         Some(L1BatchNumber(0))
     );
     assert_eq!(
-        caches.negative_initial_writes.get(&non_existing_key),
+        caches
+            .negative_initial_writes
+            .get(&non_existing_key.hashed_key()),
         Some(L1BatchNumber(0))
     );
     assert!(storage.is_write_initial(&logs[0].key));
@@ -353,12 +357,19 @@ fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
 
     // Check that the cache entries have been updated
     assert_eq!(
-        caches.initial_writes.get(&logs[0].key),
+        caches.initial_writes.get(&logs[0].key.hashed_key()),
         Some(L1BatchNumber(1))
     );
-    assert_eq!(caches.negative_initial_writes.get(&logs[0].key), None);
     assert_eq!(
-        caches.negative_initial_writes.get(&non_existing_key),
+        caches
+            .negative_initial_writes
+            .get(&logs[0].key.hashed_key()),
+        None
+    );
+    assert_eq!(
+        caches
+            .negative_initial_writes
+            .get(&non_existing_key.hashed_key()),
         Some(L1BatchNumber(2))
     );
     assert!(storage.is_write_initial(&logs[0].key));
@@ -376,11 +387,13 @@ fn test_initial_writes_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
 
     // Check that the cache entries are still as expected.
     assert_eq!(
-        caches.initial_writes.get(&logs[0].key),
+        caches.initial_writes.get(&logs[0].key.hashed_key()),
         Some(L1BatchNumber(1))
     );
     assert_eq!(
-        caches.negative_initial_writes.get(&non_existing_key),
+        caches
+            .negative_initial_writes
+            .get(&non_existing_key.hashed_key()),
         Some(L1BatchNumber(2))
     );
 
@@ -415,7 +428,10 @@ struct ValueCacheAssertions<'a> {
 impl ValueCacheAssertions<'_> {
     fn assert_entries(&self, expected_entries: &[(StorageKey, Option<StorageValue>)]) {
         for (key, expected_value) in expected_entries {
-            assert_eq!(self.cache.get(self.l2_block_number, key), *expected_value);
+            assert_eq!(
+                self.cache.get(self.l2_block_number, key.hashed_key()),
+                *expected_value
+            );
         }
     }
 }

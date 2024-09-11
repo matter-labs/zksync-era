@@ -1,5 +1,6 @@
 [package]
 name = "genesis_generator"
+description = "Tool to generate ZKsync genesis data"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -8,8 +9,7 @@ repository.workspace = true
 license.workspace = true
 keywords.workspace = true
 categories.workspace = true
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+publish = false
 
 [dependencies]
 zksync_config.workspace = true

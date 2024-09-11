@@ -13,7 +13,7 @@ use crate::{
 
 const EMPTY_TXS_ROLLING_HASH: H256 = H256::zero();
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct BootloaderL2Block {
     pub(crate) number: u32,
     pub(crate) timestamp: u64,
@@ -54,12 +54,6 @@ impl BootloaderL2Block {
 
     fn update_rolling_hash(&mut self, tx_hash: H256) {
         self.txs_rolling_hash = concat_and_hash(self.txs_rolling_hash, tx_hash)
-    }
-
-    pub(crate) fn interim_version(&self) -> BootloaderL2Block {
-        let mut interim = self.clone();
-        interim.max_virtual_blocks_to_create = 0;
-        interim
     }
 
     pub(crate) fn make_snapshot(&self) -> L2BlockSnapshot {

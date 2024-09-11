@@ -16,6 +16,7 @@ message L1 {
   optional string default_upgrade_addr = 5; // required; H160
   optional string multicall3_addr = 6; // required; H160
   optional string base_token_addr = 7; // required; H160
+  optional string chain_admin_addr = 8; // required; H160
 }
 
 message L2 {

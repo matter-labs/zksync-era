@@ -5,7 +5,7 @@ use zksync_types::{utils::storage_key_for_eth_balance, AccountTreeId, Address, E
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_latest::{
         tests::{
             tester::{get_empty_storage, VmTesterBuilder},
@@ -76,7 +76,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
             contract_address: test_contract_address,
             calldata,
             value: U256::zero(),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -176,7 +176,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
                 .encode_input(&[])
                 .unwrap(),
             value: U256::from(1),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
@@ -193,7 +193,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
             contract_address: test_contract_address,
             calldata,
             value,
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );

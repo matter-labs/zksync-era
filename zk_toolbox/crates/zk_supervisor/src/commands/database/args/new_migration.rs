@@ -1,7 +1,6 @@
 use clap::{Parser, ValueEnum};
 use common::{Prompt, PromptSelect};
-use strum::IntoEnumIterator;
-use strum_macros::{Display, EnumIter};
+use strum::{Display, EnumIter, IntoEnumIterator};
 
 use crate::messages::{
     MSG_DATABASE_NEW_MIGRATION_DATABASE_HELP, MSG_DATABASE_NEW_MIGRATION_DB_PROMPT,

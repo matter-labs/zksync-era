@@ -10,19 +10,25 @@ impl From<io::Error> for ObjectStoreError {
         match err.kind() {
             io::ErrorKind::NotFound => ObjectStoreError::KeyNotFound(err.into()),
             kind => ObjectStoreError::Other {
-                is_transient: matches!(kind, io::ErrorKind::Interrupted | io::ErrorKind::TimedOut),
+                is_retriable: matches!(kind, io::ErrorKind::Interrupted | io::ErrorKind::TimedOut),
                 source: err.into(),
             },
         }
     }
 }
 
+/// [`ObjectStore`] implementation storing objects as files in a local filesystem. Mostly useful for local testing.
 #[derive(Debug)]
-pub(crate) struct FileBackedObjectStore {
+pub struct FileBackedObjectStore {
     base_dir: String,
 }
 
 impl FileBackedObjectStore {
+    /// Creates a new file-backed store with its root at the specified path.
+    ///
+    /// # Errors
+    ///
+    /// Propagates I/O errors.
     pub async fn new(base_dir: String) -> Result<Self, ObjectStoreError> {
         for bucket in &[
             Bucket::ProverJobs,

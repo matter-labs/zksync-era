@@ -4,30 +4,61 @@ use zksync_utils::ZeroPrefixHexSerde;
 
 use crate::{ethabi, Address, EIP712TypedStructure, StructBuilder, H256, U256};
 
-/// `Execute` transaction executes a previously deployed smart contract in the L2 rollup.
-#[derive(Clone, Default, Serialize, Deserialize, PartialEq)]
+/// This struct is the `serde` schema for the `Execute` struct.
+/// It allows us to modify `Execute` struct without worrying
+/// about encoding compatibility.
+///
+/// For example, changing type of `factory_deps` from `Option<Vec<Vec<u8>>`
+/// to `Vec<Vec<u8>>` (even with `#[serde(default)]` annotation)
+/// would be incompatible for `serde` json encoding,
+/// because `null` is a valid value for the former but not for the latter.
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ExecuteSerde {
+    contract_address: Address,
+    #[serde(with = "ZeroPrefixHexSerde")]
+    calldata: Vec<u8>,
+    value: U256,
+    factory_deps: Option<Vec<Vec<u8>>>,
+}
+
+/// `Execute` transaction executes a previously deployed smart contract in the L2 rollup.
+#[derive(Clone, Default, PartialEq)]
 pub struct Execute {
     pub contract_address: Address,
-
-    #[serde(with = "ZeroPrefixHexSerde")]
     pub calldata: Vec<u8>,
-
     pub value: U256,
-
     /// Factory dependencies: list of contract bytecodes associated with the deploy transaction.
-    /// This field is always `None` for all the transaction that do not cause the contract deployment.
-    /// For the deployment transactions, this field is always `Some`, even if there s no "dependencies" for the
-    /// contract being deployed, since the bytecode of the contract itself is also included into this list.
-    pub factory_deps: Option<Vec<Vec<u8>>>,
+    pub factory_deps: Vec<Vec<u8>>,
+}
+
+impl serde::Serialize for Execute {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        ExecuteSerde {
+            contract_address: self.contract_address,
+            calldata: self.calldata.clone(),
+            value: self.value,
+            factory_deps: Some(self.factory_deps.clone()),
+        }
+        .serialize(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for Execute {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let x = ExecuteSerde::deserialize(d)?;
+        Ok(Self {
+            contract_address: x.contract_address,
+            calldata: x.calldata,
+            value: x.value,
+            factory_deps: x.factory_deps.unwrap_or_default(),
+        })
+    }
 }
 
 impl std::fmt::Debug for Execute {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let factory_deps = match &self.factory_deps {
-            Some(deps) => format!("Some(<{} factory deps>)", deps.len()),
-            None => "None".to_string(),
-        };
+        let factory_deps = format!("<{} factory deps>", self.factory_deps.len());
         f.debug_struct("Execute")
             .field("contract_address", &self.contract_address)
             .field("calldata", &hex::encode(&self.calldata))
@@ -82,13 +113,5 @@ impl Execute {
         ]);
 
         FUNCTION_SIGNATURE.iter().copied().chain(params).collect()
-    }
-
-    /// Number of new factory dependencies in this transaction
-    pub fn factory_deps_length(&self) -> usize {
-        self.factory_deps
-            .as_ref()
-            .map(|deps| deps.len())
-            .unwrap_or_default()
     }
 }

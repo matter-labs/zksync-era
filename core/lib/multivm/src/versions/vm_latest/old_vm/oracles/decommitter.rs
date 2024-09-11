@@ -9,13 +9,15 @@ use zk_evm_1_5_0::{
         ContractCodeSha256, VersionedHashDef, VersionedHashHeader, VersionedHashNormalizedPreimage,
     },
 };
-use zksync_state::{ReadStorage, StoragePtr};
 use zksync_types::{H256, U256};
 use zksync_utils::{bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use super::OracleWithHistory;
-use crate::vm_latest::old_vm::history_recorder::{
-    HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
+use crate::{
+    interface::storage::{ReadStorage, StoragePtr},
+    vm_latest::old_vm::history_recorder::{
+        HistoryEnabled, HistoryMode, HistoryRecorder, WithHistory,
+    },
 };
 
 /// The main job of the DecommiterOracle is to implement the DecommittmentProcessor trait - that is
@@ -30,7 +32,7 @@ pub struct DecommitterOracle<const B: bool, S, H: HistoryMode> {
     /// Stores pages of memory where certain code hashes have already been decommitted.
     /// It is expected that they all are present in the DB.
     // `decommitted_code_hashes` history is necessary
-    pub decommitted_code_hashes: HistoryRecorder<HashMap<U256, u32>, HistoryEnabled>,
+    pub decommitted_code_hashes: HistoryRecorder<HashMap<U256, Option<u32>>, HistoryEnabled>,
     /// Stores history of decommitment requests.
     decommitment_requests: HistoryRecorder<Vec<()>, H>,
 }
@@ -89,7 +91,7 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
 
     pub fn get_decommitted_code_hashes_with_history(
         &self,
-    ) -> &HistoryRecorder<HashMap<U256, u32>, HistoryEnabled> {
+    ) -> &HistoryRecorder<HashMap<U256, Option<u32>>, HistoryEnabled> {
         &self.decommitted_code_hashes
     }
 
@@ -108,7 +110,7 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
             .map(|(_, value)| value.len() * std::mem::size_of::<U256>())
             .sum::<usize>();
         let decommitted_code_hashes_size =
-            self.decommitted_code_hashes.inner().len() * std::mem::size_of::<(U256, u32)>();
+            self.decommitted_code_hashes.inner().len() * std::mem::size_of::<(U256, Option<u32>)>();
 
         known_bytecodes_size + decommitted_code_hashes_size
     }
@@ -132,7 +134,7 @@ impl<S: ReadStorage, const B: bool, H: HistoryMode> DecommitterOracle<B, S, H> {
         );
         let decommitted_code_hashes_size =
             self.decommitted_code_hashes.borrow_history(|h| h.len(), 0)
-                * std::mem::size_of::<<HashMap<U256, u32> as WithHistory>::HistoryRecord>();
+                * std::mem::size_of::<<HashMap<U256, Option<u32>> as WithHistory>::HistoryRecord>();
 
         known_bytecodes_stack_size + known_bytecodes_heap_size + decommitted_code_hashes_size
     }
@@ -172,6 +174,7 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
             .inner()
             .get(&stored_hash)
             .copied()
+            .flatten()
         {
             partial_query.is_fresh = false;
             partial_query.memory_page = MemoryPage(memory_page);
@@ -179,6 +182,15 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
             Ok(partial_query)
         } else {
             partial_query.is_fresh = true;
+            if self
+                .decommitted_code_hashes
+                .inner()
+                .get(&stored_hash)
+                .is_none()
+            {
+                self.decommitted_code_hashes
+                    .insert(stored_hash, None, partial_query.timestamp);
+            }
 
             Ok(partial_query)
         }
@@ -216,7 +228,7 @@ impl<S: ReadStorage + Debug, const B: bool, H: HistoryMode> DecommittmentProcess
             rw_flag: true,
         };
         self.decommitted_code_hashes
-            .insert(stored_hash, page_to_use.0, timestamp);
+            .insert(stored_hash, Some(page_to_use.0), timestamp);
 
         // Copy the bytecode (that is stored in 'values' Vec) into the memory page.
         if B {
