@@ -164,6 +164,12 @@ impl ProverServiceDataKey {
         }
     }
 
+    pub fn all() -> Vec<ProverServiceDataKey> {
+        let mut keys = Self::all_boojum();
+        keys.push(Self::snark());
+        keys
+    }
+
     pub fn all_boojum() -> Vec<ProverServiceDataKey> {
         let mut results = vec![];
         for numeric_circuit in BaseLayerCircuitType::as_iter_u8() {

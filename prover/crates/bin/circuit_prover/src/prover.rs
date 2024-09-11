@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -51,6 +52,7 @@ pub struct CircuitProver {
     keystore: Keystore,
     receiver: Receiver<WitnessVectorArtifacts>,
     prover_context: ProverContext,
+    setup_keys: HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>,
 }
 
 impl CircuitProver {
@@ -61,6 +63,7 @@ impl CircuitProver {
         keystore: Keystore,
         receiver: Receiver<WitnessVectorArtifacts>,
         max_allocation: Option<usize>,
+        setup_keys: HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>,
     ) -> Self {
         let prover_context = match max_allocation {
             Some(max_allocation) => ProverContext::create_with_config(
@@ -76,6 +79,7 @@ impl CircuitProver {
             keystore,
             receiver,
             prover_context,
+            setup_keys,
         }
     }
 
@@ -349,18 +353,19 @@ impl CircuitProver {
         key: ProverServiceDataKey,
     ) -> anyhow::Result<Arc<GoldilocksGpuProverSetupData>> {
         let key = get_setup_data_key(key);
+        Ok(self.setup_keys.get(&key).unwrap().clone())
 
-        let started_at = Instant::now();
-        // let keystore = self.keystore.clone();
-        let artifact: GoldilocksGpuProverSetupData = self
-            .keystore
-            .load_gpu_setup_data_for_circuit_type(key.clone())
-            .context("load_gpu_setup_data_for_circuit_type()")?;
-
-        // METRICS.gpu_setup_data_load_time[&key.circuit_id.to_string()]
-        //     .observe(started_at.elapsed());
-
-        Ok(Arc::new(artifact))
+        // let started_at = Instant::now();
+        // // let keystore = self.keystore.clone();
+        // let artifact: GoldilocksGpuProverSetupData = self
+        //     .keystore
+        //     .load_gpu_setup_data_for_circuit_type(key.clone())
+        //     .context("load_gpu_setup_data_for_circuit_type()")?;
+        //
+        // // METRICS.gpu_setup_data_load_time[&key.circuit_id.to_string()]
+        // //     .observe(started_at.elapsed());
+        //
+        // Ok(Arc::new(artifact))
     }
 }
 

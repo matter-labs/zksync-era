@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 // use zksync_circuit_prover::WitnessVectorGenerator;
 //
@@ -16,8 +16,10 @@ use zksync_circuit_prover::{CircuitProver, WitnessVectorGenerator};
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_prover_fri_types::{WitnessVectorArtifacts, PROVER_PROTOCOL_SEMANTIC_VERSION};
-use zksync_prover_keystore::keystore::Keystore;
+use zksync_prover_fri_types::{
+    ProverServiceDataKey, WitnessVectorArtifacts, PROVER_PROTOCOL_SEMANTIC_VERSION,
+};
+use zksync_prover_keystore::{keystore::Keystore, GoldilocksGpuProverSetupData};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
 // use zksync_env_config::object_store::ProverObjectStoreConfig;
@@ -110,6 +112,8 @@ async fn main() -> anyhow::Result<()> {
     // Prover setup
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
+    let setup_keys = load_setup_keys(keystore.clone())?;
+
     let prover = CircuitProver::new(
         connection_pool,
         object_store,
@@ -117,6 +121,7 @@ async fn main() -> anyhow::Result<()> {
         keystore.clone(),
         receiver,
         opt.max_allocation,
+        setup_keys,
     );
     tasks.push(tokio::spawn(prover.run(cancellation_token.clone())));
 
@@ -140,6 +145,37 @@ async fn main() -> anyhow::Result<()> {
     tasks.complete(Duration::from_secs(5)).await;
 
     Ok(())
+}
+
+fn load_setup_keys(
+    keystore: Keystore,
+) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>> {
+    let mut cache = HashMap::new();
+    tracing::info!("Loading setup keys",);
+    // let prover_setup_metadata_list = FriProverGroupConfig::from_env()
+    //     .context("FriProverGroupConfig::from_env()")?
+    //     .get_circuit_ids_for_group_id(config.specialized_group_id)
+    //     .context(
+    //         "At least one circuit should be configured for group when running in FromMemory mode",
+    //     )?;
+    // tracing::info!(
+    //                 "for group {} configured setup metadata are {:?}",
+    //                 &config.specialized_group_id,
+    //                 prover_setup_metadata_list
+    //             );
+    for key in ProverServiceDataKey::all() {
+        let setup_data = keystore.load_gpu_setup_data_for_circuit_type(key.clone())?;
+        cache.insert(key, Arc::new(setup_data));
+    }
+    tracing::info!("Finished loading setup keys",);
+    Ok(cache)
+    // for prover_setup_metadata in prover_setup_metadata_list {
+    //     let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
+    //     let setup_data = keystore
+    //         .load_gpu_setup_data_for_circuit_type(key.clone())
+    //         .context("load_gpu_setup_data_for_circuit_type()")?;
+    //     cache.insert(key, Arc::new(setup_data));
+    // }
 }
 
 // async fn get_prover_tasks(
