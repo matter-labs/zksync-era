@@ -1,10 +1,11 @@
 use config::ChainConfig;
-use secrecy::Secret;
+use secrecy::{ExposeSecret, Secret};
 use zksync_config::configs::consensus::{
-    AttesterPublicKey, AttesterSecretKey, ConsensusSecrets, GenesisSpec, NodeSecretKey,
-    ProtocolVersion, ValidatorPublicKey, ValidatorSecretKey, WeightedAttester, WeightedValidator,
+    AttesterPublicKey, AttesterSecretKey, ConsensusSecrets, GenesisSpec, NodePublicKey,
+    NodeSecretKey, ProtocolVersion, ValidatorPublicKey, ValidatorSecretKey, WeightedAttester,
+    WeightedValidator,
 };
-use zksync_consensus_crypto::TextFmt;
+use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_roles as roles;
 
 struct ConsensusKeys {
@@ -71,4 +72,17 @@ pub fn get_consensus_secrets(consensus_keys: &ConsensusKeys) -> ConsensusSecrets
         attester_key: Some(AttesterSecretKey(Secret::new(attester_key))),
         node_key: Some(NodeSecretKey(Secret::new(node_key))),
     }
+}
+
+pub fn node_public_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<NodePublicKey>> {
+    Ok(node_key(secrets)?.map(|node_secret_key| NodePublicKey(node_secret_key.public().encode())))
+}
+fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<roles::node::SecretKey>> {
+    read_secret_text(secrets.node_key.as_ref().map(|x| &x.0))
+}
+
+fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result<Option<T>> {
+    text.map(|text| Text::new(text.expose_secret()).decode())
+        .transpose()
+        .map_err(|_| anyhow::format_err!("invalid format"))
 }

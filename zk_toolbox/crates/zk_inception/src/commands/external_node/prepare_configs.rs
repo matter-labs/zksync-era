@@ -10,14 +10,13 @@ use config::{
     external_node::ENConfig, ports_config, set_rocks_db_config, traits::SaveConfigWithBasePath,
     update_ports, ChainConfig, EcosystemConfig, SecretsConfig,
 };
-use secrecy::ExposeSecret as _;
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
 use zksync_config::configs::{
-    consensus::{ConsensusConfig, ConsensusSecrets, Host, NodePublicKey, NodeSecretKey, Secret},
+    consensus::{ConsensusConfig, ConsensusSecrets, Host, NodeSecretKey, Secret},
     DatabaseSecrets, L1Secrets,
 };
-use zksync_consensus_crypto::{Text, TextFmt};
+use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
 
 use crate::{
@@ -31,7 +30,10 @@ use crate::{
         MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_CONSENSUS_SECRETS_MISSING_ERR,
         MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR, MSG_PORTS_CONFIG_ERR, MSG_PREPARING_EN_CONFIGS,
     },
-    utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
+    utils::{
+        consensus::node_public_key,
+        rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
+    },
 };
 
 pub fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
@@ -148,17 +150,4 @@ fn prepare_configs(
     en_config.save_with_base_path(shell, en_configs_path)?;
 
     Ok(())
-}
-
-fn node_public_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<NodePublicKey>> {
-    Ok(node_key(secrets)?.map(|node_secret_key| NodePublicKey(node_secret_key.public().encode())))
-}
-fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<roles::node::SecretKey>> {
-    read_secret_text(secrets.node_key.as_ref().map(|x| &x.0))
-}
-
-fn read_secret_text<T: TextFmt>(text: Option<&Secret<String>>) -> anyhow::Result<Option<T>> {
-    text.map(|text| Text::new(text.expose_secret()).decode())
-        .transpose()
-        .map_err(|_| anyhow::format_err!("invalid format"))
 }
