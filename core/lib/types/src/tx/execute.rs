@@ -15,7 +15,7 @@ use crate::{ethabi, Address, EIP712TypedStructure, StructBuilder, H256, U256};
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ExecuteSerde {
-    contract_address: Address,
+    contract_address: Option<Address>,
     #[serde(with = "ZeroPrefixHexSerde")]
     calldata: Vec<u8>,
     value: U256,
@@ -25,7 +25,7 @@ struct ExecuteSerde {
 /// `Execute` transaction executes a previously deployed smart contract in the L2 rollup.
 #[derive(Clone, Default, PartialEq)]
 pub struct Execute {
-    pub contract_address: Address,
+    pub contract_address: Option<Address>,
     pub calldata: Vec<u8>,
     pub value: U256,
     /// Factory dependencies: list of contract bytecodes associated with the deploy transaction.
@@ -72,7 +72,10 @@ impl EIP712TypedStructure for Execute {
     const TYPE_NAME: &'static str = "Transaction";
 
     fn build_structure<BUILDER: StructBuilder>(&self, builder: &mut BUILDER) {
-        builder.add_member("to", &U256::from(self.contract_address.as_bytes()));
+        builder.add_member(
+            "to",
+            &U256::from(self.contract_address.unwrap_or_default().as_bytes()),
+        );
         builder.add_member("value", &self.value);
         builder.add_member("data", &self.calldata.as_slice());
         // Factory deps are not included into the transaction signature, since they are parsed from the

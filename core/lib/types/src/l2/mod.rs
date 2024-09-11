@@ -153,7 +153,7 @@ pub struct L2Tx {
 impl L2Tx {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        contract_address: Address,
+        contract_address: Option<Address>,
         calldata: Vec<u8>,
         nonce: Nonce,
         fee: Fee,
@@ -185,7 +185,7 @@ impl L2Tx {
 
     #[allow(clippy::too_many_arguments)]
     pub fn new_signed(
-        contract_address: Address,
+        contract_address: Option<Address>,
         calldata: Vec<u8>,
         nonce: Nonce,
         fee: Fee,
@@ -233,7 +233,7 @@ impl L2Tx {
 
     /// Returns recipient account of the transaction.
     pub fn recipient_account(&self) -> Address {
-        self.execute.contract_address
+        self.execute.contract_address.unwrap_or_default()
     }
 
     /// Returns the account nonce associated with transaction.

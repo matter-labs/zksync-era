@@ -274,7 +274,7 @@ impl From<L1Tx> for abi::NewPriorityRequest {
             transaction: abi::L2CanonicalTransaction {
                 tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
                 from: address_to_u256(&t.common_data.sender),
-                to: address_to_u256(&t.execute.contract_address),
+                to: address_to_u256(&t.execute.contract_address.unwrap_or_default()),
                 gas_limit: t.common_data.gas_limit,
                 gas_per_pubdata_byte_limit: t.common_data.gas_per_pubdata_limit,
                 max_fee_per_gas: t.common_data.max_fee_per_gas,
@@ -345,7 +345,7 @@ impl TryFrom<abi::NewPriorityRequest> for L1Tx {
         };
 
         let execute = Execute {
-            contract_address: u256_to_account_address(&req.transaction.to),
+            contract_address: Some(u256_to_account_address(&req.transaction.to)),
             calldata: req.transaction.data,
             factory_deps: req.factory_deps,
             value: req.transaction.value,

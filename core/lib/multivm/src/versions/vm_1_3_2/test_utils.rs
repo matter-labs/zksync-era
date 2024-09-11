@@ -153,7 +153,7 @@ pub fn get_create_execute(code: &[u8], calldata: &[u8]) -> Execute {
         .expect("failed to encode parameters");
 
     Execute {
-        contract_address: CONTRACT_DEPLOYER_ADDRESS,
+        contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
         calldata,
         factory_deps: vec![code.to_vec()],
         value: U256::zero(),
