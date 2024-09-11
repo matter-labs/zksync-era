@@ -19,18 +19,27 @@ export class L1Provider extends JsonRpcProvider {
 
 class L1TransactionResponse extends ethers.TransactionResponse implements AugmentedTransactionResponse {
     public readonly kind = 'L1';
+    private isWaitingReported: boolean = false;
+    private isReceiptReported: boolean = false;
 
     constructor(base: ethers.TransactionResponse, public readonly reporter: Reporter) {
         super(base, base.provider);
     }
 
     override async wait(confirmations?: number, timeout?: number) {
-        this.reporter.debug(`Started waiting for L1 transaction ${this.hash} (from=${this.from}, nonce=${this.nonce})`);
+        if (!this.isWaitingReported) {
+            this.reporter.debug(
+                `Started waiting for L1 transaction ${this.hash} (from=${this.from}, nonce=${this.nonce})`
+            );
+            this.isWaitingReported = true;
+        }
+
         const receipt = await super.wait(confirmations, timeout);
-        if (receipt !== null) {
+        if (receipt !== null && !this.isReceiptReported) {
             this.reporter.debug(
                 `Obtained receipt for L1 transaction ${this.hash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
             );
+            this.isReceiptReported = true;
         }
         return receipt;
     }

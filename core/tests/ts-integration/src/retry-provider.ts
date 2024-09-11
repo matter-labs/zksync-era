@@ -77,18 +77,26 @@ export class RetryProvider extends zksync.Provider {
 
 class L2TransactionResponse extends zksync.types.TransactionResponse implements AugmentedTransactionResponse {
     public readonly kind = 'L2';
+    private isWaitingReported: boolean = false;
+    private isReceiptReported: boolean = false;
 
     constructor(base: zksync.types.TransactionResponse, public readonly reporter: Reporter) {
         super(base, base.provider);
     }
 
     override async wait(confirmations?: number) {
-        this.reporter.debug(`Started waiting for L2 transaction ${this.hash} (from=${this.from}, nonce=${this.nonce})`);
+        if (!this.isWaitingReported) {
+            this.reporter.debug(
+                `Started waiting for L2 transaction ${this.hash} (from=${this.from}, nonce=${this.nonce})`
+            );
+            this.isWaitingReported = true;
+        }
         const receipt = await super.wait(confirmations);
-        if (receipt !== null) {
+        if (receipt !== null && !this.isReceiptReported) {
             this.reporter.debug(
                 `Obtained receipt for L2 transaction ${this.hash}: blockNumber=${receipt.blockNumber}, status=${receipt.status}`
             );
+            this.isReceiptReported = true;
         }
         return receipt;
     }
