@@ -1,8 +1,4 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    path::Path,
-    str::FromStr,
-};
+use std::{collections::BTreeMap, path::Path, str::FromStr};
 
 use anyhow::Context;
 use common::{config::global_config, logger};
@@ -13,7 +9,7 @@ use config::{
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
 use zksync_config::configs::{
-    consensus::{ConsensusConfig, ConsensusSecrets, Host, NodeSecretKey, Secret},
+    consensus::{ConsensusSecrets, NodeSecretKey, Secret},
     DatabaseSecrets, L1Secrets,
 };
 use zksync_consensus_crypto::TextFmt;
@@ -21,17 +17,13 @@ use zksync_consensus_roles as roles;
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
-    consts::{
-        CONSENSUS_PUBLIC_ADDRESS_HOST, CONSENSUS_SERVER_ADDRESS_HOST, GOSSIP_DYNAMIC_INBOUND_LIMIT,
-        MAX_BATCH_SIZE, MAX_PAYLOAD_SIZE,
-    },
     messages::{
         msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED,
         MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_CONSENSUS_SECRETS_MISSING_ERR,
         MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR, MSG_PORTS_CONFIG_ERR, MSG_PREPARING_EN_CONFIGS,
     },
     utils::{
-        consensus::node_public_key,
+        consensus::{get_consensus_config, node_public_key},
         rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
     },
 };
@@ -92,15 +84,6 @@ fn prepare_configs(
         .consensus_config
         .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
 
-    let public_addr = format!(
-        "{}:{}",
-        CONSENSUS_PUBLIC_ADDRESS_HOST, next_empty_ports_config.consensus_port
-    );
-    let server_addr = format!(
-        "{}:{}",
-        CONSENSUS_SERVER_ADDRESS_HOST, next_empty_ports_config.consensus_port
-    )
-    .parse()?;
     let mut gossip_static_outbound = BTreeMap::new();
     let main_node_public_key = node_public_key(
         &config
@@ -111,17 +94,13 @@ fn prepare_configs(
     .context(MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR)?;
 
     gossip_static_outbound.insert(main_node_public_key, main_node_consensus_config.public_addr);
-    let en_consensus_config = ConsensusConfig {
-        server_addr,
-        public_addr: Host(public_addr),
-        max_payload_size: MAX_PAYLOAD_SIZE,
-        gossip_dynamic_inbound_limit: GOSSIP_DYNAMIC_INBOUND_LIMIT,
-        max_batch_size: MAX_BATCH_SIZE,
-        gossip_static_outbound,
-        gossip_static_inbound: BTreeSet::new(),
-        genesis_spec: None,
-        rpc: None,
-    };
+
+    let en_consensus_config = get_consensus_config(
+        config,
+        next_empty_ports_config,
+        None,
+        Some(gossip_static_outbound),
+    )?;
     general_en.consensus_config = Some(en_consensus_config.clone());
     en_consensus_config.save_with_base_path(shell, en_configs_path)?;
 

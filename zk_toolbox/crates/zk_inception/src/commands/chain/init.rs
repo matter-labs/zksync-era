@@ -1,5 +1,3 @@
-use std::collections::{BTreeMap, BTreeSet};
-
 use anyhow::{bail, Context};
 use common::{
     config::global_config,
@@ -20,7 +18,6 @@ use config::{
 };
 use types::{BaseToken, L1Network, WalletCreation};
 use xshell::Shell;
-use zksync_config::configs::consensus::{ConsensusConfig, Host};
 
 use crate::{
     accept_ownership::accept_admin,
@@ -33,11 +30,7 @@ use crate::{
         },
         portal::update_portal_config,
     },
-    consts::{
-        AMOUNT_FOR_DISTRIBUTION_TO_WALLETS, CONSENSUS_PUBLIC_ADDRESS_HOST,
-        CONSENSUS_SERVER_ADDRESS_HOST, GOSSIP_DYNAMIC_INBOUND_LIMIT, MAX_BATCH_SIZE,
-        MAX_PAYLOAD_SIZE,
-    },
+    consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DISTRIBUTING_ETH_SPINNER, MSG_GENESIS_DATABASE_ERR,
@@ -46,7 +39,7 @@ use crate::{
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
     utils::{
-        consensus::{generate_consensus_keys, get_consensus_secrets, get_genesis_specs},
+        consensus::{generate_consensus_keys, get_consensus_config, get_consensus_secrets},
         forge::{check_the_balance, fill_forge_private_key},
     },
 };
@@ -82,22 +75,8 @@ pub async fn init(
     let ports = ports_config(&general_config).context(MSG_PORTS_CONFIG_ERR)?;
 
     let consensus_keys = generate_consensus_keys();
-    let genesis_spec = Some(get_genesis_specs(chain_config, &consensus_keys));
-
-    let public_addr = format!("{}:{}", CONSENSUS_PUBLIC_ADDRESS_HOST, ports.consensus_port);
-    let server_addr =
-        format!("{}:{}", CONSENSUS_SERVER_ADDRESS_HOST, ports.consensus_port).parse()?;
-    let consensus_config = ConsensusConfig {
-        server_addr,
-        public_addr: Host(public_addr),
-        genesis_spec,
-        max_payload_size: MAX_PAYLOAD_SIZE,
-        gossip_dynamic_inbound_limit: GOSSIP_DYNAMIC_INBOUND_LIMIT,
-        max_batch_size: MAX_BATCH_SIZE,
-        gossip_static_inbound: BTreeSet::new(),
-        gossip_static_outbound: BTreeMap::new(),
-        rpc: None,
-    };
+    let consensus_config =
+        get_consensus_config(chain_config, ports, Some(consensus_keys.clone()), None)?;
     general_config.consensus_config = Some(consensus_config);
     general_config.save_with_base_path(shell, &chain_config.configs)?;
 
