@@ -491,8 +491,7 @@ async fn generate_witness(
             bootloader_contents,
             false,
             input.vm_run_data.default_account_code_hash,
-            // NOTE: this will be evm_simulator_code_hash in future releases
-            input.vm_run_data.default_account_code_hash,
+            input.vm_run_data.evm_simulator_code_hash,
             input.vm_run_data.used_bytecodes,
             Vec::default(),
             MAX_CYCLES_FOR_TX as usize,

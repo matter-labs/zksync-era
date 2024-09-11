@@ -582,6 +582,7 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
         factory_deps,
         bootloader_hash: upgrade.bootloader_code_hash.unwrap_or_default().into(),
         default_account_hash: upgrade.default_account_code_hash.unwrap_or_default().into(),
+        evm_simulator_hash: upgrade.evm_simulator_code_hash.unwrap_or_default().into(),
         verifier: upgrade.verifier_address.unwrap_or_default(),
         verifier_params: upgrade.verifier_params.unwrap_or_default().into(),
         l1_contracts_upgrade_calldata: vec![],

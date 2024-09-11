@@ -28,5 +28,6 @@ message Genesis {
   optional Prover prover = 10;
   optional L1BatchCommitDataGeneratorMode l1_batch_commit_data_generator_mode = 29; // optional, default to rollup
   optional string genesis_protocol_semantic_version = 12; // optional;
+  optional string evm_simulator_hash = 13; // required; h256
   reserved 11; reserved "shared_bridge";
 }

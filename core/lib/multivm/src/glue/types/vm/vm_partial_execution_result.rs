@@ -22,6 +22,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmPartialExecutionResult>
                 gas_refunded: 0,
                 operator_suggested_refund: 0,
             },
+            new_known_factory_deps: Default::default(),
         }
     }
 }
@@ -48,6 +49,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmPartialExecutionResult>
                 gas_refunded: 0,
                 operator_suggested_refund: 0,
             },
+            new_known_factory_deps: Default::default(),
         }
     }
 }
@@ -74,6 +76,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmPartialExecutionResult>
                 gas_refunded: 0,
                 operator_suggested_refund: 0,
             },
+            new_known_factory_deps: Default::default(),
         }
     }
 }

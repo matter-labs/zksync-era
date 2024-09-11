@@ -38,6 +38,9 @@ async fn create_genesis_params(
     let base_system_contracts_hashes = BaseSystemContractsHashes {
         bootloader: config.bootloader_hash.context("Genesis is not finished")?,
         default_aa: config.default_aa_hash.context("Genesis is not finished")?,
+        evm_simulator: config
+            .evm_simulator_hash
+            .context("Genesis is not finished")?,
     };
 
     if zksync_chain_id != config.l2_chain_id {
@@ -103,6 +106,10 @@ async fn fetch_base_system_contracts(
         .fetch_system_contract_by_hash(contract_hashes.default_aa)
         .await?
         .context("default AA bytecode is missing on main node")?;
+    let evm_simulator = client
+        .fetch_system_contract_by_hash(contract_hashes.evm_simulator)
+        .await?
+        .context("EVM Simulator bytecode is missing on main node")?;
     Ok(BaseSystemContracts {
         bootloader: SystemContractCode {
             code: zksync_utils::bytes_to_be_words(bootloader_bytecode),
@@ -111,6 +118,10 @@ async fn fetch_base_system_contracts(
         default_aa: SystemContractCode {
             code: zksync_utils::bytes_to_be_words(default_aa_bytecode),
             hash: contract_hashes.default_aa,
+        },
+        evm_simulator: SystemContractCode {
+            code: zksync_utils::bytes_to_be_words(evm_simulator),
+            hash: contract_hashes.evm_simulator,
         },
     })
 }

@@ -250,6 +250,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         VmExecutionMetrics::default(),
         vec![],
         vec![],
+        vec![],
     );
 
     let tx = create_transaction(10, 100);
@@ -266,6 +267,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         execution_result,
         BlockGasCount::default(),
         VmExecutionMetrics::default(),
+        vec![],
         vec![],
         vec![],
     );
@@ -355,6 +357,7 @@ async fn processing_events_when_sealing_l2_block() {
             execution_result,
             BlockGasCount::default(),
             VmExecutionMetrics::default(),
+            vec![],
             vec![],
             vec![],
         );
@@ -456,6 +459,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     updates.extend_from_executed_transaction(
         tx.into(),
         create_execution_result([]),
+        vec![],
         vec![],
         BlockGasCount::default(),
         VmExecutionMetrics::default(),

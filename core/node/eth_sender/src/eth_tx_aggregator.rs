@@ -183,6 +183,17 @@ impl EthTxAggregator {
             calldata: get_l2_default_aa_hash_input,
         };
 
+        let get_l2_evm_simulator_hash_input = self
+            .functions
+            .get_evm_simulator_bytecode_hash
+            .encode_input(&[])
+            .unwrap();
+        let get_evm_simulator_hash_call = Multicall3Call {
+            target: self.state_transition_chain_contract,
+            allow_failure: ALLOW_FAILURE,
+            calldata: get_l2_evm_simulator_hash_input,
+        };
+
         // Third zksync contract call
         let get_verifier_params_input = self
             .functions
@@ -219,6 +230,7 @@ impl EthTxAggregator {
         vec![
             get_bootloader_hash_call.into_token(),
             get_default_aa_hash_call.into_token(),
+            get_evm_simulator_hash_call.into_token(),
             get_verifier_params_call.into_token(),
             get_verifier_call.into_token(),
             get_protocol_version_call.into_token(),
@@ -239,7 +251,7 @@ impl EthTxAggregator {
 
         if let Token::Array(call_results) = token {
             // 5 calls are aggregated in multicall
-            if call_results.len() != 5 {
+            if call_results.len() != 6 {
                 return parse_error(&call_results);
             }
             let mut call_results_iterator = call_results.into_iter();
@@ -268,9 +280,22 @@ impl EthTxAggregator {
                 )));
             }
             let default_aa = H256::from_slice(&multicall3_default_aa);
+            let multicall3_evm_simulator =
+                Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
+            if multicall3_evm_simulator.len() != 32 {
+                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                    format!(
+                        "multicall3 evm simulator hash data is not of the len of 32: {:?}",
+                        multicall3_evm_simulator
+                    ),
+                )));
+            }
+            let evm_simulator = H256::from_slice(&multicall3_evm_simulator);
+
             let base_system_contracts_hashes = BaseSystemContractsHashes {
                 bootloader,
                 default_aa,
+                evm_simulator,
             };
 
             call_results_iterator.next().unwrap();

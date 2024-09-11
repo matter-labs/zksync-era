@@ -118,6 +118,7 @@ pub struct VmExecutionResultAndLogs {
     pub logs: VmExecutionLogs,
     pub statistics: VmExecutionStatistics,
     pub refunds: Refunds,
+    pub new_known_factory_deps: Option<Vec<(H256, Vec<u8>)>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

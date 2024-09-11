@@ -96,6 +96,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             logs,
             statistics,
             refunds,
+            new_known_factory_deps: Default::default(),
         };
 
         (stop_reason, result)

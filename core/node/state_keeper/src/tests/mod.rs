@@ -138,6 +138,7 @@ pub(super) fn create_execution_result(
             circuit_statistic: Default::default(),
         },
         refunds: Refunds::default(),
+        new_known_factory_deps: Default::default(),
     }
 }
 

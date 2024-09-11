@@ -30,7 +30,7 @@ fn test_get_used_contracts() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
 
-    assert!(known_bytecodes_without_aa_code(&vm.vm).is_empty());
+    assert!(known_bytecodes_without_base_system_contracts(&vm.vm).is_empty());
 
     // create and push and execute some not-empty factory deps transaction with success status
     // to check that `get_decommitted_hashes()` updates
@@ -49,7 +49,7 @@ fn test_get_used_contracts() {
     // Note: `Default_AA` will be in the list of used contracts if L2 tx is used
     assert_eq!(
         vm.vm.decommitted_hashes().collect::<HashSet<U256>>(),
-        known_bytecodes_without_aa_code(&vm.vm)
+        known_bytecodes_without_base_system_contracts(&vm.vm)
     );
 
     // create push and execute some non-empty factory deps transaction that fails
@@ -82,20 +82,23 @@ fn test_get_used_contracts() {
     for factory_dep in tx2.execute.factory_deps {
         let hash = hash_bytecode(&factory_dep);
         let hash_to_u256 = h256_to_u256(hash);
-        assert!(known_bytecodes_without_aa_code(&vm.vm).contains(&hash_to_u256));
+        assert!(known_bytecodes_without_base_system_contracts(&vm.vm).contains(&hash_to_u256));
         assert!(!vm.vm.decommitted_hashes().contains(&hash_to_u256));
     }
 }
 
-fn known_bytecodes_without_aa_code<S: ReadStorage>(vm: &Vm<S>) -> HashSet<U256> {
-    let mut known_bytecodes_without_aa_code = vm
+fn known_bytecodes_without_base_system_contracts<S: ReadStorage>(vm: &Vm<S>) -> HashSet<U256> {
+    let mut known_bytecodes_without_base_system_contracts = vm
         .world
         .bytecode_cache
         .keys()
         .cloned()
         .collect::<HashSet<_>>();
-    known_bytecodes_without_aa_code.remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.default_aa.hash));
-    known_bytecodes_without_aa_code
+    known_bytecodes_without_base_system_contracts
+        .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.default_aa.hash));
+    known_bytecodes_without_base_system_contracts
+        .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.evm_simulator.hash));
+    known_bytecodes_without_base_system_contracts
 }
 
 /// Counter test contract bytecode inflated by appending lots of `NOP` opcodes at the end. This leads to non-trivial
