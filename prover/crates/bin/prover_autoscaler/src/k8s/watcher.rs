@@ -9,8 +9,10 @@ use kube::{
 };
 use tokio::sync::Mutex;
 
-use crate::cluster_types::{Cluster, Deployment, Namespace, Pod};
-use crate::metrics::AUTOSCALER_METRICS;
+use crate::{
+    cluster_types::{Cluster, Deployment, Namespace, Pod},
+    metrics::AUTOSCALER_METRICS,
+};
 
 #[derive(Clone)]
 pub struct Watcher {

@@ -1,6 +1,5 @@
-use crate::{cluster_types::Clusters, task_wiring::Task};
-
 use super::{queuer, watcher};
+use crate::{cluster_types::Clusters, task_wiring::Task};
 
 pub struct Scaler {
     watcher: watcher::Watcher,
