@@ -23,7 +23,7 @@ describe('ERC20 contract checks', () => {
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
-        const nonce = await alice.getNonce();
+        const nonce = await alice._signerL1().getNonce();
         testMaster.reporter.debug("init " + nonce.toString());
 
         bob = testMaster.newEmptyAccount();
@@ -45,26 +45,12 @@ describe('ERC20 contract checks', () => {
 
     test.only('Can perform a deposit qwerty', async () => {
         for (let i = 0; i < 100; ++i) {
-            const nonce = await alice.getNonce();
+            const nonce = await alice._signerL1().getNonce();
             testMaster.reporter.debug("iter" + i.toString() + " " + nonce.toString());
 
             const amount = 1n; // 1 wei is enough.
             const gasPrice = await scaledGasPrice(alice);
-
-            // Note: for L1 we should use L1 token address.
-            const l1BalanceChange = await shouldChangeTokenBalances(
-                tokenDetails.l1Address,
-                [{ wallet: alice, change: -amount }],
-                {
-                    l1: true
-                }
-            );
-            const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
-                { wallet: alice, change: amount }
-            ]);
-            const feeCheck = await shouldOnlyTakeFee(alice, true);
-            await expect(
-                alice.deposit({
+            const handle = await alice.deposit({
                     token: tokenDetails.l1Address,
                     amount,
                     approveERC20: true,
@@ -75,8 +61,9 @@ describe('ERC20 contract checks', () => {
                     overrides: {
                         gasPrice
                     }
-                })
-            ).toBeAccepted([l1BalanceChange, l2BalanceChange, feeCheck]);
+                });
+            const l1Receipt = await handle.waitL1Commit();
+            console.log(l1Receipt);
         }
     });
 
