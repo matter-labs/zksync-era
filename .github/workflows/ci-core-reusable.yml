@@ -107,8 +107,22 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
-          ci_run zk
-          ci_run zk init --local-legacy-bridge-testing
+          ci_run ./bin/zkt
+          ci_run zk_inception chain create \
+            --chain-name legacy \
+            --chain-id sequential \
+            --prover-mode no-proofs \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode rollup \
+            --base-token-address 0x0000000000000000000000000000000000000001 \
+            --base-token-price-nominator 1 \
+            --base-token-price-denominator 1 \
+            --set-as-default false \
+            --ignore-prerequisites \
+            --legacy-bridge
+          
+          ci_run zk_inception ecosystem init --dev --verbose
+          ci_run zk_supervisor contracts --test-contracts
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
@@ -116,14 +130,11 @@ jobs:
           EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE=${{ matrix.vm_mode }} \
           CHAIN_MEMPOOL_DELAY_INTERVAL=50 \
           PASSED_ENV_VARS="EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE,CHAIN_MEMPOOL_DELAY_INTERVAL" \
-            ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
+            ci_run zk_inception server --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
 
-      - name: Deploy legacy era contracts
-        run: ci_run zk contract setup-legacy-bridge-era
-
       - name: Perform loadtest
-        run: ci_run zk run loadtest
+        run: ci_run zk_supervisor t loadtest -v --chain=legacy
 
       - name: Show server.log logs
         if: always()
