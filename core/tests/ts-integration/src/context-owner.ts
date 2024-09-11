@@ -214,6 +214,19 @@ export class TestContextOwner {
         await this.distributeL1Tokens(wallets, l2ETHAmountToDeposit, l2ERC20AmountToDeposit, baseTokenAddress);
         await this.distributeL2Tokens(wallets);
 
+        // console.log(`sending 100 l1 txs`);
+        // for (let i = 0; i < 100; i += 1) {
+        //     const x = await this.mainEthersWallet.getNonce();
+        //     console.log('nonce ' + x.toString());
+        //
+        //     const tx = await this.mainEthersWallet.sendTransaction({
+        //         to: this.mainEthersWallet.address,
+        //         value: 1
+        //     });
+        //     console.log('nonce ' + tx.nonce.toString());
+        //     await tx.wait();
+        // }
+
         this.reporter.finishAction();
         return wallets;
     }
