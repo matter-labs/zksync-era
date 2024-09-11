@@ -64,7 +64,7 @@ export class TestMaster {
 
         if (context.environment.network == 'localhost') {
             // Setup small polling interval on localhost to speed up tests.
-            this.l1Provider.pollingInterval = 300;
+            this.l1Provider.pollingInterval = 100;
             this.l2Provider.pollingInterval = 100;
         } else {
             // Poll less frequently to not make the server sad.
