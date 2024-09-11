@@ -241,7 +241,7 @@ testFees('Test fees', () => {
             externalPriceApiClientForcedNumerator: 300,
             externalPriceApiClientForcedDenominator: 100,
             externalPriceApiClientForcedFluctuation: 20,
-            baseTokenPricePoolingIntervalMs: 1000,
+            baseTokenPricePollingIntervalMs: 1000,
             baseTokenAdjusterL1UpdateDeviationPercentage: 0
         });
 
@@ -447,7 +447,7 @@ async function setFeeParams(
         externalPriceApiClientForcedNumerator?: number;
         externalPriceApiClientForcedDenominator?: number;
         externalPriceApiClientForcedFluctuation?: number;
-        baseTokenPricePoolingIntervalMs?: number;
+        baseTokenPricePollingIntervalMs?: number;
         baseTokenAdjusterL1UpdateDeviationPercentage?: number;
         disconnect?: boolean;
     }
@@ -489,10 +489,10 @@ async function setFeeParams(
         command = `EXTERNAL_PRICE_API_CLIENT_FORCED_FLUCTUATION=${options.externalPriceApiClientForcedFluctuation} ${command}`;
     }
 
-    if (options.baseTokenPricePoolingIntervalMs !== undefined) {
-        const cacheUpdateInterval = options.baseTokenPricePoolingIntervalMs / 2;
+    if (options.baseTokenPricePollingIntervalMs !== undefined) {
+        const cacheUpdateInterval = options.baseTokenPricePollingIntervalMs / 2;
         // To reduce price polling interval we also need to reduce base token receipt checking and tx sending sleeps as they are blocking the poller. Also cache update needs to be reduced appropriately.
-        command = `BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS=${options.baseTokenPricePoolingIntervalMs} BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS=${options.baseTokenPricePoolingIntervalMs} BASE_TOKEN_ADJUSTER_PRICE_POLLING_INTERVAL_MS=${options.baseTokenPricePoolingIntervalMs} BASE_TOKEN_ADJUSTER_PRICE_CACHE_UPDATE_INTERVAL_MS=${cacheUpdateInterval} ${command}`;
+        command = `BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS=${options.baseTokenPricePollingIntervalMs} BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS=${options.baseTokenPricePollingIntervalMs} BASE_TOKEN_ADJUSTER_PRICE_POLLING_INTERVAL_MS=${options.baseTokenPricePollingIntervalMs} BASE_TOKEN_ADJUSTER_PRICE_CACHE_UPDATE_INTERVAL_MS=${cacheUpdateInterval} ${command}`;
     }
 
     if (options.baseTokenAdjusterL1UpdateDeviationPercentage !== undefined) {
