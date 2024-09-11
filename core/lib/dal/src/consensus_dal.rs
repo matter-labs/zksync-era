@@ -588,6 +588,8 @@ impl ConsensusDal<'_, '_> {
                             (MAX(number) + 1)
                         FROM
                             l1_batches
+                        WHERE
+                            is_sealed
                     ),
                     (
                         SELECT

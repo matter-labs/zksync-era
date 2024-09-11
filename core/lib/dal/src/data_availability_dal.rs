@@ -189,7 +189,8 @@ impl DataAvailabilityDal<'_, '_> {
                 l1_batches
                 LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
             WHERE
-                eth_commit_tx_id IS NULL
+                is_sealed
+                AND eth_commit_tx_id IS NULL
                 AND number != 0
                 AND data_availability.blob_id IS NULL
                 AND pubdata_input IS NOT NULL

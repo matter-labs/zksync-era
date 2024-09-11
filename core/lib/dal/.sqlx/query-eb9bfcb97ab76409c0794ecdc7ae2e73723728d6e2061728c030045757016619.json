@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MAX(number) AS \"number\"\n            FROM\n                l1_batches\n            WHERE\n                is_sealed\n                AND hash IS NOT NULL\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "eb9bfcb97ab76409c0794ecdc7ae2e73723728d6e2061728c030045757016619"
+}

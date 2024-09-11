@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE l1_batches\n            SET\n                l1_tx_count = $2,\n                l2_tx_count = $3,\n                l2_to_l1_messages = $4,\n                bloom = $5,\n                priority_ops_onchain_data = $6,\n                predicted_commit_gas_cost = $7,\n                predicted_prove_gas_cost = $8,\n                predicted_execute_gas_cost = $9,\n                initial_bootloader_heap_content = $10,\n                used_contract_hashes = $11,\n                bootloader_code_hash = $12,\n                default_aa_code_hash = $13,\n                protocol_version = $14,\n                system_logs = $15,\n                storage_refunds = $16,\n                pubdata_costs = $17,\n                pubdata_input = $18,\n                predicted_circuits_by_type = $19,\n                updated_at = NOW(),\n                is_sealed = TRUE\n            WHERE\n                number = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int4",
+        "Int4",
+        "ByteaArray",
+        "Bytea",
+        "ByteaArray",
+        "Int8",
+        "Int8",
+        "Int8",
+        "Jsonb",
+        "Jsonb",
+        "Bytea",
+        "Bytea",
+        "Int4",
+        "ByteaArray",
+        "Int8Array",
+        "Int8Array",
+        "Bytea",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "66aa91ae9f9c54346d9966ea5e0bc61568110e9bbe688c55862f93fa62a71405"
+}

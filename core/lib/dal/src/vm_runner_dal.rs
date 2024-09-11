@@ -42,6 +42,8 @@ impl VmRunnerDal<'_, '_> {
                         MAX(number) AS "last_batch"
                     FROM
                         l1_batches
+                    WHERE
+                        is_sealed
                 ),
                 processed_batches AS (
                     SELECT
@@ -201,6 +203,8 @@ impl VmRunnerDal<'_, '_> {
                         MAX(number) AS "last_batch"
                     FROM
                         l1_batches
+                    WHERE
+                        is_sealed
                 ),
                 processed_batches AS (
                     SELECT

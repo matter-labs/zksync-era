@@ -203,6 +203,13 @@ impl StateKeeperIO for MempoolIO {
                 continue;
             }
 
+            self.pool
+                .connection()
+                .await?
+                .blocks_dal()
+                .insert_l1_batch(cursor.l1_batch, timestamp, self.filter.fee_input)
+                .await?;
+
             return Ok(Some(L1BatchParams {
                 protocol_version,
                 validation_computational_gas_limit: self.validation_computational_gas_limit,

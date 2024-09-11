@@ -141,7 +141,7 @@ impl UpdatesManager {
 
         transaction
             .blocks_dal()
-            .insert_l1_batch(
+            .mark_l1_batch_as_sealed(
                 &l1_batch,
                 &final_bootloader_memory,
                 self.pending_l1_gas_count(),

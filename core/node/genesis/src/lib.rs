@@ -413,6 +413,14 @@ pub async fn create_genesis_l1_batch(
     transaction
         .blocks_dal()
         .insert_l1_batch(
+            genesis_l1_batch_header.number,
+            genesis_l1_batch_header.timestamp,
+            BatchFeeInput::default(),
+        )
+        .await?;
+    transaction
+        .blocks_dal()
+        .mark_l1_batch_as_sealed(
             &genesis_l1_batch_header,
             &[],
             BlockGasCount::default(),

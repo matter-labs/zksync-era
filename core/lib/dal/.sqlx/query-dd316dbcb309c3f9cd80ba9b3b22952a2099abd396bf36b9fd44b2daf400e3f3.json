@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp\n            FROM\n                l1_batches\n            WHERE\n                eth_commit_tx_id = $1\n                OR eth_prove_tx_id = $1\n                OR eth_execute_tx_id = $1\n            ",
+  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp\n            FROM\n                l1_batches\n            WHERE\n                is_sealed\n                AND (\n                    eth_commit_tx_id = $1\n                    OR eth_prove_tx_id = $1\n                    OR eth_execute_tx_id = $1\n                )\n            ",
   "describe": {
     "columns": [
       {
@@ -36,5 +36,5 @@
       false
     ]
   },
-  "hash": "f6c0b212fad536f46863ce3a6105249bd77b263c4fcef81689f9dcd155064a36"
+  "hash": "dd316dbcb309c3f9cd80ba9b3b22952a2099abd396bf36b9fd44b2daf400e3f3"
 }
