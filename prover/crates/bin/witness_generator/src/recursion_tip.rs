@@ -338,7 +338,7 @@ pub async fn prepare_job(
         "expected 16 leaf vk commits, which corresponds to the numebr of circuits, got {}",
         leaf_vk_commits.len()
     );
-    let leaf_layer_parameters: [RecursionLeafParametersWitness<GoldilocksField>; 16] =
+    let leaf_layer_parameters: [RecursionLeafParametersWitness<GoldilocksField>; 20] =
         leaf_vk_commits
             .iter()
             .map(|el| el.1.clone())

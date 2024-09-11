@@ -56,9 +56,9 @@ tracing-subscriber = { version = "0.3" }
 vise = "0.2.0"
 
 # Proving dependencies
-circuit_definitions = "=0.150.4"
-circuit_sequencer_api = "=0.150.4"
-zkevm_test_harness = "=0.150.4"
+circuit_definitions = { git = "https://github.com/distributed-lab/zksync-protocol.git", branch = "dl-precompiles", package = "circuit_definitions" }
+circuit_sequencer_api = { git = "https://github.com/distributed-lab/zksync-protocol.git", branch = "dl-precompiles", package = "circuit_sequencer_api" }
+zkevm_test_harness = { git = "https://github.com/distributed-lab/zksync-protocol.git", branch = "dl-precompiles", package = "zkevm_test_harness" }
 
 # GPU proving dependencies
 wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.150.6" }
@@ -94,3 +94,9 @@ zksync_vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_g
 [profile.perf]
 inherits = "release"
 debug = true
+
+[patch.crates-io]
+# Need this to avoid conflicts and cloning a `zksync-crypto-gpu` repo.
+circuit_definitions = { git = "https://github.com/distributed-lab/zksync-protocol.git", branch = "dl-precompiles", package = "circuit_definitions" }
+circuit_sequencer_api = { git = "https://github.com/distributed-lab/zksync-protocol.git", branch = "dl-precompiles", package = "circuit_sequencer_api" }
+zkevm_test_harness = { git = "https://github.com/distributed-lab/zksync-protocol.git", branch = "dl-precompiles", package = "zkevm_test_harness" }
