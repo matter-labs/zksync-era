@@ -1,69 +1,16 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use futures::{stream, StreamExt, TryStreamExt};
 use k8s_openapi::api;
 use kube::{
     api::{Api, ResourceExt},
     runtime::{watcher, WatchStreamExt},
 };
-use serde::{Deserialize, Serialize, Serializer};
 use tokio::sync::Mutex;
 
+use crate::cluster_types::{Cluster, Deployment, Namespace, Pod};
 use crate::metrics::AUTOSCALER_METRICS;
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Pod {
-    // pub name: String, // TODO: Consider if it's needed.
-    pub owner: String,
-    pub status: String,
-    pub changed: DateTime<Utc>,
-}
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Deployment {
-    // pub name: String, // TODO: Consider if it's needed.
-    pub running: i32,
-    pub desired: i32,
-}
-
-fn ordered_map<S, K: Ord + Serialize, V: Serialize>(
-    value: &HashMap<K, V>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let ordered: BTreeMap<_, _> = value.iter().collect();
-    ordered.serialize(serializer)
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Namespace {
-    #[serde(serialize_with = "ordered_map")]
-    pub deployments: HashMap<String, Deployment>,
-    pub pods: HashMap<String, Pod>,
-}
-impl Namespace {
-    pub fn new() -> Self {
-        Self {
-            deployments: HashMap::new(),
-            pods: HashMap::new(),
-        }
-    }
-}
-impl Default for Namespace {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Cluster {
-    pub namespaces: HashMap<String, Namespace>,
-}
 
 #[derive(Clone)]
 pub struct Watcher {
@@ -72,7 +19,7 @@ pub struct Watcher {
 }
 
 impl Watcher {
-    pub fn new(client: kube::Client, namespaces: Vec<String>) -> Self {
+    pub fn new(client: kube::Client, cluster_name: String, namespaces: Vec<String>) -> Self {
         let mut ns = HashMap::new();
         namespaces.into_iter().for_each(|n| {
             ns.insert(n, Namespace::default());
@@ -80,7 +27,10 @@ impl Watcher {
 
         Self {
             client,
-            cluster: Arc::new(Mutex::new(Cluster { namespaces: ns })),
+            cluster: Arc::new(Mutex::new(Cluster {
+                name: cluster_name,
+                namespaces: ns,
+            })),
         }
     }
 

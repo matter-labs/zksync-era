@@ -12,7 +12,10 @@ use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch;
 
-use crate::k8s::{Cluster, Scaler, Watcher};
+use crate::{
+    cluster_types::Cluster,
+    k8s::{Scaler, Watcher},
+};
 
 struct AppError(anyhow::Error);
 

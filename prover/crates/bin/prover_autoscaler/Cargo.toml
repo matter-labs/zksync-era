@@ -36,3 +36,4 @@ tokio = { workspace = true, features = ["time", "macros"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tracing.workspace = true
 vise.workspace = true
+url = "2.5.2"

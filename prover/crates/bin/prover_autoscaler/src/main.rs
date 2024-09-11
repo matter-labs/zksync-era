@@ -8,6 +8,7 @@ use tokio::{
 };
 use zksync_prover_autoscaler::{
     agent,
+    global::{self, queuer},
     k8s::{Scaler, Watcher},
     task_wiring::TaskRunner,
 };
@@ -41,6 +42,9 @@ struct Opt {
     /// Specify `agent` or `scaler`
     #[structopt(short, long, default_value = "agent")]
     job: ProverJob,
+    /// Name of the cluster Agent is watching.
+    #[structopt(long)]
+    cluster_name: Option<String>,
     /// Path to the configuration file.
     #[structopt(long)]
     config_path: Option<std::path::PathBuf>,
@@ -80,8 +84,12 @@ async fn main() -> anyhow::Result<()> {
 
     match opt.job {
         ProverJob::Agent => {
+            // TODO: maybe get cluster name from curl -H "Metadata-Flavor: Google"
+            // http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name
             let watcher = Watcher::new(
                 client.clone(),
+                opt.cluster_name
+                    .context("cluster_name is required for Agent")?,
                 vec!["prover-blue".to_string(), "prover-red".to_string()],
             );
             let scaler = Scaler { client };
@@ -94,8 +102,10 @@ async fn main() -> anyhow::Result<()> {
             )))
         }
         ProverJob::Scaler => {
-            tracing::error!("Not implemented");
-            //tasks.extend(get_tasks(client, stop_receiver)?);
+            let watcher = global::watcher::Watcher::new(vec!["http://localhost:8081".to_string()]);
+            let queuer = global::queuer::Queuer {};
+            let scaler = global::scaler::Scaler::new(watcher.clone(), queuer);
+            tasks.extend(get_tasks(watcher, scaler, stop_receiver)?);
         }
     }
 
@@ -114,16 +124,14 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn get_tasks(
-    client: kube::Client,
+    watcher: global::watcher::Watcher,
+    scaler: global::scaler::Scaler,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     let mut task_runner = TaskRunner::new();
 
-    // let watcher = Watcher::new(
-    //     client,
-    //     vec!["prover-blue".to_string(), "prover-red".to_string()],
-    // );
-    // task_runner.add("Watcher", Duration::from_secs(10), watcher);
+    task_runner.add("Watcher", Duration::from_secs(10), watcher);
+    task_runner.add("Scaler", Duration::from_secs(10), scaler);
 
     Ok(task_runner.spawn(stop_receiver))
 }
