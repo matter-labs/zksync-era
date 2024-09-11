@@ -141,9 +141,9 @@ jobs:
           --prover-mode no-proofs \
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode validium \
-          --base-token-address 0x0000000000000000000000000000000000000001 \
-          --base-token-price-nominator 1 \
-          --base-token-price-denominator 1 \
+          --base-token-address ${{ env.address }} \
+          --base-token-price-nominator 3 \
+          --base-token-price-denominator 2 \
           --set-as-default false \
           --ignore-prerequisites
 
