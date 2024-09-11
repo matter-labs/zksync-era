@@ -17,6 +17,7 @@ pub struct RocksDbs {
     pub state_keeper: PathBuf,
     pub merkle_tree: PathBuf,
     pub protective_reads: PathBuf,
+    pub basic_witness_input_producer: PathBuf,
 }
 
 pub struct FileArtifacts {
@@ -55,6 +56,15 @@ pub fn set_rocks_db_config(config: &mut GeneralConfig, rocks_dbs: RocksDbs) -> a
         .as_mut()
         .context("Protective reads config is not presented")?
         .db_path = rocks_dbs.protective_reads.to_str().unwrap().to_string();
+    config
+        .basic_witness_input_producer_config
+        .as_mut()
+        .context("Basic witness input producer config is not presented")?
+        .db_path = rocks_dbs
+        .basic_witness_input_producer
+        .to_str()
+        .unwrap()
+        .to_string();
     Ok(())
 }
 
