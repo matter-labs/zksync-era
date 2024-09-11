@@ -9,6 +9,7 @@ use crate::commands::ecosystem::args::{
 mod args;
 pub(crate) mod build_transactions;
 mod change_default;
+mod common;
 mod create;
 pub mod create_configs;
 pub(crate) mod init;
