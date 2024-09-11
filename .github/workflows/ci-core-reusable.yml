@@ -293,7 +293,7 @@ jobs:
 
       - name: Show revert.log logs
         if: always()
-        run: ci_run cat core/tests/revert-test/revert.log || true
+        run: ci_run cat logs/revert/default/server.log || true
 
       - name: Show upgrade.log logs
         if: always()
@@ -382,7 +382,11 @@ jobs:
 
       - name: Run revert test
         run: |
-          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
+          ENABLE_CONSENSUS=${{ matrix.consensus }} \
+          DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
+          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" \
+          ci_run zk test i revert-en
+          
           # test terminates the nodes, so we restart them.
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
             ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
@@ -414,13 +418,13 @@ jobs:
         if: always()
         run: ci_run cat ext-node.log || true
 
-      - name: Show revert_main.log logs
+      - name: Show revert logs (main node)
         if: always()
-        run: ci_run cat core/tests/revert-test/revert_main.log || true
+        run: ci_run cat logs/revert/en/default/server.log || true
 
-      - name: Show revert_ext.log logs
+      - name: Show revert logs (EN)
         if: always()
-        run: ci_run cat core/tests/revert-test/revert_ext.log || true
+        run: ci_run cat logs/revert/en/default/external_node.log || true
 
       - name: Show upgrade.log logs
         if: always()

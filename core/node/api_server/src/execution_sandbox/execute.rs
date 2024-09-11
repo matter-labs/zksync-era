@@ -3,86 +3,27 @@
 use async_trait::async_trait;
 use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
-    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, TransactionExecutionMetrics,
-    VmExecutionResultAndLogs,
+    executor::{OneshotExecutor, TransactionValidator},
+    storage::ReadStorage,
+    tracer::{ValidationError, ValidationParams},
+    Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
+    TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
 };
-use zksync_types::{
-    api::state_override::StateOverride, l2::L2Tx, ExecuteTransactionCommon, Nonce,
-    PackedEthSignature, Transaction, U256,
-};
+use zksync_types::{api::state_override::StateOverride, l2::L2Tx};
+use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
 use super::{
-    apply::{self, MainOneshotExecutor},
-    storage::StorageWithOverrides,
-    testonly::MockOneshotExecutor,
-    vm_metrics, ApiTracer, BlockArgs, OneshotExecutor, TxSetupArgs, VmPermit,
+    apply, storage::StorageWithOverrides, vm_metrics, BlockArgs, TxSetupArgs, VmPermit,
+    SANDBOX_METRICS,
 };
-
-/// Executor-independent arguments necessary to for oneshot transaction execution.
-///
-/// # Developer guidelines
-///
-/// Please don't add fields that duplicate `SystemEnv` or `L1BatchEnv` information, since both of these
-/// are also provided to an executor.
-#[derive(Debug)]
-pub struct TxExecutionArgs {
-    /// Transaction / call itself.
-    pub transaction: Transaction,
-    /// Nonce override for the initiator account.
-    pub enforced_nonce: Option<Nonce>,
-    /// Balance added to the initiator account.
-    pub added_balance: U256,
-    /// If `true`, then the batch's L1 / pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
-    /// to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
-    /// current L1 prices for gas or pubdata.
-    pub adjust_pubdata_price: bool,
-}
-
-impl TxExecutionArgs {
-    pub fn for_validation(tx: L2Tx) -> Self {
-        Self {
-            enforced_nonce: Some(tx.nonce()),
-            added_balance: U256::zero(),
-            adjust_pubdata_price: true,
-            transaction: tx.into(),
-        }
-    }
-
-    pub fn for_eth_call(mut call: L2Tx) -> Self {
-        if call.common_data.signature.is_empty() {
-            call.common_data.signature = PackedEthSignature::default().serialize_packed().into();
-        }
-
-        Self {
-            enforced_nonce: None,
-            added_balance: U256::zero(),
-            adjust_pubdata_price: false,
-            transaction: call.into(),
-        }
-    }
-
-    pub fn for_gas_estimate(transaction: Transaction) -> Self {
-        // For L2 transactions we need to explicitly put enough balance into the account of the users
-        // while for L1->L2 transactions the `to_mint` field plays this role
-        let added_balance = match &transaction.common_data {
-            ExecuteTransactionCommon::L2(data) => data.fee.gas_limit * data.fee.max_fee_per_gas,
-            ExecuteTransactionCommon::L1(_) => U256::zero(),
-            ExecuteTransactionCommon::ProtocolUpgrade(_) => U256::zero(),
-        };
-
-        Self {
-            enforced_nonce: transaction.nonce(),
-            added_balance,
-            adjust_pubdata_price: true,
-            transaction,
-        }
-    }
-}
+use crate::execution_sandbox::vm_metrics::SandboxStage;
 
 #[derive(Debug, Clone)]
 pub struct TransactionExecutionOutput {
     /// Output of the VM.
     pub vm: VmExecutionResultAndLogs,
+    /// Traced calls if requested.
+    pub call_traces: Vec<Call>,
     /// Execution metrics.
     pub metrics: TransactionExecutionMetrics,
     /// Were published bytecodes OK?
@@ -99,7 +40,10 @@ pub enum TransactionExecutor {
 
 impl TransactionExecutor {
     pub fn real(missed_storage_invocation_limit: usize) -> Self {
-        Self::Real(MainOneshotExecutor::new(missed_storage_invocation_limit))
+        let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
+        executor
+            .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
+        Self::Real(executor)
     }
 
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
@@ -114,7 +58,7 @@ impl TransactionExecutor {
         connection: Connection<'static, Core>,
         block_args: BlockArgs,
         state_override: Option<StateOverride>,
-        tracers: Vec<ApiTracer>,
+        tracing_params: OneshotTracingParams,
     ) -> anyhow::Result<TransactionExecutionOutput> {
         let total_factory_deps = execution_args.transaction.execute.factory_deps.len() as u16;
         let (env, storage) =
@@ -122,18 +66,30 @@ impl TransactionExecutor {
         let state_override = state_override.unwrap_or_default();
         let storage = StorageWithOverrides::new(storage, &state_override);
 
-        let (published_bytecodes, execution_result) = self
-            .inspect_transaction_with_bytecode_compression(storage, env, execution_args, tracers)
+        let result = self
+            .inspect_transaction_with_bytecode_compression(
+                storage,
+                env,
+                execution_args,
+                tracing_params,
+            )
             .await?;
         drop(vm_permit);
 
         let metrics =
-            vm_metrics::collect_tx_execution_metrics(total_factory_deps, &execution_result);
+            vm_metrics::collect_tx_execution_metrics(total_factory_deps, &result.tx_result);
         Ok(TransactionExecutionOutput {
-            vm: execution_result,
+            vm: *result.tx_result,
+            call_traces: result.call_traces,
             metrics,
-            are_published_bytecodes_ok: published_bytecodes.is_ok(),
+            are_published_bytecodes_ok: result.compression_result.is_ok(),
         })
+    }
+}
+
+impl From<MockOneshotExecutor> for TransactionExecutor {
+    fn from(executor: MockOneshotExecutor) -> Self {
+        Self::Mock(executor)
     }
 }
 
@@ -142,44 +98,59 @@ impl<S> OneshotExecutor<S> for TransactionExecutor
 where
     S: ReadStorage + Send + 'static,
 {
-    type Tracers = Vec<ApiTracer>;
-
-    async fn inspect_transaction(
-        &self,
-        storage: S,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        tracers: Self::Tracers,
-    ) -> anyhow::Result<VmExecutionResultAndLogs> {
-        match self {
-            Self::Real(executor) => {
-                executor
-                    .inspect_transaction(storage, env, args, tracers)
-                    .await
-            }
-            Self::Mock(executor) => executor.inspect_transaction(storage, env, args, ()).await,
-        }
-    }
-
     async fn inspect_transaction_with_bytecode_compression(
         &self,
         storage: S,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        tracers: Self::Tracers,
-    ) -> anyhow::Result<(
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    )> {
+        tracing_params: OneshotTracingParams,
+    ) -> anyhow::Result<OneshotTransactionExecutionResult> {
         match self {
             Self::Real(executor) => {
                 executor
-                    .inspect_transaction_with_bytecode_compression(storage, env, args, tracers)
+                    .inspect_transaction_with_bytecode_compression(
+                        storage,
+                        env,
+                        args,
+                        tracing_params,
+                    )
                     .await
             }
             Self::Mock(executor) => {
                 executor
-                    .inspect_transaction_with_bytecode_compression(storage, env, args, ())
+                    .inspect_transaction_with_bytecode_compression(
+                        storage,
+                        env,
+                        args,
+                        tracing_params,
+                    )
+                    .await
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl<S> TransactionValidator<S> for TransactionExecutor
+where
+    S: ReadStorage + Send + 'static,
+{
+    async fn validate_transaction(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        tx: L2Tx,
+        validation_params: ValidationParams,
+    ) -> anyhow::Result<Result<(), ValidationError>> {
+        match self {
+            Self::Real(executor) => {
+                executor
+                    .validate_transaction(storage, env, tx, validation_params)
+                    .await
+            }
+            Self::Mock(executor) => {
+                executor
+                    .validate_transaction(storage, env, tx, validation_params)
                     .await
             }
         }

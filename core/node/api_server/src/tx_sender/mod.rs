@@ -10,7 +10,10 @@ use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_multivm::{
-    interface::{TransactionExecutionMetrics, TxExecutionMode, VmExecutionResultAndLogs},
+    interface::{
+        OneshotTracingParams, TransactionExecutionMetrics, TxExecutionArgs, TxExecutionMode,
+        VmExecutionResultAndLogs,
+    },
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_max_batch_gas_limit,
@@ -41,8 +44,8 @@ pub(super) use self::result::SubmitTxError;
 use self::{master_pool_sink::MasterPoolSink, tx_sink::TxSink};
 use crate::{
     execution_sandbox::{
-        BlockArgs, SubmitTxStage, TransactionExecutor, TxExecutionArgs, TxSetupArgs,
-        VmConcurrencyBarrier, VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
+        BlockArgs, SubmitTxStage, TransactionExecutor, TxSetupArgs, VmConcurrencyBarrier,
+        VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
     },
     tx_sender::result::ApiCallResult,
 };
@@ -396,7 +399,7 @@ impl TxSender {
                 connection,
                 block_args,
                 None,
-                vec![],
+                OneshotTracingParams::default(),
             )
             .await?;
         tracing::info!(
@@ -733,7 +736,7 @@ impl TxSender {
                 connection,
                 block_args,
                 state_override,
-                vec![],
+                OneshotTracingParams::default(),
             )
             .await?;
         Ok((execution_output.vm, execution_output.metrics))
@@ -1033,7 +1036,7 @@ impl TxSender {
                 connection,
                 block_args,
                 state_override,
-                vec![],
+                OneshotTracingParams::default(),
             )
             .await?;
         result.vm.into_api_call_result()

@@ -15,6 +15,7 @@ zksync_contracts.workspace = true
 zksync_dal.workspace = true
 zksync_types.workspace = true
 zksync_multivm.workspace = true
+zksync_utils.workspace = true
 
 async-trait.workspace = true
 once_cell.workspace = true
