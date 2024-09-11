@@ -65,8 +65,7 @@ impl ForcedPriceClient {
 
 #[async_trait]
 impl PriceAPIClient for ForcedPriceClient {
-    /// Returns a ratio which is 10% higher or lower than the configured forced ratio,
-    /// but not different more than 3% than the last value
+    /// Returns the configured ratio with fluctuation applied if enabled
     async fn fetch_ratio(&self, _token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
         if let Some(fluctation) = self.fluctuation {
             let mut previous_numerator = self.previous_numerator.write().await;
