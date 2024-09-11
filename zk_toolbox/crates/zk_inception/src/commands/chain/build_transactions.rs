@@ -4,6 +4,7 @@ use config::{copy_configs, traits::SaveConfigWithBasePath, EcosystemConfig};
 use ethers::utils::hex::ToHex;
 use xshell::Shell;
 
+use super::common::register_chain;
 use crate::{
     commands::chain::args::build_transactions::BuildTransactionsArgs,
     messages::{
@@ -13,8 +14,6 @@ use crate::{
         MSG_WRITING_OUTPUT_FILES_SPINNER,
     },
 };
-
-use super::common::register_chain;
 
 const CHAIN_TXNS_FILE_SRC: &str =
     "contracts/l1-contracts/broadcast/RegisterHyperchain.s.sol/9/dry-run/run-latest.json";
