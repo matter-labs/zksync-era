@@ -40,36 +40,41 @@ describe('ERC20 contract checks', () => {
         await expect(aliceErc20.balanceOf(alice.address)).resolves.toBeGreaterThan(0n); // 'Alice should have non-zero balance'
     });
 
-    test('Can perform a deposit', async () => {
-        const amount = 1n; // 1 wei is enough.
-        const gasPrice = await scaledGasPrice(alice);
+    test.only('Can perform a deposit qwerty', async () => {
+        for (let i = 0; i < 100; ++i) {
+            console.log(i);
 
-        // Note: for L1 we should use L1 token address.
-        const l1BalanceChange = await shouldChangeTokenBalances(
-            tokenDetails.l1Address,
-            [{ wallet: alice, change: -amount }],
-            {
-                l1: true
-            }
-        );
-        const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
-            { wallet: alice, change: amount }
-        ]);
-        const feeCheck = await shouldOnlyTakeFee(alice, true);
-        await expect(
-            alice.deposit({
-                token: tokenDetails.l1Address,
-                amount,
-                approveERC20: true,
-                approveBaseERC20: true,
-                approveOverrides: {
-                    gasPrice
-                },
-                overrides: {
-                    gasPrice
+
+            const amount = 1n; // 1 wei is enough.
+            const gasPrice = await scaledGasPrice(alice);
+
+            // Note: for L1 we should use L1 token address.
+            const l1BalanceChange = await shouldChangeTokenBalances(
+                tokenDetails.l1Address,
+                [{ wallet: alice, change: -amount }],
+                {
+                    l1: true
                 }
-            })
-        ).toBeAccepted([l1BalanceChange, l2BalanceChange, feeCheck]);
+            );
+            const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
+                { wallet: alice, change: amount }
+            ]);
+            const feeCheck = await shouldOnlyTakeFee(alice, true);
+            await expect(
+                alice.deposit({
+                    token: tokenDetails.l1Address,
+                    amount,
+                    approveERC20: true,
+                    approveBaseERC20: true,
+                    approveOverrides: {
+                        gasPrice
+                    },
+                    overrides: {
+                        gasPrice
+                    }
+                })
+            ).toBeAccepted([l1BalanceChange, l2BalanceChange, feeCheck]);
+        }
     });
 
     test('Can perform a transfer', async () => {
