@@ -1,4 +1,4 @@
-use std::net::Ipv4Addr;
+use std::net::{IpAddr, Ipv4Addr};
 
 pub const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
 
@@ -14,9 +14,9 @@ pub const L2_BASE_TOKEN_ADDRESS: &str = "0x0000000000000000000000000000000000008
 #[allow(non_upper_case_globals)]
 const kB: usize = 1024;
 
-/// Max payload size for consensus
+/// Max payload size for consensus in bytes
 pub const MAX_PAYLOAD_SIZE: usize = 2_500_000;
-/// Max batch size for consensus
+/// Max batch size for consensus in bytes
 /// Compute a default batch size, so operators are not caught out by the missing setting
 /// while we're still working on batch syncing. The batch interval is ~1 minute,
 /// so there will be ~60 blocks, and an Ethereum Merkle proof is ~1kB, but under high
@@ -25,12 +25,12 @@ pub const MAX_PAYLOAD_SIZE: usize = 2_500_000;
 /// limit so as not to prevent any legitimate batch from being transmitted.
 pub const MAX_BATCH_SIZE: usize = MAX_PAYLOAD_SIZE * 5000 + kB;
 /// Gossip dynamic inbound limit for consensus
-pub const GOSSIP_DYNAMIC_INBOUND_LIMIT: usize = 1;
+pub const GOSSIP_DYNAMIC_INBOUND_LIMIT: usize = 100;
 
 /// Public address for consensus
-pub const CONSENSUS_PUBLIC_ADDRESS_HOST: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
+pub const CONSENSUS_PUBLIC_ADDRESS_HOST: IpAddr = IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0));
 /// Server address for consensus
-pub const CONSENSUS_SERVER_ADDRESS_HOST: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
+pub const CONSENSUS_SERVER_ADDRESS_HOST: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
 
 /// Path to the JS runtime config for the block-explorer-app docker container to be mounted to
 pub const EXPLORER_APP_DOCKER_CONFIG_PATH: &str = "/usr/src/app/packages/app/dist/config.js";

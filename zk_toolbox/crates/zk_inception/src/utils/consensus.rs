@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    net::{IpAddr, SocketAddr},
+    net::SocketAddr,
 };
 
 use config::{ChainConfig, PortsConfig};
@@ -19,7 +19,7 @@ use crate::consts::{
 };
 
 #[derive(Debug, Clone)]
-pub struct ConsensusKeys {
+pub struct SecretKeys {
     validator_key: roles::validator::SecretKey,
     attester_key: roles::attester::SecretKey,
     node_key: roles::node::SecretKey,
@@ -33,7 +33,7 @@ pub struct ConsensusPublicKeys {
 pub fn get_consensus_config(
     chain_config: &ChainConfig,
     ports: PortsConfig,
-    consensus_keys: Option<ConsensusKeys>,
+    consensus_keys: Option<SecretKeys>,
     gossip_static_outbound: Option<BTreeMap<NodePublicKey, Host>>,
 ) -> anyhow::Result<ConsensusConfig> {
     let genesis_spec = if let Some(consensus_keys) = consensus_keys {
@@ -42,14 +42,8 @@ pub fn get_consensus_config(
         None
     };
 
-    let public_addr = SocketAddr::new(
-        IpAddr::V4(CONSENSUS_PUBLIC_ADDRESS_HOST),
-        ports.consensus_port,
-    );
-    let server_addr = SocketAddr::new(
-        IpAddr::V4(CONSENSUS_SERVER_ADDRESS_HOST),
-        ports.consensus_port,
-    );
+    let public_addr = SocketAddr::new(CONSENSUS_PUBLIC_ADDRESS_HOST, ports.consensus_port);
+    let server_addr = SocketAddr::new(CONSENSUS_SERVER_ADDRESS_HOST, ports.consensus_port);
 
     Ok(ConsensusConfig {
         server_addr,
@@ -64,25 +58,22 @@ pub fn get_consensus_config(
     })
 }
 
-pub fn generate_consensus_keys() -> ConsensusKeys {
-    ConsensusKeys {
+pub fn generate_consensus_keys() -> SecretKeys {
+    SecretKeys {
         validator_key: roles::validator::SecretKey::generate(),
         attester_key: roles::attester::SecretKey::generate(),
         node_key: roles::node::SecretKey::generate(),
     }
 }
 
-fn get_consensus_public_keys(consensus_keys: &ConsensusKeys) -> ConsensusPublicKeys {
+fn get_consensus_public_keys(consensus_keys: &SecretKeys) -> ConsensusPublicKeys {
     ConsensusPublicKeys {
         validator_key: consensus_keys.validator_key.public(),
         attester_key: consensus_keys.attester_key.public(),
     }
 }
 
-pub fn get_genesis_specs(
-    chain_config: &ChainConfig,
-    consensus_keys: &ConsensusKeys,
-) -> GenesisSpec {
+pub fn get_genesis_specs(chain_config: &ChainConfig, consensus_keys: &SecretKeys) -> GenesisSpec {
     let public_keys = get_consensus_public_keys(consensus_keys);
     let validator_key = public_keys.validator_key.encode();
     let attester_key = public_keys.attester_key.encode();
@@ -107,7 +98,7 @@ pub fn get_genesis_specs(
     }
 }
 
-pub fn get_consensus_secrets(consensus_keys: &ConsensusKeys) -> ConsensusSecrets {
+pub fn get_consensus_secrets(consensus_keys: &SecretKeys) -> ConsensusSecrets {
     let validator_key = consensus_keys.validator_key.encode();
     let attester_key = consensus_keys.attester_key.encode();
     let node_key = consensus_keys.node_key.encode();
