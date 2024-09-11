@@ -10,7 +10,6 @@ keywords.workspace = true
 categories.workspace = true
 publish = false
 
-
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true

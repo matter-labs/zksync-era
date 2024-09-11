@@ -7,7 +7,6 @@ use std::{
 use clap::Parser;
 use glob::glob;
 use serde::{Deserialize, Serialize};
-use serde_json::{from_reader, to_writer_pretty, Value};
 use sha3::{Digest, Keccak256};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -61,7 +60,7 @@ fn process_files(directory: &str, output_file: &str) -> io::Result<()> {
             Ok(path) => {
                 let file_path = path.clone();
                 let file = File::open(path)?;
-                let json: Result<Value, _> = from_reader(file);
+                let json: Result<serde_json::Value, _> = serde_json::from_reader(file);
 
                 if let Ok(json) = json {
                     if let Some(abi) = json.get("abi").and_then(|v| v.as_array()) {
@@ -95,7 +94,7 @@ fn process_files(directory: &str, output_file: &str) -> io::Result<()> {
         .write(true)
         .create(true)
         .open(output_file)?;
-    to_writer_pretty(file, &selectors)?;
+    serde_json::to_writer_pretty(file, &selectors)?;
     Ok(())
 }
 

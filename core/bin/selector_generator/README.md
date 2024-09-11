@@ -9,5 +9,5 @@ By default, it appends the newly found selectors into the list.
 To run, first make sure that you have your contracts compiled and then run:
 
 ```
-cargo run ../../../contracts selectors.json
+cargo run ../../../contracts ../../../etc/selector-generator-data/selectors.json
 ```
