@@ -93,6 +93,7 @@ fn process_files(directory: &str, output_file: &str) -> io::Result<()> {
     let file = OpenOptions::new()
         .write(true)
         .create(true)
+        .truncate(true)
         .open(output_file)?;
     serde_json::to_writer_pretty(file, &selectors)?;
     Ok(())
