@@ -67,7 +67,7 @@ pub(crate) fn create_chain_inner(
     let chain_configs_path = create_local_configs_dir(shell, &chain_path)?;
     let (chain_id, legacy_bridge) = if args.legacy_bridge {
         // Legacy bridge is distinguished by using the same chain id as ecosystem
-        (L2ChainId::from(ecosystem_config.era_chain_id), Some(true))
+        (ecosystem_config.era_chain_id, Some(true))
     } else {
         (L2ChainId::from(args.chain_id), None)
     };
