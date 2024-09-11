@@ -8,8 +8,8 @@ pub mod gpu_prover {
         ProverContextConfig,
     };
     use tokio::task::JoinHandle;
-    use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
-    use zksync_env_config::FromEnv;
+    use zksync_config::configs::fri_prover::SetupLoadMode as SetupLoadModeConfig;
+    use zksync_config::configs::FriProverConfig;
     use zksync_object_store::ObjectStore;
     use zksync_prover_dal::{ConnectionPool, ProverDal};
     use zksync_prover_fri_types::{
@@ -343,36 +343,83 @@ pub mod gpu_prover {
 
     pub fn load_setup_data_cache(
         keystore: &Keystore,
-        config: &FriProverConfig,
+        setup_load_mode: SetupLoadModeConfig,
+        specialized_group_id: u8,
+        circuit_ids: &[CircuitIdRoundTuple],
     ) -> anyhow::Result<SetupLoadMode> {
-        Ok(match config.setup_load_mode {
-            zksync_config::configs::fri_prover::SetupLoadMode::FromDisk => SetupLoadMode::FromDisk,
-            zksync_config::configs::fri_prover::SetupLoadMode::FromMemory => {
+        Ok(match setup_load_mode {
+            SetupLoadModeConfig::FromDisk => SetupLoadMode::FromDisk,
+            SetupLoadModeConfig::FromMemory => {
+                anyhow::ensure!(
+                    !circuit_ids.is_empty(),
+                    "Circuit IDs must be provided when using FromMemory mode"
+                );
                 let mut cache = HashMap::new();
                 tracing::info!(
                     "Loading setup data cache for group {}",
-                    &config.specialized_group_id
+                    &specialized_group_id
                 );
-                let prover_setup_metadata_list = FriProverGroupConfig::from_env()
-                    .context("FriProverGroupConfig::from_env()")?
-                    .get_circuit_ids_for_group_id(config.specialized_group_id)
-                    .context(
-                        "At least one circuit should be configured for group when running in FromMemory mode",
-                    )?;
                 tracing::info!(
                     "for group {} configured setup metadata are {:?}",
-                    &config.specialized_group_id,
-                    prover_setup_metadata_list
+                    &specialized_group_id,
+                    circuit_ids
                 );
-                for prover_setup_metadata in prover_setup_metadata_list {
-                    let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
-                    let setup_data = keystore
-                        .load_gpu_setup_data_for_circuit_type(key.clone())
-                        .context("load_gpu_setup_data_for_circuit_type()")?;
-                    cache.insert(key, Arc::new(setup_data));
-                }
+                std::thread::scope(|s| {
+                    // Note: `collect` is important, because iterators are lazy and otherwise we won't actually
+                    // spawn threads.
+                    let handles: Vec<_> = circuit_ids
+                        .into_iter()
+                        .map(|prover_setup_metadata| {
+                            s.spawn(move || {
+                                println!(
+                                    "Start loading setup data for {:?}",
+                                    prover_setup_metadata
+                                );
+                                let start = Instant::now();
+                                let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
+                                let setup_data = keystore
+                                    .load_gpu_setup_data_for_circuit_type(key.clone())
+                                    .context("load_gpu_setup_data_for_circuit_type()")?;
+                                println!(
+                                    "Loaded setup data for {:?} in {:?}",
+                                    prover_setup_metadata,
+                                    start.elapsed()
+                                );
+                                anyhow::Ok((key, Arc::new(setup_data)))
+                            })
+                        })
+                        .collect();
+                    for handle in handles {
+                        let (key, setup_data) = handle.join().unwrap()?;
+                        cache.insert(key, setup_data);
+                    }
+                    anyhow::Ok(())
+                })?;
                 SetupLoadMode::FromMemory(cache)
             }
         })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use zksync_types::basic_fri_types::AggregationRound;
+
+        use super::*;
+
+        #[test]
+        fn test_load_setup_data_cache() {
+            let keystore = Keystore::locate();
+            let mode = SetupLoadModeConfig::FromMemory;
+            let specialized_group_id = 0;
+            let ids: Vec<_> = AggregationRound::ALL_ROUNDS
+                .into_iter()
+                .map(|r| r.circuit_ids())
+                .flatten()
+                .collect();
+            let start = Instant::now();
+            let _cache = load_setup_data_cache(&keystore, mode, specialized_group_id, &ids)
+                .expect("Unable to load keys");
+            println!("Cache load time: {:?}", start.elapsed());
+        }
     }
 }
