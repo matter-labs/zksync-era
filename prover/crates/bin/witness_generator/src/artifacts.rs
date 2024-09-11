@@ -37,6 +37,7 @@ pub(crate) trait ArtifactsManager {
     ) -> Self::InputArtifacts;
 
     async fn save_artifacts(
+        job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
     ) -> BlobUrls;

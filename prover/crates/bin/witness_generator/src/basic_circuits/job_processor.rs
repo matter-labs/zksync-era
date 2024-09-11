@@ -8,11 +8,12 @@ use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
+    artifacts::{ArtifactsManager, BlobUrls, SchedulerBlobUrls},
     basic_circuits::{
         artifacts::SchedulerArtifacts, BasicCircuitArtifacts, BasicWitnessGenerator,
         BasicWitnessGeneratorJob,
     },
-    traits::{ArtifactsManager, BlobUrls, SchedulerBlobUrls},
+    metrics::WITNESS_GENERATOR_METRICS,
 };
 
 #[async_trait]
@@ -106,13 +107,14 @@ impl JobProcessor for BasicWitnessGenerator {
                 };
 
                 let scheduler_witness_url =
-                    match Self::save_artifacts(artifacts.clone(), &*self.object_store).await {
+                    match Self::save_artifacts(job_id.0, artifacts.clone(), &*self.object_store)
+                        .await
+                    {
                         BlobUrls::Url(url) => url,
                         _ => unreachable!(),
                     };
 
-                crate::metrics::WITNESS_GENERATOR_METRICS.blob_save_time
-                    [&AggregationRound::BasicCircuits.into()]
+                WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
                     .observe(blob_started_at.elapsed());
 
                 Self::update_database(

@@ -5,14 +5,16 @@ use async_trait::async_trait;
 use zksync_prover_dal::ProverDal;
 use zksync_prover_fri_types::get_current_pod_name;
 use zksync_queued_job_processor::JobProcessor;
+use zksync_types::basic_fri_types::AggregationRound;
 
 use crate::{
+    artifacts::{ArtifactsManager, BlobUrls},
     leaf_aggregation::{
         artifacts::LeafAggregationArtifactsMetadata, prepare_leaf_aggregation_job,
         LeafAggregationArtifacts, LeafAggregationWitnessGenerator,
         LeafAggregationWitnessGeneratorJob,
     },
-    traits::{ArtifactsManager, BlobUrls},
+    metrics::WITNESS_GENERATOR_METRICS,
 };
 
 #[async_trait]
@@ -79,22 +81,24 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
             block_number.0,
             circuit_id,
         );
-        let blob_urls = match Self::save_artifacts(artifacts.clone(), &*self.object_store).await {
-            BlobUrls::Aggregation(blob_urls) => blob_urls,
-            _ => unreachable!(),
-        };
+
+        let blob_save_started_at = Instant::now();
+
+        let blob_urls = Self::save_artifacts(job_id, artifacts.clone(), &*self.object_store).await;
+
+        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::LeafAggregation.into()]
+            .observe(blob_save_started_at.elapsed());
 
         tracing::info!(
-            "Saved leaf aggregation artifacts for block {} with circuit {} (count: {})",
+            "Saved leaf aggregation artifacts for block {} with circuit {}",
             block_number.0,
             circuit_id,
-            blob_urls.circuit_ids_and_urls.len(),
         );
         Self::update_database(
             &self.prover_connection_pool,
             job_id,
             started_at,
-            BlobUrls::Aggregation(blob_urls),
+            blob_urls,
             artifacts,
         )
         .await;

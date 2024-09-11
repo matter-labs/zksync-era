@@ -8,9 +8,9 @@ use zksync_types::{
 };
 
 use crate::{
+    artifacts::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
     metrics::WITNESS_GENERATOR_METRICS,
     node_aggregation::{NodeAggregationArtifacts, NodeAggregationWitnessGenerator},
-    traits::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
     utils::{save_node_aggregations_artifacts, AggregationWrapper},
 };
 
@@ -52,6 +52,7 @@ impl ArtifactsManager for NodeAggregationWitnessGenerator {
         fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
     )]
     async fn save_artifacts(
+        _job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
     ) -> BlobUrls {

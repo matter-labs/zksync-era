@@ -31,8 +31,8 @@ use zksync_types::{
 };
 
 use crate::{
+    artifacts::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
     metrics::WITNESS_GENERATOR_METRICS,
-    traits::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
     utils::{
         load_proofs_for_job_ids, save_node_aggregations_artifacts,
         save_recursive_layer_prover_input_artifacts, AggregationWrapper,

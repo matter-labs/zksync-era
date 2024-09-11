@@ -15,8 +15,8 @@ use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
+    artifacts::{ArtifactsManager, BlobUrls},
     basic_circuits::{BasicWitnessGenerator, BasicWitnessGeneratorJob},
-    traits::{ArtifactsManager, BlobUrls},
     utils::SchedulerPartialInputWrapper,
 };
 
@@ -49,6 +49,7 @@ impl ArtifactsManager for BasicWitnessGenerator {
     }
 
     async fn save_artifacts(
+        _job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
     ) -> BlobUrls {

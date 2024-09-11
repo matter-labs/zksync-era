@@ -35,8 +35,8 @@ use zksync_types::{
 };
 
 use crate::{
+    artifacts::{ArtifactsManager, BlobUrls},
     metrics::WITNESS_GENERATOR_METRICS,
-    traits::{ArtifactsManager, BlobUrls},
     utils::SchedulerPartialInputWrapper,
 };
 

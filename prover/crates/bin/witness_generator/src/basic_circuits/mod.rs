@@ -45,10 +45,10 @@ use zksync_types::{
 };
 
 use crate::{
+    artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
     storage_oracle::StorageOracle,
-    traits::ArtifactsManager,
     utils::{
         expand_bootloader_contents, save_circuit, save_ram_premutation_queue_witness,
         ClosedFormInputWrapper, SchedulerPartialInputWrapper, KZG_TRUSTED_SETUP_FILE,

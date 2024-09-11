@@ -8,12 +8,12 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
+    artifacts::{ArtifactsManager, BlobUrls},
     metrics::WITNESS_GENERATOR_METRICS,
     recursion_tip::{
         prepare_job, RecursionTipArtifacts, RecursionTipWitnessGenerator,
         RecursionTipWitnessGeneratorJob,
     },
-    traits::{ArtifactsManager, BlobUrls},
 };
 
 #[async_trait]
@@ -90,22 +90,10 @@ impl JobProcessor for RecursionTipWitnessGenerator {
         started_at: Instant,
         artifacts: RecursionTipArtifacts,
     ) -> anyhow::Result<()> {
-        let key = FriCircuitKey {
-            block_number: job_id,
-            circuit_id: 255,
-            sequence_number: 0,
-            depth: 0,
-            aggregation_round: AggregationRound::RecursionTip,
-        };
         let blob_save_started_at = Instant::now();
 
-        let blob_url = self
-            .object_store
-            .put(
-                key,
-                &CircuitWrapper::Recursive(artifacts.recursion_tip_circuit.clone()),
-            )
-            .await?;
+        let blob_urls =
+            Self::save_artifacts(job_id.0, artifacts.clone(), &*self.object_store).await;
 
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::RecursionTip.into()]
             .observe(blob_save_started_at.elapsed());
@@ -114,7 +102,7 @@ impl JobProcessor for RecursionTipWitnessGenerator {
             &self.prover_connection_pool,
             job_id.0,
             started_at,
-            BlobUrls::Url(blob_url),
+            blob_urls,
             artifacts,
         )
         .await;

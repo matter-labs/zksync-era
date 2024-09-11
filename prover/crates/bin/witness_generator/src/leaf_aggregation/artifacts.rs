@@ -9,9 +9,9 @@ use zksync_types::{
 };
 
 use crate::{
+    artifacts::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
     leaf_aggregation::{LeafAggregationArtifacts, LeafAggregationWitnessGenerator},
     metrics::WITNESS_GENERATOR_METRICS,
-    traits::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
     utils::{save_node_aggregations_artifacts, ClosedFormInputWrapper},
 };
 
@@ -44,6 +44,7 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
         fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
     )]
     async fn save_artifacts(
+        _job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
     ) -> BlobUrls {

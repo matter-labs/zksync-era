@@ -1,6 +1,7 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
+mod artifacts;
 pub mod basic_circuits;
 pub mod leaf_aggregation;
 pub mod metrics;
@@ -11,6 +12,5 @@ pub mod scheduler;
 mod storage_oracle;
 #[cfg(test)]
 mod tests;
-mod traits;
 pub mod utils;
 mod witness;

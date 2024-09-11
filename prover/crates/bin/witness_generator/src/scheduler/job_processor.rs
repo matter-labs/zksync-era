@@ -8,11 +8,11 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
+    artifacts::{ArtifactsManager, BlobUrls},
     metrics::WITNESS_GENERATOR_METRICS,
     scheduler::{
         prepare_job, SchedulerArtifacts, SchedulerWitnessGenerator, SchedulerWitnessGeneratorJob,
     },
-    traits::{ArtifactsManager, BlobUrls},
 };
 
 #[async_trait]
@@ -89,21 +89,10 @@ impl JobProcessor for SchedulerWitnessGenerator {
         started_at: Instant,
         artifacts: SchedulerArtifacts,
     ) -> anyhow::Result<()> {
-        let key = FriCircuitKey {
-            block_number: job_id,
-            circuit_id: 1,
-            sequence_number: 0,
-            depth: 0,
-            aggregation_round: AggregationRound::Scheduler,
-        };
         let blob_save_started_at = Instant::now();
-        let blob_url = self
-            .object_store
-            .put(
-                key,
-                &CircuitWrapper::Recursive(artifacts.scheduler_circuit.clone()),
-            )
-            .await?;
+
+        let blob_urls =
+            Self::save_artifacts(job_id.0, artifacts.clone(), &*self.object_store).await;
 
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::Scheduler.into()]
             .observe(blob_save_started_at.elapsed());
@@ -112,7 +101,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
             &self.prover_connection_pool,
             job_id,
             started_at,
-            BlobUrls::Url(blob_url),
+            blob_urls,
             artifacts,
         )
         .await;

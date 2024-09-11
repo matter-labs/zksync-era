@@ -3,11 +3,12 @@ use std::time::Instant;
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_fri_types::{keys::FriCircuitKey, CircuitWrapper};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
+    artifacts::{ArtifactsManager, BlobUrls},
     recursion_tip::{RecursionTipArtifacts, RecursionTipWitnessGenerator},
-    traits::{ArtifactsManager, BlobUrls},
 };
 
 impl ArtifactsManager for RecursionTipWitnessGenerator {
@@ -23,10 +24,26 @@ impl ArtifactsManager for RecursionTipWitnessGenerator {
     }
 
     async fn save_artifacts(
+        job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
     ) -> BlobUrls {
-        todo!()
+        let key = FriCircuitKey {
+            block_number: L1BatchNumber(job_id),
+            circuit_id: 255,
+            sequence_number: 0,
+            depth: 0,
+            aggregation_round: AggregationRound::RecursionTip,
+        };
+
+        let blob_url = object_store
+            .put(
+                key,
+                &CircuitWrapper::Recursive(artifacts.recursion_tip_circuit.clone()),
+            )
+            .await?;
+
+        BlobUrls::Url(blob_url)
     }
 
     async fn update_database(

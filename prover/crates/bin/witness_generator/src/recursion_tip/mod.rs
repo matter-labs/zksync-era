@@ -53,8 +53,8 @@ use zksync_types::{
 };
 
 use crate::{
+    artifacts::{ArtifactsManager, BlobUrls},
     metrics::WITNESS_GENERATOR_METRICS,
-    traits::{ArtifactsManager, BlobUrls},
     utils::{load_proofs_for_recursion_tip, ClosedFormInputWrapper},
 };
 

@@ -5,13 +5,15 @@ use async_trait::async_trait;
 use zksync_prover_dal::ProverDal;
 use zksync_prover_fri_types::get_current_pod_name;
 use zksync_queued_job_processor::JobProcessor;
+use zksync_types::basic_fri_types::AggregationRound;
 
 use crate::{
+    artifacts::{ArtifactsManager, BlobUrls},
+    metrics::WITNESS_GENERATOR_METRICS,
     node_aggregation::{
         artifacts::NodeAggregationArtifactsMetadata, prepare_job, NodeAggregationArtifacts,
         NodeAggregationWitnessGenerator, NodeAggregationWitnessGeneratorJob,
     },
-    traits::{ArtifactsManager, BlobUrls},
 };
 
 #[async_trait]
@@ -75,16 +77,18 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         started_at: Instant,
         artifacts: NodeAggregationArtifacts,
     ) -> anyhow::Result<()> {
-        let blob_urls = match Self::save_artifacts(artifacts.clone(), &*self.object_store).await {
-            BlobUrls::Aggregation(blob_urls) => blob_urls,
-            _ => unreachable!(),
-        };
+        let blob_save_started_at = Instant::now();
+
+        let blob_urls = Self::save_artifacts(job_id, artifacts.clone(), &*self.object_store).await;
+
+        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::NodeAggregation.into()]
+            .observe(blob_save_started_at.elapsed());
 
         Self::update_database(
             &self.prover_connection_pool,
             job_id,
             started_at,
-            BlobUrls::Aggregation(blob_urls),
+            blob_urls,
             artifacts,
         )
         .await;
