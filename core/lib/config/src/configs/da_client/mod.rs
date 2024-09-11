@@ -4,9 +4,11 @@ use crate::{AvailConfig, ObjectStoreConfig};
 
 pub mod avail;
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub const AVAIL_CLIENT_CONFIG_NAME: &str = "Avail";
+pub const OBJECT_STORE_CLIENT_CONFIG_NAME: &str = "ObjectStore";
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct DAClientConfig {
-    #[serde(flatten)]
     pub client: DAClient,
 }
 

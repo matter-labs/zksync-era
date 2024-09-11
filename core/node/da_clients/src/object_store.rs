@@ -10,8 +10,6 @@ use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
-#[cfg(test)]
-use zksync_object_store::MockObjectStore;
 use zksync_object_store::{
     Bucket, ObjectStore, ObjectStoreFactory, StoredObject, _reexports::BoxedError,
 };
@@ -124,24 +122,45 @@ impl StoredObject for StorablePubdata {
     }
 }
 
-#[tokio::test]
-async fn blob_data_serialization() {
-    let batch_number = 123;
-    let data = vec![1, 2, 3, 4, 5, 6, 123, 255, 0, 0];
+#[cfg(test)]
+mod tests {
+    use tokio::fs;
+    use zksync_object_store::{MockObjectStore, StoredObject};
+    use zksync_types::L1BatchNumber;
 
-    let store = MockObjectStore::arc();
-    store
-        .put(
-            L1BatchNumber(batch_number),
-            &StorablePubdata { data: data.clone() },
-        )
-        .await
-        .unwrap();
+    use super::StorablePubdata;
 
-    let resp = store
-        .get::<StorablePubdata>(L1BatchNumber(batch_number))
-        .await
-        .unwrap();
+    #[tokio::test]
+    async fn test_storable_pubdata_deserialization() {
+        let serialized = fs::read("./src/test_data/l1_batch_123_pubdata.gzip")
+            .await
+            .unwrap();
 
-    assert_eq!(data, resp.data);
+        let data = StorablePubdata::deserialize(serialized).unwrap().data;
+        assert_eq!(data[12], 0);
+        assert_eq!(data[123], 129);
+        assert_eq!(data[1234], 153);
+    }
+
+    #[tokio::test]
+    async fn stored_object_serialization() {
+        let batch_number = 123;
+        let data = vec![1, 2, 3, 4, 5, 6, 123, 255, 0, 0];
+
+        let store = MockObjectStore::arc();
+        store
+            .put(
+                L1BatchNumber(batch_number),
+                &StorablePubdata { data: data.clone() },
+            )
+            .await
+            .unwrap();
+
+        let resp = store
+            .get::<StorablePubdata>(L1BatchNumber(batch_number))
+            .await
+            .unwrap();
+
+        assert_eq!(data, resp.data);
+    }
 }
