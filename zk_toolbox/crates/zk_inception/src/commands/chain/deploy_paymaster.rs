@@ -28,7 +28,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let mut contracts = chain_config.get_contracts_config()?;
-    deploy_paymaster(shell, &chain_config, &mut contracts, args).await?;
+    deploy_paymaster(shell, &chain_config, &mut contracts, args, true).await?;
     contracts.save_with_base_path(shell, chain_config.configs)
 }
 
@@ -37,6 +37,7 @@ pub async fn deploy_paymaster(
     chain_config: &ChainConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
+    broadcast: bool,
 ) -> anyhow::Result<()> {
     let input = DeployPaymasterInput::new(chain_config)?;
     let foundry_contracts_path = chain_config.path_to_foundry();
@@ -56,8 +57,11 @@ pub async fn deploy_paymaster(
                 .l1_rpc_url
                 .expose_str()
                 .to_string(),
-        )
-        .with_broadcast();
+        );
+
+    if broadcast {
+        forge = forge.with_broadcast();
+    }
 
     forge = fill_forge_private_key(
         forge,

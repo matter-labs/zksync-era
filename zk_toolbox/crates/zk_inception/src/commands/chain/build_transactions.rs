@@ -1,14 +1,6 @@
 use anyhow::Context;
-use common::{config::global_config, forge::Forge, git, logger, spinner::Spinner};
-use config::{
-    copy_configs,
-    forge_interface::{
-        register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
-        script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
-    },
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    EcosystemConfig,
-};
+use common::{config::global_config, git, logger, spinner::Spinner};
+use config::{copy_configs, traits::SaveConfigWithBasePath, EcosystemConfig};
 use ethers::utils::hex::ToHex;
 use xshell::Shell;
 
@@ -21,6 +13,8 @@ use crate::{
         MSG_WRITING_OUTPUT_FILES_SPINNER,
     },
 };
+
+use super::{common::register_chain, deploy_paymaster::deploy_paymaster};
 
 const CHAIN_TXNS_FILE_SRC: &str =
     "contracts/l1-contracts/broadcast/RegisterHyperchain.s.sol/9/dry-run/run-latest.json";
@@ -51,29 +45,22 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
         .get_contracts_config()
         .context(MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG)?;
     contracts_config.l1.base_token_addr = chain_config.base_token.address;
-
-    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
-
-    let deploy_config = RegisterChainL1Config::new(&chain_config, &contracts_config)?;
-    deploy_config.save(shell, deploy_config_path)?;
     spinner.finish();
 
     let spinner = Spinner::new(MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER);
-    Forge::new(&config.path_to_foundry())
-        .script(
-            &REGISTER_CHAIN_SCRIPT_PARAMS.script(),
-            args.forge_args.clone(),
-        )
-        .with_ffi()
-        .with_sender(config.get_wallets()?.governor.address.encode_hex_upper())
-        .with_rpc_url(args.l1_rpc_url.clone())
-        .run(shell)?;
 
-    let register_chain_output = RegisterChainOutput::read(
+    register_chain(
         shell,
-        REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
-    )?;
-    contracts_config.set_chain_contracts(&register_chain_output);
+        args.forge_args.clone(),
+        &config,
+        &chain_config,
+        &mut contracts_config,
+        args.l1_rpc_url.clone(),
+        Some(config.get_wallets()?.governor.address.encode_hex_upper()),
+        false,
+    )
+    .await?;
+
     contracts_config.save_with_base_path(shell, &args.out)?;
     spinner.finish();
 

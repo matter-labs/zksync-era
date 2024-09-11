@@ -1,7 +1,7 @@
+use ::common::forge::ForgeScriptArgs;
 use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::Subcommand;
-use common::forge::ForgeScriptArgs;
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
@@ -12,6 +12,7 @@ use crate::commands::chain::{
 
 pub(crate) mod args;
 mod build_transactions;
+mod common;
 mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
