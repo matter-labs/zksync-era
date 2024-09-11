@@ -46,6 +46,7 @@ use zksync_types::{
     L1BatchNumber, BOOTLOADER_ADDRESS,
 };
 
+use crate::traits::ArtifactsManager;
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
@@ -88,6 +89,61 @@ pub struct BasicWitnessGenerator {
     public_blob_store: Option<Arc<dyn ObjectStore>>,
     prover_connection_pool: ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
+}
+
+pub struct SchedulerArtifacts<'a> {
+    block_number: L1BatchNumber,
+    scheduler_partial_input: SchedulerCircuitInstanceWitness<
+        GoldilocksField,
+        CircuitGoldilocksPoseidon2Sponge,
+        GoldilocksExt2,
+    >,
+    aux_output_witness: BlockAuxilaryOutputWitness<GoldilocksField>,
+    public_object_store: Option<&'a dyn ObjectStore>,
+    shall_save_to_public_bucket: bool,
+}
+
+impl ArtifactsManager for BasicWitnessGenerator {
+    type Metadata = L1BatchNumber;
+    type InputArtifacts = BasicWitnessGeneratorJob;
+    type OutputArtifacts = SchedulerArtifacts<'_>;
+
+    async fn get_artifacts(
+        metadata: &Self::Metadata,
+        object_store: &dyn ObjectStore,
+    ) -> Self::InputArtifacts {
+        let l1_batch_number = metadata;
+        let job = object_store.get(l1_batch_number).await.unwrap();
+        BasicWitnessGeneratorJob { block_number, job }
+    }
+
+    async fn save_artifacts(
+        artifacts: Self::OutputArtifacts,
+        object_store: &dyn ObjectStore,
+    ) -> crate::traits::BlobUrls {
+        let aux_output_witness_wrapper = AuxOutputWitnessWrapper(artifacts.aux_output_witness);
+        if artifacts.shall_save_to_public_bucket {
+            artifacts.public_object_store
+                .expect("public_object_store shall not be empty while running with shall_save_to_public_bucket config")
+                .put(artifacts.block_number, &aux_output_witness_wrapper)
+                .await
+                .unwrap();
+        }
+        object_store
+            .put(artifacts.block_number, &aux_output_witness_wrapper)
+            .await
+            .unwrap();
+        let wrapper = SchedulerPartialInputWrapper(artifacts.scheduler_partial_input);
+        let url = object_store
+            .put(artifacts.block_number, &wrapper)
+            .await
+            .unwrap();
+
+        crate::traits::BlobUrls {
+            aggregations_urls: url,
+            circuit_ids_and_urls: vec![],
+        }
+    }
 }
 
 impl BasicWitnessGenerator {
@@ -162,7 +218,7 @@ impl JobProcessor for BasicWitnessGenerator {
                     block_number
                 );
                 let started_at = Instant::now();
-                let job = get_artifacts(block_number, &*self.object_store).await;
+                let job = Self::get_artifacts(&block_number, &*self.object_store).await;
 
                 WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
                     .observe(started_at.elapsed());
@@ -213,15 +269,18 @@ impl JobProcessor for BasicWitnessGenerator {
             None => Ok(()),
             Some(artifacts) => {
                 let blob_started_at = Instant::now();
-                let scheduler_witness_url = save_scheduler_artifacts(
-                    job_id,
-                    artifacts.scheduler_witness,
-                    artifacts.aux_output_witness,
+                let scheduler_witness_url = Self::save_artifacts(
+                    SchedulerArtifacts {
+                        block_number: job_id,
+                        scheduler_partial_input: artifacts.scheduler_witness,
+                        aux_output_witness: artifacts.aux_output_witness,
+                        public_object_store: self.public_blob_store.as_deref(),
+                        shall_save_to_public_bucket: self.config.shall_save_to_public_bucket,
+                    },
                     &*self.object_store,
-                    self.public_blob_store.as_deref(),
-                    self.config.shall_save_to_public_bucket,
                 )
-                .await;
+                .await
+                .aggregations_urls;
 
                 WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
                     .observe(blob_started_at.elapsed());
@@ -334,44 +393,6 @@ async fn update_database(
         .commit()
         .await
         .expect("failed to commit database transaction");
-}
-
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
-async fn get_artifacts(
-    block_number: L1BatchNumber,
-    object_store: &dyn ObjectStore,
-) -> BasicWitnessGeneratorJob {
-    let job = object_store.get(block_number).await.unwrap();
-    BasicWitnessGeneratorJob { block_number, job }
-}
-
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
-async fn save_scheduler_artifacts(
-    block_number: L1BatchNumber,
-    scheduler_partial_input: SchedulerCircuitInstanceWitness<
-        GoldilocksField,
-        CircuitGoldilocksPoseidon2Sponge,
-        GoldilocksExt2,
-    >,
-    aux_output_witness: BlockAuxilaryOutputWitness<GoldilocksField>,
-    object_store: &dyn ObjectStore,
-    public_object_store: Option<&dyn ObjectStore>,
-    shall_save_to_public_bucket: bool,
-) -> String {
-    let aux_output_witness_wrapper = AuxOutputWitnessWrapper(aux_output_witness);
-    if shall_save_to_public_bucket {
-        public_object_store
-            .expect("public_object_store shall not be empty while running with shall_save_to_public_bucket config")
-            .put(block_number, &aux_output_witness_wrapper)
-            .await
-            .unwrap();
-    }
-    object_store
-        .put(block_number, &aux_output_witness_wrapper)
-        .await
-        .unwrap();
-    let wrapper = SchedulerPartialInputWrapper(scheduler_partial_input);
-    object_store.put(block_number, &wrapper).await.unwrap()
 }
 
 #[tracing::instrument(skip_all, fields(l1_batch = %block_number, circuit_id = %circuit_id))]

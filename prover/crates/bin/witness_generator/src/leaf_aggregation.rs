@@ -34,6 +34,7 @@ use zksync_types::{
     prover_dal::LeafAggregationJobMetadata, L1BatchNumber,
 };
 
+use crate::traits::{ArtifactsManager, BlobUrls};
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
     utils::{
@@ -41,21 +42,6 @@ use crate::{
         save_recursive_layer_prover_input_artifacts, ClosedFormInputWrapper,
     },
 };
-
-pub struct LeafAggregationArtifacts {
-    circuit_id: u8,
-    block_number: L1BatchNumber,
-    pub aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
-    pub circuit_ids_and_urls: Vec<(u8, String)>,
-    #[allow(dead_code)]
-    closed_form_inputs: Vec<ZkSyncBaseLayerClosedFormInput<GoldilocksField>>,
-}
-
-#[derive(Debug)]
-struct BlobUrls {
-    circuit_ids_and_urls: Vec<(u8, String)>,
-    aggregations_urls: String,
-}
 
 pub struct LeafAggregationWitnessGeneratorJob {
     pub(crate) circuit_id: u8,
@@ -73,6 +59,62 @@ pub struct LeafAggregationWitnessGenerator {
     prover_connection_pool: ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
     keystore: Keystore,
+}
+
+pub struct LeafAggregationArtifacts {
+    circuit_id: u8,
+    block_number: L1BatchNumber,
+    pub aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
+    pub circuit_ids_and_urls: Vec<(u8, String)>,
+    #[allow(dead_code)]
+    closed_form_inputs: Vec<ZkSyncBaseLayerClosedFormInput<GoldilocksField>>,
+}
+
+impl ArtifactsManager for LeafAggregationWitnessGenerator {
+    type Metadata = LeafAggregationJobMetadata;
+    type InputArtifacts = ClosedFormInputWrapper;
+    type OutputArtifacts = LeafAggregationArtifacts;
+
+    async fn get_artifacts(
+        metadata: &Self::Metadata,
+        object_store: &dyn ObjectStore,
+    ) -> Self::InputArtifacts {
+        let key = ClosedFormInputKey {
+            block_number: metadata.block_number,
+            circuit_id: metadata.circuit_id,
+        };
+
+        object_store
+            .get(key)
+            .await
+            .unwrap_or_else(|_| panic!("leaf aggregation job artifacts missing: {:?}", key))
+    }
+
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
+    )]
+    async fn save_artifacts(
+        artifacts: Self::OutputArtifacts,
+        object_store: &dyn ObjectStore,
+    ) -> BlobUrls {
+        let started_at = Instant::now();
+        let aggregations_urls = save_node_aggregations_artifacts(
+            artifacts.block_number,
+            get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
+            0,
+            artifacts.aggregations,
+            object_store,
+        )
+        .await;
+        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::LeafAggregation.into()]
+            .observe(started_at.elapsed());
+
+        BlobUrls {
+            aggregations_urls,
+            circuit_ids_and_urls: artifacts.circuit_ids_and_urls,
+        }
+    }
 }
 
 impl LeafAggregationWitnessGenerator {
@@ -177,7 +219,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
             block_number.0,
             circuit_id,
         );
-        let blob_urls = save_artifacts(artifacts, &*self.object_store).await;
+        let blob_urls = Self::save_artifacts(artifacts, &*self.object_store).await;
         tracing::info!(
             "Saved leaf aggregation artifacts for block {} with circuit {} (count: {})",
             block_number.0,
@@ -225,7 +267,8 @@ pub async fn prepare_leaf_aggregation_job(
     keystore: Keystore,
 ) -> anyhow::Result<LeafAggregationWitnessGeneratorJob> {
     let started_at = Instant::now();
-    let closed_form_input = get_artifacts(&metadata, object_store).await;
+    let closed_form_input =
+        LeafAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await;
 
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::LeafAggregation.into()]
         .observe(started_at.elapsed());
@@ -445,48 +488,4 @@ async fn update_database(
         circuit_id,
     );
     transaction.commit().await.unwrap();
-}
-
-#[tracing::instrument(
-    skip_all,
-    fields(l1_batch = %metadata.block_number, circuit_id = %metadata.circuit_id)
-)]
-async fn get_artifacts(
-    metadata: &LeafAggregationJobMetadata,
-    object_store: &dyn ObjectStore,
-) -> ClosedFormInputWrapper {
-    let key = ClosedFormInputKey {
-        block_number: metadata.block_number,
-        circuit_id: metadata.circuit_id,
-    };
-    object_store
-        .get(key)
-        .await
-        .unwrap_or_else(|_| panic!("leaf aggregation job artifacts missing: {:?}", key))
-}
-
-#[tracing::instrument(
-    skip_all,
-    fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
-)]
-async fn save_artifacts(
-    artifacts: LeafAggregationArtifacts,
-    object_store: &dyn ObjectStore,
-) -> BlobUrls {
-    let started_at = Instant::now();
-    let aggregations_urls = save_node_aggregations_artifacts(
-        artifacts.block_number,
-        get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
-        0,
-        artifacts.aggregations,
-        object_store,
-    )
-    .await;
-    WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::LeafAggregation.into()]
-        .observe(started_at.elapsed());
-
-    BlobUrls {
-        circuit_ids_and_urls: artifacts.circuit_ids_and_urls,
-        aggregations_urls,
-    }
 }

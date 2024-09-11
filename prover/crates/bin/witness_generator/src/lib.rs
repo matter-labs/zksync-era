@@ -11,5 +11,6 @@ pub mod scheduler;
 mod storage_oracle;
 #[cfg(test)]
 mod tests;
+mod traits;
 pub mod utils;
 mod witness;

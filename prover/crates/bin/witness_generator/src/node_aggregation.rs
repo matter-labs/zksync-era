@@ -30,6 +30,7 @@ use zksync_types::{
     prover_dal::NodeAggregationJobMetadata, L1BatchNumber,
 };
 
+use crate::traits::{ArtifactsManager, BlobUrls};
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
     utils::{
@@ -44,12 +45,6 @@ pub struct NodeAggregationArtifacts {
     depth: u16,
     pub next_aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
     pub recursive_circuit_ids_and_urls: Vec<(u8, String)>,
-}
-
-#[derive(Debug)]
-struct BlobUrls {
-    node_aggregations_url: String,
-    circuit_ids_and_urls: Vec<(u8, String)>,
 }
 
 #[derive(Clone)]
@@ -73,6 +68,60 @@ pub struct NodeAggregationWitnessGenerator {
     keystore: Keystore,
 }
 
+impl ArtifactsManager for NodeAggregationWitnessGenerator {
+    type Metadata = NodeAggregationJobMetadata;
+    type InputArtifacts = AggregationWrapper;
+    type OutputArtifacts = NodeAggregationArtifacts;
+
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = % metadata.block_number, circuit_id = % metadata.circuit_id)
+    )]
+    async fn get_artifacts(
+        metadata: &Self::Metadata,
+        object_store: &dyn ObjectStore,
+    ) -> Self::InputArtifacts {
+        let key = AggregationsKey {
+            block_number: metadata.block_number,
+            circuit_id: metadata.circuit_id,
+            depth: metadata.depth,
+        };
+        object_store.get(key).await.unwrap_or_else(|error| {
+            panic!(
+                "node aggregation job artifacts getting error. Key: {:?}, error: {:?}",
+                key, error
+            )
+        })
+    }
+
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
+    )]
+    async fn save_artifacts(
+        artifacts: Self::OutputArtifacts,
+        object_store: &dyn ObjectStore,
+    ) -> BlobUrls {
+        let started_at = Instant::now();
+        let aggregations_urls = save_node_aggregations_artifacts(
+            artifacts.block_number,
+            artifacts.circuit_id,
+            artifacts.depth,
+            artifacts.next_aggregations,
+            object_store,
+        )
+        .await;
+
+        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::NodeAggregation.into()]
+            .observe(started_at.elapsed());
+
+        BlobUrls {
+            aggregations_urls,
+            circuit_ids_and_urls: artifacts.recursive_circuit_ids_and_urls,
+        }
+    }
+}
+
 impl NodeAggregationWitnessGenerator {
     pub fn new(
         config: FriWitnessGeneratorConfig,
@@ -91,9 +140,9 @@ impl NodeAggregationWitnessGenerator {
     }
 
     #[tracing::instrument(
-        skip_all,
-        fields(l1_batch = %job.block_number, circuit_id = %job.circuit_id)
-    )]
+            skip_all,
+            fields(l1_batch = % job.block_number, circuit_id = % job.circuit_id)
+        )]
     pub async fn process_job_impl(
         job: NodeAggregationWitnessGeneratorJob,
         started_at: Instant,
@@ -275,9 +324,9 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
     }
 
     #[tracing::instrument(
-        skip_all,
-        fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
-    )]
+            skip_all,
+            fields(l1_batch = % artifacts.block_number, circuit_id = % artifacts.circuit_id)
+        )]
     async fn save_result(
         &self,
         job_id: u32,
@@ -288,7 +337,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         let circuit_id = artifacts.circuit_id;
         let depth = artifacts.depth;
         let shall_continue_node_aggregations = artifacts.next_aggregations.len() > 1;
-        let blob_urls = save_artifacts(artifacts, &*self.object_store).await;
+        let blob_urls = Self::save_artifacts(artifacts, &*self.object_store).await;
         update_database(
             &self.prover_connection_pool,
             started_at,
@@ -323,16 +372,16 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
 }
 
 #[tracing::instrument(
-    skip_all,
-    fields(l1_batch = %metadata.block_number, circuit_id = %metadata.circuit_id)
-)]
+        skip_all,
+        fields(l1_batch = % metadata.block_number, circuit_id = % metadata.circuit_id)
+    )]
 pub async fn prepare_job(
     metadata: NodeAggregationJobMetadata,
     object_store: &dyn ObjectStore,
     keystore: Keystore,
 ) -> anyhow::Result<NodeAggregationWitnessGeneratorJob> {
     let started_at = Instant::now();
-    let artifacts = get_artifacts(&metadata, object_store).await;
+    let artifacts = NodeAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await;
 
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
         .observe(started_at.elapsed());
@@ -364,9 +413,9 @@ pub async fn prepare_job(
 
 #[allow(clippy::too_many_arguments)]
 #[tracing::instrument(
-    skip_all,
-    fields(l1_batch = %block_number, circuit_id = %circuit_id)
-)]
+        skip_all,
+        fields(l1_batch = % block_number, circuit_id = % circuit_id)
+    )]
 async fn update_database(
     prover_connection_pool: &ConnectionPool<Prover>,
     started_at: Instant,
@@ -403,7 +452,7 @@ async fn update_database(
                     circuit_id,
                     Some(dependent_jobs as i32),
                     depth,
-                    &blob_urls.node_aggregations_url,
+                    &blob_urls.aggregations_urls,
                     protocol_version_id,
                 )
                 .await;
@@ -432,52 +481,4 @@ async fn update_database(
         .await;
 
     transaction.commit().await.unwrap();
-}
-
-#[tracing::instrument(
-    skip_all,
-    fields(l1_batch = %metadata.block_number, circuit_id = %metadata.circuit_id)
-)]
-async fn get_artifacts(
-    metadata: &NodeAggregationJobMetadata,
-    object_store: &dyn ObjectStore,
-) -> AggregationWrapper {
-    let key = AggregationsKey {
-        block_number: metadata.block_number,
-        circuit_id: metadata.circuit_id,
-        depth: metadata.depth,
-    };
-    object_store.get(key).await.unwrap_or_else(|error| {
-        panic!(
-            "node aggregation job artifacts getting error. Key: {:?}, error: {:?}",
-            key, error
-        )
-    })
-}
-
-#[tracing::instrument(
-    skip_all,
-    fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
-)]
-async fn save_artifacts(
-    artifacts: NodeAggregationArtifacts,
-    object_store: &dyn ObjectStore,
-) -> BlobUrls {
-    let started_at = Instant::now();
-    let aggregations_urls = save_node_aggregations_artifacts(
-        artifacts.block_number,
-        artifacts.circuit_id,
-        artifacts.depth,
-        artifacts.next_aggregations,
-        object_store,
-    )
-    .await;
-
-    WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::NodeAggregation.into()]
-        .observe(started_at.elapsed());
-
-    BlobUrls {
-        node_aggregations_url: aggregations_urls,
-        circuit_ids_and_urls: artifacts.recursive_circuit_ids_and_urls,
-    }
 }
