@@ -6,6 +6,7 @@ use config::{
 };
 use xshell::Shell;
 
+use super::common::{distribute_eth, mint_base_token, register_chain};
 use crate::{
     accept_ownership::accept_admin,
     commands::{
@@ -24,8 +25,6 @@ use crate::{
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
     },
 };
-
-use super::common::{distribute_eth, mint_base_token, register_chain};
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
     let chain_name = global_config().chain_name.clone();
