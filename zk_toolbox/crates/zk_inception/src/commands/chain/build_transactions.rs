@@ -14,7 +14,7 @@ use crate::{
     },
 };
 
-use super::{common::register_chain, deploy_paymaster::deploy_paymaster};
+use super::common::register_chain;
 
 const CHAIN_TXNS_FILE_SRC: &str =
     "contracts/l1-contracts/broadcast/RegisterHyperchain.s.sol/9/dry-run/run-latest.json";
