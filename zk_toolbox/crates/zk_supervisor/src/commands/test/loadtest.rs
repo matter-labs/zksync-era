@@ -41,7 +41,7 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
         .env("L2_WS_RPC_ADDRESS", general_api.web3_json_rpc.ws_url);
 
     if global_config().verbose {
-        command = command.env("RUST_LOG", "loadnext=debug")
+        command = command.env("RUST_LOG", "loadnext=info")
     }
 
     Cmd::new(command).with_force_run().run()?;
