@@ -276,7 +276,10 @@ impl WitnessVectorGenerator {
     ) {
         let now = Instant::now();
         self.sender.send(artifacts).await.unwrap();
-        // tracing::info!("Sent job after {:?}", now.elapsed());
+        tracing::info!(
+            "Witness Vector Generator sent job after {:?}",
+            now.elapsed()
+        );
     }
 
     async fn save_failure(&self, job_id: u32, _started_at: Instant, error: String) {
