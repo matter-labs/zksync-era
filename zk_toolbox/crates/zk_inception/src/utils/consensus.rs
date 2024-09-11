@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    net::{IpAddr, SocketAddr},
+};
 
 use config::{ChainConfig, PortsConfig};
 use secrecy::{ExposeSecret, Secret};
@@ -39,13 +42,18 @@ pub fn get_consensus_config(
         None
     };
 
-    let public_addr = format!("{}:{}", CONSENSUS_PUBLIC_ADDRESS_HOST, ports.consensus_port);
-    let server_addr =
-        format!("{}:{}", CONSENSUS_SERVER_ADDRESS_HOST, ports.consensus_port).parse()?;
+    let public_addr = SocketAddr::new(
+        IpAddr::V4(CONSENSUS_PUBLIC_ADDRESS_HOST),
+        ports.consensus_port,
+    );
+    let server_addr = SocketAddr::new(
+        IpAddr::V4(CONSENSUS_SERVER_ADDRESS_HOST),
+        ports.consensus_port,
+    );
 
     Ok(ConsensusConfig {
         server_addr,
-        public_addr: Host(public_addr),
+        public_addr: Host(public_addr.encode()),
         genesis_spec,
         max_payload_size: MAX_PAYLOAD_SIZE,
         gossip_dynamic_inbound_limit: GOSSIP_DYNAMIC_INBOUND_LIMIT,

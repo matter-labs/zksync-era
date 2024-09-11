@@ -1,3 +1,5 @@
+use std::net::Ipv4Addr;
+
 pub const AMOUNT_FOR_DISTRIBUTION_TO_WALLETS: u128 = 1000000000000000000000;
 
 pub const MINIMUM_BALANCE_FOR_WALLET: u128 = 5000000000000000000;
@@ -26,9 +28,9 @@ pub const MAX_BATCH_SIZE: usize = MAX_PAYLOAD_SIZE * 5000 + kB;
 pub const GOSSIP_DYNAMIC_INBOUND_LIMIT: usize = 1;
 
 /// Public address for consensus
-pub const CONSENSUS_PUBLIC_ADDRESS_HOST: &str = "0.0.0.0";
+pub const CONSENSUS_PUBLIC_ADDRESS_HOST: Ipv4Addr = Ipv4Addr::new(0, 0, 0, 0);
 /// Server address for consensus
-pub const CONSENSUS_SERVER_ADDRESS_HOST: &str = "127.0.0.1";
+pub const CONSENSUS_SERVER_ADDRESS_HOST: Ipv4Addr = Ipv4Addr::new(127, 0, 0, 1);
 
 /// Path to the JS runtime config for the block-explorer-app docker container to be mounted to
 pub const EXPLORER_APP_DOCKER_CONFIG_PATH: &str = "/usr/src/app/packages/app/dist/config.js";
