@@ -16,6 +16,7 @@ pub struct StorageProtocolVersion {
     pub snark_wrapper_vk_hash: Vec<u8>,
     pub bootloader_code_hash: Vec<u8>,
     pub default_account_code_hash: Vec<u8>,
+    pub evm_simulator_code_hash: Option<Vec<u8>>,
 }
 
 pub(crate) fn protocol_version_from_storage(
@@ -34,6 +35,11 @@ pub(crate) fn protocol_version_from_storage(
         base_system_contracts_hashes: BaseSystemContractsHashes {
             bootloader: H256::from_slice(&storage_version.bootloader_code_hash),
             default_aa: H256::from_slice(&storage_version.default_account_code_hash),
+            evm_simulator: H256::from_slice(
+                &storage_version
+                    .evm_simulator_code_hash
+                    .unwrap_or(H256::zero().as_bytes().to_vec()),
+            ),
         },
         tx,
     }
@@ -45,6 +51,7 @@ pub struct StorageApiProtocolVersion {
     pub timestamp: i64,
     pub bootloader_code_hash: Vec<u8>,
     pub default_account_code_hash: Vec<u8>,
+    pub evm_simulator_code_hash: Option<Vec<u8>>,
     pub upgrade_tx_hash: Option<Vec<u8>>,
 }
 
@@ -60,6 +67,11 @@ impl From<StorageApiProtocolVersion> for api::ProtocolVersion {
             storage_protocol_version.timestamp as u64,
             H256::from_slice(&storage_protocol_version.bootloader_code_hash),
             H256::from_slice(&storage_protocol_version.default_account_code_hash),
+            H256::from_slice(
+                &storage_protocol_version
+                    .evm_simulator_code_hash
+                    .unwrap_or(H256::zero().as_bytes().to_vec()),
+            ),
             l2_system_upgrade_tx_hash,
         )
     }

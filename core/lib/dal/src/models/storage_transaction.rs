@@ -364,12 +364,10 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
             to: storage_receipt
                 .transfer_to
                 .or(storage_receipt.execute_contract_address)
-                .map(|addr| {
-                    serde_json::from_value::<Address>(addr)
+                .and_then(|addr| {
+                    serde_json::from_value::<Option<Address>>(addr)
                         .expect("invalid address value in the database")
-                })
-                // For better compatibility with various clients, we never return null.
-                .or_else(|| Some(Address::default())),
+                }),
             cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
             gas_used: {
                 let refunded_gas: U256 = storage_receipt.refunded_gas.into();
@@ -508,6 +506,12 @@ impl StorageApiTransaction {
             .signature
             .and_then(|signature| PackedEthSignature::deserialize_packed(&signature).ok());
 
+        let to = if let Ok(address) = serde_json::from_value(self.execute_contract_address) {
+            Some(address)
+        } else {
+            Some(Address::zero())
+        };
+
         // For legacy and EIP-2930 transactions it is gas price willing to be paid by the sender in wei.
         // For other transactions it should be the effective gas price if transaction is included in block,
         // otherwise this value should be set equal to the max fee per gas.
@@ -528,7 +532,7 @@ impl StorageApiTransaction {
             block_number: self.block_number.map(|number| U64::from(number as u64)),
             transaction_index: self.index_in_block.map(|idx| U64::from(idx as u64)),
             from: Some(Address::from_slice(&self.initiator_address)),
-            to: Some(serde_json::from_value(self.execute_contract_address).unwrap()),
+            to,
             value: bigdecimal_to_u256(self.value),
             gas_price: Some(bigdecimal_to_u256(gas_price)),
             gas: bigdecimal_to_u256(self.gas_limit.unwrap_or_else(BigDecimal::zero)),
