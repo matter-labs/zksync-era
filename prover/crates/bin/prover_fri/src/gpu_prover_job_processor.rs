@@ -341,7 +341,8 @@ pub mod gpu_prover {
         }
     }
 
-    pub fn load_setup_data_cache(
+    #[tracing::instrument(skip_all, fields(setup_load_mode = ?setup_load_mode, specialized_group_id = %specialized_group_id))]
+    pub async fn load_setup_data_cache(
         keystore: &Keystore,
         setup_load_mode: SetupLoadModeConfig,
         specialized_group_id: u8,
@@ -364,37 +365,28 @@ pub mod gpu_prover {
                     &specialized_group_id,
                     circuit_ids
                 );
-                std::thread::scope(|s| {
-                    // Note: `collect` is important, because iterators are lazy and otherwise we won't actually
-                    // spawn threads.
-                    let handles: Vec<_> = circuit_ids
-                        .into_iter()
-                        .map(|prover_setup_metadata| {
-                            s.spawn(move || {
-                                println!(
-                                    "Start loading setup data for {:?}",
-                                    prover_setup_metadata
-                                );
-                                let start = Instant::now();
-                                let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
-                                let setup_data = keystore
-                                    .load_gpu_setup_data_for_circuit_type(key.clone())
-                                    .context("load_gpu_setup_data_for_circuit_type()")?;
-                                println!(
-                                    "Loaded setup data for {:?} in {:?}",
-                                    prover_setup_metadata,
-                                    start.elapsed()
-                                );
-                                anyhow::Ok((key, Arc::new(setup_data)))
-                            })
+                // Load each file in parallel. Note that FS access is not necessarily parallel, but
+                // deserialization is (and it's not insignificant, as setup keys are large).
+                // Note: `collect` is important, because iterators are lazy and otherwise we won't actually
+                // spawn threads.
+                let handles: Vec<_> = circuit_ids
+                    .into_iter()
+                    .map(|prover_setup_metadata| {
+                        let keystore = keystore.clone();
+                        let prover_setup_metadata = prover_setup_metadata.clone();
+                        tokio::task::spawn_blocking(move || {
+                            let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
+                            let setup_data = keystore
+                                .load_gpu_setup_data_for_circuit_type(key.clone())
+                                .context("load_gpu_setup_data_for_circuit_type()")?;
+                            anyhow::Ok((key, Arc::new(setup_data)))
                         })
-                        .collect();
-                    for handle in handles {
-                        let (key, setup_data) = handle.join().unwrap()?;
-                        cache.insert(key, setup_data);
-                    }
-                    anyhow::Ok(())
-                })?;
+                    })
+                    .collect();
+                for handle in futures::future::join_all(handles).await {
+                    let (key, setup_data) = handle.unwrap()?;
+                    cache.insert(key, setup_data);
+                }
                 SetupLoadMode::FromMemory(cache)
             }
         })
@@ -406,8 +398,8 @@ pub mod gpu_prover {
 
         use super::*;
 
-        #[test]
-        fn test_load_setup_data_cache() {
+        #[tokio::test]
+        async fn test_load_setup_data_cache() {
             let keystore = Keystore::locate();
             let mode = SetupLoadModeConfig::FromMemory;
             let specialized_group_id = 0;
@@ -416,8 +408,14 @@ pub mod gpu_prover {
                 .map(|r| r.circuit_ids())
                 .flatten()
                 .collect();
+            if !keystore.is_setup_data_present(&setup_metadata_to_setup_data_key(&ids[0])) {
+                // We don't want this test to fail on envs where setup keys are not present.
+                return;
+            }
+
             let start = Instant::now();
             let _cache = load_setup_data_cache(&keystore, mode, specialized_group_id, &ids)
+                .await
                 .expect("Unable to load keys");
             println!("Cache load time: {:?}", start.elapsed());
         }

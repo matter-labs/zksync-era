@@ -237,6 +237,7 @@ async fn get_prover_tasks(
         prover_config.specialized_group_id,
         &circuit_ids_for_round_to_be_proven,
     )
+    .await
     .context("load_setup_data_cache()")?;
     let witness_vector_queue = FixedSizeQueue::new(prover_config.queue_capacity);
     let shared_witness_vector_queue = Arc::new(Mutex::new(witness_vector_queue));
