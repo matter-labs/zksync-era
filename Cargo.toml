@@ -219,15 +219,16 @@ circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", version = "0.
 circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", version = "0.140" }
 circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", version = "0.141" }
 circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", version = "0.142" }
-circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.5" }
-crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.30.1" }
-kzg = { package = "zksync_kzg", version = "=0.150.5" }
+
+circuit_sequencer_api_1_5_0 = { git = "https://github.com/distributed-lab/zksync-protocol", branch = "dl-precompiles", package = "circuit_sequencer_api" }
+crypto_codegen = { git = "https://github.com/distributed-lab/zksync-crypto", branch = "dl-precompiles", package = "zksync_solidity_vk_codegen" }
+kzg = {git = "https://github.com/distributed-lab/zksync-protocol", branch = "dl-precompiles", package = "zksync_kzg" }
 zk_evm = { version = "=0.133.0" }
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
-zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
-zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
-zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
-zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.5" }
+zk_evm_1_3_3 = { package = "zk_evm", version = "0.133.0" }
+zk_evm_1_4_0 = { package = "zk_evm", version = "0.140.0" }
+zk_evm_1_4_1 = { package = "zk_evm", version = "0.141.0" }
+zk_evm_1_5_0 = { git = "https://github.com/distributed-lab/zksync-protocol", branch = "dl-precompiles", package = "zk_evm" }
 
 # New VM; pinned to a specific commit because of instability
 zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "a233d44bbe61dc6a758a754c3b78fe4f83e56699" }
@@ -312,3 +313,7 @@ zksync_node_api_server = { version = "0.1.0", path = "core/node/api_server" }
 zksync_tee_verifier_input_producer = { version = "0.1.0", path = "core/node/tee_verifier_input_producer" }
 zksync_base_token_adjuster = { version = "0.1.0", path = "core/node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "0.1.0", path = "core/node/logs_bloom_backfill" }
+
+[patch.crates-io]
+# Need this to avoid version conflicts.
+zksync_bellman = { git = "https://github.com/distributed-lab/zksync-crypto", branch = "dl-precompiles", package = "zksync_bellman" }
