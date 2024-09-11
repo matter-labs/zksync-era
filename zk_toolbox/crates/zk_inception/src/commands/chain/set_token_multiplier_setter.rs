@@ -15,7 +15,7 @@ use crate::{
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED,
         MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
-        MSG_WALLETS_CONFIG_MUST_BE_PRESENT,
+        MSG_WALLETS_CONFIG_MUST_BE_PRESENT, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
@@ -47,6 +47,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .get_wallets()
         .context(MSG_WALLETS_CONFIG_MUST_BE_PRESENT)?
         .token_multiplier_setter
+        .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
         .address;
 
     let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);

@@ -242,7 +242,13 @@ impl ExternalNodeBuilder {
         let config = self.config.consensus.clone();
         let secrets =
             config::read_consensus_secrets().context("config::read_consensus_secrets()")?;
-        let layer = ExternalNodeConsensusLayer { config, secrets };
+        let layer = ExternalNodeConsensusLayer {
+            build_version: crate::metadata::SERVER_VERSION
+                .parse()
+                .context("CRATE_VERSION.parse()")?,
+            config,
+            secrets,
+        };
         self.node.add_layer(layer);
         Ok(self)
     }
