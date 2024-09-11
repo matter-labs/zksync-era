@@ -63,6 +63,7 @@ pub mod pruning;
 pub mod secrets;
 pub mod snapshot_recovery;
 pub mod snapshots_creator;
+pub mod use_evm_simulator;
 pub mod utils;
 pub mod vm_runner;
 pub mod wallets;
