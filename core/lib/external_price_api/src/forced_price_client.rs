@@ -5,7 +5,7 @@ use std::{
 
 use async_trait::async_trait;
 use rand::Rng;
-use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 use zksync_config::configs::ExternalPriceApiClientConfig;
 use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
 
@@ -15,7 +15,7 @@ use crate::PriceAPIClient;
 #[derive(Debug)]
 pub struct ForcedPriceClient {
     ratio: BaseTokenAPIRatio,
-    previous_numerator: RwLock<NonZeroU64>,
+    previous_numerator: Mutex<NonZeroU64>,
     fluctuation: Option<u32>,
     next_value_fluctuation: u32,
 }
@@ -56,7 +56,7 @@ impl ForcedPriceClient {
 
         Self {
             ratio,
-            previous_numerator: RwLock::new(NonZeroU64::new(numerator).unwrap()),
+            previous_numerator: Mutex::new(NonZeroU64::new(numerator).unwrap()),
             fluctuation,
             next_value_fluctuation,
         }
@@ -68,7 +68,7 @@ impl PriceAPIClient for ForcedPriceClient {
     /// Returns the configured ratio with fluctuation applied if enabled
     async fn fetch_ratio(&self, _token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
         if let Some(fluctation) = self.fluctuation {
-            let mut previous_numerator = self.previous_numerator.write().await;
+            let mut previous_numerator = self.previous_numerator.lock().await;
             let mut rng = rand::thread_rng();
             let numerator_range = (
                 max(
