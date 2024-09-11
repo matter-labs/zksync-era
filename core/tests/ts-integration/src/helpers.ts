@@ -4,6 +4,8 @@ import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';
 
+const solc = require('solc');
+
 export const SYSTEM_CONTEXT_ADDRESS = '0x000000000000000000000000000000000000800b';
 
 /**
@@ -140,4 +142,49 @@ export function bigIntMax(...args: bigint[]) {
     }
 
     return args.reduce((max, current) => (current > max ? current : max), args[0]);
+}
+
+/** Compiles and returns artifacts for a Solidity (EVM) contract
+ *
+ * @param contractPath The path of the contract relative to the contracts directory
+ * @param args Constructor arguments for the contract
+ * @returns The transaction data for the contract deployment
+ */
+export function getEVMArtifact(contractPath: string, contractName: string | undefined = undefined): any {
+    const compilerParams = {
+        language: 'Solidity',
+        sources: {
+            contract: {
+                content: getContractSource(contractPath)
+            }
+        },
+        settings: {
+            outputSelection: {
+                '*': {
+                    '*': ['*']
+                }
+            }
+        }
+    } as any;
+    if (contractName === undefined) {
+        const splitPath = contractPath.split('/');
+        contractName = splitPath[splitPath.length - 1];
+    }
+
+    const artifact = JSON.parse(solc.compile(JSON.stringify(compilerParams))).contracts['contract'][
+        contractName.split('.')[0]
+    ];
+
+    return artifact;
+}
+
+/** Gets the deployment transaction data for a given contract path and parameters
+ *
+ * @param initiator Wallet that should be used
+ * @param contractPath The path of the contract relative to the contracts directory
+ * @param args Constructor arguments for the contract
+ * @returns The transaction data for the contract deployment
+ */
+export function getEVMContractFactory(initiator: zksync.Wallet, artifact: any): ethers.ContractFactory {
+    return new ethers.ContractFactory(artifact.abi, '0x' + artifact.evm.bytecode.object, initiator);
 }
