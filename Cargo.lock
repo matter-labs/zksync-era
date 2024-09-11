@@ -8478,6 +8478,8 @@ dependencies = [
  "once_cell",
  "serde",
  "serde_json",
+ "zksync_config",
+ "zksync_env_config",
  "zksync_utils",
 ]
 
@@ -8980,6 +8982,7 @@ dependencies = [
  "zk_evm 0.150.4",
  "zksync_contracts",
  "zksync_eth_signer",
+ "zksync_state",
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",
@@ -9800,6 +9803,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_system_constants",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
