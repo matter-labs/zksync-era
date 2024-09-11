@@ -675,7 +675,7 @@ dependencies = [
 [[package]]
 name = "boojum"
 version = "0.30.1"
-source = "git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
+source = "git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
 dependencies = [
  "arrayvec 0.7.6",
  "bincode",
@@ -699,8 +699,8 @@ dependencies = [
  "smallvec",
  "tracing",
  "unroll",
- "zksync_cs_derive 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles)",
- "zksync_pairing 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles)",
+ "zksync_cs_derive 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles)",
+ "zksync_pairing 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles)",
 ]
 
 [[package]]
@@ -907,8 +907,8 @@ source = "git+https://github.com/distributed-lab/zksync-protocol.git?branch=dl-p
 dependencies = [
  "derivative",
  "serde",
- "zk_evm 0.150.5 (git+https://github.com/distributed-lab/zksync-protocol.git?branch=dl-precompiles)",
- "zkevm_circuits 0.150.5 (git+https://github.com/distributed-lab/zksync-protocol.git?branch=dl-precompiles)",
+ "zk_evm 0.150.5",
+ "zkevm_circuits 0.150.5",
 ]
 
 [[package]]
@@ -2048,14 +2048,14 @@ dependencies = [
 [[package]]
 name = "franklin-crypto"
 version = "0.30.1"
-source = "git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
+source = "git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
 dependencies = [
  "arr_macro",
  "bit-vec",
  "blake2 0.9.2",
  "blake2-rfc_bellman_edition",
  "blake2s_simd",
- "boojum 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles)",
+ "boojum 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles)",
  "byteorder",
  "derivative",
  "digest 0.9.0",
@@ -2074,7 +2074,7 @@ dependencies = [
  "smallvec",
  "splitmut",
  "tiny-keccak 1.5.0",
- "zksync_bellman 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles)",
+ "zksync_bellman 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles)",
 ]
 
 [[package]]
@@ -4993,39 +4993,14 @@ dependencies = [
 [[package]]
 name = "rescue_poseidon"
 version = "0.30.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82900c877a0ba5362ac5756efbd82c5b795dc509011c1253e2389d8708f1389d"
+source = "git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
 dependencies = [
  "addchain",
  "arrayvec 0.7.6",
  "blake2 0.10.6",
  "byteorder",
  "derivative",
- "franklin-crypto 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "lazy_static",
- "log",
- "num-bigint 0.3.3",
- "num-integer",
- "num-iter",
- "num-traits",
- "rand 0.4.6",
- "serde",
- "sha3 0.9.1",
- "smallvec",
- "typemap_rev",
-]
-
-[[package]]
-name = "rescue_poseidon"
-version = "0.30.1"
-source = "git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
-dependencies = [
- "addchain",
- "arrayvec 0.7.6",
- "blake2 0.10.6",
- "byteorder",
- "derivative",
- "franklin-crypto 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles)",
+ "franklin-crypto 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles)",
  "lazy_static",
  "log",
  "num-bigint 0.3.3",
@@ -5879,11 +5854,11 @@ dependencies = [
 [[package]]
 name = "snark_wrapper"
 version = "0.30.1"
-source = "git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
+source = "git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
 dependencies = [
  "derivative",
  "rand 0.4.6",
- "rescue_poseidon 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles)",
+ "rescue_poseidon",
 ]
 
 [[package]]
@@ -7622,21 +7597,6 @@ dependencies = [
 [[package]]
 name = "zk_evm"
 version = "0.150.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a6e69931f24db5cf333b714721e8d80ff88bfdb7da8c3dc7882612ffddb8d27"
-dependencies = [
- "anyhow",
- "lazy_static",
- "num",
- "serde",
- "serde_json",
- "static_assertions",
- "zk_evm_abstractions 0.150.5 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "zk_evm"
-version = "0.150.5"
 source = "git+https://github.com/distributed-lab/zksync-protocol.git?branch=dl-precompiles#b8dfc040749ea65ccd7991da5e8846eb6d66c235"
 dependencies = [
  "anyhow",
@@ -7765,30 +7725,10 @@ dependencies = [
 [[package]]
 name = "zkevm_circuits"
 version = "0.150.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "784fa7cfb51e17c5ced112bca43da30b3468b2347b7af0427ad9638759fb140e"
-dependencies = [
- "arrayvec 0.7.6",
- "boojum 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "derivative",
- "hex",
- "itertools 0.10.5",
- "rand 0.4.6",
- "rand 0.8.5",
- "seq-macro",
- "serde",
- "smallvec",
- "zkevm_opcode_defs 0.150.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "zksync_cs_derive 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "zkevm_circuits"
-version = "0.150.5"
 source = "git+https://github.com/distributed-lab/zksync-protocol.git?branch=dl-precompiles#b8dfc040749ea65ccd7991da5e8846eb6d66c235"
 dependencies = [
  "arrayvec 0.7.6",
- "boojum 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles)",
+ "boojum 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles)",
  "derivative",
  "hex",
  "itertools 0.10.5",
@@ -7876,7 +7816,7 @@ dependencies = [
  "serde",
  "sha2 0.10.8",
  "sha3 0.10.8",
- "zksync_pairing 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles)",
+ "zksync_pairing 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles)",
 ]
 
 [[package]]
@@ -7902,7 +7842,7 @@ dependencies = [
  "test-log",
  "tracing",
  "zkevm-assembly",
- "zksync_kzg 0.150.5 (git+https://github.com/distributed-lab/zksync-protocol.git?branch=dl-precompiles)",
+ "zksync_kzg",
 ]
 
 [[package]]
@@ -7994,7 +7934,7 @@ dependencies = [
 [[package]]
 name = "zksync_bellman"
 version = "0.30.1"
-source = "git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
+source = "git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
 dependencies = [
  "arrayvec 0.7.6",
  "bit-vec",
@@ -8010,7 +7950,7 @@ dependencies = [
  "serde",
  "smallvec",
  "tiny-keccak 1.5.0",
- "zksync_pairing 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles)",
+ "zksync_pairing 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles)",
 ]
 
 [[package]]
@@ -8214,7 +8154,7 @@ dependencies = [
 [[package]]
 name = "zksync_cs_derive"
 version = "0.30.1"
-source = "git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
+source = "git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
 dependencies = [
  "proc-macro-error",
  "proc-macro2 1.0.87",
@@ -8329,13 +8269,13 @@ dependencies = [
 [[package]]
 name = "zksync_ff"
 version = "0.30.1"
-source = "git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
+source = "git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
 dependencies = [
  "byteorder",
  "hex",
  "rand 0.4.6",
  "serde",
- "zksync_ff_derive 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles)",
+ "zksync_ff_derive 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles)",
 ]
 
 [[package]]
@@ -8356,7 +8296,7 @@ dependencies = [
 [[package]]
 name = "zksync_ff_derive"
 version = "0.30.1"
-source = "git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
+source = "git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
 dependencies = [
  "num-bigint 0.4.6",
  "num-integer",
@@ -8370,26 +8310,9 @@ dependencies = [
 [[package]]
 name = "zksync_kzg"
 version = "0.150.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edb8a9c76c172a6d639855ee342b9a670e3ba472f5ae302f771b1c3ee777dc88"
-dependencies = [
- "boojum 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "derivative",
- "hex",
- "once_cell",
- "rayon",
- "serde",
- "serde_json",
- "serde_with",
- "zkevm_circuits 0.150.5 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "zksync_kzg"
-version = "0.150.5"
 source = "git+https://github.com/distributed-lab/zksync-protocol.git?branch=dl-precompiles#b8dfc040749ea65ccd7991da5e8846eb6d66c235"
 dependencies = [
- "boojum 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles)",
+ "boojum 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles)",
  "derivative",
  "hex",
  "once_cell",
@@ -8397,7 +8320,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_with",
- "zkevm_circuits 0.150.5 (git+https://github.com/distributed-lab/zksync-protocol.git?branch=dl-precompiles)",
+ "zkevm_circuits 0.150.5",
 ]
 
 [[package]]
@@ -8409,7 +8332,7 @@ dependencies = [
  "once_cell",
  "sha2 0.10.8",
  "sha3 0.10.8",
- "zksync_kzg 0.150.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zksync_kzg",
  "zksync_prover_interface",
  "zksync_solidity_vk_codegen",
  "zksync_types",
@@ -8445,7 +8368,7 @@ dependencies = [
  "zk_evm 0.133.0",
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
- "zk_evm 0.150.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zk_evm 0.150.5",
  "zksync_contracts",
  "zksync_system_constants",
  "zksync_types",
@@ -8493,13 +8416,13 @@ dependencies = [
 [[package]]
 name = "zksync_pairing"
 version = "0.30.1"
-source = "git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
+source = "git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
 dependencies = [
  "byteorder",
  "cfg-if",
  "rand 0.4.6",
  "serde",
- "zksync_ff 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto.git?branch=dl-precompiles)",
+ "zksync_ff 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles)",
 ]
 
 [[package]]
@@ -8804,15 +8727,14 @@ dependencies = [
 [[package]]
 name = "zksync_solidity_vk_codegen"
 version = "0.30.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b310ab8a21681270e73f177ddf7974cabb7a96f0624ab8b008fd6ee1f9b4f687"
+source = "git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles#8d6541382b446f53128fd25e6acc1a8bfcefb5d2"
 dependencies = [
  "ethereum-types",
- "franklin-crypto 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "franklin-crypto 0.30.1 (git+https://github.com/distributed-lab/zksync-crypto?branch=dl-precompiles)",
  "handlebars",
  "hex",
  "paste",
- "rescue_poseidon 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rescue_poseidon",
  "serde",
  "serde_derive",
  "serde_json",
