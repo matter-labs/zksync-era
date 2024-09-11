@@ -20,13 +20,7 @@ use config::{
 };
 use types::{BaseToken, L1Network, WalletCreation};
 use xshell::Shell;
-use zksync_config::configs::consensus::{
-    AttesterPublicKey, AttesterSecretKey, ConsensusConfig, ConsensusSecrets, GenesisSpec, Host,
-    NodeSecretKey, ProtocolVersion, Secret, ValidatorPublicKey, ValidatorSecretKey,
-    WeightedAttester, WeightedValidator,
-};
-use zksync_consensus_crypto::TextFmt;
-use zksync_consensus_roles as roles;
+use zksync_config::configs::consensus::{ConsensusConfig, Host};
 
 use crate::{
     accept_ownership::accept_admin,
@@ -51,7 +45,10 @@ use crate::{
         MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::{
+        consensus::{generate_consensus_keys, get_consensus_secrets, get_genesis_specs},
+        forge::{check_the_balance, fill_forge_private_key},
+    },
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -302,67 +299,4 @@ fn apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> an
     update_ports(general_config, &ports_config)?;
 
     Ok(())
-}
-
-struct ConsensusKeys {
-    validator_key: roles::validator::SecretKey,
-    attester_key: roles::attester::SecretKey,
-    node_key: roles::node::SecretKey,
-}
-
-struct ConsensusPublicKeys {
-    validator_key: roles::validator::PublicKey,
-    attester_key: roles::attester::PublicKey,
-}
-
-fn generate_consensus_keys() -> ConsensusKeys {
-    ConsensusKeys {
-        validator_key: roles::validator::SecretKey::generate(),
-        attester_key: roles::attester::SecretKey::generate(),
-        node_key: roles::node::SecretKey::generate(),
-    }
-}
-
-fn get_consensus_public_keys(consensus_keys: &ConsensusKeys) -> ConsensusPublicKeys {
-    ConsensusPublicKeys {
-        validator_key: consensus_keys.validator_key.public(),
-        attester_key: consensus_keys.attester_key.public(),
-    }
-}
-
-fn get_genesis_specs(chain_config: &ChainConfig, consensus_keys: &ConsensusKeys) -> GenesisSpec {
-    let public_keys = get_consensus_public_keys(consensus_keys);
-    let validator_key = public_keys.validator_key.encode();
-    let attester_key = public_keys.attester_key.encode();
-
-    let validator = WeightedValidator {
-        key: ValidatorPublicKey(validator_key.clone()),
-        weight: 1,
-    };
-    let attester = WeightedAttester {
-        key: AttesterPublicKey(attester_key),
-        weight: 1,
-    };
-    let leader = ValidatorPublicKey(validator_key);
-
-    GenesisSpec {
-        chain_id: chain_config.chain_id,
-        protocol_version: ProtocolVersion(1),
-        validators: vec![validator],
-        attesters: vec![attester],
-        leader,
-        registry_address: None,
-    }
-}
-
-fn get_consensus_secrets(consensus_keys: &ConsensusKeys) -> ConsensusSecrets {
-    let validator_key = consensus_keys.validator_key.encode();
-    let attester_key = consensus_keys.attester_key.encode();
-    let node_key = consensus_keys.node_key.encode();
-
-    ConsensusSecrets {
-        validator_key: Some(ValidatorSecretKey(Secret::new(validator_key))),
-        attester_key: Some(AttesterSecretKey(Secret::new(attester_key))),
-        node_key: Some(NodeSecretKey(Secret::new(node_key))),
-    }
 }
