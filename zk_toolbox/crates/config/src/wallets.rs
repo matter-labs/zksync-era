@@ -15,7 +15,7 @@ pub struct WalletsConfig {
     pub blob_operator: Wallet,
     pub fee_account: Wallet,
     pub governor: Wallet,
-    pub token_multiplier_setter: Wallet,
+    pub token_multiplier_setter: Option<Wallet>,
 }
 
 impl WalletsConfig {
@@ -27,7 +27,7 @@ impl WalletsConfig {
             blob_operator: Wallet::random(rng),
             fee_account: Wallet::random(rng),
             governor: Wallet::random(rng),
-            token_multiplier_setter: Wallet::random(rng),
+            token_multiplier_setter: Some(Wallet::random(rng)),
         }
     }
 
@@ -39,7 +39,7 @@ impl WalletsConfig {
             blob_operator: Wallet::empty(),
             fee_account: Wallet::empty(),
             governor: Wallet::empty(),
-            token_multiplier_setter: Wallet::empty(),
+            token_multiplier_setter: Some(Wallet::empty()),
         }
     }
     pub fn deployer_private_key(&self) -> Option<H256> {

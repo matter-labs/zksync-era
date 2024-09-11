@@ -45,14 +45,20 @@ pub const GPU_PREREQUISITES: [Prerequisite; 3] = [
     }, // CUDA GPU driver
 ];
 
-pub const WGET_PREREQUISITES: [Prerequisite; 1] = [Prerequisite {
+pub const WGET_PREREQUISITE: [Prerequisite; 1] = [Prerequisite {
     name: "wget",
     download_link: "https://www.gnu.org/software/wget/",
 }];
 
-pub const GCLOUD_PREREQUISITES: [Prerequisite; 1] = [Prerequisite {
+pub const GCLOUD_PREREQUISITE: [Prerequisite; 1] = [Prerequisite {
     name: "gcloud",
     download_link: "https://cloud.google.com/sdk/docs/install",
+}];
+
+pub const PROVER_CLI_PREREQUISITE: [Prerequisite; 1] = [Prerequisite {
+    name: "prover_cli",
+    download_link:
+        "https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_cli",
 }];
 
 pub struct Prerequisite {
