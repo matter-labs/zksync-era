@@ -11,6 +11,7 @@ use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
 };
+use zksync_vm_executor::oneshot::MultiVMBaseSystemContracts;
 
 pub use self::execute::TransactionExecutor; // FIXME (PLA-1018): remove
 use self::vm_metrics::SandboxStage;
@@ -19,7 +20,6 @@ pub(super) use self::{
     validate::ValidationError,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
-use super::tx_sender::MultiVMBaseSystemContracts;
 
 // Note: keep the modules private, and instead re-export functions that make public interface.
 mod apply;
