@@ -38,7 +38,8 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libclang-15-dev \
     g++ \
-    cmake
+    cmake \
+    git
 
 RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install cargo-nextest
