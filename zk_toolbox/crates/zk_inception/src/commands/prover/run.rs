@@ -2,13 +2,10 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
 use common::{check_prerequisites, cmd::Cmd, config::global_config, logger, GPU_PREREQUISITES};
-use config::EcosystemConfig;
+use config::{get_link_to_prover, EcosystemConfig};
 use xshell::{cmd, Shell};
 
-use super::{
-    args::run::{ProverComponent, ProverRunArgs},
-    utils::get_link_to_prover,
-};
+use super::args::run::{ProverComponent, ProverRunArgs};
 use crate::messages::{
     MSG_BELLMAN_CUDA_DIR_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_MISSING_COMPONENT_ERR,
     MSG_RUNNING_COMPRESSOR, MSG_RUNNING_COMPRESSOR_ERR, MSG_RUNNING_PROVER, MSG_RUNNING_PROVER_ERR,
