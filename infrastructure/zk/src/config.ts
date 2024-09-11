@@ -302,4 +302,5 @@ command
         env.modify('ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR', `"${operators[0].address}"`, configFile, false);
         env.modify('ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY', `"${operators[1].privateKey}"`, configFile, false);
         env.modify('ETH_SENDER_SENDER_OPERATOR_BLOBS_ETH_ADDR', `"${operators[1].address}"`, configFile, false);
+        env.modify('ETH_SENDER_SENDER_OPERATOR_GATEWAY_PRIVATE_KEY', `"${operators[0].privateKey}"`, configFile, false);
     });

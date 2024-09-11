@@ -403,7 +403,13 @@ export class TestContextOwner {
                 .then(async (tx) => {
                     const amount = ethers.formatEther(l2ETHAmountToDeposit);
                     this.reporter.debug(`Sent ETH deposit. Nonce ${tx.nonce}, amount: ${amount}, hash: ${tx.hash}`);
-                    await tx.wait();
+
+                    const timeoutPromise = new Promise((_, reject) =>
+                        setTimeout(() => reject(new Error('Transaction wait timeout')), 120 * 1000)
+                    );
+
+                    // Race the transaction wait against the timeout
+                    await Promise.race([tx.wait(), timeoutPromise]);
                 });
             nonce = nonce + 1 + (ethIsBaseToken ? 0 : 1);
             this.reporter.debug(

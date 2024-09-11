@@ -62,6 +62,7 @@ impl Wallet {
 pub struct EthSender {
     pub operator: Wallet,
     pub blob_operator: Option<Wallet>,
+    pub gateway: Option<Wallet>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -89,6 +90,7 @@ impl Wallets {
                 blob_operator: Some(
                     Wallet::from_private_key_bytes(H256::repeat_byte(0x2), None).unwrap(),
                 ),
+                gateway: None,
             }),
             state_keeper: Some(StateKeeper {
                 fee_account: AddressWallet::from_address(H160::repeat_byte(0x3)),

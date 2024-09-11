@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO\n                    processed_events (\n                        TYPE,\n                        chain_id,\n                        next_block_to_process\n                    )\n                VALUES\n                    ($1, $2, $3)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "event_type",
+            "kind": {
+              "Enum": [
+                "ProtocolUpgrades",
+                "PriorityTransactions",
+                "GovernanceUpgrades"
+              ]
+            }
+          }
+        },
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "afdeecb78e3af802c2b8ffb0f5ab9863082ccd1ce45b2d20e1119f1e78171d66"
+}

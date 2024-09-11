@@ -132,9 +132,13 @@ impl TempConfigStore {
             let blob_operator = sender
                 .private_key_blobs()
                 .and_then(|operator| Wallet::from_private_key_bytes(operator, None).ok());
+            let gateway = sender
+                .private_key_gateway()
+                .and_then(|operator| Wallet::from_private_key_bytes(operator, None).ok());
             Some(EthSender {
                 operator,
                 blob_operator,
+                gateway,
             })
         });
         let state_keeper = self

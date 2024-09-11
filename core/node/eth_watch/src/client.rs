@@ -1,7 +1,7 @@
 use std::fmt;
 
 use anyhow::Context;
-use zksync_contracts::{state_transition_manager_contract, verifier_contract};
+use zksync_contracts::{getters_contract, state_transition_manager_contract, verifier_contract};
 use zksync_eth_client::{
     clients::{DynClient, L1},
     CallFunctionArgs, ClientError, ContractCallError, EnrichedClientError, EnrichedClientResult,
@@ -10,7 +10,7 @@ use zksync_eth_client::{
 use zksync_types::{
     ethabi::Contract,
     web3::{BlockId, BlockNumber, FilterBuilder, Log},
-    Address, H256,
+    Address, SLChainId, H256, U256,
 };
 
 /// L1 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
@@ -21,10 +21,13 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         &self,
         from: BlockNumber,
         to: BlockNumber,
+        topic: H256,
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>>;
     /// Returns finalized L1 block number.
     async fn finalized_block_number(&self) -> EnrichedClientResult<u64>;
+
+    async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError>;
     /// Returns scheduler verification key hash by verifier address.
     async fn scheduler_vk_hash(&self, verifier_address: Address)
         -> Result<H256, ContractCallError>;
@@ -33,8 +36,8 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         &self,
         packed_version: H256,
     ) -> EnrichedClientResult<Option<Vec<u8>>>;
-    /// Sets list of topics to return events for.
-    fn set_topics(&mut self, topics: Vec<H256>);
+
+    async fn chain_id(&self) -> EnrichedClientResult<SLChainId>;
 }
 
 pub const RETRY_LIMIT: usize = 5;
@@ -42,10 +45,9 @@ const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 
 /// Implementation of [`EthClient`] based on HTTP JSON-RPC (encapsulated via [`EthInterface`]).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct EthHttpQueryClient {
     client: Box<DynClient<L1>>,
-    topics: Vec<H256>,
     diamond_proxy_addr: Address,
     governance_address: Address,
     new_upgrade_cut_data_signature: H256,
@@ -53,6 +55,7 @@ pub struct EthHttpQueryClient {
     state_transition_manager_address: Option<Address>,
     chain_admin_address: Option<Address>,
     verifier_contract_abi: Contract,
+    getters_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
 }
 
@@ -72,7 +75,6 @@ impl EthHttpQueryClient {
         );
         Self {
             client: client.for_component("watch"),
-            topics: Vec::new(),
             diamond_proxy_addr,
             state_transition_manager_address,
             chain_admin_address,
@@ -83,6 +85,7 @@ impl EthHttpQueryClient {
                 .unwrap()
                 .signature(),
             verifier_contract_abi: verifier_contract(),
+            getters_contract_abi: getters_contract(),
             confirmations_for_eth_event,
         }
     }
@@ -153,9 +156,10 @@ impl EthClient for EthHttpQueryClient {
         &self,
         from: BlockNumber,
         to: BlockNumber,
+        topic: H256,
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
-        let mut result = self.get_filter_logs(from, to, self.topics.clone()).await;
+        let mut result = self.get_filter_logs(from, to, [topic].to_vec()).await;
 
         // This code is compatible with both Infura and Alchemy API providers.
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
@@ -207,17 +211,17 @@ impl EthClient for EthHttpQueryClient {
 
                 tracing::warn!("Splitting block range in half: {from:?} - {mid:?} - {to:?}");
                 let mut first_half = self
-                    .get_events(from, BlockNumber::Number(mid), RETRY_LIMIT)
+                    .get_events(from, BlockNumber::Number(mid), topic, RETRY_LIMIT)
                     .await?;
                 let mut second_half = self
-                    .get_events(BlockNumber::Number(mid + 1u64), to, RETRY_LIMIT)
+                    .get_events(BlockNumber::Number(mid + 1u64), to, topic, RETRY_LIMIT)
                     .await?;
 
                 first_half.append(&mut second_half);
                 result = Ok(first_half);
             } else if should_retry(err_code, err_message) && retries_left > 0 {
                 tracing::warn!("Retrying. Retries left: {retries_left}");
-                result = self.get_events(from, to, retries_left - 1).await;
+                result = self.get_events(from, to, topic, retries_left - 1).await;
             }
         }
 
@@ -245,7 +249,15 @@ impl EthClient for EthHttpQueryClient {
         }
     }
 
-    fn set_topics(&mut self, topics: Vec<H256>) {
-        self.topics = topics;
+    async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
+        CallFunctionArgs::new("getTotalPriorityTxs", ())
+            .for_contract(self.diamond_proxy_addr, &self.getters_contract_abi)
+            .call(&self.client)
+            .await
+            .map(|x: U256| x.try_into().unwrap())
+    }
+
+    async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
+        Ok(self.client.fetch_chain_id().await?)
     }
 }

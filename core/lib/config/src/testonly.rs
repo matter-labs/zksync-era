@@ -849,6 +849,7 @@ impl Distribution<configs::secrets::L1Secrets> for EncodeDist {
         use configs::secrets::L1Secrets;
         L1Secrets {
             l1_rpc_url: format!("localhost:{}", rng.gen::<u16>()).parse().unwrap(),
+            gateway_url: Some(format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
         }
     }
 }
@@ -900,6 +901,7 @@ impl Distribution<configs::wallets::EthSender> for EncodeDist {
         configs::wallets::EthSender {
             operator: self.sample(rng),
             blob_operator: self.sample_opt(|| self.sample(rng)),
+            gateway: None,
         }
     }
 }
