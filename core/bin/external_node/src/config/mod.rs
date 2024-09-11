@@ -27,7 +27,7 @@ use zksync_node_api_server::{
     tx_sender::TxSenderConfig,
     web3::{state::InternalApiConfig, Namespace},
 };
-use zksync_protobuf_config::proto::{self};
+use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{
     api::BridgeAddresses, commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address,

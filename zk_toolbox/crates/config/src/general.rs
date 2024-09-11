@@ -184,8 +184,9 @@ fn update_port_in_url(http_url: &mut String, port: u16) -> anyhow::Result<()> {
 }
 
 fn update_port_in_host(host: &mut Host, port: u16) -> anyhow::Result<()> {
-    let ip = host.0.split(':').next().context("Failed to get IP")?;
-    host.0 = format!("{}:{}", ip, port);
+    let url = Url::parse(&format!("http://{}", host.0))?;
+    let host_str = url.host_str().context("Failed to get host")?;
+    host.0 = format!("{host_str}:{port}");
     Ok(())
 }
 
