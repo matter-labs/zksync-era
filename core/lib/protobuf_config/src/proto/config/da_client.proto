@@ -13,10 +13,20 @@ message AvailConfig {
   optional uint64 max_retries = 6;
 }
 
+message NearConfig {
+  optional string evm_provider_url = 1;
+  optional string da_rpc_url = 2;
+  optional string contract = 3;
+  optional string bridge_contract = 4;
+  optional string account_id = 5;
+  optional string secret_key = 6;
+}
+
 message DataAvailabilityClient {
   // oneof in protobuf allows for None
   oneof config {
     AvailConfig avail = 1;
     object_store.ObjectStore object_store = 2;
+    NearConfig near = 3;
   }
 }

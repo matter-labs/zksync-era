@@ -205,6 +205,13 @@ subxt-metadata = "0.34.0"
 parity-scale-codec = { version = "3.6.9", default-features = false }
 subxt-signer = { version = "0.34", default-features = false }
 
+# Near
+near-jsonrpc-client = "=0.12.0"
+near-jsonrpc-primitives = "=0.25.0"
+near-primitives = "=0.25.0"
+near-crypto = "=0.25.0"
+borsh = "1.5.1"
+
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
 # However, for the historical version of protocol crates, we have lax requirements. Otherwise,

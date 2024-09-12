@@ -8,7 +8,7 @@ use zksync_da_client::{
     DataAvailabilityClient,
 };
 
-use crate::avail::sdk::RawAvailClient;
+use crate::{avail::sdk::RawAvailClient, utils::to_non_retriable_da_error};
 
 /// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.
 #[derive(Debug, Clone)]
@@ -74,12 +74,5 @@ impl DataAvailabilityClient for AvailClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         Some(RawAvailClient::MAX_BLOB_SIZE)
-    }
-}
-
-pub fn to_non_retriable_da_error(error: impl Into<anyhow::Error>) -> DAError {
-    DAError {
-        error: error.into(),
-        is_retriable: false,
     }
 }
