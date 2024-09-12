@@ -290,13 +290,12 @@ impl Default for CircuitProverStats {
     fn default() -> Self {
         let circuits_prover_stats = AggregationRound::ALL_ROUNDS
             .into_iter()
-            .map(|round| {
+            .flat_map(|round| {
                 let circuit_ids = round.circuit_ids();
                 circuit_ids.into_iter().map(|circuit_id_round_tuple| {
                     (circuit_id_round_tuple, JobCountStatistics::default())
                 })
             })
-            .flatten()
             .collect();
         Self {
             circuits_prover_stats,

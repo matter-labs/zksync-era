@@ -109,8 +109,7 @@ impl FriProverGroupConfig {
         ];
         let mut expected_circuit_ids: HashSet<_> = AggregationRound::ALL_ROUNDS
             .into_iter()
-            .map(|r| r.circuit_ids())
-            .flatten()
+            .flat_map(|r| r.circuit_ids())
             .collect();
 
         let mut provided_circuit_ids = HashSet::new();

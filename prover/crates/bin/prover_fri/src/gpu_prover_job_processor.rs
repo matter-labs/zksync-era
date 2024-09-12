@@ -407,8 +407,7 @@ pub mod gpu_prover {
             let specialized_group_id = 0;
             let ids: Vec<_> = AggregationRound::ALL_ROUNDS
                 .into_iter()
-                .map(|r| r.circuit_ids())
-                .flatten()
+                .flat_map(|r| r.circuit_ids())
                 .collect();
             if !keystore.is_setup_data_present(&setup_metadata_to_setup_data_key(&ids[0])) {
                 // We don't want this test to fail on envs where setup keys are not present.
