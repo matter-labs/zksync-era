@@ -8,8 +8,9 @@ pub mod gpu_prover {
         ProverContextConfig,
     };
     use tokio::task::JoinHandle;
-    use zksync_config::configs::fri_prover::SetupLoadMode as SetupLoadModeConfig;
-    use zksync_config::configs::FriProverConfig;
+    use zksync_config::configs::{
+        fri_prover::SetupLoadMode as SetupLoadModeConfig, FriProverConfig,
+    };
     use zksync_object_store::ObjectStore;
     use zksync_prover_dal::{ConnectionPool, ProverDal};
     use zksync_prover_fri_types::{
