@@ -1,6 +1,4 @@
 import {
-    AddressLike,
-    BlockTag,
     ethers,
     JsonRpcProvider,
     Network,
@@ -17,12 +15,6 @@ export class L1Provider extends JsonRpcProvider {
     constructor(url: string, reporter?: Reporter) {
         super(url, undefined, { batchMaxCount: 1 });
         this.reporter = reporter ?? new Reporter();
-    }
-
-    override async getTransactionCount(address: AddressLike, blockTag?: BlockTag): Promise<number> {
-        const count = await super.getTransactionCount(address, blockTag);
-        this.reporter.debug(`Received L1 transaction count for ${address} at ${blockTag}: ${count}`);
-        return count;
     }
 
     override _wrapTransactionResponse(tx: TransactionResponseParams, network: Network): L1TransactionResponse {
@@ -72,13 +64,12 @@ export class RetryableL1Wallet extends ethers.Wallet {
 
     override async sendTransaction(tx: TransactionRequest): Promise<TransactionResponse> {
         const reporter = (<L1Provider>this.provider!).reporter;
-        reporter.debug('Sending L1 transaction', tx);
         while (true) {
             try {
-                const response = await super.sendTransaction(tx);
-                reporter.debug(`L1 transaction successfully sent (hash=${response.hash})`, tx);
-                return response;
+                return await super.sendTransaction(tx);
             } catch (err: any) {
+                // For unknown reason, `reth` sometimes returns outdated transaction count under load, leading to transactions getting rejected.
+                // This is a workaround for this issue.
                 reporter.debug('L1 transaction request failed', tx, err);
                 if (err.code === 'NONCE_EXPIRED' && (tx.nonce === null || tx.nonce === undefined)) {
                     reporter.debug('Retrying L1 transaction request', tx);

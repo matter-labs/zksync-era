@@ -108,6 +108,7 @@ class L2TransactionResponse extends zksync.types.TransactionResponse implements 
     }
 }
 
+/** Wallet that retries expired nonce errors for L1 transactions. */
 export class RetryableWallet extends zksync.Wallet {
     constructor(privateKey: string, l2Provider: RetryProvider, l1Provider: L1Provider) {
         super(privateKey, l2Provider, l1Provider);
