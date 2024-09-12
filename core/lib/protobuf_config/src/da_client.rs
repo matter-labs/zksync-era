@@ -33,8 +33,12 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 evm_provider_url: required(&conf.evm_provider_url)
                     .context("evm_provider_url")?
                     .clone(),
-                da_rpc_url: required(&conf.da_rpc_url).context("da_rpc_url")?.clone(),
-                contract: required(&conf.contract).context("contract")?.clone(),
+                rpc_client_url: required(&conf.rpc_client_url)
+                    .context("rpc_client_url")?
+                    .clone(),
+                blob_contract: required(&conf.blob_contract)
+                    .context("blob_contract")?
+                    .clone(),
                 bridge_contract: required(&conf.bridge_contract)
                     .context("bridge_contract")?
                     .clone(),
@@ -72,8 +76,8 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 config: Some(proto::data_availability_client::Config::Near(
                     proto::NearConfig {
                         evm_provider_url: Some(config.evm_provider_url.clone()),
-                        da_rpc_url: Some(config.da_rpc_url.clone()),
-                        contract: Some(config.contract.clone()),
+                        rpc_client_url: Some(config.rpc_client_url.clone()),
+                        blob_contract: Some(config.blob_contract.clone()),
                         bridge_contract: Some(config.bridge_contract.clone()),
                         account_id: Some(config.account_id.clone()),
                         secret_key: Some(config.secret_key.clone()),

@@ -15,8 +15,8 @@ message AvailConfig {
 
 message NearConfig {
   optional string evm_provider_url = 1;
-  optional string da_rpc_url = 2;
-  optional string contract = 3;
+  optional string rpc_client_url = 2;
+  optional string blob_contract = 3;
   optional string bridge_contract = 4;
   optional string account_id = 5;
   optional string secret_key = 6;

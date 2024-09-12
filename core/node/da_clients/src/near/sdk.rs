@@ -30,8 +30,8 @@ pub(crate) struct DAClient {
 
 impl DAClient {
     pub(crate) async fn new(config: &NearConfig) -> anyhow::Result<Self> {
-        let client = JsonRpcClient::connect(&config.da_rpc_url);
-        let contract: AccountId = config.contract.parse()?;
+        let client = JsonRpcClient::connect(&config.rpc_client_url);
+        let contract: AccountId = config.blob_contract.parse()?;
         let account_id: AccountId = config.account_id.parse()?;
         let secret_key = SecretKey::from_str(&config.secret_key)?;
         Ok(Self {
