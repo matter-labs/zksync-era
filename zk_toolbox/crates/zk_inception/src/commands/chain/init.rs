@@ -27,6 +27,7 @@ use crate::{
             deploy_l2_contracts, deploy_paymaster,
             genesis::genesis,
             set_token_multiplier_setter::set_token_multiplier_setter,
+            setup_legacy_bridge::setup_legacy_bridge,
         },
         portal::update_portal_config,
     },
@@ -141,6 +142,17 @@ pub async fn init(
     )
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+
+    if let Some(true) = chain_config.legacy_bridge {
+        setup_legacy_bridge(
+            shell,
+            chain_config,
+            ecosystem_config,
+            &contracts_config,
+            init_args.forge_args.clone(),
+        )
+        .await?;
+    }
 
     if init_args.deploy_paymaster {
         deploy_paymaster::deploy_paymaster(
