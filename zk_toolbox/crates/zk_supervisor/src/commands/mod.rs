@@ -4,6 +4,7 @@ pub mod database;
 pub mod fmt;
 pub mod lint;
 pub(crate) mod lint_utils;
+pub mod override_config;
 pub mod prover;
 pub mod snapshot;
 pub mod test;
