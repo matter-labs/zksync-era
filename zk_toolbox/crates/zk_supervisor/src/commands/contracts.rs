@@ -79,7 +79,7 @@ impl ContractBuilder {
         match contract_type {
             ContractType::L1 => Self {
                 dir: ecosystem.path_to_foundry(),
-                cmd: "forge build".to_string(),
+                cmd: "yarn build && forge build".to_string(),
                 msg: MSG_BUILDING_L1_CONTRACTS_SPINNER.to_string(),
             },
             ContractType::L2 => Self {
