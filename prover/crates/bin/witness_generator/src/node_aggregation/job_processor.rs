@@ -8,11 +8,11 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::AggregationRound;
 
 use crate::{
-    artifacts::{ArtifactsManager, BlobUrls},
+    artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
     node_aggregation::{
-        artifacts::NodeAggregationArtifactsMetadata, prepare_job, NodeAggregationArtifacts,
-        NodeAggregationWitnessGenerator, NodeAggregationWitnessGeneratorJob,
+        prepare_job, NodeAggregationArtifacts, NodeAggregationWitnessGenerator,
+        NodeAggregationWitnessGeneratorJob,
     },
 };
 
@@ -91,7 +91,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
             blob_urls,
             artifacts,
         )
-        .await;
+        .await?;
         Ok(())
     }
 

@@ -3,12 +3,12 @@ use std::time::Instant;
 use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_prover_dal::ProverDal;
-use zksync_prover_fri_types::{get_current_pod_name, keys::FriCircuitKey, CircuitWrapper};
+use zksync_prover_fri_types::get_current_pod_name;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
-    artifacts::{ArtifactsManager, BlobUrls},
+    artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
     scheduler::{
         prepare_job, SchedulerArtifacts, SchedulerWitnessGenerator, SchedulerWitnessGeneratorJob,
@@ -99,12 +99,12 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
         Self::update_database(
             &self.prover_connection_pool,
-            job_id,
+            job_id.0,
             started_at,
             blob_urls,
             artifacts,
         )
-        .await;
+        .await?;
 
         Ok(())
     }

@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use std::time::Instant;
 
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
@@ -11,13 +12,14 @@ use crate::{
     recursion_tip::{RecursionTipArtifacts, RecursionTipWitnessGenerator},
 };
 
+#[async_trait]
 impl ArtifactsManager for RecursionTipWitnessGenerator {
     type InputMetadata = ();
     type InputArtifacts = ();
     type OutputArtifacts = RecursionTipArtifacts;
 
     async fn get_artifacts(
-        metadata: &Self::Medatadata,
+        metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
     ) -> Self::InputArtifacts {
         todo!()
@@ -41,7 +43,8 @@ impl ArtifactsManager for RecursionTipWitnessGenerator {
                 key,
                 &CircuitWrapper::Recursive(artifacts.recursion_tip_circuit.clone()),
             )
-            .await?;
+            .await
+            .unwrap();
 
         BlobUrls::Url(blob_url)
     }
@@ -52,7 +55,7 @@ impl ArtifactsManager for RecursionTipWitnessGenerator {
         started_at: Instant,
         blob_urls: BlobUrls,
         _artifacts: Self::OutputArtifacts,
-    ) {
+    ) -> anyhow::Result<()> {
         let blob_url = match blob_urls {
             BlobUrls::Url(url) => url,
             _ => panic!("Unexpected blob urls type"),
@@ -84,5 +87,7 @@ impl ArtifactsManager for RecursionTipWitnessGenerator {
             .await;
 
         transaction.commit().await?;
+
+        Ok(())
     }
 }

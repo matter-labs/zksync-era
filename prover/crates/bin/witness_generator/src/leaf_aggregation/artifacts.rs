@@ -1,12 +1,11 @@
+use async_trait::async_trait;
 use std::time::Instant;
 
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::keys::ClosedFormInputKey;
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_types::{
-    basic_fri_types::AggregationRound, prover_dal::LeafAggregationJobMetadata, L1BatchNumber,
-};
+use zksync_types::{basic_fri_types::AggregationRound, prover_dal::LeafAggregationJobMetadata};
 
 use crate::{
     artifacts::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
@@ -15,15 +14,12 @@ use crate::{
     utils::{save_node_aggregations_artifacts, ClosedFormInputWrapper},
 };
 
-pub struct LeafAggregationArtifactsMetadata {
-    pub job_id: u32,
-    pub circuit_id: u8,
-}
-
+#[async_trait]
 impl ArtifactsManager for LeafAggregationWitnessGenerator {
     type InputMetadata = LeafAggregationJobMetadata;
     type InputArtifacts = ClosedFormInputWrapper;
     type OutputArtifacts = LeafAggregationArtifacts;
+
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
@@ -68,7 +64,7 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = %block_number, circuit_id = %circuit_id)
+        fields(l1_batch = %job_id)
     )]
     async fn update_database(
         connection_pool: &ConnectionPool<Prover>,
@@ -76,7 +72,7 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
         started_at: Instant,
         blob_urls: BlobUrls,
         artifacts: Self::OutputArtifacts,
-    ) {
+    ) -> anyhow::Result<()> {
         tracing::info!(
             "Updating database for job_id {}, block {} with circuit id {}",
             job_id,
@@ -146,6 +142,7 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
             artifacts.block_number.0,
             artifacts.circuit_id,
         );
-        transaction.commit().await.unwrap();
+        transaction.commit().await?;
+        Ok(())
     }
 }

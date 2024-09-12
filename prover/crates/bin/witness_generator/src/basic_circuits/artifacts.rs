@@ -1,87 +1,64 @@
 use std::time::Instant;
 
 use async_trait::async_trait;
-use circuit_definitions::zkevm_circuits::scheduler::{
-    block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
-};
-use zksync_multivm::circuit_sequencer_api_latest::boojum::{
-    field::goldilocks::{GoldilocksExt2, GoldilocksField},
-    gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
-};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::AuxOutputWitnessWrapper;
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
+use crate::basic_circuits::BasicCircuitArtifacts;
 use crate::{
     artifacts::{ArtifactsManager, BlobUrls},
     basic_circuits::{BasicWitnessGenerator, BasicWitnessGeneratorJob},
     utils::SchedulerPartialInputWrapper,
 };
 
-#[derive(Debug)]
-pub struct SchedulerArtifacts<'a> {
-    pub(super) block_number: L1BatchNumber,
-    pub(super) scheduler_partial_input: SchedulerCircuitInstanceWitness<
-        GoldilocksField,
-        CircuitGoldilocksPoseidon2Sponge,
-        GoldilocksExt2,
-    >,
-    pub(super) aux_output_witness: BlockAuxilaryOutputWitness<GoldilocksField>,
-    pub(super) public_object_store: Option<&'a dyn ObjectStore>,
-    pub(super) shall_save_to_public_bucket: bool,
-}
-
 #[async_trait]
 impl ArtifactsManager for BasicWitnessGenerator {
     type InputMetadata = L1BatchNumber;
     type InputArtifacts = BasicWitnessGeneratorJob;
-    type OutputArtifacts = SchedulerArtifacts<'_>;
+    type OutputArtifacts = BasicCircuitArtifacts;
 
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
     ) -> Self::InputArtifacts {
-        let l1_batch_number = metadata;
+        let l1_batch_number = *metadata;
         let job = object_store.get(l1_batch_number).await.unwrap();
-        BasicWitnessGeneratorJob { block_number, job }
+        BasicWitnessGeneratorJob {
+            block_number: l1_batch_number,
+            job,
+        }
     }
 
     async fn save_artifacts(
-        _job_id: u32,
+        job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
     ) -> BlobUrls {
         let aux_output_witness_wrapper = AuxOutputWitnessWrapper(artifacts.aux_output_witness);
-        if artifacts.shall_save_to_public_bucket {
-            artifacts.public_object_store
-                .expect("public_object_store shall not be empty while running with shall_save_to_public_bucket config")
-                .put(artifacts.block_number, &aux_output_witness_wrapper)
-                .await
-                .unwrap();
-        }
         object_store
-            .put(artifacts.block_number, &aux_output_witness_wrapper)
+            .put(L1BatchNumber(job_id), &aux_output_witness_wrapper)
             .await
             .unwrap();
-        let wrapper = SchedulerPartialInputWrapper(artifacts.scheduler_partial_input);
+        let wrapper = SchedulerPartialInputWrapper(artifacts.scheduler_witness);
         let url = object_store
-            .put(artifacts.block_number, &wrapper)
+            .put(L1BatchNumber(job_id), &wrapper)
             .await
             .unwrap();
 
         BlobUrls::Url(url)
     }
 
-    #[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
+    #[tracing::instrument(skip_all, fields(l1_batch = %job_id))]
     async fn update_database(
         connection_pool: &ConnectionPool<Prover>,
-        _job_id: u32,
+        job_id: u32,
         started_at: Instant,
         blob_urls: BlobUrls,
-        artifacts: Self::OutputArtifacts,
-    ) {
+        _artifacts: Self::OutputArtifacts,
+    ) -> anyhow::Result<()> {
         let blob_urls = match blob_urls {
             BlobUrls::Scheduler(blobs) => blobs,
             _ => unreachable!(),
@@ -97,12 +74,12 @@ impl ArtifactsManager for BasicWitnessGenerator {
             .expect("failed to get database transaction");
         let protocol_version_id = transaction
             .fri_witness_generator_dal()
-            .protocol_version_for_l1_batch(artifacts.block_number)
+            .protocol_version_for_l1_batch(L1BatchNumber(job_id))
             .await;
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
-                artifacts.block_number,
+                L1BatchNumber(job_id),
                 blob_urls.circuit_ids_and_urls,
                 AggregationRound::BasicCircuits,
                 0,
@@ -112,7 +89,7 @@ impl ArtifactsManager for BasicWitnessGenerator {
         transaction
             .fri_witness_generator_dal()
             .create_aggregation_jobs(
-                artifacts.block_number,
+                L1BatchNumber(job_id),
                 &blob_urls.closed_form_inputs_and_urls,
                 &blob_urls.scheduler_witness_url,
                 get_recursive_layer_circuit_id_for_base_layer,
@@ -121,11 +98,12 @@ impl ArtifactsManager for BasicWitnessGenerator {
             .await;
         transaction
             .fri_witness_generator_dal()
-            .mark_witness_job_as_successful(artifacts.block_number, started_at.elapsed())
+            .mark_witness_job_as_successful(L1BatchNumber(job_id), started_at.elapsed())
             .await;
         transaction
             .commit()
             .await
             .expect("failed to commit database transaction");
+        Ok(())
     }
 }

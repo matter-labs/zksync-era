@@ -4,7 +4,6 @@ mod job_processor;
 use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
-use async_trait::async_trait;
 use circuit_definitions::{
     circuit_definitions::recursion_layer::{
         recursion_tip::RecursionTipCircuit, ZkSyncRecursionLayerStorageType,
@@ -40,20 +39,14 @@ use zkevm_test_harness::{
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::{
-    get_current_pod_name,
-    keys::{ClosedFormInputKey, FriCircuitKey},
-    CircuitWrapper,
-};
+use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_fri_types::keys::ClosedFormInputKey;
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
-use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
 use crate::{
-    artifacts::{ArtifactsManager, BlobUrls},
     metrics::WITNESS_GENERATOR_METRICS,
     utils::{load_proofs_for_recursion_tip, ClosedFormInputWrapper},
 };
@@ -69,6 +62,7 @@ pub struct RecursionTipWitnessGeneratorJob {
     node_vk: ZkSyncRecursionLayerVerificationKey,
 }
 
+#[derive(Clone)]
 pub struct RecursionTipArtifacts {
     pub recursion_tip_circuit: ZkSyncRecursiveLayerCircuit,
 }

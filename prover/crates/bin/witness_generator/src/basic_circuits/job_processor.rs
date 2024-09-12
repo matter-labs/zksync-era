@@ -3,16 +3,13 @@ use std::{sync::Arc, time::Instant};
 use anyhow::Context as _;
 use tracing::Instrument;
 use zksync_prover_dal::ProverDal;
-use zksync_prover_fri_types::get_current_pod_name;
+use zksync_prover_fri_types::{get_current_pod_name, AuxOutputWitnessWrapper};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
     artifacts::{ArtifactsManager, BlobUrls, SchedulerBlobUrls},
-    basic_circuits::{
-        artifacts::SchedulerArtifacts, BasicCircuitArtifacts, BasicWitnessGenerator,
-        BasicWitnessGeneratorJob,
-    },
+    basic_circuits::{BasicCircuitArtifacts, BasicWitnessGenerator, BasicWitnessGeneratorJob},
     metrics::WITNESS_GENERATOR_METRICS,
 };
 
@@ -96,15 +93,18 @@ impl JobProcessor for BasicWitnessGenerator {
             None => Ok(()),
             Some(artifacts) => {
                 let blob_started_at = Instant::now();
-                let circuit_urls = artifacts.circuit_urls;
-                let queue_urls = artifacts.queue_urls;
-                let artifacts = SchedulerArtifacts {
-                    block_number: job_id,
-                    scheduler_partial_input: artifacts.scheduler_witness,
-                    aux_output_witness: artifacts.aux_output_witness,
-                    public_object_store: self.public_blob_store.as_deref(),
-                    shall_save_to_public_bucket: self.config.shall_save_to_public_bucket,
-                };
+                let circuit_urls = artifacts.circuit_urls.clone();
+                let queue_urls = artifacts.queue_urls.clone();
+
+                let aux_output_witness_wrapper =
+                    AuxOutputWitnessWrapper(artifacts.aux_output_witness.clone());
+                if self.config.shall_save_to_public_bucket {
+                    self.public_blob_store.as_deref()
+                        .expect("public_object_store shall not be empty while running with shall_save_to_public_bucket config")
+                        .put(job_id, &aux_output_witness_wrapper)
+                        .await
+                        .unwrap();
+                }
 
                 let scheduler_witness_url =
                     match Self::save_artifacts(job_id.0, artifacts.clone(), &*self.object_store)
@@ -128,7 +128,7 @@ impl JobProcessor for BasicWitnessGenerator {
                     }),
                     artifacts,
                 )
-                .await;
+                .await?;
                 Ok(())
             }
         }

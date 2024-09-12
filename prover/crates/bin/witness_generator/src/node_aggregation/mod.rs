@@ -1,7 +1,6 @@
 use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use circuit_definitions::circuit_definitions::recursion_layer::RECURSION_ARITY;
 use tokio::sync::Semaphore;
 use zkevm_test_harness::witness::recursive_aggregation::{
@@ -9,7 +8,7 @@ use zkevm_test_harness::witness::recursive_aggregation::{
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
@@ -19,29 +18,24 @@ use zksync_prover_fri_types::{
         encodings::recursion_request::RecursionQueueSimulator,
         zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness,
     },
-    get_current_pod_name,
-    keys::AggregationsKey,
     FriProofWrapper,
 };
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
-use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion,
     prover_dal::NodeAggregationJobMetadata, L1BatchNumber,
 };
 
 use crate::{
-    artifacts::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
+    artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
-    utils::{
-        load_proofs_for_job_ids, save_node_aggregations_artifacts,
-        save_recursive_layer_prover_input_artifacts, AggregationWrapper,
-    },
+    utils::{load_proofs_for_job_ids, save_recursive_layer_prover_input_artifacts},
 };
 
 mod artifacts;
 mod job_processor;
 
+#[derive(Clone)]
 pub struct NodeAggregationArtifacts {
     circuit_id: u8,
     block_number: L1BatchNumber,

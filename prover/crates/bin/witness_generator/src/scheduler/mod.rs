@@ -4,13 +4,12 @@ mod job_processor;
 use std::{convert::TryInto, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use zkevm_test_harness::zkevm_circuits::recursion::{
     leaf_layer::input::RecursionLeafParametersWitness, NUM_BASE_LAYER_CIRCUITS,
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -24,22 +23,16 @@ use zksync_prover_fri_types::{
         recursion_layer_proof_config,
         zkevm_circuits::scheduler::{input::SchedulerCircuitInstanceWitness, SchedulerConfig},
     },
-    get_current_pod_name,
-    keys::FriCircuitKey,
-    CircuitWrapper, FriProofWrapper,
+    FriProofWrapper,
 };
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
-use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
-use crate::{
-    artifacts::{ArtifactsManager, BlobUrls},
-    metrics::WITNESS_GENERATOR_METRICS,
-    utils::SchedulerPartialInputWrapper,
-};
+use crate::{metrics::WITNESS_GENERATOR_METRICS, utils::SchedulerPartialInputWrapper};
 
+#[derive(Clone)]
 pub struct SchedulerArtifacts {
     pub scheduler_circuit: ZkSyncRecursiveLayerCircuit,
 }

@@ -1,7 +1,7 @@
 #![allow(incomplete_features)] // We have to use generic const exprs.
 #![feature(generic_const_exprs)]
 
-mod artifacts;
+pub mod artifacts;
 pub mod basic_circuits;
 pub mod leaf_aggregation;
 pub mod metrics;

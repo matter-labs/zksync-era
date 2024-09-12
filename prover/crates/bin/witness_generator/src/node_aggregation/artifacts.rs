@@ -1,11 +1,10 @@
+use async_trait::async_trait;
 use std::time::Instant;
 
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::keys::AggregationsKey;
-use zksync_types::{
-    basic_fri_types::AggregationRound, prover_dal::NodeAggregationJobMetadata, L1BatchNumber,
-};
+use zksync_types::{basic_fri_types::AggregationRound, prover_dal::NodeAggregationJobMetadata};
 
 use crate::{
     artifacts::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
@@ -14,13 +13,7 @@ use crate::{
     utils::{save_node_aggregations_artifacts, AggregationWrapper},
 };
 
-pub struct NodeAggregationArtifactsMetadata {
-    pub id: u32,
-    pub depth: u16,
-    pub circuit_id: u8,
-    pub shall_continue_node_aggregations: bool,
-}
-
+#[async_trait]
 impl ArtifactsManager for NodeAggregationWitnessGenerator {
     type InputMetadata = NodeAggregationJobMetadata;
     type InputArtifacts = AggregationWrapper;
@@ -75,10 +68,9 @@ impl ArtifactsManager for NodeAggregationWitnessGenerator {
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = % block_number, circuit_id = % circuit_id)
+        fields(l1_batch = % job_id)
     )]
     async fn update_database(
         connection_pool: &ConnectionPool<Prover>,
@@ -86,7 +78,7 @@ impl ArtifactsManager for NodeAggregationWitnessGenerator {
         started_at: Instant,
         blob_urls: BlobUrls,
         artifacts: Self::OutputArtifacts,
-    ) {
+    ) -> anyhow::Result<()> {
         let mut prover_connection = connection_pool.connection().await.unwrap();
         let blob_urls = match blob_urls {
             BlobUrls::Aggregation(blobs) => blobs,
@@ -145,6 +137,8 @@ impl ArtifactsManager for NodeAggregationWitnessGenerator {
             .mark_node_aggregation_as_successful(job_id, started_at.elapsed())
             .await;
 
-        transaction.commit().await.unwrap();
+        transaction.commit().await?;
+
+        Ok(())
     }
 }

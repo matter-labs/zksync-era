@@ -2,9 +2,7 @@ use std::time::Instant;
 
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
+use zksync_prover_dal::{ConnectionPool, Prover};
 
 #[derive(Debug)]
 pub(crate) struct AggregationBlobUrls {
@@ -32,7 +30,7 @@ pub(crate) trait ArtifactsManager {
     type OutputArtifacts;
 
     async fn get_artifacts(
-        metadata: &Self::Medatadata,
+        metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
     ) -> Self::InputArtifacts;
 
@@ -48,5 +46,5 @@ pub(crate) trait ArtifactsManager {
         started_at: Instant,
         blob_urls: BlobUrls,
         artifacts: Self::OutputArtifacts,
-    );
+    ) -> anyhow::Result<()>;
 }

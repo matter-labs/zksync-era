@@ -3,12 +3,12 @@ use std::time::Instant;
 use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_prover_dal::ProverDal;
-use zksync_prover_fri_types::{get_current_pod_name, keys::FriCircuitKey, CircuitWrapper};
+use zksync_prover_fri_types::get_current_pod_name;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
-    artifacts::{ArtifactsManager, BlobUrls},
+    artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
     recursion_tip::{
         prepare_job, RecursionTipArtifacts, RecursionTipWitnessGenerator,
@@ -105,7 +105,7 @@ impl JobProcessor for RecursionTipWitnessGenerator {
             blob_urls,
             artifacts,
         )
-        .await;
+        .await?;
 
         Ok(())
     }

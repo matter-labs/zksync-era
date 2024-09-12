@@ -8,10 +8,9 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_types::basic_fri_types::AggregationRound;
 
 use crate::{
-    artifacts::{ArtifactsManager, BlobUrls},
+    artifacts::ArtifactsManager,
     leaf_aggregation::{
-        artifacts::LeafAggregationArtifactsMetadata, prepare_leaf_aggregation_job,
-        LeafAggregationArtifacts, LeafAggregationWitnessGenerator,
+        prepare_leaf_aggregation_job, LeafAggregationArtifacts, LeafAggregationWitnessGenerator,
         LeafAggregationWitnessGeneratorJob,
     },
     metrics::WITNESS_GENERATOR_METRICS,
@@ -101,7 +100,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
             blob_urls,
             artifacts,
         )
-        .await;
+        .await?;
         Ok(())
     }
 

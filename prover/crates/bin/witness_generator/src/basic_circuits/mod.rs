@@ -32,26 +32,21 @@ use zksync_multivm::{
     zk_evm_latest::ethereum_types::Address,
 };
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::{
-    get_current_pod_name, keys::ClosedFormInputKey, AuxOutputWitnessWrapper, CircuitAuxData,
-};
-use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
+use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_fri_types::{keys::ClosedFormInputKey, CircuitAuxData};
 use zksync_prover_interface::inputs::WitnessInputData;
-use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
 use crate::{
-    artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
     storage_oracle::StorageOracle,
     utils::{
         expand_bootloader_contents, save_circuit, save_ram_premutation_queue_witness,
-        ClosedFormInputWrapper, SchedulerPartialInputWrapper, KZG_TRUSTED_SETUP_FILE,
+        ClosedFormInputWrapper, KZG_TRUSTED_SETUP_FILE,
     },
     witness::WitnessStorage,
 };
@@ -59,6 +54,7 @@ use crate::{
 mod artifacts;
 pub mod job_processor;
 
+#[derive(Clone)]
 pub struct BasicCircuitArtifacts {
     pub(super) circuit_urls: Vec<(u8, String)>,
     pub(super) queue_urls: Vec<(u8, String, usize)>,

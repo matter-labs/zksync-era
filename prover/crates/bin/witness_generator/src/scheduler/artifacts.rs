@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use std::time::Instant;
 
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
@@ -11,13 +12,14 @@ use crate::{
     scheduler::{SchedulerArtifacts, SchedulerWitnessGenerator},
 };
 
+#[async_trait]
 impl ArtifactsManager for SchedulerWitnessGenerator {
     type InputMetadata = ();
     type InputArtifacts = ();
     type OutputArtifacts = SchedulerArtifacts;
 
     async fn get_artifacts(
-        metadata: &Self::Medatadata,
+        metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
     ) -> Self::InputArtifacts {
         todo!()
@@ -41,18 +43,19 @@ impl ArtifactsManager for SchedulerWitnessGenerator {
                 key,
                 &CircuitWrapper::Recursive(artifacts.scheduler_circuit.clone()),
             )
-            .await?;
+            .await
+            .unwrap();
 
         BlobUrls::Url(blob_url)
     }
 
     async fn update_database(
         connection_pool: &ConnectionPool<Prover>,
-        job_id: L1BatchNumber,
+        job_id: u32,
         started_at: Instant,
         blob_urls: BlobUrls,
         _artifacts: Self::OutputArtifacts,
-    ) {
+    ) -> anyhow::Result<()> {
         let blob_url = match blob_urls {
             BlobUrls::Url(url) => url,
             _ => panic!("Unexpected blob urls type"),
@@ -62,12 +65,12 @@ impl ArtifactsManager for SchedulerWitnessGenerator {
         let mut transaction = prover_connection.start_transaction().await?;
         let protocol_version_id = transaction
             .fri_witness_generator_dal()
-            .protocol_version_for_l1_batch(job_id)
+            .protocol_version_for_l1_batch(L1BatchNumber(job_id))
             .await;
         transaction
             .fri_prover_jobs_dal()
             .insert_prover_job(
-                job_id,
+                L1BatchNumber(job_id),
                 ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
                 0,
                 0,
@@ -80,9 +83,10 @@ impl ArtifactsManager for SchedulerWitnessGenerator {
 
         transaction
             .fri_witness_generator_dal()
-            .mark_scheduler_job_as_successful(job_id, started_at.elapsed())
+            .mark_scheduler_job_as_successful(L1BatchNumber(job_id), started_at.elapsed())
             .await;
 
         transaction.commit().await?;
+        Ok(())
     }
 }
