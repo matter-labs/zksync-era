@@ -204,6 +204,10 @@ impl ExternalNodeBuilder {
                 .remote
                 .l2_native_token_vault_proxy_addr
                 .expect("L2 native token vault proxy address is not set"),
+            self.config
+                .remote
+                .l2_legacy_shared_bridge_addr
+                .expect("L2 legacy shared bridge address is not set"),
             self.config.optional.l2_block_seal_queue_capacity,
         )
         .with_pre_insert_txs(true) // EN requires txs to be pre-inserted.

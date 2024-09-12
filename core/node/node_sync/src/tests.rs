@@ -110,6 +110,7 @@ impl StateKeeperHandles {
             pool.clone(),
             Address::repeat_byte(1),
             Address::default(),
+            Address::repeat_byte(13),
             5,
         );
         let tree_writes_persistence = TreeWritesPersistence::new(pool.clone());

@@ -388,7 +388,7 @@ export async function erc20BridgeFinish(args: any[] = []): Promise<void> {
     await utils.spawn(`yarn l1-contracts erc20-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
 }
 
-export async function registerHyperchain({
+export async function registerZKChain({
     baseTokenName,
     deploymentMode
 }: {
@@ -418,10 +418,15 @@ export async function registerHyperchain({
         tokenMultiplierSetterAddress ? `--token-multiplier-setter-address ${tokenMultiplierSetterAddress}` : '',
         '--use-governance'
     ];
-    await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
-    const deployLog = fs.readFileSync('registerHyperchain.log').toString();
+    await utils.spawn(`yarn l1-contracts register-zk-chain ${args.join(' ')} | tee registerZKChain.log`);
+    const deployLog = fs.readFileSync('registerZKChain.log').toString();
 
-    const l2EnvVars = ['CHAIN_ETH_ZKSYNC_NETWORK_ID', 'CONTRACTS_DIAMOND_PROXY_ADDR', 'CONTRACTS_BASE_TOKEN_ADDR'];
+    const l2EnvVars = [
+        'CHAIN_ETH_ZKSYNC_NETWORK_ID',
+        'CONTRACTS_DIAMOND_PROXY_ADDR',
+        'CONTRACTS_BASE_TOKEN_ADDR',
+        'CONTRACTS_L2_LEGACY_SHARED_BRIDGE_ADDR'
+    ];
     const l2EnvFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
     console.log('Writing to', l2EnvFile);
 
@@ -557,7 +562,7 @@ command
         '--token-multiplier-setter-address <token-multiplier-setter-address>',
         'address of the token multiplier setter'
     )
-    .action(registerHyperchain);
+    .action(registerZKChain);
 command
     .command('deploy-l2-through-l1')
     .description('deploy l2 through l1')

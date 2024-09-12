@@ -1,9 +1,10 @@
 use zksync_types::{
     commitment::{L1BatchWithMetadata, PriorityOpsMerkleProof},
-    ethabi::Token,
+    ethabi::{encode, Token},
 };
 
 use crate::{i_executor::structures::StoredBatchInfo, Tokenizable, Tokenize};
+const SUPPORTED_ENCODING_VERSION: [u8; 1] = [0];
 
 /// Input required to encode `executeBatches` call.
 #[derive(Debug, Clone)]
@@ -14,7 +15,7 @@ pub struct ExecuteBatches {
 
 impl Tokenize for &ExecuteBatches {
     fn into_tokens(self) -> Vec<Token> {
-        vec![
+        let encoded_data = encode(&[
             Token::Array(
                 self.l1_batches
                     .iter()
@@ -27,6 +28,15 @@ impl Tokenize for &ExecuteBatches {
                     .map(|proof| proof.into_token())
                     .collect(),
             ),
+        ]);
+        let commit_data = [SUPPORTED_ENCODING_VERSION.to_vec(), encoded_data]
+            .concat()
+            .to_vec();
+
+        vec![
+            Token::Uint((self.l1_batches[0].header.number.0).into()),
+            Token::Uint((self.l1_batches[self.l1_batches.len() - 1].header.number.0).into()),
+            Token::Bytes(commit_data),
         ]
     }
 }
