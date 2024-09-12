@@ -197,21 +197,23 @@ testFees('Test fees', () => {
         ).wait();
 
         const feeParams = await alice._providerL2().getFeeParams();
+        // type is missing conversion_ratio field
         const conversionRatio: { numerator: bigint; denominator: bigint } = (feeParams.V2 as any)['conversion_ratio'];
-        expect(conversionRatio.numerator).toBeGreaterThan(1n);
+        if (isETHBasedChain) {
+            expect(conversionRatio.numerator).toBe(1n);
+            expect(conversionRatio.denominator).toBe(1n);
+        } else {
+            expect(conversionRatio.numerator).toBeGreaterThan(1n);
+        }
 
         // the minimum + compute overhead of 0.01gwei in validium mode
         const expectedETHGasPrice =
             Number(feeParams.V2.config.minimal_l2_gas_price) +
             Number(feeParams.V2.config.compute_overhead_part) * 10_000_000;
-        const expectedCustomGasPrice =
+        const expectedConvertedGasPrice =
             (expectedETHGasPrice * Number(conversionRatio.numerator)) / Number(conversionRatio.denominator);
 
-        if (isETHBasedChain) {
-            expect(receipt.gasPrice).toBe(BigInt(expectedETHGasPrice));
-        } else {
-            expect(receipt.gasPrice).toBe(BigInt(expectedCustomGasPrice));
-        }
+        expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
 
         if (!isETHBasedChain) {
             await setFeeParams(alice._providerL2(), {
