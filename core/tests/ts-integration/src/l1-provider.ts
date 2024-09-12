@@ -75,10 +75,12 @@ export class RetryableL1Wallet extends ethers.Wallet {
         reporter.debug('Sending L1 transaction', tx);
         while (true) {
             try {
-                return await super.sendTransaction(tx);
+                const response = await super.sendTransaction(tx);
+                reporter.debug(`L1 transaction successfully sent (hash=${response.hash})`, tx);
+                return response;
             } catch (err: any) {
                 reporter.debug('L1 transaction request failed', tx, err);
-                if (err.code === 'NONCE_EXPIRED' && tx.nonce === null) {
+                if (err.code === 'NONCE_EXPIRED' && (tx.nonce === null || tx.nonce === undefined)) {
                     reporter.debug('Retrying L1 transaction request', tx);
                 } else {
                     throw err;
