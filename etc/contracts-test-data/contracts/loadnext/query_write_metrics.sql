@@ -1,38 +1,35 @@
 -- calculate distribution of initial and repeated writes per transaction
 
-with config as (select
-                    -- miniblock number to start metrics collection from
-                    40000000 as start_from_miniblock_number,
-                    -- compute metrics over how many of the most recent blocks
-                    50000    as limit_miniblocks)
+\set start_from_miniblock_number 40000000;
+\set miniblock_range 10000;
+
 select
     -- initial writes
-    stddev_samp(initial_writes_per_tx)                                     as initial_writes_stddev,
-    avg(initial_writes_per_tx)                                             as initial_writes_avg,
-    percentile_cont(0.00) within group ( order by initial_writes_per_tx )  as initial_writes_00,
-    percentile_cont(0.01) within group ( order by initial_writes_per_tx )  as initial_writes_01,
-    percentile_cont(0.05) within group ( order by initial_writes_per_tx )  as initial_writes_05,
-    percentile_cont(0.25) within group ( order by initial_writes_per_tx )  as initial_writes_25,
-    percentile_cont(0.50) within group ( order by initial_writes_per_tx )  as initial_writes_50,
-    percentile_cont(0.75) within group ( order by initial_writes_per_tx )  as initial_writes_75,
-    percentile_cont(0.95) within group ( order by initial_writes_per_tx )  as initial_writes_95,
-    percentile_cont(0.99) within group ( order by initial_writes_per_tx )  as initial_writes_99,
-    percentile_cont(1.00) within group ( order by initial_writes_per_tx )  as initial_writes_100,
+    stddev_samp(initial_writes_per_tx)                                   as initial_writes_stddev,
+    avg(initial_writes_per_tx)                                           as initial_writes_avg,
+    percentile_cont(0.00) within group (order by initial_writes_per_tx)  as initial_writes_pct_00,
+    percentile_cont(0.01) within group (order by initial_writes_per_tx)  as initial_writes_pct_01,
+    percentile_cont(0.05) within group (order by initial_writes_per_tx)  as initial_writes_pct_05,
+    percentile_cont(0.25) within group (order by initial_writes_per_tx)  as initial_writes_pct_25,
+    percentile_cont(0.50) within group (order by initial_writes_per_tx)  as initial_writes_pct_50,
+    percentile_cont(0.75) within group (order by initial_writes_per_tx)  as initial_writes_pct_75,
+    percentile_cont(0.95) within group (order by initial_writes_per_tx)  as initial_writes_pct_95,
+    percentile_cont(0.99) within group (order by initial_writes_per_tx)  as initial_writes_pct_99,
+    percentile_cont(1.00) within group (order by initial_writes_per_tx)  as initial_writes_pct_100,
 
     -- repeated writes
-    stddev_samp(repeated_writes_per_tx)                                    as repeated_writes_stddev,
-    avg(repeated_writes_per_tx)                                            as repeated_writes_avg,
-    percentile_cont(0.00) within group ( order by repeated_writes_per_tx ) as repeated_writes_00,
-    percentile_cont(0.01) within group ( order by repeated_writes_per_tx ) as repeated_writes_01,
-    percentile_cont(0.05) within group ( order by repeated_writes_per_tx ) as repeated_writes_05,
-    percentile_cont(0.25) within group ( order by repeated_writes_per_tx ) as repeated_writes_25,
-    percentile_cont(0.50) within group ( order by repeated_writes_per_tx ) as repeated_writes_50,
-    percentile_cont(0.75) within group ( order by repeated_writes_per_tx ) as repeated_writes_75,
-    percentile_cont(0.95) within group ( order by repeated_writes_per_tx ) as repeated_writes_95,
-    percentile_cont(0.99) within group ( order by repeated_writes_per_tx ) as repeated_writes_99,
-    percentile_cont(1.00) within group ( order by repeated_writes_per_tx ) as repeated_writes_100
-from (select *,
-             initial_writes::real / l2_tx_count::real                  as initial_writes_per_tx,
+    stddev_samp(repeated_writes_per_tx)                                  as repeated_writes_stddev,
+    avg(repeated_writes_per_tx)                                          as repeated_writes_avg,
+    percentile_cont(0.00) within group (order by repeated_writes_per_tx) as repeated_writes_pct_00,
+    percentile_cont(0.01) within group (order by repeated_writes_per_tx) as repeated_writes_pct_01,
+    percentile_cont(0.05) within group (order by repeated_writes_per_tx) as repeated_writes_pct_05,
+    percentile_cont(0.25) within group (order by repeated_writes_per_tx) as repeated_writes_pct_25,
+    percentile_cont(0.50) within group (order by repeated_writes_per_tx) as repeated_writes_pct_50,
+    percentile_cont(0.75) within group (order by repeated_writes_per_tx) as repeated_writes_pct_75,
+    percentile_cont(0.95) within group (order by repeated_writes_per_tx) as repeated_writes_pct_95,
+    percentile_cont(0.99) within group (order by repeated_writes_per_tx) as repeated_writes_pct_99,
+    percentile_cont(1.00) within group (order by repeated_writes_per_tx) as repeated_writes_pct_100
+from (select initial_writes::real / l2_tx_count::real                  as initial_writes_per_tx,
              (total_writes - initial_writes)::real / l2_tx_count::real as repeated_writes_per_tx
       from (select mb.number            as miniblock_number,
                    count(sl.hashed_key) as total_writes,
@@ -54,10 +51,8 @@ from (select *,
                     order by miniblock_number
                     limit 1)
             where mb.l2_tx_count <> 0 -- avoid div0
-              and mb.number >= (select start_from_miniblock_number
-                                from config)
+              and mb.number >= :start_from_miniblock_number
             group by mb.number
             order by mb.number desc
-            limit (select limit_miniblocks
-                   from config)) s, generate_series(1, s.l2_tx_count) -- scale by # of tx
+            limit :miniblock_range) s, generate_series(1, s.l2_tx_count) -- scale by # of tx
      ) t;
