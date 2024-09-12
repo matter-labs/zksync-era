@@ -339,10 +339,11 @@ impl<S: ReadStorage> Vm<S> {
         self.write_to_bootloader_heap(memory);
     }
 
-    #[cfg(test)]
-    pub(super) fn enforce_state_diffs(&mut self, diffs: Vec<StateDiffRecord>) {
-        self.enforced_state_diffs = Some(diffs);
-    }
+    // FIXME: restore this function once fast vm is enabled
+    // #[cfg(test)]
+    // pub(super) fn enforce_state_diffs(&mut self, diffs: Vec<StateDiffRecord>) {
+    //     self.enforced_state_diffs = Some(diffs);
+    // }
 
     fn compute_state_diffs(&mut self) -> Vec<StateDiffRecord> {
         #[cfg(test)]

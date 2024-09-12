@@ -42,7 +42,6 @@ use zksync_vm_executor::batch::MainBatchExecutorFactory;
 
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
 use crate::{
-    executor::TxExecutionResult,
     testonly::{self, BASE_SYSTEM_CONTRACTS},
     tests::{default_l1_batch_env, default_system_env},
     AsyncRocksdbCache,

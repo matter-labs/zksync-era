@@ -3,13 +3,13 @@ use test_casing::{test_casing, Product};
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, error::Wrap, scope};
 use zksync_consensus_roles::{
-    attester, validator,
+    validator,
     validator::testonly::{Setup, SetupSpec},
 };
 use zksync_consensus_storage::BlockStore;
 use zksync_dal::consensus_dal;
 use zksync_test_account::Account;
-use zksync_types::{L1BatchNumber, ProtocolVersionId};
+use zksync_types::ProtocolVersionId;
 
 use crate::{
     mn::run_main_node,
@@ -329,88 +329,88 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
     .unwrap();
 }
 
-// // Test running external node (non-leader) validators.
-// #[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
-// #[tokio::test]
-// async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
-//     const NODES: usize = 3;
+// Test running external node (non-leader) validators.
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
+#[tokio::test]
+async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
+    const NODES: usize = 3;
 
-//     zksync_concurrency::testonly::abort_on_panic();
-//     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
-//     let rng = &mut ctx.rng();
-//     let setup = Setup::new(rng, NODES);
-//     let cfgs = testonly::new_configs(rng, &setup, 1);
-//     let account = &mut Account::random();
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
+    let rng = &mut ctx.rng();
+    let setup = Setup::new(rng, NODES);
+    let cfgs = testonly::new_configs(rng, &setup, 1);
+    let account = &mut Account::random();
 
-//     // Run all nodes in parallel.
-//     scope::run!(ctx, |ctx, s| async {
-//         let main_node_pool = ConnectionPool::test(from_snapshot, version).await;
-//         let (mut main_node, runner) =
-//             testonly::StateKeeper::new(ctx, main_node_pool.clone()).await?;
-//         s.spawn_bg(async {
-//             runner
-//                 .run(ctx)
-//                 .instrument(tracing::info_span!("main_node"))
-//                 .await
-//                 .context("main_node")
-//         });
-//         tracing::info!("Generate a couple of blocks, before initializing consensus genesis.");
-//         main_node.push_random_blocks(rng, account, 5).await;
-//         // API server needs at least 1 L1 batch to start.
-//         main_node.seal_batch().await;
-//         main_node_pool
-//             .wait_for_payload(ctx, main_node.last_block())
-//             .await
-//             .unwrap();
+    // Run all nodes in parallel.
+    scope::run!(ctx, |ctx, s| async {
+        let main_node_pool = ConnectionPool::test(from_snapshot, version).await;
+        let (mut main_node, runner) =
+            testonly::StateKeeper::new(ctx, main_node_pool.clone()).await?;
+        s.spawn_bg(async {
+            runner
+                .run(ctx)
+                .instrument(tracing::info_span!("main_node"))
+                .await
+                .context("main_node")
+        });
+        tracing::info!("Generate a couple of blocks, before initializing consensus genesis.");
+        main_node.push_random_blocks(rng, account, 5).await;
+        // API server needs at least 1 L1 batch to start.
+        main_node.seal_batch().await;
+        main_node_pool
+            .wait_for_payload(ctx, main_node.last_block())
+            .await
+            .unwrap();
 
-//         tracing::info!("wait until the API server is actually available");
-//         // as otherwise waiting for view synchronization will take a while.
-//         main_node.connect(ctx).await?;
+        tracing::info!("wait until the API server is actually available");
+        // as otherwise waiting for view synchronization will take a while.
+        main_node.connect(ctx).await?;
 
-//         tracing::info!("Run main node with all nodes being validators.");
-//         s.spawn_bg(run_main_node(
-//             ctx,
-//             cfgs[0].config.clone(),
-//             cfgs[0].secrets.clone(),
-//             main_node_pool.clone(),
-//         ));
+        tracing::info!("Run main node with all nodes being validators.");
+        s.spawn_bg(run_main_node(
+            ctx,
+            cfgs[0].config.clone(),
+            cfgs[0].secrets.clone(),
+            main_node_pool.clone(),
+        ));
 
-//         tracing::info!("Run external nodes.");
-//         let mut ext_node_pools = vec![];
-//         for (i, cfg) in cfgs[1..].iter().enumerate() {
-//             let i = ctx::NoCopy(i);
-//             let pool = ConnectionPool::test(from_snapshot, version).await;
-//             let (ext_node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
-//             ext_node_pools.push(pool.clone());
-//             s.spawn_bg(async {
-//                 let i = i;
-//                 runner
-//                     .run(ctx)
-//                     .instrument(tracing::info_span!("en", i = *i))
-//                     .await
-//                     .with_context(|| format!("en{}", *i))
-//             });
-//             s.spawn_bg(ext_node.run_consensus(ctx, main_node.connect(ctx).await?, cfg.clone()));
-//         }
+        tracing::info!("Run external nodes.");
+        let mut ext_node_pools = vec![];
+        for (i, cfg) in cfgs[1..].iter().enumerate() {
+            let i = ctx::NoCopy(i);
+            let pool = ConnectionPool::test(from_snapshot, version).await;
+            let (ext_node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
+            ext_node_pools.push(pool.clone());
+            s.spawn_bg(async {
+                let i = i;
+                runner
+                    .run(ctx)
+                    .instrument(tracing::info_span!("en", i = *i))
+                    .await
+                    .with_context(|| format!("en{}", *i))
+            });
+            s.spawn_bg(ext_node.run_consensus(ctx, main_node.connect(ctx).await?, cfg.clone()));
+        }
 
-//         tracing::info!("Make the main node produce blocks and wait for consensus to finalize them");
-//         main_node.push_random_blocks(rng, account, 5).await;
-//         let want_last = main_node.last_block();
-//         let want = main_node_pool
-//             .wait_for_block_certificates_and_verify(ctx, want_last)
-//             .await?;
-//         for pool in &ext_node_pools {
-//             assert_eq!(
-//                 want,
-//                 pool.wait_for_block_certificates_and_verify(ctx, want_last)
-//                     .await?
-//             );
-//         }
-//         Ok(())
-//     })
-//     .await
-//     .unwrap();
-// }
+        tracing::info!("Make the main node produce blocks and wait for consensus to finalize them");
+        main_node.push_random_blocks(rng, account, 5).await;
+        let want_last = main_node.last_block();
+        let want = main_node_pool
+            .wait_for_block_certificates_and_verify(ctx, want_last)
+            .await?;
+        for pool in &ext_node_pools {
+            assert_eq!(
+                want,
+                pool.wait_for_block_certificates_and_verify(ctx, want_last)
+                    .await?
+            );
+        }
+        Ok(())
+    })
+    .await
+    .unwrap();
+}
 
 // Test fetcher back filling missing certs.
 #[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
