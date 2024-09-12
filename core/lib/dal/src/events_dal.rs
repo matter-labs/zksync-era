@@ -10,11 +10,11 @@ use zksync_db_connection::{
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
     api,
-    event::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     tx::IncludedTxLocation,
-    Address, L1BatchNumber, L2BlockNumber, VmEvent, H256,
+    Address, L1BatchNumber, L2BlockNumber, H256,
 };
+use zksync_vm_interface::VmEvent;
 
 use crate::{
     models::storage_event::{StorageL2ToL1Log, StorageWeb3Log},
@@ -278,7 +278,7 @@ impl EventsDal<'_, '_> {
             i64::from(from_l2_block.0),
             i64::from(to_l2_block.0),
             L1_MESSENGER_ADDRESS.as_bytes(),
-            L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE.as_bytes()
+            VmEvent::L1_MESSENGER_BYTECODE_PUBLICATION_EVENT_SIGNATURE.as_bytes()
         )
         .instrument("get_l1_batch_raw_published_bytecode_hashes")
         .with_arg("from_l2_block", &from_l2_block)

@@ -4,8 +4,7 @@ on:
 
 jobs:
   code_lint:
-    runs-on: [matterlabs-ci-runner]
-
+    runs-on: matterlabs-ci-runner-highmem-long
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -16,26 +15,31 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
+          echo "prover_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover" >> $GITHUB_ENV
+          echo "core_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local" >> $GITHUB_ENV
 
       - name: Start services
         run: |
-          mkdir -p ./volumes/postgres
-          run_retried docker compose pull zk postgres
-          docker compose up -d zk postgres
+          ci_localnet_up
           ci_run sccache --start-server
 
-      - name: Setup db
+      - name: Build
         run: |
-          ci_run zk
-          ci_run run_retried rustup show
-          ci_run zk db migrate
+          ci_run ./bin/zkt
+          ci_run yarn install
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run zk_supervisor db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
+
 
       - name: Lints
         run: |
-          ci_run zk fmt --check
-          ci_run zk lint rust --check
-          ci_run zk lint toolbox --check
-          ci_run zk lint js --check
-          ci_run zk lint ts --check
-          ci_run zk lint md --check
-          ci_run zk db check-sqlx-data
+          ci_run zk_supervisor fmt --check
+          ci_run zk_supervisor lint -t md --check
+          ci_run zk_supervisor lint -t sol --check
+          ci_run zk_supervisor lint -t js --check
+          ci_run zk_supervisor lint -t ts --check
+          ci_run zk_supervisor lint -t rs --check
+
+      - name: Check Database
+        run: |
+          ci_run zk_supervisor database check-sqlx-data --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}

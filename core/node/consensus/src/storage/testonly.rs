@@ -1,8 +1,7 @@
 //! Storage test helpers.
-
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{attester, validator};
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::CoreDal as _;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
@@ -12,7 +11,42 @@ use zksync_types::{
     system_contracts::get_system_smart_contracts, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
 };
 
-use super::ConnectionPool;
+use super::{Connection, ConnectionPool};
+use crate::registry;
+
+impl Connection<'_> {
+    /// Wrapper for `consensus_dal().batch_of_block()`.
+    pub async fn batch_of_block(
+        &mut self,
+        ctx: &ctx::Ctx,
+        block: validator::BlockNumber,
+    ) -> ctx::Result<Option<attester::BatchNumber>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().batch_of_block(block))
+            .await??)
+    }
+
+    /// Wrapper for `consensus_dal().last_batch_certificate_number()`.
+    pub async fn last_batch_certificate_number(
+        &mut self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<Option<attester::BatchNumber>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().last_batch_certificate_number())
+            .await??)
+    }
+
+    /// Wrapper for `consensus_dal().batch_certificate()`.
+    pub async fn batch_certificate(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: attester::BatchNumber,
+    ) -> ctx::Result<Option<attester::BatchQC>> {
+        Ok(ctx
+            .wait(self.0.consensus_dal().batch_certificate(number))
+            .await??)
+    }
+}
 
 pub(crate) fn mock_genesis_params(protocol_version: ProtocolVersionId) -> GenesisParams {
     let mut cfg = mock_genesis_config();
@@ -147,18 +181,75 @@ impl ConnectionPool {
         want_last: validator::BlockNumber,
     ) -> ctx::Result<Vec<validator::FinalBlock>> {
         let blocks = self.wait_for_block_certificates(ctx, want_last).await?;
-        let genesis = self
+        let cfg = self
             .connection(ctx)
             .await
             .wrap("connection()")?
-            .genesis(ctx)
+            .global_config(ctx)
             .await
             .wrap("genesis()")?
             .context("genesis is missing")?;
         for block in &blocks {
-            block.verify(&genesis).context(block.number())?;
+            block.verify(&cfg.genesis).context(block.number())?;
         }
         Ok(blocks)
+    }
+
+    pub async fn wait_for_batch_certificates_and_verify(
+        &self,
+        ctx: &ctx::Ctx,
+        want_last: attester::BatchNumber,
+        registry_addr: Option<registry::Address>,
+    ) -> ctx::Result<()> {
+        // Wait for the last batch to be attested.
+        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
+        while self
+            .connection(ctx)
+            .await
+            .wrap("connection()")?
+            .last_batch_certificate_number(ctx)
+            .await
+            .wrap("last_batch_certificate_number()")?
+            .map_or(true, |got| got < want_last)
+        {
+            ctx.sleep(POLL_INTERVAL).await?;
+        }
+        let mut conn = self.connection(ctx).await.wrap("connection()")?;
+        let cfg = conn
+            .global_config(ctx)
+            .await
+            .wrap("global_config()")?
+            .context("global config is missing")?;
+        let first = conn
+            .batch_of_block(ctx, cfg.genesis.first_block)
+            .await
+            .wrap("batch_of_block()")?
+            .context("batch of first_block is missing")?;
+        let registry = registry::Registry::new(cfg.genesis.clone(), self.clone()).await;
+        for i in first.0..want_last.0 {
+            let i = attester::BatchNumber(i);
+            let hash = conn
+                .batch_hash(ctx, i)
+                .await
+                .wrap("batch_hash()")?
+                .context("hash missing")?;
+            let cert = conn
+                .batch_certificate(ctx, i)
+                .await
+                .wrap("batch_certificate")?
+                .context("cert missing")?;
+            if cert.message.hash != hash {
+                return Err(anyhow::format_err!("cert[{i:?}]: hash mismatch").into());
+            }
+            let committee = registry
+                .attester_committee_for(ctx, registry_addr, i)
+                .await
+                .context("attester_committee_for()")?
+                .context("committee not specified")?;
+            cert.verify(cfg.genesis.hash(), &committee)
+                .with_context(|| format!("cert[{i:?}].verify()"))?;
+        }
+        Ok(())
     }
 
     pub async fn prune_batches(

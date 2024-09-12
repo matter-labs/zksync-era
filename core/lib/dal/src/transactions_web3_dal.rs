@@ -9,9 +9,10 @@ use zksync_db_connection::{
     interpolate_query, match_query_as,
 };
 use zksync_types::{
-    api, api::TransactionReceipt, block::build_bloom, event::DEPLOY_EVENT_SIGNATURE, Address,
-    BloomInput, L2BlockNumber, L2ChainId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
+    api, api::TransactionReceipt, block::build_bloom, Address, BloomInput, L2BlockNumber,
+    L2ChainId, Transaction, CONTRACT_DEPLOYER_ADDRESS, H256, U256,
 };
+use zksync_vm_interface::VmEvent;
 
 use crate::{
     models::storage_transaction::{
@@ -40,6 +41,7 @@ impl TransactionsWeb3Dal<'_, '_> {
         hashes: &[H256],
     ) -> DalResult<Vec<TransactionReceipt>> {
         let hash_bytes: Vec<_> = hashes.iter().map(H256::as_bytes).collect();
+
         // Clarification for first part of the query(`WITH` clause):
         // Looking for `ContractDeployed` event in the events table
         // to find the address of deployed contract
@@ -88,7 +90,7 @@ impl TransactionsWeb3Dal<'_, '_> {
             // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
             // transaction info.
             CONTRACT_DEPLOYER_ADDRESS.as_bytes(),
-            DEPLOY_EVENT_SIGNATURE.as_bytes(),
+            VmEvent::DEPLOY_EVENT_SIGNATURE.as_bytes(),
             &hash_bytes as &[&[u8]],
         )
         .instrument("get_transaction_receipts")

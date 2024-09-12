@@ -138,9 +138,10 @@ describe('Upgrade test', function () {
         // Run server in background.
         runServerInBackground({
             components: serverComponents,
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
         // Server may need some time to recompile if it's a cold run, so wait for it.
         let iter = 0;
@@ -170,7 +171,7 @@ describe('Upgrade test', function () {
 
         if (!zksync.utils.isAddressEq(baseToken, zksync.utils.ETH_ADDRESS_IN_CONTRACTS)) {
             await (await tester.syncWallet.approveERC20(baseToken, ethers.MaxUint256)).wait();
-            await mintToWallet(baseToken, tester.syncWallet, depositAmount * 10n);
+            await mintToAddress(baseToken, tester.ethWallet, tester.syncWallet.address, depositAmount * 10n);
         }
 
         const firstDepositHandle = await tester.syncWallet.deposit({
@@ -279,9 +280,11 @@ describe('Upgrade test', function () {
         );
         executeOperation = chainUpgradeCalldata;
 
+        console.log('Sending scheduleTransparentOperation');
         await sendGovernanceOperation(stmUpgradeData.scheduleTransparentOperation);
+        console.log('Sending executeOperation');
         await sendGovernanceOperation(stmUpgradeData.executeOperation);
-
+        console.log('Sending chain admin operation');
         await sendChainAdminOperation(setTimestampCalldata);
 
         // Wait for server to process L1 event.
@@ -345,9 +348,10 @@ describe('Upgrade test', function () {
         // Run again.
         runServerInBackground({
             components: serverComponents,
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
         await utils.sleep(10);
 
@@ -369,23 +373,25 @@ describe('Upgrade test', function () {
     });
 
     async function sendGovernanceOperation(data: string) {
-        await (
-            await ecosystemGovWallet.sendTransaction({
-                to: await governanceContract.getAddress(),
-                data: data,
-                type: 0
-            })
-        ).wait();
+        const transaction = await ecosystemGovWallet.sendTransaction({
+            to: await governanceContract.getAddress(),
+            data: data,
+            type: 0
+        });
+        console.log(`Sent governance operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
+        await transaction.wait();
+        console.log(`Governance operation succeeded, tx_hash=${transaction.hash}`);
     }
 
     async function sendChainAdminOperation(data: string) {
-        await (
-            await adminGovWallet.sendTransaction({
-                to: await chainAdminContract.getAddress(),
-                data: data,
-                type: 0
-            })
-        ).wait();
+        const transaction = await adminGovWallet.sendTransaction({
+            to: await chainAdminContract.getAddress(),
+            data: data,
+            type: 0
+        });
+        console.log(`Sent chain admin operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
+        await transaction.wait();
+        console.log(`Chain admin operation succeeded, tx_hash=${transaction.hash}`);
     }
 });
 
@@ -575,10 +581,15 @@ function prepareGovernanceCalldata(to: string, data: BytesLike): UpgradeCalldata
     };
 }
 
-async function mintToWallet(baseTokenAddress: zksync.types.Address, ethersWallet: ethers.Wallet, amountToMint: bigint) {
+async function mintToAddress(
+    baseTokenAddress: zksync.types.Address,
+    ethersWallet: ethers.Wallet,
+    addressToMintTo: string,
+    amountToMint: bigint
+) {
     const l1Erc20ABI = ['function mint(address to, uint256 amount)'];
     const l1Erc20Contract = new ethers.Contract(baseTokenAddress, l1Erc20ABI, ethersWallet);
-    await (await l1Erc20Contract.mint(ethersWallet.address, amountToMint)).wait();
+    await (await l1Erc20Contract.mint(addressToMintTo, amountToMint)).wait();
 }
 
 const SEMVER_MINOR_VERSION_MULTIPLIER = 4294967296;

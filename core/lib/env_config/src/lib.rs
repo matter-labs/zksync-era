@@ -26,6 +26,7 @@ mod da_dispatcher;
 mod external_price_api_client;
 mod external_proof_integration_api;
 mod genesis;
+mod prover_job_monitor;
 #[cfg(test)]
 mod test_utils;
 mod vm_runner;
@@ -33,6 +34,10 @@ mod wallets;
 
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;
+}
+
+pub trait FromEnvVariant: Sized {
+    fn from_env_variant(variant_prefix: String) -> anyhow::Result<Self>;
 }
 
 /// Convenience function that loads the structure from the environment variable given the prefix.

@@ -6,7 +6,7 @@ use zksync_config::configs::consensus::{
 };
 use zksync_protobuf::{kB, read_optional, repr::ProtoRepr, required, ProtoFmt};
 
-use crate::{proto::consensus as proto, read_optional_repr};
+use crate::{parse_h160, proto::consensus as proto, read_optional_repr};
 
 impl ProtoRepr for proto::WeightedValidator {
     type Type = WeightedValidator;
@@ -65,6 +65,12 @@ impl ProtoRepr for proto::GenesisSpec {
                 .collect::<Result<_, _>>()
                 .context("attesters")?,
             leader: ValidatorPublicKey(required(&self.leader).context("leader")?.clone()),
+            registry_address: self
+                .registry_address
+                .as_ref()
+                .map(|x| parse_h160(x))
+                .transpose()
+                .context("registry_address")?,
         })
     }
     fn build(this: &Self::Type) -> Self {
@@ -74,6 +80,7 @@ impl ProtoRepr for proto::GenesisSpec {
             validators: this.validators.iter().map(ProtoRepr::build).collect(),
             attesters: this.attesters.iter().map(ProtoRepr::build).collect(),
             leader: Some(this.leader.0.clone()),
+            registry_address: this.registry_address.map(|a| format!("{:?}", a)),
         }
     }
 }

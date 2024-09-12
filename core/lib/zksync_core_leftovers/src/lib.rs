@@ -2,36 +2,8 @@
 
 use std::str::FromStr;
 
-use anyhow::Context;
 use tokio::sync::oneshot;
-use zksync_config::configs::DatabaseSecrets;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
-
 pub mod temp_config_store;
-
-/// Clear L1 txs history. FIXME don't include it in the main branch
-pub async fn delete_l1_txs_history(database_secrets: &DatabaseSecrets) -> anyhow::Result<()> {
-    let db_url = database_secrets.master_url().unwrap();
-    let pool = ConnectionPool::<Core>::singleton(db_url)
-        .build()
-        .await
-        .context("failed to build connection_pool")?;
-    let mut storage = pool.connection().await.context("connection()")?;
-
-    storage.transactions_dal().erase_l1_txs_history().await?;
-
-    Ok(())
-}
-
-pub async fn is_genesis_needed(database_secrets: &DatabaseSecrets) -> bool {
-    let db_url = database_secrets.master_url().unwrap();
-    let pool = ConnectionPool::<Core>::singleton(db_url)
-        .build()
-        .await
-        .expect("failed to build connection_pool");
-    let mut storage = pool.connection().await.expect("connection()");
-    storage.blocks_dal().is_genesis_needed().await.unwrap()
-}
 
 /// Sets up an interrupt handler and returns a future that resolves once an interrupt signal
 /// is received.

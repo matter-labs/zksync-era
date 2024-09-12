@@ -1,7 +1,7 @@
 //! Tests for the `debug` Web3 namespace.
 
-use zksync_multivm::interface::TransactionExecutionResult;
-use zksync_types::{vm_trace::Call, BOOTLOADER_ADDRESS};
+use zksync_multivm::interface::{Call, TransactionExecutionResult};
+use zksync_types::BOOTLOADER_ADDRESS;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::DebugNamespaceClient,
@@ -69,7 +69,7 @@ impl HttpTest for TraceBlockTest {
                 let expected_calls: Vec<_> = tx_result
                     .call_traces
                     .iter()
-                    .map(|call| api::DebugCall::from(call.clone()))
+                    .map(|call| DebugNamespace::map_call(call.clone(), false))
                     .collect();
                 assert_eq!(result.calls, expected_calls);
             }
@@ -198,7 +198,7 @@ impl HttpTest for TraceTransactionTest {
         let expected_calls: Vec<_> = tx_results[0]
             .call_traces
             .iter()
-            .map(|call| api::DebugCall::from(call.clone()))
+            .map(|call| DebugNamespace::map_call(call.clone(), false))
             .collect();
 
         let result = client

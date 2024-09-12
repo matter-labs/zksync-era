@@ -8,13 +8,13 @@ use crate::messages::{
     MSG_DATABASE_SETUP_ABOUT,
 };
 
-mod args;
+pub mod args;
 mod check_sqlx_data;
 mod drop;
 mod migrate;
 mod new_migration;
 mod prepare;
-mod reset;
+pub mod reset;
 mod setup;
 
 #[derive(Subcommand, Debug)]

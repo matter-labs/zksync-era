@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{cmd::Cmd, logger};
+use common::{cmd::Cmd, config::global_config, logger};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
@@ -10,7 +10,7 @@ use crate::messages::{
 pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem = EcosystemConfig::from_file(shell)?;
     let chain = ecosystem
-        .load_chain(Some(ecosystem.default_chain.clone()))
+        .load_chain(global_config().chain_name.clone())
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
     let config_path = chain.path_to_general_config();

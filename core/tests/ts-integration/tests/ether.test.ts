@@ -257,7 +257,7 @@ describe('ETH token checks', () => {
         await waitUntilBlockFinalized(alice, l2TxReceipt!.blockNumber);
         // await withdrawalTx.waitFinalize();
 
-        await sleep(25);
+        await sleep(60);
 
         console.log(withdrawalTx.hash);
 

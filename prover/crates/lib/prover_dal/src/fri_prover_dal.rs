@@ -2,11 +2,12 @@
 use std::{collections::HashMap, convert::TryFrom, str::FromStr, time::Duration};
 
 use zksync_basic_types::{
-    basic_fri_types::{AggregationRound, CircuitIdRoundTuple, JobIdentifiers},
-    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
-    prover_dal::{
-        FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
+    basic_fri_types::{
+        AggregationRound, CircuitIdRoundTuple, CircuitProverStatsEntry,
+        ProtocolVersionedCircuitProverStats,
     },
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
+    prover_dal::{FriProverJobMetadata, ProverJobFriInfo, ProverJobStatus, StuckJobs},
     L1BatchNumber,
 };
 use zksync_db_connection::{
@@ -310,12 +311,7 @@ impl FriProverDal<'_, '_> {
                             prover_jobs_fri
                         WHERE
                             (
-                                status = 'in_progress'
-                                AND processing_started_at <= NOW() - $1::INTERVAL
-                                AND attempts < $2
-                            )
-                            OR (
-                                status = 'in_gpu_proof'
+                                status IN ('in_progress', 'in_gpu_proof')
                                 AND processing_started_at <= NOW() - $1::INTERVAL
                                 AND attempts < $2
                             )
@@ -330,7 +326,9 @@ impl FriProverDal<'_, '_> {
                     id,
                     status,
                     attempts,
-                    circuit_id
+                    circuit_id,
+                    error,
+                    picked_by
                 "#,
                 &processing_timeout,
                 max_attempts as i32,
@@ -344,6 +342,8 @@ impl FriProverDal<'_, '_> {
                 status: row.status,
                 attempts: row.attempts as u64,
                 circuit_id: Some(row.circuit_id as u32),
+                error: row.error,
+                picked_by: row.picked_by,
             })
             .collect()
         }
@@ -400,9 +400,9 @@ impl FriProverDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn get_prover_jobs_stats(&mut self) -> HashMap<JobIdentifiers, JobCountStatistics> {
+    pub async fn get_prover_jobs_stats(&mut self) -> ProtocolVersionedCircuitProverStats {
         {
-            let rows = sqlx::query!(
+            sqlx::query!(
                 r#"
                 SELECT
                     COUNT(*) AS "count!",
@@ -429,27 +429,19 @@ impl FriProverDal<'_, '_> {
             )
             .fetch_all(self.storage.conn())
             .await
-            .unwrap();
-
-            let mut result = HashMap::new();
-
-            for row in &rows {
-                let stats: &mut JobCountStatistics = result
-                    .entry(JobIdentifiers {
-                        circuit_id: row.circuit_id as u8,
-                        aggregation_round: row.aggregation_round as u8,
-                        protocol_version: row.protocol_version as u16,
-                        protocol_version_patch: row.protocol_version_patch as u32,
-                    })
-                    .or_default();
-                match row.status.as_ref() {
-                    "queued" => stats.queued = row.count as usize,
-                    "in_progress" => stats.in_progress = row.count as usize,
-                    _ => (),
-                }
-            }
-
-            result
+            .unwrap()
+            .iter()
+            .map(|row| {
+                CircuitProverStatsEntry::new(
+                    row.circuit_id,
+                    row.aggregation_round,
+                    row.protocol_version,
+                    row.protocol_version_patch,
+                    &row.status,
+                    row.count,
+                )
+            })
+            .collect()
         }
     }
 
@@ -482,33 +474,6 @@ impl FriProverDal<'_, '_> {
             })
             .collect()
         }
-    }
-
-    pub async fn min_unproved_l1_batch_number_for_aggregation_round(
-        &mut self,
-        aggregation_round: AggregationRound,
-    ) -> Option<L1BatchNumber> {
-        sqlx::query!(
-            r#"
-            SELECT
-                l1_batch_number
-            FROM
-                prover_jobs_fri
-            WHERE
-                status <> 'skipped'
-                AND status <> 'successful'
-                AND aggregation_round = $1
-            ORDER BY
-                l1_batch_number ASC
-            LIMIT
-                1
-            "#,
-            aggregation_round as i16
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| L1BatchNumber(row.l1_batch_number as u32))
     }
 
     pub async fn update_status(&mut self, id: u32, status: &str) {
@@ -577,19 +542,20 @@ impl FriProverDal<'_, '_> {
         .ok()?
         .map(|row| row.id as u32)
     }
-
-    pub async fn archive_old_jobs(&mut self, archiving_interval_secs: u64) -> usize {
-        let archiving_interval_secs =
-            pg_interval_from_duration(Duration::from_secs(archiving_interval_secs));
+    pub async fn archive_old_jobs(&mut self, archiving_interval: Duration) -> usize {
+        let archiving_interval_secs = pg_interval_from_duration(archiving_interval);
 
         sqlx::query_scalar!(
             r#"
             WITH deleted AS (
-                DELETE FROM prover_jobs_fri
+                DELETE FROM prover_jobs_fri AS p
+                USING proof_compression_jobs_fri AS c
                 WHERE
-                    status NOT IN ('queued', 'in_progress', 'in_gpu_proof', 'failed')
-                    AND updated_at < NOW() - $1::INTERVAL
-                RETURNING *
+                    p.status NOT IN ('queued', 'in_progress', 'in_gpu_proof', 'failed')
+                    AND p.updated_at < NOW() - $1::INTERVAL
+                    AND p.l1_batch_number = c.l1_batch_number
+                    AND c.status = 'sent_to_server'
+                RETURNING p.*
             ),
             inserted_count AS (
                 INSERT INTO prover_jobs_fri_archive
@@ -744,7 +710,9 @@ impl FriProverDal<'_, '_> {
                     id,
                     status,
                     attempts,
-                    circuit_id
+                    circuit_id,
+                    error,
+                    picked_by
                 "#,
                 i64::from(block_number.0),
                 max_attempts as i32,
@@ -758,6 +726,8 @@ impl FriProverDal<'_, '_> {
                 status: row.status,
                 attempts: row.attempts as u64,
                 circuit_id: Some(row.circuit_id as u32),
+                error: row.error,
+                picked_by: row.picked_by,
             })
             .collect()
         }

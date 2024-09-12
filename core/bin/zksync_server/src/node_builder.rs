@@ -87,6 +87,7 @@ pub struct MainNodeBuilder {
     wallets: Wallets,
     genesis_config: GenesisConfig,
     contracts_config: ContractsConfig,
+    gateway_contracts_config: Option<ContractsConfig>,
     secrets: Secrets,
 }
 
@@ -96,6 +97,7 @@ impl MainNodeBuilder {
         wallets: Wallets,
         genesis_config: GenesisConfig,
         contracts_config: ContractsConfig,
+        gateway_contracts_config: Option<ContractsConfig>,
         secrets: Secrets,
     ) -> anyhow::Result<Self> {
         Ok(Self {
@@ -104,6 +106,7 @@ impl MainNodeBuilder {
             wallets,
             genesis_config,
             contracts_config,
+            gateway_contracts_config,
             secrets,
         })
     }
@@ -123,7 +126,6 @@ impl MainNodeBuilder {
         let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
             .with_replica(true)
-            .with_prover(true) // Used by house keeper.
             .build();
         self.node.add_layer(pools_layer);
         Ok(self)
@@ -147,6 +149,7 @@ impl MainNodeBuilder {
         self.node.add_layer(PKSigningEthClientLayer::new(
             eth_config,
             self.contracts_config.clone(),
+            self.gateway_contracts_config.clone(),
             self.genesis_config.settlement_layer_id(),
             wallets,
         ));
@@ -159,11 +162,7 @@ impl MainNodeBuilder {
         let query_eth_client_layer = QueryEthClientLayer::new(
             genesis.settlement_layer_id(),
             eth_config.l1_rpc_url,
-            self.configs
-                .eth
-                .as_ref()
-                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
-                .unwrap_or(SettlementMode::SettlesToL1),
+            eth_config.gateway_url,
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -294,6 +293,12 @@ impl MainNodeBuilder {
             .add_layer(EthWatchLayer::new(
                 try_load_config!(eth_config.watcher),
                 self.contracts_config.clone(),
+                self.gateway_contracts_config.clone(),
+                self.configs
+                    .eth
+                    .as_ref()
+                    .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
+                    .unwrap_or(SettlementMode::SettlesToL1),
             ));
         Ok(self)
     }
@@ -379,6 +384,7 @@ impl MainNodeBuilder {
             subscriptions_limit: Some(rpc_config.subscriptions_limit()),
             batch_request_size_limit: Some(rpc_config.max_batch_request_size()),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
+            with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
         self.node.add_layer(Web3ServerLayer::http(
@@ -454,8 +460,14 @@ impl MainNodeBuilder {
             .add_layer(EthTxAggregatorLayer::new(
                 eth_sender_config,
                 self.contracts_config.clone(),
+                self.gateway_contracts_config.clone(),
                 self.genesis_config.l2_chain_id,
                 self.genesis_config.l1_batch_commit_data_generator_mode,
+                self.configs
+                    .eth
+                    .as_ref()
+                    .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
+                    .unwrap_or(SettlementMode::SettlesToL1),
             ));
 
         Ok(self)
@@ -463,18 +475,9 @@ impl MainNodeBuilder {
 
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
         let house_keeper_config = try_load_config!(self.configs.house_keeper_config);
-        let fri_prover_config = try_load_config!(self.configs.prover_config);
-        let fri_witness_generator_config = try_load_config!(self.configs.witness_generator);
-        let fri_prover_group_config = try_load_config!(self.configs.prover_group_config);
-        let fri_proof_compressor_config = try_load_config!(self.configs.proof_compressor_config);
 
-        self.node.add_layer(HouseKeeperLayer::new(
-            house_keeper_config,
-            fri_prover_config,
-            fri_witness_generator_config,
-            fri_prover_group_config,
-            fri_proof_compressor_config,
-        ));
+        self.node
+            .add_layer(HouseKeeperLayer::new(house_keeper_config));
 
         Ok(self)
     }
@@ -616,8 +619,14 @@ impl MainNodeBuilder {
     fn add_base_token_ratio_persister_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.base_token_adjuster);
         let contracts_config = self.contracts_config.clone();
-        self.node
-            .add_layer(BaseTokenRatioPersisterLayer::new(config, contracts_config));
+        let wallets = self.wallets.clone();
+        let l1_chain_id = self.genesis_config.l1_chain_id;
+        self.node.add_layer(BaseTokenRatioPersisterLayer::new(
+            config,
+            contracts_config,
+            wallets,
+            l1_chain_id,
+        ));
 
         Ok(self)
     }
@@ -777,6 +786,7 @@ impl MainNodeBuilder {
                 }
                 Component::BaseTokenRatioPersister => {
                     self = self
+                        .add_l1_gas_layer()?
                         .add_external_api_client_layer()?
                         .add_base_token_ratio_persister_layer()?;
                 }

@@ -22,6 +22,7 @@ pub use self::{
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
+    prover_job_monitor::ProverJobMonitorConfig,
     pruning::PruningConfig,
     secrets::{DatabaseSecrets, L1Secrets, Secrets},
     snapshot_recovery::SnapshotRecoveryConfig,
@@ -57,6 +58,7 @@ pub mod house_keeper;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;
+pub mod prover_job_monitor;
 pub mod pruning;
 pub mod secrets;
 pub mod snapshot_recovery;

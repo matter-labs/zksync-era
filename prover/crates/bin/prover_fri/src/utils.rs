@@ -128,6 +128,7 @@ pub fn verify_proof(
             verify_recursion_layer_proof::<NoPow>(recursive_circuit, proof, vk),
             recursive_circuit.numeric_circuit_type(),
         ),
+        CircuitWrapper::BasePartial(_) => panic!("Invalid CircuitWrapper received"),
     };
 
     METRICS.proof_verification_time[&circuit_id.to_string()].observe(started_at.elapsed());

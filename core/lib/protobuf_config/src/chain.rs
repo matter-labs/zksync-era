@@ -78,10 +78,9 @@ impl ProtoRepr for proto::StateKeeper {
             max_circuits_per_batch: required(&self.max_circuits_per_batch)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("max_circuits_per_batch")?,
-            protective_reads_persistence_enabled: *required(
-                &self.protective_reads_persistence_enabled,
-            )
-            .context("protective_reads_persistence_enabled")?,
+            protective_reads_persistence_enabled: self
+                .protective_reads_persistence_enabled
+                .unwrap_or_default(),
 
             // We need these values only for instantiating configs from environmental variables, so it's not
             // needed during the initialization from files

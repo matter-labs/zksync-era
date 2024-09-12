@@ -16,7 +16,7 @@ use crate::{
     interface::{
         storage::{InMemoryStorage, StoragePtr, StorageView, WriteStorage},
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
-        VmInterface,
+        VmInterface, VmInterfaceExt,
     },
     vm_latest::{
         constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
@@ -60,10 +60,10 @@ impl<H: HistoryMode> VmTester<H> {
         self.test_contract = Some(deployed_address);
     }
 
-    pub(crate) fn reset_with_empty_storage(&mut self) {
-        self.storage = StorageView::new(get_empty_storage()).to_rc_ptr();
-        self.reset_state(false);
-    }
+    // pub(crate) fn reset_with_empty_storage(&mut self) {
+    //     self.storage = StorageView::new(get_empty_storage()).to_rc_ptr();
+    //     self.reset_state(false);
+    // }
 
     /// Reset the state of the VM to the initial state.
     /// If `use_latest_l2_block` is true, then the VM will use the latest L2 block from storage,

@@ -7,6 +7,8 @@ use crate::{traits::ZkToolboxConfig, ChainConfig, ContractsConfig};
 
 impl ZkToolboxConfig for DeployL2ContractsInput {}
 
+/// Fields corresponding to `contracts/l1-contracts/deploy-script-config-template/config-deploy-l2-config.toml`
+/// which are read by `contracts/l1-contracts/deploy-scripts/DeployL2Contracts.sol`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeployL2ContractsInput {
     pub era_chain_id: L2ChainId,
@@ -19,6 +21,7 @@ pub struct DeployL2ContractsInput {
     pub validium_mode: bool,
     pub l1_da_validator_addr: Address,
     pub chain_admin: Address,
+    pub consensus_registry_owner: Address,
 }
 
 impl DeployL2ContractsInput {
@@ -50,6 +53,7 @@ impl DeployL2ContractsInput {
             validium_mode,
             l1_da_validator_addr,
             chain_admin: contracts.l1.chain_admin_addr,
+            consensus_registry_owner: wallets.governor.address,
         })
     }
 }

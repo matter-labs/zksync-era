@@ -8,6 +8,7 @@ use ethers::{
     providers::Middleware,
     types::{Address, TransactionRequest, H256},
 };
+use types::TokenInfo;
 
 use crate::{logger, wallets::Wallet};
 
@@ -58,9 +59,27 @@ pub async fn distribute_eth(
 abigen!(
     TokenContract,
     r"[
+    function name() external view returns (string)
+    function symbol() external view returns (string)
+    function decimals() external view returns (uint8)
     function mint(address to, uint256 amount)
     ]"
 );
+
+pub async fn get_token_info(token_address: Address, rpc_url: String) -> anyhow::Result<TokenInfo> {
+    let provider = Provider::<Http>::try_from(rpc_url)?;
+    let contract = TokenContract::new(token_address, Arc::new(provider));
+
+    let name = contract.name().call().await?;
+    let symbol = contract.symbol().call().await?;
+    let decimals = contract.decimals().call().await?;
+
+    Ok(TokenInfo {
+        name,
+        symbol,
+        decimals,
+    })
+}
 
 pub async fn mint_token(
     main_wallet: Wallet,

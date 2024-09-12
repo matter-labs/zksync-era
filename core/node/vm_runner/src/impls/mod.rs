@@ -8,6 +8,9 @@ pub use self::{
     bwip::{
         BasicWitnessInputProducer, BasicWitnessInputProducerIo, BasicWitnessInputProducerTasks,
     },
-    playground::{VmPlayground, VmPlaygroundIo, VmPlaygroundLoaderTask, VmPlaygroundTasks},
+    playground::{
+        VmPlayground, VmPlaygroundCursorOptions, VmPlaygroundIo, VmPlaygroundLoaderTask,
+        VmPlaygroundStorageOptions, VmPlaygroundTasks,
+    },
     protective_reads::{ProtectiveReadsIo, ProtectiveReadsWriter, ProtectiveReadsWriterTasks},
 };

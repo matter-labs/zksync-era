@@ -14,7 +14,7 @@ use xshell::Shell;
 
 use crate::commands::{
     args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands,
-    external_node::ExternalNodeCommands, prover::ProverCommands,
+    explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 
 pub mod accept_ownership;
@@ -56,7 +56,12 @@ pub enum InceptionSubcommands {
     /// Run contract verifier
     #[command(subcommand)]
     ContractVerifier(ContractVerifierCommands),
-    /// Update zkSync
+    /// Run dapp-portal
+    Portal,
+    /// Run block-explorer
+    #[command(subcommand)]
+    Explorer(ExplorerCommands),
+    /// Update ZKsync
     #[command(alias = "u")]
     Update(UpdateArgs),
     #[command(hide = true)]
@@ -118,6 +123,8 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::ContractVerifier(args) => {
             commands::contract_verifier::run(shell, args).await?
         }
+        InceptionSubcommands::Explorer(args) => commands::explorer::run(shell, args).await?,
+        InceptionSubcommands::Portal => commands::portal::run(shell).await?,
         InceptionSubcommands::Update(args) => commands::update::run(shell, args)?,
         InceptionSubcommands::Markdown => {
             clap_markdown::print_help_markdown::<Inception>();

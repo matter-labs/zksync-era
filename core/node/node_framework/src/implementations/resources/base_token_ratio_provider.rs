@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use zksync_base_token_adjuster::{BaseTokenRatioProvider, NoOpRatioProvider};
+use zksync_base_token_adjuster::NoOpRatioProvider;
+use zksync_node_fee_model::BaseTokenRatioProvider;
 
 use crate::resource::Resource;
 

@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                next_block_to_process\n            FROM\n                processed_events\n            WHERE\n            TYPE = $1\n            AND chain_id = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "next_block_to_process",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "event_type",
+            "kind": {
+              "Enum": [
+                "ProtocolUpgrades",
+                "PriorityTransactions",
+                "GovernanceUpgrades"
+              ]
+            }
+          }
+        },
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "26c80e9bafcf7989e7d40c6e424240b34ce29aad3ac6571116e084d45574c448"
+}

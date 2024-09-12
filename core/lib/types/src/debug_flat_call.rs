@@ -86,7 +86,6 @@ mod test {
     use super::*;
     use crate::{
         api::{DebugCall, DebugCallType, ResultDebugCall},
-        vm_trace::Call,
         Address, BOOTLOADER_ADDRESS,
     };
 
@@ -120,26 +119,24 @@ mod test {
     }
 
     fn new_testing_trace() -> Vec<DebugCall> {
-        let first_call_trace = Call {
+        let first_call_trace = DebugCall {
             from: Address::zero(),
             to: Address::zero(),
-            gas: 100,
-            gas_used: 42,
-            ..Call::default()
+            gas: 100.into(),
+            gas_used: 42.into(),
+            ..DebugCall::default()
         };
-        let second_call_trace = Call {
+        let second_call_trace = DebugCall {
             from: Address::zero(),
             to: Address::zero(),
             value: 123.into(),
-            gas: 58,
-            gas_used: 10,
-            input: b"input".to_vec(),
-            output: b"output".to_vec(),
-            ..Call::default()
+            gas: 58.into(),
+            gas_used: 10.into(),
+            input: Bytes(b"input".to_vec()),
+            output: Bytes(b"output".to_vec()),
+            ..DebugCall::default()
         };
-        [first_call_trace, second_call_trace]
-            .map(|call_trace| call_trace.into())
-            .into()
+        [first_call_trace, second_call_trace].into()
     }
 
     fn expected_flat_trace() -> Vec<DebugCallFlat> {

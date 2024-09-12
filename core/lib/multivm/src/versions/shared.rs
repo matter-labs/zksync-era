@@ -2,7 +2,9 @@
 
 use std::collections::{HashMap, HashSet};
 
-use zksync_types::{vm_trace::Call, Address, U256};
+use zksync_types::{Address, U256};
+
+use crate::interface::Call;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum VmTrace {

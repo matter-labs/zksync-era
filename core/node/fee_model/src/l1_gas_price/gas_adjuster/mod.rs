@@ -12,7 +12,7 @@ use zksync_types::{commitment::L1BatchCommitmentMode, L1_GAS_PER_PUBDATA_BYTE, U
 use zksync_web3_decl::client::{DynClient, L1, L2};
 
 use self::metrics::METRICS;
-use super::L1TxParamsProvider;
+use super::TxParamsProvider;
 
 mod metrics;
 #[cfg(test)]
@@ -86,7 +86,7 @@ impl GasAdjuster {
 
             anyhow::ensure!(
                 matches!(pubdata_sending_mode, PubdataSendingMode::RelayedL2Calldata),
-                "Only relayed L2 calldata is available for L2 mode"
+                "Only relayed L2 calldata is available for L2 mode, got: {pubdata_sending_mode:?}"
             );
         } else {
             anyhow::ensure!(!client.gateway_mode, "Must be L1 client in L1 mode");
@@ -310,7 +310,7 @@ impl GasAdjuster {
     }
 }
 
-impl L1TxParamsProvider for GasAdjuster {
+impl TxParamsProvider for GasAdjuster {
     // This is the method where we decide how much we are ready to pay for the
     // base_fee based on the number of L1 blocks the transaction has been in the mempool.
     // This is done in order to avoid base_fee spikes (e.g. during NFT drops) and
@@ -328,21 +328,6 @@ impl L1TxParamsProvider for GasAdjuster {
         let median = self.base_fee_statistics.median();
         METRICS.median_base_fee_per_gas.set(median);
         let new_fee = median as f64 * scale_factor;
-        new_fee as u64
-    }
-
-    fn get_blob_base_fee(&self) -> u64 {
-        let a = self.config.pricing_formula_parameter_a;
-        let b = self.config.pricing_formula_parameter_b;
-
-        // Use the single evaluation at zero of the following:
-        // Currently we use an exponential formula.
-        // The alternative is a linear one:
-        // `let scale_factor = a + b * time_in_mempool as f64;`
-        let scale_factor = a * b.powf(0.0);
-        let median = self.blob_base_fee_statistics.median();
-        METRICS.median_blob_base_fee_per_gas.set(median.as_u64());
-        let new_fee = median.as_u64() as f64 * scale_factor;
         new_fee as u64
     }
 
@@ -378,6 +363,14 @@ impl L1TxParamsProvider for GasAdjuster {
 
     fn get_blob_tx_priority_fee(&self) -> u64 {
         self.get_priority_fee() * 2
+    }
+
+    fn get_gateway_tx_base_fee(&self) -> u64 {
+        todo!()
+    }
+
+    fn get_gateway_tx_pubdata_price(&self) -> u64 {
+        todo!()
     }
 }
 

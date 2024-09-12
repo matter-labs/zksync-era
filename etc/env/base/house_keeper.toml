@@ -1,15 +1,2 @@
 [house_keeper]
 l1_batch_metrics_reporting_interval_ms = 10000
-gpu_prover_queue_reporting_interval_ms = 10000
-witness_generator_stats_reporting_interval_ms = 10000
-witness_job_moving_interval_ms = 40000
-prover_job_retrying_interval_ms = 30000
-witness_generator_job_retrying_interval_ms = 30000
-prover_db_pool_size = 2
-prover_stats_reporting_interval_ms = 50000
-proof_compressor_job_retrying_interval_ms = 30000
-proof_compressor_stats_reporting_interval_ms = 10000
-prover_job_archiver_archiving_interval_ms = 1800000
-prover_job_archiver_archive_after_secs = 172800
-fri_gpu_prover_archiver_archiving_interval_ms = 86400000
-fri_gpu_prover_archiver_archive_after_secs = 172800

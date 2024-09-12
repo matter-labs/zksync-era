@@ -2,6 +2,8 @@ import { Command } from 'commander';
 import * as utils from 'utils';
 import * as env from './env';
 import fs from 'fs';
+import { Wallet } from 'ethers';
+import path from 'path';
 
 export async function build(zkSyncNetwork: boolean): Promise<void> {
     const additionalParams = zkSyncNetwork ? `CONTRACTS_BASE_NETWORK_ZKSYNC=true` : '';
@@ -109,6 +111,7 @@ async function migrateToSyncLayer() {
 
     // FIXME: consider creating new sync_layer_* variable.
     updateContractsEnv(envFile, migrationLog, ['GATEWAY_DIAMOND_PROXY_ADDR']);
+    fs.writeFileSync('backup_diamond.txt', process.env.CONTRACTS_DIAMOND_PROXY_ADDR!);
     env.modify('CONTRACTS_DIAMOND_PROXY_ADDR', process.env.GATEWAY_DIAMOND_PROXY_ADDR!, envFile, true);
     env.modify('ETH_SENDER_SENDER_PUBDATA_SENDING_MODE', 'RelayedL2Calldata', envFile, true);
     env.modify('ETH_SENDER_GAS_ADJUSTER_SETTLEMENT_MODE', 'Gateway', envFile, true);
@@ -138,25 +141,34 @@ async function updateConfigOnSyncLayer() {
 
     console.log('a');
 
+    env.modify(
+        'CONTRACTS_DIAMOND_PROXY_ADDR',
+        fs.readFileSync('backup_diamond.txt', { encoding: 'utf-8' }),
+        envFile,
+        false
+    );
+
     for (const envVar of syncLayerEnvVars) {
         if (specialParams.includes(envVar)) {
             continue;
         }
-        const contractsVar = envVar.replace(/GATEWAY/g, 'CONTRACTS');
+        const contractsVar = envVar.replace(/GATEWAY/g, 'GATEWAY_CONTRACTS');
         env.modify(contractsVar, process.env[envVar]!, envFile, false);
     }
     env.modify('BRIDGE_LAYER_WEB3_URL', process.env.ETH_CLIENT_WEB3_URL!, envFile, false);
-    env.modify('ETH_CLIENT_WEB3_URL', process.env.GATEWAY_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
+    env.modify('ETH_CLIENT_GATEWAY_WEB3_URL', process.env.GATEWAY_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
+    // for loadtest
     env.modify('L1_RPC_ADDRESS', process.env.ETH_CLIENT_WEB3_URL!, envFile, false);
     env.modify('ETH_CLIENT_CHAIN_ID', process.env.GATEWAY_CHAIN_ID!, envFile, false);
 
     env.modify('CHAIN_ETH_NETWORK', 'localhostL2', envFile, false);
 
-    env.modify(`ETH_SENDER_SENDER_IGNORE_DB_NONCE`, 'true', envFile, false);
     env.modify('CONTRACTS_BASE_NETWORK_ZKSYNC', 'true', envFile, false);
     env.modify('ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS', '4294967295', envFile, false);
 
     env.modify('ETH_SENDER_SENDER_WAIT_CONFIRMATIONS', '0', envFile, false);
+    env.modify('ETH_SENDER_SENDER_PUBDATA_SENDING_MODE', 'RelayedL2Calldata', envFile, false);
+    env.modify('ETH_SENDER_GAS_ADJUSTER_SETTLEMENT_MODE', 'Gateway', envFile, false);
 
     // FIXME: while logically incorrect, it is temporarily needed to make the synclayer start
     fs.copyFileSync(
@@ -402,10 +414,24 @@ export async function registerHyperchain({
     await utils.confirmAction();
 
     const privateKey = process.env.GOVERNOR_PRIVATE_KEY;
+    let tokenMultiplierSetterAddress = process.env.TOKEN_MULTIPLIER_SETTER_ADDRESS;
+
+    if (baseTokenName && !tokenMultiplierSetterAddress) {
+        const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
+        const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
+        // this is one of the rich accounts
+        tokenMultiplierSetterAddress = Wallet.fromMnemonic(
+            process.env.MNEMONIC ?? ethTestConfig.mnemonic,
+            "m/44'/60'/0'/0/2"
+        ).address;
+        console.log(`Defaulting token multiplier setter address to ${tokenMultiplierSetterAddress}`);
+    }
+
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',
         deploymentMode == DeploymentMode.Validium ? '--validium-mode' : '',
+        tokenMultiplierSetterAddress ? `--token-multiplier-setter-address ${tokenMultiplierSetterAddress}` : '',
         '--use-governance'
     ];
     await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
@@ -543,6 +569,10 @@ command
     .description('register hyperchain')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--deployment-mode <deployment-mode>', 'deploy contracts in Validium mode')
+    .option(
+        '--token-multiplier-setter-address <token-multiplier-setter-address>',
+        'address of the token multiplier setter'
+    )
     .action(registerHyperchain);
 command
     .command('deploy-l2-through-l1')
@@ -551,6 +581,5 @@ command
         '--local-legacy-bridge-testing',
         'used to test LegacyBridge compatibility. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
     )
-    .option('--deployment-mode <deployment-mode>', 'deploy contracts in Validium mode')
     .action(deployL2ThroughL1);
 command.command('deploy-verifier').description('deploy verifier to l1').action(deployVerifier);

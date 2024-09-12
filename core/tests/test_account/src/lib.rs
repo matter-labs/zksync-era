@@ -89,7 +89,7 @@ impl Account {
 
     pub fn default_fee() -> Fee {
         Fee {
-            gas_limit: U256::from(2000000000u32),
+            gas_limit: U256::from(2_000_000_000u32),
             max_fee_per_gas: U256::from(BASE_FEE),
             max_priority_fee_per_gas: U256::from(100),
             gas_per_pubdata_limit: U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE),

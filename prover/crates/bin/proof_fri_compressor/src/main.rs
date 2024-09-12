@@ -11,6 +11,7 @@ use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
@@ -59,6 +60,7 @@ async fn main() -> anyhow::Result<()> {
     let object_store_config = ProverObjectStoreConfig(
         general_config
             .prover_config
+            .clone()
             .expect("ProverConfig")
             .prover_object_store
             .context("ProverObjectStoreConfig")?,
@@ -69,12 +71,18 @@ async fn main() -> anyhow::Result<()> {
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
+    let prover_config = general_config
+        .prover_config
+        .expect("ProverConfig doesn't exist");
+    let keystore =
+        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
     let proof_compressor = ProofCompressor::new(
         blob_store,
         pool,
         config.compression_mode,
         config.max_attempts,
         protocol_version,
+        keystore,
     );
 
     let (stop_sender, stop_receiver) = watch::channel(false);

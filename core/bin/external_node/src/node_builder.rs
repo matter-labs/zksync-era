@@ -182,8 +182,7 @@ impl ExternalNodeBuilder {
         let query_eth_client_layer = QueryEthClientLayer::new(
             self.config.required.settlement_layer_id(),
             self.config.required.eth_client_url.clone(),
-            // TODO(EVM-676): add this config for external node
-            Default::default(),
+            self.config.optional.gateway_url.clone(),
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -246,7 +245,13 @@ impl ExternalNodeBuilder {
         let config = self.config.consensus.clone();
         let secrets =
             config::read_consensus_secrets().context("config::read_consensus_secrets()")?;
-        let layer = ExternalNodeConsensusLayer { config, secrets };
+        let layer = ExternalNodeConsensusLayer {
+            build_version: crate::metadata::SERVER_VERSION
+                .parse()
+                .context("CRATE_VERSION.parse()")?,
+            config,
+            secrets,
+        };
         self.node.add_layer(layer);
         Ok(self)
     }

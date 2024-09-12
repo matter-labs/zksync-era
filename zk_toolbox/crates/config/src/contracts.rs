@@ -8,7 +8,9 @@ use crate::{
     consts::CONTRACTS_FILE,
     forge_interface::{
         deploy_ecosystem::output::DeployL1Output,
-        deploy_l2_contracts::output::{DefaultL2UpgradeOutput, InitializeBridgeOutput},
+        deploy_l2_contracts::output::{
+            ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
+        },
         register_chain::output::RegisterChainOutput,
     },
     traits::{FileConfigWithDefaultName, ZkToolboxConfig},
@@ -106,6 +108,14 @@ impl ContractsConfig {
         Ok(())
     }
 
+    pub fn set_consensus_registry(
+        &mut self,
+        consensus_registry_output: &ConsensusRegistryOutput,
+    ) -> anyhow::Result<()> {
+        self.l2.consensus_registry = Some(consensus_registry_output.consensus_registry_proxy);
+        Ok(())
+    }
+
     pub fn set_default_l2_upgrade(
         &mut self,
         default_upgrade_output: &DefaultL2UpgradeOutput,
@@ -168,4 +178,5 @@ pub struct L2Contracts {
     pub default_l2_upgrader: Address,
     pub da_validator_addr: Address,
     pub native_token_vault_addr: Address,
+    pub consensus_registry: Option<Address>,
 }

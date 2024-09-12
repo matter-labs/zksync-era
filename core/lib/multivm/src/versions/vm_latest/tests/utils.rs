@@ -75,11 +75,11 @@ pub(crate) fn read_nonce_holder_tester() -> Vec<u8> {
     read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/custom-account/nonce-holder-test.sol/NonceHolderTest.json")
 }
 
-pub(crate) fn read_message_root() -> Vec<u8> {
-    read_bytecode(
-        "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/MessageRoot.sol/MessageRoot.json",
-    )
-}
+// pub(crate) fn read_message_root() -> Vec<u8> {
+//     read_bytecode(
+//         "contracts/l1-contracts/artifacts-zk/contracts/bridgehub/MessageRoot.sol/MessageRoot.json",
+//     )
+// }
 
 pub(crate) fn read_error_contract() -> Vec<u8> {
     read_bytecode(
@@ -141,5 +141,10 @@ pub(crate) fn get_complex_upgrade_abi() -> Contract {
 pub(crate) fn read_expensive_contract() -> (Vec<u8>, Contract) {
     const PATH: &str =
         "etc/contracts-test-data/artifacts-zk/contracts/expensive/expensive.sol/Expensive.json";
+    (read_bytecode(PATH), load_contract(PATH))
+}
+
+pub(crate) fn read_proxy_counter_contract() -> (Vec<u8>, Contract) {
+    const PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/counter/proxy_counter.sol/ProxyCounter.json";
     (read_bytecode(PATH), load_contract(PATH))
 }

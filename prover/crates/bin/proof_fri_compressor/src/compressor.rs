@@ -23,9 +23,9 @@ use zksync_prover_fri_types::{
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
 use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
-use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;
 
@@ -35,6 +35,7 @@ pub struct ProofCompressor {
     compression_mode: u8,
     max_attempts: u32,
     protocol_version: ProtocolSemanticVersion,
+    keystore: Keystore,
 }
 
 impl ProofCompressor {
@@ -44,6 +45,7 @@ impl ProofCompressor {
         compression_mode: u8,
         max_attempts: u32,
         protocol_version: ProtocolSemanticVersion,
+        keystore: Keystore,
     ) -> Self {
         Self {
             blob_store,
@@ -51,6 +53,7 @@ impl ProofCompressor {
             compression_mode,
             max_attempts,
             protocol_version,
+            keystore,
         }
     }
 
@@ -59,8 +62,8 @@ impl ProofCompressor {
         l1_batch: L1BatchNumber,
         proof: ZkSyncRecursionLayerProof,
         _compression_mode: u8,
+        keystore: Keystore,
     ) -> anyhow::Result<FinalProof> {
-        let keystore = Keystore::default();
         let scheduler_vk = keystore
             .load_recursive_layer_verification_key(
                 ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
@@ -136,7 +139,7 @@ impl JobProcessor for ProofCompressor {
             .get_scheduler_proof_job_id(l1_batch_number)
             .await
         else {
-            return Ok(None);
+            anyhow::bail!("Scheduler proof is missing from database for batch {l1_batch_number}");
         };
         tracing::info!(
             "Started proof compression for L1 batch: {:?}",
@@ -174,8 +177,9 @@ impl JobProcessor for ProofCompressor {
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         let compression_mode = self.compression_mode;
         let block_number = *job_id;
+        let keystore = self.keystore.clone();
         tokio::task::spawn_blocking(move || {
-            Self::compress_proof(block_number, job, compression_mode)
+            Self::compress_proof(block_number, job, compression_mode, keystore)
         })
     }
 
