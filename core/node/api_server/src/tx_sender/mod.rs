@@ -9,15 +9,11 @@ use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_multivm::{
-    interface::{
-        OneshotTracingParams, TransactionExecutionMetrics, TxExecutionArgs, TxExecutionMode,
-        VmExecutionResultAndLogs,
-    },
+    interface::{OneshotTracingParams, TransactionExecutionMetrics, VmExecutionResultAndLogs},
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_max_batch_gas_limit,
     },
-    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
 use zksync_state::PostgresStorageCaches;
@@ -38,14 +34,14 @@ use zksync_types::{
     ProtocolVersionId, Transaction, H160, H256, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
-use zksync_vm_executor::oneshot::{MultiVMBaseSystemContracts, TxSetupArgs};
+use zksync_vm_executor::oneshot::{CallOrExecute, EstimateGas, OneshotExecutorOptions};
 
 pub(super) use self::result::SubmitTxError;
 use self::{master_pool_sink::MasterPoolSink, tx_sink::TxSink};
 use crate::{
     execution_sandbox::{
-        BlockArgs, SubmitTxStage, TransactionExecutor, VmConcurrencyBarrier, VmConcurrencyLimiter,
-        VmPermit, SANDBOX_METRICS,
+        BlockArgs, SandboxAction, SandboxExecutor, SubmitTxStage, VmConcurrencyBarrier,
+        VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
     },
     tx_sender::result::ApiCallResult,
 };
@@ -80,46 +76,59 @@ pub async fn build_tx_sender(
 
     let batch_fee_input_provider =
         ApiFeeInputProvider::new(batch_fee_model_input_provider, replica_pool);
-
+    let executor_options = SandboxExecutorOptions::new(
+        tx_sender_config.chain_id,
+        AccountTreeId::new(tx_sender_config.fee_account_addr),
+        tx_sender_config.validation_computational_gas_limit,
+    )
+    .await?;
     let tx_sender = tx_sender_builder.build(
         Arc::new(batch_fee_input_provider),
         Arc::new(vm_concurrency_limiter),
-        ApiContracts::load_from_disk().await?,
+        executor_options,
         storage_caches,
     );
     Ok((tx_sender, vm_barrier))
 }
 
-/// Smart contracts to be used in the API sandbox requests, e.g. for estimating gas and
-/// performing `eth_call` requests.
-#[derive(Debug, Clone)]
-pub struct ApiContracts {
+/// Oneshot executor options used by the API server sandbox.
+#[derive(Debug)]
+pub struct SandboxExecutorOptions {
     /// Contracts to be used when estimating gas.
     /// These contracts (mainly, bootloader) normally should be tuned to provide accurate
     /// execution metrics.
-    pub(crate) estimate_gas: MultiVMBaseSystemContracts,
+    pub(crate) estimate_gas: OneshotExecutorOptions<EstimateGas>,
     /// Contracts to be used when performing `eth_call` requests.
     /// These contracts (mainly, bootloader) normally should be tuned to provide better UX
     /// experience (e.g. revert messages).
-    pub(crate) eth_call: MultiVMBaseSystemContracts,
+    pub(crate) eth_call: OneshotExecutorOptions<CallOrExecute>,
 }
 
-impl ApiContracts {
+impl SandboxExecutorOptions {
     /// Loads the contracts from the local file system.
     /// This method is *currently* preferred to be used in all contexts,
     /// given that there is no way to fetch "playground" contracts from the main node.
-    pub async fn load_from_disk() -> anyhow::Result<Self> {
-        tokio::task::spawn_blocking(Self::load_from_disk_blocking)
-            .await
-            .context("loading `ApiContracts` panicked")
+    pub async fn new(
+        chain_id: L2ChainId,
+        operator_account: AccountTreeId,
+        validation_computational_gas_limit: u32,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            estimate_gas: OneshotExecutorOptions::for_gas_estimation(chain_id, operator_account)
+                .await?,
+            eth_call: OneshotExecutorOptions::for_execution(
+                chain_id,
+                operator_account,
+                validation_computational_gas_limit,
+            )
+            .await?,
+        })
     }
 
-    /// Blocking version of [`Self::load_from_disk()`].
-    pub fn load_from_disk_blocking() -> Self {
-        Self {
-            estimate_gas: MultiVMBaseSystemContracts::load_estimate_gas_blocking(),
-            eth_call: MultiVMBaseSystemContracts::load_eth_call_blocking(),
-        }
+    pub(crate) async fn mock() -> Self {
+        Self::new(L2ChainId::default(), AccountTreeId::default(), u32::MAX)
+            .await
+            .unwrap()
     }
 }
 
@@ -167,7 +176,7 @@ impl TxSenderBuilder {
         self,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
         vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
-        api_contracts: ApiContracts,
+        executor_options: SandboxExecutorOptions,
         storage_caches: PostgresStorageCaches,
     ) -> TxSender {
         // Use noop sealer if no sealer was explicitly provided.
@@ -180,17 +189,21 @@ impl TxSenderBuilder {
             .config
             .vm_execution_cache_misses_limit
             .unwrap_or(usize::MAX);
+        let executor = SandboxExecutor::real(
+            executor_options,
+            storage_caches,
+            missed_storage_invocation_limit,
+        );
 
         TxSender(Arc::new(TxSenderInner {
             sender_config: self.config,
             tx_sink: self.tx_sink,
             replica_connection_pool: self.replica_connection_pool,
             batch_fee_input_provider,
-            api_contracts,
             vm_concurrency_limiter,
             whitelisted_tokens_for_aa_cache,
             sealer,
-            executor: TransactionExecutor::real(missed_storage_invocation_limit, storage_caches),
+            executor,
         }))
     }
 }
@@ -239,14 +252,13 @@ pub struct TxSenderInner {
     pub replica_connection_pool: ConnectionPool<Core>,
     // Used to keep track of gas prices for the fee ticker.
     pub batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
-    pub(super) api_contracts: ApiContracts,
     /// Used to limit the amount of VMs that can be executed simultaneously.
     pub(super) vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
     // Cache for white-listed tokens.
     pub(super) whitelisted_tokens_for_aa_cache: Arc<RwLock<Vec<Address>>>,
     /// Batch sealer used to check whether transaction can be executed by the sequencer.
     pub(super) sealer: Arc<dyn ConditionalSealer>,
-    pub(super) executor: TransactionExecutor,
+    pub(super) executor: SandboxExecutor,
 }
 
 #[derive(Clone)]
@@ -289,8 +301,20 @@ impl TxSender {
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
-        let setup_args = self.call_args(&tx, None).await?;
+        // **Important.** For the main node, this method acquires a DB connection inside `get_batch_fee_input()`.
+        // Thus, it must not be called it if you're holding a DB connection already.
+        let fee_input = self
+            .0
+            .batch_fee_input_provider
+            .get_batch_fee_input()
+            .await
+            .context("cannot get batch fee input")?;
+
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
+        let action = SandboxAction::Execution {
+            fee_input,
+            tx: tx.clone(),
+        };
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
         let mut connection = self.acquire_replica_connection().await?;
         let block_args = BlockArgs::pending(&mut connection).await?;
@@ -298,15 +322,7 @@ impl TxSender {
         let execution_output = self
             .0
             .executor
-            .execute_tx_in_sandbox(
-                vm_permit.clone(),
-                setup_args.clone(),
-                TxExecutionArgs::for_validation(tx.clone()),
-                connection,
-                &block_args,
-                None,
-                OneshotTracingParams::default(),
-            )
+            .execute_in_sandbox(vm_permit.clone(), connection, action, &block_args, None)
             .await?;
         tracing::info!(
             "Submit tx {tx_hash:?} with execution metrics {:?}",
@@ -321,11 +337,11 @@ impl TxSender {
             .0
             .executor
             .validate_tx_in_sandbox(
-                connection,
                 vm_permit,
+                connection,
                 tx.clone(),
-                setup_args,
                 block_args,
+                fee_input,
                 &self.read_whitelisted_tokens_for_aa_cache().await,
             )
             .await;
@@ -376,41 +392,6 @@ impl TxSender {
                 Ok((submission_res_handle, execution_output.vm))
             }
         }
-    }
-
-    /// **Important.** For the main node, this method acquires a DB connection inside `get_batch_fee_input()`.
-    /// Thus, you shouldn't call it if you're holding a DB connection already.
-    async fn call_args(
-        &self,
-        tx: &L2Tx,
-        call_overrides: Option<&CallOverrides>,
-    ) -> anyhow::Result<TxSetupArgs> {
-        let fee_input = self
-            .0
-            .batch_fee_input_provider
-            .get_batch_fee_input()
-            .await
-            .context("cannot get batch fee input")?;
-        Ok(TxSetupArgs {
-            execution_mode: if call_overrides.is_some() {
-                TxExecutionMode::EthCall
-            } else {
-                TxExecutionMode::VerifyExecute
-            },
-            operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
-            fee_input,
-            base_system_contracts: self.0.api_contracts.eth_call.clone(),
-            validation_computational_gas_limit: self
-                .0
-                .sender_config
-                .validation_computational_gas_limit,
-            chain_id: self.0.sender_config.chain_id,
-            enforced_base_fee: if let Some(overrides) = call_overrides {
-                overrides.enforced_base_fee
-            } else {
-                Some(tx.common_data.fee.max_fee_per_gas.as_u64())
-            },
-        })
     }
 
     async fn validate_tx(
@@ -589,7 +570,7 @@ impl TxSender {
         mut tx: Transaction,
         tx_gas_limit: u64,
         gas_price_per_pubdata: u32,
-        fee_model_params: BatchFeeInput,
+        fee_input: BatchFeeInput,
         block_args: BlockArgs,
         base_fee: u64,
         vm_version: VmVersion,
@@ -618,45 +599,24 @@ impl TxSender {
             }
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
                 common_data.gas_limit = forced_gas_limit.into();
-
                 let required_funds =
                     common_data.gas_limit * common_data.max_fee_per_gas + tx.execute.value;
-
                 common_data.to_mint = required_funds;
             }
         }
 
-        let setup_args = self.args_for_gas_estimate(fee_model_params, base_fee).await;
-        let execution_args = TxExecutionArgs::for_gas_estimate(tx);
         let connection = self.acquire_replica_connection().await?;
+        let action = SandboxAction::GasEstimation {
+            fee_input,
+            base_fee,
+            tx,
+        };
         let execution_output = self
             .0
             .executor
-            .execute_tx_in_sandbox(
-                vm_permit,
-                setup_args,
-                execution_args,
-                connection,
-                &block_args,
-                state_override,
-                OneshotTracingParams::default(),
-            )
+            .execute_in_sandbox(vm_permit, connection, action, &block_args, state_override)
             .await?;
         Ok((execution_output.vm, execution_output.metrics))
-    }
-
-    async fn args_for_gas_estimate(&self, fee_input: BatchFeeInput, base_fee: u64) -> TxSetupArgs {
-        let config = &self.0.sender_config;
-        TxSetupArgs {
-            execution_mode: TxExecutionMode::EstimateFee,
-            operator_account: AccountTreeId::new(config.fee_account_addr),
-            fee_input,
-            // We want to bypass the computation gas limit check for gas estimation
-            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-            base_system_contracts: self.0.api_contracts.estimate_gas.clone(),
-            chain_id: config.chain_id,
-            enforced_base_fee: Some(base_fee),
-        }
     }
 
     #[tracing::instrument(level = "debug", skip_all, fields(
@@ -915,30 +875,41 @@ impl TxSender {
             .await
     }
 
-    pub async fn eth_call(
+    pub(crate) async fn eth_call(
         &self,
         block_args: BlockArgs,
         call_overrides: CallOverrides,
-        tx: L2Tx,
+        call: L2Tx,
         state_override: Option<StateOverride>,
     ) -> Result<Vec<u8>, SubmitTxError> {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
-        let setup_args = self.call_args(&tx, Some(&call_overrides)).await?;
 
-        let connection = self.acquire_replica_connection().await?;
+        let mut connection;
+        let fee_input = if block_args.resolves_to_latest_sealed_l2_block() {
+            let fee_input = self
+                .0
+                .batch_fee_input_provider
+                .get_batch_fee_input()
+                .await?;
+            // It is important to acquire a connection after calling the provider; see the comment above.
+            connection = self.acquire_replica_connection().await?;
+            fee_input
+        } else {
+            connection = self.acquire_replica_connection().await?;
+            block_args.historical_fee_input(&mut connection).await?
+        };
+
+        let action = SandboxAction::Call {
+            call,
+            fee_input,
+            enforced_base_fee: call_overrides.enforced_base_fee,
+            tracing_params: OneshotTracingParams::default(),
+        };
         let result = self
             .0
             .executor
-            .execute_tx_in_sandbox(
-                vm_permit,
-                setup_args,
-                TxExecutionArgs::for_eth_call(tx),
-                connection,
-                &block_args,
-                state_override,
-                OneshotTracingParams::default(),
-            )
+            .execute_in_sandbox(vm_permit, connection, action, &block_args, state_override)
             .await?;
         result.vm.into_api_call_result()
     }

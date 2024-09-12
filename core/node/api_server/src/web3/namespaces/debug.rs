@@ -1,11 +1,6 @@
 use anyhow::Context as _;
 use zksync_dal::{CoreDal, DalError};
-use zksync_multivm::{
-    interface::{
-        Call, CallType, ExecutionResult, OneshotTracingParams, TxExecutionArgs, TxExecutionMode,
-    },
-    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
-};
+use zksync_multivm::interface::{Call, CallType, ExecutionResult, OneshotTracingParams};
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{BlockId, BlockNumber, DebugCall, DebugCallType, ResultDebugCall, TracerConfig},
@@ -13,13 +8,12 @@ use zksync_types::{
     fee_model::BatchFeeInput,
     l2::L2Tx,
     transaction_request::CallRequest,
-    web3, AccountTreeId, H256, U256,
+    web3, H256, U256,
 };
-use zksync_vm_executor::oneshot::TxSetupArgs;
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
-    tx_sender::{ApiContracts, TxSenderConfig},
+    execution_sandbox::SandboxAction,
     web3::{backend_jsonrpsee::MethodTracer, state::RpcState},
 };
 
@@ -27,13 +21,12 @@ use crate::{
 pub(crate) struct DebugNamespace {
     batch_fee_input: BatchFeeInput,
     state: RpcState,
-    api_contracts: ApiContracts,
 }
 
 impl DebugNamespace {
     pub async fn new(state: RpcState) -> anyhow::Result<Self> {
-        let api_contracts = ApiContracts::load_from_disk().await?;
         let fee_input_provider = &state.tx_sender.0.batch_fee_input_provider;
+        // FIXME: is using constant input correct?
         let batch_fee_input = fee_input_provider
             .get_batch_fee_input_scaled(
                 state.api_config.estimate_gas_scale_factor,
@@ -46,7 +39,6 @@ impl DebugNamespace {
             // For now, the same scaling is used for both the L1 gas price and the pubdata price
             batch_fee_input,
             state,
-            api_contracts,
         })
     }
 
@@ -77,10 +69,6 @@ impl DebugNamespace {
             revert_reason: call.revert_reason,
             calls,
         }
-    }
-
-    fn sender_config(&self) -> &TxSenderConfig {
-        &self.state.tx_sender.0.sender_config
     }
 
     pub(crate) fn current_method(&self) -> &MethodTracer {
@@ -177,9 +165,8 @@ impl DebugNamespace {
         drop(connection);
 
         let call_overrides = request.get_call_overrides()?;
-        let tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
+        let call = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
 
-        let setup_args = self.call_args(call_overrides.enforced_base_fee).await;
         let vm_permit = self
             .state
             .tx_sender
@@ -196,14 +183,17 @@ impl DebugNamespace {
         let connection = self.state.acquire_connection().await?;
         let executor = &self.state.tx_sender.0.executor;
         let result = executor
-            .execute_tx_in_sandbox(
+            .execute_in_sandbox(
                 vm_permit,
-                setup_args,
-                TxExecutionArgs::for_eth_call(tx.clone()),
                 connection,
+                SandboxAction::Call {
+                    call: call.clone(),
+                    fee_input: self.batch_fee_input,
+                    enforced_base_fee: call_overrides.enforced_base_fee,
+                    tracing_params,
+                },
                 &block_args,
                 None,
-                tracing_params,
             )
             .await?;
 
@@ -219,27 +209,14 @@ impl DebugNamespace {
         };
 
         let call = Call::new_high_level(
-            tx.common_data.fee.gas_limit.as_u64(),
+            call.common_data.fee.gas_limit.as_u64(),
             result.vm.statistics.gas_used,
-            tx.execute.value,
-            tx.execute.calldata,
+            call.execute.value,
+            call.execute.calldata,
             output,
             revert_reason,
             result.call_traces,
         );
         Ok(Self::map_call(call, false))
-    }
-
-    async fn call_args(&self, enforced_base_fee: Option<u64>) -> TxSetupArgs {
-        let sender_config = self.sender_config();
-        TxSetupArgs {
-            execution_mode: TxExecutionMode::EthCall,
-            operator_account: AccountTreeId::default(),
-            fee_input: self.batch_fee_input,
-            base_system_contracts: self.api_contracts.eth_call.clone(),
-            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-            chain_id: sender_config.chain_id,
-            enforced_base_fee,
-        }
     }
 }

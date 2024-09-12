@@ -33,15 +33,16 @@ use zksync_types::{
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 pub use self::{
-    block::{BlockInfo, ResolvedBlockInfo, TxSetupArgs},
-    contracts::MultiVMBaseSystemContracts,
+    block::{BlockInfo, ResolvedBlockInfo},
     mock::MockOneshotExecutor,
+    options::{CallOrExecute, EstimateGas, OneshotExecutorOptions},
 };
 
 mod block;
 mod contracts;
 mod metrics;
 mod mock;
+mod options;
 
 /// Main [`OneshotExecutor`] implementation used by the API server.
 #[derive(Debug, Default)]

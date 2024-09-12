@@ -3,25 +3,25 @@ use zksync_types::ProtocolVersionId;
 
 /// System contracts (bootloader and default account abstraction) for all VM versions.
 #[derive(Debug, Clone)]
-pub struct MultiVMBaseSystemContracts {
+pub(super) struct MultiVMBaseSystemContracts {
     /// Contracts to be used for pre-virtual-blocks protocol versions.
-    pub(crate) pre_virtual_blocks: BaseSystemContracts,
+    pre_virtual_blocks: BaseSystemContracts,
     /// Contracts to be used for post-virtual-blocks protocol versions.
-    pub(crate) post_virtual_blocks: BaseSystemContracts,
+    post_virtual_blocks: BaseSystemContracts,
     /// Contracts to be used for protocol versions after virtual block upgrade fix.
-    pub(crate) post_virtual_blocks_finish_upgrade_fix: BaseSystemContracts,
+    post_virtual_blocks_finish_upgrade_fix: BaseSystemContracts,
     /// Contracts to be used for post-boojum protocol versions.
-    pub(crate) post_boojum: BaseSystemContracts,
+    post_boojum: BaseSystemContracts,
     /// Contracts to be used after the allow-list removal upgrade
-    pub(crate) post_allowlist_removal: BaseSystemContracts,
+    post_allowlist_removal: BaseSystemContracts,
     /// Contracts to be used after the 1.4.1 upgrade
-    pub(crate) post_1_4_1: BaseSystemContracts,
+    post_1_4_1: BaseSystemContracts,
     /// Contracts to be used after the 1.4.2 upgrade
-    pub(crate) post_1_4_2: BaseSystemContracts,
+    post_1_4_2: BaseSystemContracts,
     /// Contracts to be used during the `v23` upgrade. This upgrade was done on an internal staging environment only.
-    pub(crate) vm_1_5_0_small_memory: BaseSystemContracts,
+    vm_1_5_0_small_memory: BaseSystemContracts,
     /// Contracts to be used after the 1.5.0 upgrade
-    pub(crate) vm_1_5_0_increased_memory: BaseSystemContracts,
+    vm_1_5_0_increased_memory: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -57,7 +57,7 @@ impl MultiVMBaseSystemContracts {
         }
     }
 
-    pub fn load_estimate_gas_blocking() -> Self {
+    pub(super) fn load_estimate_gas_blocking() -> Self {
         Self {
             pre_virtual_blocks: BaseSystemContracts::estimate_gas_pre_virtual_blocks(),
             post_virtual_blocks: BaseSystemContracts::estimate_gas_post_virtual_blocks(),
@@ -73,7 +73,7 @@ impl MultiVMBaseSystemContracts {
         }
     }
 
-    pub fn load_eth_call_blocking() -> Self {
+    pub(super) fn load_eth_call_blocking() -> Self {
         Self {
             pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
             post_virtual_blocks: BaseSystemContracts::playground_post_virtual_blocks(),

@@ -7,19 +7,20 @@ use anyhow::Context as _;
 use rand::{thread_rng, Rng};
 use zksync_dal::{pruning_dal::PruningInfo, Connection, Core, CoreDal, DalError};
 use zksync_multivm::utils::get_eth_call_gas_limit;
-use zksync_types::{api, L1BatchNumber, L2BlockNumber, ProtocolVersionId, U256};
+use zksync_types::{
+    api, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, U256,
+};
 use zksync_vm_executor::oneshot::BlockInfo;
 
-pub use self::execute::TransactionExecutor; // FIXME (PLA-1018): remove
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
+    execute::{SandboxAction, SandboxExecutor},
     validate::ValidationError,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
 
 // Note: keep the modules private, and instead re-export functions that make public interface.
-mod apply;
 mod error;
 mod execute;
 mod storage;
@@ -285,13 +286,13 @@ pub enum BlockArgsError {
 
 /// Information about a block provided to VM.
 #[derive(Debug, Clone, Copy)]
-pub struct BlockArgs {
+pub(crate) struct BlockArgs {
     inner: BlockInfo,
     block_id: api::BlockId,
 }
 
 impl BlockArgs {
-    pub(crate) async fn pending(connection: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
+    pub async fn pending(connection: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         let inner = BlockInfo::pending(connection).await?;
         Ok(Self {
             inner,
@@ -351,7 +352,14 @@ impl BlockArgs {
         )
     }
 
-    pub(crate) async fn default_eth_call_gas(
+    pub async fn historical_fee_input(
+        &self,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<BatchFeeInput> {
+        self.inner.historical_fee_input(connection).await
+    }
+
+    pub async fn default_eth_call_gas(
         &self,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<U256> {

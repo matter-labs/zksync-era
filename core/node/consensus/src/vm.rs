@@ -1,16 +1,15 @@
 use anyhow::Context as _;
 use tokio::runtime::Handle;
-use zksync_concurrency::{ctx, error::Wrap as _, scope};
+use zksync_concurrency::{ctx, error::Wrap as _};
 use zksync_consensus_roles::attester;
 use zksync_state::PostgresStorage;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     ethabi, fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId, Nonce, U256,
 };
-use zksync_vm_executor::oneshot::{MainOneshotExecutor, MultiVMBaseSystemContracts, TxSetupArgs};
+use zksync_vm_executor::oneshot::{CallOrExecute, MainOneshotExecutor, OneshotExecutorOptions};
 use zksync_vm_interface::{
     executor::OneshotExecutor, ExecutionResult, OneshotTracingParams, TxExecutionArgs,
-    TxExecutionMode,
 };
 
 use crate::{abi, storage::ConnectionPool};
@@ -19,7 +18,7 @@ use crate::{abi, storage::ConnectionPool};
 #[derive(Debug)]
 pub(crate) struct VM {
     pool: ConnectionPool,
-    setup_args: TxSetupArgs,
+    options: OneshotExecutorOptions<CallOrExecute>,
     executor: MainOneshotExecutor,
 }
 
@@ -28,18 +27,13 @@ impl VM {
     pub async fn new(pool: ConnectionPool) -> Self {
         Self {
             pool,
-            setup_args: TxSetupArgs {
-                execution_mode: TxExecutionMode::EthCall,
-                operator_account: AccountTreeId::default(),
-                fee_input: BatchFeeInput::sensible_l1_pegged_default(),
-                base_system_contracts: scope::wait_blocking(
-                    MultiVMBaseSystemContracts::load_eth_call_blocking,
-                )
-                .await,
-                validation_computational_gas_limit: u32::MAX,
-                chain_id: L2ChainId::default(),
-                enforced_base_fee: None,
-            },
+            options: OneshotExecutorOptions::for_execution(
+                L2ChainId::default(),
+                AccountTreeId::default(),
+                u32::MAX,
+            )
+            .await
+            .expect("OneshotExecutorOptions"),
             executor: MainOneshotExecutor::new(usize::MAX),
         }
     }
@@ -72,8 +66,12 @@ impl VM {
             .vm_block_info(ctx, batch)
             .await
             .wrap("vm_block_info()")?;
+        let fee_input = BatchFeeInput::sensible_l1_pegged_default(); // FIXME: double-check
         let env = ctx
-            .wait(self.setup_args.to_env(&mut conn.0, &block_info))
+            .wait(
+                self.options
+                    .to_call_env(&mut conn.0, &block_info, fee_input, None),
+            )
             .await?
             .context("to_env()")?;
         let storage = ctx

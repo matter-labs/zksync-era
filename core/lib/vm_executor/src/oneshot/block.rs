@@ -8,13 +8,13 @@ use zksync_types::{
     api,
     block::{unpack_block_info, L2BlockHasher},
     fee_model::BatchFeeInput,
-    AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, StorageKey, H256,
+    AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::{h256_to_u256, time::seconds_since_epoch};
 
-use super::MultiVMBaseSystemContracts;
+use super::options::OneshotExecutorOptions;
 
 /// Block information necessary to execute a transaction / call.
 // FIXME: consider combining with `ResolvedBlockInfo`?
@@ -163,41 +163,14 @@ impl ResolvedBlockInfo {
     }
 }
 
-/// Arguments for VM execution necessary to set up storage and environment.
-// FIXME: rename
-#[derive(Debug, Clone)]
-pub struct TxSetupArgs {
-    // FIXME: revise fields vs args for `into_env`
-    pub execution_mode: TxExecutionMode, // changes each call
-    pub operator_account: AccountTreeId, // rarely
-    pub fee_input: BatchFeeInput,        // each call
-    pub base_system_contracts: MultiVMBaseSystemContracts, // never
-    pub validation_computational_gas_limit: u32, // rarely
-    pub chain_id: L2ChainId,             // never
-    pub enforced_base_fee: Option<u64>,  // ???
-}
-
-impl TxSetupArgs {
-    #[doc(hidden)] // Useful only for tests
-    pub fn mock(
-        execution_mode: TxExecutionMode,
-        base_system_contracts: MultiVMBaseSystemContracts,
-    ) -> Self {
-        Self {
-            execution_mode,
-            operator_account: AccountTreeId::default(),
-            fee_input: BatchFeeInput::l1_pegged(55, 555),
-            base_system_contracts,
-            validation_computational_gas_limit: u32::MAX,
-            chain_id: L2ChainId::default(),
-            enforced_base_fee: None,
-        }
-    }
-
-    pub async fn to_env(
+impl<T> OneshotExecutorOptions<T> {
+    pub(super) async fn to_env_inner(
         &self,
         connection: &mut Connection<'_, Core>,
+        execution_mode: TxExecutionMode,
         resolved_block_info: &ResolvedBlockInfo,
+        fee_input: BatchFeeInput,
+        enforced_base_fee: Option<u64>,
     ) -> anyhow::Result<OneshotEnv> {
         let (next_block, current_block) = load_l2_block_info(
             connection,
@@ -206,27 +179,32 @@ impl TxSetupArgs {
         )
         .await?;
 
-        let (system, l1_batch) = self.prepare_env(resolved_block_info, next_block);
-        let env = OneshotEnv {
+        let (system, l1_batch) = self.prepare_env(
+            execution_mode,
+            resolved_block_info,
+            next_block,
+            fee_input,
+            enforced_base_fee,
+        );
+        Ok(OneshotEnv {
             system,
             l1_batch,
             current_block,
-        };
-        Ok(env)
+        })
     }
 
     fn prepare_env(
         &self,
+        execution_mode: TxExecutionMode,
         resolved_block_info: &ResolvedBlockInfo,
         next_block: L2BlockEnv,
+        fee_input: BatchFeeInput,
+        enforced_base_fee: Option<u64>,
     ) -> (SystemEnv, L1BatchEnv) {
         let &Self {
-            execution_mode,
             operator_account,
-            fee_input,
             validation_computational_gas_limit,
             chain_id,
-            enforced_base_fee,
             ..
         } = self;
 

@@ -17,7 +17,7 @@ use zksync_types::{
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
 use super::{metrics::ApiTransportLabel, *};
-use crate::{execution_sandbox::TransactionExecutor, tx_sender::TxSenderConfig};
+use crate::{execution_sandbox::SandboxExecutor, tx_sender::TxSenderConfig};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(90);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
@@ -51,7 +51,7 @@ impl BatchFeeModelInputProvider for MockApiBatchFeeParamsProvider {
 pub(crate) async fn create_test_tx_sender(
     pool: ConnectionPool<Core>,
     l2_chain_id: L2ChainId,
-    tx_executor: TransactionExecutor,
+    tx_executor: SandboxExecutor,
 ) -> (TxSender, VmConcurrencyBarrier) {
     let web3_config = Web3JsonRpcConfig::for_tests();
     let state_keeper_config = StateKeeperConfig::for_tests();
@@ -177,8 +177,9 @@ async fn spawn_server(
     method_tracer: Arc<MethodTracer>,
     stop_receiver: watch::Receiver<bool>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
     let (tx_sender, vm_barrier) =
-        create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor.into()).await;
+        create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor).await;
     let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
