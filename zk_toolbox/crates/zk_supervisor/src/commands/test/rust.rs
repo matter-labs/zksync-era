@@ -90,7 +90,21 @@ fn nextest_is_installed(shell: &Shell) -> anyhow::Result<bool> {
             .run_with_output()?
             .stdout,
     )?;
-    Ok(out.contains("cargo-nextest"))
+    if out.contains("cargo-nextest") {
+        return Ok(true);
+    }
+
+    if let Ok(cargo_home) = std::env::var("CARGO_HOME") {
+        let out = String::from_utf8(
+            Cmd::new(cmd!(shell, "ls $CARGO_HOME/bin"))
+                .run_with_output()?
+                .stdout,
+        )?;
+
+        Ok(out.contains("cargo-nextest"))
+    } else {
+        Ok(false)
+    }
 }
 
 async fn reset_test_databases(
