@@ -90,6 +90,8 @@ impl BlocksDal<'_, '_> {
                 COUNT(*) AS "count!"
             FROM
                 l1_batches
+            WHERE
+                is_sealed
             "#
         )
         .instrument("is_genesis_needed")
@@ -350,7 +352,8 @@ impl BlocksDal<'_, '_> {
                 l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(number.0)
         )
@@ -384,7 +387,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(number.0)
         )
@@ -417,7 +421,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(number.0)
         )
@@ -448,7 +453,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(number.0)
         )
@@ -1015,7 +1021,8 @@ impl BlocksDal<'_, '_> {
                 FROM
                     l1_batches
                 WHERE
-                    number = $1
+                    is_sealed
+                    AND number = $1
                     AND commitment = $2
                 "#,
                 i64::from(number.0),
@@ -1173,7 +1180,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(l1_batch_number.0)
         )
@@ -1556,7 +1564,8 @@ impl BlocksDal<'_, '_> {
                     l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
                 WHERE
-                    number BETWEEN $1 AND $2
+                    is_sealed
+                    AND number BETWEEN $1 AND $2
                 ORDER BY
                     number
                 LIMIT
@@ -1621,7 +1630,8 @@ impl BlocksDal<'_, '_> {
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
                 JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
             WHERE
-                eth_commit_tx_id IS NULL
+                is_sealed
+                AND eth_commit_tx_id IS NULL
                 AND number != 0
                 AND protocol_versions.bootloader_code_hash = $1
                 AND protocol_versions.default_account_code_hash = $2
@@ -1700,7 +1710,8 @@ impl BlocksDal<'_, '_> {
                 LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
                 JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
             WHERE
-                eth_commit_tx_id IS NULL
+                is_sealed
+                AND eth_commit_tx_id IS NULL
                 AND number != 0
                 AND protocol_versions.bootloader_code_hash = $1
                 AND protocol_versions.default_account_code_hash = $2
@@ -1837,7 +1848,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(number.0)
         )
@@ -2164,7 +2176,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(l1_batch_number.0)
         )
@@ -2335,7 +2348,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(l1_batch_number.0),
         )
@@ -2362,7 +2376,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(l1_batch_number.0),
         )

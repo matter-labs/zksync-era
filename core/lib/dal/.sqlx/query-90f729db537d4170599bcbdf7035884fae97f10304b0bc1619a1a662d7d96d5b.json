@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                system_logs,\n                compressed_state_diffs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input\n            FROM\n                l1_batches\n                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            WHERE\n                number = $1\n            ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                system_logs,\n                compressed_state_diffs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input\n            FROM\n                l1_batches\n                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            WHERE\n                is_sealed\n                AND number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -168,5 +168,5 @@
       true
     ]
   },
-  "hash": "52bb6de515e1edf4dcf34a31600edb31cfd855014dfca5041833b9d5d9f7a55e"
+  "hash": "90f729db537d4170599bcbdf7035884fae97f10304b0bc1619a1a662d7d96d5b"
 }
