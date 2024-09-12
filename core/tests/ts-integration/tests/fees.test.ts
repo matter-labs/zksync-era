@@ -196,11 +196,16 @@ testFees('Test fees', () => {
             })
         ).wait();
 
+        const feeParams = await alice._providerL2().getFeeParams();
+        const conversionRatio: { numerator: bigint; denominator: bigint } = (feeParams.V2 as any)['conversion_ratio'];
+        expect(conversionRatio.numerator).toBeGreaterThan(1n);
+
+        // the minimum + compute overhead of 0.01gwei in validium mode
         const expectedETHGasPrice =
-            testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Rollup
-                ? 100_000_000 // 0.1 gwei (the minimum)
-                : 110_000_000; // 0.11 gwei, in validium we need to add compute overhead
-        const expectedCustomGasPrice = expectedETHGasPrice * 0.314;
+            Number(feeParams.V2.config.minimal_l2_gas_price) +
+            Number(feeParams.V2.config.compute_overhead_part) * 10_000_000;
+        const expectedCustomGasPrice =
+            (expectedETHGasPrice * Number(conversionRatio.numerator)) / Number(conversionRatio.denominator);
 
         if (isETHBasedChain) {
             expect(receipt.gasPrice).toBe(BigInt(expectedETHGasPrice));
