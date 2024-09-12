@@ -201,3 +201,5 @@ pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for
 pub(super) const MSG_TEST_WALLETS_INFO: &str = "Print test wallets information";
 pub(super) const MSG_DESERIALIZE_TEST_WALLETS_ERR: &str = "Impossible to deserialize test wallets";
 pub(super) const MSG_WALLETS_TEST_SUCCESS: &str = "Wallets test success";
+
+pub(super) const MSG_LOADTEST_ABOUT: &str = "Run loadtest";
