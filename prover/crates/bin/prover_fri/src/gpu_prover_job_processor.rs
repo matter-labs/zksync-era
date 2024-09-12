@@ -384,7 +384,7 @@ pub mod gpu_prover {
                     })
                     .collect();
                 for handle in futures::future::join_all(handles).await {
-                    let (key, setup_data) = handle.unwrap()?;
+                    let (key, setup_data) = handle.context("Key loading future panicked")??;
                     cache.insert(key, setup_data);
                 }
                 SetupLoadMode::FromMemory(cache)
@@ -400,6 +400,8 @@ pub mod gpu_prover {
 
         #[tokio::test]
         async fn test_load_setup_data_cache() {
+            tracing_subscriber::fmt::try_init().ok();
+
             let keystore = Keystore::locate();
             let mode = SetupLoadModeConfig::FromMemory;
             let specialized_group_id = 0;
@@ -417,7 +419,7 @@ pub mod gpu_prover {
             let _cache = load_setup_data_cache(&keystore, mode, specialized_group_id, &ids)
                 .await
                 .expect("Unable to load keys");
-            println!("Cache load time: {:?}", start.elapsed());
+            tracing::info!("Cache load time: {:?}", start.elapsed());
         }
     }
 }
