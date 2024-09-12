@@ -35,11 +35,14 @@ use crate::{
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DISTRIBUTING_ETH_SPINNER, MSG_GENESIS_DATABASE_ERR,
-        MSG_MINT_BASE_TOKEN_SPINNER, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
+        MSG_MINT_BASE_TOKEN_SPINNER, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTS_CONFIG_ERR,
         MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::{
+        consensus::{generate_consensus_keys, get_consensus_config, get_consensus_secrets},
+        forge::{check_the_balance, fill_forge_private_key},
+    },
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -70,6 +73,12 @@ pub async fn init(
 
     let mut general_config = chain_config.get_general_config()?;
     apply_port_offset(init_args.port_offset, &mut general_config)?;
+    let ports = ports_config(&general_config).context(MSG_PORTS_CONFIG_ERR)?;
+
+    let consensus_keys = generate_consensus_keys();
+    let consensus_config =
+        get_consensus_config(chain_config, ports, Some(consensus_keys.clone()), None)?;
+    general_config.consensus_config = Some(consensus_config);
     general_config.save_with_base_path(shell, &chain_config.configs)?;
 
     let mut genesis_config = chain_config.get_genesis_config()?;
@@ -86,6 +95,7 @@ pub async fn init(
 
     let mut secrets = chain_config.get_secrets_config()?;
     set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
+    secrets.consensus = Some(get_consensus_secrets(&consensus_keys));
     secrets.save_with_base_path(shell, &chain_config.configs)?;
 
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
