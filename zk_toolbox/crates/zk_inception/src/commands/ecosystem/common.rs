@@ -58,8 +58,8 @@ pub async fn deploy_l1(
     }
 
     if broadcast {
-        check_the_balance(&forge).await?;
         forge = forge.with_broadcast();
+        check_the_balance(&forge).await?;
     }
 
     forge.run(shell)?;
