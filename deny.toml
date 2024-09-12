@@ -31,6 +31,8 @@ allow = [
     "BSD-3-Clause",
     "Zlib",
     "OpenSSL",
+    "Apache-2.0 WITH LLVM-exception",
+    "0BSD",
 ]
 confidence-threshold = 0.8
 
