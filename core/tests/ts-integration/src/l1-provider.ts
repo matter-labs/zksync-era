@@ -3,12 +3,17 @@ import { Reporter } from './reporter';
 import { AugmentedTransactionResponse } from './transaction-response';
 
 export class L1Provider extends JsonRpcProvider {
-    private readonly reporter: Reporter;
-    private readonly lastTransactionCount: Map<string, number> = new Map();
+    readonly reporter: Reporter;
 
     constructor(url: string, reporter?: Reporter) {
         super(url, undefined, { batchMaxCount: 1 });
         this.reporter = reporter ?? new Reporter();
+    }
+
+    override async getTransactionCount(address: AddressLike, blockTag?: BlockTag): Promise<number> {
+        const count = await super.getTransactionCount(address, blockTag);
+        this.reporter.debug(`Received L1 transaction count for ${address} at ${blockTag}: ${count}`);
+        return count;
     }
 
     override _wrapTransactionResponse(tx: TransactionResponseParams, network: Network): L1TransactionResponse {
