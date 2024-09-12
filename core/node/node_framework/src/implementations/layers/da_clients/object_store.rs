@@ -1,12 +1,12 @@
 use zksync_config::ObjectStoreConfig;
 use zksync_da_client::DataAvailabilityClient;
-use zksync_node_framework::{
+use zksync_da_clients::object_store::ObjectStoreDAClient;
+
+use crate::{
     implementations::resources::da_client::DAClientResource,
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
-
-use crate::object_store::client::ObjectStoreDAClient;
 
 #[derive(Debug)]
 pub struct ObjectStorageClientWiringLayer {
@@ -20,6 +20,7 @@ impl ObjectStorageClientWiringLayer {
 }
 
 #[derive(Debug, IntoContext)]
+#[context(crate = crate)]
 pub struct Output {
     pub client: DAClientResource,
 }
