@@ -21,7 +21,7 @@ pub async fn run(shell: &Shell, args: RecoveryArgs) -> anyhow::Result<()> {
     shell.change_dir(ecosystem_config.link_to_code.join(RECOVERY_TESTS_PATH));
 
     logger::info(MSG_RECOVERY_TEST_RUN_INFO);
-    Server::new(None, ecosystem_config.link_to_code.clone()).build(shell)?;
+    Server::new(None, ecosystem_config.link_to_code.clone(), false).build(shell)?;
 
     if !args.no_deps {
         install_and_build_dependencies(shell, &ecosystem_config)?;
