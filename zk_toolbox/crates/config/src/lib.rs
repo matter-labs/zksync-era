@@ -1,3 +1,4 @@
+pub use apps::*;
 pub use chain::*;
 pub use consts::*;
 pub use contracts::*;
@@ -11,6 +12,7 @@ pub use wallet_creation::*;
 pub use wallets::*;
 pub use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
+mod apps;
 mod chain;
 mod consts;
 mod contracts;
@@ -23,6 +25,9 @@ mod secrets;
 mod wallet_creation;
 mod wallets;
 
+pub mod docker_compose;
+pub mod explorer;
+pub mod explorer_compose;
 pub mod external_node;
 pub mod forge_interface;
 pub mod portal;

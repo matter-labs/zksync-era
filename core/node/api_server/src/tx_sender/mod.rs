@@ -10,7 +10,10 @@ use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_multivm::{
-    interface::{TransactionExecutionMetrics, TxExecutionMode, VmExecutionResultAndLogs},
+    interface::{
+        OneshotTracingParams, TransactionExecutionMetrics, TxExecutionArgs, TxExecutionMode,
+        VmExecutionResultAndLogs,
+    },
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_max_batch_gas_limit,
@@ -41,8 +44,8 @@ pub(super) use self::result::SubmitTxError;
 use self::{master_pool_sink::MasterPoolSink, tx_sink::TxSink};
 use crate::{
     execution_sandbox::{
-        BlockArgs, SubmitTxStage, TransactionExecutor, TxExecutionArgs, TxSetupArgs,
-        VmConcurrencyBarrier, VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
+        BlockArgs, SubmitTxStage, TransactionExecutor, TxSetupArgs, VmConcurrencyBarrier,
+        VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
     },
     tx_sender::result::ApiCallResult,
 };
@@ -141,6 +144,40 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version25 | ProtocolVersionId::Version26 => self.gateway,
         }
     }
+
+    pub fn load_estimate_gas_blocking() -> Self {
+        Self {
+            pre_virtual_blocks: BaseSystemContracts::estimate_gas_pre_virtual_blocks(),
+            post_virtual_blocks: BaseSystemContracts::estimate_gas_post_virtual_blocks(),
+            post_virtual_blocks_finish_upgrade_fix:
+                BaseSystemContracts::estimate_gas_post_virtual_blocks_finish_upgrade_fix(),
+            post_boojum: BaseSystemContracts::estimate_gas_post_boojum(),
+            post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
+            post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
+            post_1_4_2: BaseSystemContracts::estimate_gas_post_1_4_2(),
+            vm_1_5_0_small_memory: BaseSystemContracts::estimate_gas_1_5_0_small_memory(),
+            vm_1_5_0_increased_memory:
+                BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
+            gateway: BaseSystemContracts::estimate_gas_gateway(),
+        }
+    }
+
+    pub fn load_eth_call_blocking() -> Self {
+        Self {
+            pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
+            post_virtual_blocks: BaseSystemContracts::playground_post_virtual_blocks(),
+            post_virtual_blocks_finish_upgrade_fix:
+                BaseSystemContracts::playground_post_virtual_blocks_finish_upgrade_fix(),
+            post_boojum: BaseSystemContracts::playground_post_boojum(),
+            post_allowlist_removal: BaseSystemContracts::playground_post_allowlist_removal(),
+            post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
+            post_1_4_2: BaseSystemContracts::playground_post_1_4_2(),
+            vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
+            vm_1_5_0_increased_memory: BaseSystemContracts::playground_post_1_5_0_increased_memory(
+            ),
+            gateway: BaseSystemContracts::playground_gateway(),
+        }
+    }
 }
 
 /// Smart contracts to be used in the API sandbox requests, e.g. for estimating gas and
@@ -170,34 +207,8 @@ impl ApiContracts {
     /// Blocking version of [`Self::load_from_disk()`].
     pub fn load_from_disk_blocking() -> Self {
         Self {
-            estimate_gas: MultiVMBaseSystemContracts {
-                pre_virtual_blocks: BaseSystemContracts::estimate_gas_pre_virtual_blocks(),
-                post_virtual_blocks: BaseSystemContracts::estimate_gas_post_virtual_blocks(),
-                post_virtual_blocks_finish_upgrade_fix:
-                    BaseSystemContracts::estimate_gas_post_virtual_blocks_finish_upgrade_fix(),
-                post_boojum: BaseSystemContracts::estimate_gas_post_boojum(),
-                post_allowlist_removal: BaseSystemContracts::estimate_gas_post_allowlist_removal(),
-                post_1_4_1: BaseSystemContracts::estimate_gas_post_1_4_1(),
-                post_1_4_2: BaseSystemContracts::estimate_gas_post_1_4_2(),
-                vm_1_5_0_small_memory: BaseSystemContracts::estimate_gas_1_5_0_small_memory(),
-                vm_1_5_0_increased_memory:
-                    BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
-                gateway: BaseSystemContracts::estimate_gas_gateway(),
-            },
-            eth_call: MultiVMBaseSystemContracts {
-                pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
-                post_virtual_blocks: BaseSystemContracts::playground_post_virtual_blocks(),
-                post_virtual_blocks_finish_upgrade_fix:
-                    BaseSystemContracts::playground_post_virtual_blocks_finish_upgrade_fix(),
-                post_boojum: BaseSystemContracts::playground_post_boojum(),
-                post_allowlist_removal: BaseSystemContracts::playground_post_allowlist_removal(),
-                post_1_4_1: BaseSystemContracts::playground_post_1_4_1(),
-                post_1_4_2: BaseSystemContracts::playground_post_1_4_2(),
-                vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
-                vm_1_5_0_increased_memory:
-                    BaseSystemContracts::playground_post_1_5_0_increased_memory(),
-                gateway: BaseSystemContracts::playground_gateway(),
-            },
+            estimate_gas: MultiVMBaseSystemContracts::load_estimate_gas_blocking(),
+            eth_call: MultiVMBaseSystemContracts::load_eth_call_blocking(),
         }
     }
 }
@@ -391,7 +402,7 @@ impl TxSender {
                 connection,
                 block_args,
                 None,
-                vec![],
+                OneshotTracingParams::default(),
             )
             .await?;
         tracing::info!(
@@ -728,7 +739,7 @@ impl TxSender {
                 connection,
                 block_args,
                 state_override,
-                vec![],
+                OneshotTracingParams::default(),
             )
             .await?;
         Ok((execution_output.vm, execution_output.metrics))
@@ -1006,7 +1017,7 @@ impl TxSender {
             .await
     }
 
-    pub(super) async fn eth_call(
+    pub async fn eth_call(
         &self,
         block_args: BlockArgs,
         call_overrides: CallOverrides,
@@ -1015,6 +1026,7 @@ impl TxSender {
     ) -> Result<Vec<u8>, SubmitTxError> {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
+        let setup_args = self.call_args(&tx, Some(&call_overrides)).await?;
 
         let connection = self.acquire_replica_connection().await?;
         let result = self
@@ -1022,12 +1034,12 @@ impl TxSender {
             .executor
             .execute_tx_in_sandbox(
                 vm_permit,
-                self.call_args(&tx, Some(&call_overrides)).await?,
+                setup_args,
                 TxExecutionArgs::for_eth_call(tx),
                 connection,
                 block_args,
                 state_override,
-                vec![],
+                OneshotTracingParams::default(),
             )
             .await?;
         result.vm.into_api_call_result()

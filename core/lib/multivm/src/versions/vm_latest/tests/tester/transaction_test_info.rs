@@ -3,7 +3,8 @@ use zksync_types::{ExecuteTransactionCommon, Nonce, Transaction, H160};
 use crate::{
     interface::{
         CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
-        VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
+        VmExecutionResultAndLogs, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
+        VmRevertReason,
     },
     vm_latest::{tests::tester::vm_tester::VmTester, HistoryEnabled},
 };

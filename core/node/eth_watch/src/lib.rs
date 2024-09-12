@@ -167,7 +167,8 @@ impl EthWatch {
                 .get_events(
                     Web3BlockNumber::Number(from_block.into()),
                     Web3BlockNumber::Number(finalized_block.into()),
-                    processor.relevant_topic(),
+                    vec![processor.relevant_topic()],
+                    vec![],
                     RETRY_LIMIT,
                 )
                 .await?;

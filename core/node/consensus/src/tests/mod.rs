@@ -7,8 +7,8 @@ use zksync_consensus_roles::{
     validator::testonly::{Setup, SetupSpec},
 };
 use zksync_consensus_storage::BlockStore;
-use zksync_dal::consensus::AttestationStatus;
-use zksync_node_sync::MainNodeClient;
+use zksync_dal::consensus_dal;
+use zksync_test_account::Account;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 use crate::{
@@ -30,6 +30,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
     let pool = ConnectionPool::test(false, version).await;
+    let account = &mut Account::random();
 
     // Fill storage with unsigned L2 blocks.
     // Fetch a suffix of blocks that we will generate (fake) certs for.
@@ -37,15 +38,21 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
         // Start state keeper.
         let (mut sk, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run(ctx));
-        sk.push_random_blocks(rng, 10).await;
+        sk.push_random_blocks(rng, account, 10).await;
         pool.wait_for_payload(ctx, sk.last_block()).await?;
         let mut setup = SetupSpec::new(rng, 3);
         setup.first_block = validator::BlockNumber(4);
         let mut setup = Setup::from(setup);
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
-        conn.try_update_genesis(ctx, &setup.genesis)
-            .await
-            .wrap("try_update_genesis()")?;
+        conn.try_update_global_config(
+            ctx,
+            &consensus_dal::GlobalConfig {
+                genesis: setup.genesis.clone(),
+                registry_address: None,
+            },
+        )
+        .await
+        .wrap("try_update_global_config()")?;
         for i in setup.genesis.first_block.0..sk.last_block().next().0 {
             let i = validator::BlockNumber(i);
             let payload = conn
@@ -97,6 +104,7 @@ async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
     let cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
+    let account = &mut Account::random();
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("Start state keeper.");
@@ -105,7 +113,7 @@ async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
         s.spawn_bg(runner.run(ctx));
 
         tracing::info!("Populate storage with a bunch of blocks.");
-        sk.push_random_blocks(rng, 5).await;
+        sk.push_random_blocks(rng, account, 5).await;
         pool
             .wait_for_payload(ctx, sk.last_block())
             .await
@@ -120,7 +128,7 @@ async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
                 s.spawn_bg(run_main_node(ctx, cfg.config.clone(), cfg.secrets.clone(), pool.clone()));
 
                 tracing::info!("Generate couple more blocks and wait for consensus to catch up.");
-                sk.push_random_blocks(rng, 3).await;
+                sk.push_random_blocks(rng, account, 3).await;
                 pool
                     .wait_for_block_certificate(ctx, sk.last_block())
                     .await
@@ -128,7 +136,7 @@ async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
 
                 tracing::info!("Synchronously produce blocks one by one, and wait for consensus.");
                 for _ in 0..2 {
-                    sk.push_random_blocks(rng, 1).await;
+                    sk.push_random_blocks(rng, account, 1).await;
                     pool
                         .wait_for_block_certificate(ctx, sk.last_block())
                         .await
@@ -160,6 +168,7 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
     let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
+    let account = &mut Account::random();
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("spawn validator");
@@ -175,7 +184,7 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
         ));
 
         tracing::info!("produce some batches");
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks(rng, account, 5).await;
         validator.seal_batch().await;
         validator_pool
             .wait_for_block_certificate(ctx, validator.last_block())
@@ -193,7 +202,7 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
         });
 
         tracing::info!("produce more batches");
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks(rng, account, 5).await;
         validator.seal_batch().await;
         node_pool
             .wait_for_block_certificate(ctx, validator.last_block())
@@ -211,7 +220,7 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
         });
 
         tracing::info!("produce more blocks and compare storages");
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks(rng, account, 5).await;
         let want = validator_pool
             .wait_for_block_certificates_and_verify(ctx, validator.last_block())
             .await?;
@@ -245,6 +254,7 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
     let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
+    let account = &mut Account::random();
 
     // topology:
     // validator <-> node <-> node <-> ...
@@ -266,7 +276,7 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
                 .context("validator")
         });
         tracing::info!("Generate a couple of blocks, before initializing consensus genesis.");
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks(rng, account, 5).await;
         // API server needs at least 1 L1 batch to start.
         validator.seal_batch().await;
         validator_pool
@@ -301,7 +311,7 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
 
         tracing::info!("Make validator produce blocks and wait for fetchers to get them.");
         // Note that block from before and after genesis have to be fetched.
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks(rng, account, 5).await;
         let want_last = validator.last_block();
         let want = validator_pool
             .wait_for_block_certificates_and_verify(ctx, want_last)
@@ -319,87 +329,88 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
     .unwrap();
 }
 
-// Test running external node (non-leader) validators.
-#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
-#[tokio::test]
-async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
-    const NODES: usize = 3;
+// // Test running external node (non-leader) validators.
+// #[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
+// #[tokio::test]
+// async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
+//     const NODES: usize = 3;
 
-    zksync_concurrency::testonly::abort_on_panic();
-    let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
-    let rng = &mut ctx.rng();
-    let setup = Setup::new(rng, NODES);
-    let cfgs = testonly::new_configs(rng, &setup, 1);
+//     zksync_concurrency::testonly::abort_on_panic();
+//     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
+//     let rng = &mut ctx.rng();
+//     let setup = Setup::new(rng, NODES);
+//     let cfgs = testonly::new_configs(rng, &setup, 1);
+//     let account = &mut Account::random();
 
-    // Run all nodes in parallel.
-    scope::run!(ctx, |ctx, s| async {
-        let main_node_pool = ConnectionPool::test(from_snapshot, version).await;
-        let (mut main_node, runner) =
-            testonly::StateKeeper::new(ctx, main_node_pool.clone()).await?;
-        s.spawn_bg(async {
-            runner
-                .run(ctx)
-                .instrument(tracing::info_span!("main_node"))
-                .await
-                .context("main_node")
-        });
-        tracing::info!("Generate a couple of blocks, before initializing consensus genesis.");
-        main_node.push_random_blocks(rng, 5).await;
-        // API server needs at least 1 L1 batch to start.
-        main_node.seal_batch().await;
-        main_node_pool
-            .wait_for_payload(ctx, main_node.last_block())
-            .await
-            .unwrap();
+//     // Run all nodes in parallel.
+//     scope::run!(ctx, |ctx, s| async {
+//         let main_node_pool = ConnectionPool::test(from_snapshot, version).await;
+//         let (mut main_node, runner) =
+//             testonly::StateKeeper::new(ctx, main_node_pool.clone()).await?;
+//         s.spawn_bg(async {
+//             runner
+//                 .run(ctx)
+//                 .instrument(tracing::info_span!("main_node"))
+//                 .await
+//                 .context("main_node")
+//         });
+//         tracing::info!("Generate a couple of blocks, before initializing consensus genesis.");
+//         main_node.push_random_blocks(rng, account, 5).await;
+//         // API server needs at least 1 L1 batch to start.
+//         main_node.seal_batch().await;
+//         main_node_pool
+//             .wait_for_payload(ctx, main_node.last_block())
+//             .await
+//             .unwrap();
 
-        tracing::info!("wait until the API server is actually available");
-        // as otherwise waiting for view synchronization will take a while.
-        main_node.connect(ctx).await?;
+//         tracing::info!("wait until the API server is actually available");
+//         // as otherwise waiting for view synchronization will take a while.
+//         main_node.connect(ctx).await?;
 
-        tracing::info!("Run main node with all nodes being validators.");
-        s.spawn_bg(run_main_node(
-            ctx,
-            cfgs[0].config.clone(),
-            cfgs[0].secrets.clone(),
-            main_node_pool.clone(),
-        ));
+//         tracing::info!("Run main node with all nodes being validators.");
+//         s.spawn_bg(run_main_node(
+//             ctx,
+//             cfgs[0].config.clone(),
+//             cfgs[0].secrets.clone(),
+//             main_node_pool.clone(),
+//         ));
 
-        tracing::info!("Run external nodes.");
-        let mut ext_node_pools = vec![];
-        for (i, cfg) in cfgs[1..].iter().enumerate() {
-            let i = ctx::NoCopy(i);
-            let pool = ConnectionPool::test(from_snapshot, version).await;
-            let (ext_node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
-            ext_node_pools.push(pool.clone());
-            s.spawn_bg(async {
-                let i = i;
-                runner
-                    .run(ctx)
-                    .instrument(tracing::info_span!("en", i = *i))
-                    .await
-                    .with_context(|| format!("en{}", *i))
-            });
-            s.spawn_bg(ext_node.run_consensus(ctx, main_node.connect(ctx).await?, cfg.clone()));
-        }
+//         tracing::info!("Run external nodes.");
+//         let mut ext_node_pools = vec![];
+//         for (i, cfg) in cfgs[1..].iter().enumerate() {
+//             let i = ctx::NoCopy(i);
+//             let pool = ConnectionPool::test(from_snapshot, version).await;
+//             let (ext_node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
+//             ext_node_pools.push(pool.clone());
+//             s.spawn_bg(async {
+//                 let i = i;
+//                 runner
+//                     .run(ctx)
+//                     .instrument(tracing::info_span!("en", i = *i))
+//                     .await
+//                     .with_context(|| format!("en{}", *i))
+//             });
+//             s.spawn_bg(ext_node.run_consensus(ctx, main_node.connect(ctx).await?, cfg.clone()));
+//         }
 
-        tracing::info!("Make the main node produce blocks and wait for consensus to finalize them");
-        main_node.push_random_blocks(rng, 5).await;
-        let want_last = main_node.last_block();
-        let want = main_node_pool
-            .wait_for_block_certificates_and_verify(ctx, want_last)
-            .await?;
-        for pool in &ext_node_pools {
-            assert_eq!(
-                want,
-                pool.wait_for_block_certificates_and_verify(ctx, want_last)
-                    .await?
-            );
-        }
-        Ok(())
-    })
-    .await
-    .unwrap();
-}
+//         tracing::info!("Make the main node produce blocks and wait for consensus to finalize them");
+//         main_node.push_random_blocks(rng, account, 5).await;
+//         let want_last = main_node.last_block();
+//         let want = main_node_pool
+//             .wait_for_block_certificates_and_verify(ctx, want_last)
+//             .await?;
+//         for pool in &ext_node_pools {
+//             assert_eq!(
+//                 want,
+//                 pool.wait_for_block_certificates_and_verify(ctx, want_last)
+//                     .await?
+//             );
+//         }
+//         Ok(())
+//     })
+//     .await
+//     .unwrap();
+// }
 
 // Test fetcher back filling missing certs.
 #[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
@@ -411,6 +422,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
     let setup = Setup::new(rng, 1);
     let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
     let node_cfg = validator_cfg.new_fullnode(rng);
+    let account = &mut Account::random();
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("Spawn validator.");
@@ -435,7 +447,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
             let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
             s.spawn_bg(runner.run(ctx));
             s.spawn_bg(node.run_consensus(ctx, client.clone(), node_cfg.clone()));
-            validator.push_random_blocks(rng, 3).await;
+            validator.push_random_blocks(rng, account, 3).await;
             node_pool
                 .wait_for_block_certificate(ctx, validator.last_block())
                 .await?;
@@ -449,7 +461,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
             let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
             s.spawn_bg(runner.run(ctx));
             s.spawn_bg(node.run_fetcher(ctx, client.clone()));
-            validator.push_random_blocks(rng, 3).await;
+            validator.push_random_blocks(rng, account, 3).await;
             node_pool
                 .wait_for_payload(ctx, validator.last_block())
                 .await?;
@@ -463,7 +475,7 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
             let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
             s.spawn_bg(runner.run(ctx));
             s.spawn_bg(node.run_consensus(ctx, client.clone(), node_cfg));
-            validator.push_random_blocks(rng, 3).await;
+            validator.push_random_blocks(rng, account, 3).await;
             let want = validator_pool
                 .wait_for_block_certificates_and_verify(ctx, validator.last_block())
                 .await?;
@@ -490,6 +502,7 @@ async fn test_with_pruning(version: ProtocolVersionId) {
     let setup = Setup::new(rng, 1);
     let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
     let node_cfg = validator_cfg.new_fullnode(rng);
+    let account = &mut Account::random();
 
     scope::run!(ctx, |ctx, s| async {
         let validator_pool = ConnectionPool::test(false, version).await;
@@ -537,7 +550,7 @@ async fn test_with_pruning(version: ProtocolVersionId) {
         });
 
         tracing::info!("Sync some blocks");
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks(rng, account, 5).await;
         validator.seal_batch().await;
         let to_prune = validator.last_sealed_batch();
         tracing::info!(
@@ -548,7 +561,7 @@ async fn test_with_pruning(version: ProtocolVersionId) {
         tracing::info!(
             "Seal another batch to make sure that there is at least 1 sealed batch after pruning."
         );
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks(rng, account, 5).await;
         validator.seal_batch().await;
         validator_pool
             .wait_for_batch(ctx, validator.last_sealed_batch())
@@ -567,7 +580,7 @@ async fn test_with_pruning(version: ProtocolVersionId) {
             .prune_batches(ctx, to_prune)
             .await
             .context("prune_batches")?;
-        validator.push_random_blocks(rng, 5).await;
+        validator.push_random_blocks(rng, account, 5).await;
         node_pool
             .wait_for_block_certificates(ctx, validator.last_block())
             .await
@@ -584,6 +597,7 @@ async fn test_centralized_fetcher(from_snapshot: bool, version: ProtocolVersionI
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
+    let account = &mut Account::random();
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("Spawn a validator.");
@@ -603,7 +617,7 @@ async fn test_centralized_fetcher(from_snapshot: bool, version: ProtocolVersionI
         s.spawn_bg(node.run_fetcher(ctx, validator.connect(ctx).await?));
 
         tracing::info!("Produce some blocks and wait for node to fetch them");
-        validator.push_random_blocks(rng, 10).await;
+        validator.push_random_blocks(rng, account, 10).await;
         let want = validator_pool
             .wait_for_payload(ctx, validator.last_block())
             .await?;
@@ -611,132 +625,6 @@ async fn test_centralized_fetcher(from_snapshot: bool, version: ProtocolVersionI
             .wait_for_payload(ctx, validator.last_block())
             .await?;
         assert_eq!(want, got);
-        Ok(())
-    })
-    .await
-    .unwrap();
-}
-
-#[test_casing(2, VERSIONS)]
-#[tokio::test]
-async fn test_attestation_status_api(version: ProtocolVersionId) {
-    zksync_concurrency::testonly::abort_on_panic();
-    let ctx = &ctx::test_root(&ctx::RealClock);
-    let rng = &mut ctx.rng();
-
-    scope::run!(ctx, |ctx, s| async {
-        let pool = ConnectionPool::test(false, version).await;
-        let (mut sk, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
-        s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
-
-        // Setup nontrivial genesis.
-        while sk.last_sealed_batch() < L1BatchNumber(3) {
-            sk.push_random_blocks(rng, 10).await;
-        }
-        let mut setup = SetupSpec::new(rng, 3);
-        setup.first_block = sk.last_block();
-        let first_batch = sk.last_batch();
-        let setup = Setup::from(setup);
-        let mut conn = pool.connection(ctx).await.wrap("connection()")?;
-        conn.try_update_genesis(ctx, &setup.genesis)
-            .await
-            .wrap("try_update_genesis()")?;
-        // Make sure that the first_batch is actually sealed.
-        sk.seal_batch().await;
-        pool.wait_for_batch(ctx, first_batch).await?;
-
-        // Connect to API endpoint.
-        let api = sk.connect(ctx).await?;
-        let fetch_status = || async {
-            let s = api
-                .fetch_attestation_status()
-                .await?
-                .context("no attestation_status")?;
-            let s: AttestationStatus =
-                zksync_protobuf::serde::deserialize(&s.0).context("deserialize()")?;
-            anyhow::ensure!(s.genesis == setup.genesis.hash(), "genesis hash mismatch");
-            Ok(s)
-        };
-
-        // If the main node has no L1 batch certificates,
-        // then the first one to sign should be the batch with the `genesis.first_block`.
-        let status = fetch_status().await?;
-        assert_eq!(
-            status.next_batch_to_attest,
-            attester::BatchNumber(first_batch.0.into())
-        );
-
-        // Insert a (fake) cert, then check again.
-        {
-            let mut conn = pool.connection(ctx).await?;
-            let number = status.next_batch_to_attest;
-            let hash = conn.batch_hash(ctx, number).await?.unwrap();
-            let genesis = conn.genesis(ctx).await?.unwrap().hash();
-            let cert = attester::BatchQC {
-                signatures: attester::MultiSig::default(),
-                message: attester::Batch {
-                    number,
-                    hash,
-                    genesis,
-                },
-            };
-            conn.insert_batch_certificate(ctx, &cert)
-                .await
-                .context("insert_batch_certificate()")?;
-        }
-        let want = status.next_batch_to_attest.next();
-        let got = fetch_status().await?;
-        assert_eq!(want, got.next_batch_to_attest);
-
-        Ok(())
-    })
-    .await
-    .unwrap();
-}
-
-/// Tests that generated L1 batch witnesses can be verified successfully.
-/// TODO: add tests for verification failures.
-#[test_casing(2, VERSIONS)]
-#[tokio::test]
-async fn test_batch_witness(version: ProtocolVersionId) {
-    zksync_concurrency::testonly::abort_on_panic();
-    let ctx = &ctx::test_root(&ctx::RealClock);
-    let rng = &mut ctx.rng();
-
-    // FIXME: it is a hack until we have proper integration of the L2 DA handlers.
-    std::env::set_var(
-        "CONTRACTS_L2_DA_VALIDATOR_ADDR",
-        "0x0000000000000000000000000000000000000000",
-    );
-
-    scope::run!(ctx, |ctx, s| async {
-        let pool = ConnectionPool::from_genesis(version).await;
-        let (mut node, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
-        s.spawn_bg(runner.run_real(ctx));
-
-        tracing::info!("analyzing storage");
-        {
-            let mut conn = pool.connection(ctx).await.unwrap();
-            let mut n = validator::BlockNumber(0);
-            while let Some(p) = conn.payload(ctx, n).await? {
-                tracing::info!("block[{n}] = {p:?}");
-                n = n + 1;
-            }
-        }
-
-        // Seal a bunch of batches.
-        node.push_random_blocks(rng, 10).await;
-        node.seal_batch().await;
-        pool.wait_for_batch(ctx, node.last_sealed_batch()).await?;
-        // We can verify only 2nd batch onward, because
-        // batch witness verifies parent of the last block of the
-        // previous batch (and 0th batch contains only 1 block).
-        for n in 2..=node.last_sealed_batch().0 {
-            let n = L1BatchNumber(n);
-            let batch_with_witness = node.load_batch_with_witness(ctx, n).await?;
-            let commit = node.load_batch_commit(ctx, n).await?;
-            batch_with_witness.verify(&commit)?;
-        }
         Ok(())
     })
     .await

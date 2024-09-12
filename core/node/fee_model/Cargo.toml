@@ -27,4 +27,3 @@ tracing.workspace = true
 
 [dev-dependencies]
 test-casing.workspace = true
-zksync_node_test_utils.workspace = true

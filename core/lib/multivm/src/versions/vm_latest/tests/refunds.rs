@@ -2,7 +2,7 @@ use ethabi::Token;
 use zksync_types::{Address, Execute, U256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_latest::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},

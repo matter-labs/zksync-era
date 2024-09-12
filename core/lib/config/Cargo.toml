@@ -24,6 +24,9 @@ rand.workspace = true
 secrecy.workspace = true
 serde = { workspace = true, features = ["derive"] }
 
+[dev-dependencies]
+serde_json.workspace = true
+
 [features]
 default = []
 observability_ext = ["zksync_vlog", "tracing"]

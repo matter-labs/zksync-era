@@ -9,7 +9,7 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_latest::{
         tests::{
             tester::{get_empty_storage, VmTesterBuilder},

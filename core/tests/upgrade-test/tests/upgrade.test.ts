@@ -138,9 +138,10 @@ describe('Upgrade test', function () {
         // Run server in background.
         runServerInBackground({
             components: serverComponents,
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
         // Server may need some time to recompile if it's a cold run, so wait for it.
         let iter = 0;
@@ -279,9 +280,11 @@ describe('Upgrade test', function () {
         );
         executeOperation = chainUpgradeCalldata;
 
+        console.log('Sending scheduleTransparentOperation');
         await sendGovernanceOperation(stmUpgradeData.scheduleTransparentOperation);
+        console.log('Sending executeOperation');
         await sendGovernanceOperation(stmUpgradeData.executeOperation);
-
+        console.log('Sending chain admin operation');
         await sendChainAdminOperation(setTimestampCalldata);
 
         // Wait for server to process L1 event.
@@ -345,9 +348,10 @@ describe('Upgrade test', function () {
         // Run again.
         runServerInBackground({
             components: serverComponents,
-            stdio: [null, logs, logs],
+            stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile
+            useZkInception: fileConfig.loadFromFile,
+            chain: fileConfig.chain
         });
         await utils.sleep(10);
 
@@ -369,23 +373,25 @@ describe('Upgrade test', function () {
     });
 
     async function sendGovernanceOperation(data: string) {
-        await (
-            await ecosystemGovWallet.sendTransaction({
-                to: await governanceContract.getAddress(),
-                data: data,
-                type: 0
-            })
-        ).wait();
+        const transaction = await ecosystemGovWallet.sendTransaction({
+            to: await governanceContract.getAddress(),
+            data: data,
+            type: 0
+        });
+        console.log(`Sent governance operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
+        await transaction.wait();
+        console.log(`Governance operation succeeded, tx_hash=${transaction.hash}`);
     }
 
     async function sendChainAdminOperation(data: string) {
-        await (
-            await adminGovWallet.sendTransaction({
-                to: await chainAdminContract.getAddress(),
-                data: data,
-                type: 0
-            })
-        ).wait();
+        const transaction = await adminGovWallet.sendTransaction({
+            to: await chainAdminContract.getAddress(),
+            data: data,
+            type: 0
+        });
+        console.log(`Sent chain admin operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
+        await transaction.wait();
+        console.log(`Chain admin operation succeeded, tx_hash=${transaction.hash}`);
     }
 });
 

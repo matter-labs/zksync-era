@@ -9,7 +9,7 @@ use zksync_types::{
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     utils::StorageWritesDeduplicator,
     vm_fast::{
         tests::{
