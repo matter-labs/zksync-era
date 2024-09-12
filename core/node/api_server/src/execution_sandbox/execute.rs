@@ -26,18 +26,19 @@ use super::{
 };
 use crate::tx_sender::SandboxExecutorOptions;
 
+/// Action that can be executed by [`SandboxExecutor`].
 #[derive(Debug)]
 pub(crate) enum SandboxAction {
-    Execution {
-        tx: L2Tx,
-        fee_input: BatchFeeInput,
-    },
+    /// Execute a transaction.
+    Execution { tx: L2Tx, fee_input: BatchFeeInput },
+    /// Execute a call, possibly with tracing.
     Call {
         call: L2Tx,
         fee_input: BatchFeeInput,
         enforced_base_fee: Option<u64>,
         tracing_params: OneshotTracingParams,
     },
+    /// Estimate gas for a transaction.
     GasEstimation {
         tx: Transaction,
         fee_input: BatchFeeInput,
@@ -74,6 +75,7 @@ impl SandboxAction {
     }
 }
 
+/// Output of [`SandboxExecutor::execute_in_sandbox()`].
 #[derive(Debug, Clone)]
 pub(crate) struct SandboxExecutionOutput {
     /// Output of the VM.
@@ -122,10 +124,6 @@ impl SandboxExecutor {
             options: SandboxExecutorOptions::mock().await,
             storage_caches: None,
         }
-    }
-
-    pub(super) fn storage_caches(&self) -> Option<&PostgresStorageCaches> {
-        self.storage_caches.as_ref()
     }
 
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
@@ -217,9 +215,8 @@ impl SandboxExecutor {
             }
         };
 
-        let storage_caches = self.storage_caches();
         if block_args.resolves_to_latest_sealed_l2_block() {
-            if let Some(caches) = &storage_caches {
+            if let Some(caches) = &self.storage_caches {
                 caches.schedule_values_update(resolved_block_info.state_l2_block_number());
             }
         }
@@ -233,7 +230,7 @@ impl SandboxExecutor {
         .await
         .context("cannot create `PostgresStorage`")?;
 
-        if let Some(caches) = storage_caches {
+        if let Some(caches) = &self.storage_caches {
             storage = storage.with_caches(caches.clone());
         }
         initialization_stage.observe();

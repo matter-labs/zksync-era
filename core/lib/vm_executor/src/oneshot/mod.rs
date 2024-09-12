@@ -1,4 +1,10 @@
 //! Oneshot VM executor.
+//!
+//! # Overview
+//!
+//! The root type of this module is [`MainOneshotExecutor`], a "default" [`OneshotExecutor`] implementation.
+//! In addition to it, the module provides [`OneshotExecutorOptions`] and [`BlockInfo`] / [`ResolvedBlockInfo`],
+//! which can be used to prepare environment for `MainOneshotExecutor` (i.e., a [`OneshotEnv`] instance).
 
 use std::{
     sync::Arc,

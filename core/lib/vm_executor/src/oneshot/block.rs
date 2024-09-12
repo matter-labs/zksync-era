@@ -16,8 +16,8 @@ use zksync_utils::{h256_to_u256, time::seconds_since_epoch};
 
 use super::options::OneshotExecutorOptions;
 
-/// Block information necessary to execute a transaction / call.
-// FIXME: consider combining with `ResolvedBlockInfo`?
+/// Block information necessary to execute a transaction / call. Unlike [`ResolvedBlockInfo`], this information is *partially* resolved,
+/// which is beneficial for some workflows.
 #[derive(Debug, Clone, Copy)]
 pub struct BlockInfo {
     resolved_block_number: L2BlockNumber,

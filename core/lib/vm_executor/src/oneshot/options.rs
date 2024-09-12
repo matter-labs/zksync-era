@@ -11,10 +11,12 @@ use crate::oneshot::{contracts::MultiVMBaseSystemContracts, ResolvedBlockInfo};
 #[derive(Debug)]
 pub struct EstimateGas(());
 
+/// Marker for [`OneshotExecutorOptions`] used for calls and/or transaction execution.
 #[derive(Debug)]
 pub struct CallOrExecute(());
 
 /// Oneshot executor options that are expected to be constant or rarely change during the program lifetime.
+/// These options can be used to create [a full environment](OneshotEnv) for transaction / call execution.
 #[derive(Debug)]
 pub struct OneshotExecutorOptions<T> {
     pub(super) chain_id: L2ChainId,
@@ -25,12 +27,14 @@ pub struct OneshotExecutorOptions<T> {
 }
 
 impl<T> OneshotExecutorOptions<T> {
+    /// Returns gas limit for account validation of transactions.
     pub fn validation_computational_gas_limit(&self) -> u32 {
         self.validation_computational_gas_limit
     }
 }
 
 impl OneshotExecutorOptions<EstimateGas> {
+    /// Creates executor options for gas estimation.
     pub async fn for_gas_estimation(
         chain_id: L2ChainId,
         operator_account: AccountTreeId,
@@ -48,6 +52,7 @@ impl OneshotExecutorOptions<EstimateGas> {
         })
     }
 
+    /// Prepares environment for gas estimation.
     pub async fn to_env(
         &self,
         connection: &mut Connection<'_, Core>,
@@ -67,6 +72,7 @@ impl OneshotExecutorOptions<EstimateGas> {
 }
 
 impl OneshotExecutorOptions<CallOrExecute> {
+    /// Creates executor options for transaction / call execution.
     pub async fn for_execution(
         chain_id: L2ChainId,
         operator_account: AccountTreeId,
@@ -85,6 +91,7 @@ impl OneshotExecutorOptions<CallOrExecute> {
         })
     }
 
+    /// Prepares environment for a call.
     pub async fn to_call_env(
         &self,
         connection: &mut Connection<'_, Core>,
@@ -102,6 +109,7 @@ impl OneshotExecutorOptions<CallOrExecute> {
         .await
     }
 
+    /// Prepares environment for executing a provided transaction.
     pub async fn to_execute_env(
         &self,
         connection: &mut Connection<'_, Core>,
