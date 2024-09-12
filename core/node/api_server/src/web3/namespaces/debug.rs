@@ -15,10 +15,10 @@ use zksync_types::{
     transaction_request::CallRequest,
     web3, AccountTreeId, H256, U256,
 };
+use zksync_vm_executor::oneshot::TxSetupArgs;
 use zksync_web3_decl::error::Web3Error;
 
 use crate::{
-    execution_sandbox::TxSetupArgs,
     tx_sender::{ApiContracts, TxSenderConfig},
     web3::{backend_jsonrpsee::MethodTracer, state::RpcState},
 };
@@ -201,7 +201,7 @@ impl DebugNamespace {
                 setup_args,
                 TxExecutionArgs::for_eth_call(tx.clone()),
                 connection,
-                block_args,
+                &block_args,
                 None,
                 tracing_params,
             )
@@ -237,14 +237,8 @@ impl DebugNamespace {
             operator_account: AccountTreeId::default(),
             fee_input: self.batch_fee_input,
             base_system_contracts: self.api_contracts.eth_call.clone(),
-            caches: self.state.tx_sender.storage_caches().clone(),
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: sender_config.chain_id,
-            whitelisted_tokens_for_aa: self
-                .state
-                .tx_sender
-                .read_whitelisted_tokens_for_aa_cache()
-                .await,
             enforced_base_fee,
         }
     }

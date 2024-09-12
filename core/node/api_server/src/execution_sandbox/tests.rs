@@ -9,7 +9,7 @@ use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
         tracer::ValidationError,
-        Halt, OneshotTracingParams, TxExecutionArgs,
+        Halt, OneshotTracingParams, TxExecutionArgs, TxExecutionMode,
     },
     utils::derive_base_fee_and_gas_per_pubdata,
 };
@@ -20,9 +20,9 @@ use zksync_types::{
     fee::Fee,
     l2::L2Tx,
     transaction_request::PaymasterParams,
-    K256PrivateKey, Nonce, ProtocolVersionId, Transaction, U256,
+    Address, K256PrivateKey, L2ChainId, Nonce, ProtocolVersionId, Transaction, U256,
 };
-use zksync_vm_executor::oneshot::MainOneshotExecutor;
+use zksync_vm_executor::oneshot::{MainOneshotExecutor, TxSetupArgs};
 
 use super::{storage::StorageWithOverrides, *};
 use crate::tx_sender::ApiContracts;
@@ -46,8 +46,9 @@ async fn creating_block_args() {
         pending_block_args.block_id,
         api::BlockId::Number(api::BlockNumber::Pending)
     );
-    assert_eq!(pending_block_args.resolved_block_number, L2BlockNumber(2));
-    assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
+    assert_eq!(pending_block_args.resolved_block_number(), L2BlockNumber(2));
+    assert_eq!(pending_block_args.inner.l1_batch_timestamp(), None);
+    assert!(pending_block_args.is_pending());
 
     let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
         .await
@@ -66,9 +67,9 @@ async fn creating_block_args() {
         .await
         .unwrap();
     assert_eq!(latest_block_args.block_id, latest_block);
-    assert_eq!(latest_block_args.resolved_block_number, L2BlockNumber(1));
+    assert_eq!(latest_block_args.resolved_block_number(), L2BlockNumber(1));
     assert_eq!(
-        latest_block_args.l1_batch_timestamp_s,
+        latest_block_args.inner.l1_batch_timestamp(),
         Some(l2_block.timestamp)
     );
 
@@ -77,8 +78,11 @@ async fn creating_block_args() {
         .await
         .unwrap();
     assert_eq!(earliest_block_args.block_id, earliest_block);
-    assert_eq!(earliest_block_args.resolved_block_number, L2BlockNumber(0));
-    assert_eq!(earliest_block_args.l1_batch_timestamp_s, Some(0));
+    assert_eq!(
+        earliest_block_args.resolved_block_number(),
+        L2BlockNumber(0)
+    );
+    assert_eq!(earliest_block_args.inner.l1_batch_timestamp(), Some(0));
 
     let missing_block = api::BlockId::Number(100.into());
     let err = BlockArgs::new(&mut storage, missing_block, &start_info)
@@ -100,10 +104,10 @@ async fn creating_block_args_after_snapshot_recovery() {
         api::BlockId::Number(api::BlockNumber::Pending)
     );
     assert_eq!(
-        pending_block_args.resolved_block_number,
+        pending_block_args.resolved_block_number(),
         snapshot_recovery.l2_block_number + 1
     );
-    assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
+    assert!(pending_block_args.is_pending());
 
     let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
         .await
@@ -159,9 +163,9 @@ async fn creating_block_args_after_snapshot_recovery() {
         .await
         .unwrap();
     assert_eq!(latest_block_args.block_id, latest_block);
-    assert_eq!(latest_block_args.resolved_block_number, l2_block.number);
+    assert_eq!(latest_block_args.resolved_block_number(), l2_block.number);
     assert_eq!(
-        latest_block_args.l1_batch_timestamp_s,
+        latest_block_args.inner.l1_batch_timestamp(),
         Some(l2_block.timestamp)
     );
 
@@ -213,7 +217,7 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
     let transaction = Transaction::from(create_transfer(base_fee, gas_per_pubdata));
 
     let execution_args = TxExecutionArgs::for_gas_estimate(transaction.clone());
-    let (env, storage) = apply::prepare_env_and_storage(connection, setup_args, &block_args)
+    let (env, storage) = apply::prepare_env_and_storage(connection, setup_args, &block_args, None)
         .await
         .unwrap();
     let storage = StorageWithOverrides::new(storage, &StateOverride::default());
@@ -273,7 +277,7 @@ async fn validating_transaction(set_balance: bool) {
         validate::get_validation_params(&mut connection, &transaction, u32::MAX, &[])
             .await
             .unwrap();
-    let (env, storage) = apply::prepare_env_and_storage(connection, setup_args, &block_args)
+    let (env, storage) = apply::prepare_env_and_storage(connection, setup_args, &block_args, None)
         .await
         .unwrap();
     let state_override = if set_balance {

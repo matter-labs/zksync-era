@@ -38,14 +38,14 @@ use zksync_types::{
     ProtocolVersionId, Transaction, H160, H256, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
-use zksync_vm_executor::oneshot::MultiVMBaseSystemContracts;
+use zksync_vm_executor::oneshot::{MultiVMBaseSystemContracts, TxSetupArgs};
 
 pub(super) use self::result::SubmitTxError;
 use self::{master_pool_sink::MasterPoolSink, tx_sink::TxSink};
 use crate::{
     execution_sandbox::{
-        BlockArgs, SubmitTxStage, TransactionExecutor, TxSetupArgs, VmConcurrencyBarrier,
-        VmConcurrencyLimiter, VmPermit, SANDBOX_METRICS,
+        BlockArgs, SubmitTxStage, TransactionExecutor, VmConcurrencyBarrier, VmConcurrencyLimiter,
+        VmPermit, SANDBOX_METRICS,
     },
     tx_sender::result::ApiCallResult,
 };
@@ -188,10 +188,9 @@ impl TxSenderBuilder {
             batch_fee_input_provider,
             api_contracts,
             vm_concurrency_limiter,
-            storage_caches,
             whitelisted_tokens_for_aa_cache,
             sealer,
-            executor: TransactionExecutor::real(missed_storage_invocation_limit),
+            executor: TransactionExecutor::real(missed_storage_invocation_limit, storage_caches),
         }))
     }
 }
@@ -243,8 +242,6 @@ pub struct TxSenderInner {
     pub(super) api_contracts: ApiContracts,
     /// Used to limit the amount of VMs that can be executed simultaneously.
     pub(super) vm_concurrency_limiter: Arc<VmConcurrencyLimiter>,
-    // Caches used in VM execution.
-    storage_caches: PostgresStorageCaches,
     // Cache for white-listed tokens.
     pub(super) whitelisted_tokens_for_aa_cache: Arc<RwLock<Vec<Address>>>,
     /// Batch sealer used to check whether transaction can be executed by the sequencer.
@@ -264,10 +261,6 @@ impl std::fmt::Debug for TxSender {
 impl TxSender {
     pub(crate) fn vm_concurrency_limiter(&self) -> Arc<VmConcurrencyLimiter> {
         Arc::clone(&self.0.vm_concurrency_limiter)
-    }
-
-    pub(crate) fn storage_caches(&self) -> PostgresStorageCaches {
-        self.0.storage_caches.clone()
     }
 
     pub(crate) async fn read_whitelisted_tokens_for_aa_cache(&self) -> Vec<Address> {
@@ -310,7 +303,7 @@ impl TxSender {
                 setup_args.clone(),
                 TxExecutionArgs::for_validation(tx.clone()),
                 connection,
-                block_args,
+                &block_args,
                 None,
                 OneshotTracingParams::default(),
             )
@@ -324,7 +317,6 @@ impl TxSender {
         let stage_latency =
             SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::VerifyExecute);
         let connection = self.acquire_replica_connection().await?;
-        let computational_gas_limit = self.0.sender_config.validation_computational_gas_limit;
         let validation_result = self
             .0
             .executor
@@ -334,7 +326,7 @@ impl TxSender {
                 tx.clone(),
                 setup_args,
                 block_args,
-                computational_gas_limit,
+                &self.read_whitelisted_tokens_for_aa_cache().await,
             )
             .await;
         stage_latency.observe();
@@ -408,13 +400,11 @@ impl TxSender {
             operator_account: AccountTreeId::new(self.0.sender_config.fee_account_addr),
             fee_input,
             base_system_contracts: self.0.api_contracts.eth_call.clone(),
-            caches: self.storage_caches(),
             validation_computational_gas_limit: self
                 .0
                 .sender_config
                 .validation_computational_gas_limit,
             chain_id: self.0.sender_config.chain_id,
-            whitelisted_tokens_for_aa: self.read_whitelisted_tokens_for_aa_cache().await,
             enforced_base_fee: if let Some(overrides) = call_overrides {
                 overrides.enforced_base_fee
             } else {
@@ -647,7 +637,7 @@ impl TxSender {
                 setup_args,
                 execution_args,
                 connection,
-                block_args,
+                &block_args,
                 state_override,
                 OneshotTracingParams::default(),
             )
@@ -664,9 +654,7 @@ impl TxSender {
             // We want to bypass the computation gas limit check for gas estimation
             validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             base_system_contracts: self.0.api_contracts.estimate_gas.clone(),
-            caches: self.storage_caches(),
             chain_id: config.chain_id,
-            whitelisted_tokens_for_aa: self.read_whitelisted_tokens_for_aa_cache().await,
             enforced_base_fee: Some(base_fee),
         }
     }
@@ -947,7 +935,7 @@ impl TxSender {
                 setup_args,
                 TxExecutionArgs::for_eth_call(tx),
                 connection,
-                block_args,
+                &block_args,
                 state_override,
                 OneshotTracingParams::default(),
             )

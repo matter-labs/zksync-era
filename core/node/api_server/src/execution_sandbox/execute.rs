@@ -9,12 +9,12 @@ use zksync_multivm::interface::{
     Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
     TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
 };
+use zksync_state::PostgresStorageCaches;
 use zksync_types::{api::state_override::StateOverride, l2::L2Tx};
-use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
+use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor, TxSetupArgs};
 
 use super::{
-    apply, storage::StorageWithOverrides, vm_metrics, BlockArgs, TxSetupArgs, VmPermit,
-    SANDBOX_METRICS,
+    apply, storage::StorageWithOverrides, vm_metrics, BlockArgs, VmPermit, SANDBOX_METRICS,
 };
 use crate::execution_sandbox::vm_metrics::SandboxStage;
 
@@ -33,17 +33,27 @@ pub struct TransactionExecutionOutput {
 /// Executor of transactions.
 #[derive(Debug)]
 pub enum TransactionExecutor {
-    Real(MainOneshotExecutor),
+    Real {
+        executor: MainOneshotExecutor,
+        caches: PostgresStorageCaches,
+    },
     #[doc(hidden)] // Intended for tests only
     Mock(MockOneshotExecutor),
 }
 
 impl TransactionExecutor {
-    pub fn real(missed_storage_invocation_limit: usize) -> Self {
+    pub fn real(missed_storage_invocation_limit: usize, caches: PostgresStorageCaches) -> Self {
         let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
         executor
             .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
-        Self::Real(executor)
+        Self::Real { executor, caches }
+    }
+
+    pub(super) fn storage_caches(&self) -> Option<PostgresStorageCaches> {
+        match self {
+            Self::Real { caches, .. } => Some(caches.clone()),
+            Self::Mock(_) => None,
+        }
     }
 
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
@@ -56,13 +66,18 @@ impl TransactionExecutor {
         setup_args: TxSetupArgs,
         execution_args: TxExecutionArgs,
         connection: Connection<'static, Core>,
-        block_args: BlockArgs,
+        block_args: &BlockArgs,
         state_override: Option<StateOverride>,
         tracing_params: OneshotTracingParams,
     ) -> anyhow::Result<TransactionExecutionOutput> {
         let total_factory_deps = execution_args.transaction.execute.factory_deps.len() as u16;
-        let (env, storage) =
-            apply::prepare_env_and_storage(connection, setup_args, &block_args).await?;
+        let (env, storage) = apply::prepare_env_and_storage(
+            connection,
+            setup_args,
+            block_args,
+            self.storage_caches(),
+        )
+        .await?;
         let state_override = state_override.unwrap_or_default();
         let storage = StorageWithOverrides::new(storage, &state_override);
 
@@ -106,7 +121,7 @@ where
         tracing_params: OneshotTracingParams,
     ) -> anyhow::Result<OneshotTransactionExecutionResult> {
         match self {
-            Self::Real(executor) => {
+            Self::Real { executor, .. } => {
                 executor
                     .inspect_transaction_with_bytecode_compression(
                         storage,
@@ -143,7 +158,7 @@ where
         validation_params: ValidationParams,
     ) -> anyhow::Result<Result<(), ValidationError>> {
         match self {
-            Self::Real(executor) => {
+            Self::Real { executor, .. } => {
                 executor
                     .validate_transaction(storage, env, tx, validation_params)
                     .await

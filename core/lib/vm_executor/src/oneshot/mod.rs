@@ -32,8 +32,13 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-pub use self::{contracts::MultiVMBaseSystemContracts, mock::MockOneshotExecutor};
+pub use self::{
+    block::{BlockInfo, TxSetupArgs},
+    contracts::MultiVMBaseSystemContracts,
+    mock::MockOneshotExecutor,
+};
 
+mod block;
 mod contracts;
 mod metrics;
 mod mock;
