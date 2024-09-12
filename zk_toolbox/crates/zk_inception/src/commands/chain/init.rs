@@ -81,7 +81,7 @@ pub async fn init(
         &mut contracts_config,
         init_args.l1_rpc_url.clone(),
         None,
-        false,
+        true,
     )
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
