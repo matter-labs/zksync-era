@@ -28,9 +28,9 @@ pub const MAX_BATCH_SIZE: usize = MAX_PAYLOAD_SIZE * 5000 + kB;
 pub const GOSSIP_DYNAMIC_INBOUND_LIMIT: usize = 100;
 
 /// Public address for consensus
-pub const CONSENSUS_PUBLIC_ADDRESS_HOST: IpAddr = IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0));
+pub const CONSENSUS_PUBLIC_ADDRESS_HOST: IpAddr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
 /// Server address for consensus
-pub const CONSENSUS_SERVER_ADDRESS_HOST: IpAddr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1));
+pub const CONSENSUS_SERVER_ADDRESS_HOST: IpAddr = IpAddr::V4(Ipv4Addr::LOCALHOST);
 
 /// Path to the JS runtime config for the block-explorer-app docker container to be mounted to
 pub const EXPLORER_APP_DOCKER_CONFIG_PATH: &str = "/usr/src/app/packages/app/dist/config.js";
