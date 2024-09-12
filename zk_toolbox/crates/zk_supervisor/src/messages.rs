@@ -205,3 +205,5 @@ pub(super) const MSG_WALLETS_TEST_SUCCESS: &str = "Wallets test success";
 pub(super) const MSG_LOADTEST_ABOUT: &str = "Run loadtest";
 
 pub(super) const MSG_OVERRIDE_CONFIG_PATH_HELP: &str = "Path to the config file to override";
+pub(super) const MSG_OVERRRIDE_CONFIG_PATH_PROMPT: &str =
+    "Provide path to the config file to override";
