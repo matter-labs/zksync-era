@@ -20,12 +20,9 @@ EXPOSE 3030
 COPY --from=builder /usr/src/zksync/target/release/zksync_server /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/block_reverter /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/merkle_tree_consistency_checker /usr/bin
-COPY contracts/system-contracts/bootloader/build/artifacts/ /contracts/system-contracts/bootloader/build/artifacts/
-COPY contracts/system-contracts/contracts-preprocessed/artifacts/ /contracts/system-contracts/contracts-preprocessed/artifacts/
-COPY contracts/system-contracts/contracts-preprocessed/precompiles/artifacts/ /contracts/system-contracts/contracts-preprocessed/precompiles/artifacts/
-COPY contracts/system-contracts/artifacts-zk /contracts/system-contracts/artifacts-zk
-COPY contracts/l1-contracts/artifacts/ /contracts/l1-contracts/artifacts/
-COPY contracts/l2-contracts/artifacts-zk/ /contracts/l2-contracts/artifacts-zk/
+COPY contracts/system-contracts/zkout/ /contracts/system-contracts/zkout/
+COPY contracts/l1-contracts/out/ /contracts/l1-contracts/out/
+COPY contracts/l2-contracts/zkout/ /contracts/l2-contracts/zkout/
 COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/
 COPY etc/multivm_bootloaders/ /etc/multivm_bootloaders/
