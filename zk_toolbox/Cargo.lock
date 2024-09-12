@@ -1691,25 +1691,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b538e4231443a5b9c507caee3356f016d832cf7393d2d90f03ea3180d4e3fbc"
 dependencies = [
  "byteorder",
- "ff_derive_ce",
  "hex",
  "rand 0.4.6",
  "serde",
-]
-
-[[package]]
-name = "ff_derive_ce"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b96fbccd88dbb1fac4ee4a07c2fcc4ca719a74ffbd9d2b9d41d8c8eb073d8b20"
-dependencies = [
- "num-bigint",
- "num-integer",
- "num-traits",
- "proc-macro2",
- "quote",
- "serde",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -3261,19 +3245,6 @@ name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
-
-[[package]]
-name = "pairing_ce"
-version = "0.28.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "843b5b6fb63f00460f611dbc87a50bbbb745f0dfe5cbf67ca89299c79098640e"
-dependencies = [
- "byteorder",
- "cfg-if",
- "ff_ce",
- "rand 0.4.6",
- "serde",
-]
 
 [[package]]
 name = "parity-scale-codec"
@@ -6515,9 +6486,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.1.0-rc.12"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a49ad68bfaf6fb8542c68894b68b28be31514786549855aaa8a46b36defbb100"
+checksum = "c1c8cf6c689ab5922b52d81b775cd2d9cffbfc8fb8da65985e11b06546dfb3bf"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -6549,9 +6520,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.1.0-rc.12"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ace39bdf50b8421c4d546381fe1ecc5212f953ce61cf93d4fa69172078dbe4af"
+checksum = "cc7baced4e811015038322dad10239f2d631d9e339e8d6b7b6e6b146bee30f41"
 dependencies = [
  "anyhow",
  "blst",
@@ -6562,7 +6533,6 @@ dependencies = [
  "k256 0.13.3",
  "num-bigint",
  "num-traits",
- "pairing_ce",
  "rand 0.4.6",
  "rand 0.8.5",
  "sha3",
@@ -6573,9 +6543,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.1.0-rc.12"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06277266e31efdc1465f6a27ce96c7435392a270978a91956b8a848732df2cfa"
+checksum = "0aab4ddf62f6001903c5fe9f65afb1bdc42464928c9d1c6ce52e4d7e9944f5dc"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6595,9 +6565,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.1.0-rc.12"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d624f55e2449f43b2c85588b5dd2a28b3c5ea629effc89df76e3254f8d9d2fb"
+checksum = "29e69dffc0fbc7c096548c997f5ca157a490b34b3d49fd524fa3d51840f7fb22"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -6646,9 +6616,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.1.0-rc.12"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d26fb2beb3aeafb5e9babf1acf6494662cc7157b893fa248bd151494f931d07f"
+checksum = "df5467dfe2f845ca1fd6ceec623bbd32187589793d3c4023dcd2f5172369d198"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6667,9 +6637,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.1.0-rc.12"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58e86c198e056d921b4f3f1d2755c23d090e942b5a70b03bcb7e7c02445aa491"
+checksum = "33d35280660b11be2a4ebdf531184eb729acebfdc3368d27176ec104f8bf9c5f"
 dependencies = [
  "anyhow",
  "heck",
