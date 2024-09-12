@@ -1,4 +1,13 @@
-import { ethers, JsonRpcProvider, Network, TransactionResponseParams } from 'ethers';
+import {
+    AddressLike,
+    BlockTag,
+    ethers,
+    JsonRpcProvider,
+    Network,
+    TransactionRequest,
+    TransactionResponse,
+    TransactionResponseParams
+} from 'ethers';
 import { Reporter } from './reporter';
 import { AugmentedTransactionResponse } from './transaction-response';
 
@@ -52,5 +61,29 @@ class L1TransactionResponse extends ethers.TransactionResponse implements Augmen
     override replaceableTransaction(startBlock: number): L1TransactionResponse {
         const base = super.replaceableTransaction(startBlock);
         return new L1TransactionResponse(base, this.reporter);
+    }
+}
+
+/** Wallet that retries `sendTransaction` requests on "nonce expired" errors, provided that it's possible (i.e., no nonce is set in the request). */
+export class RetryableL1Wallet extends ethers.Wallet {
+    constructor(key: string, provider: L1Provider) {
+        super(key, provider);
+    }
+
+    override async sendTransaction(tx: TransactionRequest): Promise<TransactionResponse> {
+        const reporter = (<L1Provider>this.provider!).reporter;
+        reporter.debug('Sending L1 transaction', tx);
+        while (true) {
+            try {
+                return await super.sendTransaction(tx);
+            } catch (err: any) {
+                reporter.debug('L1 transaction request failed', tx, err);
+                if (err.code === 'NONCE_EXPIRED' && tx.nonce === null) {
+                    reporter.debug('Retrying L1 transaction request', tx);
+                } else {
+                    throw err;
+                }
+            }
+        }
     }
 }

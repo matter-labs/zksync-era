@@ -2,6 +2,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { Reporter } from './reporter';
 import { AugmentedTransactionResponse } from './transaction-response';
+import { L1Provider, RetryableL1Wallet } from './l1-provider';
 
 /**
  * RetryProvider retries every RPC request if it detects a timeout-related issue on the server side.
@@ -104,5 +105,15 @@ class L2TransactionResponse extends zksync.types.TransactionResponse implements 
     override replaceableTransaction(startBlock: number): L2TransactionResponse {
         const base = super.replaceableTransaction(startBlock);
         return new L2TransactionResponse(base, this.reporter);
+    }
+}
+
+export class RetryableWallet extends zksync.Wallet {
+    constructor(privateKey: string, l2Provider: RetryProvider, l1Provider: L1Provider) {
+        super(privateKey, l2Provider, l1Provider);
+    }
+
+    override ethWallet(): RetryableL1Wallet {
+        return new RetryableL1Wallet(this.privateKey, <L1Provider>this._providerL1());
     }
 }
