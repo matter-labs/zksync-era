@@ -19,7 +19,7 @@ use crate::consts::{
 };
 
 #[derive(Debug, Clone)]
-pub struct SecretKeys {
+pub struct ConsensusSecretKeys {
     validator_key: roles::validator::SecretKey,
     attester_key: roles::attester::SecretKey,
     node_key: roles::node::SecretKey,
@@ -33,7 +33,7 @@ pub struct ConsensusPublicKeys {
 pub fn get_consensus_config(
     chain_config: &ChainConfig,
     ports: PortsConfig,
-    consensus_keys: Option<SecretKeys>,
+    consensus_keys: Option<ConsensusSecretKeys>,
     gossip_static_outbound: Option<BTreeMap<NodePublicKey, Host>>,
 ) -> anyhow::Result<ConsensusConfig> {
     let genesis_spec = if let Some(consensus_keys) = consensus_keys {
@@ -58,22 +58,25 @@ pub fn get_consensus_config(
     })
 }
 
-pub fn generate_consensus_keys() -> SecretKeys {
-    SecretKeys {
+pub fn generate_consensus_keys() -> ConsensusSecretKeys {
+    ConsensusSecretKeys {
         validator_key: roles::validator::SecretKey::generate(),
         attester_key: roles::attester::SecretKey::generate(),
         node_key: roles::node::SecretKey::generate(),
     }
 }
 
-fn get_consensus_public_keys(consensus_keys: &SecretKeys) -> ConsensusPublicKeys {
+fn get_consensus_public_keys(consensus_keys: &ConsensusSecretKeys) -> ConsensusPublicKeys {
     ConsensusPublicKeys {
         validator_key: consensus_keys.validator_key.public(),
         attester_key: consensus_keys.attester_key.public(),
     }
 }
 
-pub fn get_genesis_specs(chain_config: &ChainConfig, consensus_keys: &SecretKeys) -> GenesisSpec {
+pub fn get_genesis_specs(
+    chain_config: &ChainConfig,
+    consensus_keys: &ConsensusSecretKeys,
+) -> GenesisSpec {
     let public_keys = get_consensus_public_keys(consensus_keys);
     let validator_key = public_keys.validator_key.encode();
     let attester_key = public_keys.attester_key.encode();
@@ -98,7 +101,7 @@ pub fn get_genesis_specs(chain_config: &ChainConfig, consensus_keys: &SecretKeys
     }
 }
 
-pub fn get_consensus_secrets(consensus_keys: &SecretKeys) -> ConsensusSecrets {
+pub fn get_consensus_secrets(consensus_keys: &ConsensusSecretKeys) -> ConsensusSecrets {
     let validator_key = consensus_keys.validator_key.encode();
     let attester_key = consensus_keys.attester_key.encode();
     let node_key = consensus_keys.node_key.encode();
