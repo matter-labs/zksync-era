@@ -92,12 +92,13 @@ pub(super) const MSG_TEST_RUST_OPTIONS_HELP: &str = "Cargo test flags";
 pub(super) const MSG_BUILD_ABOUT: &str = "Build all test dependencies";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
 pub(super) const MSG_NO_DEPS_HELP: &str = "Do not install or build dependencies";
+pub(super) const MSG_TEST_PATTERN_HELP: &str =
+    "Run just the tests matching a pattern. Same as the -t flag on jest.";
 pub(super) const MSG_NO_KILL_HELP: &str = "The test will not kill all the nodes during execution";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
 pub(super) const MSG_UNIT_TESTS_RUN_SUCCESS: &str = "Unit tests ran successfully";
 pub(super) const MSG_USING_CARGO_NEXTEST: &str = "Using cargo-nextest for running tests";
-pub(super) const MSG_CARGO_NEXTEST_MISSING_ERR: &str = "cargo-nextest is missing, please run 'cargo install cargo-nextest'. Falling back to 'cargo test'";
 pub(super) const MSG_L1_CONTRACTS_ABOUT: &str = "Run L1 contracts tests";
 pub(super) const MSG_L1_CONTRACTS_TEST_SUCCESS: &str = "L1 contracts tests ran successfully";
 pub(super) const MSG_PROVER_TEST_ABOUT: &str = "Run prover tests";
@@ -199,3 +200,5 @@ pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for
 pub(super) const MSG_TEST_WALLETS_INFO: &str = "Print test wallets information";
 pub(super) const MSG_DESERIALIZE_TEST_WALLETS_ERR: &str = "Impossible to deserialize test wallets";
 pub(super) const MSG_WALLETS_TEST_SUCCESS: &str = "Wallets test success";
+
+pub(super) const MSG_LOADTEST_ABOUT: &str = "Run loadtest";

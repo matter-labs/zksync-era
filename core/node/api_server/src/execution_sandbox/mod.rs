@@ -4,23 +4,18 @@ use std::{
 };
 
 use anyhow::Context as _;
-use async_trait::async_trait;
 use rand::{thread_rng, Rng};
 use zksync_dal::{pruning_dal::PruningInfo, Connection, Core, CoreDal, DalError};
-use zksync_multivm::interface::{
-    storage::ReadStorage, BytecodeCompressionError, OneshotEnv, TxExecutionMode,
-    VmExecutionResultAndLogs,
-};
+use zksync_multivm::interface::TxExecutionMode;
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
 };
 
+pub use self::execute::TransactionExecutor; // FIXME (PLA-1018): remove
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
-    execute::{TransactionExecutor, TxExecutionArgs},
-    tracers::ApiTracer,
     validate::ValidationError,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
@@ -31,10 +26,8 @@ mod apply;
 mod error;
 mod execute;
 mod storage;
-pub mod testonly;
 #[cfg(test)]
 mod tests;
-mod tracers;
 mod validate;
 mod vm_metrics;
 
@@ -158,7 +151,7 @@ async fn get_pending_state(
 
 /// Arguments for VM execution necessary to set up storage and environment.
 #[derive(Debug, Clone)]
-pub(crate) struct TxSetupArgs {
+pub struct TxSetupArgs {
     pub execution_mode: TxExecutionMode,
     pub operator_account: AccountTreeId,
     pub fee_input: BatchFeeInput,
@@ -184,7 +177,7 @@ impl TxSetupArgs {
             caches: PostgresStorageCaches::new(1, 1),
             validation_computational_gas_limit: u32::MAX,
             chain_id: L2ChainId::default(),
-            whitelisted_tokens_for_aa: Vec::new(),
+            whitelisted_tokens_for_aa: vec![],
             enforced_base_fee: None,
         }
     }
@@ -215,7 +208,7 @@ impl BlockStartInfoInner {
 
 /// Information about first L1 batch / L2 block in the node storage.
 #[derive(Debug, Clone)]
-pub(crate) struct BlockStartInfo {
+pub struct BlockStartInfo {
     cached_pruning_info: Arc<RwLock<BlockStartInfoInner>>,
     max_cache_age: Duration,
 }
@@ -331,7 +324,7 @@ impl BlockStartInfo {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub(crate) enum BlockArgsError {
+pub enum BlockArgsError {
     #[error("Block is pruned; first retained block is {0}")]
     Pruned(L2BlockNumber),
     #[error("Block is missing, but can appear in the future")]
@@ -342,7 +335,7 @@ pub(crate) enum BlockArgsError {
 
 /// Information about a block provided to VM.
 #[derive(Debug, Clone, Copy)]
-pub(crate) struct BlockArgs {
+pub struct BlockArgs {
     block_id: api::BlockId,
     resolved_block_number: L2BlockNumber,
     l1_batch_timestamp_s: Option<u64>,
@@ -416,29 +409,4 @@ impl BlockArgs {
             )
         )
     }
-}
-
-/// VM executor capable of executing isolated transactions / calls (as opposed to batch execution).
-#[async_trait]
-trait OneshotExecutor<S: ReadStorage> {
-    type Tracers: Default;
-
-    async fn inspect_transaction(
-        &self,
-        storage: S,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        tracers: Self::Tracers,
-    ) -> anyhow::Result<VmExecutionResultAndLogs>;
-
-    async fn inspect_transaction_with_bytecode_compression(
-        &self,
-        storage: S,
-        env: OneshotEnv,
-        args: TxExecutionArgs,
-        tracers: Self::Tracers,
-    ) -> anyhow::Result<(
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    )>;
 }

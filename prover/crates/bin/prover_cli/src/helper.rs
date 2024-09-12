@@ -1,10 +1,7 @@
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-};
+use std::{fs::File, path::PathBuf};
 
 use zksync_types::ethabi::Contract;
-use zksync_utils::locate_workspace;
+use zksync_utils::env::Workspace;
 
 const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/state-transition/chain-interfaces/IZkSyncHyperchain.sol/IZkSyncHyperchain.json";
@@ -27,8 +24,7 @@ fn read_file_to_json_value(path: &PathBuf) -> serde_json::Value {
 }
 
 fn load_contract_if_present(path: &str) -> Contract {
-    let home = core_workspace_dir_or_current_dir();
-    let path = Path::new(&home).join(path);
+    let path = Workspace::locate().core().join(path);
     path.exists()
         .then(|| {
             serde_json::from_value(read_file_to_json_value(&path)["abi"].take()).unwrap_or_else(
@@ -38,10 +34,4 @@ fn load_contract_if_present(path: &str) -> Contract {
         .unwrap_or_else(|| {
             panic!("Failed to load contract from {:?}", path);
         })
-}
-
-pub fn core_workspace_dir_or_current_dir() -> PathBuf {
-    locate_workspace()
-        .map(|a| a.join(".."))
-        .unwrap_or_else(|| PathBuf::from("."))
 }

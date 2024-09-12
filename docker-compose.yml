@@ -2,7 +2,7 @@ version: '3.2'
 services:
   reth:
     restart: always
-    image: "ghcr.io/paradigmxyz/reth:v0.2.0-beta.2"
+    image: "ghcr.io/paradigmxyz/reth:v1.0.6"
     ports:
       - 127.0.0.1:8545:8545
     volumes:
@@ -13,7 +13,7 @@ services:
         source: ./etc/reth/chaindata
         target: /chaindata
 
-    command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545 --http.corsdomain "*" --dev.block-time 300ms --chain /chaindata/reth_config
+    command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545 --http.corsdomain "*" --dev.block-time 600ms --chain /chaindata/reth_config
 
   
   postgres:

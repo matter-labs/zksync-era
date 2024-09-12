@@ -71,7 +71,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        vm_mode: [ "old", "new" ]
+        vm_mode: [ "OLD", "NEW" ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -87,13 +87,12 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'new' && 21000 || 16000 }} >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 21000 || 16000 }} >> .env
           echo ACCOUNTS_AMOUNT="100" >> .env
           echo MAX_INFLIGHT_TXS="10" >> .env
           echo SYNC_API_REQUESTS_LIMIT="15" >> .env
           echo FAIL_FAST=true >> .env
           echo IN_DOCKER=1 >> .env
-          echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
 
       - name: Start services
         run: |
@@ -107,23 +106,34 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
-          ci_run zk
-          ci_run zk init --local-legacy-bridge-testing
+          ci_run ./bin/zkt
+          ci_run zk_inception chain create \
+            --chain-name legacy \
+            --chain-id sequential \
+            --prover-mode no-proofs \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode rollup \
+            --base-token-address 0x0000000000000000000000000000000000000001 \
+            --base-token-price-nominator 1 \
+            --base-token-price-denominator 1 \
+            --set-as-default false \
+            --ignore-prerequisites \
+            --legacy-bridge
+          
+          ci_run zk_inception ecosystem init --dev --verbose
+          ci_run zk_supervisor contracts --test-contracts
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE=${{ matrix.vm_mode }} \
-          CHAIN_MEMPOOL_DELAY_INTERVAL=50 \
-          PASSED_ENV_VARS="EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE,CHAIN_MEMPOOL_DELAY_INTERVAL" \
-            ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
+          ci_run sed -i -e 's/mode: FULL/mode: LIGHTWEIGHT/' chains/legacy/configs/general.yaml
+          ci_run sed -i -e 's/state_keeper_fast_vm_mode:.*/state_keeper_fast_vm_mode: ${{ matrix.vm_mode }}/' chains/legacy/configs/general.yaml
+          ci_run sed -i -e 's/delay_interval:.*/delay_interval: 50/' chains/legacy/configs/general.yaml
+          ci_run zk_inception server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
 
-      - name: Deploy legacy era contracts
-        run: ci_run zk contract setup-legacy-bridge-era
-
       - name: Perform loadtest
-        run: ci_run zk run loadtest
+        run: ci_run zk_supervisor t loadtest -v --chain=legacy
 
       - name: Show server.log logs
         if: always()
@@ -293,7 +303,7 @@ jobs:
 
       - name: Show revert.log logs
         if: always()
-        run: ci_run cat core/tests/revert-test/revert.log || true
+        run: ci_run cat logs/revert/default/server.log || true
 
       - name: Show upgrade.log logs
         if: always()
@@ -382,7 +392,11 @@ jobs:
 
       - name: Run revert test
         run: |
-          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
+          ENABLE_CONSENSUS=${{ matrix.consensus }} \
+          DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
+          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" \
+          ci_run zk test i revert-en
+          
           # test terminates the nodes, so we restart them.
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
             ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
@@ -414,13 +428,13 @@ jobs:
         if: always()
         run: ci_run cat ext-node.log || true
 
-      - name: Show revert_main.log logs
+      - name: Show revert logs (main node)
         if: always()
-        run: ci_run cat core/tests/revert-test/revert_main.log || true
+        run: ci_run cat logs/revert/en/default/server.log || true
 
-      - name: Show revert_ext.log logs
+      - name: Show revert logs (EN)
         if: always()
-        run: ci_run cat core/tests/revert-test/revert_ext.log || true
+        run: ci_run cat logs/revert/en/default/external_node.log || true
 
       - name: Show upgrade.log logs
         if: always()

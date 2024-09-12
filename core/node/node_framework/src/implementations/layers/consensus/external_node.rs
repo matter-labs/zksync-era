@@ -23,6 +23,7 @@ use crate::{
 /// Wiring layer for external node consensus component.
 #[derive(Debug)]
 pub struct ExternalNodeConsensusLayer {
+    pub build_version: semver::Version,
     pub config: Option<ConsensusConfig>,
     pub secrets: Option<ConsensusSecrets>,
 }
@@ -78,6 +79,7 @@ impl WiringLayer for ExternalNodeConsensusLayer {
         };
 
         let consensus_task = ExternalNodeTask {
+            build_version: self.build_version,
             config,
             pool,
             main_node_client,
@@ -90,6 +92,7 @@ impl WiringLayer for ExternalNodeConsensusLayer {
 
 #[derive(Debug)]
 pub struct ExternalNodeTask {
+    build_version: semver::Version,
     config: Option<(ConsensusConfig, ConsensusSecrets)>,
     pool: ConnectionPool<Core>,
     main_node_client: Box<DynClient<L2>>,
@@ -118,6 +121,7 @@ impl Task for ExternalNodeTask {
                 self.sync_state,
                 self.main_node_client,
                 self.action_queue_sender,
+                self.build_version,
             ));
             // `run_external_node` might return an error or panic,
             // in which case we need to return immediately,

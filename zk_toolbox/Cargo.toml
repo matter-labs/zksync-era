@@ -30,7 +30,9 @@ types = { path = "crates/types" }
 zksync_config = { path = "../core/lib/config" }
 zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
-zksync_protobuf = "=0.1.0-rc.11"
+zksync_consensus_roles = "=0.1.1"
+zksync_consensus_crypto = "=0.1.1"
+zksync_protobuf = "=0.1.1"
 
 # External dependencies
 anyhow = "1.0.82"
@@ -59,3 +61,4 @@ toml = "0.8.12"
 url = { version = "2.5.0", features = ["serde"] }
 xshell = "0.2.6"
 clap-markdown = "0.1.4"
+secrecy = "0.8.0"
