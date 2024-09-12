@@ -392,14 +392,7 @@ impl<S: ReadStorage> Vm<S> {
     }
 
     pub(super) fn gas_remaining(&mut self) -> u32 {
-        let frame_count = self.inner.number_of_callframes();
-        for i in 0..frame_count {
-            let frame = self.inner.callframe(i);
-            if !frame.is_near_call() {
-                return frame.gas();
-            }
-        }
-        unreachable!("No bootloader call frame");
+        self.inner.current_frame().gas()
     }
 }
 
