@@ -12,6 +12,7 @@ use super::{
     BlockArgs,
 };
 
+// FIXME: pass args by ref
 pub(super) async fn prepare_env_and_storage(
     mut connection: Connection<'static, Core>,
     setup_args: TxSetupArgs,
@@ -28,7 +29,7 @@ pub(super) async fn prepare_env_and_storage(
     }
 
     let env = setup_args
-        .into_env(&mut connection, &resolved_block_info)
+        .to_env(&mut connection, &resolved_block_info)
         .await?;
 
     if block_args.resolves_to_latest_sealed_l2_block() {

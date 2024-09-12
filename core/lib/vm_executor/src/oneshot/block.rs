@@ -194,8 +194,8 @@ impl TxSetupArgs {
         }
     }
 
-    pub async fn into_env(
-        self,
+    pub async fn to_env(
+        &self,
         connection: &mut Connection<'_, Core>,
         resolved_block_info: &ResolvedBlockInfo,
     ) -> anyhow::Result<OneshotEnv> {
@@ -216,25 +216,27 @@ impl TxSetupArgs {
     }
 
     fn prepare_env(
-        self,
+        &self,
         resolved_block_info: &ResolvedBlockInfo,
         next_block: L2BlockEnv,
     ) -> (SystemEnv, L1BatchEnv) {
-        let Self {
+        let &Self {
             execution_mode,
             operator_account,
             fee_input,
-            base_system_contracts,
             validation_computational_gas_limit,
             chain_id,
             enforced_base_fee,
+            ..
         } = self;
 
         let system_env = SystemEnv {
             zk_porter_available: ZKPORTER_IS_AVAILABLE,
             version: resolved_block_info.protocol_version,
-            base_system_smart_contracts: base_system_contracts
-                .get_by_protocol_version(resolved_block_info.protocol_version),
+            base_system_smart_contracts: self
+                .base_system_contracts
+                .get_by_protocol_version(resolved_block_info.protocol_version)
+                .clone(),
             bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode,
             default_validation_computational_gas_limit: validation_computational_gas_limit,

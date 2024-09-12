@@ -10209,7 +10209,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "hex",
  "rand 0.8.5",
  "secrecy",
  "semver",
@@ -10243,6 +10242,7 @@ dependencies = [
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_executor",
  "zksync_vm_interface",
  "zksync_web3_decl",
 ]

@@ -33,7 +33,7 @@ use zksync_types::{
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 pub use self::{
-    block::{BlockInfo, TxSetupArgs},
+    block::{BlockInfo, ResolvedBlockInfo, TxSetupArgs},
     contracts::MultiVMBaseSystemContracts,
     mock::MockOneshotExecutor,
 };

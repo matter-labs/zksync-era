@@ -26,7 +26,7 @@ pub struct MultiVMBaseSystemContracts {
 
 impl MultiVMBaseSystemContracts {
     /// Gets contracts for a certain version.
-    pub fn get_by_protocol_version(self, version: ProtocolVersionId) -> BaseSystemContracts {
+    pub fn get_by_protocol_version(&self, version: ProtocolVersionId) -> &BaseSystemContracts {
         match version {
             ProtocolVersionId::Version0
             | ProtocolVersionId::Version1
@@ -40,19 +40,19 @@ impl MultiVMBaseSystemContracts {
             | ProtocolVersionId::Version9
             | ProtocolVersionId::Version10
             | ProtocolVersionId::Version11
-            | ProtocolVersionId::Version12 => self.pre_virtual_blocks,
-            ProtocolVersionId::Version13 => self.post_virtual_blocks,
+            | ProtocolVersionId::Version12 => &self.pre_virtual_blocks,
+            ProtocolVersionId::Version13 => &self.post_virtual_blocks,
             ProtocolVersionId::Version14
             | ProtocolVersionId::Version15
             | ProtocolVersionId::Version16
-            | ProtocolVersionId::Version17 => self.post_virtual_blocks_finish_upgrade_fix,
-            ProtocolVersionId::Version18 => self.post_boojum,
-            ProtocolVersionId::Version19 => self.post_allowlist_removal,
-            ProtocolVersionId::Version20 => self.post_1_4_1,
-            ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => self.post_1_4_2,
-            ProtocolVersionId::Version23 => self.vm_1_5_0_small_memory,
+            | ProtocolVersionId::Version17 => &self.post_virtual_blocks_finish_upgrade_fix,
+            ProtocolVersionId::Version18 => &self.post_boojum,
+            ProtocolVersionId::Version19 => &self.post_allowlist_removal,
+            ProtocolVersionId::Version20 => &self.post_1_4_1,
+            ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => &self.post_1_4_2,
+            ProtocolVersionId::Version23 => &self.vm_1_5_0_small_memory,
             ProtocolVersionId::Version24 | ProtocolVersionId::Version25 => {
-                self.vm_1_5_0_increased_memory
+                &self.vm_1_5_0_increased_memory
             }
         }
     }

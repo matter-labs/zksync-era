@@ -1,17 +1,16 @@
 use anyhow::Context as _;
+use tokio::runtime::Handle;
 use zksync_concurrency::{ctx, error::Wrap as _, scope};
 use zksync_consensus_roles::attester;
-use zksync_node_api_server::{
-    execution_sandbox::{TransactionExecutor, TxSetupArgs, VmConcurrencyLimiter},
-    tx_sender::MultiVMBaseSystemContracts,
-};
-use zksync_state::PostgresStorageCaches;
+use zksync_state::PostgresStorage;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     ethabi, fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId, Nonce, U256,
 };
+use zksync_vm_executor::oneshot::{MainOneshotExecutor, MultiVMBaseSystemContracts, TxSetupArgs};
 use zksync_vm_interface::{
-    ExecutionResult, OneshotTracingParams, TxExecutionArgs, TxExecutionMode,
+    executor::OneshotExecutor, ExecutionResult, OneshotTracingParams, TxExecutionArgs,
+    TxExecutionMode,
 };
 
 use crate::{abi, storage::ConnectionPool};
@@ -21,7 +20,7 @@ use crate::{abi, storage::ConnectionPool};
 pub(crate) struct VM {
     pool: ConnectionPool,
     setup_args: TxSetupArgs,
-    limiter: VmConcurrencyLimiter,
+    executor: MainOneshotExecutor,
 }
 
 impl VM {
@@ -37,17 +36,14 @@ impl VM {
                     MultiVMBaseSystemContracts::load_eth_call_blocking,
                 )
                 .await,
-                caches: PostgresStorageCaches::new(1, 1),
                 validation_computational_gas_limit: u32::MAX,
                 chain_id: L2ChainId::default(),
-                whitelisted_tokens_for_aa: vec![],
                 enforced_base_fee: None,
             },
-            limiter: VmConcurrencyLimiter::new(1).0,
+            executor: MainOneshotExecutor::new(usize::MAX),
         }
     }
 
-    // FIXME (PLA-1018): switch to oneshot executor
     pub async fn call<F: abi::Function>(
         &self,
         ctx: &ctx::Ctx,
@@ -70,25 +66,36 @@ impl VM {
             vec![],
             Default::default(),
         );
-        let permit = ctx.wait(self.limiter.acquire()).await?.unwrap();
+
         let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
-        let args = conn
-            .vm_block_args(ctx, batch)
+        let block_info = conn
+            .vm_block_info(ctx, batch)
             .await
-            .wrap("vm_block_args()")?;
-        let output = ctx
-            .wait(TransactionExecutor::real(usize::MAX).execute_tx_in_sandbox(
-                permit,
-                self.setup_args.clone(),
-                TxExecutionArgs::for_eth_call(tx.clone()),
+            .wrap("vm_block_info()")?;
+        let env = ctx
+            .wait(self.setup_args.to_env(&mut conn.0, &block_info))
+            .await?
+            .context("to_env()")?;
+        let storage = ctx
+            .wait(PostgresStorage::new_async(
+                Handle::current(),
                 conn.0,
-                args,
-                None,
+                block_info.state_l2_block_number(),
+                false,
+            ))
+            .await?
+            .context("PostgresStorage")?;
+
+        let output = ctx
+            .wait(self.executor.inspect_transaction_with_bytecode_compression(
+                storage,
+                env,
+                TxExecutionArgs::for_eth_call(tx),
                 OneshotTracingParams::default(),
             ))
             .await?
             .context("execute_tx_in_sandbox()")?;
-        match output.vm.result {
+        match output.tx_result.result {
             ExecutionResult::Success { output } => {
                 Ok(call.decode_outputs(&output).context("decode_output()")?)
             }
