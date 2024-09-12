@@ -208,7 +208,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
             };
 
             match Hook::from_u32(hook) {
-                Hook::AccountValidationEntered | Hook::AccountValidationExited => {
+                Hook::AccountValidationEntered | Hook::ValidationExited => {
                     // TODO (PLA-908): implement account validation
                 }
                 Hook::TxHasEnded => {
