@@ -45,8 +45,7 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
         "yarn jest --forceExit --testTimeout 120000 -t {test_pattern...}"
     )
     .env("CHAIN_NAME", ecosystem_config.current_chain())
-    .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?)
-    .env("ZKSYNC_DEBUG_LOGS", "true");
+    .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);
 
     if args.external_node {
         command = command.env("EXTERNAL_NODE", format!("{:?}", args.external_node))
