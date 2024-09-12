@@ -183,9 +183,6 @@ jobs:
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain custom_token &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/custom_token.log &
           PID3=$!
           
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain custom_token_consensus &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/custom_token_consensus.log &
-          PID4=$!
-
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain consensus &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log &
           PID4=$!
 
@@ -209,10 +206,6 @@ jobs:
           ci_run zk_inception external-node init --ignore-prerequisites --chain custom_token
           
           ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --db-name=zksync_en_localhost_era_custom_token_consensus --l1-rpc-url=http://localhost:8545 --chain custom_token_consensus 
-          ci_run zk_inception external-node init --ignore-prerequisites --chain custom_token_consensus 
-
-          ci_run zk_inception external-node configs --db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --db-name=zksync_en_localhost_era_consensus --l1-rpc-url=http://localhost:8545 --chain consensus
           ci_run zk_inception external-node init --ignore-prerequisites --chain consensus
 
@@ -228,9 +221,6 @@ jobs:
           ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}//custom_token.log &
           PID3=$!
           
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token_consensus &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}//custom_token_consensus.log &
-          PID4=$!
-
           ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain consensus &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}//consensus.log &
           PID4=$!
 
@@ -250,9 +240,6 @@ jobs:
           ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain custom_token &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/custom_token.log &
           PID3=$!
           
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain custom_token_consensus &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/custom_token_consensus.log &
-          PID4=$!
-
           ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain consensus &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/consensus.log &
           PID4=$!
 
@@ -302,9 +289,6 @@ jobs:
           PID3=$!
 
           ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain consensus &> ${{ env.REVERT_LOGS_DIR }}/consensus.log &
-          PID4=$!
-          
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain custom_token_consensus &> ${{ env.REVERT_LOGS_DIR }}/custom_token_consensus.log &
           PID4=$!
           
           wait $PID1
