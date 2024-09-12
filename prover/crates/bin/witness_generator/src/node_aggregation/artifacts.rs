@@ -1,6 +1,6 @@
-use async_trait::async_trait;
 use std::time::Instant;
 
+use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::keys::AggregationsKey;
@@ -26,18 +26,20 @@ impl ArtifactsManager for NodeAggregationWitnessGenerator {
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
-    ) -> Self::InputArtifacts {
+    ) -> anyhow::Result<Self::InputArtifacts> {
         let key = AggregationsKey {
             block_number: metadata.block_number,
             circuit_id: metadata.circuit_id,
             depth: metadata.depth,
         };
-        object_store.get(key).await.unwrap_or_else(|error| {
+        let artifacts = object_store.get(key).await.unwrap_or_else(|error| {
             panic!(
                 "node aggregation job artifacts getting error. Key: {:?}, error: {:?}",
                 key, error
             )
-        })
+        });
+
+        Ok(artifacts)
     }
 
     #[tracing::instrument(

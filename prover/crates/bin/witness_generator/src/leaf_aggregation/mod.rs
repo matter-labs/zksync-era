@@ -118,7 +118,7 @@ pub async fn prepare_leaf_aggregation_job(
 ) -> anyhow::Result<LeafAggregationWitnessGeneratorJob> {
     let started_at = Instant::now();
     let closed_form_input =
-        LeafAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await;
+        LeafAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await?;
 
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::LeafAggregation.into()]
         .observe(started_at.elapsed());

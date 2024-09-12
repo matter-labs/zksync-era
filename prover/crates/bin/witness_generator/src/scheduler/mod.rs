@@ -1,6 +1,3 @@
-mod artifacts;
-mod job_processor;
-
 use std::{convert::TryInto, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
@@ -30,7 +27,13 @@ use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
-use crate::{metrics::WITNESS_GENERATOR_METRICS, utils::SchedulerPartialInputWrapper};
+use crate::{
+    artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS,
+    utils::SchedulerPartialInputWrapper,
+};
+
+mod artifacts;
+mod job_processor;
 
 #[derive(Clone)]
 pub struct SchedulerArtifacts {
@@ -132,7 +135,8 @@ pub async fn prepare_job(
     keystore: Keystore,
 ) -> anyhow::Result<SchedulerWitnessGeneratorJob> {
     let started_at = Instant::now();
-    let wrapper = object_store.get(recursion_tip_job_id).await?;
+    let wrapper =
+        SchedulerWitnessGenerator::get_artifacts(&recursion_tip_job_id, object_store).await?;
     let recursion_tip_proof = match wrapper {
         FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
             "Expected only recursive proofs for scheduler l1 batch {l1_batch_number}, got Base"

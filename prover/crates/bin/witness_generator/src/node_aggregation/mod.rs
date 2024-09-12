@@ -225,7 +225,7 @@ pub async fn prepare_job(
     keystore: Keystore,
 ) -> anyhow::Result<NodeAggregationWitnessGeneratorJob> {
     let started_at = Instant::now();
-    let artifacts = NodeAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await;
+    let artifacts = NodeAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await?;
 
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
         .observe(started_at.elapsed());

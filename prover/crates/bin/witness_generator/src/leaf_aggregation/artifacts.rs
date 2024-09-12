@@ -1,6 +1,6 @@
-use async_trait::async_trait;
 use std::time::Instant;
 
+use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::keys::ClosedFormInputKey;
@@ -23,16 +23,18 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
-    ) -> Self::InputArtifacts {
+    ) -> anyhow::Result<Self::InputArtifacts> {
         let key = ClosedFormInputKey {
             block_number: metadata.block_number,
             circuit_id: metadata.circuit_id,
         };
 
-        object_store
+        let artifacts = object_store
             .get(key)
             .await
-            .unwrap_or_else(|_| panic!("leaf aggregation job artifacts missing: {:?}", key))
+            .unwrap_or_else(|_| panic!("leaf aggregation job artifacts missing: {:?}", key));
+
+        Ok(artifacts)
     }
 
     #[tracing::instrument(

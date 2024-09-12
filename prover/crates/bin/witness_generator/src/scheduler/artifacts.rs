@@ -1,10 +1,10 @@
-use async_trait::async_trait;
 use std::time::Instant;
 
+use async_trait::async_trait;
 use circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::{keys::FriCircuitKey, CircuitWrapper};
+use zksync_prover_fri_types::{keys::FriCircuitKey, CircuitWrapper, FriProofWrapper};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
@@ -14,15 +14,17 @@ use crate::{
 
 #[async_trait]
 impl ArtifactsManager for SchedulerWitnessGenerator {
-    type InputMetadata = ();
-    type InputArtifacts = ();
+    type InputMetadata = u32;
+    type InputArtifacts = FriProofWrapper;
     type OutputArtifacts = SchedulerArtifacts;
 
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
-    ) -> Self::InputArtifacts {
-        todo!()
+    ) -> anyhow::Result<Self::InputArtifacts> {
+        let artifacts = object_store.get(*metadata).await?;
+
+        Ok(artifacts)
     }
 
     async fn save_artifacts(

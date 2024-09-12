@@ -69,7 +69,7 @@ pub struct BasicCircuitArtifacts {
 #[derive(Clone)]
 pub struct BasicWitnessGeneratorJob {
     pub(super) block_number: L1BatchNumber,
-    pub(super) job: WitnessInputData,
+    pub(super) data: WitnessInputData,
 }
 
 #[derive(Debug)]
@@ -115,7 +115,10 @@ impl BasicWitnessGenerator {
         started_at: Instant,
         max_circuits_in_flight: usize,
     ) -> Option<BasicCircuitArtifacts> {
-        let BasicWitnessGeneratorJob { block_number, job } = basic_job;
+        let BasicWitnessGeneratorJob {
+            block_number,
+            data: job,
+        } = basic_job;
 
         tracing::info!(
             "Starting witness generation of type {:?} for block {}",

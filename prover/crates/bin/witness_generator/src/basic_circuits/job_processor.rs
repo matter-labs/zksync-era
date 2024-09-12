@@ -41,10 +41,9 @@ impl JobProcessor for BasicWitnessGenerator {
                     block_number
                 );
                 let started_at = Instant::now();
-                let job = Self::get_artifacts(&block_number, &*self.object_store).await;
+                let job = Self::get_artifacts(&block_number, &*self.object_store).await?;
 
-                crate::metrics::WITNESS_GENERATOR_METRICS.blob_fetch_time
-                    [&AggregationRound::BasicCircuits.into()]
+                WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
                     .observe(started_at.elapsed());
 
                 Ok(Some((block_number, job)))

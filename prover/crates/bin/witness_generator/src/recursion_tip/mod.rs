@@ -1,6 +1,3 @@
-mod artifacts;
-mod job_processor;
-
 use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
@@ -47,9 +44,11 @@ use zksync_types::{
 };
 
 use crate::{
-    metrics::WITNESS_GENERATOR_METRICS,
-    utils::{load_proofs_for_recursion_tip, ClosedFormInputWrapper},
+    artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS, utils::ClosedFormInputWrapper,
 };
+
+mod artifacts;
+mod job_processor;
 
 #[derive(Clone)]
 pub struct RecursionTipWitnessGeneratorJob {
@@ -148,7 +147,8 @@ pub async fn prepare_job(
 ) -> anyhow::Result<RecursionTipWitnessGeneratorJob> {
     let started_at = Instant::now();
     let recursion_tip_proofs =
-        load_proofs_for_recursion_tip(final_node_proof_job_ids, object_store).await?;
+        RecursionTipWitnessGenerator::get_artifacts(&final_node_proof_job_ids, object_store)
+            .await?;
     WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::RecursionTip.into()]
         .observe(started_at.elapsed());
 

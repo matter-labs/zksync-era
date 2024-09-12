@@ -7,10 +7,9 @@ use zksync_prover_fri_types::AuxOutputWitnessWrapper;
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
-use crate::basic_circuits::BasicCircuitArtifacts;
 use crate::{
     artifacts::{ArtifactsManager, BlobUrls},
-    basic_circuits::{BasicWitnessGenerator, BasicWitnessGeneratorJob},
+    basic_circuits::{BasicCircuitArtifacts, BasicWitnessGenerator, BasicWitnessGeneratorJob},
     utils::SchedulerPartialInputWrapper,
 };
 
@@ -23,13 +22,13 @@ impl ArtifactsManager for BasicWitnessGenerator {
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
-    ) -> Self::InputArtifacts {
+    ) -> anyhow::Result<Self::InputArtifacts> {
         let l1_batch_number = *metadata;
-        let job = object_store.get(l1_batch_number).await.unwrap();
-        BasicWitnessGeneratorJob {
+        let data = object_store.get(l1_batch_number).await.unwrap();
+        Ok(BasicWitnessGeneratorJob {
             block_number: l1_batch_number,
-            job,
-        }
+            data,
+        })
     }
 
     async fn save_artifacts(

@@ -32,7 +32,7 @@ pub(crate) trait ArtifactsManager {
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
         object_store: &dyn ObjectStore,
-    ) -> Self::InputArtifacts;
+    ) -> anyhow::Result<Self::InputArtifacts>;
 
     async fn save_artifacts(
         job_id: u32,
