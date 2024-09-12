@@ -85,30 +85,6 @@ jobs:
           echo "address=$address"
           echo "address=$address" >> $GITHUB_ENV
 
-      - name: Create and initialize Validium chain
-        run: |
-          ci_run zk_inception chain create \
-          --chain-name validium \
-          --chain-id sequential \
-          --prover-mode no-proofs \
-          --wallet-creation localhost \
-          --l1-batch-commit-data-generator-mode validium \
-          --base-token-address 0x0000000000000000000000000000000000000001 \
-          --base-token-price-nominator 1 \
-          --base-token-price-denominator 1 \
-          --set-as-default false \
-          --ignore-prerequisites
-
-          ci_run zk_inception chain init \
-          --deploy-paymaster \
-          --l1-rpc-url=http://localhost:8545 \
-          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --server-db-name=zksync_server_localhost_validium \
-          --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --prover-db-name=zksync_prover_localhost_validium \
-          --port-offset 2000 \
-          --chain validium
-
       - name: Create and initialize chain with Custom Token
         run: |
           ci_run zk_inception chain create \
@@ -132,7 +108,31 @@ jobs:
           --prover-db-name=zksync_prover_localhost_custom_token \
           --port-offset 3000 \
           --chain custom_token
-      
+
+      - name: Create and initialize Validium chain
+        run: |
+          ci_run zk_inception chain create \
+          --chain-name validium \
+          --chain-id sequential \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode validium \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites
+
+          ci_run zk_inception chain init \
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_validium \
+          --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --prover-db-name=zksync_prover_localhost_validium \
+          --port-offset 2000 \
+          --chain validium
+        
       - name: Create and initialize Consensus chain
         run: |
           ci_run zk_inception chain create \
