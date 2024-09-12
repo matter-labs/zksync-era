@@ -36,11 +36,8 @@ pub fn get_consensus_config(
     consensus_keys: Option<ConsensusSecretKeys>,
     gossip_static_outbound: Option<BTreeMap<NodePublicKey, Host>>,
 ) -> anyhow::Result<ConsensusConfig> {
-    let genesis_spec = if let Some(consensus_keys) = consensus_keys {
-        Some(get_genesis_specs(chain_config, &consensus_keys))
-    } else {
-        None
-    };
+    let genesis_spec =
+        consensus_keys.map(|consensus_keys| get_genesis_specs(chain_config, &consensus_keys));
 
     let public_addr = SocketAddr::new(CONSENSUS_PUBLIC_ADDRESS_HOST, ports.consensus_port);
     let server_addr = SocketAddr::new(CONSENSUS_SERVER_ADDRESS_HOST, ports.consensus_port);
