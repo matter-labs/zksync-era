@@ -13,6 +13,7 @@ use crate::messages::{
 
 mod args;
 mod build;
+mod db;
 mod integration;
 mod l1_contracts;
 mod prover;
@@ -54,7 +55,7 @@ pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
         TestCommands::Build => build::run(shell),
         TestCommands::Rust(args) => rust::run(shell, args).await,
         TestCommands::L1Contracts => l1_contracts::run(shell),
-        TestCommands::Prover => prover::run(shell),
+        TestCommands::Prover => prover::run(shell).await,
         TestCommands::Wallet => wallet::run(shell),
     }
 }
