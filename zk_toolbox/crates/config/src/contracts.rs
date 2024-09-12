@@ -69,6 +69,7 @@ impl ContractsConfig {
         self.ecosystem_contracts
             .diamond_cut_data
             .clone_from(&deploy_l1_output.contracts_config.diamond_cut_data);
+        self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
     }
 
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
