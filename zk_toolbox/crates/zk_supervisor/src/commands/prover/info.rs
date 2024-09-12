@@ -5,18 +5,23 @@ use std::{
 
 use anyhow::Context as _;
 use common::{config::global_config, logger};
-use config::EcosystemConfig;
+use config::{ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
 use crate::messages::MSG_CHAIN_NOT_FOUND_ERR;
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let link_to_code = EcosystemConfig::from_file(shell)?.link_to_code;
+    let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let chain_config = ecosystem_config
+        .load_chain(global_config().chain_name.clone())
+        .expect(MSG_CHAIN_NOT_FOUND_ERR);
+
+    let link_to_code = ecosystem_config.link_to_code;
     let link_to_prover = link_to_code.join("prover");
 
     let protocol_version = get_protocol_version(shell, &link_to_prover).await?;
     let snark_wrapper = get_snark_wrapper(&link_to_prover).await?;
-    let prover_url = get_database_url(shell).await?;
+    let prover_url = get_database_url(&chain_config).await?;
 
     logger::info(format!(
         "
@@ -59,13 +64,8 @@ pub(crate) async fn get_snark_wrapper(link_to_prover: &Path) -> anyhow::Result<S
     Ok(snark_wrapper)
 }
 
-pub(crate) async fn get_database_url(shell: &Shell) -> anyhow::Result<String> {
-    let ecosystem = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem
-        .load_chain(global_config().chain_name.clone())
-        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-
-    let prover_url = chain_config
+pub(crate) async fn get_database_url(chain: &ChainConfig) -> anyhow::Result<String> {
+    let prover_url = chain
         .get_secrets_config()?
         .database
         .context("Database secrets not found")?
