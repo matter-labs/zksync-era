@@ -5,6 +5,7 @@ pub use self::{
     commitment_generator::CommitmentGeneratorConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::{ContractsConfig, EcosystemContracts},
+    da_client::{avail::AvailConfig, DAClientConfig},
     da_dispatcher::DADispatcherConfig,
     database::{DBConfig, PostgresConfig},
     eth_sender::{EthConfig, GasAdjusterConfig},
@@ -38,6 +39,7 @@ mod commitment_generator;
 pub mod consensus;
 pub mod contract_verifier;
 pub mod contracts;
+pub mod da_client;
 pub mod da_dispatcher;
 pub mod database;
 pub mod en_config;

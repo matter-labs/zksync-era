@@ -173,6 +173,7 @@ impl EcosystemConfig {
             artifacts: config
                 .artifacts_path
                 .unwrap_or_else(|| self.get_chain_artifacts_path(name)),
+            legacy_bridge: config.legacy_bridge,
         })
     }
 
