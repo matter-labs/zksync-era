@@ -1,6 +1,5 @@
 use anyhow::anyhow;
 use async_trait::async_trait;
-use borsh::to_vec;
 use std::{fmt::Debug, sync::Arc};
 
 use near_jsonrpc_client::methods::{
@@ -11,6 +10,7 @@ use near_jsonrpc_client::methods::{
 };
 use near_primitives::{
     block_header::BlockHeader,
+    borsh,
     hash::CryptoHash,
     merkle::compute_root_from_path,
     types::{AccountId, TransactionOrReceiptId},
@@ -220,7 +220,7 @@ impl DataAvailabilityClient for NearClient {
         };
 
         Ok(Some(types::InclusionData {
-            data: to_vec(&attestation_data).map_err(to_non_retriable_da_error)?,
+            data: borsh::to_vec(&attestation_data).map_err(to_non_retriable_da_error)?,
         }))
     }
 

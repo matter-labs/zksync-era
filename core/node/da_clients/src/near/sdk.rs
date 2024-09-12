@@ -8,6 +8,7 @@ use near_jsonrpc_client::{
 };
 use near_jsonrpc_primitives::types::query::QueryResponseKind;
 use near_primitives::{
+    borsh,
     hash::CryptoHash,
     transaction::{Action, FunctionCallAction, Transaction, TransactionV0},
     types::{AccountId, BlockReference},
