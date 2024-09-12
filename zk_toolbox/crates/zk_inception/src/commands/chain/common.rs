@@ -19,7 +19,7 @@ use crate::{
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
-#[warn(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 pub async fn register_chain(
     shell: &Shell,
     forge_args: ForgeScriptArgs,

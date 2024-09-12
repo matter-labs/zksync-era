@@ -4,6 +4,7 @@ use config::{
     copy_configs, ports_config, set_l1_rpc_url, traits::SaveConfigWithBasePath,
     update_from_chain_config, update_ports, ChainConfig, EcosystemConfig, GeneralConfig,
 };
+use types::BaseToken;
 use xshell::Shell;
 
 use super::common::{distribute_eth, mint_base_token, register_chain};
