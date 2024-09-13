@@ -57,14 +57,12 @@ fn merge_yaml_internal(
                     } else {
                         merge_yaml_internal(a_value, value, current_key, diff, override_values)?;
                     }
-                } else {
-                    if !value.is_null() {
-                        a.insert(key.clone(), value.clone());
-                        diff.new_fields.insert(current_key.into(), value);
-                    } else if override_values {
-                        diff.differing_values
-                            .insert(current_key.into(), serde_yaml::Value::Null);
-                    }
+                } else if !value.is_null() {
+                    a.insert(key.clone(), value.clone());
+                    diff.new_fields.insert(current_key.into(), value);
+                } else if override_values {
+                    diff.differing_values
+                        .insert(current_key.into(), serde_yaml::Value::Null);
                 }
             }
         }
