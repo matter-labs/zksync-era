@@ -9,7 +9,7 @@ use std::{
 use anyhow::Context;
 use args::SendTransactionsArgs;
 use chrono::Local;
-use common::ethereum::create_ethers_client;
+use common::{ethereum::create_ethers_client, logger};
 use config::EcosystemConfig;
 use ethers::{abi::Bytes, providers::Middleware, types::TransactionRequest, utils::hex};
 use serde::Deserialize;
@@ -68,12 +68,12 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
 
     let client = create_ethers_client(args.private_key.parse()?, args.l1_rpc_url, Some(chain_id))?;
     let mut nonce = client.get_transaction_count(client.address(), None).await?;
+    let gas_price = client.get_gas_price().await?;
 
     for txn in txns.transactions {
         let to: H160 = txn.contract_address.parse()?;
         let from: H160 = txn.transaction.from.parse()?;
         let gas_limit: U256 = txn.transaction.gas.parse()?;
-        let gas_price: U256 = args.gas_price.parse()?;
         let input_data: Bytes = hex::decode(txn.transaction.input)?;
 
         let tx = TransactionRequest::new()

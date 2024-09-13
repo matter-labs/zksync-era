@@ -7,8 +7,8 @@ use url::Url;
 use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_INVALID_L1_RPC_URL_ERR, MSG_PROMPT_GAS_PRICE, MSG_PROMPT_L1_RPC_URL,
-        MSG_PROMPT_SECRET_KEY, MSG_PROMPT_TRANSACTION_FILE, MSG_TRANSACTION_CONFIRMATIONS,
+        MSG_INVALID_L1_RPC_URL_ERR, MSG_PROMPT_L1_RPC_URL, MSG_PROMPT_SECRET_KEY,
+        MSG_PROMPT_TRANSACTION_FILE, MSG_TRANSACTION_CONFIRMATIONS,
     },
 };
 
@@ -19,8 +19,6 @@ pub struct SendTransactionsArgs {
     #[clap(long)]
     pub private_key: Option<String>,
     #[clap(long)]
-    pub gas_price: Option<String>,
-    #[clap(long)]
     pub l1_rpc_url: Option<String>,
     #[clap(long)]
     pub confirmations: Option<usize>,
@@ -30,7 +28,6 @@ pub struct SendTransactionsArgs {
 pub struct SendTransactionsArgsFinal {
     pub file: PathBuf,
     pub private_key: String,
-    pub gas_price: String,
     pub l1_rpc_url: String,
     pub confirmations: usize,
 }
@@ -44,10 +41,6 @@ impl SendTransactionsArgs {
         let private_key = self
             .private_key
             .unwrap_or_else(|| Prompt::new(MSG_PROMPT_SECRET_KEY).ask());
-
-        let gas_price = self
-            .gas_price
-            .unwrap_or_else(|| Prompt::new(MSG_PROMPT_GAS_PRICE).ask());
 
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
             Prompt::new(MSG_PROMPT_L1_RPC_URL)
@@ -67,7 +60,6 @@ impl SendTransactionsArgs {
         SendTransactionsArgsFinal {
             file,
             private_key,
-            gas_price,
             l1_rpc_url,
             confirmations,
         }

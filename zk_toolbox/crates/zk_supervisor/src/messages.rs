@@ -205,7 +205,6 @@ pub(super) const MSG_WALLETS_TEST_SUCCESS: &str = "Wallets test success";
 pub(super) const MSG_SEND_TXNS_ABOUT: &str = "Send transactions from file";
 pub(super) const MSG_PROMPT_TRANSACTION_FILE: &str = "Path to transactions file";
 pub(super) const MSG_PROMPT_SECRET_KEY: &str = "Secret key of the sender";
-pub(super) const MSG_PROMPT_GAS_PRICE: &str = "Gas price";
 pub(super) const MSG_PROMPT_L1_RPC_URL: &str = "L1 RPC URL";
 pub(super) const MSG_TRANSACTION_CONFIRMATIONS: &str = "Confirmations";
 
