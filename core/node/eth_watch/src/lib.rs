@@ -166,6 +166,7 @@ impl EthWatch {
                     Web3BlockNumber::Number(from_block.into()),
                     Web3BlockNumber::Number(finalized_block.into()),
                     processor.relevant_topic(),
+                    None,
                     RETRY_LIMIT,
                 )
                 .await?;
