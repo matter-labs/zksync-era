@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    COUNT(*) AS \"count!\"\n                FROM\n                    l1_batches\n                WHERE\n                    number = $1\n                    AND commitment = $2\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "65736a5b9b4ad364797dbedfc828f24785ae8bd2b4579203f05379e757a56f2b"
+}

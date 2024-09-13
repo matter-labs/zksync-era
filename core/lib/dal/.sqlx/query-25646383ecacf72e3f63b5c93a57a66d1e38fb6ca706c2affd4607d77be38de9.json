@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                hash,\n                rollup_last_leaf_index\n            FROM\n                l1_batches\n            WHERE\n                is_sealed\n                AND number = $1\n            ",
+  "query": "\n            SELECT\n                hash,\n                rollup_last_leaf_index\n            FROM\n                l1_batches\n            WHERE\n                number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       true
     ]
   },
-  "hash": "241a1a4432e12e77a902e13dbe00599d342aac90c62b2be0df784b7a9166a434"
+  "hash": "25646383ecacf72e3f63b5c93a57a66d1e38fb6ca706c2affd4607d77be38de9"
 }

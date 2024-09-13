@@ -183,8 +183,7 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                is_sealed
-                AND hash IS NOT NULL
+                hash IS NOT NULL
             "#
         )
         .instrument("get_last_l1_batch_number_with_tree_data")
@@ -207,8 +206,7 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                is_sealed
-                AND hash IS NOT NULL
+                hash IS NOT NULL
                 AND commitment IS NULL
             ORDER BY
                 number
@@ -236,8 +234,7 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                is_sealed
-                AND hash IS NOT NULL
+                hash IS NOT NULL
                 AND commitment IS NULL
             ORDER BY
                 number DESC
@@ -265,8 +262,7 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                is_sealed
-                AND hash IS NOT NULL
+                hash IS NOT NULL
             "#
         )
         .instrument("get_earliest_l1_batch_number_with_metadata")
@@ -291,12 +287,9 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                is_sealed
-                AND (
-                    eth_commit_tx_id = $1
-                    OR eth_prove_tx_id = $1
-                    OR eth_execute_tx_id = $1
-                )
+                eth_commit_tx_id = $1
+                OR eth_prove_tx_id = $1
+                OR eth_execute_tx_id = $1
             "#,
             eth_tx_id as i32
         )
@@ -592,6 +585,7 @@ impl BlocksDal<'_, '_> {
                     timestamp,
                     l1_gas_price,
                     l2_fair_gas_price,
+                    fair_pubdata_price,
                     l1_tx_count,
                     l2_tx_count,
                     bloom,
@@ -608,6 +602,7 @@ impl BlocksDal<'_, '_> {
                     $2,
                     $3,
                     $4,
+                    $5,
                     0,
                     0,
                     ''::bytea,
@@ -623,14 +618,13 @@ impl BlocksDal<'_, '_> {
             timestamp as i64,
             batch_fee_input.l1_gas_price() as i64,
             batch_fee_input.fair_l2_gas_price() as i64,
-        );
-
-        let mut transaction = self.storage.start_transaction().await?;
-        instrumentation
-            .with(query)
-            .execute(&mut transaction)
-            .await?;
-        transaction.commit().await
+            batch_fee_input.fair_pubdata_price() as i64,
+        )
+        .instrument("insert_l1_batch")
+        .with_arg("number", &number)
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
     /// Marks provided L1 batch as sealed and populates it with all the runtime information.
@@ -718,12 +712,7 @@ impl BlocksDal<'_, '_> {
             pubdata_input,
             serde_json::to_value(predicted_circuits_by_type).unwrap(),
         );
-        let mut transaction = self.storage.start_transaction().await?;
-        let update_result = instrumentation
-            .with(query)
-            .execute(&mut transaction)
-            .await?;
-        transaction.commit().await?;
+        let update_result = instrumentation.with(query).execute(self.storage).await?;
 
         if update_result.rows_affected() == 0 {
             anyhow::bail!(
@@ -1021,8 +1010,7 @@ impl BlocksDal<'_, '_> {
                 FROM
                     l1_batches
                 WHERE
-                    is_sealed
-                    AND number = $1
+                    number = $1
                     AND commitment = $2
                 "#,
                 i64::from(number.0),
@@ -1180,8 +1168,7 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                is_sealed
-                AND number = $1
+                number = $1
             "#,
             i64::from(l1_batch_number.0)
         )
@@ -1564,8 +1551,7 @@ impl BlocksDal<'_, '_> {
                     l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
                 WHERE
-                    is_sealed
-                    AND number BETWEEN $1 AND $2
+                    number BETWEEN $1 AND $2
                 ORDER BY
                     number
                 LIMIT
@@ -1630,8 +1616,7 @@ impl BlocksDal<'_, '_> {
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
                 JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
             WHERE
-                is_sealed
-                AND eth_commit_tx_id IS NULL
+                eth_commit_tx_id IS NULL
                 AND number != 0
                 AND protocol_versions.bootloader_code_hash = $1
                 AND protocol_versions.default_account_code_hash = $2
@@ -1710,8 +1695,7 @@ impl BlocksDal<'_, '_> {
                 LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
                 JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
             WHERE
-                is_sealed
-                AND eth_commit_tx_id IS NULL
+                eth_commit_tx_id IS NULL
                 AND number != 0
                 AND protocol_versions.bootloader_code_hash = $1
                 AND protocol_versions.default_account_code_hash = $2
@@ -1762,8 +1746,7 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                is_sealed
-                AND number = $1
+                number = $1
             "#,
             i64::from(number.0)
         )
@@ -1787,8 +1770,7 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                is_sealed
-                AND number = $1
+                number = $1
             "#,
             i64::from(number.0)
         )
@@ -1848,8 +1830,7 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                is_sealed
-                AND number = $1
+                number = $1
             "#,
             i64::from(number.0)
         )
@@ -2348,8 +2329,7 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                is_sealed
-                AND number = $1
+                number = $1
             "#,
             i64::from(l1_batch_number.0),
         )
@@ -2376,8 +2356,7 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                is_sealed
-                AND number = $1
+                number = $1
             "#,
             i64::from(l1_batch_number.0),
         )
