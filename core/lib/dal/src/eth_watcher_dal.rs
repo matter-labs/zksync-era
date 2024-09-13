@@ -10,6 +10,7 @@ pub struct ProcessedEventsDal<'a, 'c> {
 #[derive(Debug, Copy, Clone, sqlx::Type)]
 #[sqlx(type_name = "event_type")]
 pub enum EventType {
+    ProtocolUpgrades,
     PriorityTransactions,
     GovernanceUpgrades,
 }
@@ -107,9 +108,9 @@ mod tests {
         let mut conn = pool.connection().await.unwrap();
         let mut dal = conn.processed_events_dal();
 
-        // Test with GovernanceUpgrades
+        // Test with ProtocolUpgrades
         let next_block = dal
-            .get_or_set_next_block_to_process(EventType::GovernanceUpgrades, SLChainId(1), 100)
+            .get_or_set_next_block_to_process(EventType::ProtocolUpgrades, SLChainId(1), 100)
             .await
             .expect("Failed to get or set next block to process");
         assert_eq!(next_block, 100);
@@ -128,9 +129,9 @@ mod tests {
             .expect("Failed to get or set next block to process");
         assert_eq!(next_block, 300);
 
-        // Verify that the initial block is not updated for GovernanceUpgrades
+        // Verify that the initial block is not updated for ProtocolUpgrades
         let next_block = dal
-            .get_or_set_next_block_to_process(EventType::GovernanceUpgrades, SLChainId(1), 150)
+            .get_or_set_next_block_to_process(EventType::ProtocolUpgrades, SLChainId(1), 150)
             .await
             .expect("Failed to get or set next block to process");
         assert_eq!(next_block, 100);
