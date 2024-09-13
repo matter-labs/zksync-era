@@ -6,7 +6,7 @@ use ethers::{
 };
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::L2ChainId;
+use zksync_basic_types::{web3::Bytes, L2ChainId};
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,

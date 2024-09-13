@@ -21,7 +21,8 @@ lazy_static! {
         parse_abi(&[
             "function governanceAcceptOwner(address governor, address target) public",
             "function chainAdminAcceptAdmin(address admin, address target) public",
-            "function chainSetTokenMultiplierSetter(address chainAdmin, address target) public"
+            "function chainSetTokenMultiplierSetter(address chainAdmin, address target) public",
+            "function setDAValidatorPair(address chainAdmin, address target, address l1DaValidator, address l2DaValidator) public"
         ])
         .unwrap(),
     );
@@ -45,7 +46,7 @@ pub async fn accept_admin(
     let calldata = ACCEPT_ADMIN
         .encode("chainAdminAcceptAdmin", (admin, target_address))
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry();
+    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
@@ -74,7 +75,46 @@ pub async fn accept_owner(
     let calldata = ACCEPT_ADMIN
         .encode("governanceAcceptOwner", (governor_contract, target_address))
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry();
+    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let forge = Forge::new(&foundry_contracts_path)
+        .script(
+            &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_broadcast()
+        .with_calldata(&calldata);
+    accept_ownership(shell, governor, forge).await
+}
+
+pub async fn set_da_validator_pair(
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+    chain_admin_addr: Address,
+    governor: Option<H256>,
+    diamond_proxy_address: Address,
+    l1_da_validator_address: Address,
+    l2_da_validator_address: Address,
+    forge_args: &ForgeScriptArgs,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    // resume doesn't properly work here.
+    let mut forge_args = forge_args.clone();
+    forge_args.resume = false;
+
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "setDAValidatorPair",
+            (
+                chain_admin_addr,
+                diamond_proxy_address,
+                l1_da_validator_address,
+                l2_da_validator_address,
+            ),
+        )
+        .unwrap();
+    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),

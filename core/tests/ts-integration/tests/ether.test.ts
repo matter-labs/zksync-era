@@ -259,6 +259,8 @@ describe('ETH token checks', () => {
 
         await sleep(60);
 
+        console.log(withdrawalTx.hash);
+
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
         const tx = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
