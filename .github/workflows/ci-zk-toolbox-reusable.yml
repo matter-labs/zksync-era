@@ -157,13 +157,13 @@ jobs:
       #     --port-offset 4000 \
       #     --chain consensus
 
-      # - name: Build test dependencies
-      #   run: |
-      #     ci_run zk_supervisor test build
+      - name: Build test dependencies
+        run: |
+          ci_run zk_supervisor test build
 
-      # - name: Run servers
-      #   run: |
-      #     ci_run zk_inception server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+      - name: Run servers
+        run: |
+          ci_run zk_inception server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
       #     ci_run zk_inception server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
       #     ci_run zk_inception server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
       #     ci_run zk_inception server --ignore-prerequisites --chain consensus \
@@ -172,10 +172,12 @@ jobs:
 
       #     ci_run sleep 5
 
-      # - name: Run integration tests
-      #   run: |
-      #     ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/rollup.log &
-      #     PID1=$!
+      - name: Run integration tests
+        run: |
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/rollup.log &
+          PID1=$!
+
+          wait $PID1
 
       #     ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain validium &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/validium.log &
       #     PID2=$!
@@ -186,7 +188,6 @@ jobs:
       #     ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain consensus &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log &
       #     PID4=$!
 
-      #     wait $PID1
       #     wait $PID2
       #     wait $PID3
       #     wait $PID4
