@@ -908,7 +908,7 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn get_last_l1_batch_fee_input(&mut self) -> DalResult<BatchFeeInput> {
+    pub async fn get_unsealed_l1_batch_fee_input(&mut self) -> DalResult<Option<BatchFeeInput>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -917,21 +917,23 @@ impl BlocksDal<'_, '_> {
                 fair_pubdata_price
             FROM
                 l1_batches
-            ORDER BY
-                number DESC
-            LIMIT
-                1
+            WHERE
+                NOT is_sealed
             "#
         )
         .instrument("get_last_l1_batch_fee_input")
-        .fetch_one(self.storage)
+        .fetch_optional(self.storage)
         .await?;
 
-        Ok(BatchFeeInput::pubdata_independent(
-            row.l1_gas_price as u64,
-            row.l2_fair_gas_price as u64,
-            row.fair_pubdata_price as u64,
-        ))
+        if let Some(row) = row {
+            Ok(Some(BatchFeeInput::pubdata_independent(
+                row.l1_gas_price as u64,
+                row.l2_fair_gas_price as u64,
+                row.fair_pubdata_price as u64,
+            )))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn get_last_sealed_l2_block_header(&mut self) -> DalResult<Option<L2BlockHeader>> {

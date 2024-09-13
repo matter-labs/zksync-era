@@ -1,5 +1,6 @@
 use std::{fmt, fmt::Debug, sync::Arc};
 
+use anyhow::Context;
 use async_trait::async_trait;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{
@@ -140,18 +141,38 @@ impl ApiFeeInputProvider {
 impl BatchFeeModelInputProvider for ApiFeeInputProvider {
     async fn get_batch_fee_input_scaled(
         &self,
-        _l1_gas_price_scale_factor: f64,
-        _l1_pubdata_price_scale_factor: f64,
+        l1_gas_price_scale_factor: f64,
+        l1_pubdata_price_scale_factor: f64,
     ) -> anyhow::Result<BatchFeeInput> {
-        let batch_fee_input = self
+        if let Some(batch_fee_input) = self
             .connection_pool
             .connection_tagged("api_fee_input_provider")
             .await?
             .blocks_dal()
-            .get_last_l1_batch_fee_input()
-            .await?;
-
-        Ok(batch_fee_input)
+            .get_unsealed_l1_batch_fee_input()
+            .await?
+        {
+            Ok(batch_fee_input)
+        } else {
+            let inner_input = self
+                .inner
+                .get_batch_fee_input_scaled(
+                    l1_gas_price_scale_factor,
+                    l1_pubdata_price_scale_factor,
+                )
+                .await
+                .context("cannot get batch fee input from base provider")?;
+            let last_l2_block_params = self
+                .connection_pool
+                .connection_tagged("api_fee_input_provider")
+                .await?
+                .blocks_dal()
+                .get_last_sealed_l2_block_header()
+                .await?;
+            Ok(last_l2_block_params
+                .map(|header| inner_input.stricter(header.batch_fee_input))
+                .unwrap_or(inner_input))
+        }
     }
 
     /// Returns the fee model parameters.
