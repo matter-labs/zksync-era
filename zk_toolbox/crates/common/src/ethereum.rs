@@ -116,7 +116,7 @@ async fn mint<T: Middleware + 'static>(
         .send()
         .await?
         // It's safe to set such low number of confirmations and low interval for localhost
-        .confirmations(1)
+        .confirmations(0)
         .interval(Duration::from_millis(30))
         .await?;
     Ok(())
