@@ -11,7 +11,10 @@ use config::{
     forge_interface::{
         deploy_l2_contracts::{
             input::DeployL2ContractsInput,
-            output::{ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput, Multicall3Output},
+            output::{
+                ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
+                Multicall3Output,
+            },
         },
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
     },

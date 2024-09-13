@@ -6,7 +6,8 @@ use crate::{
     forge_interface::{
         deploy_ecosystem::output::DeployL1Output,
         deploy_l2_contracts::output::{
-            ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput, Multicall3Output,
+            ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
+            Multicall3Output,
         },
         register_chain::output::RegisterChainOutput,
     },
@@ -103,10 +104,7 @@ impl ContractsConfig {
         Ok(())
     }
 
-    pub fn set_multicall3(
-        &mut self,
-        multicall3_output: &Multicall3Output,
-    ) -> anyhow::Result<()> {
+    pub fn set_multicall3(&mut self, multicall3_output: &Multicall3Output) -> anyhow::Result<()> {
         self.l2.multicall3 = multicall3_output.multicall3;
         Ok(())
     }
