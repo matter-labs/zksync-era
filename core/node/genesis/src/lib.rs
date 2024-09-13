@@ -18,7 +18,7 @@ use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::{CommitmentInput, L1BatchCommitment},
-    fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
+    fee_model::BatchFeeInput,
     protocol_upgrade::decode_set_chain_id_event,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,

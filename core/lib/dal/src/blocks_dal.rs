@@ -576,8 +576,7 @@ impl BlocksDal<'_, '_> {
         timestamp: u64,
         batch_fee_input: BatchFeeInput,
     ) -> DalResult<()> {
-        let instrumentation = Instrumented::new("insert_l1_batch").with_arg("number", &number);
-        let query = sqlx::query!(
+        sqlx::query!(
             r#"
             INSERT INTO
                 l1_batches (
