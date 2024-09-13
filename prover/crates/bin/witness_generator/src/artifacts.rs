@@ -6,7 +6,7 @@ use zksync_prover_dal::{ConnectionPool, Prover};
 
 #[derive(Debug)]
 pub(crate) struct AggregationBlobUrls {
-    pub aggregations_urls: String,
+    pub aggregation_urls: String,
     pub circuit_ids_and_urls: Vec<(u8, String)>,
 }
 

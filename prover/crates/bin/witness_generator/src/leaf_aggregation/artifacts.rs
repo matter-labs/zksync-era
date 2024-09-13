@@ -3,10 +3,11 @@ use std::time::Instant;
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::keys::ClosedFormInputKey;
+use zksync_prover_fri_types::keys::{AggregationsKey, ClosedFormInputKey};
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_types::{basic_fri_types::AggregationRound, prover_dal::LeafAggregationJobMetadata};
 
+use crate::utils::AggregationWrapper;
 use crate::{
     artifacts::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
     leaf_aggregation::{LeafAggregationArtifacts, LeafAggregationWitnessGenerator},
@@ -47,19 +48,21 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
         object_store: &dyn ObjectStore,
     ) -> BlobUrls {
         let started_at = Instant::now();
-        let aggregations_urls = save_node_aggregations_artifacts(
-            artifacts.block_number,
-            get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
-            0,
-            artifacts.aggregations,
-            object_store,
-        )
-        .await;
+        let key = AggregationsKey {
+            block_number,
+            circuit_id,
+            depth,
+        };
+        let aggregation_urls = object_store
+            .put(key, &AggregationWrapper(artifacts.aggregations))
+            .await
+            .unwrap();
+
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::LeafAggregation.into()]
             .observe(started_at.elapsed());
 
         BlobUrls::Aggregation(AggregationBlobUrls {
-            aggregations_urls,
+            aggregation_urls,
             circuit_ids_and_urls: artifacts.circuit_ids_and_urls,
         })
     }
@@ -124,7 +127,7 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
                 get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
                 number_of_dependent_jobs,
                 0,
-                blob_urls.aggregations_urls,
+                blob_urls.aggregation_urls,
             )
             .await;
         tracing::info!(

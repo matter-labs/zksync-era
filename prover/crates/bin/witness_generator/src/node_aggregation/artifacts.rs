@@ -52,20 +52,21 @@ impl ArtifactsManager for NodeAggregationWitnessGenerator {
         object_store: &dyn ObjectStore,
     ) -> BlobUrls {
         let started_at = Instant::now();
-        let aggregations_urls = save_node_aggregations_artifacts(
-            artifacts.block_number,
-            artifacts.circuit_id,
-            artifacts.depth,
-            artifacts.next_aggregations,
-            object_store,
-        )
-        .await;
+        let key = AggregationsKey {
+            block_number,
+            circuit_id,
+            depth,
+        };
+        let aggregation_urls = object_store
+            .put(key, &AggregationWrapper(artifacts.next_aggregations))
+            .await
+            .unwrap();
 
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::NodeAggregation.into()]
             .observe(started_at.elapsed());
 
         BlobUrls::Aggregation(AggregationBlobUrls {
-            aggregations_urls,
+            aggregation_urls,
             circuit_ids_and_urls: artifacts.recursive_circuit_ids_and_urls,
         })
     }
@@ -111,7 +112,7 @@ impl ArtifactsManager for NodeAggregationWitnessGenerator {
                         artifacts.circuit_id,
                         Some(dependent_jobs as i32),
                         artifacts.depth,
-                        &blob_urls.aggregations_urls,
+                        &blob_urls.aggregation_urls,
                         protocol_version_id,
                     )
                     .await;
