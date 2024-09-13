@@ -79,7 +79,7 @@ impl ContractBuilder {
         match contract_type {
             ContractType::L1 => Self {
                 dir: ecosystem.path_to_foundry(),
-                cmd: "yarn build && forge build".to_string(),
+                cmd: "forge build".to_string(),
                 msg: MSG_BUILDING_L1_CONTRACTS_SPINNER.to_string(),
             },
             ContractType::L2 => Self {
@@ -103,6 +103,20 @@ impl ContractBuilder {
     fn build(&self, shell: &Shell) -> anyhow::Result<()> {
         let spinner = Spinner::new(&self.msg);
         let _dir_guard = shell.push_dir(&self.dir);
+
+        // FIXME: extreme hack, we also need to build 1l contracts without foundry for now
+        if self.msg == MSG_BUILDING_L1_CONTRACTS_SPINNER {
+            let cstr = "yarn build".to_string();
+            let mut args = cstr.split_whitespace().collect::<Vec<_>>();
+            let command = args.remove(0); // It's safe to unwrap here because we know that the vec is not empty
+            let mut cmd = cmd!(shell, "{command}");
+
+            for arg in args {
+                cmd = cmd.arg(arg);
+            }
+
+            Cmd::new(cmd).run()?;
+        }
 
         let mut args = self.cmd.split_whitespace().collect::<Vec<_>>();
         let command = args.remove(0); // It's safe to unwrap here because we know that the vec is not empty
