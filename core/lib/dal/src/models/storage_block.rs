@@ -8,9 +8,9 @@ use zksync_types::{
     api,
     block::{L1BatchHeader, L2BlockHeader},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
-    fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
+    fee_model::BatchFeeInput,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
-    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
+    Address, Bloom, L1BatchNumber, L2BlockNumber, H256,
 };
 
 /// This is the gas limit that was used inside blocks before we started saving block gas limit into the database.
@@ -52,6 +52,10 @@ pub(crate) struct StorageL1BatchHeader {
     // will be exactly 7 (or 8 in the event of a protocol upgrade) system logs.
     pub system_logs: Vec<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+
+    pub l1_gas_price: i64,
+    pub l2_fair_gas_price: i64,
+    pub fair_pubdata_price: Option<i64>,
 }
 
 impl StorageL1BatchHeader {
@@ -66,6 +70,14 @@ impl StorageL1BatchHeader {
             .collect();
 
         let system_logs = convert_l2_to_l1_logs(self.system_logs);
+
+        let batch_fee_input = BatchFeeInput::from_protocol_version(
+            self.protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
+            self.l1_gas_price as u64,
+            self.l2_fair_gas_price as u64,
+            self.fair_pubdata_price.map(|p| p as u64),
+        );
 
         L1BatchHeader {
             number: L1BatchNumber(self.number as u32),
@@ -88,6 +100,7 @@ impl StorageL1BatchHeader {
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
             pubdata_input: self.pubdata_input,
+            batch_fee_input,
         }
     }
 }
@@ -147,6 +160,10 @@ pub(crate) struct StorageL1Batch {
     pub events_queue_commitment: Option<Vec<u8>>,
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+
+    pub l1_gas_price: i64,
+    pub l2_fair_gas_price: i64,
+    pub fair_pubdata_price: Option<i64>,
 }
 
 impl StorageL1Batch {
@@ -161,6 +178,14 @@ impl StorageL1Batch {
             .collect();
 
         let system_logs = convert_l2_to_l1_logs(self.system_logs);
+
+        let batch_fee_input = BatchFeeInput::from_protocol_version(
+            self.protocol_version
+                .map(|v| (v as u16).try_into().unwrap()),
+            self.l1_gas_price as u64,
+            self.l2_fair_gas_price as u64,
+            self.fair_pubdata_price.map(|p| p as u64),
+        );
 
         L1BatchHeader {
             number: L1BatchNumber(self.number as u32),
@@ -183,6 +208,7 @@ impl StorageL1Batch {
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
             pubdata_input: self.pubdata_input,
+            batch_fee_input,
         }
     }
 }
@@ -439,25 +465,12 @@ pub(crate) struct StorageL2BlockHeader {
 impl From<StorageL2BlockHeader> for L2BlockHeader {
     fn from(row: StorageL2BlockHeader) -> Self {
         let protocol_version = row.protocol_version.map(|v| (v as u16).try_into().unwrap());
-
-        let fee_input = protocol_version
-            .filter(|version: &ProtocolVersionId| version.is_post_1_4_1())
-            .map(|_| {
-                BatchFeeInput::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
-                    fair_pubdata_price: row
-                        .fair_pubdata_price
-                        .expect("No fair pubdata price for 1.4.1 miniblock")
-                        as u64,
-                    fair_l2_gas_price: row.l2_fair_gas_price as u64,
-                    l1_gas_price: row.l1_gas_price as u64,
-                })
-            })
-            .unwrap_or_else(|| {
-                BatchFeeInput::L1Pegged(L1PeggedBatchFeeModelInput {
-                    fair_l2_gas_price: row.l2_fair_gas_price as u64,
-                    l1_gas_price: row.l1_gas_price as u64,
-                })
-            });
+        let batch_fee_input = BatchFeeInput::from_protocol_version(
+            protocol_version,
+            row.l1_gas_price as u64,
+            row.l2_fair_gas_price as u64,
+            row.fair_pubdata_price.map(|p| p as u64),
+        );
 
         L2BlockHeader {
             number: L2BlockNumber(row.number as u32),
@@ -467,7 +480,7 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
             l2_tx_count: row.l2_tx_count as u16,
             fee_account_address: Address::from_slice(&row.fee_account_address),
             base_fee_per_gas: row.base_fee_per_gas.to_u64().unwrap(),
-            batch_fee_input: fee_input,
+            batch_fee_input,
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 row.bootloader_code_hash,
                 row.default_aa_code_hash,
