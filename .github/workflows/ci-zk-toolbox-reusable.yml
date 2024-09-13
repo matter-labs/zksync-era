@@ -23,7 +23,6 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
-
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
@@ -78,6 +77,41 @@ jobs:
           --prover-db-name=zksync_prover_localhost_era \
           --ignore-prerequisites --verbose \
           --observability=false
+
+      - name: Create and register chain with transactions signed "offline"
+        run: |
+          ci_run zk_inception chain create \
+          --chain-name offline_chain \
+          --chain-id sequential \
+          --prover-mode no-proofs \
+          --wallet-creation localhost \
+          --l1-batch-commit-data-generator-mode rollup \
+          --base-token-address 0x0000000000000000000000000000000000000001 \
+          --base-token-price-nominator 1 \
+          --base-token-price-denominator 1 \
+          --set-as-default false \
+          --ignore-prerequisites
+
+          ci_run zk_inception chain build-transactions --chain offline_chain --l1-rpc-url http://127.0.0.1:8545
+
+          governor_pk=$(awk '/governor:/ {flag=1} flag && /private_key:/ {print $2; exit}' ./configs/wallets.yaml)
+
+          ci_run zk_supervisor send-transactions \
+          --file ./transactions/chain/offline_chain/register-hyperchain-txns.json \
+          --l1-rpc-url http://127.0.0.1:8545 \
+          --private-key $governor_pk
+
+          bridge_hub=$(awk '/bridgehub_proxy_addr/ {print $2}' ./configs/contracts.yaml)
+          chain_id=$(awk '/chain_id:/ {print $2}' ./chains/offline_chain/ZkStack.yaml)
+
+          hyperchain_output=$(cast call $bridge_hub "getHyperchain(uint256)" $chain_id)
+
+          if [[ $hyperchain_output == 0x* && ${#hyperchain_output} -eq 66 ]]; then
+              echo "Chain successfully registered: $hyperchain_output"
+          else
+              echo "Failed to register chain: $hyperchain_output"
+              exit 1
+          fi
 
       - name: Read Custom Token address and set as environment variable
         run: |
@@ -244,14 +278,12 @@ jobs:
           wait $PID2
           wait $PID3
 
-
       # Upgrade tests should run last, because as soon as they
       # finish the bootloader will be different
       # TODO make upgrade tests safe to run multiple times
       - name: Run upgrade test
         run: |
           ci_run zk_supervisor test upgrade --no-deps --chain era
-
 
       - name: Upload logs
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
