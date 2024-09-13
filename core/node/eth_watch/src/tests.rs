@@ -120,7 +120,8 @@ impl EthClient for MockEthClient {
         &self,
         from: BlockNumber,
         to: BlockNumber,
-        topic: H256,
+        topic1: H256,
+        _topic2: Option<H256>,
         _retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
         let from = self.block_to_number(from).await;
@@ -139,7 +140,7 @@ impl EthClient for MockEthClient {
         }
         Ok(logs
             .into_iter()
-            .filter(|log| log.topics.contains(&topic))
+            .filter(|log| log.topics.contains(&topic1))
             .collect())
     }
 
@@ -244,8 +245,6 @@ async fn create_test_watcher(
         l1_client.clone()
     };
     let watcher = EthWatch::new(
-        Address::default(),
-        &governance_contract(),
         &chain_admin_contract(),
         Box::new(l1_client.clone()),
         Box::new(sl_client.clone()),
@@ -351,8 +350,6 @@ async fn test_normal_operation_governance_upgrades() {
 
     let mut client = MockEthClient::new(SLChainId(42));
     let mut watcher = EthWatch::new(
-        Address::default(),
-        &governance_contract(),
         &chain_admin_contract(),
         Box::new(client.clone()),
         Box::new(client.clone()),

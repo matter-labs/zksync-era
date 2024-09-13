@@ -12,7 +12,6 @@ pub struct ProcessedEventsDal<'a, 'c> {
 pub enum EventType {
     ProtocolUpgrades,
     PriorityTransactions,
-    GovernanceUpgrades,
 }
 
 impl ProcessedEventsDal<'_, '_> {

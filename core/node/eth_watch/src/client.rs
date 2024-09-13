@@ -110,14 +110,14 @@ impl EthHttpQueryClient {
         to: BlockNumber,
         topics1: H256,
         topic2: Option<H256>,
-        addresses: &Vec<Address>,
+        addresses: &[Address],
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
         let filter = FilterBuilder::default()
             .from_block(from)
             .to_block(to)
             .topics(Some(vec![topics1]), topic2.map(|x| vec![x]), None, None)
-            .address(addresses.clone())
+            .address(addresses.to_owned())
             .build();
         let mut result = self.client.logs(&filter).await;
 
@@ -230,7 +230,7 @@ impl EthClient for EthHttpQueryClient {
                 to_block.into(),
                 self.new_upgrade_cut_data_signature,
                 Some(packed_version),
-                &vec![state_transition_manager_address],
+                &[state_transition_manager_address],
                 RETRY_LIMIT,
             )
             .await?;
