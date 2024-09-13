@@ -61,7 +61,10 @@ impl RegisterChainL1Config {
         Ok(Self {
             contracts_config: Contracts {
                 diamond_cut_data: contracts.ecosystem_contracts.diamond_cut_data.clone(),
-                force_deployments_data: contracts.ecosystem_contracts.force_deployments_data.clone(),
+                force_deployments_data: contracts
+                    .ecosystem_contracts
+                    .force_deployments_data
+                    .clone(),
             },
             deployed_addresses: DeployedAddresses {
                 state_transition: StateTransition {
