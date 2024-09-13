@@ -36,6 +36,7 @@ fn merge_yaml_internal(
     b: serde_yaml::Value,
     current_key: String,
     diff: &mut ConfigDiff,
+    override_values: bool,
 ) -> anyhow::Result<()> {
     match (a, b) {
         (serde_yaml::Value::Mapping(a), serde_yaml::Value::Mapping(b)) => {
@@ -48,7 +49,13 @@ fn merge_yaml_internal(
                 };
 
                 if a.contains_key(&key) {
-                    merge_yaml_internal(a.get_mut(&key).unwrap(), value, current_key, diff)?;
+                    merge_yaml_internal(
+                        a.get_mut(&key).unwrap(),
+                        value,
+                        current_key,
+                        diff,
+                        override_values,
+                    )?;
                 } else {
                     a.insert(key.clone(), value.clone());
                     diff.new_fields.insert(current_key.into(), value);
@@ -64,9 +71,13 @@ fn merge_yaml_internal(
     Ok(())
 }
 
-pub fn merge_yaml(a: &mut serde_yaml::Value, b: serde_yaml::Value) -> anyhow::Result<ConfigDiff> {
+pub fn merge_yaml(
+    a: &mut serde_yaml::Value,
+    b: serde_yaml::Value,
+    override_values: bool,
+) -> anyhow::Result<ConfigDiff> {
     let mut diff = ConfigDiff::default();
-    merge_yaml_internal(a, b, "".into(), &mut diff)?;
+    merge_yaml_internal(a, b, "".into(), &mut diff, override_values)?;
     Ok(diff)
 }
 
@@ -101,7 +112,7 @@ mod tests {
         "#,
         )
         .unwrap();
-        let diff = super::merge_yaml(&mut a, b).unwrap();
+        let diff = super::merge_yaml(&mut a, b, false).unwrap();
         assert!(diff.differing_values.is_empty());
         assert!(diff.new_fields.is_empty());
         assert_eq!(a, expected);
@@ -140,7 +151,7 @@ mod tests {
         )
         .unwrap();
 
-        let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
+        let diff = super::merge_yaml(&mut a, b.clone(), false).unwrap();
         assert!(diff.differing_values.is_empty());
         assert_eq!(diff.new_fields.len(), 1);
         assert_eq!(
@@ -183,7 +194,7 @@ mod tests {
         )
         .unwrap();
 
-        let diff = super::merge_yaml(&mut a, b).unwrap();
+        let diff = super::merge_yaml(&mut a, b, false).unwrap();
         assert!(diff.differing_values.is_empty());
         assert!(diff.new_fields.is_empty());
         assert_eq!(a, expected);
@@ -224,7 +235,7 @@ mod tests {
         )
         .unwrap();
 
-        let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
+        let diff = super::merge_yaml(&mut a, b.clone(), false).unwrap();
         assert_eq!(diff.differing_values.len(), 0);
         assert_eq!(diff.new_fields.len(), 1);
         assert_eq!(
@@ -265,7 +276,7 @@ mod tests {
         )
         .unwrap();
 
-        let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
+        let diff = super::merge_yaml(&mut a, b.clone(), false).unwrap();
         assert_eq!(diff.differing_values.len(), 1);
         assert_eq!(
             diff.differing_values
@@ -309,7 +320,7 @@ mod tests {
         )
         .unwrap();
 
-        let diff = super::merge_yaml(&mut a, b.clone()).unwrap();
+        let diff = super::merge_yaml(&mut a, b.clone(), false).unwrap();
         assert_eq!(diff.differing_values.len(), 1);
         assert_eq!(
             diff.differing_values

@@ -104,7 +104,7 @@ fn update_config(
 ) -> anyhow::Result<()> {
     let original_config = serde_yaml::from_str(&shell.read_file(original_config_path)?)?;
     let mut chain_config = serde_yaml::from_str(&shell.read_file(chain_config_path)?)?;
-    let diff = merge_yaml(&mut chain_config, original_config)?;
+    let diff = merge_yaml(&mut chain_config, original_config, false)?;
     if save_config {
         save_updated_config(&shell, chain_config, chain_config_path, diff, msg)?;
     } else {
