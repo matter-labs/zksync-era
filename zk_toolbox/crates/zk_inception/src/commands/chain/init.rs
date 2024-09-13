@@ -34,11 +34,11 @@ use crate::{
     consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_DISTRIBUTING_ETH_SPINNER, MSG_GENESIS_DATABASE_ERR,
-        MSG_MINT_BASE_TOKEN_SPINNER, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTS_CONFIG_ERR,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_DISTRIBUTING_ETH_SPINNER,
+        MSG_GENESIS_DATABASE_ERR, MSG_MINT_BASE_TOKEN_SPINNER,
+        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTS_CONFIG_ERR,
         MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
-        MSG_DA_PAIR_REGISTRATION_SPINNER
     },
     utils::{
         consensus::{generate_consensus_keys, get_consensus_config, get_consensus_secrets},
@@ -178,7 +178,7 @@ pub async fn init(
     )
     .await?;
     spinner.finish();
-    
+
     if let Some(true) = chain_config.legacy_bridge {
         setup_legacy_bridge(
             shell,
