@@ -151,6 +151,7 @@ pub(crate) struct StorageL1Batch {
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
     pub state_diff_hash: Option<Vec<u8>>,
+    pub inclusion_data: Option<Vec<u8>>,
 }
 
 impl StorageL1Batch {
@@ -268,6 +269,7 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
                     .aggregation_root
                     .ok_or(L1BatchMetadataError::Incomplete("aggregation_root"))?,
             ),
+            da_inclusion_data: batch.inclusion_data,
         })
     }
 }

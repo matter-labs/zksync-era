@@ -95,6 +95,8 @@ pub struct L1BatchMetadata {
     pub bootloader_initial_content_commitment: Option<H256>,
     pub state_diffs_compressed: Vec<u8>,
 
+    pub da_inclusion_data: Option<Vec<u8>>,
+
     pub aggregation_root: H256,
     pub local_root: H256,
 }
