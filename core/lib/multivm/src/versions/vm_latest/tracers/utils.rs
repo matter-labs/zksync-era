@@ -6,7 +6,8 @@ use zk_evm_1_5_0::{
     },
 };
 use zksync_system_constants::{
-    ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
+    ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS,
+    SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
 };
 use zksync_types::U256;
 use zksync_utils::u256_to_h256;
@@ -187,6 +188,7 @@ pub(crate) fn computational_gas_price(
             if address == KECCAK256_PRECOMPILE_ADDRESS
                 || address == SHA256_PRECOMPILE_ADDRESS
                 || address == ECRECOVER_PRECOMPILE_ADDRESS
+                || address == SECP256R1_VERIFY_PRECOMPILE_ADDRESS
             {
                 data.src1_value.value.low_u32()
             } else {
