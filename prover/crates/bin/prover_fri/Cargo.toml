@@ -43,6 +43,9 @@ reqwest = { workspace = true, features = ["blocking"] }
 regex.workspace = true
 clap = { workspace = true, features = ["derive"] }
 
+[dev-dependencies]
+tracing-subscriber.workspace = true
+
 [features]
 default = []
 gpu = ["shivini", "zksync_prover_keystore/gpu"]
