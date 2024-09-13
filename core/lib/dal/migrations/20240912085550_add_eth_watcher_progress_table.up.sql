@@ -1,4 +1,4 @@
-CREATE TYPE event_type AS ENUM ('ProtocolUpgrades', 'PriorityTransactions', 'GovernanceUpgrades');
+CREATE TYPE event_type AS ENUM ('PriorityTransactions', 'GovernanceUpgrades');
 
 CREATE TABLE processed_events
 (

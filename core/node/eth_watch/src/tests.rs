@@ -1,7 +1,7 @@
 use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
 use tokio::sync::RwLock;
-use zksync_contracts::{chain_admin_contract, governance_contract, hyperchain_contract};
+use zksync_contracts::{governance_contract, hyperchain_contract};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_types::{
@@ -154,13 +154,6 @@ impl EthClient for MockEthClient {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
 
-    async fn diamond_cut_by_version(
-        &self,
-        _packed_version: H256,
-    ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        unimplemented!()
-    }
-
     async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
         Ok(self
             .inner
@@ -246,7 +239,6 @@ async fn create_test_watcher(
     let watcher = EthWatch::new(
         Address::default(),
         &governance_contract(),
-        &chain_admin_contract(),
         Box::new(l1_client.clone()),
         Box::new(sl_client.clone()),
         connection_pool,
@@ -353,7 +345,6 @@ async fn test_normal_operation_governance_upgrades() {
     let mut watcher = EthWatch::new(
         Address::default(),
         &governance_contract(),
-        &chain_admin_contract(),
         Box::new(client.clone()),
         Box::new(client.clone()),
         connection_pool.clone(),

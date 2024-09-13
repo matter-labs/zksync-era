@@ -22,7 +22,7 @@ use self::{
     },
     metrics::METRICS,
 };
-use crate::event_processors::{DecentralizedUpgradesEventProcessor, EventsSource};
+use crate::event_processors::EventsSource;
 
 mod client;
 mod event_processors;
@@ -51,7 +51,6 @@ impl EthWatch {
     pub async fn new(
         sl_diamond_proxy_addr: Address,
         governance_contract: &Contract,
-        chain_admin_contract: &Contract,
         l1_client: Box<dyn EthClient>,
         sl_client: Box<dyn EthClient>,
         pool: ConnectionPool<Core>,
@@ -69,14 +68,9 @@ impl EthWatch {
             state.last_seen_protocol_version,
             governance_contract,
         );
-        let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
-            state.last_seen_protocol_version,
-            chain_admin_contract,
-        );
         let event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(governance_upgrades_processor),
-            Box::new(decentralized_upgrades_processor),
         ];
 
         Ok(Self {
@@ -166,7 +160,6 @@ impl EthWatch {
                     Web3BlockNumber::Number(from_block.into()),
                     Web3BlockNumber::Number(finalized_block.into()),
                     processor.relevant_topic(),
-                    None,
                     RETRY_LIMIT,
                 )
                 .await?;
