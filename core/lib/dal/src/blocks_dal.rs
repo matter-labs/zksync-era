@@ -344,7 +344,10 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
-                fee_address
+                fee_address,
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -382,7 +385,10 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 system_logs,
                 pubdata_input,
-                fee_address
+                fee_address,
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price
             FROM
                 l1_batches
             WHERE
@@ -1189,7 +1195,10 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
-                fee_address
+                fee_address,
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1377,7 +1386,10 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
-                fee_address
+                fee_address,
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1459,7 +1471,10 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
-                fee_address
+                fee_address,
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price
             FROM
                 (
                     SELECT
@@ -1534,7 +1549,10 @@ impl BlocksDal<'_, '_> {
                         events_queue_commitment,
                         bootloader_initial_content_commitment,
                         pubdata_input,
-                        fee_address
+                        fee_address,
+                        l1_gas_price,
+                        l2_fair_gas_price,
+                        fair_pubdata_price
                     FROM
                         l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1663,7 +1681,10 @@ impl BlocksDal<'_, '_> {
                     events_queue_commitment,
                     bootloader_initial_content_commitment,
                     pubdata_input,
-                    fee_address
+                    fee_address,
+                    l1_gas_price,
+                    l2_fair_gas_price,
+                    fair_pubdata_price
                 FROM
                     l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1729,7 +1750,10 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
-                fee_address
+                fee_address,
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1809,7 +1833,10 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
-                fee_address
+                fee_address,
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number

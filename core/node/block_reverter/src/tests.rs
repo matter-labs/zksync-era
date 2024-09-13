@@ -2,6 +2,7 @@
 
 use std::{collections::HashSet, sync::Mutex};
 
+use super::*;
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use test_casing::test_casing;
@@ -10,13 +11,12 @@ use zksync_dal::Connection;
 use zksync_merkle_tree::TreeInstruction;
 use zksync_object_store::{Bucket, MockObjectStore};
 use zksync_state::interface::ReadStorage;
+use zksync_types::fee_model::BatchFeeInput;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
     snapshots::SnapshotVersion,
     AccountTreeId, L2BlockNumber, ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog,
 };
-
-use super::*;
 
 fn gen_storage_logs() -> Vec<StorageLog> {
     (0..10)
@@ -60,7 +60,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             l2_tx_count: 0,
             fee_account_address: Address::default(),
             base_fee_per_gas: 0,
-            batch_fee_input: Default::default(),
+            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
             gas_per_pubdata_limit: 0,
             base_system_contracts_hashes: Default::default(),
             protocol_version: Some(ProtocolVersionId::latest()),
@@ -88,6 +88,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             protocol_version: Some(ProtocolVersionId::latest()),
             pubdata_input: None,
             fee_address: Default::default(),
+            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
         };
         storage
             .blocks_dal()

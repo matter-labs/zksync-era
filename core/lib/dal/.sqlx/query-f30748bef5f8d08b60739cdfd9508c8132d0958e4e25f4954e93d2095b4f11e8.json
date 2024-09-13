@@ -1,6 +1,10 @@
 {
   "db_name": "PostgreSQL",
+<<<<<<<< HEAD:core/lib/dal/.sqlx/query-f30748bef5f8d08b60739cdfd9508c8132d0958e4e25f4954e93d2095b4f11e8.json
   "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                system_logs,\n                compressed_state_diffs,\n                protocol_version,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                fee_address\n            FROM\n                (\n                    SELECT\n                        l1_batches.*,\n                        ROW_NUMBER() OVER (\n                            ORDER BY\n                                number ASC\n                        ) AS row_number\n                    FROM\n                        l1_batches\n                    WHERE\n                        eth_commit_tx_id IS NOT NULL\n                        AND l1_batches.skip_proof = TRUE\n                        AND l1_batches.number > $1\n                    ORDER BY\n                        number\n                    LIMIT\n                        $2\n                ) inn\n            LEFT JOIN commitments ON commitments.l1_batch_number = inn.number\n            WHERE\n                number - row_number = $1\n            ",
+========
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                system_logs,\n                compressed_state_diffs,\n                protocol_version,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                l1_gas_price,\n                l2_fair_gas_price,\n                fair_pubdata_price\n            FROM\n                (\n                    SELECT\n                        l1_batches.*,\n                        ROW_NUMBER() OVER (\n                            ORDER BY\n                                number ASC\n                        ) AS ROW_NUMBER\n                    FROM\n                        l1_batches\n                    WHERE\n                        eth_commit_tx_id IS NOT NULL\n                        AND l1_batches.skip_proof = TRUE\n                        AND l1_batches.number > $1\n                    ORDER BY\n                        number\n                    LIMIT\n                        $2\n                ) inn\n                LEFT JOIN commitments ON commitments.l1_batch_number = inn.number\n            WHERE\n                number - ROW_NUMBER = $1\n            ",
+>>>>>>>> 82ed8f925 (add `BatchFeeInput` to L1 batch models):core/lib/dal/.sqlx/query-fdfa11130c12d0a57b28eb3f0ecaeb46303a5c35d14b31fdaac3ce5099390150.json
   "describe": {
     "columns": [
       {
@@ -139,9 +143,25 @@
         "type_info": "Bytea"
       },
       {
+<<<<<<<< HEAD:core/lib/dal/.sqlx/query-f30748bef5f8d08b60739cdfd9508c8132d0958e4e25f4954e93d2095b4f11e8.json
         "ordinal": 27,
         "name": "fee_address",
         "type_info": "Bytea"
+========
+        "ordinal": 26,
+        "name": "l1_gas_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 27,
+        "name": "l2_fair_gas_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 28,
+        "name": "fair_pubdata_price",
+        "type_info": "Int8"
+>>>>>>>> 82ed8f925 (add `BatchFeeInput` to L1 batch models):core/lib/dal/.sqlx/query-fdfa11130c12d0a57b28eb3f0ecaeb46303a5c35d14b31fdaac3ce5099390150.json
       }
     ],
     "parameters": {
@@ -178,8 +198,17 @@
       true,
       true,
       true,
+<<<<<<<< HEAD:core/lib/dal/.sqlx/query-f30748bef5f8d08b60739cdfd9508c8132d0958e4e25f4954e93d2095b4f11e8.json
       false
     ]
   },
   "hash": "f30748bef5f8d08b60739cdfd9508c8132d0958e4e25f4954e93d2095b4f11e8"
+========
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "fdfa11130c12d0a57b28eb3f0ecaeb46303a5c35d14b31fdaac3ce5099390150"
+>>>>>>>> 82ed8f925 (add `BatchFeeInput` to L1 batch models):core/lib/dal/.sqlx/query-fdfa11130c12d0a57b28eb3f0ecaeb46303a5c35d14b31fdaac3ce5099390150.json
 }

@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                l1_gas_price,\n                l2_fair_gas_price,\n                fair_pubdata_price\n            FROM\n                l1_batches\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_gas_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "l2_fair_gas_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "fair_pubdata_price",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "42fc6da4154f25fc711f194931b0613f921b0d9d99c1e0c219f05f8cfb5ad001"
+}
