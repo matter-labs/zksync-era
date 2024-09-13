@@ -908,6 +908,32 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn get_last_l1_batch_fee_input(&mut self) -> DalResult<BatchFeeInput> {
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price
+            FROM
+                l1_batches
+            ORDER BY
+                number DESC
+            LIMIT
+                1
+            "#
+        )
+        .instrument("get_last_l1_batch_fee_input")
+        .fetch_one(self.storage)
+        .await?;
+
+        Ok(BatchFeeInput::pubdata_independent(
+            row.l1_gas_price as u64,
+            row.l2_fair_gas_price as u64,
+            row.fair_pubdata_price as u64,
+        ))
+    }
+
     pub async fn get_last_sealed_l2_block_header(&mut self) -> DalResult<Option<L2BlockHeader>> {
         let header = sqlx::query_as!(
             StorageL2BlockHeader,
