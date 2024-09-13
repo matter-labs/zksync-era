@@ -1,9 +1,7 @@
-use std::path::PathBuf;
-
 use anyhow::Context;
 use clap::Parser;
-use common::{config::global_config, logger, yaml::merge_yaml, Prompt};
-use config::{ChainConfig, EcosystemConfig};
+use common::{config::global_config, logger, Prompt};
+use config::{override_config, EcosystemConfig};
 use xshell::Shell;
 
 use crate::messages::{
@@ -33,14 +31,5 @@ pub fn run(shell: &Shell, args: OverrideConfigArgs) -> anyhow::Result<()> {
     logger::step(msg_overriding_config(chain.name.clone()));
     override_config(shell, path, &chain)?;
     logger::outro(MSG_OVERRIDE_SUCCESS);
-    Ok(())
-}
-
-pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> anyhow::Result<()> {
-    let chain_config_path = chain.path_to_general_config();
-    let override_config = serde_yaml::from_str(&shell.read_file(path)?)?;
-    let mut chain_config = serde_yaml::from_str(&shell.read_file(chain_config_path.clone())?)?;
-    merge_yaml(&mut chain_config, override_config, true)?;
-    shell.write_file(chain_config_path, serde_yaml::to_string(&chain_config)?)?;
     Ok(())
 }

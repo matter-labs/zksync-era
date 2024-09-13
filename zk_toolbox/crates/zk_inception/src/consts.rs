@@ -53,3 +53,6 @@ pub const WITNESS_VECTOR_GENERATOR_BINARY_NAME: &str = "zksync_witness_vector_ge
 pub const PROVER_BINARY_NAME: &str = "zksync_prover_fri";
 pub const COMPRESSOR_BINARY_NAME: &str = "zksync_proof_fri_compressor";
 pub const PROVER_JOB_MONITOR_BINARY_NAME: &str = "zksync_prover_job_monitor";
+
+pub const PATH_TO_NO_PROOFS_OVERRIDE_CONFIG: &str = "etc/env/file_based/override/no_proofs.yaml";
+pub const PATH_TO_VALLIDIUM_OVERRIDE_CONFIG: &str = "etc/env/file_based/override/validium.yaml";
