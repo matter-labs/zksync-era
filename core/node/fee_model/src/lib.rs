@@ -301,7 +301,10 @@ mod tests {
     use l1_gas_price::GasAdjusterClient;
     use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
     use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
-    use zksync_types::{commitment::L1BatchCommitmentMode, fee_model::BaseTokenConversionRatio};
+    use zksync_types::{
+        block::L1BatchHeader, commitment::L1BatchCommitmentMode,
+        fee_model::BaseTokenConversionRatio, L1BatchNumber,
+    };
 
     use super::*;
 
@@ -808,5 +811,42 @@ mod tests {
         )
         .await
         .expect("Failed to create GasAdjuster")
+    }
+
+    #[tokio::test]
+    async fn test_take_fee_input_from_unsealed_batch() {
+        let sealed_batch_fee_input = BatchFeeInput::pubdata_independent(1, 2, 3);
+        let unsealed_batch_fee_input = BatchFeeInput::pubdata_independent(101, 102, 103);
+
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        let l1_batch_header = L1BatchHeader {
+            number: L1BatchNumber(1),
+            timestamp: 1,
+            l1_tx_count: 0,
+            l2_tx_count: 0,
+            priority_ops_onchain_data: vec![],
+            l2_to_l1_logs: vec![],
+            l2_to_l1_messages: vec![],
+            bloom: Default::default(),
+            used_contract_hashes: vec![],
+            base_system_contracts_hashes: Default::default(),
+            system_logs: vec![],
+            protocol_version: None,
+            pubdata_input: None,
+            batch_fee_input: sealed_batch_fee_input,
+        };
+        conn.blocks_dal()
+            .insert_mock_l1_batch(&l1_batch_header)
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .insert_l1_batch(L1BatchNumber(2), 2, unsealed_batch_fee_input)
+            .await
+            .unwrap();
+        let provider =
+            ApiFeeInputProvider::new(Arc::new(MockBatchFeeParamsProvider::default()), pool);
+        let fee_input = provider.get_batch_fee_input_scaled(1.0, 1.0).await.unwrap();
+        assert_eq!(fee_input, unsealed_batch_fee_input);
     }
 }
