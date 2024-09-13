@@ -13,6 +13,7 @@ pub mod forge;
 pub mod git;
 pub mod server;
 pub mod wallets;
+pub mod yaml;
 
 pub use prerequisites::{
     check_general_prerequisites, check_prerequisites, GCLOUD_PREREQUISITE, GPU_PREREQUISITES,
