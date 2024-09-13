@@ -27,10 +27,7 @@ use crate::{
         MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
-    utils::{
-        consensus::{generate_consensus_keys, get_consensus_config, get_consensus_secrets},
-        forge::{check_the_balance, fill_forge_private_key},
-    },
+    utils::consensus::{generate_consensus_keys, get_consensus_config, get_consensus_secrets},
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
