@@ -59,7 +59,6 @@ impl ProofCompressor {
 
     #[tracing::instrument(skip(proof, _compression_mode))]
     pub fn compress_proof(
-        l1_batch: L1BatchNumber,
         proof: ZkSyncRecursionLayerProof,
         _compression_mode: u8,
         keystore: Keystore,
@@ -171,16 +170,13 @@ impl JobProcessor for ProofCompressor {
 
     async fn process_job(
         &self,
-        job_id: &L1BatchNumber,
+        _job_id: &L1BatchNumber,
         job: ZkSyncRecursionLayerProof,
         _started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         let compression_mode = self.compression_mode;
-        let block_number = *job_id;
         let keystore = self.keystore.clone();
-        tokio::task::spawn_blocking(move || {
-            Self::compress_proof(block_number, job, compression_mode, keystore)
-        })
+        tokio::task::spawn_blocking(move || Self::compress_proof(job, compression_mode, keystore))
     }
 
     async fn save_result(
