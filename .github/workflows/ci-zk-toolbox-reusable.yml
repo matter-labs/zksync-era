@@ -104,7 +104,7 @@ jobs:
           bridge_hub=$(awk '/bridgehub_proxy_addr/ {print $2}' ./configs/contracts.yaml)
           chain_id=$(awk '/chain_id:/ {print $2}' ./chains/offline_chain/ZkStack.yaml)
 
-          hyperchain_output=$(cast call $bridge_hub "getHyperchain(uint256)" $chain_id)
+          hyperchain_output=$(ci_run cast call $bridge_hub "getHyperchain(uint256)" $chain_id)
 
           if [[ $hyperchain_output == 0x* && ${#hyperchain_output} -eq 66 ]]; then
               echo "Chain successfully registered: $hyperchain_output"
