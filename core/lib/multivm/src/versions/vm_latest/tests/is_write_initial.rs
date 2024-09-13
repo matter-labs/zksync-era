@@ -1,7 +1,9 @@
 use zksync_types::get_nonce_key;
 
 use crate::{
-    interface::{storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{
+        storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
+    },
     vm_latest::{
         tests::{
             tester::{Account, TxType, VmTesterBuilder},

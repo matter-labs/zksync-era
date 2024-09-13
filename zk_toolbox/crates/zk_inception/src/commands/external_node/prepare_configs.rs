@@ -1,4 +1,4 @@
-use std::{path::Path, str::FromStr};
+use std::{collections::BTreeMap, path::Path, str::FromStr};
 
 use anyhow::Context;
 use common::{config::global_config, logger};
@@ -8,14 +8,24 @@ use config::{
 };
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
-use zksync_config::configs::{DatabaseSecrets, L1Secrets};
+use zksync_config::configs::{
+    consensus::{ConsensusSecrets, NodeSecretKey, Secret},
+    DatabaseSecrets, L1Secrets,
+};
+use zksync_consensus_crypto::TextFmt;
+use zksync_consensus_roles as roles;
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
     messages::{
-        msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED, MSG_PREPARING_EN_CONFIGS,
+        msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED,
+        MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_CONSENSUS_SECRETS_MISSING_ERR,
+        MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR, MSG_PORTS_CONFIG_ERR, MSG_PREPARING_EN_CONFIGS,
     },
-    utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
+    utils::{
+        consensus::{get_consensus_config, node_public_key},
+        rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
+    },
 };
 
 pub fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
@@ -64,15 +74,45 @@ fn prepare_configs(
         gateway_url: None,
     };
     let mut general_en = general.clone();
+    let next_empty_ports_config = ports_config(&general)
+        .context(MSG_PORTS_CONFIG_ERR)?
+        .next_empty_ports_config();
+    update_ports(&mut general_en, &next_empty_ports_config)?;
 
-    update_ports(
-        &mut general_en,
-        &ports_config(&general)
-            .context("da")?
-            .next_empty_ports_config(),
+    // Set consensus config
+    let main_node_consensus_config = general
+        .consensus_config
+        .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
+
+    let mut gossip_static_outbound = BTreeMap::new();
+    let main_node_public_key = node_public_key(
+        &config
+            .get_secrets_config()?
+            .consensus
+            .context(MSG_CONSENSUS_SECRETS_MISSING_ERR)?,
+    )?
+    .context(MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR)?;
+
+    gossip_static_outbound.insert(main_node_public_key, main_node_consensus_config.public_addr);
+
+    let en_consensus_config = get_consensus_config(
+        config,
+        next_empty_ports_config,
+        None,
+        Some(gossip_static_outbound),
     )?;
+    general_en.consensus_config = Some(en_consensus_config.clone());
+    en_consensus_config.save_with_base_path(shell, en_configs_path)?;
+
+    // Set secrets config
+    let node_key = roles::node::SecretKey::generate().encode();
+    let consensus_secrets = ConsensusSecrets {
+        validator_key: None,
+        attester_key: None,
+        node_key: Some(NodeSecretKey(Secret::new(node_key))),
+    };
     let secrets = SecretsConfig {
-        consensus: None,
+        consensus: Some(consensus_secrets),
         database: Some(DatabaseSecrets {
             server_url: Some(args.db.full_url().into()),
             prover_url: None,

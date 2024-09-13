@@ -13,7 +13,7 @@ jobs:
   #   name: lint
   #   uses: ./.github/workflows/ci-core-lint-reusable.yml
   unit-tests:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -52,12 +52,9 @@ jobs:
 
       - name: Init
         run: |
-          ci_run zk
           ci_run run_retried rustup show
-          ci_run zk run yarn
-          ci_run zk db setup
-          ci_run zk compiler all
-          ci_run zk contract build
+          ci_run ./bin/zkt
+          ci_run zk_supervisor contracts
 
       # FIXME: enable contract tests once tehy are stable
       #- name: Contracts unit tests
@@ -65,77 +62,91 @@ jobs:
 
       - name: Rust unit tests
         run: |
-          ci_run zk test rust
+          ci_run zk_supervisor test rust
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
-          ci_run zk f cargo test --release -p vm-benchmark --bench oneshot --bench batch
+          ci_run cargo test --release -p vm-benchmark --bench oneshot --bench batch
 
   # FIXME: support loadtest together with sync layer.
-  loadtest:
-    runs-on: [matterlabs-ci-runner]
-    strategy:
-      fail-fast: false
-      matrix:
-        vm_mode: ["old"]
+  # loadtest:
+  #   runs-on: [ matterlabs-ci-runner-high-performance ]
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #     # FIXME: support new VM mode
+  #       vm_mode: ["OLD"]
 
-    steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
-        with:
-          submodules: "recursive"
-          fetch-depth: 0
+  #   steps:
+  #     - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+  #       with:
+  #         submodules: "recursive"
+  #         fetch-depth: 0
 
-      - name: Setup environment
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo IN_DOCKER=1 >> .env
+  #     - name: Setup environment
+  #       run: |
+  #         echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+  #         echo $(pwd)/bin >> $GITHUB_PATH
+  #         echo IN_DOCKER=1 >> .env
 
-      - name: Loadtest configuration
-        run: |
-          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'new' && 22000 || 16000 }} >> .env
-          echo ACCOUNTS_AMOUNT="150" >> .env
-          echo FAIL_FAST=true >> .env
-          echo IN_DOCKER=1 >> .env
-          echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
+  #     - name: Loadtest configuration
+  #       run: |
+  #         echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 21000 || 16000 }} >> .env
+  #         echo ACCOUNTS_AMOUNT="100" >> .env
+  #         echo MAX_INFLIGHT_TXS="10" >> .env
+  #         echo SYNC_API_REQUESTS_LIMIT="15" >> .env
+  #         echo FAIL_FAST=true >> .env
+  #         echo IN_DOCKER=1 >> .env
 
-      - name: Start services
-        run: |
-          ci_localnet_up
-          ci_run sccache --start-server
+  #     - name: Start services
+  #       run: |
+  #         ci_localnet_up
+  #         ci_run sccache --start-server
 
-      - name: Init
-        run: |
-          ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts
+  #     - name: Init
+  #       run: |
+  #         ci_run git config --global --add safe.directory /usr/src/zksync
+  #         ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
+  #         ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
+  #         ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
-          ci_run zk
-          ci_run zk init --local-legacy-bridge-testing
+  #         ci_run ./bin/zkt
+  #         ci_run zk_inception chain create \
+  #           --chain-name legacy \
+  #           --chain-id sequential \
+  #           --prover-mode no-proofs \
+  #           --wallet-creation localhost \
+  #           --l1-batch-commit-data-generator-mode rollup \
+  #           --base-token-address 0x0000000000000000000000000000000000000001 \
+  #           --base-token-price-nominator 1 \
+  #           --base-token-price-denominator 1 \
+  #           --set-as-default false \
+  #           --ignore-prerequisites \
+  #           --legacy-bridge
+          
+  #         ci_run zk_inception ecosystem init --dev --verbose
+  #         ci_run zk_supervisor contracts --test-contracts
 
-      # `sleep 60` because we need to wait until server added all the tokens
-      - name: Run server
-        run: |
-          EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE=${{ matrix.vm_mode }} \
-          PASSED_ENV_VARS="EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE" \
-            ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
-          ci_run sleep 60
+  #     # `sleep 60` because we need to wait until server added all the tokens
+  #     - name: Run server
+  #       run: |
+  #         ci_run sed -i -e 's/mode: FULL/mode: LIGHTWEIGHT/' chains/legacy/configs/general.yaml
+  #         ci_run sed -i -e 's/state_keeper_fast_vm_mode:.*/state_keeper_fast_vm_mode: ${{ matrix.vm_mode }}/' chains/legacy/configs/general.yaml
+  #         ci_run sed -i -e 's/delay_interval:.*/delay_interval: 50/' chains/legacy/configs/general.yaml
+  #         ci_run zk_inception server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
+  #         ci_run sleep 60
 
-      - name: Deploy legacy era contracts
-        run: ci_run zk contract setup-legacy-bridge-era
+  #     - name: Perform loadtest
+  #       run: ci_run zk_supervisor t loadtest -v --chain=legacy
 
-      - name: Perform loadtest
-        run: ci_run zk run loadtest
+  #     - name: Show server.log logs
+  #       if: always()
+  #       run: ci_run cat server.log || true
 
-      - name: Show server.log logs
-        if: always()
-        run: ci_run cat server.log || true
-
-      - name: Show sccache logs
-        if: always()
-        run: |
-          ci_run sccache --show-stats || true
-          ci_run cat /tmp/sccache_log.txt || true
+  #     - name: Show sccache logs
+  #       if: always()
+  #       run: |
+  #         ci_run sccache --show-stats || true
+  #         ci_run cat /tmp/sccache_log.txt || true
 
   integration:
     name: Integration (consensus=${{ matrix.consensus }}, base_token=${{ matrix.base_token }}, gateway = ${{ matrix.gateway }})
@@ -153,7 +164,7 @@ jobs:
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"
 
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -278,7 +289,7 @@ jobs:
       #     DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
       #     SNAPSHOTS_CREATOR_VERSION=${{ matrix.deployment_mode == 'Validium' && '0' || '1' }} \
       #     DISABLE_TREE_DURING_PRUNING=${{ matrix.base_token == 'Eth' }} \
-      #     ETH_CLIENT_WEB3_URL="http://reth:8545" \
+      #     ETH_CLIENT_WEB3_URL="http://localhost:8545" \
       #     PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING,SNAPSHOTS_CREATOR_VERSION,ETH_CLIENT_WEB3_URL" \
       #       ci_run yarn recovery-test snapshot-recovery-test
 
@@ -286,7 +297,7 @@ jobs:
       #   run: |
       #     ENABLE_CONSENSUS=${{ matrix.consensus }} \
       #     DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
-      #     ETH_CLIENT_WEB3_URL="http://reth:8545" \
+      #     ETH_CLIENT_WEB3_URL="http://localhost:8545" \
       #     PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,ETH_CLIENT_WEB3_URL" \
       #       ci_run yarn recovery-test genesis-recovery-test
 
@@ -334,7 +345,7 @@ jobs:
 
       - name: Show revert.log logs
         if: always()
-        run: ci_run cat core/tests/revert-test/revert.log || true
+        run: ci_run cat logs/revert/default/server.log || true
 
       - name: Show upgrade.log logs
         if: always()
@@ -352,13 +363,14 @@ jobs:
 
   # FIXME: restore tests with EN and sync layer
   # external-node:
-  #   name: External node (consensus=${{ matrix.consensus }}, base_token=${{ matrix.base_token }})
+  #   name: External node (consensus=${{ matrix.consensus }}, base_token=${{ matrix.base_token }}, deployment_mode=${{ matrix.deployment_mode }})
   #   strategy:
   #     fail-fast: false
   #     matrix:
-  #       consensus: [false, true]
-  #       base_token: ["Eth", "Custom"]
-  #   runs-on: [matterlabs-ci-runner]
+  #       consensus: [ false, true ]
+  #       base_token: [ "Eth", "Custom" ]
+  #       deployment_mode: [ "Rollup", "Validium" ]
+  #   runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     # env:
     #   SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"
@@ -417,13 +429,22 @@ jobs:
   #     - name: Integration tests
   #       run: ci_run zk test i server --testPathIgnorePatterns 'contract-verification|snapshots-creator'
 
-  #     - name: Run revert test
-  #       run: |
-  #         ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=Rollup PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
-  #         # test terminates the nodes, so we restart them.
-  #         ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
-  #         ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
-  #         ci_run sleep 30
+      # - name: Run revert test
+      #   run: |
+      #     ENABLE_CONSENSUS=${{ matrix.consensus }} \
+      #     DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
+      #     PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" \
+      #     ci_run zk test i revert-en
+          
+      #     # test terminates the nodes, so we restart them.
+      #     if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
+      #       ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
+      #       ZKSYNC_ENV=ext-node-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+      #     elif [[ "${{ matrix.deployment_mode }}" == "Validium" ]]; then
+      #       ZKSYNC_ENV=dev_validium_docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
+      #       ZKSYNC_ENV=ext-node-validium-docker ci_run zk external-node $EXT_NODE_FLAGS &>>ext-node.log &
+      #     fi
+      #     ci_run sleep 30
 
   #     - name: Run upgrade test
   #       run: |
@@ -442,13 +463,13 @@ jobs:
   #       if: always()
   #       run: ci_run cat ext-node.log || true
 
-  #     - name: Show revert_main.log logs
-  #       if: always()
-  #       run: ci_run cat core/tests/revert-test/revert_main.log || true
+      # - name: Show revert logs (main node)
+      #   if: always()
+      #   run: ci_run cat logs/revert/en/default/server.log || true
 
-  #     - name: Show revert_ext.log logs
-  #       if: always()
-  #       run: ci_run cat core/tests/revert-test/revert_ext.log || true
+      # - name: Show revert logs (EN)
+      #   if: always()
+      #   run: ci_run cat logs/revert/en/default/external_node.log || true
 
   #     - name: Show upgrade.log logs
   #       if: always()
@@ -459,3 +480,4 @@ jobs:
       #   run: |
       #     ci_run sccache --show-stats || true
       #     ci_run cat /tmp/sccache_log.txt || true
+

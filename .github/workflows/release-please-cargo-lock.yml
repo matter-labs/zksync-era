@@ -6,6 +6,7 @@ on:
 name: release-please-update-cargo-lock
 jobs:
   update_cargo_lock:
+    # TODO: After migraton switch to CI
     runs-on: [matterlabs-default-infra-runners]
 
     steps:

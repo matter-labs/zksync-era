@@ -35,7 +35,11 @@ fn run_server(
     chain_config: &ChainConfig,
     shell: &Shell,
 ) -> anyhow::Result<()> {
-    let server = Server::new(args.components.clone(), chain_config.link_to_code.clone());
+    let server = Server::new(
+        args.components.clone(),
+        chain_config.link_to_code.clone(),
+        args.uring,
+    );
 
     if args.build {
         server.build(shell)?;

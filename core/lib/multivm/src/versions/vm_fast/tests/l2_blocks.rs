@@ -16,7 +16,7 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 use crate::{
     interface::{
         storage::ReadStorage, ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode,
-        VmInterface,
+        VmInterface, VmInterfaceExt,
     },
     vm_fast::{
         tests::tester::{default_l1_batch, VmTesterBuilder},

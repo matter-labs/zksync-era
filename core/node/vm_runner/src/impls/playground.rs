@@ -15,12 +15,15 @@ use tokio::{
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_state::RocksdbStorage;
-use zksync_state_keeper::{MainBatchExecutor, StateKeeperOutputHandler, UpdatesManager};
 use zksync_types::{vm::FastVmMode, L1BatchNumber, L2ChainId};
+use zksync_vm_executor::batch::MainBatchExecutorFactory;
+use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv};
 
 use crate::{
-    ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, OutputHandlerFactory,
-    StorageSyncTask, VmRunner, VmRunnerIo, VmRunnerStorage,
+    storage::{PostgresLoader, StorageLoader},
+    ConcurrentOutputHandlerFactory, ConcurrentOutputHandlerFactoryTask, L1BatchOutput,
+    L2BlockOutput, OutputHandler, OutputHandlerFactory, StorageSyncTask, VmRunner, VmRunnerIo,
+    VmRunnerStorage,
 };
 
 #[derive(Debug, Serialize)]
@@ -35,6 +38,20 @@ impl From<VmPlaygroundHealth> for Health {
     }
 }
 
+/// Options configuring the storage loader for VM playground.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum VmPlaygroundStorageOptions {
+    /// Use RocksDB cache.
+    Rocksdb(String),
+    /// Use prefetched batch snapshots (with fallback to Postgres if protective reads are not available for a batch).
+    Snapshots {
+        /// Whether to shadow snapshot storage with Postgres. This degrades performance and is mostly useful
+        /// to test snapshot correctness.
+        shadow: bool,
+    },
+}
+
 /// Options related to the VM playground cursor.
 #[derive(Debug)]
 pub struct VmPlaygroundCursorOptions {
@@ -46,16 +63,29 @@ pub struct VmPlaygroundCursorOptions {
     pub reset_state: bool,
 }
 
+#[derive(Debug)]
+enum VmPlaygroundStorage {
+    Rocksdb {
+        path: String,
+        task_sender: oneshot::Sender<StorageSyncTask<VmPlaygroundIo>>,
+    },
+    Snapshots {
+        shadow: bool,
+    },
+}
+
 /// Virtual machine playground. Does not persist anything in Postgres; instead, keeps an L1 batch cursor as a plain text file in the RocksDB directory
 /// (so that the playground doesn't repeatedly process same batches after a restart).
+///
+/// If the RocksDB directory is not specified, the playground works in the ephemeral mode: it takes all inputs from Postgres, doesn't maintain cache
+/// and doesn't persist the processed batch cursor. This is mostly useful for debugging purposes.
 #[derive(Debug)]
 pub struct VmPlayground {
     pool: ConnectionPool<Core>,
-    batch_executor: MainBatchExecutor,
-    rocksdb_path: String,
+    batch_executor_factory: MainBatchExecutorFactory,
+    storage: VmPlaygroundStorage,
     chain_id: L2ChainId,
     io: VmPlaygroundIo,
-    loader_task_sender: oneshot::Sender<StorageSyncTask<VmPlaygroundIo>>,
     output_handler_factory:
         ConcurrentOutputHandlerFactory<VmPlaygroundIo, VmPlaygroundOutputHandler>,
     reset_to_batch: Option<L1BatchNumber>,
@@ -66,14 +96,30 @@ impl VmPlayground {
     pub async fn new(
         pool: ConnectionPool<Core>,
         vm_mode: FastVmMode,
-        rocksdb_path: String,
+        storage: VmPlaygroundStorageOptions,
         chain_id: L2ChainId,
         cursor: VmPlaygroundCursorOptions,
     ) -> anyhow::Result<(Self, VmPlaygroundTasks)> {
-        tracing::info!("Starting VM playground with mode {vm_mode:?}, cursor options: {cursor:?}");
+        tracing::info!("Starting VM playground with mode {vm_mode:?}, storage: {storage:?}, cursor options: {cursor:?}");
 
-        let cursor_file_path = Path::new(&rocksdb_path).join("__vm_playground_cursor");
-        let latest_processed_batch = VmPlaygroundIo::read_cursor(&cursor_file_path).await?;
+        let cursor_file_path = match &storage {
+            VmPlaygroundStorageOptions::Rocksdb(path) => {
+                Some(Path::new(path).join("__vm_playground_cursor"))
+            }
+            VmPlaygroundStorageOptions::Snapshots { .. } => {
+                tracing::warn!(
+                    "RocksDB cache is disabled; this can lead to significant performance degradation. Additionally, VM playground progress won't be persisted. \
+                    If this is not intended, set the cache path in app config"
+                );
+                None
+            }
+        };
+
+        let latest_processed_batch = if let Some(path) = &cursor_file_path {
+            VmPlaygroundIo::read_cursor(path).await?
+        } else {
+            None
+        };
         tracing::info!("Latest processed batch: {latest_processed_batch:?}");
         let latest_processed_batch = if cursor.reset_state {
             cursor.first_processed_batch
@@ -81,8 +127,8 @@ impl VmPlayground {
             latest_processed_batch.unwrap_or(cursor.first_processed_batch)
         };
 
-        let mut batch_executor = MainBatchExecutor::new(false, false);
-        batch_executor.set_fast_vm_mode(vm_mode);
+        let mut batch_executor_factory = MainBatchExecutorFactory::new(false, false);
+        batch_executor_factory.set_fast_vm_mode(vm_mode);
 
         let io = VmPlaygroundIo {
             cursor_file_path,
@@ -97,24 +143,33 @@ impl VmPlayground {
                 io.clone(),
                 VmPlaygroundOutputHandler,
             );
-        let (loader_task_sender, loader_task_receiver) = oneshot::channel();
 
+        let (storage, loader_task) = match storage {
+            VmPlaygroundStorageOptions::Rocksdb(path) => {
+                let (task_sender, task_receiver) = oneshot::channel();
+                let rocksdb = VmPlaygroundStorage::Rocksdb { path, task_sender };
+                let loader_task = VmPlaygroundLoaderTask {
+                    inner: task_receiver,
+                };
+                (rocksdb, Some(loader_task))
+            }
+            VmPlaygroundStorageOptions::Snapshots { shadow } => {
+                (VmPlaygroundStorage::Snapshots { shadow }, None)
+            }
+        };
         let this = Self {
             pool,
-            batch_executor,
-            rocksdb_path,
+            batch_executor_factory,
+            storage,
             chain_id,
             io,
-            loader_task_sender,
             output_handler_factory,
             reset_to_batch: cursor.reset_state.then_some(cursor.first_processed_batch),
         };
         Ok((
             this,
             VmPlaygroundTasks {
-                loader_task: VmPlaygroundLoaderTask {
-                    inner: loader_task_receiver,
-                },
+                loader_task,
                 output_handler_factory_task,
             },
         ))
@@ -132,7 +187,12 @@ impl VmPlayground {
 
     #[tracing::instrument(skip(self), err)]
     async fn reset_rocksdb_cache(&self, last_retained_batch: L1BatchNumber) -> anyhow::Result<()> {
-        let builder = RocksdbStorage::builder(self.rocksdb_path.as_ref()).await?;
+        let VmPlaygroundStorage::Rocksdb { path, .. } = &self.storage else {
+            tracing::warn!("No RocksDB path specified; skipping resetting cache");
+            return Ok(());
+        };
+
+        let builder = RocksdbStorage::builder(path.as_ref()).await?;
         let current_l1_batch = builder.l1_batch_number().await;
         if current_l1_batch <= Some(last_retained_batch) {
             tracing::info!("Resetting RocksDB cache is not required: its current batch #{current_l1_batch:?} is lower than the target");
@@ -150,10 +210,12 @@ impl VmPlayground {
     /// # Errors
     ///
     /// Propagates RocksDB and Postgres errors.
-    pub async fn run(self, stop_receiver: &watch::Receiver<bool>) -> anyhow::Result<()> {
-        fs::create_dir_all(&self.rocksdb_path)
-            .await
-            .with_context(|| format!("cannot create dir `{}`", self.rocksdb_path))?;
+    pub async fn run(self, stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        if let VmPlaygroundStorage::Rocksdb { path, .. } = &self.storage {
+            fs::create_dir_all(path)
+                .await
+                .with_context(|| format!("cannot create dir `{path}`"))?;
+        }
 
         if let Some(reset_to_batch) = self.reset_to_batch {
             self.io.health_updater.update(HealthStatus::Affected.into());
@@ -168,22 +230,28 @@ impl VmPlayground {
 
         self.io.update_health();
 
-        let (loader, loader_task) = VmRunnerStorage::new(
-            self.pool.clone(),
-            self.rocksdb_path,
-            self.io.clone(),
-            self.chain_id,
-        )
-        .await?;
-        self.loader_task_sender.send(loader_task).ok();
+        let loader: Arc<dyn StorageLoader> = match self.storage {
+            VmPlaygroundStorage::Rocksdb { path, task_sender } => {
+                let (loader, loader_task) =
+                    VmRunnerStorage::new(self.pool.clone(), path, self.io.clone(), self.chain_id)
+                        .await?;
+                task_sender.send(loader_task).ok();
+                Arc::new(loader)
+            }
+            VmPlaygroundStorage::Snapshots { shadow } => {
+                let mut loader = PostgresLoader::new(self.pool.clone(), self.chain_id).await?;
+                loader.shadow_snapshots(shadow);
+                Arc::new(loader)
+            }
+        };
         let vm_runner = VmRunner::new(
             self.pool,
             Box::new(self.io),
-            Arc::new(loader),
+            loader,
             Box::new(self.output_handler_factory),
-            Box::new(self.batch_executor),
+            Box::new(self.batch_executor_factory),
         );
-        vm_runner.run(stop_receiver).await
+        vm_runner.run(&stop_receiver).await
     }
 }
 
@@ -212,7 +280,7 @@ impl VmPlaygroundLoaderTask {
 #[derive(Debug)]
 pub struct VmPlaygroundTasks {
     /// Task that synchronizes storage with new available batches.
-    pub loader_task: VmPlaygroundLoaderTask,
+    pub loader_task: Option<VmPlaygroundLoaderTask>,
     /// Task that handles output from processed batches.
     pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<VmPlaygroundIo>,
 }
@@ -220,7 +288,7 @@ pub struct VmPlaygroundTasks {
 /// I/O powering [`VmPlayground`].
 #[derive(Debug, Clone)]
 pub struct VmPlaygroundIo {
-    cursor_file_path: PathBuf,
+    cursor_file_path: Option<PathBuf>,
     vm_mode: FastVmMode,
     window_size: u32,
     // We don't read this value from the cursor file in the `VmRunnerIo` implementation because reads / writes
@@ -247,15 +315,16 @@ impl VmPlaygroundIo {
     }
 
     async fn write_cursor(&self, cursor: L1BatchNumber) -> anyhow::Result<()> {
+        let Some(cursor_file_path) = &self.cursor_file_path else {
+            return Ok(());
+        };
         let buffer = cursor.to_string();
-        fs::write(&self.cursor_file_path, buffer)
-            .await
-            .with_context(|| {
-                format!(
-                    "failed writing VM playground cursor to `{}`",
-                    self.cursor_file_path.display()
-                )
-            })
+        fs::write(cursor_file_path, buffer).await.with_context(|| {
+            format!(
+                "failed writing VM playground cursor to `{}`",
+                cursor_file_path.display()
+            )
+        })
     }
 
     fn update_health(&self) {
@@ -325,9 +394,17 @@ impl VmRunnerIo for VmPlaygroundIo {
 struct VmPlaygroundOutputHandler;
 
 #[async_trait]
-impl StateKeeperOutputHandler for VmPlaygroundOutputHandler {
-    async fn handle_l2_block(&mut self, updates_manager: &UpdatesManager) -> anyhow::Result<()> {
-        tracing::trace!("Processed L2 block #{}", updates_manager.l2_block.number);
+impl OutputHandler for VmPlaygroundOutputHandler {
+    async fn handle_l2_block(
+        &mut self,
+        env: L2BlockEnv,
+        _output: &L2BlockOutput,
+    ) -> anyhow::Result<()> {
+        tracing::trace!("Processed L2 block #{}", env.number);
+        Ok(())
+    }
+
+    async fn handle_l1_batch(self: Box<Self>, _output: Arc<L1BatchOutput>) -> anyhow::Result<()> {
         Ok(())
     }
 }
@@ -336,8 +413,9 @@ impl StateKeeperOutputHandler for VmPlaygroundOutputHandler {
 impl OutputHandlerFactory for VmPlaygroundOutputHandler {
     async fn create_handler(
         &mut self,
-        _l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
+        _system_env: SystemEnv,
+        _l1_batch_env: L1BatchEnv,
+    ) -> anyhow::Result<Box<dyn OutputHandler>> {
         Ok(Box::new(Self))
     }
 }

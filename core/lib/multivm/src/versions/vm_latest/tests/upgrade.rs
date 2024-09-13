@@ -15,7 +15,7 @@ use super::utils::{get_complex_upgrade_abi, read_test_contract};
 use crate::{
     interface::{
         storage::WriteStorage, ExecutionResult, Halt, TxExecutionMode, VmExecutionMode,
-        VmInterface, VmInterfaceHistoryEnabled,
+        VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
     },
     vm_latest::{
         tests::{

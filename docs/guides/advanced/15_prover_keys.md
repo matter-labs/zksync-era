@@ -118,9 +118,9 @@ friendly hash function (currently Poseidon2).
 [recursive_circuit_list]:
   https://github.com/matter-labs/era-zkevm_test_harness/blob/3cd647aa57fc2e1180bab53f7a3b61ec47502a46/circuit_definitions/src/circuit_definitions/recursion_layer/mod.rs#L29
 [verification_key_list]:
-  https://github.com/matter-labs/zksync-era/tree/boojum-integration/prover/vk_setup_data_generator_server_fri/data
+  https://github.com/matter-labs/zksync-era/tree/6d18061df4a18803d3c6377305ef711ce60317e1/prover/data/keys
 [env_variables_for_hash]:
-  https://github.com/matter-labs/zksync-era/blob/boojum-integration/etc/env/base/contracts.toml#L44
+  https://github.com/matter-labs/zksync-era/blob/6d18061df4a18803d3c6377305ef711ce60317e1/etc/env/base/contracts.toml#L61
 [prover_setup_data]:
   https://github.com/matter-labs/zksync-era/blob/d2ca29bf20b4ec2d9ec9e327b4ba6b281d9793de/prover/vk_setup_data_generator_server_fri/src/lib.rs#L61
 [verifier_computation]:

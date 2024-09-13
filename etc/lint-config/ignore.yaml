@@ -1,0 +1,26 @@
+files: [
+  "KeysWithPlonkVerifier.sol",
+  "TokenInit.sol",
+  ".tslintrc.js",
+  ".prettierrc.js"
+]
+dirs: [
+  "target",
+  "node_modules",
+  "volumes",
+  "build",
+  "dist",
+  ".git",
+  "generated",
+  "grafonnet-lib",
+  "prettier-config",
+  "lint-config",
+  "cache",
+  "artifacts",
+  "typechain",
+  "binaryen",
+  "system-contracts",
+  "artifacts-zk",
+  "cache-zk",
+  "contracts/"
+]

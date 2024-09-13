@@ -121,7 +121,8 @@ impl EthClient for MockEthClient {
         &self,
         from: BlockNumber,
         to: BlockNumber,
-        topic: H256,
+        topics1: Vec<H256>,
+        topics2: Vec<H256>,
         _retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
         let from = self.block_to_number(from).await;
@@ -140,7 +141,11 @@ impl EthClient for MockEthClient {
         }
         Ok(logs
             .into_iter()
-            .filter(|log| log.topics.contains(&topic))
+            .filter(|log| {
+                log.topics
+                    .iter()
+                    .any(|topic| topics1.contains(topic) || topics2.contains(topic))
+            })
             .collect())
     }
 

@@ -1,7 +1,8 @@
 pub use self::{
     bytecode::CompressedBytecodeInfo,
     execution_result::{
-        Call, CallType, ExecutionResult, Refunds, TransactionExecutionResult, TxExecutionStatus,
+        BatchTransactionExecutionResult, Call, CallType, ExecutionResult,
+        OneshotTransactionExecutionResult, Refunds, TransactionExecutionResult, TxExecutionStatus,
         VmEvent, VmExecutionLogs, VmExecutionResultAndLogs,
     },
     execution_state::{BootloaderMemory, CurrentExecutionState},

@@ -8,12 +8,12 @@ const BASE_ERC20_TO_MINT = ethers.parseEther('100');
 
 export class Tester {
     public runningFee: Map<zksync.types.Address, bigint>;
+
     constructor(
         public ethProvider: ethers.Provider,
         public ethWallet: ethers.Wallet,
         public syncWallet: zksync.Wallet,
         public web3Provider: zksync.Provider,
-        public hyperchainAdmin: ethers.Wallet, // We need to add validator to ValidatorTimelock with admin rights
         public isETHBasedChain: boolean,
         public baseTokenAddress: string
     ) {
@@ -21,22 +21,27 @@ export class Tester {
     }
 
     // prettier-ignore
-    static async init(l1_rpc_addr: string, l2_rpc_addr: string, baseTokenAddress: string) : Promise<Tester> {
+    static async init(l1_rpc_addr: string, l2_rpc_addr: string, baseTokenAddress: string): Promise<Tester> {
         const ethProvider = new ethers.JsonRpcProvider(l1_rpc_addr);
         ethProvider.pollingInterval = 100;
 
         const testConfigPath = path.join(process.env.ZKSYNC_HOME!, `etc/test_config/constant`);
-        const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
-        const ethWalletHD = ethers.HDNodeWallet.fromMnemonic(
-            ethers.Mnemonic.fromPhrase(ethTestConfig.test_mnemonic),
-            "m/44'/60'/0'/0/0"
-        );
-        const ethWallet = new ethers.Wallet(ethWalletHD.privateKey, ethProvider);
-        const hyperchainAdminHD = ethers.HDNodeWallet.fromMnemonic(
-            ethers.Mnemonic.fromPhrase(ethTestConfig.mnemonic),
-            "m/44'/60'/0'/0/1"
-        );
-        const hyperchainAdmin = new ethers.Wallet(hyperchainAdminHD.privateKey, ethProvider);
+        const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, {encoding: 'utf-8'}));
+
+        let ethWalletPK: string;
+        if (process.env.MASTER_WALLET_PK) {
+            ethWalletPK = process.env.MASTER_WALLET_PK;
+        } else {
+            const ethWalletHD = ethers.HDNodeWallet.fromMnemonic(
+                ethers.Mnemonic.fromPhrase(ethTestConfig.test_mnemonic),
+                "m/44'/60'/0'/0/0"
+            );
+
+            ethWalletPK = ethWalletHD.privateKey
+        }
+
+        const ethWallet = new ethers.Wallet(ethWalletPK, ethProvider);
+
         const web3Provider = new zksync.Provider(l2_rpc_addr);
         web3Provider.pollingInterval = 100; // It's OK to keep it low even on stage.
         const syncWallet = new zksync.Wallet(ethWallet.privateKey, web3Provider, ethProvider);
@@ -54,7 +59,12 @@ export class Tester {
             // anyways. We will also set the miner's tip to 5 gwei, which is also much higher than the normal one.
             const maxFeePerGas = ethers.parseEther("0.00000025"); // 250 gwei
             const maxPriorityFeePerGas = ethers.parseEther("0.000000005"); // 5 gwei
-            cancellationTxs.push(ethWallet.sendTransaction({ to: ethWallet.address, nonce, maxFeePerGas, maxPriorityFeePerGas }).then((tx) => tx.wait()));
+            cancellationTxs.push(ethWallet.sendTransaction({
+                to: ethWallet.address,
+                nonce,
+                maxFeePerGas,
+                maxPriorityFeePerGas
+            }).then((tx) => tx.wait()));
         }
         if (cancellationTxs.length > 0) {
             await Promise.all(cancellationTxs);
@@ -63,7 +73,7 @@ export class Tester {
 
         const isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
 
-        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider, hyperchainAdmin, isETHBasedChain, baseTokenAddress);
+        return new Tester(ethProvider, ethWallet, syncWallet, web3Provider, isETHBasedChain, baseTokenAddress);
     }
 
     /// Ensures that the main wallet has enough base token.

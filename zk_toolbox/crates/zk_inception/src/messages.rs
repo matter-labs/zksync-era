@@ -5,6 +5,10 @@ use ethers::{
     utils::format_ether,
 };
 
+pub(super) const MSG_SETUP_KEYS_DOWNLOAD_SELECTION_PROMPT: &str =
+    "Do you want to download the setup keys or generate them?";
+pub(super) const MSG_SETUP_KEYS_REGION_PROMPT: &str =
+    "From which region you want setup keys to be downloaded?";
 /// Common messages
 pub(super) const MSG_SELECTED_CONFIG: &str = "Selected config";
 pub(super) const MSG_CHAIN_NOT_INITIALIZED: &str =
@@ -47,6 +51,7 @@ pub(super) fn msg_path_to_zksync_does_not_exist_err(path: &str) -> String {
 
 /// Ecosystem and chain init related messages
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
+pub(super) const MSG_PORT_OFFSET_HELP: &str = "Add a costant offset to the ports exposed by the components. Useful when running multiple chains on the same machine";
 pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
 pub(super) const MSG_DEV_ARG_HELP: &str =
     "Deploy ecosystem  using all defaults. Suitable for local development";
@@ -112,6 +117,9 @@ pub(super) fn msg_chain_doesnt_exist_err(chain_name: &str, chains: &Vec<String>)
         chain_name, chains
     )
 }
+pub(super) fn msg_chain_load_err(chain_name: &str) -> String {
+    format!("Failed to load chain config for {chain_name}")
+}
 
 /// Chain create related messages
 pub(super) const MSG_PROVER_MODE_HELP: &str = "Prover options";
@@ -149,6 +157,8 @@ pub(super) const MSG_CHAIN_ID_VALIDATOR_ERR: &str = "Invalid chain id";
 pub(super) const MSG_BASE_TOKEN_ADDRESS_VALIDATOR_ERR: &str = "Invalid base token address";
 pub(super) const MSG_WALLET_CREATION_VALIDATOR_ERR: &str =
     "Localhost wallet is not supported for external networks";
+pub(super) const MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND: &str =
+    "Token Multiplier Setter not found. Specify it in a wallet config";
 
 /// Chain genesis related messages
 pub(super) const MSG_L1_SECRETS_MUST_BE_PRESENTED: &str = "L1 secret must be presented";
@@ -194,6 +204,14 @@ pub(super) fn msg_server_db_name_prompt(chain_name: &str) -> String {
     format!("Please provide server database name for chain {chain_name}")
 }
 
+pub(super) fn msg_explorer_db_url_prompt(chain_name: &str) -> String {
+    format!("Please provide explorer database url for chain {chain_name}")
+}
+
+pub(super) fn msg_explorer_db_name_prompt(chain_name: &str) -> String {
+    format!("Please provide explorer database name for chain {chain_name}")
+}
+
 /// Chain initialize bridges related messages
 pub(super) const MSG_DEPLOYING_L2_CONTRACT_SPINNER: &str = "Deploying l2 contracts";
 
@@ -202,10 +220,12 @@ pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
 
 /// Run server related messages
 pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run";
+pub(super) const MSG_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
 pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
     "Additional arguments that can be passed through the CLI";
 pub(super) const MSG_SERVER_BUILD_HELP: &str = "Build server but don't run it";
+pub(super) const MSG_SERVER_URING_HELP: &str = "Enables uring support for RocksDB";
 
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
@@ -226,12 +246,44 @@ pub(super) const MSG_FAILED_TO_RUN_SERVER_ERR: &str = "Failed to start server";
 pub(super) const MSG_PREPARING_EN_CONFIGS: &str = "Preparing External Node config";
 
 /// Portal related messages
-pub(super) const MSG_PORTAL_CONFIG_IS_EMPTY_ERR: &str = "Hyperchains config is empty";
+pub(super) const MSG_PORTAL_FAILED_TO_FIND_ANY_CHAIN_ERR: &str =
+    "Failed to find any valid chain to run portal for";
 pub(super) const MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR: &str = "Failed to create portal config";
 pub(super) const MSG_PORTAL_FAILED_TO_RUN_DOCKER_ERR: &str =
     "Failed to run portal docker container";
+pub(super) fn msg_portal_running_with_config(path: &Path) -> String {
+    format!("Running portal with configuration from: {}", path.display())
+}
 pub(super) fn msg_portal_starting_on(host: &str, port: u16) -> String {
     format!("Starting portal on http://{host}:{port}")
+}
+
+/// Explorer related messages
+pub(super) const MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR: &str =
+    "Failed to drop explorer database";
+pub(super) const MSG_EXPLORER_FAILED_TO_RUN_DOCKER_SERVICES_ERR: &str =
+    "Failed to run docker compose with explorer services";
+pub(super) const MSG_EXPLORER_FAILED_TO_RUN_DOCKER_ERR: &str =
+    "Failed to run explorer docker container";
+pub(super) const MSG_EXPLORER_FAILED_TO_CREATE_CONFIG_ERR: &str =
+    "Failed to create explorer config";
+pub(super) const MSG_EXPLORER_FAILED_TO_FIND_ANY_CHAIN_ERR: &str =
+    "Failed to find any valid chain to run explorer for. Did you run `zk_inception explorer init`?";
+pub(super) const MSG_EXPLORER_INITIALIZED: &str = "Explorer has been initialized successfully";
+pub(super) fn msg_explorer_initializing_database_for(chain: &str) -> String {
+    format!("Initializing explorer database for {chain} chain")
+}
+pub(super) fn msg_explorer_running_with_config(path: &Path) -> String {
+    format!(
+        "Running explorer with configuration from: {}",
+        path.display()
+    )
+}
+pub(super) fn msg_explorer_starting_on(host: &str, port: u16) -> String {
+    format!("Starting explorer on http://{host}:{port}")
+}
+pub(super) fn msg_explorer_chain_not_initialized(chain: &str) -> String {
+    format!("Chain {chain} is not initialized for explorer: run `zk_inception explorer init --chain {chain}` first")
 }
 
 /// Forge utils related messages
@@ -255,6 +307,11 @@ pub(super) fn msg_preparing_en_config_is_done(path: &Path) -> String {
 
 pub(super) const MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED: &str =
     "External node is not initialized";
+pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is missing";
+pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
+pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
+
+pub(super) const MSG_PORTS_CONFIG_ERR: &str = "Failed to get ports config";
 
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 
@@ -263,6 +320,7 @@ pub(super) const MSG_GENERATING_SK_SPINNER: &str = "Generating setup keys...";
 pub(super) const MSG_SK_GENERATED: &str = "Setup keys generated successfully";
 pub(super) const MSG_MISSING_COMPONENT_ERR: &str = "Missing component";
 pub(super) const MSG_RUNNING_PROVER_GATEWAY: &str = "Running gateway";
+pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR_ERR: &str = "Failed to run prover job monitor";
 pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR: &str = "Running prover job monitor";
 pub(super) const MSG_RUNNING_WITNESS_GENERATOR: &str = "Running witness generator";
 pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness vector generator";
@@ -296,9 +354,13 @@ pub(super) const MSG_CREATE_GCS_BUCKET_NAME_PROMTP: &str = "What do you want to 
 pub(super) const MSG_CREATE_GCS_BUCKET_LOCATION_PROMPT: &str = "What location do you want to use? Find available locations at https://cloud.google.com/storage/docs/locations";
 pub(super) const MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR: &str =
     "Proof compressor config not found";
-pub(super) const MSG_DOWNLOADING_SETUP_KEY_SPINNER: &str = "Downloading setup key...";
-pub(super) const MSG_DOWNLOAD_SETUP_KEY_PROMPT: &str = "Do you want to download the setup key?";
-pub(super) const MSG_SETUP_KEY_PATH_PROMPT: &str = "Provide the path to the setup key:";
+pub(super) const MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER: &str =
+    "Downloading compressor setup key...";
+pub(super) const MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT: &str =
+    "Do you want to download the setup key for compressor?";
+pub(super) const MSG_INITIALIZE_BELLMAN_CUDA_PROMPT: &str =
+    "Do you want to initialize bellman-cuda?";
+pub(super) const MSG_SETUP_COMPRESSOR_KEY_PATH_PROMPT: &str = "Provide the path to the setup key:";
 pub(super) const MSG_GETTING_GCP_PROJECTS_SPINNER: &str = "Getting GCP projects...";
 pub(super) const MSG_GETTING_PROOF_STORE_CONFIG: &str = "Getting proof store configuration...";
 pub(super) const MSG_GETTING_PUBLIC_STORE_CONFIG: &str = "Getting public store configuration...";
@@ -320,6 +382,7 @@ pub(super) const MSG_BELLMAN_CUDA_SELECTION_CLONE: &str = "Clone for me (recomme
 pub(super) const MSG_BELLMAN_CUDA_SELECTION_PATH: &str = "I have the code already";
 pub(super) const MSG_CLOUD_TYPE_PROMPT: &str = "Select the cloud connection mode:";
 pub(super) const MSG_THREADS_PROMPT: &str = "Provide the number of threads:";
+pub(super) const MSG_SETUP_KEYS_PROMPT: &str = "Do you want to setup keys?";
 
 pub(super) fn msg_bucket_created(bucket_name: &str) -> String {
     format!("Bucket created successfully with url: gs://{bucket_name}")
