@@ -29,6 +29,8 @@ use zksync_types::{
     prover_dal::LeafAggregationJobMetadata, L1BatchNumber,
 };
 
+use crate::node_aggregation::NodeAggregationWitnessGenerator;
+use crate::witness_generator::WitnessGenerator;
 use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
@@ -259,5 +261,23 @@ pub async fn process_leaf_aggregation_job(
         aggregations,
         circuit_ids_and_urls,
         closed_form_inputs: job.closed_form_inputs.0,
+    }
+}
+
+impl WitnessGenerator for LeafAggregationWitnessGenerator {
+    type Job = ();
+    type Metadata = ();
+    type Artifacts = ();
+
+    fn process_job(job: Self::Job, started_at: Instant) -> anyhow::Result<Self::Artifacts> {
+        todo!()
+    }
+
+    fn prepare_job(
+        metadata: Self::Metadata,
+        object_store: &dyn ObjectStore,
+        keystore: Option<Keystore>,
+    ) -> Self::Job {
+        todo!()
     }
 }

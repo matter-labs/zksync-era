@@ -35,11 +35,14 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::{keys::ClosedFormInputKey, CircuitAuxData};
 use zksync_prover_interface::inputs::WitnessInputData;
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
+use crate::node_aggregation::NodeAggregationWitnessGenerator;
+use crate::witness_generator::WitnessGenerator;
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
@@ -463,4 +466,22 @@ async fn generate_witness(
         scheduler_witness,
         block_aux_witness,
     )
+}
+
+impl WitnessGenerator for BasicWitnessGenerator {
+    type Job = ();
+    type Metadata = ();
+    type Artifacts = ();
+
+    fn process_job(job: Self::Job, started_at: Instant) -> anyhow::Result<Self::Artifacts> {
+        todo!()
+    }
+
+    fn prepare_job(
+        metadata: Self::Metadata,
+        object_store: &dyn ObjectStore,
+        keystore: Option<Keystore>,
+    ) -> Self::Job {
+        todo!()
+    }
 }

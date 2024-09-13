@@ -93,7 +93,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
             block_number.0,
             circuit_id,
         );
-        Self::update_database(
+        Self::save_to_database(
             &self.prover_connection_pool,
             job_id,
             started_at,

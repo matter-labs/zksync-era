@@ -43,6 +43,8 @@ use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
+use crate::scheduler::SchedulerWitnessGenerator;
+use crate::witness_generator::WitnessGenerator;
 use crate::{
     artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS, utils::ClosedFormInputWrapper,
 };
@@ -223,4 +225,22 @@ pub async fn prepare_job(
         recursion_tip_witness,
         node_vk,
     })
+}
+
+impl WitnessGenerator for RecursionTipWitnessGenerator {
+    type Job = ();
+    type Metadata = ();
+    type Artifacts = ();
+
+    fn process_job(job: Self::Job, started_at: Instant) -> anyhow::Result<Self::Artifacts> {
+        todo!()
+    }
+
+    fn prepare_job(
+        metadata: Self::Metadata,
+        object_store: &dyn ObjectStore,
+        keystore: Option<Keystore>,
+    ) -> Self::Job {
+        todo!()
+    }
 }

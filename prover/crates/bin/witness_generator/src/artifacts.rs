@@ -40,7 +40,7 @@ pub(crate) trait ArtifactsManager {
         object_store: &dyn ObjectStore,
     ) -> BlobUrls;
 
-    async fn update_database(
+    async fn save_to_database(
         connection_pool: &ConnectionPool<Prover>,
         job_id: u32,
         started_at: Instant,

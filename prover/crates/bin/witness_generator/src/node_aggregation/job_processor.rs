@@ -84,7 +84,7 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::NodeAggregation.into()]
             .observe(blob_save_started_at.elapsed());
 
-        Self::update_database(
+        Self::save_to_database(
             &self.prover_connection_pool,
             job_id,
             started_at,

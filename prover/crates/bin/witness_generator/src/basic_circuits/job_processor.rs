@@ -116,7 +116,7 @@ impl JobProcessor for BasicWitnessGenerator {
                 WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
                     .observe(blob_started_at.elapsed());
 
-                Self::update_database(
+                Self::save_to_database(
                     &self.prover_connection_pool,
                     job_id.0,
                     started_at,

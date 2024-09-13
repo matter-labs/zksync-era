@@ -98,7 +98,7 @@ impl JobProcessor for RecursionTipWitnessGenerator {
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::RecursionTip.into()]
             .observe(blob_save_started_at.elapsed());
 
-        Self::update_database(
+        Self::save_to_database(
             &self.prover_connection_pool,
             job_id.0,
             started_at,
