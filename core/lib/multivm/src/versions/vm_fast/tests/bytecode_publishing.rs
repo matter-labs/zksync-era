@@ -1,5 +1,5 @@
 use crate::{
-    interface::{TxExecutionMode, VmEvent, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmEvent, VmExecutionMode, VmInterface, VmInterfaceExt},
     utils::bytecode,
     vm_fast::tests::{
         tester::{DeployContractsTx, TxType, VmTesterBuilder},

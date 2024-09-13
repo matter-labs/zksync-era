@@ -1,5 +1,37 @@
 # Changelog
 
+## [24.24.0](https://github.com/matter-labs/zksync-era/compare/core-v24.23.0...core-v24.24.0) (2024-09-05)
+
+
+### Features
+
+* conditional cbt l1 updates ([#2748](https://github.com/matter-labs/zksync-era/issues/2748)) ([6d18061](https://github.com/matter-labs/zksync-era/commit/6d18061df4a18803d3c6377305ef711ce60317e1))
+* **eth-watch:** do not query events from earliest block ([#2810](https://github.com/matter-labs/zksync-era/issues/2810)) ([1da3f7e](https://github.com/matter-labs/zksync-era/commit/1da3f7ea1df94312e7c6818c17bf4109f888e547))
+* **genesis:** Validate genesis config against L1 ([#2786](https://github.com/matter-labs/zksync-era/issues/2786)) ([b2dd9a5](https://github.com/matter-labs/zksync-era/commit/b2dd9a5c08fecf0a878632b33a32a78aac11c065))
+* Integrate tracers and implement circuits tracer in vm2 ([#2653](https://github.com/matter-labs/zksync-era/issues/2653)) ([87b02e3](https://github.com/matter-labs/zksync-era/commit/87b02e3ab5c1f61d59dd0f0eefa9ec33a7b55488))
+* Move prover data to /home/popzxc/workspace/current/zksync-era/prover/data ([#2778](https://github.com/matter-labs/zksync-era/issues/2778)) ([62e4d46](https://github.com/matter-labs/zksync-era/commit/62e4d4619dde9d6bd9102f1410eea75b0e2051c5))
+* Remove prover db from house keeper ([#2795](https://github.com/matter-labs/zksync-era/issues/2795)) ([85b7346](https://github.com/matter-labs/zksync-era/commit/85b734664b4306e988da07005860a7ea0fb7d22d))
+* **vm-runner:** Implement batch data prefetching ([#2724](https://github.com/matter-labs/zksync-era/issues/2724)) ([d01840d](https://github.com/matter-labs/zksync-era/commit/d01840d5de2cb0f4bead8f1c384b24ba713e6a66))
+* **vm:** Extract batch executor to separate crate ([#2702](https://github.com/matter-labs/zksync-era/issues/2702)) ([b82dfa4](https://github.com/matter-labs/zksync-era/commit/b82dfa4d29fce107223c3638fe490b5cb0f28d8c))
+* **vm:** Simplify VM interface ([#2760](https://github.com/matter-labs/zksync-era/issues/2760)) ([c3bde47](https://github.com/matter-labs/zksync-era/commit/c3bde47c1e7d16bc00f9b089516ed3691e4f3eb1))
+* **zk_toolbox:** add multi-chain CI integration test ([#2594](https://github.com/matter-labs/zksync-era/issues/2594)) ([05c940e](https://github.com/matter-labs/zksync-era/commit/05c940efbd93023c315e5e13c98faee2153cc1cd))
+
+
+### Bug Fixes
+
+* **config:** Do not panic for observability config ([#2639](https://github.com/matter-labs/zksync-era/issues/2639)) ([1e768d4](https://github.com/matter-labs/zksync-era/commit/1e768d402012f6c7ce83fdd46c55f830ec31416a))
+* **core:** Batched event processing support for Reth ([#2623](https://github.com/matter-labs/zksync-era/issues/2623)) ([958dfdc](https://github.com/matter-labs/zksync-era/commit/958dfdcac358897bfd4d2a2ddc1633a23dbfcdc9))
+* return correct witness inputs ([#2770](https://github.com/matter-labs/zksync-era/issues/2770)) ([2516e2e](https://github.com/matter-labs/zksync-era/commit/2516e2e5c83673687d61d143daa70e98ccecce53))
+* **tee-prover:** increase retries to reduce spurious alerts ([#2776](https://github.com/matter-labs/zksync-era/issues/2776)) ([4fdc806](https://github.com/matter-labs/zksync-era/commit/4fdc80636437090f6ebcfa4e2f1eb50edf53631a))
+* **tee-prover:** mitigate panic on redeployments ([#2764](https://github.com/matter-labs/zksync-era/issues/2764)) ([178b386](https://github.com/matter-labs/zksync-era/commit/178b38644f507c5f6d12ba862d0c699e87985dd7))
+* **tee:** lowercase enum TEE types ([#2798](https://github.com/matter-labs/zksync-era/issues/2798)) ([0f2f9bd](https://github.com/matter-labs/zksync-era/commit/0f2f9bd9ef4c2c7ba98a1fdbfca15d1de2b29997))
+* **vm-runner:** Fix statement timeouts in VM playground ([#2772](https://github.com/matter-labs/zksync-era/issues/2772)) ([d3cd553](https://github.com/matter-labs/zksync-era/commit/d3cd553888a5c903c6eae13a88e92c11602e93de))
+
+
+### Performance Improvements
+
+* **vm:** Fix VM performance regression on CI loadtest ([#2782](https://github.com/matter-labs/zksync-era/issues/2782)) ([bc0d7d5](https://github.com/matter-labs/zksync-era/commit/bc0d7d5935c8f5409a8e53f1c04c5141409aef31))
+
 ## [24.23.0](https://github.com/matter-labs/zksync-era/compare/core-v24.22.0...core-v24.23.0) (2024-08-28)
 
 

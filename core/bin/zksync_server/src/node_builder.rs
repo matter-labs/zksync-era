@@ -3,14 +3,13 @@
 
 use anyhow::Context;
 use zksync_config::{
-    configs::{eth_sender::PubdataSendingMode, wallets::Wallets, GeneralConfig, Secrets},
+    configs::{
+        da_client::DAClient, eth_sender::PubdataSendingMode, wallets::Wallets, GeneralConfig,
+        Secrets,
+    },
     ContractsConfig, GenesisConfig,
 };
 use zksync_core_leftovers::Component;
-use zksync_default_da_clients::{
-    no_da::wiring_layer::NoDAClientWiringLayer,
-    object_store::{config::DAObjectStoreConfig, wiring_layer::ObjectStorageClientWiringLayer},
-};
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
     tx_sender::{ApiContracts, TxSenderConfig},
@@ -28,6 +27,10 @@ use zksync_node_framework::{
         commitment_generator::CommitmentGeneratorLayer,
         consensus::MainNodeConsensusLayer,
         contract_verification_api::ContractVerificationApiLayer,
+        da_clients::{
+            avail::AvailWiringLayer, no_da::NoDAClientWiringLayer,
+            object_store::ObjectStorageClientWiringLayer,
+        },
         da_dispatcher::DataAvailabilityDispatcherLayer,
         eth_sender::{EthTxAggregatorLayer, EthTxManagerLayer},
         eth_watch::EthWatchLayer,
@@ -122,7 +125,6 @@ impl MainNodeBuilder {
         let pools_layer = PoolsLayerBuilder::empty(config, secrets)
             .with_master(true)
             .with_replica(true)
-            .with_prover(true) // Used by house keeper.
             .build();
         self.node.add_layer(pools_layer);
         Ok(self)
@@ -365,6 +367,7 @@ impl MainNodeBuilder {
             subscriptions_limit: Some(rpc_config.subscriptions_limit()),
             batch_request_size_limit: Some(rpc_config.max_batch_request_size()),
             response_body_size_limit: Some(rpc_config.max_response_body_size()),
+            with_extended_tracing: rpc_config.extended_api_tracing,
             ..Default::default()
         };
         self.node.add_layer(Web3ServerLayer::http(
@@ -446,18 +449,9 @@ impl MainNodeBuilder {
 
     fn add_house_keeper_layer(mut self) -> anyhow::Result<Self> {
         let house_keeper_config = try_load_config!(self.configs.house_keeper_config);
-        let fri_prover_config = try_load_config!(self.configs.prover_config);
-        let fri_witness_generator_config = try_load_config!(self.configs.witness_generator_config);
-        let fri_prover_group_config = try_load_config!(self.configs.prover_group_config);
-        let fri_proof_compressor_config = try_load_config!(self.configs.proof_compressor_config);
 
-        self.node.add_layer(HouseKeeperLayer::new(
-            house_keeper_config,
-            fri_prover_config,
-            fri_witness_generator_config,
-            fri_prover_group_config,
-            fri_proof_compressor_config,
-        ));
+        self.node
+            .add_layer(HouseKeeperLayer::new(house_keeper_config));
 
         Ok(self)
     }
@@ -509,16 +503,23 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_no_da_client_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(NoDAClientWiringLayer);
-        Ok(self)
-    }
+    fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
+        let Some(da_client_config) = self.configs.da_client_config.clone() else {
+            tracing::warn!("No config for DA client, using the NoDA client");
+            self.node.add_layer(NoDAClientWiringLayer);
+            return Ok(self);
+        };
 
-    #[allow(dead_code)]
-    fn add_object_storage_da_client_layer(mut self) -> anyhow::Result<Self> {
-        let object_store_config = DAObjectStoreConfig::from_env()?;
-        self.node
-            .add_layer(ObjectStorageClientWiringLayer::new(object_store_config.0));
+        match da_client_config.client {
+            DAClient::Avail(config) => {
+                self.node.add_layer(AvailWiringLayer::new(config));
+            }
+            DAClient::ObjectStore(config) => {
+                self.node
+                    .add_layer(ObjectStorageClientWiringLayer::new(config));
+            }
+        }
+
         Ok(self)
     }
 
@@ -759,7 +760,7 @@ impl MainNodeBuilder {
                     self = self.add_commitment_generator_layer()?;
                 }
                 Component::DADispatcher => {
-                    self = self.add_no_da_client_layer()?.add_da_dispatcher_layer()?;
+                    self = self.add_da_client_layer()?.add_da_dispatcher_layer()?;
                 }
                 Component::VmRunnerProtectiveReads => {
                     self = self.add_vm_runner_protective_reads_layer()?;

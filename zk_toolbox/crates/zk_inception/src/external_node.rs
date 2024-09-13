@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::cmd::Cmd;
 use config::{
     external_node::ENConfig, traits::FileConfigWithDefaultName, ChainConfig, GeneralConfig,
     SecretsConfig,
 };
-use xshell::{cmd, Shell};
+use xshell::Shell;
+use zksync_config::configs::consensus::ConsensusConfig;
 
 use crate::messages::MSG_FAILED_TO_RUN_SERVER_ERR;
 
@@ -16,6 +16,7 @@ pub struct RunExternalNode {
     general_config: PathBuf,
     secrets: PathBuf,
     en_config: PathBuf,
+    consensus_config: PathBuf,
 }
 
 impl RunExternalNode {
@@ -30,6 +31,7 @@ impl RunExternalNode {
         let general_config = GeneralConfig::get_path_with_base_path(&en_path);
         let secrets = SecretsConfig::get_path_with_base_path(&en_path);
         let enconfig = ENConfig::get_path_with_base_path(&en_path);
+        let consensus_config = ConsensusConfig::get_path_with_base_path(&en_path);
 
         Ok(Self {
             components,
@@ -37,33 +39,40 @@ impl RunExternalNode {
             general_config,
             secrets,
             en_config: enconfig,
+            consensus_config,
         })
     }
 
-    pub fn run(&self, shell: &Shell, mut additional_args: Vec<String>) -> anyhow::Result<()> {
-        shell.change_dir(&self.code_path);
+    pub fn run(
+        &self,
+        shell: &Shell,
+        enable_consensus: bool,
+        mut additional_args: Vec<String>,
+    ) -> anyhow::Result<()> {
+        let code_path = self.code_path.to_str().unwrap();
         let config_general_config = &self.general_config.to_str().unwrap();
         let en_config = &self.en_config.to_str().unwrap();
         let secrets = &self.secrets.to_str().unwrap();
+        let consensus_config = &self.consensus_config.to_str().unwrap();
         if let Some(components) = self.components() {
             additional_args.push(format!("--components={}", components))
         }
-        let cmd = Cmd::new(
-            cmd!(
-                shell,
-                "cargo run --release --bin zksync_external_node --
-                --config-path {config_general_config}
-                --secrets-path {secrets}
-                --external-node-config-path {en_config}
-                "
-            )
-            .args(additional_args)
-            .env_remove("RUSTUP_TOOLCHAIN"),
-        )
-        .with_force_run();
+        let mut consensus_args = vec![];
+        if enable_consensus {
+            consensus_args.push("--enable-consensus".to_string());
+            consensus_args.push(format!("--consensus-path={}", consensus_config))
+        }
 
-        cmd.run().context(MSG_FAILED_TO_RUN_SERVER_ERR)?;
-        Ok(())
+        common::external_node::run(
+            shell,
+            code_path,
+            config_general_config,
+            secrets,
+            en_config,
+            consensus_args,
+            additional_args,
+        )
+        .context(MSG_FAILED_TO_RUN_SERVER_ERR)
     }
 
     fn components(&self) -> Option<String> {

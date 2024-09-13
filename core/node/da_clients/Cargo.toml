@@ -1,0 +1,39 @@
+[package]
+name = "zksync_da_clients"
+description = "ZKsync data availability clients"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+tracing.workspace = true
+async-trait.workspace = true
+anyhow.workspace = true
+flate2.workspace = true
+tokio.workspace = true
+
+zksync_config.workspace = true
+zksync_types.workspace = true
+zksync_object_store.workspace = true
+zksync_da_client.workspace = true
+zksync_env_config.workspace = true
+futures.workspace = true
+
+# Avail dependencies
+scale-encode.workspace = true
+subxt-metadata.workspace = true
+blake2.workspace = true
+base58.workspace = true
+serde_json.workspace = true
+hex.workspace = true
+blake2b_simd.workspace = true
+
+jsonrpsee = { workspace = true, features = ["ws-client"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
+subxt-signer = { workspace = true, features = ["sr25519", "native"] }
