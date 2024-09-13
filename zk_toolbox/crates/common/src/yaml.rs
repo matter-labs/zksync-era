@@ -49,16 +49,22 @@ fn merge_yaml_internal(
                 };
 
                 if a.contains_key(&key) {
-                    merge_yaml_internal(
-                        a.get_mut(&key).unwrap(),
-                        value,
-                        current_key,
-                        diff,
-                        override_values,
-                    )?;
+                    let a_value = a.get_mut(&key).unwrap();
+                    if value.is_null() && override_values {
+                        a.remove(&key);
+                        diff.differing_values
+                            .insert(current_key.into(), serde_yaml::Value::Null);
+                    } else {
+                        merge_yaml_internal(a_value, value, current_key, diff, override_values)?;
+                    }
                 } else {
-                    a.insert(key.clone(), value.clone());
-                    diff.new_fields.insert(current_key.into(), value);
+                    if !value.is_null() {
+                        a.insert(key.clone(), value.clone());
+                        diff.new_fields.insert(current_key.into(), value);
+                    } else if override_values {
+                        diff.differing_values
+                            .insert(current_key.into(), serde_yaml::Value::Null);
+                    }
                 }
             }
         }
@@ -454,7 +460,6 @@ mod tests {
             r#"
             key1: value1
             key2: value2
-            key3: null
             "#,
         )
         .unwrap();
