@@ -5,7 +5,10 @@ use std::collections::HashMap;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
-use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
+use zksync_multivm::{
+    interface::{TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics},
+    utils::get_max_gas_per_pubdata_byte,
+};
 use zksync_node_genesis::GenesisParams;
 use zksync_system_constants::{get_intrinsic_constants, ZKPORTER_IS_AVAILABLE};
 use zksync_types::{
@@ -17,10 +20,10 @@ use zksync_types::{
     fee::Fee,
     fee_model::BatchFeeInput,
     l2::L2Tx,
+    l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
     protocol_version::ProtocolSemanticVersion,
     snapshots::{SnapshotRecoveryStatus, SnapshotStorageLog},
     transaction_request::PaymasterParams,
-    tx::{tx_execution_info::TxExecutionStatus, ExecutionMetrics, TransactionExecutionResult},
     Address, K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersion,
     ProtocolVersionId, StorageLog, H256, U256,
 };
@@ -41,17 +44,35 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         protocol_version: Some(ProtocolVersionId::latest()),
         virtual_blocks: 1,
         gas_limit: 0,
+        logs_bloom: Default::default(),
     }
 }
 
 /// Creates an L1 batch header with the specified number and deterministic contents.
 pub fn create_l1_batch(number: u32) -> L1BatchHeader {
-    L1BatchHeader::new(
+    let mut header = L1BatchHeader::new(
         L1BatchNumber(number),
         number.into(),
-        BaseSystemContractsHashes::default(),
+        BaseSystemContractsHashes {
+            bootloader: H256::repeat_byte(1),
+            default_aa: H256::repeat_byte(42),
+        },
         ProtocolVersionId::latest(),
-    )
+    );
+    header.l1_tx_count = 3;
+    header.l2_tx_count = 5;
+    header.l2_to_l1_logs.push(UserL2ToL1Log(L2ToL1Log {
+        shard_id: 0,
+        is_service: false,
+        tx_number_in_block: 2,
+        sender: Address::repeat_byte(2),
+        key: H256::repeat_byte(3),
+        value: H256::zero(),
+    }));
+    header.l2_to_l1_messages.push(vec![22; 22]);
+    header.l2_to_l1_messages.push(vec![33; 33]);
+
+    header
 }
 
 /// Creates metadata for an L1 batch with the specified number.
@@ -139,7 +160,7 @@ pub fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
     TransactionExecutionResult {
         hash: transaction.hash(),
         transaction: transaction.into(),
-        execution_info: ExecutionMetrics::default(),
+        execution_info: VmExecutionMetrics::default(),
         execution_status: TxExecutionStatus::Success,
         refunded_gas: 0,
         operator_suggested_refund: 0,
@@ -189,6 +210,7 @@ impl Snapshot {
             protocol_version: Some(genesis_params.minor_protocol_version()),
             virtual_blocks: 1,
             gas_limit: 0,
+            logs_bloom: Default::default(),
         };
         Snapshot {
             l1_batch,

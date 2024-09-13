@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use zk_evm_1_5_0::{aux_structures::Timestamp, vm_state::VmLocalState};
-use zksync_state::WriteStorage;
 use zksync_types::{StorageKey, StorageValue, U256};
 
 use crate::{
+    interface::storage::WriteStorage,
     vm_latest::{
         old_vm::{
             event_sink::InMemoryEventSink,

@@ -1,14 +1,16 @@
-use std::{ops::Add, time::Duration};
+use std::{ops::Add, sync::Arc, time::Duration};
 
 use ethers::{
+    contract::abigen,
     core::k256::ecdsa::SigningKey,
     middleware::MiddlewareBuilder,
     prelude::{Http, LocalWallet, Provider, Signer, SignerMiddleware},
     providers::Middleware,
     types::{Address, TransactionRequest, H256},
 };
+use types::TokenInfo;
 
-use crate::wallets::Wallet;
+use crate::{logger, wallets::Wallet};
 
 pub fn create_ethers_client(
     private_key: H256,
@@ -51,5 +53,71 @@ pub async fn distribute_eth(
     }
 
     futures::future::join_all(pending_txs).await;
+    Ok(())
+}
+
+abigen!(
+    TokenContract,
+    r"[
+    function name() external view returns (string)
+    function symbol() external view returns (string)
+    function decimals() external view returns (uint8)
+    function mint(address to, uint256 amount)
+    ]"
+);
+
+pub async fn get_token_info(token_address: Address, rpc_url: String) -> anyhow::Result<TokenInfo> {
+    let provider = Provider::<Http>::try_from(rpc_url)?;
+    let contract = TokenContract::new(token_address, Arc::new(provider));
+
+    let name = contract.name().call().await?;
+    let symbol = contract.symbol().call().await?;
+    let decimals = contract.decimals().call().await?;
+
+    Ok(TokenInfo {
+        name,
+        symbol,
+        decimals,
+    })
+}
+
+pub async fn mint_token(
+    main_wallet: Wallet,
+    token_address: Address,
+    addresses: Vec<Address>,
+    l1_rpc: String,
+    chain_id: u64,
+    amount: u128,
+) -> anyhow::Result<()> {
+    let client = Arc::new(create_ethers_client(
+        main_wallet.private_key.unwrap(),
+        l1_rpc,
+        Some(chain_id),
+    )?);
+
+    let contract = TokenContract::new(token_address, client);
+    // contract
+    for address in addresses {
+        if let Err(err) = mint(&contract, address, amount).await {
+            logger::warn(format!("Failed to mint {err}"))
+        }
+    }
+
+    Ok(())
+}
+
+async fn mint<T: Middleware + 'static>(
+    contract: &TokenContract<T>,
+    address: Address,
+    amount: u128,
+) -> anyhow::Result<()> {
+    contract
+        .mint(address, amount.into())
+        .send()
+        .await?
+        // It's safe to set such low number of confirmations and low interval for localhost
+        .confirmations(1)
+        .interval(Duration::from_millis(30))
+        .await?;
     Ok(())
 }

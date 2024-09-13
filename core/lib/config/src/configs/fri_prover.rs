@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::ObjectStoreConfig;
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
 pub enum SetupLoadMode {
     FromDisk,
     FromMemory,
@@ -14,11 +14,13 @@ pub enum SetupLoadMode {
 ///
 /// Currently will only affect how the prover zone is chosen.
 #[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq, Eq)]
-pub enum CloudType {
+pub enum CloudConnectionMode {
     /// Assumes that the prover runs in GCP.
+    /// Will use zone information to make sure that the direct network communication
+    /// between components is performed only within the same zone.
     #[default]
     GCP,
-    /// Assumes that the prover runs locally.
+    /// Assumes that the prover subsystem runs locally.
     Local,
 }
 
@@ -41,7 +43,7 @@ pub struct FriProverConfig {
     pub prover_object_store: Option<ObjectStoreConfig>,
     pub public_object_store: Option<ObjectStoreConfig>,
     #[serde(default)]
-    pub cloud_type: CloudType,
+    pub cloud_type: CloudConnectionMode,
 }
 
 impl FriProverConfig {

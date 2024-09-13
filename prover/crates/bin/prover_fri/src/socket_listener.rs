@@ -107,6 +107,7 @@ pub mod gpu_socket_listener {
             }
         }
 
+        #[tracing::instrument(name = "SocketListener::handle_incoming_file", skip_all)]
         async fn handle_incoming_file(&self, mut stream: TcpStream) -> anyhow::Result<()> {
             let mut assembly: Vec<u8> = vec![];
             let started_at = Instant::now();
@@ -123,8 +124,11 @@ pub mod gpu_socket_listener {
             METRICS.witness_vector_blob_time[&(file_size_in_gb as u64)]
                 .observe(started_at.elapsed());
 
-            let witness_vector = bincode::deserialize::<WitnessVectorArtifacts>(&assembly)
-                .context("Failed deserializing witness vector")?;
+            let deserialize_span = tracing::info_span!("deserialize_witness_vector");
+            let witness_vector = deserialize_span.in_scope(|| {
+                bincode::deserialize::<WitnessVectorArtifacts>(&assembly)
+                    .context("Failed deserializing witness vector")
+            })?;
             tracing::info!(
                 "Deserialized witness vector after {:?}",
                 started_at.elapsed()

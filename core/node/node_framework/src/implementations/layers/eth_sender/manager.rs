@@ -7,7 +7,7 @@ use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
         eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
-        l1_tx_params::L1TxParamsResource,
+        gas_adjuster::GasAdjusterResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
     },
     service::StopReceiver,
@@ -27,7 +27,7 @@ use crate::{
 /// - `PoolResource<ReplicaPool>`
 /// - `BoundEthInterfaceResource`
 /// - `BoundEthInterfaceForBlobsResource` (optional)
-/// - `L1TxParamsResource`
+/// - `TxParamsResource`
 /// - `CircuitBreakersResource` (adds a circuit breaker)
 ///
 /// ## Adds tasks
@@ -45,7 +45,7 @@ pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
     pub eth_client: BoundEthInterfaceResource,
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
-    pub l1_tx_params: L1TxParamsResource,
+    pub gas_adjuster: GasAdjusterResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
 }
@@ -77,19 +77,34 @@ impl WiringLayer for EthTxManagerLayer {
         let master_pool = input.master_pool.get().await.unwrap();
         let replica_pool = input.replica_pool.get().await.unwrap();
 
-        let eth_client = input.eth_client.0;
+        let settlement_mode = self.eth_sender_config.gas_adjuster.unwrap().settlement_mode;
+        let eth_client = input.eth_client.0.clone();
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
+        let l2_client = input.eth_client.0;
 
         let config = self.eth_sender_config.sender.context("sender")?;
 
-        let gas_adjuster = input.l1_tx_params.0;
+        let gas_adjuster = input.gas_adjuster.0;
 
         let eth_tx_manager = EthTxManager::new(
             master_pool,
             config,
             gas_adjuster,
-            eth_client,
-            eth_client_blobs,
+            if !settlement_mode.is_gateway() {
+                Some(eth_client)
+            } else {
+                None
+            },
+            if !settlement_mode.is_gateway() {
+                eth_client_blobs
+            } else {
+                None
+            },
+            if settlement_mode.is_gateway() {
+                Some(l2_client)
+            } else {
+                None
+            },
         );
 
         // Insert circuit breaker.

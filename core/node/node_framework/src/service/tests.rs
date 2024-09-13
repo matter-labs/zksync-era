@@ -79,7 +79,7 @@ fn test_layers_are_unique() {
 // `ZkStack` Service's `run()` method has to return error if there is no tasks added.
 #[test]
 fn test_run_with_no_tasks() {
-    let empty_run_result = ZkStackServiceBuilder::new().unwrap().build().run();
+    let empty_run_result = ZkStackServiceBuilder::new().unwrap().build().run(None);
     assert_matches!(empty_run_result.unwrap_err(), ZkStackServiceError::NoTasks);
 }
 
@@ -106,7 +106,7 @@ fn test_run_with_error_tasks() {
     let mut zk_stack_service = ZkStackServiceBuilder::new().unwrap();
     let error_layer = WireErrorLayer;
     zk_stack_service.add_layer(error_layer);
-    let result = zk_stack_service.build().run();
+    let result = zk_stack_service.build().run(None);
     assert_matches!(result.unwrap_err(), ZkStackServiceError::Wiring(_));
 }
 
@@ -153,7 +153,7 @@ impl Task for ErrorTask {
 fn test_run_with_failed_tasks() {
     let mut zk_stack_service: ZkStackServiceBuilder = ZkStackServiceBuilder::new().unwrap();
     zk_stack_service.add_layer(TaskErrorLayer);
-    let result = zk_stack_service.build().run();
+    let result = zk_stack_service.build().run(None);
     assert_matches!(result.unwrap_err(), ZkStackServiceError::Task(_));
 }
 
@@ -243,7 +243,7 @@ fn test_task_run() {
     });
 
     assert!(
-        zk_stack_service.build().run().is_ok(),
+        zk_stack_service.build().run(None).is_ok(),
         "ZkStackServiceBuilder run finished with an error, but it shouldn't"
     );
     let res1 = *successful_task_was_run.lock().unwrap();

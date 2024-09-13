@@ -93,6 +93,8 @@ save_call_traces = true
 bootloader_hash = "0x010008e742608b21bf7eb23c1a9d0602047e3618b464c9b59c0fba3b3d7ab66e"
 default_aa_hash = "0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32"
 
+protective_reads_persistence_enabled = false
+
 [chain.operations_manager]
 # Sleep time when there is no new input data
 delay_interval = 100

@@ -43,6 +43,7 @@ blake2.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros"] }
+assert_matches.workspace = true
 bincode.workspace = true
 
 [build-dependencies]

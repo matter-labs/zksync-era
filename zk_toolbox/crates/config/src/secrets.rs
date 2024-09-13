@@ -26,6 +26,18 @@ pub fn set_databases(
     Ok(())
 }
 
+pub fn set_prover_database(
+    secrets: &mut SecretsConfig,
+    prover_db_config: &DatabaseConfig,
+) -> anyhow::Result<()> {
+    let database = secrets
+        .database
+        .as_mut()
+        .context("Databases must be presented")?;
+    database.prover_url = Some(SensitiveUrl::from(prover_db_config.full_url()));
+    Ok(())
+}
+
 pub fn set_l1_rpc_url(secrets: &mut SecretsConfig, l1_rpc_url: String) -> anyhow::Result<()> {
     secrets
         .l1

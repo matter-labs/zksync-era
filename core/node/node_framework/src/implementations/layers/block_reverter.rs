@@ -85,7 +85,7 @@ impl WiringLayer for BlockReverterLayer {
             block_reverter.enable_rolling_back_merkle_tree(path);
         }
         if let Some(path) = self.state_keeper_cache_path {
-            block_reverter.enable_rolling_back_state_keeper_cache(path);
+            block_reverter.add_rocksdb_storage_path_to_rollback(path);
         }
 
         Ok(Output {

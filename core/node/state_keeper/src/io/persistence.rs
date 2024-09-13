@@ -352,18 +352,17 @@ mod tests {
     use assert_matches::assert_matches;
     use futures::FutureExt;
     use zksync_dal::CoreDal;
-    use zksync_multivm::zk_evm_latest::ethereum_types::{H256, U256};
+    use zksync_multivm::interface::{FinishedL1Batch, VmExecutionMetrics};
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_types::{
-        api::TransactionStatus, block::BlockGasCount, tx::ExecutionMetrics,
-        writes::StateDiffRecord, L1BatchNumber, L2BlockNumber, StorageLogKind,
+        api::TransactionStatus, block::BlockGasCount, writes::StateDiffRecord, L1BatchNumber,
+        L2BlockNumber, StorageLogKind, H256, U256,
     };
     use zksync_utils::h256_to_u256;
 
     use super::*;
     use crate::{
         io::L2BlockParams,
-        testonly::default_vm_batch_result,
         tests::{
             create_execution_result, create_transaction, create_updates_manager,
             default_l1_batch_env, default_system_env, Query,
@@ -464,7 +463,7 @@ mod tests {
             tx_result,
             vec![],
             BlockGasCount::default(),
-            ExecutionMetrics::default(),
+            VmExecutionMetrics::default(),
             vec![],
         );
         output_handler.handle_l2_block(&updates).await.unwrap();
@@ -473,7 +472,7 @@ mod tests {
             virtual_blocks: 1,
         });
 
-        let mut batch_result = default_vm_batch_result();
+        let mut batch_result = FinishedL1Batch::mock();
         batch_result.final_execution_state.deduplicated_storage_logs =
             storage_logs.iter().map(|log| log.log).collect();
         batch_result.state_diffs = Some(

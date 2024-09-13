@@ -143,10 +143,10 @@ export async function setupForDal(dalPath: DalPath, dbUrl: string, shouldCheck: 
     process.chdir(process.env.ZKSYNC_HOME as string);
 }
 
-export async function setup(opts: DbOpts) {
+export async function setup(opts: DbOpts, shouldCheck: boolean = true) {
     let dals = getDals(opts);
     for (const [dalPath, dbUrl] of dals.entries()) {
-        await setupForDal(dalPath, dbUrl, true);
+        await setupForDal(dalPath, dbUrl, shouldCheck);
     }
 }
 

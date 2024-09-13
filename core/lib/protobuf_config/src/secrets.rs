@@ -17,9 +17,9 @@ impl ProtoRepr for proto::Secrets {
 
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
-            consensus: read_optional_repr(&self.consensus).context("consensus")?,
-            database: read_optional_repr(&self.database).context("database")?,
-            l1: read_optional_repr(&self.l1).context("l1")?,
+            consensus: read_optional_repr(&self.consensus),
+            database: read_optional_repr(&self.database),
+            l1: read_optional_repr(&self.l1),
         })
     }
 

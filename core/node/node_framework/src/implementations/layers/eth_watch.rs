@@ -56,7 +56,7 @@ impl WiringLayer for EthWatchLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let main_pool = input.master_pool.get().await.unwrap();
+        let main_pool = input.master_pool.get().await?;
         let client = input.eth_client.0;
 
         let eth_client = EthHttpQueryClient::new(

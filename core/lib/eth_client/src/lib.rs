@@ -8,9 +8,8 @@ use zksync_types::{
         AccessList, Block, BlockId, BlockNumber, Filter, Log, Transaction, TransactionCondition,
         TransactionReceipt,
     },
-    Address, L1ChainId, H160, H256, U256, U64,
+    Address, SLChainId, H160, H256, U256, U64,
 };
-use zksync_web3_decl::client::{DynClient, L1};
 pub use zksync_web3_decl::{
     error::{EnrichedClientError, EnrichedClientResult},
     jsonrpsee::core::ClientError,
@@ -69,7 +68,10 @@ impl Options {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct BaseFees {
     pub base_fee_per_gas: u64,
+    // Base fee per blob gas. It is zero on networks that do not support blob transactions (e.g. L2s).
     pub base_fee_per_blob_gas: U256,
+    // The price (in wei) for relaying the pubdata to L1. It is non-zero only for L2 settlement layers.
+    pub l2_pubdata_price: U256,
 }
 
 /// Common Web3 interface, as seen by the core applications.
@@ -83,10 +85,10 @@ pub struct BaseFees {
 /// If you want to add a method to this trait, make sure that it doesn't depend on any particular
 /// contract or account address. For that, you can use the `BoundEthInterface` trait.
 #[async_trait]
-pub trait EthInterface: Sync + Send {
+pub trait EthInterface: Sync + Send + fmt::Debug {
     /// Fetches the L1 chain ID (in contrast to [`BoundEthInterface::chain_id()`] which returns
     /// the *expected* L1 chain ID).
-    async fn fetch_chain_id(&self) -> EnrichedClientResult<L1ChainId>;
+    async fn fetch_chain_id(&self) -> EnrichedClientResult<SLChainId>;
 
     /// Returns the nonce of the provided account at the specified block.
     async fn nonce_at_for_account(
@@ -94,16 +96,6 @@ pub trait EthInterface: Sync + Send {
         account: Address,
         block: BlockNumber,
     ) -> EnrichedClientResult<U256>;
-
-    /// Collects the base fee history for the specified block range.
-    ///
-    /// Returns 1 value for each block in range, assuming that these blocks exist.
-    /// Will return an error if the `from_block + block_count` is beyond the head block.
-    async fn base_fee_history(
-        &self,
-        from_block: usize,
-        block_count: usize,
-    ) -> EnrichedClientResult<Vec<BaseFees>>;
 
     /// Returns the `base_fee_per_gas` value for the currently pending L1 block.
     async fn get_pending_block_base_fee_per_gas(&self) -> EnrichedClientResult<U256>;
@@ -154,6 +146,19 @@ pub trait EthInterface: Sync + Send {
     async fn block(&self, block_id: BlockId) -> EnrichedClientResult<Option<Block<H256>>>;
 }
 
+#[async_trait::async_trait]
+pub trait EthFeeInterface: EthInterface {
+    /// Collects the base fee history for the specified block range.
+    ///
+    /// Returns 1 value for each block in range, assuming that these blocks exist.
+    /// Will return an error if the `from_block + block_count` is beyond the head block.
+    async fn base_fee_history(
+        &self,
+        from_block: usize,
+        block_count: usize,
+    ) -> EnrichedClientResult<Vec<BaseFees>>;
+}
+
 /// An extension of `EthInterface` trait, which is used to perform queries that are bound to
 /// a certain contract and account.
 ///
@@ -168,7 +173,7 @@ pub trait EthInterface: Sync + Send {
 /// 2. Consider adding the "unbound" version to the `EthInterface` trait and create a default method
 ///   implementation that invokes `contract` / `contract_addr` / `sender_account` methods.
 #[async_trait]
-pub trait BoundEthInterface: AsRef<DynClient<L1>> + 'static + Sync + Send + fmt::Debug {
+pub trait BoundEthInterface: 'static + Sync + Send + fmt::Debug + AsRef<dyn EthInterface> {
     /// Clones this client.
     fn clone_boxed(&self) -> Box<dyn BoundEthInterface>;
 
@@ -186,7 +191,7 @@ pub trait BoundEthInterface: AsRef<DynClient<L1>> + 'static + Sync + Send + fmt:
     ///
     /// This value should be externally provided by the user rather than requested from the network
     /// to avoid accidental network mismatch.
-    fn chain_id(&self) -> L1ChainId;
+    fn chain_id(&self) -> SLChainId;
 
     /// Address of the account associated with the object implementing the trait.
     fn sender_account(&self) -> Address;

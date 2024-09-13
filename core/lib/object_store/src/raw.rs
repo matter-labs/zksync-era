@@ -59,7 +59,7 @@ pub enum ObjectStoreError {
     /// Object store initialization failed.
     Initialization {
         source: BoxedError,
-        is_transient: bool,
+        is_retriable: bool,
     },
     /// An object with the specified key is not found.
     KeyNotFound(BoxedError),
@@ -68,16 +68,16 @@ pub enum ObjectStoreError {
     /// Other error has occurred when accessing the store (e.g., a network error).
     Other {
         source: BoxedError,
-        is_transient: bool,
+        is_retriable: bool,
     },
 }
 
 impl ObjectStoreError {
-    /// Gives a best-effort estimate whether this error is transient.
-    pub fn is_transient(&self) -> bool {
+    /// Gives a best-effort estimate whether this error is retriable.
+    pub fn is_retriable(&self) -> bool {
         match self {
-            Self::Initialization { is_transient, .. } | Self::Other { is_transient, .. } => {
-                *is_transient
+            Self::Initialization { is_retriable, .. } | Self::Other { is_retriable, .. } => {
+                *is_retriable
             }
             Self::KeyNotFound(_) | Self::Serialization(_) => false,
         }
@@ -89,9 +89,9 @@ impl fmt::Display for ObjectStoreError {
         match self {
             Self::Initialization {
                 source,
-                is_transient,
+                is_retriable,
             } => {
-                let kind = if *is_transient { "transient" } else { "fatal" };
+                let kind = if *is_retriable { "retriable" } else { "fatal" };
                 write!(
                     formatter,
                     "{kind} error initializing object store: {source}"
@@ -101,9 +101,9 @@ impl fmt::Display for ObjectStoreError {
             Self::Serialization(err) => write!(formatter, "serialization error: {err}"),
             Self::Other {
                 source,
-                is_transient,
+                is_retriable,
             } => {
-                let kind = if *is_transient { "transient" } else { "fatal" };
+                let kind = if *is_retriable { "retriable" } else { "fatal" };
                 write!(formatter, "{kind} error accessing object store: {source}")
             }
         }

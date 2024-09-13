@@ -7,7 +7,7 @@ use zksync_protobuf::{
     required,
 };
 
-use crate::{parse_h160, parse_h256, proto::api as proto};
+use crate::{parse_h160, proto::api as proto};
 
 impl ProtoRepr for proto::Api {
     type Type = ApiConfig;
@@ -34,19 +34,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
     type Type = api::Web3JsonRpcConfig;
 
     fn read(&self) -> anyhow::Result<Self::Type> {
-        let account_pks = self
-            .account_pks
-            .iter()
-            .enumerate()
-            .map(|(i, k)| parse_h256(k).context(i))
-            .collect::<Result<Vec<_>, _>>()
-            .context("account_pks")?;
-        let account_pks = if account_pks.is_empty() {
-            None
-        } else {
-            Some(account_pks)
-        };
-
         let max_response_body_size_overrides_mb = self
             .max_response_body_size_overrides
             .iter()
@@ -91,8 +78,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
             max_nonce_ahead: *required(&self.max_nonce_ahead).context("max_nonce_ahead")?,
             gas_price_scale_factor: *required(&self.gas_price_scale_factor)
                 .context("gas_price_scale_factor")?,
-            request_timeout: self.request_timeout,
-            account_pks,
             estimate_gas_scale_factor: *required(&self.estimate_gas_scale_factor)
                 .context("estimate_gas_scale_factor")?,
             estimate_gas_acceptable_overestimation: *required(
@@ -157,7 +142,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .enumerate()
                 .map(|(i, k)| parse_h160(k).context(i))
                 .collect::<Result<Vec<_>, _>>()
-                .context("account_pks")?,
+                .context("whitelisted_tokens_for_aa")?,
             extended_api_tracing: self.extended_api_tracing.unwrap_or_default(),
             api_namespaces,
         })
@@ -178,12 +163,6 @@ impl ProtoRepr for proto::Web3JsonRpc {
             pubsub_polling_interval: this.pubsub_polling_interval,
             max_nonce_ahead: Some(this.max_nonce_ahead),
             gas_price_scale_factor: Some(this.gas_price_scale_factor),
-            request_timeout: this.request_timeout,
-            account_pks: this
-                .account_pks
-                .as_ref()
-                .map(|keys| keys.iter().map(|k| format!("{:?}", k)).collect())
-                .unwrap_or_default(),
             estimate_gas_scale_factor: Some(this.estimate_gas_scale_factor),
             estimate_gas_acceptable_overestimation: Some(
                 this.estimate_gas_acceptable_overestimation,

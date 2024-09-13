@@ -1,6 +1,5 @@
 use std::num::NonZeroUsize;
 
-use anyhow::Context;
 use zksync_basic_types::L1BatchNumber;
 use zksync_config::configs::{
     snapshot_recovery::{PostgresRecoveryConfig, TreeRecoveryConfig},
@@ -55,11 +54,9 @@ impl ProtoRepr for proto::SnapshotRecovery {
         Ok(Self::Type {
             enabled: self.enabled.unwrap_or_default(),
             tree,
-            postgres: read_optional_repr(&self.postgres)
-                .context("postgres")?
-                .unwrap_or_default(),
+            postgres: read_optional_repr(&self.postgres).unwrap_or_default(),
             l1_batch: self.l1_batch.map(L1BatchNumber),
-            object_store: read_optional_repr(&self.object_store).context("object store")?,
+            object_store: read_optional_repr(&self.object_store),
             drop_storage_key_preimages: self
                 .experimental
                 .as_ref()

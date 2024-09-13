@@ -6,6 +6,7 @@ members = [
     "core/bin/external_node",
     "core/bin/merkle_tree_consistency_checker",
     "core/bin/snapshots_creator",
+    "core/bin/selector_generator",
     "core/bin/system-constants-generator",
     "core/bin/verified_sources_fetcher",
     "core/bin/zksync_server",
@@ -36,6 +37,9 @@ members = [
     "core/node/api_server",
     "core/node/tee_verifier_input_producer",
     "core/node/base_token_adjuster",
+    "core/node/external_proof_integration_api",
+    "core/node/logs_bloom_backfill",
+    "core/node/da_clients",
     # Libraries
     "core/lib/db_connection",
     "core/lib/zksync_core_leftovers",
@@ -48,7 +52,6 @@ members = [
     "core/lib/dal",
     "core/lib/env_config",
     "core/lib/da_client",
-    "core/lib/default_da_clients",
     "core/lib/eth_client",
     "core/lib/eth_signer",
     "core/lib/l1_contract_interface",
@@ -67,7 +70,8 @@ members = [
     "core/lib/utils",
     "core/lib/vlog",
     "core/lib/multivm",
-    "core/lib/vm_utils",
+    "core/lib/vm_interface",
+    "core/lib/vm_executor",
     "core/lib/web3_decl",
     "core/lib/snapshots_applier",
     "core/lib/crypto_primitives",
@@ -76,10 +80,6 @@ members = [
     "core/tests/test_account",
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
-    "core/tests/vm-benchmark/harness",
-
-    # Parts of prover workspace that are needed for Core workspace
-    "prover/crates/lib/prover_dal",
 ]
 resolver = "2"
 
@@ -107,7 +107,7 @@ assert_matches = "1.5"
 async-trait = "0.1"
 axum = "0.7.5"
 backon = "0.4.4"
-bigdecimal = "0.3.0"
+bigdecimal = "0.4.5"
 bincode = "1"
 blake2 = "0.10"
 chrono = "0.4"
@@ -121,6 +121,7 @@ envy = "0.4"
 ethabi = "18.0.0"
 flate2 = "1.0.28"
 futures = "0.3"
+glob = "0.3"
 google-cloud-auth = "0.16.0"
 google-cloud-storage = "0.20.0"
 governor = "0.4.2"
@@ -143,6 +144,7 @@ opentelemetry = "0.24.0"
 opentelemetry_sdk = "0.24.0"
 opentelemetry-otlp = "0.17.0"
 opentelemetry-semantic-conventions = "0.16.0"
+opentelemetry-appender-tracing = "0.5"
 pin-project-lite = "0.2.13"
 pretty_assertions = "1"
 prost = "0.12.1"
@@ -164,7 +166,7 @@ serde_with = "1"
 serde_yaml = "0.9"
 sha2 = "0.10.8"
 sha3 = "0.10.8"
-sqlx = "0.7.3"
+sqlx = "0.8.1"
 static_assertions = "1.1"
 structopt = "0.3.20"
 strum = "0.26"
@@ -193,41 +195,56 @@ proc-macro2 = "1.0"
 trybuild = "1.0"
 
 # "Internal" dependencies
-vise = "0.1.0"
-vise-exporter = "0.1.0"
+vise = "0.2.0"
+vise-exporter = "0.2.0"
 
-circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", version = "=0.133.0" }
-circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", version = "=0.140.0" }
-circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", version = "=0.141.0" }
-circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", version = "=0.142.0" }
-circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.2-rc.1" }
-crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.1.0" }
-kzg = { package = "zksync_kzg", version = "=0.150.2-rc.1" }
+# DA clients' dependencies
+# Avail
+base58 = "0.2.0"
+scale-encode = "0.5.0"
+blake2b_simd = "1.0.2"
+subxt-metadata = "0.34.0"
+parity-scale-codec = { version = "3.6.9", default-features = false }
+subxt-signer = { version = "0.34", default-features = false }
+
+# Here and below:
+# We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
+# However, for the historical version of protocol crates, we have lax requirements. Otherwise,
+# Bumping a crypto dependency like `boojum` would require us to republish all the historical packages.
+circuit_sequencer_api_1_3_3 = { package = "circuit_sequencer_api", version = "0.133" }
+circuit_sequencer_api_1_4_0 = { package = "circuit_sequencer_api", version = "0.140" }
+circuit_sequencer_api_1_4_1 = { package = "circuit_sequencer_api", version = "0.141" }
+circuit_sequencer_api_1_4_2 = { package = "circuit_sequencer_api", version = "0.142" }
+circuit_sequencer_api_1_5_0 = { package = "circuit_sequencer_api", version = "=0.150.5" }
+crypto_codegen = { package = "zksync_solidity_vk_codegen", version = "=0.30.1" }
+kzg = { package = "zksync_kzg", version = "=0.150.5" }
 zk_evm = { version = "=0.133.0" }
 zk_evm_1_3_1 = { package = "zk_evm", version = "0.131.0-rc.2" }
-zk_evm_1_3_3 = { package = "zk_evm", version = "0.133.0" }
-zk_evm_1_4_0 = { package = "zk_evm", version = "0.140.0" }
-zk_evm_1_4_1 = { package = "zk_evm", version = "0.141.0" }
-zk_evm_1_5_0 = { package = "zk_evm", version = "0.150.0" }
+zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
+zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
+zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
+zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.5" }
+
+# New VM; pinned to a specific commit because of instability
+zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "cd6136c42ec56856e0abcf2a98d1a9e120161482" }
 
 # Consensus dependencies.
-zksync_concurrency = "=0.1.0-rc.4"
-zksync_consensus_bft = "=0.1.0-rc.4"
-zksync_consensus_crypto = "=0.1.0-rc.4"
-zksync_consensus_executor = "=0.1.0-rc.4"
-zksync_consensus_network = "=0.1.0-rc.4"
-zksync_consensus_roles = "=0.1.0-rc.4"
-zksync_consensus_storage = "=0.1.0-rc.4"
-zksync_consensus_utils = "=0.1.0-rc.4"
-zksync_protobuf = "=0.1.0-rc.4"
-zksync_protobuf_build = "=0.1.0-rc.4"
+zksync_concurrency = "=0.1.1"
+zksync_consensus_bft = "=0.1.1"
+zksync_consensus_crypto = "=0.1.1"
+zksync_consensus_executor = "=0.1.1"
+zksync_consensus_network = "=0.1.1"
+zksync_consensus_roles = "=0.1.1"
+zksync_consensus_storage = "=0.1.1"
+zksync_consensus_utils = "=0.1.1"
+zksync_protobuf = "=0.1.1"
+zksync_protobuf_build = "=0.1.1"
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }
-zksync_prover_dal = { version = "0.1.0", path = "prover/crates/lib/prover_dal" }
 zksync_vlog = { version = "0.1.0", path = "core/lib/vlog" }
-zksync_vm_utils = { version = "0.1.0", path = "core/lib/vm_utils" }
-zksync_vm_benchmark_harness = { version = "0.1.0", path = "core/tests/vm-benchmark/harness" }
+zksync_vm_interface = { version = "0.1.0", path = "core/lib/vm_interface" }
+zksync_vm_executor = { version = "0.1.0", path = "core/lib/vm_executor" }
 zksync_basic_types = { version = "0.1.0", path = "core/lib/basic_types" }
 zksync_circuit_breaker = { version = "0.1.0", path = "core/lib/circuit_breaker" }
 zksync_config = { version = "0.1.0", path = "core/lib/config" }
@@ -239,7 +256,6 @@ zksync_db_connection = { version = "0.1.0", path = "core/lib/db_connection" }
 zksync_env_config = { version = "0.1.0", path = "core/lib/env_config" }
 zksync_eth_client = { version = "0.1.0", path = "core/lib/eth_client" }
 zksync_da_client = { version = "0.1.0", path = "core/lib/da_client" }
-zksync_default_da_clients = { version = "0.1.0", path = "core/lib/default_da_clients" }
 zksync_eth_signer = { version = "0.1.0", path = "core/lib/eth_signer" }
 zksync_health_check = { version = "0.1.0", path = "core/lib/health_check" }
 zksync_l1_contract_interface = { version = "0.1.0", path = "core/lib/l1_contract_interface" }
@@ -273,10 +289,12 @@ zksync_commitment_generator = { version = "0.1.0", path = "core/node/commitment_
 zksync_house_keeper = { version = "0.1.0", path = "core/node/house_keeper" }
 zksync_node_genesis = { version = "0.1.0", path = "core/node/genesis" }
 zksync_da_dispatcher = { version = "0.1.0", path = "core/node/da_dispatcher" }
+zksync_da_clients = { version = "0.1.0", path = "core/node/da_clients" }
 zksync_eth_sender = { version = "0.1.0", path = "core/node/eth_sender" }
 zksync_node_db_pruner = { version = "0.1.0", path = "core/node/db_pruner" }
 zksync_node_fee_model = { version = "0.1.0", path = "core/node/fee_model" }
 zksync_vm_runner = { version = "0.1.0", path = "core/node/vm_runner" }
+zksync_external_proof_integration_api = { version = "0.1.0", path = "core/node/external_proof_integration_api" }
 zksync_node_test_utils = { version = "0.1.0", path = "core/node/test_utils" }
 zksync_state_keeper = { version = "0.1.0", path = "core/node/state_keeper" }
 zksync_reorg_detector = { version = "0.1.0", path = "core/node/reorg_detector" }
@@ -289,3 +307,4 @@ zksync_contract_verification_server = { version = "0.1.0", path = "core/node/con
 zksync_node_api_server = { version = "0.1.0", path = "core/node/api_server" }
 zksync_tee_verifier_input_producer = { version = "0.1.0", path = "core/node/tee_verifier_input_producer" }
 zksync_base_token_adjuster = { version = "0.1.0", path = "core/node/base_token_adjuster" }
+zksync_logs_bloom_backfill = { version = "0.1.0", path = "core/node/logs_bloom_backfill" }

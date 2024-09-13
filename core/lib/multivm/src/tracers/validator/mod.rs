@@ -1,21 +1,22 @@
 use std::{collections::HashSet, marker::PhantomData, sync::Arc};
 
 use once_cell::sync::OnceCell;
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, SYSTEM_CONTEXT_ADDRESS,
 };
 use zksync_types::{
-    vm_trace::ViolatedValidationRule, web3::keccak256, AccountTreeId, Address, StorageKey,
-    VmVersion, H256, U256,
+    vm::VmVersion, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
 };
 use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};
 
-pub use crate::tracers::validator::types::{ValidationError, ValidationTracerParams};
+use self::types::{NewTrustedValidationItems, ValidationTracerMode};
 use crate::{
     glue::tracers::IntoOldVmTracer,
-    tracers::validator::types::{NewTrustedValidationItems, ValidationTracerMode},
+    interface::{
+        storage::{StoragePtr, WriteStorage},
+        tracer::{ValidationParams, ViolatedValidationRule},
+    },
 };
 
 mod types;
@@ -51,7 +52,7 @@ type ValidationRoundResult = Result<NewTrustedValidationItems, ViolatedValidatio
 
 impl<H> ValidationTracer<H> {
     pub fn new(
-        params: ValidationTracerParams,
+        params: ValidationParams,
         vm_version: VmVersion,
     ) -> (Self, Arc<OnceCell<ViolatedValidationRule>>) {
         let result = Arc::new(OnceCell::new());
@@ -180,8 +181,8 @@ impl<H> ValidationTracer<H> {
         }
     }
 
-    pub fn params(&self) -> ValidationTracerParams {
-        ValidationTracerParams {
+    pub fn params(&self) -> ValidationParams {
+        ValidationParams {
             user_address: self.user_address,
             paymaster_address: self.paymaster_address,
             trusted_slots: self.trusted_slots.clone(),

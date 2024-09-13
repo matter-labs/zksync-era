@@ -9,6 +9,9 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
 
+const SECONDS = 1000;
+jest.setTimeout(100 * SECONDS);
+
 describe('base ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
@@ -24,6 +27,21 @@ describe('base ERC20 contract checks', () => {
         baseTokenDetails = testMaster.environment().baseToken;
         const baseToken = await alice.provider.getBaseTokenContractAddress();
         isETHBasedChain = zksync.utils.isAddressEq(baseToken, zksync.utils.ETH_ADDRESS_IN_CONTRACTS);
+    });
+
+    test('Base token ratio is updated on L1', async () => {
+        if (isETHBasedChain) {
+            return;
+        }
+
+        const zksyncAddress = await alice._providerL2().getMainContractAddress();
+        const zksyncContract = new ethers.Contract(zksyncAddress, zksync.utils.ZKSYNC_MAIN_ABI, alice.ethWallet());
+        const numerator = Number(await zksyncContract.baseTokenGasPriceMultiplierNominator());
+        const denominator = Number(await zksyncContract.baseTokenGasPriceMultiplierDenominator());
+
+        // checking that the numerator and denominator don't have their default values
+        expect(numerator).toBe(3);
+        expect(denominator).toBe(2);
     });
 
     test('Can perform a deposit', async () => {

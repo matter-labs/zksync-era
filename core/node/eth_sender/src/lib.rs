@@ -14,6 +14,9 @@ mod eth_fees_oracle;
 #[cfg(test)]
 mod tests;
 
+#[cfg(test)]
+mod tester;
+
 pub use self::{
     aggregator::Aggregator, error::EthSenderError, eth_tx_aggregator::EthTxAggregator,
     eth_tx_manager::EthTxManager,

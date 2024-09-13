@@ -196,6 +196,7 @@ impl TreeUpdater {
         Ok(())
     }
 
+    #[tracing::instrument(name = "TreeUpdater::step", skip(self, pool))]
     async fn step(
         &mut self,
         pool: &ConnectionPool<Core>,

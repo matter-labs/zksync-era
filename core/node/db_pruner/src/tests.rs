@@ -121,6 +121,7 @@ async fn insert_l2_blocks(
                 protocol_version: Some(Default::default()),
                 virtual_blocks: 0,
                 gas_limit: 0,
+                logs_bloom: Default::default(),
             };
 
             conn.blocks_dal()

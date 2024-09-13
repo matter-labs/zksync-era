@@ -31,9 +31,8 @@ When you choose the region, set the following options:
   - GPU Type: NVIDIA L4
   - Number of GPUs: 1
   - Machine type: Preset, `g2-standard-16`
-- Availability policies: Spot instances are much cheaper, but there is a chance that it will be preempted while you work
-  on it. If you're working on something that is not very important, spot instances are recommended. If any disruption
-  will be harmful, choose standard provisioning.
+- Availability policies: Choose standard provisioning. Spot instances can be preempted while you work on them, which
+  will disrupt your flow.
 - Then click on "VM provisioning model advanced settings" and
   - Click on "Set a time limit for the VM"
   - Set the limit to 8 hours

@@ -10,7 +10,7 @@ use zksync_types::{
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
-    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H2048, H256,
+    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
 };
 
 /// This is the gas limit that was used inside blocks before we started saving block gas limit into the database.
@@ -76,7 +76,7 @@ impl StorageL1BatchHeader {
             l2_to_l1_logs,
             l2_to_l1_messages: self.l2_to_l1_messages,
 
-            bloom: H2048::from_slice(&self.bloom),
+            bloom: Bloom::from_slice(&self.bloom),
             used_contract_hashes: serde_json::from_value(self.used_contract_hashes)
                 .expect("invalid value for used_contract_hashes in the DB"),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
@@ -171,7 +171,7 @@ impl StorageL1Batch {
             l2_to_l1_logs,
             l2_to_l1_messages: self.l2_to_l1_messages,
 
-            bloom: H2048::from_slice(&self.bloom),
+            bloom: Bloom::from_slice(&self.bloom),
             used_contract_hashes: serde_json::from_value(self.used_contract_hashes)
                 .expect("invalid value for used_contract_hashes in the DB"),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
@@ -433,6 +433,7 @@ pub(crate) struct StorageL2BlockHeader {
     /// The formal value of the gas limit for the miniblock.
     /// This value should bound the maximal amount of gas that can be spent by transactions in the miniblock.
     pub gas_limit: Option<i64>,
+    pub logs_bloom: Option<Vec<u8>>,
 }
 
 impl From<StorageL2BlockHeader> for L2BlockHeader {
@@ -475,6 +476,10 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
             protocol_version,
             virtual_blocks: row.virtual_blocks as u32,
             gas_limit: row.gas_limit.unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT)) as u64,
+            logs_bloom: row
+                .logs_bloom
+                .map(|b| Bloom::from_slice(&b))
+                .unwrap_or_default(),
         }
     }
 }

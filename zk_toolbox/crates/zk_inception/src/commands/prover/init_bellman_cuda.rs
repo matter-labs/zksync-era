@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{check_prover_prequisites, cmd::Cmd, git, logger, spinner::Spinner};
+use common::{check_prerequisites, cmd::Cmd, git, logger, spinner::Spinner, GPU_PREREQUISITES};
 use config::{traits::SaveConfigWithBasePath, EcosystemConfig};
 use xshell::{cmd, Shell};
 
@@ -13,11 +13,11 @@ use crate::{
 };
 
 pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Result<()> {
-    check_prover_prequisites(shell);
+    check_prerequisites(shell, &GPU_PREREQUISITES, false);
 
     let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let args = args.fill_values_with_prompt()?;
+    let args = args.fill_values_with_prompt();
 
     let bellman_cuda_dir = args.bellman_cuda_dir.unwrap_or("".to_string());
     let bellman_cuda_dir = if bellman_cuda_dir.is_empty() {
@@ -37,6 +37,11 @@ pub(crate) async fn run(shell: &Shell, args: InitBellmanCudaArgs) -> anyhow::Res
 }
 
 fn clone_bellman_cuda(shell: &Shell) -> anyhow::Result<String> {
+    let path = shell.current_dir().join(BELLMAN_CUDA_DIR);
+    if shell.path_exists(path.clone()) {
+        return Ok(path.to_str().context(MSG_BELLMAN_CUDA_DIR_ERR)?.to_string());
+    }
+
     let spinner = Spinner::new(MSG_CLONING_BELLMAN_CUDA_SPINNER);
     let path = git::clone(
         shell,

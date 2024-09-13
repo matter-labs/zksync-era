@@ -146,6 +146,30 @@ impl VmRunnerDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn delete_bwip_data(&mut self, last_batch_to_keep: L1BatchNumber) -> DalResult<()> {
+        self.delete_bwip_data_inner(Some(last_batch_to_keep)).await
+    }
+
+    async fn delete_bwip_data_inner(
+        &mut self,
+        last_batch_to_keep: Option<L1BatchNumber>,
+    ) -> DalResult<()> {
+        let l1_batch_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
+        sqlx::query!(
+            r#"
+            DELETE FROM vm_runner_bwip
+            WHERE
+                l1_batch_number > $1
+            "#,
+            l1_batch_number
+        )
+        .instrument("delete_bwip_data")
+        .with_arg("l1_batch_number", &l1_batch_number)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
     pub async fn get_bwip_latest_processed_batch(&mut self) -> DalResult<Option<L1BatchNumber>> {
         let row = sqlx::query!(
             r#"

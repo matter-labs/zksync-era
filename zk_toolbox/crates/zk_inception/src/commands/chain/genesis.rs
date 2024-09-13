@@ -9,14 +9,15 @@ use common::{
     spinner::Spinner,
 };
 use config::{
-    set_databases, set_rocks_db_config,
+    set_databases, set_file_artifacts, set_rocks_db_config,
     traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig, GeneralConfig, GenesisConfig, SecretsConfig,
-    WalletsConfig,
+    ChainConfig, ContractsConfig, EcosystemConfig, FileArtifacts, GeneralConfig, GenesisConfig,
+    SecretsConfig, WalletsConfig,
 };
 use types::ProverMode;
 use xshell::Shell;
-use zksync_config::configs::eth_sender::ProofSendingMode;
+use zksync_basic_types::commitment::L1BatchCommitmentMode;
+use zksync_config::configs::eth_sender::{ProofSendingMode, PubdataSendingMode};
 
 use super::args::genesis::GenesisArgsFinal;
 use crate::{
@@ -57,7 +58,9 @@ pub async fn genesis(
     let rocks_db = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::Main)
         .context(MSG_RECREATE_ROCKS_DB_ERRROR)?;
     let mut general = config.get_general_config()?;
+    let file_artifacts = FileArtifacts::new(config.artifacts.clone());
     set_rocks_db_config(&mut general, rocks_db)?;
+    set_file_artifacts(&mut general, file_artifacts);
     if config.prover_version != ProverMode::NoProofs {
         general
             .eth
@@ -68,6 +71,23 @@ pub async fn genesis(
             .context("sender")?
             .proof_sending_mode = ProofSendingMode::OnlyRealProofs;
     }
+
+    if config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium {
+        general
+            .eth
+            .as_mut()
+            .context("eth")?
+            .sender
+            .as_mut()
+            .context("sender")?
+            .pubdata_sending_mode = PubdataSendingMode::Custom;
+        general
+            .state_keeper_config
+            .as_mut()
+            .context("state_keeper_config")?
+            .pubdata_overhead_part = 0.0;
+    }
+
     general.save_with_base_path(shell, &config.configs)?;
 
     let mut secrets = config.get_secrets_config()?;
@@ -148,7 +168,7 @@ async fn initialize_databases(
 }
 
 fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let server = Server::new(None, chain_config.link_to_code.clone());
+    let server = Server::new(None, chain_config.link_to_code.clone(), false);
     server
         .run(
             shell,

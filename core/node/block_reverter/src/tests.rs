@@ -9,7 +9,7 @@ use tokio::sync::watch;
 use zksync_dal::Connection;
 use zksync_merkle_tree::TreeInstruction;
 use zksync_object_store::{Bucket, MockObjectStore};
-use zksync_state::ReadStorage;
+use zksync_state::interface::ReadStorage;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
     snapshots::SnapshotVersion,
@@ -66,6 +66,7 @@ async fn setup_storage(storage: &mut Connection<'_, Core>, storage_logs: &[Stora
             protocol_version: Some(ProtocolVersionId::latest()),
             virtual_blocks: 1,
             gas_limit: 0,
+            logs_bloom: Default::default(),
         };
         storage
             .blocks_dal()
@@ -146,7 +147,7 @@ async fn block_reverter_basics(sync_merkle_tree: bool) {
     BlockReverter::new(NodeRole::External, pool.clone())
         .enable_rolling_back_postgres()
         .enable_rolling_back_merkle_tree(merkle_tree_path.to_str().unwrap().to_owned())
-        .enable_rolling_back_state_keeper_cache(sk_cache_path.to_str().unwrap().to_owned())
+        .add_rocksdb_storage_path_to_rollback(sk_cache_path.to_str().unwrap().to_owned())
         .roll_back(L1BatchNumber(5))
         .await
         .unwrap();
@@ -382,7 +383,7 @@ impl ObjectStore for ErroneousStore {
             .unwrap()
             .remove(&(bucket, key.to_owned()));
         Err(ObjectStoreError::Other {
-            is_transient: false,
+            is_retriable: false,
             source: "fatal error".into(),
         })
     }

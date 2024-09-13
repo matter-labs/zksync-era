@@ -3,7 +3,7 @@ use zksync_types::fee_model::L1PeggedBatchFeeModelInput;
 use zksync_utils::ceil_div;
 
 use crate::{
-    vm_latest::L1BatchEnv,
+    interface::L1BatchEnv,
     vm_virtual_blocks::{
         constants::MAX_GAS_PER_PUBDATA_BYTE, old_vm::utils::eth_price_per_pubdata_byte,
     },

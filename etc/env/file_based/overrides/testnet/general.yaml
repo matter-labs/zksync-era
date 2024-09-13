@@ -1,0 +1,22 @@
+state_keeper:
+  block_commit_deadline_ms: 3600000
+  minimal_l2_gas_price: 25000000
+eth:
+  sender:
+    tx_poll_period: 20
+    aggregate_tx_poll_period: 2
+    max_txs_in_flight: 100
+    aggregated_block_commit_deadline: 300
+    aggregated_block_prove_deadline: 300
+    aggregated_block_execute_deadline: 300
+    timestamp_criteria_max_allowed_lag: 104000 # 29h
+  gas_adjuster:
+    pricing_formula_parameter_a: 1.1
+    internal_l1_pricing_multiplier: 1
+    poll_period: 60
+  watcher:
+    confirmations_for_eth_event: 10
+observability:
+  log_directives: zksync=info,zksync_state_keeper=debug,zksync_core=debug,zksync_server=debug,zksync_contract_verifier=debug,zksync_dal=debug,zksync_state=debug,zksync_utils=debug,zksync_eth_sender=debug,loadnext=debug,dev_ticker=info,vm=info,block_sizes_test=info,setup_key_generator_and_server=info,zksync_queued_job_processor=debug,slot_index_consistency_checker=debug,zksync_health_check=debug,zksync_consensus_bft=debug,zksync_consensus_network=debug,zksync_consensus_storage=debug,zksync_consensus_executor=debug,
+
+# remove eth_sender_wait_confirmations variable

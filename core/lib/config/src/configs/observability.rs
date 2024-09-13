@@ -19,6 +19,12 @@ pub struct ObservabilityConfig {
 pub struct OpentelemetryConfig {
     /// Enables export of span data of specified level (and above) using opentelemetry exporters.
     pub level: String,
-    /// Opentelemetry HTTP collector endpoint.
+    /// Opentelemetry HTTP traces collector endpoint.
     pub endpoint: String,
+    /// Opentelemetry HTTP logs collector endpoing.
+    /// This is optional, since right now the primary way to collect logs is via stdout.
+    ///
+    /// Important: sending logs via OTLP has only been tested locally, and the performance may be
+    /// suboptimal in production environments.
+    pub logs_endpoint: Option<String>,
 }

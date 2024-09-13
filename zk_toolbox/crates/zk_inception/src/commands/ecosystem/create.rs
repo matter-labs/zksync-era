@@ -1,6 +1,6 @@
 use std::{path::PathBuf, str::FromStr};
 
-use anyhow::bail;
+use anyhow::{bail, Context};
 use common::{git, logger, spinner::Spinner};
 use config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
@@ -15,14 +15,17 @@ use crate::{
         containers::{initialize_docker, start_containers},
         ecosystem::{
             args::create::EcosystemCreateArgs,
-            create_configs::{create_erc20_deployment_config, create_initial_deployments_config},
+            create_configs::{
+                create_apps_config, create_erc20_deployment_config,
+                create_initial_deployments_config,
+            },
         },
     },
     messages::{
-        msg_created_ecosystem, MSG_CLONING_ERA_REPO_SPINNER, MSG_CREATING_DEFAULT_CHAIN_SPINNER,
-        MSG_CREATING_ECOSYSTEM, MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER,
-        MSG_ECOSYSTEM_ALREADY_EXISTS_ERR, MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG,
-        MSG_STARTING_CONTAINERS_SPINNER,
+        msg_created_ecosystem, MSG_ARGS_VALIDATOR_ERR, MSG_CLONING_ERA_REPO_SPINNER,
+        MSG_CREATING_DEFAULT_CHAIN_SPINNER, MSG_CREATING_ECOSYSTEM,
+        MSG_CREATING_INITIAL_CONFIGURATIONS_SPINNER, MSG_ECOSYSTEM_ALREADY_EXISTS_ERR,
+        MSG_ECOSYSTEM_CONFIG_INVALID_ERR, MSG_SELECTED_CONFIG, MSG_STARTING_CONTAINERS_SPINNER,
     },
 };
 
@@ -39,7 +42,9 @@ pub fn run(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
 }
 
 fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    let args = args.fill_values_with_prompt(shell);
+    let args = args
+        .fill_values_with_prompt(shell)
+        .context(MSG_ARGS_VALIDATOR_ERR)?;
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&args));
     logger::info(MSG_CREATING_ECOSYSTEM);
@@ -73,6 +78,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
 
     create_initial_deployments_config(shell, &configs_path)?;
     create_erc20_deployment_config(shell, &configs_path)?;
+    create_apps_config(shell, &configs_path)?;
 
     let ecosystem_config = EcosystemConfig {
         name: ecosystem_name.clone(),
@@ -107,7 +113,7 @@ fn create(args: EcosystemCreateArgs, shell: &Shell) -> anyhow::Result<()> {
     if args.start_containers {
         let spinner = Spinner::new(MSG_STARTING_CONTAINERS_SPINNER);
         initialize_docker(shell, &ecosystem_config)?;
-        start_containers(shell)?;
+        start_containers(shell, false)?;
         spinner.finish();
     }
 

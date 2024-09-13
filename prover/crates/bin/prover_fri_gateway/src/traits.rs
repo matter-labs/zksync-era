@@ -16,15 +16,17 @@ pub(crate) trait PeriodicApi: Sync + Send + 'static + Sized {
     /// Returns the next request to be sent to the API and the endpoint to send it to.
     async fn get_next_request(&self) -> Option<(Self::JobId, Self::Request)>;
 
-    /// Handles the response from the API.
+    /// Submits a request to the API.
     async fn send_request(
         &self,
         job_id: Self::JobId,
         request: Self::Request,
     ) -> reqwest::Result<Self::Response>;
 
+    /// Handles the response from the API.
     async fn handle_response(&self, job_id: Self::JobId, response: Self::Response);
 
+    /// Runs `get_next_request` -> `send_request` -> `handle_response` in a loop.
     async fn run(
         self,
         poll_duration: Duration,

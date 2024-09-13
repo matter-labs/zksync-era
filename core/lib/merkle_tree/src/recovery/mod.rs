@@ -15,11 +15,11 @@
 //! Recovery process proceeds as follows:
 //!
 //! 1. Initialize a tree in the recovery mode. Until recovery is finished, the tree cannot be accessed
-//!   using ordinary [`MerkleTree`] APIs.
+//!    using ordinary [`MerkleTree`] APIs.
 //! 2. Update the tree from a snapshot, which [is fed to the tree](MerkleTreeRecovery::extend())
-//!   as [`RecoveryEntry`] chunks. Recovery entries must be ordered by increasing key.
+//!    as [`RecoveryEntry`] chunks. Recovery entries must be ordered by increasing key.
 //! 3. Finalize recovery using [`MerkleTreeRecovery::finalize()`]. To check integrity, you may compare
-//!   [`MerkleTreeRecovery::root_hash()`] to the reference value.
+//!    [`MerkleTreeRecovery::root_hash()`] to the reference value.
 //!
 //! The recovery process is tolerant to crashes and may be resumed from the middle. To find the latest
 //! recovered key, you may use [`MerkleTreeRecovery::last_processed_key()`].

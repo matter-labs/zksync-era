@@ -19,13 +19,19 @@ impl EnNamespaceServer for EnNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
+    async fn consensus_global_config(&self) -> RpcResult<Option<en::ConsensusGlobalConfig>> {
+        self.consensus_global_config_impl()
+            .await
+            .map_err(|err| self.current_method().map_err(err))
+    }
+
     async fn consensus_genesis(&self) -> RpcResult<Option<en::ConsensusGenesis>> {
         self.consensus_genesis_impl()
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn attestation_status(&self) -> RpcResult<en::AttestationStatus> {
+    async fn attestation_status(&self) -> RpcResult<Option<en::AttestationStatus>> {
         self.attestation_status_impl()
             .await
             .map_err(|err| self.current_method().map_err(err))

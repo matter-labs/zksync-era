@@ -2,10 +2,10 @@ use std::ops;
 
 use zksync_db_connection::connection::Connection;
 use zksync_types::{
-    fee::TransactionExecutionMetrics, tx::IncludedTxLocation, AccountTreeId, Address,
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion, ProtocolVersionId, StorageKey,
-    StorageLog, H256,
+    tx::IncludedTxLocation, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog, H256,
 };
+use zksync_vm_interface::TransactionExecutionMetrics;
 
 use super::*;
 use crate::{

@@ -1,13 +1,102 @@
 use anyhow::Context;
 use async_trait::async_trait;
+use once_cell::sync::Lazy;
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_types::{event::extract_added_tokens, L2BlockNumber};
+use zksync_multivm::interface::VmEvent;
+use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
+use zksync_types::{
+    ethabi,
+    tokens::{TokenInfo, TokenMetadata},
+    Address, L2BlockNumber, H256,
+};
+use zksync_utils::h256_to_account_address;
 
 use crate::{
     io::seal_logic::SealStrategy,
     metrics::{L2BlockSealStage, L2_BLOCK_METRICS},
     updates::L2BlockSealCommand,
 };
+
+fn extract_added_tokens(
+    l2_shared_bridge_addr: Address,
+    all_generated_events: &[VmEvent],
+) -> Vec<TokenInfo> {
+    let deployed_tokens = all_generated_events
+        .iter()
+        .filter(|event| {
+            // Filter events from the deployer contract that match the expected signature.
+            event.address == CONTRACT_DEPLOYER_ADDRESS
+                && event.indexed_topics.len() == 4
+                && event.indexed_topics[0] == VmEvent::DEPLOY_EVENT_SIGNATURE
+                && h256_to_account_address(&event.indexed_topics[1]) == l2_shared_bridge_addr
+        })
+        .map(|event| h256_to_account_address(&event.indexed_topics[3]));
+
+    extract_added_token_info_from_addresses(all_generated_events, deployed_tokens)
+}
+
+fn extract_added_token_info_from_addresses(
+    all_generated_events: &[VmEvent],
+    deployed_tokens: impl Iterator<Item = Address>,
+) -> Vec<TokenInfo> {
+    static BRIDGE_INITIALIZATION_SIGNATURE_OLD: Lazy<H256> = Lazy::new(|| {
+        ethabi::long_signature(
+            "BridgeInitialization",
+            &[
+                ethabi::ParamType::Address,
+                ethabi::ParamType::String,
+                ethabi::ParamType::String,
+                ethabi::ParamType::Uint(8),
+            ],
+        )
+    });
+
+    static BRIDGE_INITIALIZATION_SIGNATURE_NEW: Lazy<H256> = Lazy::new(|| {
+        ethabi::long_signature(
+            "BridgeInitialize",
+            &[
+                ethabi::ParamType::Address,
+                ethabi::ParamType::String,
+                ethabi::ParamType::String,
+                ethabi::ParamType::Uint(8),
+            ],
+        )
+    });
+
+    deployed_tokens
+        .filter_map(|l2_token_address| {
+            all_generated_events
+                .iter()
+                .find(|event| {
+                    event.address == l2_token_address
+                        && (event.indexed_topics[0] == *BRIDGE_INITIALIZATION_SIGNATURE_NEW
+                            || event.indexed_topics[0] == *BRIDGE_INITIALIZATION_SIGNATURE_OLD)
+                })
+                .map(|event| {
+                    let l1_token_address = h256_to_account_address(&event.indexed_topics[1]);
+                    let mut dec_ev = ethabi::decode(
+                        &[
+                            ethabi::ParamType::String,
+                            ethabi::ParamType::String,
+                            ethabi::ParamType::Uint(8),
+                        ],
+                        &event.value,
+                    )
+                    .unwrap();
+
+                    TokenInfo {
+                        l1_address: l1_token_address,
+                        l2_address: l2_token_address,
+                        metadata: TokenMetadata {
+                            name: dec_ev.remove(0).into_string().unwrap(),
+                            symbol: dec_ev.remove(0).into_string().unwrap(),
+                            decimals: dec_ev.remove(0).into_uint().unwrap().as_u32() as u8,
+                        },
+                    }
+                })
+        })
+        .collect()
+}
 
 /// Helper struct that encapsulates parallel l2 block sealing logic.
 #[derive(Debug)]
@@ -367,6 +456,7 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
 mod tests {
     use zksync_dal::{ConnectionPool, Core};
     use zksync_multivm::{
+        interface::{TransactionExecutionResult, TxExecutionStatus},
         utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte},
         zk_evm_latest::ethereum_types::H256,
         VmVersion,
@@ -375,9 +465,8 @@ mod tests {
     use zksync_types::{
         block::L2BlockHeader,
         l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-        tx::{tx_execution_info::TxExecutionStatus, TransactionExecutionResult},
         AccountTreeId, Address, L1BatchNumber, ProtocolVersionId, StorageKey, StorageLog,
-        StorageLogKind, StorageLogWithPreviousValue, VmEvent,
+        StorageLogKind, StorageLogWithPreviousValue,
     };
     use zksync_utils::h256_to_u256;
 
@@ -526,6 +615,7 @@ mod tests {
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(VmVersion::latest()),
             virtual_blocks: l2_block_seal_command.l2_block.virtual_blocks,
             gas_limit: get_max_batch_gas_limit(VmVersion::latest()),
+            logs_bloom: Default::default(),
         };
         connection
             .protocol_versions_dal()

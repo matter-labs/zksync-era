@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use futures::{channel::mpsc, future, SinkExt};
-use zksync_eth_client::{EthInterface, Options};
+use zksync_eth_client::Options;
 use zksync_eth_signer::PrivateKeySigner;
 use zksync_system_constants::MAX_L1_TRANSACTION_GAS_LIMIT;
 use zksync_types::{
@@ -244,7 +244,7 @@ impl Executor {
             });
 
         priority_op_handle
-            .polling_interval(POLLING_INTERVAL)
+            .polling_interval(POLLING_INTERVAL.end)
             .unwrap();
         priority_op_handle
             .commit_timeout(COMMIT_TIMEOUT)
@@ -313,7 +313,7 @@ impl Executor {
             });
 
         priority_op_handle
-            .polling_interval(POLLING_INTERVAL)
+            .polling_interval(POLLING_INTERVAL.end)
             .unwrap();
         priority_op_handle
             .commit_timeout(COMMIT_TIMEOUT)
@@ -463,7 +463,7 @@ impl Executor {
         // Wait for transactions to be committed, if at least one of them fails,
         // return error.
         for mut handle in handles {
-            handle.polling_interval(POLLING_INTERVAL).unwrap();
+            handle.polling_interval(POLLING_INTERVAL.end).unwrap();
 
             let result = handle
                 .commit_timeout(COMMIT_TIMEOUT)

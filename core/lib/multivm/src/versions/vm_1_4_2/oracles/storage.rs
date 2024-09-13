@@ -5,7 +5,6 @@ use zk_evm_1_4_1::{
     aux_structures::{LogQuery, Timestamp},
     zkevm_opcode_defs::system_params::INITIAL_STORAGE_WRITE_PUBDATA_BYTES,
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_types::{
     utils::storage_key_for_eth_balance,
     writes::{
@@ -18,6 +17,7 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     glue::GlueInto,
+    interface::storage::{StoragePtr, WriteStorage},
     vm_1_4_2::{
         old_vm::{
             history_recorder::{

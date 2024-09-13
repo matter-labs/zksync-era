@@ -1,11 +1,14 @@
 use std::{future::Future, time::Duration};
 
 use anyhow::Context;
-use chrono::{NaiveDateTime, Utc};
+use chrono::Utc;
 use rand::Rng;
 use tokio::sync::watch::Receiver;
 use zksync_config::DADispatcherConfig;
-use zksync_da_client::{types::DAError, DataAvailabilityClient};
+use zksync_da_client::{
+    types::{DAError, InclusionData},
+    DataAvailabilityClient,
+};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L1BatchNumber;
 
@@ -94,8 +97,7 @@ impl DataAvailabilityDispatcher {
             })?;
             let dispatch_latency_duration = dispatch_latency.observe();
 
-            let sent_at =
-                NaiveDateTime::from_timestamp_millis(Utc::now().timestamp_millis()).unwrap();
+            let sent_at = Utc::now().naive_utc();
 
             let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
             conn.data_availability_dal()
@@ -134,16 +136,21 @@ impl DataAvailabilityDispatcher {
             return Ok(());
         };
 
-        let inclusion_data = self
-            .client
-            .get_inclusion_data(blob_info.blob_id.as_str())
-            .await
-            .with_context(|| {
-                format!(
-                    "failed to get inclusion data for blob_id: {}, batch_number: {}",
-                    blob_info.blob_id, blob_info.l1_batch_number
-                )
-            })?;
+        let inclusion_data = if self.config.use_dummy_inclusion_data() {
+            self.client
+                .get_inclusion_data(blob_info.blob_id.as_str())
+                .await
+                .with_context(|| {
+                    format!(
+                        "failed to get inclusion data for blob_id: {}, batch_number: {}",
+                        blob_info.blob_id, blob_info.l1_batch_number
+                    )
+                })?
+        } else {
+            // if the inclusion verification is disabled, we don't need to wait for the inclusion
+            // data before committing the batch, so simply return an empty vector
+            Some(InclusionData { data: vec![] })
+        };
 
         let Some(inclusion_data) = inclusion_data else {
             return Ok(());
@@ -194,7 +201,7 @@ where
                 return Ok(result);
             }
             Err(err) => {
-                if !err.is_transient() || retries > max_retries {
+                if !err.is_retriable() || retries > max_retries {
                     return Err(err);
                 }
 

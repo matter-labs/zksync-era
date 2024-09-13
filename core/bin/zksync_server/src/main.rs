@@ -11,15 +11,15 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
-        BasicWitnessInputProducerConfig, ContractsConfig, DatabaseSecrets,
+        BasicWitnessInputProducerConfig, ContractsConfig, DatabaseSecrets, ExperimentalVmConfig,
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
         L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
         ProtectiveReadsWriterConfig, Secrets,
     },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
-    EthConfig, EthWatchConfig, GasAdjusterConfig, GenesisConfig, ObjectStoreConfig, PostgresConfig,
-    SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
+    DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
+    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
     temp_config_store::{decode_yaml_repr, TempConfigStore},
@@ -44,7 +44,7 @@ struct Cli {
     /// Comma-separated list of components to launch.
     #[arg(
         long,
-        default_value = "api,tree,eth,state_keeper,housekeeper,tee_verifier_input_producer,commitment_generator,da_dispatcher"
+        default_value = "api,tree,eth,state_keeper,housekeeper,tee_verifier_input_producer,commitment_generator,da_dispatcher,vm_runner_protective_reads"
     )]
     components: ComponentsToRun,
     /// Path to the yaml config. If set, it will be used instead of env vars.
@@ -155,7 +155,7 @@ fn main() -> anyhow::Result<()> {
 
     let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets)?;
 
-    let _observability_guard = {
+    let observability_guard = {
         // Observability initialization should be performed within tokio context.
         let _context_guard = node.runtime_handle().enter();
         observability_config.install()?
@@ -163,11 +163,11 @@ fn main() -> anyhow::Result<()> {
 
     if opt.genesis {
         // If genesis is requested, we don't need to run the node.
-        node.only_genesis()?.run()?;
+        node.only_genesis()?.run(observability_guard)?;
         return Ok(());
     }
 
-    node.build(opt.components.0)?.run()?;
+    node.build(opt.components.0)?.run(observability_guard)?;
     Ok(())
 }
 
@@ -199,6 +199,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
+        da_client_config: DAClientConfig::from_env().ok(),
         da_dispatcher_config: DADispatcherConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),
@@ -208,5 +209,8 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         pruning: None,
         snapshot_recovery: None,
         external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
+        external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
+        experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
+        prover_job_monitor_config: None,
     })
 }

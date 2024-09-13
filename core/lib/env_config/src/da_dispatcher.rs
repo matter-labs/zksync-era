@@ -26,6 +26,7 @@ mod tests {
             polling_interval_ms: Some(interval),
             max_rows_to_dispatch: Some(rows_limit),
             max_retries: Some(max_retries),
+            use_dummy_inclusion_data: Some(true),
         }
     }
 
@@ -36,6 +37,7 @@ mod tests {
             DA_DISPATCHER_POLLING_INTERVAL_MS=5000
             DA_DISPATCHER_MAX_ROWS_TO_DISPATCH=60
             DA_DISPATCHER_MAX_RETRIES=7
+            DA_DISPATCHER_USE_DUMMY_INCLUSION_DATA="true"
         "#;
         lock.set_env(config);
         let actual = DADispatcherConfig::from_env().unwrap();

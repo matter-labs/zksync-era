@@ -1,7 +1,7 @@
 use zksync_types::{get_code_key, H256, SYSTEM_CONTEXT_ADDRESS};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_latest::{
         tests::{
             tester::{get_empty_storage, DeployContractsTx, TxType, VmTesterBuilder},

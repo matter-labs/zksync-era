@@ -8,7 +8,7 @@ use zksync_prover_dal::{
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 #[derive(ClapArgs)]
-pub(crate) struct Args {
+pub struct Args {
     /// Batch number to restart
     #[clap(
         short,
@@ -22,7 +22,7 @@ pub(crate) struct Args {
     prover_job: Option<u32>,
 }
 
-pub(crate) async fn run(args: Args) -> anyhow::Result<()> {
+pub async fn run(args: Args) -> anyhow::Result<()> {
     let config = DatabaseSecrets::from_env()?;
     let prover_connection_pool = ConnectionPool::<Prover>::singleton(config.prover_url()?)
         .build()

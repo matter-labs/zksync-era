@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
+ZKT_DIR=${ZKT_DIR:-"$BASE_DIR/.zkt"}
+ZKT_BIN_DIR="$ZKT_DIR/bin"
+
+BIN_URL="https://raw.githubusercontent.com/matter-labs/zksync-era/main/zk_toolbox/zkup/zkup"
+BIN_PATH="$ZKT_BIN_DIR/zkup"
+
+mkdir -p "$ZKT_BIN_DIR"
+curl -sSfL "$BIN_URL" -o "$BIN_PATH"
+chmod +x "$BIN_PATH"
+
+if [[ ":$PATH:" == *":${ZKT_BIN_DIR}:"* ]]; then
+  echo "zkup: found ${ZKT_BIN_DIR} in PATH"
+  exit 0
+fi
+
+case $SHELL in
+*/zsh)
+  PROFILE="${ZDOTDIR-"$HOME"}/.zshenv"
+  ;;
+*/bash)
+  PROFILE="$HOME/.bashrc"
+  ;;
+*/fish)
+  PROFILE="$HOME/.config/fish/config.fish"
+  ;;
+*/ash)
+  PROFILE="$HOME/.profile"
+  ;;
+*)
+  echo "zkup: could not detect shell, manually add ${ZKT_BIN_DIR} to your PATH."
+  exit 1
+  ;;
+esac
+
+if [[ ! -f "$PROFILE" ]]; then
+  echo "zkup: Profile file $PROFILE does not exist, creating it."
+  touch "$PROFILE"
+fi
+
+if [[ "$SHELL" == *"/fish"* ]]; then
+  echo -e "\n# Added by zkup\nfish_add_path -a $ZKT_BIN_DIR" >>"$PROFILE"
+  echo "zkup: Added $ZKT_BIN_DIR to PATH in $PROFILE using fish_add_path."
+else
+  echo -e "\n# Added by zkup\nexport PATH=\"\$PATH:$ZKT_BIN_DIR\"" >>"$PROFILE"
+  echo "zkup: Added $ZKT_BIN_DIR to PATH in $PROFILE."
+fi
+
+echo
+echo "Added zkup to PATH."
+echo "Run 'source $PROFILE' or start a new terminal session to use zkup."
+echo "Then run 'zkup' to install ZK Toolbox."

@@ -1,5 +1,6 @@
+pub use apps::*;
 pub use chain::*;
-pub use consts::{DOCKER_COMPOSE_FILE, ZKSYNC_ERA_GIT_REPO};
+pub use consts::*;
 pub use contracts::*;
 pub use ecosystem::*;
 pub use file_config::*;
@@ -11,6 +12,7 @@ pub use wallet_creation::*;
 pub use wallets::*;
 pub use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
+mod apps;
 mod chain;
 mod consts;
 mod contracts;
@@ -23,6 +25,12 @@ mod secrets;
 mod wallet_creation;
 mod wallets;
 
+pub mod consensus_config;
+pub mod consensus_secrets;
+pub mod docker_compose;
+pub mod explorer;
+pub mod explorer_compose;
 pub mod external_node;
 pub mod forge_interface;
+pub mod portal;
 pub mod traits;

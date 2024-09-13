@@ -1,7 +1,7 @@
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, Core};
+use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_types::{
     api::{Transaction, TransactionDetails, TransactionId},
-    fee::TransactionExecutionMetrics,
     l2::L2Tx,
     Address, Nonce, H256,
 };

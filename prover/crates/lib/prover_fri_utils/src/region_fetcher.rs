@@ -6,17 +6,17 @@ use reqwest::{
     header::{HeaderMap, HeaderValue},
     Method,
 };
-use zksync_config::configs::fri_prover::CloudType;
+use zksync_config::configs::fri_prover::CloudConnectionMode;
 use zksync_utils::http_with_retries::send_request_with_retries;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegionFetcher {
-    cloud_type: CloudType,
+    cloud_type: CloudConnectionMode,
     zone_url: String,
 }
 
 impl RegionFetcher {
-    pub fn new(cloud_type: CloudType, zone_url: String) -> Self {
+    pub fn new(cloud_type: CloudConnectionMode, zone_url: String) -> Self {
         Self {
             cloud_type,
             zone_url,
@@ -25,8 +25,8 @@ impl RegionFetcher {
 
     pub async fn get_zone(&self) -> anyhow::Result<Zone> {
         match self.cloud_type {
-            CloudType::GCP => GcpZoneFetcher::get_zone(&self.zone_url).await,
-            CloudType::Local => Ok(Zone("local".to_string())),
+            CloudConnectionMode::GCP => GcpZoneFetcher::get_zone(&self.zone_url).await,
+            CloudConnectionMode::Local => Ok(Zone("local".to_string())),
         }
     }
 }

@@ -1,13 +1,6 @@
 name: Workflow template for CI jobs for Core Components
 on:
   workflow_call:
-    secrets:
-      DOCKERHUB_USER:
-        description: "DOCKERHUB_USER"
-        required: true
-      DOCKERHUB_TOKEN:
-        description: "DOCKERHUB_TOKEN"
-        required: true
     inputs:
       compilers:
         description: "JSON of required compilers and their versions"
@@ -19,11 +12,8 @@ jobs:
   lint:
     name: lint
     uses: ./.github/workflows/ci-core-lint-reusable.yml
-    secrets:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
   unit-tests:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -36,7 +26,6 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       # TODO: Remove when we after upgrade of hardhat-plugins
       - name: pre-download compilers
@@ -63,21 +52,26 @@ jobs:
 
       - name: Init
         run: |
-          ci_run zk
           ci_run run_retried rustup show
-          ci_run zk run yarn
-          ci_run zk db setup
-          ci_run zk compiler all
-          ci_run zk contract build
+          ci_run ./bin/zkt
+          ci_run zk_supervisor contracts
 
       - name: Contracts unit tests
         run: ci_run yarn l1-contracts test
 
       - name: Rust unit tests
-        run: ci_run zk test rust
+        run: |
+          ci_run zk_supervisor test rust
+          # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
+          # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
+          ci_run cargo test --release -p vm-benchmark --bench oneshot --bench batch
 
   loadtest:
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner-high-performance ]
+    strategy:
+      fail-fast: false
+      matrix:
+        vm_mode: [ "OLD", "NEW" ]
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -90,14 +84,15 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT="16000" >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 21000 || 16000 }} >> .env
+          echo ACCOUNTS_AMOUNT="100" >> .env
+          echo MAX_INFLIGHT_TXS="10" >> .env
+          echo SYNC_API_REQUESTS_LIMIT="15" >> .env
           echo FAIL_FAST=true >> .env
           echo IN_DOCKER=1 >> .env
-          echo DATABASE_MERKLE_TREE_MODE=lightweight >> .env
 
       - name: Start services
         run: |
@@ -111,20 +106,34 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
-          ci_run zk
-          ci_run zk init --local-legacy-bridge-testing
+          ci_run ./bin/zkt
+          ci_run zk_inception chain create \
+            --chain-name legacy \
+            --chain-id sequential \
+            --prover-mode no-proofs \
+            --wallet-creation localhost \
+            --l1-batch-commit-data-generator-mode rollup \
+            --base-token-address 0x0000000000000000000000000000000000000001 \
+            --base-token-price-nominator 1 \
+            --base-token-price-denominator 1 \
+            --set-as-default false \
+            --ignore-prerequisites \
+            --legacy-bridge
+          
+          ci_run zk_inception ecosystem init --dev --verbose
+          ci_run zk_supervisor contracts --test-contracts
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk server --uring --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
+          ci_run sed -i -e 's/mode: FULL/mode: LIGHTWEIGHT/' chains/legacy/configs/general.yaml
+          ci_run sed -i -e 's/state_keeper_fast_vm_mode:.*/state_keeper_fast_vm_mode: ${{ matrix.vm_mode }}/' chains/legacy/configs/general.yaml
+          ci_run sed -i -e 's/delay_interval:.*/delay_interval: 50/' chains/legacy/configs/general.yaml
+          ci_run zk_inception server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
 
-      - name: Deploy legacy era contracts
-        run: ci_run zk contract setup-legacy-bridge-era
-
       - name: Perform loadtest
-        run: ci_run zk run loadtest
+        run: ci_run zk_supervisor t loadtest -v --chain=legacy
 
       - name: Show server.log logs
         if: always()
@@ -143,13 +152,13 @@ jobs:
       # To be consistent with the rest of the workflow we disable it explicitly.
       fail-fast: false
       matrix:
-        consensus: [false, true]
-        base_token: ["Eth", "Custom"]
-        deployment_mode: ["Rollup", "Validium"]
+        consensus: [ false, true ]
+        base_token: [ "Eth", "Custom" ]
+        deployment_mode: [ "Rollup", "Validium" ]
     env:
-      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"
+      SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"
 
-    runs-on: [matterlabs-ci-runner]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -163,7 +172,6 @@ jobs:
           echo IN_DOCKER=1 >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
-          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Download zksolc/solc and zkvyper/vyper
         run: |
@@ -245,7 +253,7 @@ jobs:
           DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
           SNAPSHOTS_CREATOR_VERSION=${{ matrix.deployment_mode == 'Validium' && '0' || '1' }} \
           DISABLE_TREE_DURING_PRUNING=${{ matrix.base_token == 'Eth' }} \
-          ETH_CLIENT_WEB3_URL="http://reth:8545" \
+          ETH_CLIENT_WEB3_URL="http://localhost:8545" \
           PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,DISABLE_TREE_DURING_PRUNING,SNAPSHOTS_CREATOR_VERSION,ETH_CLIENT_WEB3_URL" \
             ci_run yarn recovery-test snapshot-recovery-test
 
@@ -253,7 +261,7 @@ jobs:
         run: |
           ENABLE_CONSENSUS=${{ matrix.consensus }} \
           DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
-          ETH_CLIENT_WEB3_URL="http://reth:8545" \
+          ETH_CLIENT_WEB3_URL="http://localhost:8545" \
           PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE,ETH_CLIENT_WEB3_URL" \
             ci_run yarn recovery-test genesis-recovery-test
 
@@ -295,7 +303,7 @@ jobs:
 
       - name: Show revert.log logs
         if: always()
-        run: ci_run cat core/tests/revert-test/revert.log || true
+        run: ci_run cat logs/revert/default/server.log || true
 
       - name: Show upgrade.log logs
         if: always()
@@ -316,10 +324,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        consensus: [false, true]
-        base_token: ["Eth", "Custom"]
-        deployment_mode: ["Rollup", "Validium"]
-    runs-on: [matterlabs-ci-runner]
+        consensus: [ false, true ]
+        base_token: [ "Eth", "Custom" ]
+        deployment_mode: [ "Rollup", "Validium" ]
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     env:
       SERVER_COMPONENTS: "api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,da_dispatcher${{ matrix.consensus && ',consensus' || '' }}${{ matrix.base_token == 'Custom' && ',base_token_ratio_persister' || '' }}"
@@ -339,7 +347,6 @@ jobs:
           echo IN_DOCKER=1 >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
           echo ZKSYNC_DEBUG_LOGS=true >> .env
-          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Start services
         run: |
@@ -385,7 +392,11 @@ jobs:
 
       - name: Run revert test
         run: |
-          ENABLE_CONSENSUS=${{ matrix.consensus }} DEPLOYMENT_MODE=${{ matrix.deployment_mode }} PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" ci_run zk test i revert-en
+          ENABLE_CONSENSUS=${{ matrix.consensus }} \
+          DEPLOYMENT_MODE=${{ matrix.deployment_mode }} \
+          PASSED_ENV_VARS="ENABLE_CONSENSUS,DEPLOYMENT_MODE" \
+          ci_run zk test i revert-en
+          
           # test terminates the nodes, so we restart them.
           if [[ "${{ matrix.deployment_mode }}" == "Rollup" ]]; then
             ZKSYNC_ENV=docker ci_run zk server --components=$SERVER_COMPONENTS &>>server.log &
@@ -417,13 +428,13 @@ jobs:
         if: always()
         run: ci_run cat ext-node.log || true
 
-      - name: Show revert_main.log logs
+      - name: Show revert logs (main node)
         if: always()
-        run: ci_run cat core/tests/revert-test/revert_main.log || true
+        run: ci_run cat logs/revert/en/default/server.log || true
 
-      - name: Show revert_ext.log logs
+      - name: Show revert logs (EN)
         if: always()
-        run: ci_run cat core/tests/revert-test/revert_ext.log || true
+        run: ci_run cat logs/revert/en/default/external_node.log || true
 
       - name: Show upgrade.log logs
         if: always()
@@ -434,3 +445,4 @@ jobs:
         run: |
           ci_run sccache --show-stats || true
           ci_run cat /tmp/sccache_log.txt || true
+

@@ -29,3 +29,12 @@ pub fn submodule_update(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<
     .run()?;
     Ok(())
 }
+
+pub fn pull(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(link_to_code);
+    let res = Cmd::new(cmd!(shell, "git rev-parse --abbrev-ref HEAD")).run_with_output()?;
+    let current_branch = String::from_utf8(res.stdout)?;
+    let current_branch = current_branch.trim_end();
+    Cmd::new(cmd!(shell, "git pull origin {current_branch}")).run()?;
+    Ok(())
+}
