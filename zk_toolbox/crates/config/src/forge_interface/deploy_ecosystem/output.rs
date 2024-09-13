@@ -37,7 +37,7 @@ pub struct DeployL1ContractsConfigOutput {
     pub recursion_leaf_level_vk_hash: H256,
     pub recursion_node_level_vk_hash: H256,
     pub diamond_cut_data: String,
-    pub force_deployments_data: Bytes,
+    pub force_deployments_data: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -58,6 +58,10 @@ pub struct DeployL1DeployedAddressesOutput {
 pub struct L1BridgehubOutput {
     pub bridgehub_implementation_addr: Address,
     pub bridgehub_proxy_addr: Address,
+    pub stm_deployment_tracker_proxy_addr: Address,
+    pub stm_deployment_tracker_implementation_addr: Address,
+    pub message_root_proxy_addr: Address,
+    pub message_root_implementation_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -70,17 +74,17 @@ pub struct L1BridgesOutput {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct L1StateTransitionOutput {
-    pub admin_facet_addr: Address,
-    pub default_upgrade_addr: Address,
-    pub diamond_init_addr: Address,
-    pub diamond_proxy_addr: Address,
-    pub executor_facet_addr: Address,
-    pub genesis_upgrade_addr: Address,
-    pub getters_facet_addr: Address,
-    pub mailbox_facet_addr: Address,
-    pub state_transition_implementation_addr: Address,
     pub state_transition_proxy_addr: Address,
+    pub state_transition_implementation_addr: Address,
     pub verifier_addr: Address,
+    pub admin_facet_addr: Address,
+    pub mailbox_facet_addr: Address,
+    pub executor_facet_addr: Address,
+    pub getters_facet_addr: Address,
+    pub diamond_init_addr: Address,
+    pub genesis_upgrade_addr: Address,
+    pub default_upgrade_addr: Address,
+    pub diamond_proxy_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

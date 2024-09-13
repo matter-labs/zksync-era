@@ -22,7 +22,7 @@ lazy_static! {
             "function governanceAcceptOwner(address governor, address target) public",
             "function chainAdminAcceptAdmin(address admin, address target) public",
             "function chainSetTokenMultiplierSetter(address chainAdmin, address target) public",
-            "function setDAValidatorPair(address admin, address diamondProxyAddress, address l1DAValidatorAddress, address l2DAValidatorAddress) public"
+            "function setDAValidatorPair(address chainAdmin, address target, address l1DaValidator, address l2DaValidator) public"
         ])
         .unwrap(),
     );
@@ -91,7 +91,7 @@ pub async fn accept_owner(
 pub async fn set_da_validator_pair(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
-    governor_contract: Address,
+    chain_admin_addr: Address,
     governor: Option<H256>,
     diamond_proxy_address: Address,
     l1_da_validator_address: Address,
@@ -107,7 +107,7 @@ pub async fn set_da_validator_pair(
         .encode(
             "setDAValidatorPair",
             (
-                governor_contract,
+                chain_admin_addr,
                 diamond_proxy_address,
                 l1_da_validator_address,
                 l2_da_validator_address,

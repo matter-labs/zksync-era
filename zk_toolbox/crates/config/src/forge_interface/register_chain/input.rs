@@ -7,6 +7,14 @@ use zksync_basic_types::{web3::Bytes, L2ChainId};
 use crate::{traits::ZkToolboxConfig, ChainConfig, ContractsConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct RegisterChainL1Config {
+    contracts_config: Contracts,
+    deployed_addresses: DeployedAddresses,
+    chain: ChainL1Config,
+    owner_address: Address,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct Bridgehub {
     bridgehub_proxy_addr: Address,
 }
@@ -27,14 +35,7 @@ struct DeployedAddresses {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct Contracts {
     diamond_cut_data: String,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct RegisterChainL1Config {
-    contracts_config: Contracts,
-    deployed_addresses: DeployedAddresses,
-    chain: ChainL1Config,
-    owner_address: Address,
+    force_deployments_data: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -49,7 +50,6 @@ pub struct ChainL1Config {
     pub base_token_gas_price_multiplier_denominator: u64,
     pub governance_security_council_address: Address,
     pub governance_min_delay: u64,
-    pub force_deployments_data: Bytes,
 }
 
 impl ZkToolboxConfig for RegisterChainL1Config {}
@@ -61,6 +61,7 @@ impl RegisterChainL1Config {
         Ok(Self {
             contracts_config: Contracts {
                 diamond_cut_data: contracts.ecosystem_contracts.diamond_cut_data.clone(),
+                force_deployments_data: contracts.ecosystem_contracts.force_deployments_data.clone(),
             },
             deployed_addresses: DeployedAddresses {
                 state_transition: StateTransition {
@@ -88,7 +89,6 @@ impl RegisterChainL1Config {
                     == L1BatchCommitmentMode::Validium,
                 validator_sender_operator_commit_eth: wallets_config.operator.address,
                 validator_sender_operator_blobs_eth: wallets_config.blob_operator.address,
-                force_deployments_data: contracts.l1.force_deployments_data.clone(),
             },
             owner_address: wallets_config.governor.address,
         })
