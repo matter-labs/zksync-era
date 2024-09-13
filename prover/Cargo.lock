@@ -3053,7 +3053,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.5",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -3310,7 +3310,7 @@ checksum = "ab2156c4fce2f8df6c499cc1c763e4394b7482525bf2a9701c9d79d215f519e4"
 dependencies = [
  "bitflags 2.6.0",
  "cfg-if",
- "cfg_aliases",
+ "cfg_aliases 0.1.1",
  "libc",
 ]
 
@@ -7494,7 +7494,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5939e2df4288c263c706ff18ac718e984149223ad4289d6d957d767dcfc04c81"
 dependencies = [
  "proc-macro-error",
- "proc-macro2 1.0.85",
+ "proc-macro2 1.0.86",
  "quote 1.0.36",
  "syn 1.0.109",
 ]
@@ -7604,10 +7604,10 @@ version = "0.30.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f91e58e75d65877f09f83bc3dca8f054847ae7ec4f3e64bfa610a557edd8e8e"
 dependencies = [
- "num-bigint 0.4.5",
+ "num-bigint 0.4.6",
  "num-integer",
  "num-traits",
- "proc-macro2 1.0.85",
+ "proc-macro2 1.0.86",
  "quote 1.0.36",
  "serde",
  "syn 1.0.109",
@@ -7715,7 +7715,7 @@ dependencies = [
  "async-trait",
  "bincode",
  "circuit_sequencer_api 0.150.5",
- "clap 4.5.4",
+ "clap 4.5.11",
  "ctrlc",
  "futures 0.3.30",
  "reqwest 0.12.5",
