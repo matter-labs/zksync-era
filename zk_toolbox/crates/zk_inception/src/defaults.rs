@@ -14,6 +14,7 @@ lazy_static! {
 pub const ROCKS_DB_STATE_KEEPER: &str = "state_keeper";
 pub const ROCKS_DB_TREE: &str = "tree";
 pub const ROCKS_DB_PROTECTIVE_READS: &str = "protective_reads";
+pub const ROCKS_DB_BASIC_WITNESS_INPUT_PRODUCER: &str = "basic_witness_input_producer";
 pub const EN_ROCKS_DB_PREFIX: &str = "en";
 pub const MAIN_ROCKS_DB_PREFIX: &str = "main";
 

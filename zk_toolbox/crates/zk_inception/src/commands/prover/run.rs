@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
 use common::{check_prerequisites, cmd::Cmd, config::global_config, logger, GPU_PREREQUISITES};
-use config::{get_link_to_prover, EcosystemConfig};
+use config::{get_link_to_prover, ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
 use super::args::run::{ProverComponent, ProverRunArgs};
@@ -69,6 +69,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
     if in_docker {
         let path_to_configs = chain.configs.clone();
         let path_to_prover = get_link_to_prover(&ecosystem_config);
+        update_setup_data_path(&chain, "prover/data/keys".to_string())?;
         run_dockerized_component(
             shell,
             component.image_name(),
@@ -80,6 +81,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
             &path_to_prover,
         )?
     } else {
+        update_setup_data_path(&chain, "data/keys".to_string())?;
         run_binary_component(
             shell,
             component.binary_name(),
@@ -131,4 +133,15 @@ fn run_binary_component(
     ));
     cmd = cmd.with_force_run();
     cmd.run().context(error)
+}
+
+fn update_setup_data_path(chain: &ChainConfig, path: String) -> anyhow::Result<()> {
+    let mut general_config = chain.get_general_config()?;
+    general_config
+        .prover_config
+        .as_mut()
+        .expect("Prover config not found")
+        .setup_data_path = path;
+    chain.save_general_config(&general_config)?;
+    Ok(())
 }

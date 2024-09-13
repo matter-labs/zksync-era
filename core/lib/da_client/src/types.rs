@@ -35,6 +35,12 @@ pub struct DispatchResponse {
     pub blob_id: String,
 }
 
+impl From<String> for DispatchResponse {
+    fn from(blob_id: String) -> Self {
+        DispatchResponse { blob_id }
+    }
+}
+
 /// `InclusionData` is the data needed to verify on L1 that a blob is included in the DA layer.
 #[derive(Default, Serialize)]
 pub struct InclusionData {
