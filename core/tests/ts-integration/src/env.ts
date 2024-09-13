@@ -29,8 +29,10 @@ export async function waitForServer(l2NodeUrl: string) {
         try {
             await l2Provider.getNetwork(); // Will throw if the server is not ready yet.
             const bridgeAddress = (await l2Provider.getDefaultBridgeAddresses()).sharedL2;
+            console.log(bridgeAddress);
             const code = await l2Provider.getCode(bridgeAddress);
             if (code == '0x') {
+                console.log('Code is 0!');
                 throw Error('L2 ERC20 bridge is not deployed yet, server is not ready');
             }
             reporter.finishAction();
@@ -80,6 +82,8 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     let mainWalletPK = getMainWalletPk(pathToHome);
 
     const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
+
+    console.log(l2NodeUrl);
 
     await waitForServer(l2NodeUrl);
 

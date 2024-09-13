@@ -30,6 +30,7 @@ types = { path = "crates/types" }
 zksync_config = { path = "../core/lib/config" }
 zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
+zksync_system_constants = { path = "../core/lib/constants" }
 zksync_consensus_roles = "=0.1.1"
 zksync_consensus_crypto = "=0.1.1"
 zksync_protobuf = "=0.1.1"

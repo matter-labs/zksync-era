@@ -8,7 +8,9 @@ use common::{
     cmd::Cmd,
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
-    git, logger,
+    git,
+    hardhat::build_l2_contracts,
+    logger,
     spinner::Spinner,
     Prompt,
 };
@@ -145,6 +147,7 @@ async fn init(
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
     build_system_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
 
     let contracts = deploy_ecosystem(
@@ -180,7 +183,7 @@ async fn deploy_erc20(
     )
     .save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&ecosystem_config.path_to_foundry())
+    let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
         .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
@@ -297,7 +300,7 @@ async fn deploy_ecosystem_inner(
     );
     deploy_config.save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&config.path_to_foundry())
+    let mut forge = Forge::new(&config.path_to_l1_foundry())
         .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url.clone())
@@ -354,16 +357,16 @@ async fn deploy_ecosystem_inner(
     )
     .await?;
 
-    accept_admin(
-        shell,
-        config,
-        contracts_config.l1.chain_admin_addr,
-        config.get_wallets()?.governor_private_key(),
-        contracts_config.bridges.shared.l1_address,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
+    // accept_admin(
+    //     shell,
+    //     config,
+    //     contracts_config.l1.chain_admin_addr,
+    //     config.get_wallets()?.governor_private_key(),
+    //     contracts_config.bridges.shared.l1_address,
+    //     &forge_args,
+    //     l1_rpc_url.clone(),
+    // )
+    // .await?;
 
     accept_owner(
         shell,

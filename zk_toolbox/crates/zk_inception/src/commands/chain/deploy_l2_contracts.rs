@@ -5,6 +5,7 @@ use common::{
     cmd::Cmd,
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
+    hardhat::build_l2_contracts,
     spinner::Spinner,
 };
 use config::{
@@ -19,6 +20,8 @@ use config::{
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use xshell::{cmd, Shell};
+use zksync_basic_types::H256;
+use zksync_config::configs::chain;
 
 use crate::{
     messages::{
@@ -170,17 +173,18 @@ pub async fn deploy_consensus_registry(
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
-    build_and_deploy(
-        shell,
-        chain_config,
-        ecosystem_config,
-        forge_args,
-        Some("runDeployConsensusRegistry"),
-        |shell, out| {
-            contracts_config.set_consensus_registry(&ConsensusRegistryOutput::read(shell, out)?)
-        },
-    )
-    .await
+    panic!("Not implemented");
+    // build_and_deploy(
+    //     shell,
+    //     chain_config,
+    //     ecosystem_config,
+    //     forge_args,
+    //     Some("runDeployConsensusRegistry"),
+    //     |shell, out| {
+    //         contracts_config.set_consensus_registry(&ConsensusRegistryOutput::read(shell, out)?)
+    //     },
+    // )
+    // .await
 }
 
 pub async fn deploy_l2_contracts(
@@ -204,7 +208,7 @@ pub async fn deploy_l2_contracts(
         |shell, out| {
             contracts_config.set_l2_shared_bridge(&InitializeBridgeOutput::read(shell, out)?)?;
             contracts_config.set_default_l2_upgrade(&DefaultL2UpgradeOutput::read(shell, out)?)?;
-            contracts_config.set_consensus_registry(&ConsensusRegistryOutput::read(shell, out)?)?;
+            // contracts_config.set_consensus_registry(&ConsensusRegistryOutput::read(shell, out)?)?;
             Ok(())
         },
     )
@@ -218,7 +222,13 @@ async fn call_forge(
     forge_args: ForgeScriptArgs,
     signature: Option<&str>,
 ) -> anyhow::Result<()> {
-    let input = DeployL2ContractsInput::new(chain_config, ecosystem_config.era_chain_id)?;
+    let input = DeployL2ContractsInput::new(
+        chain_config,
+        &ecosystem_config
+            .get_contracts_config()
+            .expect("contracts config"),
+        ecosystem_config.era_chain_id,
+    )?;
     let foundry_contracts_path = chain_config.path_to_foundry();
     let secrets = chain_config.get_secrets_config()?;
     input.save(
@@ -254,9 +264,4 @@ async fn call_forge(
     check_the_balance(&forge).await?;
     forge.run(shell)?;
     Ok(())
-}
-
-fn build_l2_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Ok(Cmd::new(cmd!(shell, "yarn l2 build")).run()?)
 }
