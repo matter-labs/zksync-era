@@ -1,17 +1,16 @@
 use zksync_types::{Address, Execute, U256};
 
+use super::tester::VmTesterBuilder;
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{
-        constants::BATCH_COMPUTATIONAL_GAS_LIMIT, tests::tester::VmTesterBuilder, HistoryEnabled,
-    },
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
 // Checks that estimated number of circuits for simple transfer doesn't differ much
 // from hardcoded expected value.
 #[test]
 fn test_circuits() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
@@ -25,12 +24,12 @@ fn test_circuits() {
             contract_address: Address::random(),
             calldata: Vec::new(),
             value: U256::from(1u8),
-            factory_deps: None,
+            factory_deps: vec![],
         },
         None,
     );
     vm.vm.push_transaction(tx);
-    let res = vm.vm.inspect(Default::default(), VmExecutionMode::OneTx);
+    let res = vm.vm.inspect((), VmExecutionMode::OneTx);
 
     let s = res.statistics.circuit_statistic;
     // Check `circuit_statistic`.

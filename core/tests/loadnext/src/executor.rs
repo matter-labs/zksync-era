@@ -253,7 +253,7 @@ impl Executor {
             });
 
         priority_op_handle
-            .polling_interval(POLLING_INTERVAL)
+            .polling_interval(POLLING_INTERVAL.end)
             .unwrap();
         priority_op_handle
             .commit_timeout(COMMIT_TIMEOUT)
@@ -322,7 +322,7 @@ impl Executor {
             });
 
         priority_op_handle
-            .polling_interval(POLLING_INTERVAL)
+            .polling_interval(POLLING_INTERVAL.end)
             .unwrap();
         priority_op_handle
             .commit_timeout(COMMIT_TIMEOUT)
@@ -487,7 +487,7 @@ impl Executor {
         // Wait for transactions to be committed, if at least one of them fails,
         // return error.
         for mut handle in handles {
-            handle.polling_interval(POLLING_INTERVAL).unwrap();
+            handle.polling_interval(POLLING_INTERVAL.end).unwrap();
 
             let result = handle
                 .commit_timeout(COMMIT_TIMEOUT)

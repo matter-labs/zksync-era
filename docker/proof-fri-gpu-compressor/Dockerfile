@@ -37,7 +37,7 @@ FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
 RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # copy VK required for proof wrapping
-COPY prover/crates/bin/vk_setup_data_generator_server_fri/data/ /prover/crates/bin/vk_setup_data_generator_server_fri/data/
+COPY prover/data/keys/ /prover/data/keys
 
 COPY setup_2\^24.key /setup_2\^24.key
 

@@ -35,7 +35,7 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
 
     let protocol_version_patch = VersionPatch(args.patch);
 
-    let snark_wrapper = H256::from_str(&args.snark_wrapper).unwrap_or_else(|_| {
+    let snark_wrapper_vk_hash = H256::from_str(&args.snark_wrapper).unwrap_or_else(|_| {
         panic!("Invalid snark wrapper hash");
     });
 
@@ -43,7 +43,7 @@ pub async fn run(args: Args, config: ProverCLIConfig) -> anyhow::Result<()> {
         .save_prover_protocol_version(
             ProtocolSemanticVersion::new(protocol_version, protocol_version_patch),
             L1VerifierConfig {
-                recursion_scheduler_level_vk_hash: snark_wrapper,
+                snark_wrapper_vk_hash,
             },
         )
         .await;

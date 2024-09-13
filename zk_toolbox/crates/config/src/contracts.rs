@@ -5,7 +5,9 @@ use crate::{
     consts::CONTRACTS_FILE,
     forge_interface::{
         deploy_ecosystem::output::DeployL1Output,
-        deploy_l2_contracts::output::{DefaultL2UpgradeOutput, InitializeBridgeOutput},
+        deploy_l2_contracts::output::{
+            ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
+        },
         register_chain::output::RegisterChainOutput,
     },
     traits::{FileConfigWithDefaultName, ZkToolboxConfig},
@@ -67,6 +69,7 @@ impl ContractsConfig {
         self.ecosystem_contracts
             .diamond_cut_data
             .clone_from(&deploy_l1_output.contracts_config.diamond_cut_data);
+        self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
     }
 
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
@@ -81,6 +84,14 @@ impl ContractsConfig {
     ) -> anyhow::Result<()> {
         self.bridges.shared.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
         self.bridges.erc20.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
+        Ok(())
+    }
+
+    pub fn set_consensus_registry(
+        &mut self,
+        consensus_registry_output: &ConsensusRegistryOutput,
+    ) -> anyhow::Result<()> {
+        self.l2.consensus_registry = Some(consensus_registry_output.consensus_registry_proxy);
         Ok(())
     }
 
@@ -140,4 +151,5 @@ pub struct L1Contracts {
 pub struct L2Contracts {
     pub testnet_paymaster_addr: Address,
     pub default_l2_upgrader: Address,
+    pub consensus_registry: Option<Address>,
 }

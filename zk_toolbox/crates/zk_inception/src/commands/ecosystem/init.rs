@@ -36,9 +36,9 @@ use super::{
     setup_observability,
 };
 use crate::{
-    accept_ownership::accept_owner,
+    accept_ownership::{accept_admin, accept_owner},
     commands::{
-        chain,
+        chain::{self, args::init::PortOffset},
         ecosystem::create_configs::{
             create_erc20_deployment_config, create_initial_deployments_config,
         },
@@ -119,6 +119,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             genesis_args: genesis_args.clone().fill_values_with_prompt(&chain_config),
             deploy_paymaster: final_ecosystem_args.deploy_paymaster,
             l1_rpc_url: final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
+            port_offset: PortOffset::from_chain_id(chain_config.id as u16).into(),
         };
 
         chain::init::init(
@@ -331,6 +332,17 @@ async fn deploy_ecosystem_inner(
     )
     .await?;
 
+    accept_admin(
+        shell,
+        config,
+        contracts_config.l1.chain_admin_addr,
+        config.get_wallets()?.governor_private_key(),
+        contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+
     accept_owner(
         shell,
         config,
@@ -342,10 +354,34 @@ async fn deploy_ecosystem_inner(
     )
     .await?;
 
+    accept_admin(
+        shell,
+        config,
+        contracts_config.l1.chain_admin_addr,
+        config.get_wallets()?.governor_private_key(),
+        contracts_config.bridges.shared.l1_address,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+
     accept_owner(
         shell,
         config,
         contracts_config.l1.governance_addr,
+        config.get_wallets()?.governor_private_key(),
+        contracts_config
+            .ecosystem_contracts
+            .state_transition_proxy_addr,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+
+    accept_admin(
+        shell,
+        config,
+        contracts_config.l1.chain_admin_addr,
         config.get_wallets()?.governor_private_key(),
         contracts_config
             .ecosystem_contracts

@@ -8,7 +8,7 @@ use zksync_types::{
 };
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_latest::{
         tests::{
             tester::{Account, VmTester, VmTesterBuilder},

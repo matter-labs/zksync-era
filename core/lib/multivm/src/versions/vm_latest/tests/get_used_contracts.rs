@@ -22,6 +22,7 @@ use zksync_vm_interface::VmExecutionResultAndLogs;
 use crate::{
     interface::{
         storage::WriteStorage, ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterface,
+        VmInterfaceExt,
     },
     vm_latest::{
         tests::{
