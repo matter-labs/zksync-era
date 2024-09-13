@@ -2536,8 +2536,12 @@ impl BlocksDal<'_, '_> {
     }
 
     pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
-        self.insert_l1_batch(header.number, header.timestamp, BatchFeeInput::default())
-            .await?;
+        self.insert_l1_batch(
+            header.number,
+            header.timestamp,
+            BatchFeeInput::pubdata_independent(100, 100, 100),
+        )
+        .await?;
         self.mark_l1_batch_as_sealed(
             header,
             &[],
@@ -2815,7 +2819,11 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(header.number, header.timestamp, BatchFeeInput::default())
+            .insert_l1_batch(
+                header.number,
+                header.timestamp,
+                BatchFeeInput::pubdata_independent(100, 100, 100),
+            )
             .await
             .unwrap();
         conn.blocks_dal()
@@ -2827,7 +2835,11 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(header.number, header.timestamp, BatchFeeInput::default())
+            .insert_l1_batch(
+                header.number,
+                header.timestamp,
+                BatchFeeInput::pubdata_independent(100, 100, 100),
+            )
             .await
             .unwrap();
         conn.blocks_dal()

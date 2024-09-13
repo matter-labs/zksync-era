@@ -15,6 +15,7 @@ use zksync_eth_client::{CallFunctionArgs, EthInterface};
 use zksync_merkle_tree::{domain::ZkSyncTree, TreeInstruction};
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
 use zksync_system_constants::PRIORITY_EXPIRATION;
+use zksync_types::fee_model::PubdataIndependentBatchFeeModelInput;
 use zksync_types::{
     block::{BlockGasCount, DeployedContract, L1BatchHeader, L2BlockHasher, L2BlockHeader},
     commitment::{CommitmentInput, L1BatchCommitment},
@@ -386,6 +387,7 @@ pub async fn create_genesis_l1_batch(
         base_system_contracts.hashes(),
         protocol_version.minor,
     );
+    let batch_fee_input = BatchFeeInput::pubdata_independent(0, 0, 0);
 
     let genesis_l2_block_header = L2BlockHeader {
         number: L2BlockNumber(0),
@@ -396,7 +398,7 @@ pub async fn create_genesis_l1_batch(
         fee_account_address: Default::default(),
         base_fee_per_gas: 0,
         gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(protocol_version.minor.into()),
-        batch_fee_input: BatchFeeInput::l1_pegged(0, 0),
+        batch_fee_input,
         base_system_contracts_hashes: base_system_contracts.hashes(),
         protocol_version: Some(protocol_version.minor),
         virtual_blocks: 0,
@@ -415,7 +417,7 @@ pub async fn create_genesis_l1_batch(
         .insert_l1_batch(
             genesis_l1_batch_header.number,
             genesis_l1_batch_header.timestamp,
-            BatchFeeInput::default(),
+            batch_fee_input,
         )
         .await?;
     transaction
