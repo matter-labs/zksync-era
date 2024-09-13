@@ -110,7 +110,7 @@ async function migrateToSyncLayer() {
     console.log('Writing to', envFile);
 
     // FIXME: consider creating new sync_layer_* variable.
-    updateContractsEnv(envFile, migrationLog, ['GATEWAY_DIAMOND_PROXY_ADDR']);
+    updateContractsEnv(envFile, migrationLog, ['GATEWAY_DIAMOND_PROXY_ADDR', 'GATEWAY_STM_ASSET_INFO']);
     fs.writeFileSync('backup_diamond.txt', process.env.CONTRACTS_DIAMOND_PROXY_ADDR!);
     env.modify('CONTRACTS_DIAMOND_PROXY_ADDR', process.env.GATEWAY_DIAMOND_PROXY_ADDR!, envFile, true);
     env.modify('ETH_SENDER_SENDER_PUBDATA_SENDING_MODE', 'RelayedL2Calldata', envFile, true);
@@ -152,6 +152,7 @@ async function updateConfigOnSyncLayer() {
         if (specialParams.includes(envVar)) {
             continue;
         }
+        console.log('envVar', envVar);
         const contractsVar = envVar.replace(/GATEWAY/g, 'GATEWAY_CONTRACTS');
         env.modify(contractsVar, process.env[envVar]!, envFile, false);
     }
@@ -425,7 +426,8 @@ export async function registerZKChain({
         'CHAIN_ETH_ZKSYNC_NETWORK_ID',
         'CONTRACTS_DIAMOND_PROXY_ADDR',
         'CONTRACTS_BASE_TOKEN_ADDR',
-        'CONTRACTS_L2_LEGACY_SHARED_BRIDGE_ADDR'
+        'CONTRACTS_L2_LEGACY_SHARED_BRIDGE_ADDR',
+        'CONTRACTS_CTM_ASSET_INFO'
     ];
     const l2EnvFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
     console.log('Writing to', l2EnvFile);
