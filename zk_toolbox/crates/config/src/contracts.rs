@@ -85,6 +85,7 @@ impl ContractsConfig {
         self.l1.validium_l1_da_validator_addr = deploy_l1_output
             .deployed_addresses
             .validium_l1_da_validator_addr;
+        self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
     }
 
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {

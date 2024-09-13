@@ -158,6 +158,8 @@ pub(super) const MSG_CHAIN_ID_VALIDATOR_ERR: &str = "Invalid chain id";
 pub(super) const MSG_BASE_TOKEN_ADDRESS_VALIDATOR_ERR: &str = "Invalid base token address";
 pub(super) const MSG_WALLET_CREATION_VALIDATOR_ERR: &str =
     "Localhost wallet is not supported for external networks";
+pub(super) const MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND: &str =
+    "Token Multiplier Setter not found. Specify it in a wallet config";
 
 /// Chain genesis related messages
 pub(super) const MSG_L1_SECRETS_MUST_BE_PRESENTED: &str = "L1 secret must be presented";
@@ -219,10 +221,12 @@ pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
 
 /// Run server related messages
 pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run";
+pub(super) const MSG_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
 pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
     "Additional arguments that can be passed through the CLI";
 pub(super) const MSG_SERVER_BUILD_HELP: &str = "Build server but don't run it";
+pub(super) const MSG_SERVER_URING_HELP: &str = "Enables uring support for RocksDB";
 
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
@@ -304,6 +308,11 @@ pub(super) fn msg_preparing_en_config_is_done(path: &Path) -> String {
 
 pub(super) const MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED: &str =
     "External node is not initialized";
+pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is missing";
+pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
+pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
+
+pub(super) const MSG_PORTS_CONFIG_ERR: &str = "Failed to get ports config";
 
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 
