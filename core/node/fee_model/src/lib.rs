@@ -1,6 +1,5 @@
 use std::{fmt, fmt::Debug, sync::Arc};
 
-use anyhow::Context as _;
 use async_trait::async_trait;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::{

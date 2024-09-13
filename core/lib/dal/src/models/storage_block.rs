@@ -8,9 +8,9 @@ use zksync_types::{
     api,
     block::{L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
-    fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
+    fee_model::BatchFeeInput,
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
-    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
+    Address, Bloom, L1BatchNumber, L2BlockNumber, H256,
 };
 
 /// This is the gas limit that was used inside blocks before we started saving block gas limit into the database.

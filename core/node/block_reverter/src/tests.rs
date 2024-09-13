@@ -2,7 +2,6 @@
 
 use std::{collections::HashSet, sync::Mutex};
 
-use super::*;
 use assert_matches::assert_matches;
 use async_trait::async_trait;
 use test_casing::test_casing;
@@ -11,12 +10,14 @@ use zksync_dal::Connection;
 use zksync_merkle_tree::TreeInstruction;
 use zksync_object_store::{Bucket, MockObjectStore};
 use zksync_state::interface::ReadStorage;
-use zksync_types::fee_model::BatchFeeInput;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHeader},
+    fee_model::BatchFeeInput,
     snapshots::SnapshotVersion,
     AccountTreeId, L2BlockNumber, ProtocolVersion, ProtocolVersionId, StorageKey, StorageLog,
 };
+
+use super::*;
 
 fn gen_storage_logs() -> Vec<StorageLog> {
     (0..10)
