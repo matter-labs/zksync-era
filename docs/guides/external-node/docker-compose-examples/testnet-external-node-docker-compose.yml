@@ -53,12 +53,21 @@ services:
   # The secrets are generated iff the secrets file doesn't already exist.
   generate-secrets:
     image: "matterlabs/external-node:2.0-v24.16.0"
-    entrypoint: ["/configs/generate_secrets.sh","/configs/testnet_consensus_secrets.yaml"]
+    entrypoint:
+      [
+      "/configs/generate_secrets.sh",
+      "/configs/testnet_consensus_secrets.yaml",
+      ]
     volumes:
       - ./configs:/configs
   external-node:
     image: "matterlabs/external-node:2.0-v24.16.0"
-    entrypoint: ["/usr/bin/entrypoint.sh","--enable-consensus"]
+    entrypoint:
+      [
+      "/usr/bin/entrypoint.sh",
+      # Uncomment the following line to enable consensus
+      # "--enable-consensus",
+      ]
     restart: always
     depends_on:
       postgres:
