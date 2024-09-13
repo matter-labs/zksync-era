@@ -1,6 +1,8 @@
 use anyhow::Context;
 use common::{config::global_config, git, logger, spinner::Spinner};
-use config::{copy_configs, traits::SaveConfigWithBasePath, EcosystemConfig};
+use config::{
+    copy_configs, traits::SaveConfigWithBasePath, update_from_chain_config, EcosystemConfig,
+};
 use ethers::utils::hex::ToHex;
 use xshell::Shell;
 
@@ -32,12 +34,15 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
 
     let args = args.fill_values_with_prompt(config.default_chain.clone());
 
+    git::submodule_update(shell, config.link_to_code.clone())?;
+
     let spinner = Spinner::new(MSG_PREPARING_CONFIG_SPINNER);
     copy_configs(shell, &config.link_to_code, &chain_config.configs)?;
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&chain_config));
 
-    git::submodule_update(shell, config.link_to_code.clone())?;
+    let mut genesis_config = chain_config.get_genesis_config()?;
+    update_from_chain_config(&mut genesis_config, &chain_config);
 
     // Copy ecosystem contracts
     let mut contracts_config = config
