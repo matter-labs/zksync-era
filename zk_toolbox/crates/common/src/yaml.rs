@@ -64,7 +64,10 @@ fn merge_yaml_internal(
         }
         (a, b) => {
             if a != &b {
-                diff.differing_values.insert(current_key.into(), b);
+                diff.differing_values.insert(current_key.into(), b.clone());
+                if override_values {
+                    *a = b;
+                }
             }
         }
     }
@@ -332,6 +335,137 @@ mod tests {
         assert_eq!(
             diff.new_fields.get::<String>("key5".into()).unwrap(),
             b.get("key5").unwrap()
+        );
+        assert_eq!(a, expected);
+    }
+
+    #[test]
+    fn test_merge_yaml_override_values() {
+        let mut a = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            "#,
+        )
+        .unwrap();
+        let b: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value5
+            "#,
+        )
+        .unwrap();
+
+        let expected: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value5
+            "#,
+        )
+        .unwrap();
+
+        let diff = super::merge_yaml(&mut a, b.clone(), true).unwrap();
+        assert_eq!(diff.differing_values.len(), 1);
+        assert_eq!(
+            diff.differing_values
+                .get::<serde_yaml::Value>("key3.key4".into())
+                .unwrap(),
+            b.get("key3").unwrap().get("key4").unwrap()
+        );
+        assert_eq!(a, expected);
+    }
+
+    #[test]
+    fn test_merge_yaml_override_values_with_extra_field() {
+        let mut a = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            "#,
+        )
+        .unwrap();
+        let b: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value5
+            key5: value5
+            "#,
+        )
+        .unwrap();
+
+        let expected: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value5
+            key5: value5
+            "#,
+        )
+        .unwrap();
+
+        let diff = super::merge_yaml(&mut a, b.clone(), true).unwrap();
+        assert_eq!(diff.differing_values.len(), 1);
+        assert_eq!(
+            diff.differing_values
+                .get::<serde_yaml::Value>("key3.key4".into())
+                .unwrap(),
+            b.get("key3").unwrap().get("key4").unwrap()
+        );
+        assert_eq!(diff.new_fields.len(), 1);
+        assert_eq!(
+            diff.new_fields.get::<String>("key5".into()).unwrap(),
+            b.get("key5").unwrap()
+        );
+        assert_eq!(a, expected);
+    }
+
+    #[test]
+    fn test_override_values_with_null() {
+        let mut a = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3:
+                key4: value4
+            "#,
+        )
+        .unwrap();
+        let b: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3: null
+            "#,
+        )
+        .unwrap();
+
+        let expected: serde_yaml::Value = serde_yaml::from_str(
+            r#"
+            key1: value1
+            key2: value2
+            key3: null
+            "#,
+        )
+        .unwrap();
+
+        let diff = super::merge_yaml(&mut a, b.clone(), true).unwrap();
+        assert_eq!(diff.differing_values.len(), 1);
+        assert_eq!(
+            diff.differing_values
+                .get::<serde_yaml::Value>("key3".into())
+                .unwrap(),
+            b.get("key3").unwrap()
         );
         assert_eq!(a, expected);
     }
