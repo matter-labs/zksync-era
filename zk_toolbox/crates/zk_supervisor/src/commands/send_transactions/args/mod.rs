@@ -8,9 +8,11 @@ use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_INVALID_L1_RPC_URL_ERR, MSG_PROMPT_L1_RPC_URL, MSG_PROMPT_SECRET_KEY,
-        MSG_PROMPT_TRANSACTION_FILE, MSG_TRANSACTION_CONFIRMATIONS,
+        MSG_PROMPT_TRANSACTION_FILE,
     },
 };
+
+const DEFAULT_TRANSACTION_CONFIRMATIONS: usize = 2;
 
 #[derive(Debug, Parser)]
 pub struct SendTransactionsArgs {
@@ -55,7 +57,7 @@ impl SendTransactionsArgs {
 
         let confirmations = self
             .confirmations
-            .unwrap_or_else(|| Prompt::new(MSG_TRANSACTION_CONFIRMATIONS).ask());
+            .unwrap_or(DEFAULT_TRANSACTION_CONFIRMATIONS);
 
         SendTransactionsArgsFinal {
             file,
