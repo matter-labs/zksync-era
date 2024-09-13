@@ -1,9 +1,5 @@
 use std::{collections::HashMap, fmt};
 
-use vm2::{
-    decode::decode_program, fat_pointer::FatPointer, instruction_handlers::HeapInterface,
-    ExecutionEnd, Program, Settings, Tracer, VirtualMachine,
-};
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
@@ -19,6 +15,10 @@ use zksync_types::{
     L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_vm2::{
+    decode::decode_program, CallframeInterface, ExecutionEnd, FatPointer, HeapId, Program,
+    Settings, StateInterface, Tracer, VirtualMachine,
+};
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
@@ -79,7 +79,7 @@ impl<S: ReadStorage> Vm<S> {
             operator_suggested_refund: 0,
         };
         let mut last_tx_result = None;
-        let mut pubdata_before = self.inner.world_diff.pubdata() as u32;
+        let mut pubdata_before = self.inner.world_diff().pubdata() as u32;
 
         let result = loop {
             let hook = match self.inner.run(&mut self.world, tracer) {
@@ -93,7 +93,7 @@ impl<S: ReadStorage> Vm<S> {
                 }
                 ExecutionEnd::Panicked => {
                     break ExecutionResult::Halt {
-                        reason: if self.inner.state.current_frame.gas == 0 {
+                        reason: if self.gas_remaining() == 0 {
                             Halt::BootloaderOutOfGas
                         } else {
                             Halt::VMPanic
@@ -125,7 +125,7 @@ impl<S: ReadStorage> Vm<S> {
                             )
                             .as_u64();
 
-                        let pubdata_published = self.inner.world_diff.pubdata() as u32;
+                        let pubdata_published = self.inner.world_diff().pubdata() as u32;
 
                         refunds.operator_suggested_refund = compute_refund(
                             &self.batch_env,
@@ -161,10 +161,7 @@ impl<S: ReadStorage> Vm<S> {
                     let result = self.get_hook_params()[0];
                     let value = self.get_hook_params()[1];
                     let fp = FatPointer::from(value);
-                    assert_eq!(fp.offset, 0);
-
-                    let return_data = self.inner.state.heaps[fp.memory_page]
-                        .read_range_big_endian(fp.start..fp.start + fp.length);
+                    let return_data = self.read_bytes_from_heap(fp);
 
                     last_tx_result = Some(if result.is_zero() {
                         ExecutionResult::Revert {
@@ -190,7 +187,7 @@ impl<S: ReadStorage> Vm<S> {
                     }
 
                     let events =
-                        merge_events(self.inner.world_diff.events(), self.batch_env.number);
+                        merge_events(self.inner.world_diff().events(), self.batch_env.number);
 
                     let published_bytecodes = events
                         .iter()
@@ -276,7 +273,20 @@ impl<S: ReadStorage> Vm<S> {
 
     /// Should only be used when the bootloader is executing (e.g., when handling hooks).
     pub(crate) fn read_word_from_bootloader_heap(&self, word: usize) -> U256 {
-        self.inner.state.heaps[vm2::FIRST_HEAP].read_u256(word as u32 * 32)
+        let start_address = word as u32 * 32;
+        self.inner.read_heap_u256(HeapId::FIRST, start_address)
+    }
+
+    fn read_bytes_from_heap(&self, ptr: FatPointer) -> Vec<u8> {
+        assert_eq!(ptr.offset, 0);
+        (ptr.start..ptr.start + ptr.length)
+            .map(|addr| self.inner.read_heap_byte(ptr.memory_page, addr))
+            .collect()
+    }
+
+    pub(crate) fn has_previous_far_calls(&mut self) -> bool {
+        let callframe_count = self.inner.number_of_callframes();
+        (1..callframe_count).any(|i| !self.inner.callframe(i).is_near_call())
     }
 
     /// Should only be used when the bootloader is executing (e.g., when handling hooks).
@@ -284,12 +294,15 @@ impl<S: ReadStorage> Vm<S> {
         &mut self,
         memory: impl IntoIterator<Item = (usize, U256)>,
     ) {
-        assert!(self.inner.state.previous_frames.is_empty());
+        assert!(
+            !self.has_previous_far_calls(),
+            "Cannot write to bootloader heap when not in root call frame"
+        );
+
         for (slot, value) in memory {
+            let start_address = slot as u32 * 32;
             self.inner
-                .state
-                .heaps
-                .write_u256(vm2::FIRST_HEAP, slot as u32 * 32, value);
+                .write_heap_u256(HeapId::FIRST, start_address, value);
         }
     }
 
@@ -317,7 +330,7 @@ impl<S: ReadStorage> Vm<S> {
         } else {
             compress_bytecodes(&tx.factory_deps, |hash| {
                 self.inner
-                    .world_diff
+                    .world_diff()
                     .get_storage_state()
                     .get(&(KNOWN_CODES_STORAGE_ADDRESS, h256_to_u256(hash)))
                     .map(|x| !x.is_zero())
@@ -351,7 +364,7 @@ impl<S: ReadStorage> Vm<S> {
         }
 
         let storage = &mut self.world.storage;
-        let diffs = self.inner.world_diff.get_storage_changes().map(
+        let diffs = self.inner.world_diff().get_storage_changes().map(
             move |((address, key), (initial_value, final_value))| {
                 let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(key));
                 StateDiffRecord {
@@ -375,11 +388,11 @@ impl<S: ReadStorage> Vm<S> {
     }
 
     pub(crate) fn decommitted_hashes(&self) -> impl Iterator<Item = U256> + '_ {
-        self.inner.world_diff.decommitted_hashes()
+        self.inner.world_diff().decommitted_hashes()
     }
 
-    pub(super) fn gas_remaining(&self) -> u32 {
-        self.inner.state.current_frame.gas
+    pub(super) fn gas_remaining(&mut self) -> u32 {
+        self.inner.current_frame().gas()
     }
 }
 
@@ -418,12 +431,13 @@ impl<S: ReadStorage> Vm<S> {
             },
         );
 
-        inner.state.current_frame.sp = 0;
-
+        inner.current_frame().set_stack_pointer(0);
         // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
-        inner.state.current_frame.heap_size = u32::MAX;
-        inner.state.current_frame.aux_heap_size = u32::MAX;
-        inner.state.current_frame.exception_handler = INITIAL_FRAME_FORMAL_EH_LOCATION;
+        inner.current_frame().set_heap_bound(u32::MAX);
+        inner.current_frame().set_aux_heap_bound(u32::MAX);
+        inner
+            .current_frame()
+            .set_exception_handler(INITIAL_FRAME_FORMAL_EH_LOCATION);
 
         let mut this = Self {
             world: World::new(storage, program_cache),
@@ -446,7 +460,7 @@ impl<S: ReadStorage> Vm<S> {
 
     // visible for testing
     pub(super) fn get_current_execution_state(&self) -> CurrentExecutionState {
-        let world_diff = &self.inner.world_diff;
+        let world_diff = self.inner.world_diff();
         let events = merge_events(world_diff.events(), self.batch_env.number);
 
         let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
@@ -478,7 +492,7 @@ impl<S: ReadStorage> Vm<S> {
     }
 
     fn delete_history_if_appropriate(&mut self) {
-        if self.snapshot.is_none() && self.inner.state.previous_frames.is_empty() {
+        if self.snapshot.is_none() && !self.has_previous_far_calls() {
             self.inner.delete_history();
         }
     }
@@ -504,8 +518,8 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         }
 
         let mut tracer = CircuitsTracer::default();
-        let start = self.inner.world_diff.snapshot();
-        let pubdata_before = self.inner.world_diff.pubdata();
+        let start = self.inner.world_diff().snapshot();
+        let pubdata_before = self.inner.world_diff().pubdata();
         let gas_before = self.gas_remaining();
 
         let (result, refunds) = self.run(execution_mode, &mut tracer, track_refunds);
@@ -519,7 +533,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         } else {
             let storage_logs = self
                 .inner
-                .world_diff
+                .world_diff()
                 .get_storage_changes_after(&start)
                 .map(|((address, key), change)| StorageLogWithPreviousValue {
                     log: StorageLog {
@@ -535,7 +549,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                 })
                 .collect();
             let events = merge_events(
-                self.inner.world_diff.events_after(&start),
+                self.inner.world_diff().events_after(&start),
                 self.batch_env.number,
             );
             let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
@@ -545,7 +559,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                 .collect();
             let system_l2_to_l1_logs = self
                 .inner
-                .world_diff
+                .world_diff()
                 .l2_to_l1_logs_after(&start)
                 .iter()
                 .map(|x| x.glue_into())
@@ -559,7 +573,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             }
         };
 
-        let pubdata_after = self.inner.world_diff.pubdata();
+        let pubdata_after = self.inner.world_diff().pubdata();
         let circuit_statistic = tracer.circuit_statistic();
         let gas_remaining = self.gas_remaining();
         VmExecutionResultAndLogs {
@@ -634,7 +648,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
 #[derive(Debug)]
 struct VmSnapshot {
-    vm_snapshot: vm2::Snapshot,
+    vm_snapshot: zksync_vm2::Snapshot,
     bootloader_snapshot: BootloaderStateSnapshot,
     gas_for_account_validation: u32,
 }
@@ -744,7 +758,7 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
     }
 }
 
-impl<S: ReadStorage, T: Tracer> vm2::StorageInterface for World<S, T> {
+impl<S: ReadStorage, T: Tracer> zksync_vm2::StorageInterface for World<S, T> {
     fn read_storage(&mut self, contract: H160, key: U256) -> Option<U256> {
         let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
         if self.storage.is_write_initial(key) {
@@ -789,7 +803,7 @@ impl<S: ReadStorage, T: Tracer> vm2::StorageInterface for World<S, T> {
     }
 }
 
-impl<S: ReadStorage, T: Tracer> vm2::World<T> for World<S, T> {
+impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
     fn decommit(&mut self, hash: U256) -> Program<T, Self> {
         self.program_cache
             .entry(hash)

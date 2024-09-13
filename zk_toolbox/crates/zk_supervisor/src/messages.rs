@@ -201,6 +201,8 @@ pub(super) const MSG_TEST_WALLETS_INFO: &str = "Print test wallets information";
 pub(super) const MSG_DESERIALIZE_TEST_WALLETS_ERR: &str = "Impossible to deserialize test wallets";
 pub(super) const MSG_WALLETS_TEST_SUCCESS: &str = "Wallets test success";
 
+pub(super) const MSG_LOADTEST_ABOUT: &str = "Run loadtest";
+
 // Send transactions related messages
 pub(super) const MSG_SEND_TXNS_ABOUT: &str = "Send transactions from file";
 pub(super) const MSG_PROMPT_TRANSACTION_FILE: &str = "Path to transactions file";

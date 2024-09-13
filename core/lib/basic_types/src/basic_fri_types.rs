@@ -152,6 +152,29 @@ impl AggregationRound {
             AggregationRound::Scheduler => None,
         }
     }
+
+    /// Returns all the circuit IDs that correspond to a particular
+    /// aggregation round.
+    ///
+    /// For example, in aggregation round 0, the circuit ids should be 1 to 15 + 255 (EIP4844).
+    /// In aggregation round 1, the circuit ids should be 3 to 18.
+    /// In aggregation round 2, the circuit ids should be 2.
+    /// In aggregation round 3, the circuit ids should be 255.
+    /// In aggregation round 4, the circuit ids should be 1.
+    pub fn circuit_ids(self) -> Vec<CircuitIdRoundTuple> {
+        match self {
+            AggregationRound::BasicCircuits => (1..=15)
+                .chain(once(255))
+                .map(|circuit_id| CircuitIdRoundTuple::new(circuit_id, self as u8))
+                .collect(),
+            AggregationRound::LeafAggregation => (3..=18)
+                .map(|circuit_id| CircuitIdRoundTuple::new(circuit_id, self as u8))
+                .collect(),
+            AggregationRound::NodeAggregation => vec![CircuitIdRoundTuple::new(2, self as u8)],
+            AggregationRound::RecursionTip => vec![CircuitIdRoundTuple::new(255, self as u8)],
+            AggregationRound::Scheduler => vec![CircuitIdRoundTuple::new(1, self as u8)],
+        }
+    }
 }
 
 impl std::fmt::Display for AggregationRound {
@@ -265,33 +288,17 @@ impl CircuitProverStats {
 
 impl Default for CircuitProverStats {
     fn default() -> Self {
-        let mut stats = HashMap::new();
-        for circuit in (1..=15).chain(once(255)) {
-            stats.insert(
-                CircuitIdRoundTuple::new(circuit, 0),
-                JobCountStatistics::default(),
-            );
-        }
-        for circuit in 3..=18 {
-            stats.insert(
-                CircuitIdRoundTuple::new(circuit, 1),
-                JobCountStatistics::default(),
-            );
-        }
-        stats.insert(
-            CircuitIdRoundTuple::new(2, 2),
-            JobCountStatistics::default(),
-        );
-        stats.insert(
-            CircuitIdRoundTuple::new(255, 3),
-            JobCountStatistics::default(),
-        );
-        stats.insert(
-            CircuitIdRoundTuple::new(1, 4),
-            JobCountStatistics::default(),
-        );
+        let circuits_prover_stats = AggregationRound::ALL_ROUNDS
+            .into_iter()
+            .flat_map(|round| {
+                let circuit_ids = round.circuit_ids();
+                circuit_ids.into_iter().map(|circuit_id_round_tuple| {
+                    (circuit_id_round_tuple, JobCountStatistics::default())
+                })
+            })
+            .collect();
         Self {
-            circuits_prover_stats: stats,
+            circuits_prover_stats,
         }
     }
 }

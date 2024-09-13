@@ -16,14 +16,20 @@ use crate::{
             deploy_l2_contracts, deploy_paymaster,
             genesis::genesis,
             set_token_multiplier_setter::set_token_multiplier_setter,
+            setup_legacy_bridge::setup_legacy_bridge,
         },
         portal::update_portal_config,
     },
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR,
-        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTS_CONFIG_ERR,
+        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
+    },
+    utils::{
+        consensus::{generate_consensus_keys, get_consensus_config, get_consensus_secrets},
+        forge::{check_the_balance, fill_forge_private_key},
     },
 };
 
@@ -55,6 +61,12 @@ pub async fn init(
 
     let mut general_config = chain_config.get_general_config()?;
     apply_port_offset(init_args.port_offset, &mut general_config)?;
+    let ports = ports_config(&general_config).context(MSG_PORTS_CONFIG_ERR)?;
+
+    let consensus_keys = generate_consensus_keys();
+    let consensus_config =
+        get_consensus_config(chain_config, ports, Some(consensus_keys.clone()), None)?;
+    general_config.consensus_config = Some(consensus_config);
     general_config.save_with_base_path(shell, &chain_config.configs)?;
 
     let mut genesis_config = chain_config.get_genesis_config()?;
@@ -71,6 +83,7 @@ pub async fn init(
 
     let mut secrets = chain_config.get_secrets_config()?;
     set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
+    secrets.consensus = Some(get_consensus_secrets(&consensus_keys));
     secrets.save_with_base_path(shell, &chain_config.configs)?;
 
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
@@ -129,6 +142,17 @@ pub async fn init(
     )
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+
+    if let Some(true) = chain_config.legacy_bridge {
+        setup_legacy_bridge(
+            shell,
+            chain_config,
+            ecosystem_config,
+            &contracts_config,
+            init_args.forge_args.clone(),
+        )
+        .await?;
+    }
 
     if init_args.deploy_paymaster {
         let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
