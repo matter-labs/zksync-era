@@ -1,5 +1,5 @@
 use zksync_config::{configs::EcosystemContracts, GenesisConfig};
-use zksync_types::{api::en, tokens::TokenInfo, Address, L1BatchNumber, L2BlockNumber};
+use zksync_types::{api::en, tokens::TokenInfo, Address, L2BlockNumber};
 use zksync_web3_decl::{
     jsonrpsee::core::{async_trait, RpcResult},
     namespaces::EnNamespaceServer,

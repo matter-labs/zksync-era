@@ -1,7 +1,7 @@
 // External uses
 use serde::{Deserialize, Serialize};
 // Workspace uses
-use zksync_basic_types::{Address, L1BatchNumber};
+use zksync_basic_types::Address;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct EcosystemContracts {

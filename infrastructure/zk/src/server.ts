@@ -62,7 +62,7 @@ export async function server(
     }
 }
 
-export async function externalNode(env: string, reinit: boolean = false, args: string[]) {
+export async function externalNode(mainNodeEnv: string, reinit: boolean = false, args: string[]) {
     if (process.env.ZKSYNC_ENV != 'ext-node') {
         console.warn(`WARNING: using ${process.env.ZKSYNC_ENV} environment for external node`);
         console.warn('If this is a mistake, set $ZKSYNC_ENV to "ext-node" or other environment');
@@ -81,7 +81,7 @@ export async function externalNode(env: string, reinit: boolean = false, args: s
 
     // FIXME: make it work with and without sync layer.
     // set the correct diamond proxy addresses
-    const targetEnv = dotenv.parse(fs.readFileSync(`etc/env/target/${env}.env`));
+    const targetEnv = dotenv.parse(fs.readFileSync(`etc/env/target/${mainNodeEnv}.env`));
     process.env.EN_SL_CLIENT_MAP = JSON.stringify([
         {
             chain_id: +targetEnv.CONTRACTS_ERA_CHAIN_ID!,
@@ -101,9 +101,9 @@ export async function externalNode(env: string, reinit: boolean = false, args: s
     process.env.EN_MAIN_NODE_URL = targetEnv.API_WEB3_JSON_RPC_HTTP_URL;
     process.env.EN_ETH_CLIENT_URL = targetEnv.ETH_CLIENT_WEB3_URL;
 
-    console.log(`MAIN_NODE_URL for env ${env}: ${process.env.EN_MAIN_NODE_URL}`);
-    console.log(`ETH_CLIENT_URL for env ${env}: ${process.env.EN_ETH_CLIENT_URL}`);
-    console.log(`CLIENT_MAP for env ${env}: ${process.env.EN_SL_CLIENT_MAP}`);
+    console.log(`MAIN_NODE_URL for env ${mainNodeEnv}: ${process.env.EN_MAIN_NODE_URL}`);
+    console.log(`ETH_CLIENT_URL for env ${mainNodeEnv}: ${process.env.EN_ETH_CLIENT_URL}`);
+    console.log(`CLIENT_MAP for env ${mainNodeEnv}: ${process.env.EN_SL_CLIENT_MAP}`);
 
     await utils.spawn(`cargo run --release --bin zksync_external_node -- ${args.join(' ')}`);
 }
