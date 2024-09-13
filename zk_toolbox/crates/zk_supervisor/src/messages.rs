@@ -207,6 +207,7 @@ pub(super) const MSG_PROMPT_TRANSACTION_FILE: &str = "Path to transactions file"
 pub(super) const MSG_PROMPT_SECRET_KEY: &str = "Secret key of the sender";
 pub(super) const MSG_PROMPT_L1_RPC_URL: &str = "L1 RPC URL";
 pub(super) const MSG_TRANSACTION_CONFIRMATIONS: &str = "Confirmations";
+pub(super) const MSG_SEND_TXNS_OUTRO: &str = "Transaction receipts logged to";
 
 pub(super) const MSG_UNABLE_TO_OPEN_FILE_ERR: &str = "Unable to open file";
 pub(super) const MSG_UNABLE_TO_READ_FILE_ERR: &str = "Unable to read file";

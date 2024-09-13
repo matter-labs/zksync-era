@@ -19,8 +19,9 @@ use zksync_basic_types::{H160, U256};
 use crate::{
     consts::DEFAULT_UNSIGNED_TRANSACTIONS_DIR,
     messages::{
-        MSG_FAILED_TO_SEND_TXN_ERR, MSG_UNABLE_TO_OPEN_FILE_ERR, MSG_UNABLE_TO_READ_FILE_ERR,
-        MSG_UNABLE_TO_READ_PARSE_JSON_ERR, MSG_UNABLE_TO_WRITE_FILE_ERR,
+        MSG_FAILED_TO_SEND_TXN_ERR, MSG_SEND_TXNS_OUTRO, MSG_UNABLE_TO_OPEN_FILE_ERR,
+        MSG_UNABLE_TO_READ_FILE_ERR, MSG_UNABLE_TO_READ_PARSE_JSON_ERR,
+        MSG_UNABLE_TO_WRITE_FILE_ERR,
     },
 };
 
@@ -97,6 +98,12 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
 
         log_receipt(&log_file, format!("{:?}", receipt).as_str())?;
     }
+
+    logger::outro(format!(
+        "{}: {}",
+        MSG_SEND_TXNS_OUTRO,
+        log_file.to_string_lossy()
+    ));
 
     Ok(())
 }
