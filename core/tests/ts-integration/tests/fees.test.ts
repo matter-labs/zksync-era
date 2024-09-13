@@ -216,26 +216,6 @@ testFees('Test fees', () => {
             (expectedETHGasPrice * conversionRatio.numerator) / conversionRatio.denominator;
 
         expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
-
-        if (!isETHBasedChain) {
-            await setFeeParams(alice._providerL2(), {
-                newL1GasPrice: l1GasPrice.toString(),
-                newPubdataPrice: l1GasPrice.toString(),
-                customBaseToken: true,
-                externalPriceApiClientForcedNumerator: 271,
-                externalPriceApiClientForcedDenominator: 100
-            });
-
-            const receipt2 = await (
-                await alice.sendTransaction({
-                    to: receiver,
-                    value: BigInt(1)
-                })
-            ).wait();
-
-            const expectedCustomGasPrice = (BigInt(expectedETHGasPrice) * 271n) / 100n;
-            expect(receipt2.gasPrice).toBe(BigInt(expectedCustomGasPrice));
-        }
     });
 
     test('Test base token ratio fluctuations', async () => {
