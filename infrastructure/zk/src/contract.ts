@@ -247,11 +247,9 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 // for testnet and development purposes it is ok to deploy contracts form L1.
 export async function deployL2ThroughL1({
     includePaymaster = true,
-    localLegacyBridgeTesting,
     deploymentMode
 }: {
     includePaymaster: boolean;
-    localLegacyBridgeTesting?: boolean;
     deploymentMode: DeploymentMode;
 }): Promise<void> {
     await utils.confirmAction();
@@ -390,9 +388,11 @@ export async function erc20BridgeFinish(args: any[] = []): Promise<void> {
 
 export async function registerZKChain({
     baseTokenName,
+    localLegacyBridgeTesting,
     deploymentMode
 }: {
     baseTokenName?: string;
+    localLegacyBridgeTesting?: boolean;
     deploymentMode?: DeploymentMode;
 }): Promise<void> {
     await utils.confirmAction();
@@ -418,7 +418,9 @@ export async function registerZKChain({
         tokenMultiplierSetterAddress ? `--token-multiplier-setter-address ${tokenMultiplierSetterAddress}` : '',
         '--use-governance'
     ];
-    await utils.spawn(`yarn l1-contracts register-zk-chain ${args.join(' ')} | tee registerZKChain.log`);
+    await utils.spawn(`yarn l1-contracts register-zk-chain ${args.join(' ')} ${
+        localLegacyBridgeTesting ? '--local-legacy-bridge-testing' : ''
+        } | tee registerZKChain.log`);
     const deployLog = fs.readFileSync('registerZKChain.log').toString();
 
     const l2EnvVars = [

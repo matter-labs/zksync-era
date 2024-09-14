@@ -117,12 +117,12 @@ const initHyperchain = async ({
     localLegacyBridgeTesting,
     deploymentMode
 }: InitHyperchainOptions): Promise<void> => {
-    await announced('Registering ZKChain', contract.registerZKChain({ baseTokenName, deploymentMode }));
+    await announced('Registering ZKChain', contract.registerZKChain({ baseTokenName, localLegacyBridgeTesting, deploymentMode }));
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced(
         'Deploying L2 contracts',
-        contract.deployL2ThroughL1({ includePaymaster, localLegacyBridgeTesting, deploymentMode })
+        contract.deployL2ThroughL1({ includePaymaster, deploymentMode })
     );
 };
 
