@@ -217,20 +217,15 @@ impl EthClient for EthHttpQueryClient {
     ) -> EnrichedClientResult<Option<Vec<u8>>> {
         const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
 
-        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
-            return Ok(None);
-        };
-
         let to_block = self.client.block_number().await?;
         let from_block = to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into());
 
         let logs = self
-            .get_events_inner(
+            .get_events(
                 from_block.into(),
                 to_block.into(),
                 self.new_upgrade_cut_data_signature,
                 Some(packed_version),
-                &[state_transition_manager_address],
                 RETRY_LIMIT,
             )
             .await?;
