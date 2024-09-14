@@ -5,11 +5,9 @@ use zksync_types::{
 };
 
 use crate::{
-    i_executor::structures::{CommitBatchInfo, StoredBatchInfo},
+    i_executor::structures::{CommitBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
     Tokenizable, Tokenize,
 };
-
-const SUPPORTED_ENCODING_VERSION: [u8; 1] = [0];
 /// Input required to encode `commitBatches` call for a contract
 #[derive(Debug)]
 pub struct CommitBatches<'a> {
@@ -29,7 +27,7 @@ impl Tokenize for CommitBatches<'_> {
             .collect();
 
         let encoded_data = encode(&[stored_batch_info, Token::Array(l1_batches_to_commit)]);
-        let commit_data = [SUPPORTED_ENCODING_VERSION.to_vec(), encoded_data]
+        let commit_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
             .concat()
             .to_vec();
 

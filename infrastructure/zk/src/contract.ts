@@ -152,7 +152,6 @@ async function updateConfigOnSyncLayer() {
         if (specialParams.includes(envVar)) {
             continue;
         }
-        console.log('envVar', envVar);
         const contractsVar = envVar.replace(/GATEWAY/g, 'GATEWAY_CONTRACTS');
         env.modify(contractsVar, process.env[envVar]!, envFile, false);
     }

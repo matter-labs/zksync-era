@@ -3,8 +3,10 @@ use zksync_types::{
     ethabi::{encode, Token},
 };
 
-use crate::{i_executor::structures::StoredBatchInfo, Tokenizable, Tokenize};
-const SUPPORTED_ENCODING_VERSION: [u8; 1] = [0];
+use crate::{
+    i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
+    Tokenizable, Tokenize,
+};
 
 /// Input required to encode `executeBatches` call.
 #[derive(Debug, Clone)]
@@ -29,7 +31,7 @@ impl Tokenize for &ExecuteBatches {
                     .collect(),
             ),
         ]);
-        let commit_data = [SUPPORTED_ENCODING_VERSION.to_vec(), encoded_data]
+        let commit_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
             .concat()
             .to_vec();
 

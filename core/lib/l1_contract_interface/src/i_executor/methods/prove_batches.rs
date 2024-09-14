@@ -6,7 +6,10 @@ use zksync_types::{
     U256,
 };
 
-use crate::{i_executor::structures::StoredBatchInfo, Tokenizable, Tokenize};
+use crate::{
+    i_executor::structures::{StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
+    Tokenizable, Tokenize,
+};
 
 /// Input required to encode `proveBatches` call.
 #[derive(Debug, Clone)]
@@ -16,8 +19,6 @@ pub struct ProveBatches {
     pub proofs: Vec<L1BatchProofForL1>,
     pub should_verify: bool,
 }
-
-const SUPPORTED_ENCODING_VERSION: [u8; 1] = [0];
 
 impl Tokenize for &ProveBatches {
     fn into_tokens(self) -> Vec<Token> {
@@ -48,24 +49,24 @@ impl Tokenize for &ProveBatches {
                 .unwrap()
                 .is_pre_boojum()
             {
-                Token::Array(
-                    aggregation_result_coords
-                        .iter()
-                        .map(|bytes| Token::Uint(U256::from_big_endian(bytes)))
-                        .collect(),
-                )
+                aggregation_result_coords
+                    .iter()
+                    .map(|bytes| Token::Uint(U256::from_big_endian(bytes)))
+                    .collect()
             } else {
-                Token::Array(Vec::new())
+                Vec::new()
             };
-            let proof_input = Token::Tuple(vec![
-                aggregation_result_coords,
-                Token::Array(proof.into_iter().map(Token::Uint).collect()),
-            ]);
-            //.concat().to_vec()); // kl todo this changed
+            let proof_input = Token::Array(
+                [
+                    aggregation_result_coords,
+                    proof.into_iter().map(Token::Uint).collect(),
+                ]
+                .concat()
+                .to_vec(),
+            ); // todo this changed, might have to be debugged.
 
-            // vec![stored_batch_info, batches_arg, proof_input]
             let encoded_data = encode(&[prev_l1_batch_info, batches_arg, proof_input]);
-            let commit_data = [SUPPORTED_ENCODING_VERSION.to_vec(), encoded_data]
+            let commit_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
                 .concat()
                 .to_vec();
 
@@ -78,7 +79,7 @@ impl Tokenize for &ProveBatches {
             ]
         } else {
             let encoded_data = encode(&[prev_l1_batch_info, batches_arg, Token::Array(vec![])]);
-            let commit_data = [SUPPORTED_ENCODING_VERSION.to_vec(), encoded_data]
+            let commit_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
                 .concat()
                 .to_vec();
 
