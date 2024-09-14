@@ -47,7 +47,7 @@ pub async fn distribute_eth(
                 .send_transaction(tx, None)
                 .await?
                 // It's safe to set such low number of confirmations and low interval for localhost
-                .confirmations(3)
+                .confirmations(1)
                 .interval(Duration::from_millis(30)),
         );
     }
