@@ -10,8 +10,8 @@ use crate::commands::chain::{
 };
 
 pub(crate) mod args;
-mod create;
 mod convert_to_gateway;
+mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 pub mod genesis;
@@ -68,6 +68,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
-        ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await
+        ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,
     }
 }
