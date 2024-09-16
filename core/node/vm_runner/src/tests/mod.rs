@@ -39,7 +39,7 @@ struct IoMock {
 }
 
 #[async_trait]
-impl VmRunnerIo for Arc<RwLock<IoMock>> {
+impl VmRunnerIo for RwLock<IoMock> {
     fn name(&self) -> &'static str {
         "io_mock"
     }
@@ -153,7 +153,7 @@ struct TestOutputFactory {
 #[async_trait]
 impl OutputHandlerFactory for TestOutputFactory {
     async fn create_handler(
-        &mut self,
+        &self,
         _system_env: SystemEnv,
         l1_batch_env: L1BatchEnv,
     ) -> anyhow::Result<Box<dyn OutputHandler>> {

@@ -22,7 +22,6 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         from: BlockNumber,
         to: BlockNumber,
         topic1: H256,
-        topic2: Option<H256>,
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>>;
     /// Returns finalized L1 block number.
@@ -104,21 +103,24 @@ impl EthHttpQueryClient {
         .collect()
     }
 
+    #[async_recursion::async_recursion]
     async fn get_events_inner(
         &self,
         from: BlockNumber,
         to: BlockNumber,
-        topics1: H256,
-        topic2: Option<H256>,
-        addresses: &[Address],
+        topics1: Option<Vec<H256>>,
+        topics2: Option<Vec<H256>>,
+        addresses: Option<Vec<Address>>,
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
-        let filter = FilterBuilder::default()
+        let mut builder = FilterBuilder::default()
             .from_block(from)
             .to_block(to)
-            .topics(Some(vec![topics1]), topic2.map(|x| vec![x]), None, None)
-            .address(addresses.to_owned())
-            .build();
+            .topics(topics1.clone(), topics2.clone(), None, None);
+        if let Some(addresses) = addresses.clone() {
+            builder = builder.address(addresses);
+        }
+        let filter = builder.build();
         let mut result = self.client.logs(&filter).await;
 
         // This code is compatible with both Infura and Alchemy API providers.
@@ -172,14 +174,22 @@ impl EthHttpQueryClient {
 
                 tracing::warn!("Splitting block range in half: {from:?} - {mid:?} - {to:?}");
                 let mut first_half = self
-                    .get_events(from, BlockNumber::Number(mid), topics1, topic2, RETRY_LIMIT)
+                    .get_events_inner(
+                        from,
+                        BlockNumber::Number(mid),
+                        topics1.clone(),
+                        topics2.clone(),
+                        addresses.clone(),
+                        RETRY_LIMIT,
+                    )
                     .await?;
                 let mut second_half = self
-                    .get_events(
+                    .get_events_inner(
                         BlockNumber::Number(mid + 1u64),
                         to,
                         topics1,
-                        topic2,
+                        topics2,
+                        addresses,
                         RETRY_LIMIT,
                     )
                     .await?;
@@ -189,7 +199,7 @@ impl EthHttpQueryClient {
             } else if should_retry(err_code, err_message) && retries_left > 0 {
                 tracing::warn!("Retrying. Retries left: {retries_left}");
                 result = self
-                    .get_events(from, to, topics1, topic2, retries_left - 1)
+                    .get_events_inner(from, to, topics1, topics2, addresses, retries_left - 1)
                     .await;
             }
         }
@@ -217,15 +227,20 @@ impl EthClient for EthHttpQueryClient {
     ) -> EnrichedClientResult<Option<Vec<u8>>> {
         const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
 
+        let Some(state_transition_manager_address) = self.state_transition_manager_address else {
+            return Ok(None);
+        };
+
         let to_block = self.client.block_number().await?;
         let from_block = to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into());
 
         let logs = self
-            .get_events(
+            .get_events_inner(
                 from_block.into(),
                 to_block.into(),
-                self.new_upgrade_cut_data_signature,
-                Some(packed_version),
+                Some(vec![self.new_upgrade_cut_data_signature]),
+                Some(vec![packed_version]),
+                Some(vec![state_transition_manager_address]),
                 RETRY_LIMIT,
             )
             .await?;
@@ -237,16 +252,14 @@ impl EthClient for EthHttpQueryClient {
         &self,
         from: BlockNumber,
         to: BlockNumber,
-        topic1: H256,
-        topic2: Option<H256>,
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
         self.get_events_inner(
             from,
             to,
-            topic1,
-            topic2,
-            &self.get_default_address_list(),
+            Some(self.topics.clone()),
+            None,
+            Some(self.get_default_address_list()),
             retries_left,
         )
         .await
