@@ -105,7 +105,7 @@ impl ContractsConfig {
     }
 
     pub fn set_multicall3(&mut self, multicall3_output: &Multicall3Output) -> anyhow::Result<()> {
-        self.l2.multicall3 = multicall3_output.multicall3;
+        self.l2.multicall3 = Some(multicall3_output.multicall3);
         Ok(())
     }
 }
@@ -158,5 +158,5 @@ pub struct L2Contracts {
     pub testnet_paymaster_addr: Address,
     pub default_l2_upgrader: Address,
     pub consensus_registry: Option<Address>,
-    pub multicall3: Address,
+    pub multicall3: Option<Address>,
 }
