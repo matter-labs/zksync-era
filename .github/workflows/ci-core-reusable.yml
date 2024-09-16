@@ -126,7 +126,7 @@ jobs:
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk_supervisor config-writer --path ${{ matrix.vm_mode == 'NEW' && 'etc/env/file_based/overrides/legacy-new.yaml' || 'etc/env/file_based/overrides/legacy-old.yaml' }} --chain legacy
+          ci_run zk_supervisor config-writer --path ${{ matrix.vm_mode == 'NEW' && 'etc/env/file_based/overrides/loadtest-new.yaml' || 'etc/env/file_based/overrides/loadtest-old.yaml' }} --chain legacy
           ci_run zk_inception server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
 
