@@ -18,7 +18,7 @@ pub struct CommitBatches<'a> {
 }
 
 impl CommitBatches<'_> {
-    pub fn into_tokens(self, pre_gateway:bool) -> Vec<Token> {
+    pub fn into_tokens(self, pre_gateway: bool) -> Vec<Token> {
         let stored_batch_info = StoredBatchInfo::from(self.last_committed_l1_batch).into_token();
         let l1_batches_to_commit: Vec<Token> = self
             .l1_batches
@@ -26,7 +26,10 @@ impl CommitBatches<'_> {
             .map(|batch| CommitBatchInfo::new(self.mode, batch, self.pubdata_da).into_token())
             .collect();
 
-        let encoded_data = encode(&[stored_batch_info.clone(), Token::Array(l1_batches_to_commit.clone())]);
+        let encoded_data = encode(&[
+            stored_batch_info.clone(),
+            Token::Array(l1_batches_to_commit.clone()),
+        ]);
         let commit_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
             .concat()
             .to_vec();

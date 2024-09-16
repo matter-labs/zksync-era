@@ -444,12 +444,16 @@ impl ConsistencyChecker {
                 .map_err(CheckError::Internal)?
         };
 
-        let commitment =
-            Self::extract_commit_data(&commit_tx.input.0, commit_function, batch_number, local.is_pre_gateway())
-                .with_context(|| {
-                    format!("failed extracting commit data for transaction {commit_tx_hash:?}")
-                })
-                .map_err(CheckError::Validation)?;
+        let commitment = Self::extract_commit_data(
+            &commit_tx.input.0,
+            commit_function,
+            batch_number,
+            local.is_pre_gateway(),
+        )
+        .with_context(|| {
+            format!("failed extracting commit data for transaction {commit_tx_hash:?}")
+        })
+        .map_err(CheckError::Validation)?;
         local
             .verify_commitment(&commitment)
             .map_err(CheckError::Validation)
@@ -472,13 +476,13 @@ impl ConsistencyChecker {
         let mut commit_input_tokens = commit_function
             .decode_input(&commit_tx_input_data[4..])
             .context("Failed decoding calldata for L1 commit function")?;
-        let mut commitments : Vec<Token>;
+        let mut commitments: Vec<Token>;
         if pre_gateway {
             commitments = commit_input_tokens
-            .pop()
-            .context("Unexpected signature for L1 commit function")?
-            .into_array()
-            .context("Unexpected signature for L1 commit function")?;
+                .pop()
+                .context("Unexpected signature for L1 commit function")?
+                .into_array()
+                .context("Unexpected signature for L1 commit function")?;
         } else {
             let commitments_popped = commit_input_tokens
                 .pop()

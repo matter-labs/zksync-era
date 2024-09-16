@@ -163,7 +163,7 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
             &commit_tx_input_data,
             commit_function,
             batch.header.number,
-            false
+            false,
         )
         .unwrap();
         assert_eq!(
@@ -248,7 +248,7 @@ fn extracting_commit_data_for_pre_boojum_batch() {
         commit_tx_input_data,
         &PRE_BOOJUM_COMMIT_FUNCTION,
         L1BatchNumber(200_000),
-        true
+        true,
     )
     .unwrap();
 

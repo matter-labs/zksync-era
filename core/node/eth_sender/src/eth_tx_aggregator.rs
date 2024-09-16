@@ -433,7 +433,13 @@ impl EthTxAggregator {
                     pubdata_da: *pubdata_da,
                     mode: self.aggregator.mode(),
                 };
-                let commit_data_base = commit_batches.into_tokens(l1_batches[0].header.protocol_version.unwrap().is_pre_gateway());
+                let commit_data_base = commit_batches.into_tokens(
+                    l1_batches[0]
+                        .header
+                        .protocol_version
+                        .unwrap()
+                        .is_pre_gateway(),
+                );
 
                 args.extend(commit_data_base);
 
