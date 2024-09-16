@@ -9,5 +9,6 @@ On the gossipnet, the data integrity will be protected by the BFT (byzantine fau
 
 ### Add `--enable-consensus` flag to your entry point command
 
-For the consensus configuration to take effect you have to add `--enable-consensus` flag when
-running the node. You can do that by editing the docker compose files (mainnet-external-node-docker-compose.yml or testnet-external-node-docker-compose.yml) and uncommenting the line with `--enable-consensus`.
+For the consensus configuration to take effect you have to add `--enable-consensus` flag when running the node. You can
+do that by editing the docker compose files (mainnet-external-node-docker-compose.yml or
+testnet-external-node-docker-compose.yml) and uncommenting the line with `--enable-consensus`.
