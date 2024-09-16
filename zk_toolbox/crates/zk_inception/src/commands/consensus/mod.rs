@@ -181,16 +181,16 @@ impl Command {
                 let mut want: HashMap<_, _> =
                     want.iter().map(|a| (a.key.clone(), a.weight)).collect();
                 for (i, node) in nodes.into_iter().enumerate() {
+                    if node.attester_latest.removed {
+                        continue;
+                    }
                     let got = attester::WeightedAttester {
                         key: decode_attester_key(&node.attester_latest.pub_key)
                             .context("decode_attester_key")?,
                         weight: node.attester_latest.weight.into(),
                     };
-                    match want.remove(&got.key) {
-                        None => {
-                            multicall.add_call(consensus_registry.remove(node_owners[i].0), false);
-                        }
-                        Some(weight) if weight != got.weight => {
+                    if let Some(weight) = want.remove(&got.key) {
+                        if weight != got.weight {
                             multicall.add_call(
                                 consensus_registry.change_attester_weight(
                                     node_owners[i].0,
@@ -199,7 +199,12 @@ impl Command {
                                 false,
                             );
                         }
-                        _ => {}
+                        if !node.attester_latest.active {
+                            multicall
+                                .add_call(consensus_registry.activate(node_owners[i].0), false);
+                        }
+                    } else {
+                        multicall.add_call(consensus_registry.remove(node_owners[i].0), false);
                     }
                 }
                 for (key, weight) in want {
