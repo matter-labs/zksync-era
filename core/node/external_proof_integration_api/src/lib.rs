@@ -18,10 +18,9 @@ use tokio::sync::watch;
 use types::{ExternalProof, ProofGenerationDataResponse};
 use zksync_basic_types::L1BatchNumber;
 
-use crate::metrics::METRICS;
 pub use crate::processor::Processor;
 use crate::{
-    metrics::{CallOutcome, Method},
+    metrics::{CallOutcome, Method, METRICS},
     middleware::MetricsMiddleware,
 };
 

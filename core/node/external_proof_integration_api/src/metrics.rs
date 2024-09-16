@@ -1,7 +1,8 @@
 use std::time::Duration;
 
-use crate::error::ProcessorError;
 use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Histogram, LabeledFamily, Metrics};
+
+use crate::error::ProcessorError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "outcome", rename_all = "snake_case")]
