@@ -159,7 +159,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
-          echo RUN_CONTRACT_VERIFICATION_TEST=true >> .env
+          echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
 
       - name: Start services
         run: |
@@ -292,6 +292,11 @@ jobs:
         run: |
           ci_run zk_supervisor test build
 
+      - name: Initialize Contract verifier
+        run: |
+          ci_run zk_inception contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.3 --solc-version=0.8.27 --vyper-version=v0.4.0 --chain era
+          ci_run zk_inception contract-verifier run --chain era
+
       - name: Run servers
         run: |
           ci_run zk_inception server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
@@ -305,6 +310,7 @@ jobs:
 
       - name: Run integration tests
         run: |
+          PASSED_ENV_VARS="RUN_CONTRACT_VERIFICATION_TEST" \
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/rollup.log &
           PID1=$!
 
