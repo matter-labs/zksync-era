@@ -24,6 +24,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Same as [`MockBatchFeeParamsProvider`], but also artificially acquires a Postgres connection on each call
 /// (same as the real node implementation).
+// FIXME: obsolete? (wrapped in `ApiFeeInputProvider` anyway)
 #[derive(Debug)]
 struct MockApiBatchFeeParamsProvider {
     inner: MockBatchFeeParamsProvider,
