@@ -418,9 +418,11 @@ export async function registerZKChain({
         tokenMultiplierSetterAddress ? `--token-multiplier-setter-address ${tokenMultiplierSetterAddress}` : '',
         '--use-governance'
     ];
-    await utils.spawn(`yarn l1-contracts register-zk-chain ${args.join(' ')} ${
-        localLegacyBridgeTesting ? '--local-legacy-bridge-testing' : ''
-        } | tee registerZKChain.log`);
+    await utils.spawn(
+        `yarn l1-contracts register-zk-chain ${args.join(' ')} ${
+            localLegacyBridgeTesting ? '--local-legacy-bridge-testing' : ''
+        } | tee registerZKChain.log`
+    );
     const deployLog = fs.readFileSync('registerZKChain.log').toString();
 
     const l2EnvVars = [
