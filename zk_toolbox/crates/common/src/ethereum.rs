@@ -3,10 +3,10 @@ use std::{ops::Add, sync::Arc, time::Duration};
 use ethers::{
     contract::abigen,
     core::k256::ecdsa::SigningKey,
-    middleware::MiddlewareBuilder,
+    middleware::{nonce_manager, MiddlewareBuilder},
     prelude::{Http, LocalWallet, Provider, Signer, SignerMiddleware},
     providers::Middleware,
-    types::{Address, TransactionRequest, H256},
+    types::{spoof::nonce, Address, TransactionRequest, H256},
 };
 use types::TokenInfo;
 
@@ -89,11 +89,10 @@ pub async fn mint_token(
     chain_id: u64,
     amount: u128,
 ) -> anyhow::Result<()> {
-    let client = Arc::new(create_ethers_client(
-        main_wallet.private_key.unwrap(),
-        l1_rpc,
-        Some(chain_id),
-    )?);
+    let client = Arc::new(
+        create_ethers_client(main_wallet.private_key.unwrap(), l1_rpc, Some(chain_id))?
+            .nonce_manager(main_wallet.address),
+    );
 
     let contract = TokenContract::new(token_address, client);
 
