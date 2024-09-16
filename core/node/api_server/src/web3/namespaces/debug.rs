@@ -162,6 +162,11 @@ impl DebugNamespace {
         if request.gas.is_none() {
             request.gas = Some(block_args.default_eth_call_gas(&mut connection).await?);
         }
+        let fee_input = if block_args.resolves_to_latest_sealed_l2_block() {
+            self.batch_fee_input
+        } else {
+            block_args.historical_fee_input(&mut connection).await?
+        };
         drop(connection);
 
         let call_overrides = request.get_call_overrides()?;
@@ -188,7 +193,7 @@ impl DebugNamespace {
                 connection,
                 SandboxAction::Call {
                     call: call.clone(),
-                    fee_input: self.batch_fee_input,
+                    fee_input,
                     enforced_base_fee: call_overrides.enforced_base_fee,
                     tracing_params,
                 },
