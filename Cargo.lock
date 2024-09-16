@@ -6281,11 +6281,14 @@ dependencies = [
 name = "selector_generator"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap 4.4.6",
+ "ethabi",
  "glob",
+ "hex",
  "serde",
  "serde_json",
- "sha3 0.10.8",
+ "tokio",
 ]
 
 [[package]]
