@@ -147,38 +147,12 @@ async fn load_resources(
         .expect("failed to create object store");
 
     let keystore = Keystore::locate().with_setup_path(Some(setup_data_path));
-    let setup_keys = load_setup_keys(keystore.clone())?;
-    let finalization_hints = load_finalization_hints(keystore)?;
+    let setup_keys = keystore.load_all_setup_key_mappings().await?;
+    let finalization_hints = keystore.load_all_finalization_hints_mappings().await?;
     Ok((
         connection_pool,
         object_store,
         setup_keys,
         finalization_hints,
     ))
-}
-
-fn load_setup_keys(
-    keystore: Keystore,
-) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>> {
-    let mut cache = HashMap::new();
-    tracing::info!("Loading setup keys",);
-    for key in ProverServiceDataKey::all() {
-        let setup_data = keystore.load_gpu_setup_data_for_circuit_type(key.clone())?;
-        cache.insert(key, Arc::new(setup_data));
-    }
-    tracing::info!("Finished loading setup keys");
-    Ok(cache)
-}
-
-fn load_finalization_hints(
-    keystore: Keystore,
-) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>> {
-    let mut cache = HashMap::new();
-    tracing::info!("Loading setup keys",);
-    for key in ProverServiceDataKey::all() {
-        let setup_data = keystore.load_finalization_hints(key.clone())?;
-        cache.insert(key, Arc::new(setup_data));
-    }
-    tracing::info!("Finished loading setup keys");
-    Ok(cache)
 }

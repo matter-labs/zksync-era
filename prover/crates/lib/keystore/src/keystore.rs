@@ -1,7 +1,9 @@
 use std::{
+    collections::HashMap,
     fs::{self, File},
     io::Read,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use anyhow::Context as _;
@@ -14,7 +16,7 @@ use circuit_definitions::{
     },
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
 use zksync_basic_types::basic_fri_types::AggregationRound;
 use zksync_prover_fri_types::ProverServiceDataKey;
@@ -102,8 +104,8 @@ impl Keystore {
 
     fn get_file_path(
         &self,
-        key: ProverServiceDataKey,
-        service_data_type: ProverServiceDataType,
+        key: &ProverServiceDataKey,
+        service_data_type: &ProverServiceDataType,
     ) -> PathBuf {
         let name = key.name();
         match service_data_type {
@@ -161,8 +163,8 @@ impl Keystore {
         circuit_type: u8,
     ) -> anyhow::Result<ZkSyncBaseLayerVerificationKey> {
         Self::load_json_from_file(self.get_file_path(
-            ProverServiceDataKey::new(circuit_type, AggregationRound::BasicCircuits),
-            ProverServiceDataType::VerificationKey,
+            &ProverServiceDataKey::new(circuit_type, AggregationRound::BasicCircuits),
+            &ProverServiceDataType::VerificationKey,
         ))
     }
 
@@ -171,8 +173,8 @@ impl Keystore {
         circuit_type: u8,
     ) -> anyhow::Result<ZkSyncRecursionLayerVerificationKey> {
         Self::load_json_from_file(self.get_file_path(
-            ProverServiceDataKey::new_recursive(circuit_type),
-            ProverServiceDataType::VerificationKey,
+            &ProverServiceDataKey::new_recursive(circuit_type),
+            &ProverServiceDataType::VerificationKey,
         ))
     }
 
@@ -181,8 +183,8 @@ impl Keystore {
         vk: ZkSyncBaseLayerVerificationKey,
     ) -> anyhow::Result<()> {
         let filepath = self.get_file_path(
-            ProverServiceDataKey::new(vk.numeric_circuit_type(), AggregationRound::BasicCircuits),
-            ProverServiceDataType::VerificationKey,
+            &ProverServiceDataKey::new(vk.numeric_circuit_type(), AggregationRound::BasicCircuits),
+            &ProverServiceDataType::VerificationKey,
         );
         tracing::info!("saving basic verification key to: {:?}", filepath);
         Self::save_json_pretty(filepath, &vk)
@@ -193,8 +195,8 @@ impl Keystore {
         vk: ZkSyncRecursionLayerVerificationKey,
     ) -> anyhow::Result<()> {
         let filepath = self.get_file_path(
-            ProverServiceDataKey::new_recursive(vk.numeric_circuit_type()),
-            ProverServiceDataType::VerificationKey,
+            &ProverServiceDataKey::new_recursive(vk.numeric_circuit_type()),
+            &ProverServiceDataType::VerificationKey,
         );
         tracing::info!("saving recursive layer verification key to: {:?}", filepath);
         Self::save_json_pretty(filepath, &vk)
@@ -209,7 +211,7 @@ impl Keystore {
         key: ProverServiceDataKey,
         hint: &FinalizationHintsForProver,
     ) -> anyhow::Result<()> {
-        let filepath = self.get_file_path(key.clone(), ProverServiceDataType::FinalizationHints);
+        let filepath = self.get_file_path(&key, &ProverServiceDataType::FinalizationHints);
 
         tracing::info!("saving finalization hints for {:?} to: {:?}", key, filepath);
         let serialized =
@@ -228,7 +230,7 @@ impl Keystore {
             key.circuit_id = ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8;
         }
         Self::load_bincode_from_file(
-            self.get_file_path(key, ProverServiceDataType::FinalizationHints),
+            self.get_file_path(&key, &ProverServiceDataType::FinalizationHints),
         )
     }
 
@@ -242,8 +244,8 @@ impl Keystore {
     // This way, we avoid including the old 1.3.3 test harness to our main library.
     pub fn load_snark_verification_key(&self) -> anyhow::Result<String> {
         let filepath = self.get_file_path(
-            ProverServiceDataKey::snark(),
-            ProverServiceDataType::SnarkVerificationKey,
+            &ProverServiceDataKey::snark(),
+            &ProverServiceDataType::SnarkVerificationKey,
         );
         std::fs::read_to_string(&filepath).with_context(|| {
             format!("Failed reading Snark verification key from path: {filepath:?}")
@@ -252,8 +254,8 @@ impl Keystore {
 
     pub fn save_snark_verification_key(&self, vk: ZkSyncSnarkWrapperVK) -> anyhow::Result<()> {
         let filepath = self.get_file_path(
-            ProverServiceDataKey::snark(),
-            ProverServiceDataType::SnarkVerificationKey,
+            &ProverServiceDataKey::snark(),
+            &ProverServiceDataType::SnarkVerificationKey,
         );
         tracing::info!("saving snark verification key to: {:?}", filepath);
         Self::save_json_pretty(filepath, &vk.into_inner())
@@ -267,7 +269,7 @@ impl Keystore {
         &self,
         key: ProverServiceDataKey,
     ) -> anyhow::Result<GoldilocksProverSetupData> {
-        let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
+        let filepath = self.get_file_path(&key, &ProverServiceDataType::SetupData);
 
         let mut file = File::open(filepath.clone())
             .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
@@ -287,7 +289,7 @@ impl Keystore {
         key: ProverServiceDataKey,
     ) -> anyhow::Result<GoldilocksGpuProverSetupData> {
         // let time = Instant::now();
-        let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
+        let filepath = self.get_file_path(&key, &ProverServiceDataType::SetupData);
         // tracing::info!("Time to get file {:?}", time.elapsed());
         let mut file = File::open(filepath.clone())
             .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
@@ -306,7 +308,7 @@ impl Keystore {
     }
 
     pub fn is_setup_data_present(&self, key: &ProverServiceDataKey) -> bool {
-        Path::new(&self.get_file_path(key.clone(), ProverServiceDataType::SetupData)).exists()
+        Path::new(&self.get_file_path(&key, &ProverServiceDataType::SetupData)).exists()
     }
 
     pub fn save_setup_data_for_circuit_type(
@@ -314,7 +316,7 @@ impl Keystore {
         key: ProverServiceDataKey,
         serialized_setup_data: &Vec<u8>,
     ) -> anyhow::Result<()> {
-        let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
+        let filepath = self.get_file_path(&key, &ProverServiceDataType::SetupData);
         tracing::info!("saving {:?} setup data to: {:?}", key, filepath);
         std::fs::write(filepath.clone(), serialized_setup_data)
             .with_context(|| format!("Failed saving setup-data at path: {filepath:?}"))
@@ -469,5 +471,50 @@ impl Keystore {
 
     pub fn save_commitments(&self, commitments: &VkCommitments) -> anyhow::Result<()> {
         Self::save_json_pretty(self.get_base_path().join("commitments.json"), &commitments)
+    }
+
+    /// Async loads a mapping of all circuits to setup key, if successful
+    pub async fn load_all_setup_key_mappings(
+        &self,
+    ) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>> {
+        self.load_key_mappings(ProverServiceDataType::SetupData)
+            .await
+    }
+
+    /// Async loads a mapping of all circuits to finalization hints, if successful
+    pub async fn load_all_finalization_hints_mappings(
+        &self,
+    ) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>> {
+        self.load_key_mappings(ProverServiceDataType::FinalizationHints)
+            .await
+    }
+
+    /// Async function that loads mapping from disk.
+    /// This is done because serialization/deserialization can be slow
+    async fn load_key_mappings<T: DeserializeOwned + Send + Sync + 'static>(
+        &self,
+        data_type: ProverServiceDataType,
+    ) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<T>>> {
+        let mut mapping: HashMap<ProverServiceDataKey, Arc<T>> = HashMap::new();
+
+        // Load each file in parallel. Note that FS access is not necessarily parallel, but
+        // deserialization is. For larger files, it makes a big difference.
+        // Note: `collect` is important, because iterators are lazy, and otherwise we won't actually
+        // spawn threads.
+        let handles: Vec<_> = ProverServiceDataKey::all()
+            .into_iter()
+            .map(|key| {
+                let filepath = self.get_file_path(&key, &data_type);
+                tokio::task::spawn_blocking(move || {
+                    let data = Self::load_bincode_from_file(filepath)?;
+                    anyhow::Ok((key, Arc::new(data)))
+                })
+            })
+            .collect();
+        for handle in futures::future::join_all(handles).await {
+            let (key, setup_data) = handle.context("future loading key panicked")??;
+            mapping.insert(key, setup_data);
+        }
+        Ok(mapping)
     }
 }
