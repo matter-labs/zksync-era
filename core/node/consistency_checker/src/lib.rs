@@ -216,6 +216,13 @@ impl LocalL1BatchCommitData {
             .map_or(true, |version| version.is_pre_shared_bridge())
     }
 
+    fn is_pre_gateway(&self) -> bool {
+        self.l1_batch
+            .header
+            .protocol_version
+            .map_or(true, |version| version.is_pre_gateway())
+    }
+
     /// All returned errors are validation errors.
     fn verify_commitment(&self, reference: &ethabi::Token) -> anyhow::Result<()> {
         let protocol_version = self
@@ -438,7 +445,7 @@ impl ConsistencyChecker {
         };
 
         let commitment =
-            Self::extract_commit_data(&commit_tx.input.0, commit_function, batch_number)
+            Self::extract_commit_data(&commit_tx.input.0, commit_function, batch_number, local.is_pre_gateway())
                 .with_context(|| {
                     format!("failed extracting commit data for transaction {commit_tx_hash:?}")
                 })
@@ -453,6 +460,7 @@ impl ConsistencyChecker {
         commit_tx_input_data: &[u8],
         commit_function: &ethabi::Function,
         batch_number: L1BatchNumber,
+        pre_gateway: bool,
     ) -> anyhow::Result<ethabi::Token> {
         let expected_solidity_selector = commit_function.short_signature();
         let actual_solidity_selector = &commit_tx_input_data[..4];
@@ -464,30 +472,39 @@ impl ConsistencyChecker {
         let mut commit_input_tokens = commit_function
             .decode_input(&commit_tx_input_data[4..])
             .context("Failed decoding calldata for L1 commit function")?;
-        let commitments_popped = commit_input_tokens
+        let mut commitments : Vec<Token>;
+        if pre_gateway {
+            commitments = commit_input_tokens
             .pop()
-            .context("Unexpected signature for L1 commit function 1")?;
-        let commitment_bytes = match commitments_popped {
-            Token::Bytes(arr) => arr,
-            _ => anyhow::bail!("Unexpected signature for L1 commit function 2"),
-        };
-        let (version, encoded_data) = commitment_bytes.split_at(1);
-        assert_eq!(version[0], SUPPORTED_ENCODING_VERSION);
-        let decoded_data = ethabi::decode(
-            &[
-                StoredBatchInfo::schema(),
-                ParamType::Array(Box::new(CommitBatchInfo::schema())),
-            ], // types expected (e.g., Token::Array)
-            encoded_data,
-        )
-        .expect("Decoding failed");
-        let mut commitments;
-        if let [_, Token::Array(batch_commitments)] = &decoded_data[..] {
-            // Now you have access to `stored_batch_info` and `l1_batches_to_commit`
-            // Process them as needed
-            commitments = batch_commitments.clone();
+            .context("Unexpected signature for L1 commit function")?
+            .into_array()
+            .context("Unexpected signature for L1 commit function")?;
         } else {
-            panic!("Unexpected data format");
+            let commitments_popped = commit_input_tokens
+                .pop()
+                .context("Unexpected signature for L1 commit function 1")?;
+            let commitment_bytes = match commitments_popped {
+                Token::Bytes(arr) => arr,
+                _ => anyhow::bail!("Unexpected signature for L1 commit function 2"),
+            };
+            let (version, encoded_data) = commitment_bytes.split_at(1);
+            assert_eq!(version[0], SUPPORTED_ENCODING_VERSION);
+            let decoded_data = ethabi::decode(
+                &[
+                    StoredBatchInfo::schema(),
+                    ParamType::Array(Box::new(CommitBatchInfo::schema())),
+                ], // types expected (e.g., Token::Array)
+                encoded_data,
+            )
+            .expect("Decoding failed");
+            // let mut commitments;
+            if let [_, Token::Array(batch_commitments)] = &decoded_data[..] {
+                // Now you have access to `stored_batch_info` and `l1_batches_to_commit`
+                // Process them as needed
+                commitments = batch_commitments.clone();
+            } else {
+                panic!("Unexpected data format");
+            }
         }
 
         // Commit transactions usually publish multiple commitments at once, so we need to find

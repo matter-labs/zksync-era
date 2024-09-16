@@ -6,7 +6,7 @@ use zksync_types::{
 
 use crate::{
     i_executor::structures::{CommitBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
-    Tokenizable, Tokenize,
+    Tokenizable,
 };
 /// Input required to encode `commitBatches` call for a contract
 #[derive(Debug)]
@@ -17,8 +17,8 @@ pub struct CommitBatches<'a> {
     pub mode: L1BatchCommitmentMode,
 }
 
-impl Tokenize for CommitBatches<'_> {
-    fn into_tokens(self) -> Vec<Token> {
+impl CommitBatches<'_> {
+    pub fn into_tokens(self, pre_gateway:bool) -> Vec<Token> {
         let stored_batch_info = StoredBatchInfo::from(self.last_committed_l1_batch).into_token();
         let l1_batches_to_commit: Vec<Token> = self
             .l1_batches
@@ -26,18 +26,21 @@ impl Tokenize for CommitBatches<'_> {
             .map(|batch| CommitBatchInfo::new(self.mode, batch, self.pubdata_da).into_token())
             .collect();
 
-        let encoded_data = encode(&[stored_batch_info, Token::Array(l1_batches_to_commit)]);
+        let encoded_data = encode(&[stored_batch_info.clone(), Token::Array(l1_batches_to_commit.clone())]);
         let commit_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
             .concat()
             .to_vec();
-
-        vec![
-            Token::Uint((self.last_committed_l1_batch.header.number.0 + 1).into()),
-            Token::Uint(
-                (self.last_committed_l1_batch.header.number.0 + self.l1_batches.len() as u32)
-                    .into(),
-            ),
-            Token::Bytes(commit_data),
-        ]
+        if pre_gateway {
+            vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
+        } else {
+            vec![
+                Token::Uint((self.last_committed_l1_batch.header.number.0 + 1).into()),
+                Token::Uint(
+                    (self.last_committed_l1_batch.header.number.0 + self.l1_batches.len() as u32)
+                        .into(),
+                ),
+                Token::Bytes(commit_data),
+            ]
+        }
     }
 }
