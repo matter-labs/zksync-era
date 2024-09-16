@@ -103,7 +103,7 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
             {
                 Ok(receipt) => break receipt,
                 Err(e) if attempts < MAX_ATTEMPTS => {
-                    eprintln!("Attempt {} failed: {:?}", attempts, e);
+                    logger::info(format!("Attempt {} failed: {:?}", attempts, e).as_str());
                     sleep(Duration::from_secs(1)).await;
                     continue;
                 }
