@@ -173,8 +173,8 @@ jobs:
           SERVER_LOGS_DIR=logs/server
           INTEGRATION_TESTS_LOGS_DIR=logs/integration_tests
           INTEGRATION_TESTS_EN_LOGS_DIR=logs/integration_tests/en
-          SNAPSHOT_RECOVERY_LOGS_DIR=logs/integration_tests/en
-          GENESIS_RECOVERY_LOGS_DIR=logs/integration_tests/en
+          SNAPSHOT_RECOVERY_LOGS_DIR=logs/snapshot_recovery/
+          GENESIS_RECOVERY_LOGS_DIR=logs/genesis_recovery/
           EXTERNAL_NODE_LOGS_DIR=logs/external_node
           REVERT_LOGS_DIR=logs/revert
           
