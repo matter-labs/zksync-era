@@ -100,21 +100,24 @@ impl EthHttpQueryClient {
         .collect()
     }
 
+    #[async_recursion::async_recursion]
     async fn get_events_inner(
         &self,
         from: BlockNumber,
         to: BlockNumber,
-        topics1: Vec<H256>,
-        topics2: Vec<H256>,
-        addresses: Vec<Address>,
+        topics1: Option<Vec<H256>>,
+        topics2: Option<Vec<H256>>,
+        addresses: Option<Vec<Address>>,
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
-        let filter = FilterBuilder::default()
+        let mut builder = FilterBuilder::default()
             .from_block(from)
             .to_block(to)
-            .topics(Some(topics1), Some(topics2), None, None)
-            .address(addresses)
-            .build();
+            .topics(topics1.clone(), topics2.clone(), None, None);
+        if let Some(addresses) = addresses.clone() {
+            builder = builder.address(addresses);
+        }
+        let filter = builder.build();
         let mut result = self.client.logs(&filter).await;
 
         // This code is compatible with both Infura and Alchemy API providers.
@@ -168,17 +171,33 @@ impl EthHttpQueryClient {
 
                 tracing::warn!("Splitting block range in half: {from:?} - {mid:?} - {to:?}");
                 let mut first_half = self
-                    .get_events(from, BlockNumber::Number(mid), RETRY_LIMIT)
+                    .get_events_inner(
+                        from,
+                        BlockNumber::Number(mid),
+                        topics1.clone(),
+                        topics2.clone(),
+                        addresses.clone(),
+                        RETRY_LIMIT,
+                    )
                     .await?;
                 let mut second_half = self
-                    .get_events(BlockNumber::Number(mid + 1u64), to, RETRY_LIMIT)
+                    .get_events_inner(
+                        BlockNumber::Number(mid + 1u64),
+                        to,
+                        topics1,
+                        topics2,
+                        addresses,
+                        RETRY_LIMIT,
+                    )
                     .await?;
 
                 first_half.append(&mut second_half);
                 result = Ok(first_half);
             } else if should_retry(err_code, err_message) && retries_left > 0 {
                 tracing::warn!("Retrying. Retries left: {retries_left}");
-                result = self.get_events(from, to, retries_left - 1).await;
+                result = self
+                    .get_events_inner(from, to, topics1, topics2, addresses, retries_left - 1)
+                    .await;
             }
         }
 
@@ -216,9 +235,9 @@ impl EthClient for EthHttpQueryClient {
             .get_events_inner(
                 from_block.into(),
                 to_block.into(),
-                vec![self.new_upgrade_cut_data_signature],
-                vec![packed_version],
-                vec![state_transition_manager_address],
+                Some(vec![self.new_upgrade_cut_data_signature]),
+                Some(vec![packed_version]),
+                Some(vec![state_transition_manager_address]),
                 RETRY_LIMIT,
             )
             .await?;
@@ -235,9 +254,9 @@ impl EthClient for EthHttpQueryClient {
         self.get_events_inner(
             from,
             to,
-            self.topics.clone(),
-            Vec::new(),
-            self.get_default_address_list(),
+            Some(self.topics.clone()),
+            None,
+            Some(self.get_default_address_list()),
             retries_left,
         )
         .await

@@ -12,6 +12,7 @@ pub mod files;
 pub mod forge;
 pub mod git;
 pub mod server;
+pub mod version;
 pub mod wallets;
 
 pub use prerequisites::{
