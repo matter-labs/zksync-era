@@ -6428,6 +6428,7 @@ dependencies = [
  "zksync_config",
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
+ "zksync_system_constants",
 ]
 
 [[package]]

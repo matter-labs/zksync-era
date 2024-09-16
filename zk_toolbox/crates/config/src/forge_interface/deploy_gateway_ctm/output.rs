@@ -8,6 +8,8 @@ use crate::traits::ZkToolboxConfig;
 pub struct DeployGatewayCTMOutput {
     pub gateway_state_transition: StateTransitionDeployedAddresses,
     pub multicall3_addr: Address,
+    pub validium_da_validator: Address,
+    pub relayed_sl_da_validator: Address,
     pub diamond_cut_data: Bytes,
 }
 
@@ -25,5 +27,6 @@ pub struct StateTransitionDeployedAddresses {
     pub diamond_init_addr: Address,
     pub genesis_upgrade_addr: Address,
     pub default_upgrade_addr: Address,
+    pub validator_timelock_addr: Address,
     // The `diamond_proxy` field is removed as indicated by the TODO comment in the Solidity struct.
 }

@@ -10,6 +10,7 @@ use zksync_config::{
             StateKeeperConfig,
         },
         fri_prover_group::FriProverGroupConfig,
+        gateway::GatewayChainConfig,
         house_keeper::HouseKeeperConfig,
         BasicWitnessInputProducerConfig, ContractsConfig, DatabaseSecrets, ExperimentalVmConfig,
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
@@ -59,6 +60,9 @@ struct Cli {
     /// Path to the yaml with contracts. If set, it will be used instead of env vars.
     #[arg(long)]
     contracts_config_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with contracts. If set, it will be used instead of env vars.
+    #[arg(long)]
+    gateway_contracts_config_path: Option<std::path::PathBuf>,
     /// Path to the wallets config. If set, it will be used instead of env vars.
     #[arg(long)]
     wallets_path: Option<std::path::PathBuf>,
@@ -142,7 +146,22 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
-    let gateway_contracts_config = ContractsConfig::from_env_variant("GATEWAY_".to_string()).ok();
+    let gateway_contracts_config: Option<GatewayChainConfig> =
+        match opt.gateway_contracts_config_path {
+            None => ContractsConfig::from_env_variant("GATEWAY_".to_string())
+                .ok()
+                .map(Into::into),
+            Some(path) => {
+                let yaml =
+                    std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
+                let result = decode_yaml_repr::<
+                    zksync_protobuf_config::proto::gateway::GatewayChainConfig,
+                >(&yaml)
+                .context("failed decoding contracts YAML config")?;
+
+                Ok(result)
+            }
+        };
 
     let genesis = match opt.genesis_path {
         None => GenesisConfig::from_env().context("Genesis config")?,

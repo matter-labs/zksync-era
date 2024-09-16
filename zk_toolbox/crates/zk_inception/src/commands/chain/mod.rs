@@ -17,9 +17,9 @@ pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 pub mod genesis;
 pub(crate) mod init;
+mod migrate_to_gateway;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
-mod migrate_to_gateway;
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {

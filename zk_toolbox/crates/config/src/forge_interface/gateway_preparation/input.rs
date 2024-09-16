@@ -33,7 +33,7 @@ impl GatewayPreparationConfig {
             state_transition_proxy_addr: contracts.ecosystem_contracts.state_transition_proxy_addr,
             shared_bridge_proxy_addr: contracts.bridges.shared.l1_address,
             governance: contracts_config.l1.governance_addr,
-            gateway_diamond_cut_data: gateway_config.diamond_cut_data.clone()
+            gateway_diamond_cut_data: gateway_config.diamond_cut_data.clone(),
         })
     }
 }

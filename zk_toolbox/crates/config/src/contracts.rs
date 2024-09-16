@@ -25,6 +25,9 @@ pub struct ContractsConfig {
     pub bridges: BridgesContracts,
     pub l1: L1Contracts,
     pub l2: L2Contracts,
+    // TODO: maybe move these guys to L1
+    pub user_facing_bridgehub: Address,
+    pub user_facing_diamond_proxy: Address,
     #[serde(flatten)]
     pub other: serde_json::Value,
 }
@@ -90,12 +93,23 @@ impl ContractsConfig {
             .deployed_addresses
             .validium_l1_da_validator_addr;
         self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
+
+        self.user_facing_bridgehub = deploy_l1_output
+            .deployed_addresses
+            .bridgehub
+            .bridgehub_proxy_addr;
+        self.user_facing_diamond_proxy = deploy_l1_output
+            .deployed_addresses
+            .state_transition
+            .diamond_proxy_addr;
     }
 
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
         self.l1.diamond_proxy_addr = register_chain_output.diamond_proxy_addr;
         self.l1.governance_addr = register_chain_output.governance_addr;
         self.l1.chain_admin_addr = register_chain_output.chain_admin_addr;
+
+        self.user_facing_diamond_proxy = register_chain_output.diamond_proxy_addr;
     }
 
     pub fn set_l2_shared_bridge(
@@ -107,6 +121,20 @@ impl ContractsConfig {
         self.l2.native_token_vault_addr = L2_NATIVE_TOKEN_VAULT_ADDRESS;
         self.l2.da_validator_addr = initialize_bridges_output.l2_da_validator_address;
         Ok(())
+    }
+
+    pub fn update_after_gateway(
+        &mut self,
+        new_diamond_proxy_address: Address,
+        validator_timelock_addr: Address,
+        multicall3_addr: Address,
+    ) {
+        // FIXME: decide on how the finalized config should look like
+        self.l1.diamond_proxy_addr = new_diamond_proxy_address;
+        self.ecosystem_contracts.validator_timelock_addr = validator_timelock_addr;
+        self.l1.validator_timelock_addr = validator_timelock_addr;
+
+        self.l1.multicall3_addr = multicall3_addr;
     }
 
     // FIXME: restore sometime in the future

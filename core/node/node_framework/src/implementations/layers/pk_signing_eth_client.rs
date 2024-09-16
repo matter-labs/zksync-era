@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_config::{
-    configs::{wallets, ContractsConfig},
+    configs::{gateway::GatewayChainConfig, wallets, ContractsConfig},
     EthConfig,
 };
 use zksync_eth_client::clients::PKSigningClient;
@@ -20,7 +20,7 @@ use crate::{
 pub struct PKSigningEthClientLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
-    gateway_contracts_config: Option<ContractsConfig>,
+    gateway_contracts_config: Option<GatewayChainConfig>,
     sl_chain_id: SLChainId,
     wallets: wallets::EthSender,
 }
@@ -45,7 +45,7 @@ impl PKSigningEthClientLayer {
     pub fn new(
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
-        gateway_contracts_config: Option<ContractsConfig>,
+        gateway_contracts_config: Option<GatewayChainConfig>,
         sl_chain_id: SLChainId,
         wallets: wallets::EthSender,
     ) -> Self {

@@ -35,6 +35,9 @@ impl From<DeployGatewayCTMOutput> for GatewayConfig {
             default_upgrade_addr: output.gateway_state_transition.default_upgrade_addr,
             multicall3_addr: output.multicall3_addr,
             diamond_cut_data: output.diamond_cut_data,
+            validator_timelock_addr: output.gateway_state_transition.validator_timelock_addr,
+            relayed_sl_da_validator: output.relayed_sl_da_validator,
+            validium_da_validator: output.validium_da_validator,
         }
     }
 }
