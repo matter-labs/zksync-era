@@ -2,7 +2,28 @@
 
 use std::time::Duration;
 
-use vise::{Buckets, Gauge, Histogram, Metrics};
+use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Gauge, Histogram, Metrics, Unit};
+use zksync_state::OwnedStorage;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
+#[metrics(label = "storage", rename_all = "snake_case")]
+pub(super) enum StorageKind {
+    Postgres,
+    Snapshot,
+    Rocksdb,
+    Unknown,
+}
+
+impl StorageKind {
+    pub fn new(storage: &OwnedStorage) -> Self {
+        match storage {
+            OwnedStorage::Rocksdb(_) | OwnedStorage::RocksdbWithMemory(_) => Self::Rocksdb,
+            OwnedStorage::Postgres(_) => Self::Postgres,
+            OwnedStorage::Snapshot(_) => Self::Snapshot,
+            OwnedStorage::Boxed(_) => Self::Unknown,
+        }
+    }
+}
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "vm_runner")]
@@ -16,6 +37,9 @@ pub(super) struct VmRunnerMetrics {
     /// Total latency of loading an L1 batch (RocksDB mode only).
     #[metrics(buckets = Buckets::LATENCIES)]
     pub storage_load_time: Histogram<Duration>,
+    /// Latency of loading data and storage for a batch, grouped by the storage kind.
+    #[metrics(buckets = Buckets::LATENCIES, unit = Unit::Seconds)]
+    pub data_and_storage_latency: Family<StorageKind, Histogram<Duration>>,
     /// Total latency of running VM on an L1 batch.
     #[metrics(buckets = Buckets::LATENCIES)]
     pub run_vm_time: Histogram<Duration>,
