@@ -10,19 +10,19 @@ use crate::messages::{
 };
 
 #[derive(Debug, Parser)]
-pub struct OverrideConfigArgs {
+pub struct ConfigWriterArgs {
     #[clap(long, short, help = MSG_OVERRIDE_CONFIG_PATH_HELP)]
     pub path: Option<String>,
 }
 
-impl OverrideConfigArgs {
+impl ConfigWriterArgs {
     pub fn get_config_path(self) -> String {
         self.path
             .unwrap_or_else(|| Prompt::new(MSG_OVERRRIDE_CONFIG_PATH_PROMPT).ask())
     }
 }
 
-pub fn run(shell: &Shell, args: OverrideConfigArgs) -> anyhow::Result<()> {
+pub fn run(shell: &Shell, args: ConfigWriterArgs) -> anyhow::Result<()> {
     let path = args.get_config_path().into();
     let ecosystem = EcosystemConfig::from_file(shell)?;
     let chain = ecosystem

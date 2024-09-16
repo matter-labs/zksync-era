@@ -1,8 +1,7 @@
 use clap::{Parser, Subcommand};
 use commands::{
-    contracts::ContractsArgs, database::DatabaseCommands, lint::LintArgs,
-    override_config::OverrideConfigArgs, prover::ProverCommands, snapshot::SnapshotCommands,
-    test::TestCommands,
+    config_writer::ConfigWriterArgs, contracts::ContractsArgs, database::DatabaseCommands,
+    lint::LintArgs, prover::ProverCommands, snapshot::SnapshotCommands, test::TestCommands,
 };
 use common::{
     check_general_prerequisites,
@@ -12,7 +11,7 @@ use common::{
 };
 use config::EcosystemConfig;
 use messages::{
-    msg_global_chain_does_not_exist, MSG_CONTRACTS_ABOUT, MSG_OVERRIDE_CONFIG_ABOUT,
+    msg_global_chain_does_not_exist, MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT,
     MSG_PROVER_VERSION_ABOUT, MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT,
     MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT,
     MSG_SUBCOMMAND_TESTS_ABOUT,
@@ -55,8 +54,8 @@ enum SupervisorSubcommands {
     Prover(ProverCommands),
     #[command(about = MSG_CONTRACTS_ABOUT)]
     Contracts(ContractsArgs),
-    #[command(about = MSG_OVERRIDE_CONFIG_ABOUT, alias = "o")]
-    OverrideConfig(OverrideConfigArgs),
+    #[command(about = MSG_CONFIG_WRITER_ABOUT, alias = "o")]
+    ConfigWriter(ConfigWriterArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -115,7 +114,7 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
         SupervisorSubcommands::Fmt(args) => commands::fmt::run(shell.clone(), args).await?,
         SupervisorSubcommands::Prover(command) => commands::prover::run(shell, command).await?,
         SupervisorSubcommands::Contracts(args) => commands::contracts::run(shell, args)?,
-        SupervisorSubcommands::OverrideConfig(args) => commands::override_config::run(shell, args)?,
+        SupervisorSubcommands::ConfigWriter(args) => commands::config_writer::run(shell, args)?,
     }
     Ok(())
 }

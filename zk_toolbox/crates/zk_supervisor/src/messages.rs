@@ -14,7 +14,7 @@ pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
 pub(super) const MSG_SUBCOMMAND_CLEAN: &str = "Clean artifacts";
 pub(super) const MSG_SUBCOMMAND_LINT_ABOUT: &str = "Lint code";
 pub(super) const MSG_CONTRACTS_ABOUT: &str = "Build contracts";
-pub(super) const MSG_OVERRIDE_CONFIG_ABOUT: &str = "Override general config";
+pub(super) const MSG_CONFIG_WRITER_ABOUT: &str = "Overwrite general config";
 
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
