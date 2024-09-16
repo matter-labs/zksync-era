@@ -2,4 +2,4 @@ eth:
   sender:
     pubdata_sending_mode: CUSTOM
 state_keeper_config:
-  pubdata_overhead_part: 0.0
+  pubdata_overhead_part: 0
