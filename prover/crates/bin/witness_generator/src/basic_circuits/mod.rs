@@ -1,49 +1,43 @@
 use std::{
-    collections::{hash_map::DefaultHasher, HashSet},
-    hash::{Hash, Hasher},
+    collections::HashSet,
+    hash::{DefaultHasher, Hash, Hasher},
     sync::Arc,
     time::Instant,
 };
 
-use anyhow::Context as _;
-use async_trait::async_trait;
 use circuit_definitions::{
     circuit_definitions::base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerStorage},
     encodings::recursion_request::RecursionQueueSimulator,
-    zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
+    zkevm_circuits::{
+        fsm_input_output::ClosedFormInputCompactFormWitness,
+        scheduler::{
+            block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
+        },
+    },
 };
 use tokio::sync::Semaphore;
 use tracing::Instrument;
-use zkevm_test_harness::{
-    geometry_config::get_geometry_config, witness::oracle::WitnessGenerationArtifact,
-};
+use zkevm_test_harness::witness::oracle::WitnessGenerationArtifact;
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_multivm::{
-    interface::storage::StorageView,
-    vm_latest::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle},
-};
-use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::{
-    circuit_definitions::{
+    circuit_sequencer_api_latest::{
         boojum::{
             field::goldilocks::{GoldilocksExt2, GoldilocksField},
             gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
         },
-        zkevm_circuits::scheduler::{
-            block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
-        },
+        geometry_config::get_geometry_config,
     },
-    get_current_pod_name,
-    keys::ClosedFormInputKey,
-    AuxOutputWitnessWrapper, CircuitAuxData,
+    interface::storage::StorageView,
+    vm_latest::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle},
+    zk_evm_latest::ethereum_types::Address,
 };
-use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
+use zksync_object_store::ObjectStore;
+use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_fri_types::{keys::ClosedFormInputKey, CircuitAuxData};
 use zksync_prover_interface::inputs::WitnessInputData;
-use zksync_queued_job_processor::JobProcessor;
+use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, Address,
-    L1BatchNumber, BOOTLOADER_ADDRESS,
+    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
 use crate::{
@@ -52,33 +46,30 @@ use crate::{
     storage_oracle::StorageOracle,
     utils::{
         expand_bootloader_contents, save_circuit, save_ram_premutation_queue_witness,
-        ClosedFormInputWrapper, SchedulerPartialInputWrapper, KZG_TRUSTED_SETUP_FILE,
+        ClosedFormInputWrapper, KZG_TRUSTED_SETUP_FILE,
     },
     witness::WitnessStorage,
 };
 
+mod artifacts;
+pub mod job_processor;
+
+#[derive(Clone)]
 pub struct BasicCircuitArtifacts {
-    circuit_urls: Vec<(u8, String)>,
-    queue_urls: Vec<(u8, String, usize)>,
-    scheduler_witness: SchedulerCircuitInstanceWitness<
+    pub(super) circuit_urls: Vec<(u8, String)>,
+    pub(super) queue_urls: Vec<(u8, String, usize)>,
+    pub(super) scheduler_witness: SchedulerCircuitInstanceWitness<
         GoldilocksField,
         CircuitGoldilocksPoseidon2Sponge,
         GoldilocksExt2,
     >,
-    aux_output_witness: BlockAuxilaryOutputWitness<GoldilocksField>,
-}
-
-#[derive(Debug)]
-struct BlobUrls {
-    circuit_ids_and_urls: Vec<(u8, String)>,
-    closed_form_inputs_and_urls: Vec<(u8, String, usize)>,
-    scheduler_witness_url: String,
+    pub(super) aux_output_witness: BlockAuxilaryOutputWitness<GoldilocksField>,
 }
 
 #[derive(Clone)]
 pub struct BasicWitnessGeneratorJob {
-    block_number: L1BatchNumber,
-    job: WitnessInputData,
+    pub(super) block_number: L1BatchNumber,
+    pub(super) data: WitnessInputData,
 }
 
 #[derive(Debug)]
@@ -89,6 +80,17 @@ pub struct BasicWitnessGenerator {
     prover_connection_pool: ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
 }
+
+type Witness = (
+    Vec<(u8, String)>,
+    Vec<(u8, String, usize)>,
+    SchedulerCircuitInstanceWitness<
+        GoldilocksField,
+        CircuitGoldilocksPoseidon2Sponge,
+        GoldilocksExt2,
+    >,
+    BlockAuxilaryOutputWitness<GoldilocksField>,
+);
 
 impl BasicWitnessGenerator {
     pub fn new(
@@ -113,7 +115,10 @@ impl BasicWitnessGenerator {
         started_at: Instant,
         max_circuits_in_flight: usize,
     ) -> Option<BasicCircuitArtifacts> {
-        let BasicWitnessGeneratorJob { block_number, job } = basic_job;
+        let BasicWitnessGeneratorJob {
+            block_number,
+            data: job,
+        } = basic_job;
 
         tracing::info!(
             "Starting witness generation of type {:?} for block {}",
@@ -134,135 +139,8 @@ impl BasicWitnessGenerator {
     }
 }
 
-#[async_trait]
-impl JobProcessor for BasicWitnessGenerator {
-    type Job = BasicWitnessGeneratorJob;
-    type JobId = L1BatchNumber;
-    // The artifact is optional to support skipping blocks when sampling is enabled.
-    type JobArtifacts = Option<BasicCircuitArtifacts>;
-
-    const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
-
-    async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.connection().await?;
-        let last_l1_batch_to_process = self.config.last_l1_batch_to_process();
-        let pod_name = get_current_pod_name();
-        match prover_connection
-            .fri_witness_generator_dal()
-            .get_next_basic_circuit_witness_job(
-                last_l1_batch_to_process,
-                self.protocol_version,
-                &pod_name,
-            )
-            .await
-        {
-            Some(block_number) => {
-                tracing::info!(
-                    "Processing FRI basic witness-gen for block {}",
-                    block_number
-                );
-                let started_at = Instant::now();
-                let job = get_artifacts(block_number, &*self.object_store).await;
-
-                WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
-                    .observe(started_at.elapsed());
-
-                Ok(Some((block_number, job)))
-            }
-            None => Ok(None),
-        }
-    }
-
-    async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
-        self.prover_connection_pool
-            .connection()
-            .await
-            .unwrap()
-            .fri_witness_generator_dal()
-            .mark_witness_job_failed(&error, job_id)
-            .await;
-    }
-
-    #[allow(clippy::async_yields_async)]
-    async fn process_job(
-        &self,
-        _job_id: &Self::JobId,
-        job: BasicWitnessGeneratorJob,
-        started_at: Instant,
-    ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
-        let object_store = Arc::clone(&self.object_store);
-        let max_circuits_in_flight = self.config.max_circuits_in_flight;
-        tokio::spawn(async move {
-            let block_number = job.block_number;
-            Ok(
-                Self::process_job_impl(object_store, job, started_at, max_circuits_in_flight)
-                    .instrument(tracing::info_span!("basic_circuit", %block_number))
-                    .await,
-            )
-        })
-    }
-
-    #[tracing::instrument(skip_all, fields(l1_batch = %job_id))]
-    async fn save_result(
-        &self,
-        job_id: L1BatchNumber,
-        started_at: Instant,
-        optional_artifacts: Option<BasicCircuitArtifacts>,
-    ) -> anyhow::Result<()> {
-        match optional_artifacts {
-            None => Ok(()),
-            Some(artifacts) => {
-                let blob_started_at = Instant::now();
-                let scheduler_witness_url = save_scheduler_artifacts(
-                    job_id,
-                    artifacts.scheduler_witness,
-                    artifacts.aux_output_witness,
-                    &*self.object_store,
-                    self.public_blob_store.as_deref(),
-                    self.config.shall_save_to_public_bucket,
-                )
-                .await;
-
-                WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
-                    .observe(blob_started_at.elapsed());
-
-                update_database(
-                    &self.prover_connection_pool,
-                    started_at,
-                    job_id,
-                    BlobUrls {
-                        circuit_ids_and_urls: artifacts.circuit_urls,
-                        closed_form_inputs_and_urls: artifacts.queue_urls,
-                        scheduler_witness_url,
-                    },
-                )
-                .await;
-                Ok(())
-            }
-        }
-    }
-
-    fn max_attempts(&self) -> u32 {
-        self.config.max_attempts
-    }
-
-    async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
-        let mut prover_storage = self
-            .prover_connection_pool
-            .connection()
-            .await
-            .context("failed to acquire DB connection for BasicWitnessGenerator")?;
-        prover_storage
-            .fri_witness_generator_dal()
-            .get_basic_circuit_witness_job_attempts(*job_id)
-            .await
-            .map(|attempts| attempts.unwrap_or(0))
-            .context("failed to get job attempts for BasicWitnessGenerator")
-    }
-}
-
 #[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
-async fn process_basic_circuits_job(
+pub(super) async fn process_basic_circuits_job(
     object_store: Arc<dyn ObjectStore>,
     started_at: Instant,
     block_number: L1BatchNumber,
@@ -287,93 +165,6 @@ async fn process_basic_circuits_job(
     }
 }
 
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
-async fn update_database(
-    prover_connection_pool: &ConnectionPool<Prover>,
-    started_at: Instant,
-    block_number: L1BatchNumber,
-    blob_urls: BlobUrls,
-) {
-    let mut connection = prover_connection_pool
-        .connection()
-        .await
-        .expect("failed to get database connection");
-    let mut transaction = connection
-        .start_transaction()
-        .await
-        .expect("failed to get database transaction");
-    let protocol_version_id = transaction
-        .fri_witness_generator_dal()
-        .protocol_version_for_l1_batch(block_number)
-        .await;
-    transaction
-        .fri_prover_jobs_dal()
-        .insert_prover_jobs(
-            block_number,
-            blob_urls.circuit_ids_and_urls,
-            AggregationRound::BasicCircuits,
-            0,
-            protocol_version_id,
-        )
-        .await;
-    transaction
-        .fri_witness_generator_dal()
-        .create_aggregation_jobs(
-            block_number,
-            &blob_urls.closed_form_inputs_and_urls,
-            &blob_urls.scheduler_witness_url,
-            get_recursive_layer_circuit_id_for_base_layer,
-            protocol_version_id,
-        )
-        .await;
-    transaction
-        .fri_witness_generator_dal()
-        .mark_witness_job_as_successful(block_number, started_at.elapsed())
-        .await;
-    transaction
-        .commit()
-        .await
-        .expect("failed to commit database transaction");
-}
-
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
-async fn get_artifacts(
-    block_number: L1BatchNumber,
-    object_store: &dyn ObjectStore,
-) -> BasicWitnessGeneratorJob {
-    let job = object_store.get(block_number).await.unwrap();
-    BasicWitnessGeneratorJob { block_number, job }
-}
-
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
-async fn save_scheduler_artifacts(
-    block_number: L1BatchNumber,
-    scheduler_partial_input: SchedulerCircuitInstanceWitness<
-        GoldilocksField,
-        CircuitGoldilocksPoseidon2Sponge,
-        GoldilocksExt2,
-    >,
-    aux_output_witness: BlockAuxilaryOutputWitness<GoldilocksField>,
-    object_store: &dyn ObjectStore,
-    public_object_store: Option<&dyn ObjectStore>,
-    shall_save_to_public_bucket: bool,
-) -> String {
-    let aux_output_witness_wrapper = AuxOutputWitnessWrapper(aux_output_witness);
-    if shall_save_to_public_bucket {
-        public_object_store
-            .expect("public_object_store shall not be empty while running with shall_save_to_public_bucket config")
-            .put(block_number, &aux_output_witness_wrapper)
-            .await
-            .unwrap();
-    }
-    object_store
-        .put(block_number, &aux_output_witness_wrapper)
-        .await
-        .unwrap();
-    let wrapper = SchedulerPartialInputWrapper(scheduler_partial_input);
-    object_store.put(block_number, &wrapper).await.unwrap()
-}
-
 #[tracing::instrument(skip_all, fields(l1_batch = %block_number, circuit_id = %circuit_id))]
 async fn save_recursion_queue(
     block_number: L1BatchNumber,
@@ -395,17 +186,6 @@ async fn save_recursion_queue(
     let blob_url = object_store.put(key, &wrapper).await.unwrap();
     (circuit_id, blob_url, basic_circuit_count)
 }
-
-type Witness = (
-    Vec<(u8, String)>,
-    Vec<(u8, String, usize)>,
-    SchedulerCircuitInstanceWitness<
-        GoldilocksField,
-        CircuitGoldilocksPoseidon2Sponge,
-        GoldilocksExt2,
-    >,
-    BlockAuxilaryOutputWitness<GoldilocksField>,
-);
 
 #[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
 async fn generate_witness(

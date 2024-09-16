@@ -1,6 +1,5 @@
 use std::{cell::RefCell, rc::Rc};
 
-use vm2::WorldDiff;
 use zksync_contracts::BaseSystemContracts;
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
@@ -13,6 +12,7 @@ use zksync_types::{
     StorageKey, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
+use zksync_vm2::WorldDiff;
 
 use crate::{
     interface::{
@@ -53,7 +53,7 @@ impl VmTester {
 
     pub(crate) fn reset_with_empty_storage(&mut self) {
         self.storage = Rc::new(RefCell::new(get_empty_storage()));
-        self.vm.inner.world_diff = WorldDiff::default();
+        *self.vm.inner.world_diff_mut() = WorldDiff::default();
         self.reset_state(false);
     }
 
@@ -78,7 +78,7 @@ impl VmTester {
         {
             let mut storage = storage.borrow_mut();
             // Commit pending storage changes (old VM versions commit them on successful execution)
-            for (&(address, slot), &value) in self.vm.inner.world_diff.get_storage_state() {
+            for (&(address, slot), &value) in self.vm.inner.world_diff().get_storage_state() {
                 let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
                 storage.set_value(key, u256_to_h256(value));
             }
