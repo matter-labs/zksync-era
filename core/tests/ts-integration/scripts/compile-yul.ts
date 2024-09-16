@@ -48,11 +48,11 @@ export async function compile(
     }
     let paths = preparePaths(pathToHome, path, files, outputDirName);
 
-    let systemMode = type === 'yul' ? '--system-mode  --optimization 3' : '';
+    let eraVmExtensions = type === 'yul' ? '--enable-eravm-extensions  --optimization 3' : '';
 
     const zksolcLocation = await compilerLocation();
     await spawn(
-        `${zksolcLocation} ${paths.absolutePathSources}/${paths.outputDir} ${systemMode} --${type} --bin --overwrite -o ${paths.absolutePathArtifacts}/${paths.outputDir}`
+        `${zksolcLocation} ${paths.absolutePathSources}/${paths.outputDir} ${eraVmExtensions} --${type} --bin --overwrite -o ${paths.absolutePathArtifacts}/${paths.outputDir}`
     );
 }
 
@@ -94,7 +94,7 @@ class CompilerPaths {
 async function main() {
     const pathToHome = path.join(__dirname, '../../../../');
     await compileFolder(pathToHome, 'contracts/yul', 'yul');
-    await compileFolder(pathToHome, 'contracts/zkasm', 'zkasm');
+    await compileFolder(pathToHome, 'contracts/zkasm', 'eravm');
 }
 
 main()
