@@ -57,9 +57,15 @@ export async function compile(
 }
 
 export async function compileFolder(pathToHome: string, path: string, type: string) {
+    let compilationMode;
+    if (type === 'zkasm') {
+        compilationMode = 'eravm-assembly';
+    } else {
+        compilationMode = type;
+    }
     let files: string[] = (await fs.promises.readdir(path)).filter((fn) => fn.endsWith(`.${type}`));
     for (const file of files) {
-        await compile(pathToHome, path, [file], `${file}`, type);
+        await compile(pathToHome, path, [file], `${file}`, compilationMode);
     }
 }
 
@@ -94,7 +100,7 @@ class CompilerPaths {
 async function main() {
     const pathToHome = path.join(__dirname, '../../../../');
     await compileFolder(pathToHome, 'contracts/yul', 'yul');
-    await compileFolder(pathToHome, 'contracts/zkasm', 'eravm');
+    await compileFolder(pathToHome, 'contracts/zkasm', 'zkasm');
 }
 
 main()
