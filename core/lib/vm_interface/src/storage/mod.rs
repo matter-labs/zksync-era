@@ -6,7 +6,7 @@ pub use self::{
     // Note, that `test_infra` of the bootloader tests relies on this value to be exposed
     in_memory::{InMemoryStorage, IN_MEMORY_STORAGE_DEFAULT_NETWORK_ID},
     snapshot::{StorageSnapshot, StorageWithSnapshot},
-    view::{ImmutableStorageView, StorageView, StorageViewCache, StorageViewMetrics},
+    view::{ImmutableStorageView, StorageView, StorageViewCache, StorageViewStats},
 };
 
 mod in_memory;

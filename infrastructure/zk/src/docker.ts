@@ -1,4 +1,4 @@
-import { Command } from 'commander';
+import {Command} from 'commander';
 import * as utils from 'utils';
 
 const IMAGES = [
@@ -31,7 +31,7 @@ async function dockerCommand(
     dockerOrg: string = 'matterlabs'
 ) {
     // Generating all tags for containers. We need 2 tags here: SHA and SHA+TS
-    const { stdout: COMMIT_SHORT_SHA }: { stdout: string } = await utils.exec('git rev-parse --short HEAD');
+    const {stdout: COMMIT_SHORT_SHA}: { stdout: string } = await utils.exec('git rev-parse --short HEAD');
     // COMMIT_SHORT_SHA returns with newline, so we need to trim it
     const imageTagShaTS: string = process.env.IMAGE_TAG_SUFFIX
         ? process.env.IMAGE_TAG_SUFFIX
@@ -114,7 +114,7 @@ async function _build(image: string, tagList: string[], dockerOrg: string, platf
     if (platform != '') {
         buildArgs += `--platform=${platform} `;
     }
-    if (image === 'prover-gpu-fri') {
+    if (image === 'prover-gpu-fri' || image == 'proof-fri-gpu-compressor') {
         const cudaArch = process.env.CUDA_ARCH;
         buildArgs += `--build-arg CUDA_ARCH='${cudaArch}' `;
     }
@@ -125,6 +125,8 @@ async function _build(image: string, tagList: string[], dockerOrg: string, platf
         }
     }
     buildArgs += extraArgs;
+
+    console.log("Build args: ", buildArgs);
 
     const buildCommand =
         `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +
