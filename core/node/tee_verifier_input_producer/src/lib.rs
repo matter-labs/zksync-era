@@ -21,7 +21,7 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_tee_verifier::Verify;
 use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 use zksync_utils::u256_to_h256;
-use zksync_vm_utils::storage::L1BatchParamsProvider;
+use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use self::metrics::METRICS;
 

@@ -32,8 +32,14 @@ mod test_utils;
 mod vm_runner;
 mod wallets;
 
+mod da_client;
+
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;
+}
+
+pub trait FromEnvVariant: Sized {
+    fn from_env_variant(variant_prefix: String) -> anyhow::Result<Self>;
 }
 
 /// Convenience function that loads the structure from the environment variable given the prefix.

@@ -12,7 +12,7 @@ use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
     interface::{
-        ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface,
+        ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
     vm_fast::tests::{
@@ -164,7 +164,7 @@ fn test_force_deploy_upgrade() {
     verify_required_storage(
         &expected_slots,
         &mut *vm.storage.borrow_mut(),
-        vm.vm.inner.world_diff.get_storage_state(),
+        vm.vm.inner.world_diff().get_storage_state(),
     );
 }
 
@@ -223,7 +223,7 @@ fn test_complex_upgrader() {
     verify_required_storage(
         &expected_slots,
         &mut *vm.storage.borrow_mut(),
-        vm.vm.inner.world_diff.get_storage_state(),
+        vm.vm.inner.world_diff().get_storage_state(),
     );
 }
 

@@ -167,6 +167,8 @@ impl VmRevertReasonParsingResult {
 mod tests {
     use std::convert::TryFrom;
 
+    use assert_matches::assert_matches;
+
     use super::VmRevertReason;
 
     #[test]
@@ -202,7 +204,7 @@ mod tests {
             0, 0, 0, 0, 0, 0, 0, 0, 0,
         ];
         let reason = VmRevertReason::try_from(msg.as_slice()).expect("Shouldn't be error");
-        assert!(matches!(reason, VmRevertReason::Unknown { .. }));
+        assert_matches!(reason, VmRevertReason::Unknown { .. });
     }
 
     #[test]

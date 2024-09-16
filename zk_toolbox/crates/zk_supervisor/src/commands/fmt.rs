@@ -6,24 +6,25 @@ use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
 use crate::{
-    commands::lint_utils::{get_unignored_files, Extension},
+    commands::lint_utils::{get_unignored_files, Target},
     messages::{
         msg_running_fmt_for_extension_spinner, msg_running_fmt_for_extensions_spinner,
         msg_running_rustfmt_for_dir_spinner, MSG_RUNNING_CONTRACTS_FMT_SPINNER,
     },
 };
 
-async fn prettier(shell: Shell, extension: Extension, check: bool) -> anyhow::Result<()> {
-    let spinner = Spinner::new(&msg_running_fmt_for_extension_spinner(extension));
-    let files = get_unignored_files(&shell, &extension)?;
+async fn prettier(shell: Shell, target: Target, check: bool) -> anyhow::Result<()> {
+    let spinner = Spinner::new(&msg_running_fmt_for_extension_spinner(target));
+    let files = get_unignored_files(&shell, &target)?;
 
     if files.is_empty() {
+        logger::info(format!("No files for {target} found"));
         return Ok(());
     }
 
     spinner.freeze();
     let mode = if check { "--check" } else { "--write" };
-    let config = format!("etc/prettier-config/{extension}.js");
+    let config = format!("etc/prettier-config/{target}.js");
     Ok(
         Cmd::new(cmd!(shell, "yarn --silent prettier {mode} --config {config}").args(files))
             .run()?,
@@ -68,7 +69,7 @@ pub enum Formatter {
     Contract,
     Prettier {
         #[arg(short, long)]
-        extensions: Vec<Extension>,
+        targets: Vec<Target>,
     },
 }
 
@@ -85,8 +86,7 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
     match args.formatter {
         None => {
             let mut tasks = vec![];
-            let extensions: Vec<_> =
-                vec![Extension::Js, Extension::Ts, Extension::Md, Extension::Sol];
+            let extensions: Vec<_> = vec![Target::Js, Target::Ts, Target::Md, Target::Sol];
             let spinner = Spinner::new(&msg_running_fmt_for_extensions_spinner(&extensions));
             spinner.freeze();
             for ext in extensions {
@@ -108,13 +108,13 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
                     }
                 });
         }
-        Some(Formatter::Prettier { mut extensions }) => {
-            if extensions.is_empty() {
-                extensions = vec![Extension::Js, Extension::Ts, Extension::Md, Extension::Sol];
+        Some(Formatter::Prettier { mut targets }) => {
+            if targets.is_empty() {
+                targets = vec![Target::Js, Target::Ts, Target::Md, Target::Sol];
             }
-            let spinner = Spinner::new(&msg_running_fmt_for_extensions_spinner(&extensions));
-            for ext in extensions {
-                prettier(shell.clone(), ext, args.check).await?
+            let spinner = Spinner::new(&msg_running_fmt_for_extensions_spinner(&targets));
+            for target in targets {
+                prettier(shell.clone(), target, args.check).await?
             }
             spinner.finish()
         }

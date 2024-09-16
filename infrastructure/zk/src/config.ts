@@ -182,23 +182,23 @@ export function pushConfig(environment?: string, diff?: string) {
             false
         );
     } else {
-        env.modify('DATABASE_URL', `postgres://postgres:notsecurepassword@postgres/${environment}`, l2InitFile, false);
+        env.modify('DATABASE_URL', `postgres://postgres:notsecurepassword@localhost/${environment}`, l2InitFile, false);
         env.modify(
             'TEST_DATABASE_URL',
-            `postgres://postgres:notsecurepassword@postgres/${environment}_test`,
+            `postgres://postgres:notsecurepassword@localhost/${environment}_test`,
             l2InitFile,
             false
         );
 
         env.modify(
             'DATABASE_PROVER_URL',
-            `postgres://postgres:notsecurepassword@postgres/prover_${environment}`,
+            `postgres://postgres:notsecurepassword@localhost/prover_${environment}`,
             l2InitFile,
             false
         );
         env.modify(
             'TEST_DATABASE_PROVER_URL',
-            `postgres://postgres:notsecurepassword@postgres/prover_${environment}_test`,
+            `postgres://postgres:notsecurepassword@localhost/prover_${environment}_test`,
             l2InitFile,
             false
         );
@@ -302,4 +302,5 @@ command
         env.modify('ETH_SENDER_SENDER_OPERATOR_COMMIT_ETH_ADDR', `"${operators[0].address}"`, configFile, false);
         env.modify('ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY', `"${operators[1].privateKey}"`, configFile, false);
         env.modify('ETH_SENDER_SENDER_OPERATOR_BLOBS_ETH_ADDR', `"${operators[1].address}"`, configFile, false);
+        env.modify('ETH_SENDER_SENDER_OPERATOR_GATEWAY_PRIVATE_KEY', `"${operators[0].privateKey}"`, configFile, false);
     });

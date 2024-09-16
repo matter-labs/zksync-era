@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_shared_metrics::{BlockL1Stage, BlockStage, L1StageLatencyLabel, APP_METRICS};
 
-use crate::periodic_job::PeriodicJob;
+use crate::{metrics::FRI_PROVER_METRICS, periodic_job::PeriodicJob};
 
 #[derive(Debug)]
 pub struct L1BatchMetricsReporter {
@@ -87,6 +87,37 @@ impl L1BatchMetricsReporter {
         if let Some(timestamp) = oldest_unexecuted_batch_timestamp {
             APP_METRICS.blocks_state_block_eth_stage_latency[&L1StageLatencyLabel::UnexecutedBlock]
                 .set(now.saturating_sub(timestamp));
+        }
+
+        // proof generation details metrics
+        let oldest_unpicked_batch = match conn
+            .proof_generation_dal()
+            .get_oldest_unpicked_batch()
+            .await?
+        {
+            Some(l1_batch_number) => l1_batch_number.0 as u64,
+            // if there is no unpicked batch in database, we use sealed batch number as a result
+            None => {
+                conn.blocks_dal()
+                    .get_sealed_l1_batch_number()
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .0 as u64
+            }
+        };
+        FRI_PROVER_METRICS
+            .oldest_unpicked_batch
+            .set(oldest_unpicked_batch);
+
+        if let Some(l1_batch_number) = conn
+            .proof_generation_dal()
+            .get_oldest_not_generated_batch()
+            .await?
+        {
+            FRI_PROVER_METRICS
+                .oldest_not_generated_batch
+                .set(l1_batch_number.0 as u64);
         }
         Ok(())
     }

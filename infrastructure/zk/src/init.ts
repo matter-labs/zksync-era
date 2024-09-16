@@ -256,6 +256,15 @@ export const initHyperCmdAction = async ({
     });
 };
 
+export const configCmdAction = async (): Promise<void> => {
+    await Promise.all([
+        announced('Building L1 L2 contracts', contract.build(false)),
+        announced('Compile L2 system contracts', compiler.compileAll())
+    ]);
+    await initDatabase(true);
+    await announced('Running server genesis setup', server.genesisFromSources());
+};
+
 // ########################### Command Definitions ###########################
 export const initCommand = new Command('init')
     .option('--skip-submodules-checkout')
@@ -295,3 +304,5 @@ initCommand
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')
     .action(initHyperCmdAction);
+
+initCommand.command('config').action(configCmdAction);

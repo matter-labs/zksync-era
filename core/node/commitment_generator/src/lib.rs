@@ -298,8 +298,8 @@ impl CommitmentGenerator {
 
             println!("message_root_addr = {:#?}", message_root_addr);
 
-            const FULL_TREE_SLOT: usize = 4;
-            const NODES_SLOT: usize = 6;
+            const FULL_TREE_SLOT: usize = 3;
+            const NODES_SLOT: usize = 5;
 
             let agg_tree_height_slot = StorageKey::new(
                 AccountTreeId::new(message_root_addr),

@@ -18,8 +18,8 @@ use zksync_config::{
         GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
         ProtectiveReadsWriterConfig, ProverJobMonitorConfig, PruningConfig, SnapshotRecoveryConfig,
     },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
-    EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
+    DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
     ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_env_config::FromEnv;
@@ -68,6 +68,7 @@ pub struct TempConfigStore {
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
     pub observability: Option<ObservabilityConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
+    pub da_client_config: Option<DAClientConfig>,
     pub da_dispatcher_config: Option<DADispatcherConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
     pub basic_witness_input_producer_config: Option<BasicWitnessInputProducerConfig>,
@@ -105,6 +106,7 @@ impl TempConfigStore {
             eth: self.eth_sender_config.clone(),
             snapshot_creator: self.snapshot_creator.clone(),
             observability: self.observability.clone(),
+            da_client_config: self.da_client_config.clone(),
             da_dispatcher_config: self.da_dispatcher_config.clone(),
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
             basic_witness_input_producer_config: self.basic_witness_input_producer_config.clone(),
@@ -132,9 +134,13 @@ impl TempConfigStore {
             let blob_operator = sender
                 .private_key_blobs()
                 .and_then(|operator| Wallet::from_private_key_bytes(operator, None).ok());
+            let gateway = sender
+                .private_key_gateway()
+                .and_then(|operator| Wallet::from_private_key_bytes(operator, None).ok());
             Some(EthSender {
                 operator,
                 blob_operator,
+                gateway,
             })
         });
         let state_keeper = self
@@ -188,6 +194,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
+        da_client_config: DAClientConfig::from_env().ok(),
         da_dispatcher_config: DADispatcherConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),

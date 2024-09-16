@@ -17,7 +17,7 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 use crate::{
     interface::{
         storage::WriteStorage, ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode,
-        VmInterface,
+        VmInterface, VmInterfaceExt,
     },
     vm_latest::{
         constants::{

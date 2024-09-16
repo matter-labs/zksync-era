@@ -18,12 +18,23 @@ This document contains the help content for the `zk_supervisor` command-line pro
 - [`zk_supervisor test revert`↴](#zk_supervisor-test-revert)
 - [`zk_supervisor test recovery`↴](#zk_supervisor-test-recovery)
 - [`zk_supervisor test upgrade`↴](#zk_supervisor-test-upgrade)
+- [`zk_supervisor test rust`↴](#zk_supervisor-test-rust)
+- [`zk_supervisor test l1-contracts`↴](#zk_supervisor-test-l1-contracts)
+- [`zk_supervisor test prover`↴](#zk_supervisor-test-prover)
 - [`zk_supervisor clean`↴](#zk_supervisor-clean)
 - [`zk_supervisor clean all`↴](#zk_supervisor-clean-all)
 - [`zk_supervisor clean containers`↴](#zk_supervisor-clean-containers)
 - [`zk_supervisor clean contracts-cache`↴](#zk_supervisor-clean-contracts-cache)
 - [`zk_supervisor snapshot`↴](#zk_supervisor-snapshot)
 - [`zk_supervisor snapshot create`↴](#zk_supervisor-snapshot-create)
+- [`zk_supervisor lint`↴](#zk_supervisor-lint)
+- [`zk_supervisor fmt`↴](#zk_supervisor-fmt)
+- [`zk_supervisor fmt rustfmt`↴](#zk_supervisor-fmt-rustfmt)
+- [`zk_supervisor fmt contract`↴](#zk_supervisor-fmt-contract)
+- [`zk_supervisor fmt prettier`↴](#zk_supervisor-fmt-prettier)
+- [`zk_supervisor prover info`↴](#zk_supervisor-prover-info)
+- [`zk_supervisor prover insert-version`↴](#zk_supervisor-prover-insert-version)
+- [`zk_supervisor prover insert-batch`↴](#zk_supervisor-prover-insert-batch)
 
 ## `zk_supervisor`
 
@@ -37,6 +48,9 @@ ZK Toolbox is a set of tools for working with zk stack.
 - `test` — Run tests
 - `clean` — Clean artifacts
 - `snapshot` — Snapshots creator
+- `lint` — Lint code
+- `fmt` — Format code
+- `prover-version` — Protocol version used by provers
 
 ###### **Options:**
 
@@ -182,6 +196,9 @@ Run tests
 - `revert` — Run revert tests
 - `recovery` — Run recovery tests
 - `upgrade` — Run upgrade tests
+- `rust` — Run unit-tests, accepts optional cargo test flags
+- `l1-contracts` — Run L1 contracts tests
+- `prover` — Run prover tests
 
 ## `zk_supervisor test integration`
 
@@ -219,6 +236,28 @@ Run recovery tests
 Run upgrade tests
 
 **Usage:** `zk_supervisor test upgrade`
+
+## `zk_supervisor test rust`
+
+Run unit-tests, accepts optional cargo test flags
+
+**Usage:** `zk_supervisor test rust [OPTIONS]`
+
+###### **Options:**
+
+- `--options <OPTIONS>` — Cargo test flags
+
+## `zk_supervisor test l1-contracts`
+
+Run L1 contracts tests
+
+**Usage:** `zk_supervisor test l1-contracts`
+
+## `zk_supervisor test prover`
+
+Run prover tests
+
+**Usage:** `zk_supervisor test prover`
 
 ## `zk_supervisor clean`
 
@@ -263,6 +302,83 @@ Snapshots creator
 ## `zk_supervisor snapshot create`
 
 **Usage:** `zk_supervisor snapshot create`
+
+## `zk_supervisor lint`
+
+Lint code
+
+**Usage:** `zk_supervisor lint [OPTIONS]`
+
+###### **Options:**
+
+- `-c`, `--check`
+- `-e`, `--extensions <EXTENSIONS>`
+
+  Possible values: `md`, `sol`, `js`, `ts`, `rs`
+
+## `zk_supervisor fmt`
+
+Format code
+
+**Usage:** `zk_supervisor fmt [OPTIONS] [COMMAND]`
+
+###### **Subcommands:**
+
+- `rustfmt` —
+- `contract` —
+- `prettier` —
+
+###### **Options:**
+
+- `-c`, `--check`
+
+## `zk_supervisor fmt rustfmt`
+
+**Usage:** `zk_supervisor fmt rustfmt`
+
+## `zk_supervisor fmt contract`
+
+**Usage:** `zk_supervisor fmt contract`
+
+## `zk_supervisor fmt prettier`
+
+**Usage:** `zk_supervisor fmt prettier [OPTIONS]`
+
+###### **Options:**
+
+- `-e`, `--extensions <EXTENSIONS>`
+
+  Possible values: `md`, `sol`, `js`, `ts`, `rs`
+
+## `zk_supervisor prover info`
+
+Prints prover protocol version, snark wrapper and prover database URL
+
+**Usage:** `zk_supervisor prover info`
+
+## `zk_supervisor prover insert-version`
+
+Inserts protocol version into prover database.
+
+**Usage:** `zk_supervisor prover insert-version [OPTIONS]`
+
+###### **Options:**
+
+- `--version <VERSION>` — Protocol version in semantic format(`x.y.z`). Major version should be 0.
+- `--snark-wrapper <SNARK_WRAPPER>` — Snark wrapper hash.
+- `--default` - use default values for protocol version and snark wrapper hash (the ones found in zksync-era).
+
+## `zk_supervisor prover insert-batch`
+
+Inserts batch into prover database.
+
+**Usage:** `zk_supervisor prover insert-batch`
+
+###### **Options:**
+
+- `--number <BATCH_NUMBER>` — Number of the batch to insert.
+- `--version <VERSION>` — Protocol version in semantic format(`x.y.z`). Major version should be 0.
+- `--default` - use default value for protocol version (the one found in zksync-era).
 
 <hr/>
 

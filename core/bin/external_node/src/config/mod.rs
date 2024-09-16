@@ -416,8 +416,7 @@ pub(crate) struct OptionalENConfig {
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
     /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
     /// (presumably, to participate in L1 batch proving).
-    /// By default, set to `true` as a temporary safety measure.
-    #[serde(default = "OptionalENConfig::default_protective_reads_persistence_enabled")]
+    #[serde(default)]
     pub protective_reads_persistence_enabled: bool,
     /// Address of the L1 diamond proxy contract used by the consistency checker to match with the origin of logs emitted
     /// by commit transactions. If not set, it will not be verified.
@@ -709,7 +708,7 @@ impl OptionalENConfig {
                 .db_config
                 .as_ref()
                 .map(|a| a.experimental.protective_reads_persistence_enabled)
-                .unwrap_or(true),
+                .unwrap_or_default(),
             merkle_tree_processing_delay_ms: load_config_or_default!(
                 general_config.db_config,
                 experimental.processing_delay_ms,
@@ -832,10 +831,6 @@ impl OptionalENConfig {
 
     const fn default_l2_block_seal_queue_capacity() -> usize {
         10
-    }
-
-    const fn default_protective_reads_persistence_enabled() -> bool {
-        true
     }
 
     const fn default_mempool_cache_update_interval_ms() -> u64 {
@@ -1287,6 +1282,7 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub observability: ObservabilityENConfig,
     pub experimental: ExperimentalENConfig,
     pub consensus: Option<ConsensusConfig>,
+    pub consensus_secrets: Option<ConsensusSecrets>,
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
     pub remote: R,
@@ -1310,6 +1306,8 @@ impl ExternalNodeConfig<()> {
             tree_component: envy::prefixed("EN_TREE_")
                 .from_env::<TreeComponentConfig>()
                 .context("could not load external node config (tree component params)")?,
+            consensus_secrets: read_consensus_secrets()
+                .context("config::read_consensus_secrets()")?,
             remote: (),
         })
     }
@@ -1332,7 +1330,7 @@ impl ExternalNodeConfig<()> {
             .map(read_yaml_repr::<proto::consensus::Config>)
             .transpose()
             .context("failed decoding consensus YAML config")?;
-
+        let consensus_secrets = secrets_config.consensus.clone();
         let required = RequiredENConfig::from_configs(
             &general_config,
             &external_node_config,
@@ -1368,6 +1366,7 @@ impl ExternalNodeConfig<()> {
             consensus,
             api_component,
             tree_component,
+            consensus_secrets,
             remote: (),
         })
     }
@@ -1402,6 +1401,7 @@ impl ExternalNodeConfig<()> {
             consensus: self.consensus,
             tree_component: self.tree_component,
             api_component: self.api_component,
+            consensus_secrets: self.consensus_secrets,
             remote,
         })
     }
@@ -1418,6 +1418,7 @@ impl ExternalNodeConfig {
             observability: ObservabilityENConfig::default(),
             experimental: ExperimentalENConfig::mock(),
             consensus: None,
+            consensus_secrets: None,
             api_component: ApiComponentConfig {
                 tree_api_remote_url: None,
             },

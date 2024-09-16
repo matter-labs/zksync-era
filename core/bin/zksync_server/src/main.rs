@@ -17,16 +17,15 @@ use zksync_config::{
         L1Secrets, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
         ProtectiveReadsWriterConfig, Secrets,
     },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
-    EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig, GenesisConfig,
-    ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
+    DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
+    GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
-    delete_l1_txs_history,
     temp_config_store::{decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
-use zksync_env_config::FromEnv;
+use zksync_env_config::{FromEnv, FromEnvVariant};
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -143,6 +142,8 @@ fn main() -> anyhow::Result<()> {
         }
     };
 
+    let gateway_contracts_config = ContractsConfig::from_env_variant("GATEWAY_".to_string()).ok();
+
     let genesis = match opt.genesis_path {
         None => GenesisConfig::from_env().context("Genesis config")?,
         Some(path) => {
@@ -157,24 +158,31 @@ fn main() -> anyhow::Result<()> {
         .clone()
         .context("observability config")?;
 
-    // FIXME: don't merge this into prod
-    if opt.clear_l1_txs_history {
-        println!("Clearing L1 txs history!");
+    // // FIXME: don't merge this into prod
+    // if opt.clear_l1_txs_history {
+    //     println!("Clearing L1 txs history!");
 
-        let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?;
+    //     let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
+    //         .enable_all()
+    //         .build()?;
 
-        tokio_runtime.block_on(async move {
-            let database_secrets = secrets.database.clone().context("DatabaseSecrets").unwrap();
-            delete_l1_txs_history(&database_secrets).await.unwrap();
-        });
+    //     tokio_runtime.block_on(async move {
+    //         let database_secrets = secrets.database.clone().context("DatabaseSecrets").unwrap();
+    //         delete_l1_txs_history(&database_secrets).await.unwrap();
+    //     });
 
-        println!("Complete!");
-        return Ok(());
-    }
+    //     println!("Complete!");
+    //     return Ok(());
+    // }
 
-    let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets)?;
+    let node = MainNodeBuilder::new(
+        configs,
+        wallets,
+        genesis,
+        contracts_config,
+        gateway_contracts_config,
+        secrets,
+    )?;
 
     let observability_guard = {
         // Observability initialization should be performed within tokio context.
@@ -220,6 +228,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
+        da_client_config: DAClientConfig::from_env().ok(),
         da_dispatcher_config: DADispatcherConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),

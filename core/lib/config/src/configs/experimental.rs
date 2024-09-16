@@ -16,8 +16,9 @@ pub struct ExperimentalDBConfig {
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
     /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
     /// (presumably, to participate in L1 batch proving).
-    /// By default, set to `true` as a temporary safety measure.
-    #[serde(default = "ExperimentalDBConfig::default_protective_reads_persistence_enabled")]
+    /// By default, set to `false` as it is expected that a separate `vm_runner_protective_reads` component
+    /// which is capable of saving protective reads is run.
+    #[serde(default)]
     pub protective_reads_persistence_enabled: bool,
     // Merkle tree config
     /// Processing delay between processing L1 batches in the Merkle tree.
@@ -36,8 +37,7 @@ impl Default for ExperimentalDBConfig {
             state_keeper_db_block_cache_capacity_mb:
                 Self::default_state_keeper_db_block_cache_capacity_mb(),
             state_keeper_db_max_open_files: None,
-            protective_reads_persistence_enabled:
-                Self::default_protective_reads_persistence_enabled(),
+            protective_reads_persistence_enabled: false,
             processing_delay_ms: Self::default_merkle_tree_processing_delay_ms(),
             include_indices_and_filters_in_block_cache: false,
         }
@@ -53,10 +53,6 @@ impl ExperimentalDBConfig {
         self.state_keeper_db_block_cache_capacity_mb * super::BYTES_IN_MEGABYTE
     }
 
-    const fn default_protective_reads_persistence_enabled() -> bool {
-        true
-    }
-
     const fn default_merkle_tree_processing_delay_ms() -> u64 {
         100
     }
@@ -69,8 +65,7 @@ pub struct ExperimentalVmPlaygroundConfig {
     #[serde(default)]
     pub fast_vm_mode: FastVmMode,
     /// Path to the RocksDB cache directory.
-    #[serde(default = "ExperimentalVmPlaygroundConfig::default_db_path")]
-    pub db_path: String,
+    pub db_path: Option<String>,
     /// First L1 batch to consider processed. Will not be used if the processing cursor is persisted, unless the `reset` flag is set.
     #[serde(default)]
     pub first_processed_batch: L1BatchNumber,
@@ -87,7 +82,7 @@ impl Default for ExperimentalVmPlaygroundConfig {
     fn default() -> Self {
         Self {
             fast_vm_mode: FastVmMode::default(),
-            db_path: Self::default_db_path(),
+            db_path: None,
             first_processed_batch: L1BatchNumber(0),
             window_size: Self::default_window_size(),
             reset: false,
@@ -96,10 +91,6 @@ impl Default for ExperimentalVmPlaygroundConfig {
 }
 
 impl ExperimentalVmPlaygroundConfig {
-    pub fn default_db_path() -> String {
-        "./db/vm_playground".to_owned()
-    }
-
     pub fn default_window_size() -> NonZeroU32 {
         NonZeroU32::new(1).unwrap()
     }

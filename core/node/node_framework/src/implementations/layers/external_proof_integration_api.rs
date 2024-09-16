@@ -1,8 +1,5 @@
-use std::sync::Arc;
-
 use zksync_config::configs::external_proof_integration_api::ExternalProofIntegrationApiConfig;
-use zksync_dal::{ConnectionPool, Core};
-use zksync_object_store::ObjectStore;
+use zksync_external_proof_integration_api::{Api, Processor};
 use zksync_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
@@ -26,7 +23,7 @@ pub struct ExternalProofIntegrationApiLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub master_pool: PoolResource<ReplicaPool>,
+    pub replica_pool: PoolResource<ReplicaPool>,
     pub object_store: ObjectStoreResource,
 }
 
@@ -34,7 +31,7 @@ pub struct Input {
 #[context(crate = crate)]
 pub struct Output {
     #[context(task)]
-    pub task: ProverApiTask,
+    pub task: Api,
 }
 
 impl ExternalProofIntegrationApiLayer {
@@ -59,42 +56,26 @@ impl WiringLayer for ExternalProofIntegrationApiLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
-        let main_pool = input.master_pool.get().await?;
+        let replica_pool = input.replica_pool.get().await.unwrap();
         let blob_store = input.object_store.0;
 
-        let task = ProverApiTask {
-            external_proof_integration_api_config: self.external_proof_integration_api_config,
-            blob_store,
-            main_pool,
-            commitment_mode: self.commitment_mode,
-        };
+        let processor = Processor::new(blob_store, replica_pool, self.commitment_mode);
+        let task = Api::new(
+            processor,
+            self.external_proof_integration_api_config.http_port,
+        );
 
         Ok(Output { task })
     }
 }
 
-#[derive(Debug)]
-pub struct ProverApiTask {
-    external_proof_integration_api_config: ExternalProofIntegrationApiConfig,
-    blob_store: Arc<dyn ObjectStore>,
-    main_pool: ConnectionPool<Core>,
-    commitment_mode: L1BatchCommitmentMode,
-}
-
 #[async_trait::async_trait]
-impl Task for ProverApiTask {
+impl Task for Api {
     fn id(&self) -> TaskId {
         "external_proof_integration_api".into()
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        zksync_external_proof_integration_api::run_server(
-            self.external_proof_integration_api_config,
-            self.blob_store,
-            self.main_pool,
-            self.commitment_mode,
-            stop_receiver.0,
-        )
-        .await
+        (*self).run(stop_receiver.0).await
     }
 }
