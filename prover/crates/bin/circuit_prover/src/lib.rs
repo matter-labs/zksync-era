@@ -3,8 +3,5 @@
 pub use prover::CircuitProver;
 pub use witness_vector_generator::WitnessVectorGenerator;
 
-//
 mod prover;
 mod witness_vector_generator;
-//
-// mod utils;
