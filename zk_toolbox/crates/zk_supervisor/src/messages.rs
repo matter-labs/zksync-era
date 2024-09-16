@@ -212,3 +212,19 @@ pub(super) const MSG_OVERRIDE_SUCCESS: &str = "Config was overridden successfull
 pub(super) fn msg_overriding_config(chain: String) -> String {
     format!("Overriding general config for chain {}", chain)
 }
+
+// Send transactions related messages
+pub(super) const MSG_SEND_TXNS_ABOUT: &str = "Send transactions from file";
+pub(super) const MSG_PROMPT_TRANSACTION_FILE: &str = "Path to transactions file";
+pub(super) const MSG_PROMPT_SECRET_KEY: &str = "Secret key of the sender";
+pub(super) const MSG_PROMPT_L1_RPC_URL: &str = "L1 RPC URL";
+pub(super) fn msg_send_txns_outro(log_file: &str) -> String {
+    format!("Transaction receipts logged to: {}", log_file)
+}
+
+pub(super) const MSG_UNABLE_TO_OPEN_FILE_ERR: &str = "Unable to open file";
+pub(super) const MSG_UNABLE_TO_READ_FILE_ERR: &str = "Unable to read file";
+pub(super) const MSG_UNABLE_TO_WRITE_FILE_ERR: &str = "Unable to write data to file";
+pub(super) const MSG_UNABLE_TO_READ_PARSE_JSON_ERR: &str = "Unable to parse JSON";
+pub(super) const MSG_FAILED_TO_SEND_TXN_ERR: &str = "Failed to send transaction";
+pub(super) const MSG_INVALID_L1_RPC_URL_ERR: &str = "Invalid L1 RPC URL";

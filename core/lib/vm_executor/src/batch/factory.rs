@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, rc::Rc, sync::Arc};
+use std::{marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
-        storage::{ReadStorage, StorageView},
+        storage::{ReadStorage, StorageView, StorageViewStats},
         BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
         L2BlockEnv, SystemEnv, VmInterface, VmInterfaceHistoryEnabled,
     },
@@ -20,7 +20,7 @@ use super::{
     executor::{Command, MainBatchExecutor},
     metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
 };
-use crate::shared::InteractionType;
+use crate::shared::{InteractionType, STORAGE_METRICS};
 
 /// The default implementation of [`BatchExecutorFactory`].
 /// Creates real batch executors which maintain the VM (as opposed to the test factories which don't use the VM).
@@ -35,6 +35,7 @@ pub struct MainBatchExecutorFactory {
     /// regardless of its configuration, this flag should be set to `true`.
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
+    observe_storage_metrics: bool,
 }
 
 impl MainBatchExecutorFactory {
@@ -43,9 +44,11 @@ impl MainBatchExecutorFactory {
             save_call_traces,
             optional_bytecode_compression,
             fast_vm_mode: FastVmMode::Old,
+            observe_storage_metrics: false,
         }
     }
 
+    /// Sets the fast VM mode used by this executor.
     pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
         if !matches!(fast_vm_mode, FastVmMode::Old) {
             tracing::warn!(
@@ -53,6 +56,13 @@ impl MainBatchExecutorFactory {
             );
         }
         self.fast_vm_mode = fast_vm_mode;
+    }
+
+    /// Enables storage metrics reporting for this executor. Storage metrics will be reported for each transaction.
+    // The reason this isn't on by default is that storage metrics don't distinguish between "batch-executed" and "oneshot-executed" transactions;
+    // this optimally needs some improvements in `vise` (ability to add labels for groups of metrics).
+    pub fn observe_storage_metrics(&mut self) {
+        self.observe_storage_metrics = true;
     }
 }
 
@@ -70,6 +80,7 @@ impl<S: ReadStorage + Send + 'static> BatchExecutorFactory<S> for MainBatchExecu
             save_call_traces: self.save_call_traces,
             optional_bytecode_compression: self.optional_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
+            observe_storage_metrics: self.observe_storage_metrics,
             commands: commands_receiver,
             _storage: PhantomData,
         };
@@ -91,6 +102,7 @@ struct CommandReceiver<S> {
     save_call_traces: bool,
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
+    observe_storage_metrics: bool,
     commands: mpsc::Receiver<Command>,
     _storage: PhantomData<S>,
 }
@@ -112,14 +124,22 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
             self.fast_vm_mode,
         );
         let mut batch_finished = false;
+        let mut prev_storage_stats = StorageViewStats::default();
 
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {
                 Command::ExecuteTx(tx, resp) => {
                     let tx_hash = tx.hash();
-                    let result = self.execute_tx(*tx, &mut vm).with_context(|| {
+                    let (result, latency) = self.execute_tx(*tx, &mut vm).with_context(|| {
                         format!("fatal error executing transaction {tx_hash:?}")
                     })?;
+
+                    if self.observe_storage_metrics {
+                        let storage_stats = storage_view.borrow().stats();
+                        let stats_diff = storage_stats.saturating_sub(&prev_storage_stats);
+                        STORAGE_METRICS.observe(&format!("Tx {tx_hash:?}"), latency, &stats_diff);
+                        prev_storage_stats = storage_stats;
+                    }
                     if resp.send(result).is_err() {
                         break;
                     }
@@ -152,11 +172,11 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
             .context("storage view leaked")?
             .into_inner();
         if batch_finished {
-            let metrics = storage_view.metrics();
+            let stats = storage_view.stats();
             EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::GetValue]
-                .observe(metrics.time_spent_on_get_value);
+                .observe(stats.time_spent_on_get_value);
             EXECUTOR_METRICS.batch_storage_interaction_duration[&InteractionType::SetValue]
-                .observe(metrics.time_spent_on_set_value);
+                .observe(stats.time_spent_on_set_value);
         } else {
             // State keeper can exit because of stop signal, so it's OK to exit mid-batch.
             tracing::info!("State keeper exited with an unfinished L1 batch");
@@ -168,7 +188,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         &self,
         transaction: Transaction,
         vm: &mut VmInstance<S, HistoryEnabled>,
-    ) -> anyhow::Result<BatchTransactionExecutionResult> {
+    ) -> anyhow::Result<(BatchTransactionExecutionResult, Duration)> {
         // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
         // was already removed), or that we build on top of it (in which case, it can be removed now).
         vm.pop_snapshot_no_rollback();
@@ -182,9 +202,8 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         } else {
             self.execute_tx_in_vm(&transaction, vm)?
         };
-        latency.observe();
 
-        Ok(result)
+        Ok((result, latency.observe()))
     }
 
     fn rollback_last_tx(&self, vm: &mut VmInstance<S, HistoryEnabled>) {
