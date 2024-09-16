@@ -1,0 +1,40 @@
+use std::path::Path;
+
+use xshell::Shell;
+use zksync_config::configs::GatewayConfig;
+use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
+
+use crate::{
+    forge_interface::deploy_gateway_ctm::output::DeployGatewayCTMOutput,
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkToolboxConfig},
+    CONTRACTS_FILE, GATEWAY_FILE,
+};
+
+impl FileConfigWithDefaultName for GatewayConfig {
+    const FILE_NAME: &'static str = GATEWAY_FILE;
+}
+
+impl ZkToolboxConfig for GatewayConfig {}
+
+impl From<DeployGatewayCTMOutput> for GatewayConfig {
+    fn from(output: DeployGatewayCTMOutput) -> Self {
+        GatewayConfig {
+            state_transition_proxy_addr: output
+                .gateway_state_transition
+                .state_transition_proxy_addr,
+            state_transition_implementation_addr: output
+                .gateway_state_transition
+                .state_transition_implementation_addr,
+            verifier_addr: output.gateway_state_transition.verifier_addr,
+            admin_facet_addr: output.gateway_state_transition.admin_facet_addr,
+            mailbox_facet_addr: output.gateway_state_transition.mailbox_facet_addr,
+            executor_facet_addr: output.gateway_state_transition.executor_facet_addr,
+            getters_facet_addr: output.gateway_state_transition.getters_facet_addr,
+            diamond_init_addr: output.gateway_state_transition.diamond_init_addr,
+            genesis_upgrade_addr: output.gateway_state_transition.genesis_upgrade_addr,
+            default_upgrade_addr: output.gateway_state_transition.default_upgrade_addr,
+            multicall3_addr: output.multicall3_addr,
+            diamond_cut_data: output.diamond_cut_data,
+        }
+    }
+}

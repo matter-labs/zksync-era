@@ -394,6 +394,19 @@ async fn deploy_ecosystem_inner(
     )
     .await?;
 
+    accept_owner(
+        shell,
+        config,
+        contracts_config.l1.governance_addr,
+        config.get_wallets()?.governor_private_key(),
+        contracts_config
+            .ecosystem_contracts
+            .stm_deployment_tracker_proxy_addr,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+
     Ok(contracts_config)
 }
 

@@ -1,0 +1,35 @@
+use serde::{Deserialize, Serialize};
+use zksync_basic_types::Address;
+
+use crate::{traits::ZkToolboxConfig, ChainConfig, ContractsConfig};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GatewayPreparationConfig {
+    pub bridgehub_proxy_addr: Address,
+    pub stm_deployment_tracker_proxy_addr: Address,
+    pub state_transition_proxy_addr: Address,
+    pub shared_bridge_proxy_addr: Address,
+    pub governance: Address,
+    pub chain_chain_id: u64, // Assuming uint256 can be represented as u64 for chain ID, use U256 for full uint256 support
+}
+impl ZkToolboxConfig for GatewayPreparationConfig {}
+
+impl GatewayPreparationConfig {
+    pub fn new(
+        chain_config: &ChainConfig,
+        contracts_config: &ContractsConfig,
+    ) -> anyhow::Result<Self> {
+        let contracts = chain_config.get_contracts_config()?;
+
+        Ok(Self {
+            bridgehub_proxy_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
+            chain_chain_id: chain_config.chain_id.0,
+            stm_deployment_tracker_proxy_addr: contracts
+                .ecosystem_contracts
+                .stm_deployment_tracker_proxy_addr,
+            state_transition_proxy_addr: contracts.ecosystem_contracts.state_transition_proxy_addr,
+            shared_bridge_proxy_addr: contracts.bridges.shared.l1_address,
+            governance: contracts_config.l1.governance_addr,
+        })
+    }
+}

@@ -1,28 +1,29 @@
 use ethers::abi::Address;
-use zksync_basic_types::web3::Bytes;
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::web3::Bytes;
 
 use crate::traits::ZkToolboxConfig;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployGatewayCTMOutput {
-    gateway_state_transition: StateTransitionDeployedAddresses,
-    diamond_cut_data: Bytes,
+    pub gateway_state_transition: StateTransitionDeployedAddresses,
+    pub multicall3_addr: Address,
+    pub diamond_cut_data: Bytes,
 }
 
 impl ZkToolboxConfig for DeployGatewayCTMOutput {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StateTransitionDeployedAddresses {
-    state_transition_proxy: Address,
-    state_transition_implementation: Address,
-    verifier: Address,
-    admin_facet: Address,
-    mailbox_facet: Address,
-    executor_facet: Address,
-    getters_facet: Address,
-    diamond_init: Address,
-    genesis_upgrade: Address,
-    default_upgrade: Address,
+    pub state_transition_proxy_addr: Address,
+    pub state_transition_implementation_addr: Address,
+    pub verifier_addr: Address,
+    pub admin_facet_addr: Address,
+    pub mailbox_facet_addr: Address,
+    pub executor_facet_addr: Address,
+    pub getters_facet_addr: Address,
+    pub diamond_init_addr: Address,
+    pub genesis_upgrade_addr: Address,
+    pub default_upgrade_addr: Address,
     // The `diamond_proxy` field is removed as indicated by the TODO comment in the Solidity struct.
 }

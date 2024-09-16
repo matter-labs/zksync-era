@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package zksync.config.contracts;
+
+message GatewayContractsConfig {
+  optional string state_transition_proxy_addr = 1; // required; H160
+  optional string state_transition_implementation_addr = 2; // required; H160
+
+  optional string verifier_addr = 3; // required; H160
+  optional string admin_facet_addr = 4; // required; H160
+  optional string mailbox_facet_addr = 5; // required; H160
+  optional string executor_facet_addr = 6; // required; H160
+  optional string getters_facet_addr = 7; // required; H160
+  optional string diamond_init_addr = 8; // required; H160
+  optional string genesis_upgrade_addr = 9; // required; H160
+
+  optional string default_upgrade_addr = 10; // required; H160
+  optional string multicall3_addr = 11; // required; H160
+  optional string diamond_cut_data = 12; // required; bytes
+}

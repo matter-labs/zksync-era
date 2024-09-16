@@ -73,3 +73,9 @@ pub const DEPLOY_GATEWAY_CTM: ForgeScriptParams = ForgeScriptParams {
     output: "script-out/output-deploy-gateway-ctm.toml",
     script_path: "deploy-scripts/GatewayCTMFromL1.s.sol",
 };
+
+pub const GATEWAY_PREPARATION: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/gateway-preparation-l1.toml",
+    output: "script-out/output-gateway-preparation-l1.toml",
+    script_path: "deploy-scripts/GatewayPreparation.s.sol",
+};

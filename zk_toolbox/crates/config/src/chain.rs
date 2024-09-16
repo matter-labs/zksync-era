@@ -18,7 +18,7 @@ use crate::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath, ZkToolboxConfig,
     },
-    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig, GATEWAY_FILE,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -123,6 +123,10 @@ impl ChainConfig {
 
     pub fn path_to_secrets_config(&self) -> PathBuf {
         self.configs.join(SECRETS_FILE)
+    }
+
+    pub fn path_to_gateway_config(&self) -> PathBuf {
+        self.configs.join(GATEWAY_FILE)
     }
 
     pub fn save_general_config(&self, general_config: &GeneralConfig) -> anyhow::Result<()> {

@@ -52,7 +52,10 @@ impl ContractsConfig {
         self.ecosystem_contracts.transparent_proxy_admin_addr = deploy_l1_output
             .deployed_addresses
             .transparent_proxy_admin_addr;
-        self.ecosystem_contracts.stm_deployment_tracker_proxy_addr = deploy_l1_output.deployed_addresses.bridgehub.stm_deployment_tracker_proxy_addr;
+        self.ecosystem_contracts.stm_deployment_tracker_proxy_addr = deploy_l1_output
+            .deployed_addresses
+            .bridgehub
+            .stm_deployment_tracker_proxy_addr;
         self.ecosystem_contracts.force_deployments_data = deploy_l1_output
             .contracts_config
             .force_deployments_data
