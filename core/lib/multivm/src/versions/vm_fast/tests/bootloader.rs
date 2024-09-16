@@ -1,6 +1,6 @@
 use assert_matches::assert_matches;
 use zksync_types::U256;
-use zksync_vm2::HeapId;
+use zksync_vm2::interface::HeapId;
 
 use crate::{
     interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterfaceExt},
