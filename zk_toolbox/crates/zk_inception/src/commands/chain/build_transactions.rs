@@ -10,8 +10,8 @@ use super::common::register_chain;
 use crate::{
     commands::chain::args::build_transactions::BuildTransactionsArgs,
     messages::{
-        MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER, MSG_CHAIN_INITIALIZED,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG,
+        MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER, MSG_CHAIN_NOT_FOUND_ERR,
+        MSG_CHAIN_TRANSACTIONS_BUILT, MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG,
         MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR, MSG_PREPARING_CONFIG_SPINNER, MSG_SELECTED_CONFIG,
         MSG_WRITING_OUTPUT_FILES_SPINNER,
     },
@@ -85,6 +85,6 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     )?;
     spinner.finish();
 
-    logger::success(MSG_CHAIN_INITIALIZED);
+    logger::success(MSG_CHAIN_TRANSACTIONS_BUILT);
     Ok(())
 }
