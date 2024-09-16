@@ -6442,6 +6442,7 @@ name = "zk_supervisor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "clap-markdown",
  "common",
@@ -6457,6 +6458,7 @@ dependencies = [
  "types",
  "url",
  "xshell",
+ "zksync_basic_types",
 ]
 
 [[package]]

@@ -39,10 +39,10 @@ zksync_protobuf = "=0.1.1"
 # External dependencies
 anyhow = "1.0.82"
 clap = { version = "4.4", features = ["derive", "wrap_help", "string"] }
-chrono = "0.4"
 slugify-rs = "0.0.3"
 cliclack = "0.2.5"
 console = "0.15.8"
+chrono = "0.4.38"
 ethers = "2.0"
 futures = "0.3.30"
 human-panic = "2.0"
