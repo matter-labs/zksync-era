@@ -18,6 +18,7 @@ use tokio::sync::watch;
 use types::{ExternalProof, ProofGenerationDataResponse};
 use zksync_basic_types::L1BatchNumber;
 
+use crate::metrics::METRICS;
 pub use crate::processor::Processor;
 use crate::{
     metrics::{CallOutcome, Method},
@@ -91,16 +92,28 @@ impl Api {
     async fn latest_generation_data(
         State(processor): State<Processor>,
     ) -> Result<ProofGenerationDataResponse, ProcessorError> {
-        processor.get_proof_generation_data().await
+        let result = processor.get_proof_generation_data().await;
+
+        if let Err(error) = &result {
+            METRICS.failed_calls[&(Method::GetLatestProofGenerationData, error.into())].inc();
+        }
+
+        result
     }
 
     async fn generation_data_for_existing_batch(
         State(processor): State<Processor>,
         Path(l1_batch_number): Path<u32>,
     ) -> Result<ProofGenerationDataResponse, ProcessorError> {
-        processor
+        let result = processor
             .proof_generation_data_for_existing_batch(L1BatchNumber(l1_batch_number))
-            .await
+            .await;
+
+        if let Err(error) = &result {
+            METRICS.failed_calls[&(Method::GetSpecificProofGenerationData, error.into())].inc();
+        }
+
+        result
     }
 
     async fn verify_proof(
@@ -108,8 +121,14 @@ impl Api {
         Path(l1_batch_number): Path<u32>,
         proof: ExternalProof,
     ) -> Result<(), ProcessorError> {
-        processor
+        let result = processor
             .verify_proof(L1BatchNumber(l1_batch_number), proof)
-            .await
+            .await;
+
+        if let Err(error) = &result {
+            METRICS.failed_calls[&(Method::VerifyProof, error.into())].inc();
+        }
+
+        result
     }
 }
