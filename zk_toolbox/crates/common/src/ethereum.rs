@@ -3,14 +3,14 @@ use std::{ops::Add, sync::Arc, time::Duration};
 use ethers::{
     contract::abigen,
     core::k256::ecdsa::SigningKey,
-    middleware::{nonce_manager, MiddlewareBuilder},
+    middleware::MiddlewareBuilder,
     prelude::{Http, LocalWallet, Provider, Signer, SignerMiddleware},
     providers::Middleware,
-    types::{spoof::nonce, Address, TransactionRequest, H256},
+    types::{Address, TransactionRequest, H256},
 };
 use types::TokenInfo;
 
-use crate::{logger, wallets::Wallet};
+use crate::wallets::Wallet;
 
 pub fn create_ethers_client(
     private_key: H256,
