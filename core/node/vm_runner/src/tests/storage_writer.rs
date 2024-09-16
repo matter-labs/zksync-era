@@ -57,6 +57,8 @@ impl VmRunnerIo for StorageWriterIo {
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<()> {
         assert_eq!(l1_batch_number, self.batch() + 1);
+        // ^ The assertion works because of `last_ready_to_be_loaded_batch()` implementation; it wouldn't hold if we allowed
+        // to process multiple batches concurrently.
         Ok(())
     }
 
@@ -147,7 +149,7 @@ impl OutputHandler for StorageWriterIo {
 #[async_trait]
 impl OutputHandlerFactory for StorageWriterIo {
     async fn create_handler(
-        &mut self,
+        &self,
         _system_env: SystemEnv,
         l1_batch_env: L1BatchEnv,
     ) -> anyhow::Result<Box<dyn OutputHandler>> {
@@ -167,7 +169,7 @@ pub(super) async fn write_storage_logs(pool: ConnectionPool<Core>, insert_protec
         .unwrap()
         .expect("No L1 batches in storage");
     drop(conn);
-    let io = Box::new(StorageWriterIo {
+    let io = Arc::new(StorageWriterIo {
         last_processed_batch: Arc::new(watch::channel(L1BatchNumber(0)).0),
         last_processed_block: L2BlockNumber(0),
         pool: pool.clone(),
@@ -240,9 +242,9 @@ async fn storage_writer_works(insert_protective_reads: bool) {
     let batch_executor = MainBatchExecutorFactory::new(false, false);
     let vm_runner = VmRunner::new(
         pool,
-        Box::new(io.clone()),
+        io.clone(),
         loader,
-        Box::new(output_factory),
+        Arc::new(output_factory),
         Box::new(batch_executor),
     );
 
