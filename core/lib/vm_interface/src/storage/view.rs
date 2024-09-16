@@ -10,9 +10,9 @@ use zksync_types::{StorageKey, StorageValue, H256};
 
 use super::{ReadStorage, StoragePtr, WriteStorage};
 
-/// Metrics for [`StorageView`].
+/// Statistics for [`StorageView`].
 #[derive(Debug, Default, Clone, Copy)]
-pub struct StorageViewMetrics {
+pub struct StorageViewStats {
     /// Estimated byte size of the cache used by the `StorageView`.
     pub cache_size: usize,
     /// Number of read / write ops for which the value was read from the underlying storage.
@@ -27,6 +27,33 @@ pub struct StorageViewMetrics {
     pub time_spent_on_get_value: Duration,
     /// Cumulative time spent on all write ops.
     pub time_spent_on_set_value: Duration,
+}
+
+impl StorageViewStats {
+    /// Subtracts two sets of statistics. This can be used to measure increment between these stats and older stats for the same VM.
+    pub fn saturating_sub(&self, older: &Self) -> Self {
+        Self {
+            cache_size: self.cache_size.saturating_sub(older.cache_size),
+            storage_invocations_missed: self
+                .storage_invocations_missed
+                .saturating_sub(older.storage_invocations_missed),
+            get_value_storage_invocations: self
+                .get_value_storage_invocations
+                .saturating_sub(older.get_value_storage_invocations),
+            set_value_storage_invocations: self
+                .set_value_storage_invocations
+                .saturating_sub(older.set_value_storage_invocations),
+            time_spent_on_storage_missed: self
+                .time_spent_on_storage_missed
+                .saturating_sub(older.time_spent_on_storage_missed),
+            time_spent_on_get_value: self
+                .time_spent_on_get_value
+                .saturating_sub(older.time_spent_on_get_value),
+            time_spent_on_set_value: self
+                .time_spent_on_set_value
+                .saturating_sub(older.time_spent_on_set_value),
+        }
+    }
 }
 
 /// `StorageView` is a buffer for `StorageLog`s between storage and transaction execution code.
@@ -46,7 +73,7 @@ pub struct StorageView<S> {
     // Used for caching and to get the list/count of modified keys
     modified_storage_keys: HashMap<StorageKey, StorageValue>,
     cache: StorageViewCache,
-    metrics: StorageViewMetrics,
+    stats: StorageViewStats,
 }
 
 /// `StorageViewCache` is a struct for caching storage reads and `contains_key()` checks.
@@ -112,7 +139,7 @@ impl<S: ReadStorage> StorageView<S> {
                 read_storage_keys: HashMap::new(),
                 initial_writes: HashMap::new(),
             },
-            metrics: StorageViewMetrics::default(),
+            stats: StorageViewStats::default(),
         }
     }
 
@@ -126,8 +153,8 @@ impl<S: ReadStorage> StorageView<S> {
         cached_value.copied().unwrap_or_else(|| {
             let value = self.storage_handle.read_value(key);
             self.cache.read_storage_keys.insert(*key, value);
-            self.metrics.time_spent_on_storage_missed += started_at.elapsed();
-            self.metrics.storage_invocations_missed += 1;
+            self.stats.time_spent_on_storage_missed += started_at.elapsed();
+            self.stats.storage_invocations_missed += 1;
             value
         })
     }
@@ -138,11 +165,11 @@ impl<S: ReadStorage> StorageView<S> {
             + self.cache.read_storage_keys.len() * mem::size_of::<(StorageKey, StorageValue)>()
     }
 
-    /// Returns the current metrics.
-    pub fn metrics(&self) -> StorageViewMetrics {
-        StorageViewMetrics {
+    /// Returns the current storage access stats.
+    pub fn stats(&self) -> StorageViewStats {
+        StorageViewStats {
             cache_size: self.cache_size(),
-            ..self.metrics
+            ..self.stats
         }
     }
 
@@ -155,7 +182,7 @@ impl<S: ReadStorage> StorageView<S> {
 impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
     fn read_value(&mut self, key: &StorageKey) -> StorageValue {
         let started_at = Instant::now();
-        self.metrics.get_value_storage_invocations += 1;
+        self.stats.get_value_storage_invocations += 1;
         let value = self.get_value_no_log(key);
 
         tracing::trace!(
@@ -166,7 +193,7 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageView<S> {
             key.key()
         );
 
-        self.metrics.time_spent_on_get_value += started_at.elapsed();
+        self.stats.time_spent_on_get_value += started_at.elapsed();
         value
     }
 
@@ -198,7 +225,7 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
 
     fn set_value(&mut self, key: StorageKey, value: StorageValue) -> StorageValue {
         let started_at = Instant::now();
-        self.metrics.set_value_storage_invocations += 1;
+        self.stats.set_value_storage_invocations += 1;
         let original = self.get_value_no_log(&key);
 
         tracing::trace!(
@@ -210,7 +237,7 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
             key.key()
         );
         self.modified_storage_keys.insert(key, value);
-        self.metrics.time_spent_on_set_value += started_at.elapsed();
+        self.stats.time_spent_on_set_value += started_at.elapsed();
 
         original
     }
@@ -220,7 +247,7 @@ impl<S: ReadStorage + fmt::Debug> WriteStorage for StorageView<S> {
     }
 
     fn missed_storage_invocations(&self) -> usize {
-        self.metrics.storage_invocations_missed
+        self.stats.storage_invocations_missed
     }
 }
 
@@ -245,8 +272,8 @@ impl<S: ReadStorage> ReadStorage for ImmutableStorageView<S> {
         cached_value.copied().unwrap_or_else(|| {
             let value = this.storage_handle.read_value(key);
             this.cache.read_storage_keys.insert(*key, value);
-            this.metrics.time_spent_on_storage_missed += started_at.elapsed();
-            this.metrics.storage_invocations_missed += 1;
+            this.stats.time_spent_on_storage_missed += started_at.elapsed();
+            this.stats.storage_invocations_missed += 1;
             value
         })
     }
@@ -289,7 +316,7 @@ mod test {
         assert_eq!(storage_view.read_value(&key), value);
         assert!(storage_view.is_write_initial(&key)); // key was inserted during the view lifetime
 
-        assert_eq!(storage_view.metrics().storage_invocations_missed, 1);
+        assert_eq!(storage_view.stats().storage_invocations_missed, 1);
         // ^ We should only read a value at `key` once, and then used the cached value.
 
         raw_storage.set_value(key, value);
@@ -307,10 +334,10 @@ mod test {
         assert_eq!(storage_view.read_value(&new_key), new_value);
         assert!(storage_view.is_write_initial(&new_key));
 
-        let metrics = storage_view.metrics();
-        assert_eq!(metrics.storage_invocations_missed, 2);
-        assert_eq!(metrics.get_value_storage_invocations, 3);
-        assert_eq!(metrics.set_value_storage_invocations, 2);
+        let stats = storage_view.stats();
+        assert_eq!(stats.storage_invocations_missed, 2);
+        assert_eq!(stats.get_value_storage_invocations, 3);
+        assert_eq!(stats.set_value_storage_invocations, 2);
     }
 
     #[test]
