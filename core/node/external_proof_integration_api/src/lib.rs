@@ -19,10 +19,7 @@ use types::{ExternalProof, ProofGenerationDataResponse};
 use zksync_basic_types::L1BatchNumber;
 
 pub use crate::processor::Processor;
-use crate::{
-    metrics::{Method, METRICS},
-    middleware::MetricsMiddleware,
-};
+use crate::{metrics::Method, middleware::MetricsMiddleware};
 
 /// External API implementation.
 #[derive(Debug)]
