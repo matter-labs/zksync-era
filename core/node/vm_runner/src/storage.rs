@@ -49,7 +49,7 @@ pub(crate) struct PostgresLoader {
 impl PostgresLoader {
     pub async fn new(pool: ConnectionPool<Core>, chain_id: L2ChainId) -> anyhow::Result<Self> {
         let mut l1_batch_params_provider = L1BatchParamsProvider::new();
-        let mut conn = pool.connection().await?;
+        let mut conn = pool.connection_tagged("vm_runner").await?;
         l1_batch_params_provider.initialize(&mut conn).await?;
         Ok(Self {
             pool,
@@ -72,7 +72,7 @@ impl StorageLoader for PostgresLoader {
         &self,
         l1_batch_number: L1BatchNumber,
     ) -> anyhow::Result<Option<(BatchExecuteData, OwnedStorage)>> {
-        let mut conn = self.pool.connection().await?;
+        let mut conn = self.pool.connection_tagged("vm_runner").await?;
         let Some(data) = load_batch_execute_data(
             &mut conn,
             l1_batch_number,
@@ -86,7 +86,7 @@ impl StorageLoader for PostgresLoader {
 
         if let Some(snapshot) = OwnedStorage::snapshot(&mut conn, l1_batch_number).await? {
             let postgres = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
-            let storage = snapshot.with_fallback(postgres, self.shadow_snapshots);
+            let storage = snapshot.with_fallback(postgres.into(), self.shadow_snapshots);
             let storage = OwnedStorage::from(storage);
             return Ok(Some((data, storage)));
         }
@@ -94,7 +94,7 @@ impl StorageLoader for PostgresLoader {
         tracing::info!(
             "Incomplete data to create storage snapshot for batch; will use sequential storage"
         );
-        let conn = self.pool.connection().await?;
+        let conn = self.pool.connection_tagged("vm_runner").await?;
         let storage = OwnedStorage::postgres(conn, l1_batch_number - 1).await?;
         Ok(Some((data, storage.into())))
     }
