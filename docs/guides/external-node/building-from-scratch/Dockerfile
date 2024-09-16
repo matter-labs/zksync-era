@@ -19,7 +19,7 @@ RUN cp target/release/zksync_external_node /usr/bin
 
 # build contracts
 RUN git submodule update --init --recursive
-RUN zk_supervisor contracts|| true
+RUN zk_supervisor contracts
 
 # copy migrations (node expects them to be in specific directory)
 RUN cp -r core/lib/dal/migrations/ migrations

@@ -352,13 +352,13 @@ jobs:
           ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain era &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/rollup.log &
           PID1=$!
           
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain validium &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}//validium.log &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain validium &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/validium.log &
           PID2=$!
           
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}//custom_token.log &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/custom_token.log &
           PID3=$!
           
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain consensus &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}//consensus.log &
+          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain consensus &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/consensus.log &
           PID4=$!
 
           wait $PID1
