@@ -1,7 +1,7 @@
 use zksync_contracts::BaseSystemContracts;
 use zksync_types::ProtocolVersionId;
 
-/// System contracts (bootloader and default account abstraction) for all VM versions.
+/// System contracts (bootloader and default account abstraction) for all supported VM versions.
 #[derive(Debug, Clone)]
 pub(super) struct MultiVMBaseSystemContracts {
     /// Contracts to be used for pre-virtual-blocks protocol versions.

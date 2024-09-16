@@ -7,7 +7,7 @@ use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     ethabi, fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId, Nonce, U256,
 };
-use zksync_vm_executor::oneshot::{CallOrExecute, MainOneshotExecutor, OneshotExecutorOptions};
+use zksync_vm_executor::oneshot::{CallOrExecute, MainOneshotExecutor, OneshotEnvParameters};
 use zksync_vm_interface::{
     executor::OneshotExecutor, ExecutionResult, OneshotTracingParams, TxExecutionArgs,
 };
@@ -18,7 +18,7 @@ use crate::{abi, storage::ConnectionPool};
 #[derive(Debug)]
 pub(crate) struct VM {
     pool: ConnectionPool,
-    options: OneshotExecutorOptions<CallOrExecute>,
+    options: OneshotEnvParameters<CallOrExecute>,
     executor: MainOneshotExecutor,
 }
 
@@ -27,7 +27,7 @@ impl VM {
     pub async fn new(pool: ConnectionPool) -> Self {
         Self {
             pool,
-            options: OneshotExecutorOptions::for_execution(
+            options: OneshotEnvParameters::for_execution(
                 L2ChainId::default(),
                 AccountTreeId::default(),
                 u32::MAX,

@@ -14,10 +14,10 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, time::seconds_since_epoch};
 
-use super::options::OneshotExecutorOptions;
+use super::env::OneshotEnvParameters;
 
 /// Block information necessary to execute a transaction / call. Unlike [`ResolvedBlockInfo`], this information is *partially* resolved,
-/// which is beneficial for some workflows.
+/// which is beneficial for some data workflows.
 #[derive(Debug, Clone, Copy)]
 pub struct BlockInfo {
     resolved_block_number: L2BlockNumber,
@@ -39,7 +39,7 @@ impl BlockInfo {
         })
     }
 
-    /// Fetches information for an existing block.
+    /// Fetches information for an existing block. Will error if the block is not present in Postgres.
     pub async fn for_existing_block(
         connection: &mut Connection<'_, Core>,
         number: L2BlockNumber,
@@ -163,7 +163,7 @@ impl ResolvedBlockInfo {
     }
 }
 
-impl<T> OneshotExecutorOptions<T> {
+impl<T> OneshotEnvParameters<T> {
     pub(super) async fn to_env_inner(
         &self,
         connection: &mut Connection<'_, Core>,

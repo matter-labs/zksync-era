@@ -34,7 +34,7 @@ use zksync_types::{
     ProtocolVersionId, Transaction, H160, H256, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
-use zksync_vm_executor::oneshot::{CallOrExecute, EstimateGas, OneshotExecutorOptions};
+use zksync_vm_executor::oneshot::{CallOrExecute, EstimateGas, OneshotEnvParameters};
 
 pub(super) use self::result::SubmitTxError;
 use self::{master_pool_sink::MasterPoolSink, tx_sink::TxSink};
@@ -94,14 +94,10 @@ pub async fn build_tx_sender(
 /// Oneshot executor options used by the API server sandbox.
 #[derive(Debug)]
 pub struct SandboxExecutorOptions {
-    /// Contracts to be used when estimating gas.
-    /// These contracts (mainly, bootloader) normally should be tuned to provide accurate
-    /// execution metrics.
-    pub(crate) estimate_gas: OneshotExecutorOptions<EstimateGas>,
-    /// Contracts to be used when performing `eth_call` requests.
-    /// These contracts (mainly, bootloader) normally should be tuned to provide better UX
-    /// experience (e.g. revert messages).
-    pub(crate) eth_call: OneshotExecutorOptions<CallOrExecute>,
+    /// Env parameters to be used when estimating gas.
+    pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
+    /// Env parameters to be used when performing `eth_call` requests.
+    pub(crate) eth_call: OneshotEnvParameters<CallOrExecute>,
 }
 
 impl SandboxExecutorOptions {
@@ -114,9 +110,9 @@ impl SandboxExecutorOptions {
         validation_computational_gas_limit: u32,
     ) -> anyhow::Result<Self> {
         Ok(Self {
-            estimate_gas: OneshotExecutorOptions::for_gas_estimation(chain_id, operator_account)
+            estimate_gas: OneshotEnvParameters::for_gas_estimation(chain_id, operator_account)
                 .await?,
-            eth_call: OneshotExecutorOptions::for_execution(
+            eth_call: OneshotEnvParameters::for_execution(
                 chain_id,
                 operator_account,
                 validation_computational_gas_limit,

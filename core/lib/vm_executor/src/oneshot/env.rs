@@ -7,18 +7,21 @@ use zksync_types::{fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId}
 
 use crate::oneshot::{contracts::MultiVMBaseSystemContracts, ResolvedBlockInfo};
 
-/// Marker for [`OneshotExecutorOptions`] used for gas estimation.
+/// Marker for [`OneshotEnvParameters`] used for gas estimation.
 #[derive(Debug)]
 pub struct EstimateGas(());
 
-/// Marker for [`OneshotExecutorOptions`] used for calls and/or transaction execution.
+/// Marker for [`OneshotEnvParameters`] used for calls and/or transaction execution.
 #[derive(Debug)]
 pub struct CallOrExecute(());
 
-/// Oneshot executor options that are expected to be constant or rarely change during the program lifetime.
-/// These options can be used to create [a full environment](OneshotEnv) for transaction / call execution.
+/// Oneshot environment parameters that are expected to be constant or rarely change during the program lifetime.
+/// These parameters can be used to create [a full environment](OneshotEnv) for transaction / call execution.
+///
+/// Notably, these parameters include base system contracts (bootloader and default account abstraction) for all supported
+/// VM versions.
 #[derive(Debug)]
-pub struct OneshotExecutorOptions<T> {
+pub struct OneshotEnvParameters<T> {
     pub(super) chain_id: L2ChainId,
     pub(super) base_system_contracts: MultiVMBaseSystemContracts,
     pub(super) operator_account: AccountTreeId,
@@ -26,15 +29,18 @@ pub struct OneshotExecutorOptions<T> {
     _ty: PhantomData<T>,
 }
 
-impl<T> OneshotExecutorOptions<T> {
+impl<T> OneshotEnvParameters<T> {
     /// Returns gas limit for account validation of transactions.
     pub fn validation_computational_gas_limit(&self) -> u32 {
         self.validation_computational_gas_limit
     }
 }
 
-impl OneshotExecutorOptions<EstimateGas> {
-    /// Creates executor options for gas estimation.
+impl OneshotEnvParameters<EstimateGas> {
+    /// Creates env parameters for gas estimation.
+    ///
+    /// System contracts (mainly, bootloader) for these params are tuned to provide accurate
+    /// execution metrics.
     pub async fn for_gas_estimation(
         chain_id: L2ChainId,
         operator_account: AccountTreeId,
@@ -71,8 +77,11 @@ impl OneshotExecutorOptions<EstimateGas> {
     }
 }
 
-impl OneshotExecutorOptions<CallOrExecute> {
-    /// Creates executor options for transaction / call execution.
+impl OneshotEnvParameters<CallOrExecute> {
+    /// Creates env parameters for transaction / call execution.
+    ///
+    /// System contracts (mainly, bootloader) for these params tuned to provide better UX
+    /// experience (e.g. revert messages).
     pub async fn for_execution(
         chain_id: L2ChainId,
         operator_account: AccountTreeId,

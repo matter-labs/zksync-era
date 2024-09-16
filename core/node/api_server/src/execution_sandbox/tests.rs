@@ -1,7 +1,5 @@
 //! Tests for the VM execution sandbox.
 
-// FIXME: simplify to use TransactionExecutor directly
-
 use std::collections::HashMap;
 
 use assert_matches::assert_matches;
