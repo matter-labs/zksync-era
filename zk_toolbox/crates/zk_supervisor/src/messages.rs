@@ -207,7 +207,7 @@ pub(super) const MSG_LOADTEST_ABOUT: &str = "Run loadtest";
 pub(super) const MSG_OVERRIDE_CONFIG_PATH_HELP: &str = "Path to the config file to override";
 pub(super) const MSG_OVERRRIDE_CONFIG_PATH_PROMPT: &str =
     "Provide path to the config file to override";
-pub(super) const MSG_OVERRIDE_SUCCESS: &str = "Config overridden successfully";
+pub(super) const MSG_OVERRIDE_SUCCESS: &str = "Config was overridden successfully";
 
 pub(super) fn msg_overriding_config(chain: String) -> String {
     format!("Overriding general config for chain {}", chain)
