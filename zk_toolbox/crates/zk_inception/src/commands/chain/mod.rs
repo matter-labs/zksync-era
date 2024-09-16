@@ -2,6 +2,7 @@ pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::Subcommand;
 use common::forge::ForgeScriptArgs;
 pub(crate) use create::create_chain_inner;
+use migrate_to_gateway::MigrateToGatewayArgs;
 use xshell::Shell;
 
 use crate::commands::chain::{
@@ -18,6 +19,7 @@ pub mod genesis;
 pub(crate) mod init;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
+mod migrate_to_gateway;
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {
@@ -45,6 +47,8 @@ pub enum ChainCommands {
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
     /// Prepare chain to be an eligible gateway
     ConvertToGateway(ForgeScriptArgs),
+    /// Migrate chain to gateway
+    MigrateToGateway(MigrateToGatewayArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -69,5 +73,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
             set_token_multiplier_setter::run(args, shell).await
         }
         ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,
+        ChainCommands::MigrateToGateway(args) => migrate_to_gateway::run(args, shell).await,
     }
 }

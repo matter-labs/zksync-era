@@ -141,7 +141,7 @@ async fn gateway_governance_whitelisting(
 ) -> anyhow::Result<()> {
     let whitelist_config_path = GATEWAY_PREPARATION.input(&config.link_to_code);
     let preparation_config =
-        GatewayPreparationConfig::new(chain_config, &config.get_contracts_config()?)?;
+        GatewayPreparationConfig::new(chain_config, &config.get_contracts_config()?, &gateway_config)?;
     preparation_config.save(shell, whitelist_config_path)?;
 
     // 1. Registering gateway as a settlement layer
