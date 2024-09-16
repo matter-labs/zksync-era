@@ -127,7 +127,7 @@ jobs:
       - name: Run server
         run: |
           ci_run sed -i -e 's/state_keeper_fast_vm_mode:.*/state_keeper_fast_vm_mode: ${{ matrix.vm_mode }}/' etc/env/file_based/overrides/legacy.yaml
-          ci_run zk_supervisor config-writer --path etc/env/file_based/overrides/legacy.yaml --chain legacy
+          ci_run zk_supervisor config-writer --path ${{ matrix.vm_mode == 'NEW' && etc/env/file_based/overrides/legacy-new.yaml || etc/env/file_based/overrides/legacy-old.yaml }} --chain legacy
           ci_run zk_inception server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
 
