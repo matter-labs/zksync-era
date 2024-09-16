@@ -22,6 +22,7 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         from: BlockNumber,
         to: BlockNumber,
         topic1: H256,
+        topic2: Option<H256>,
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>>;
     /// Returns finalized L1 block number.
@@ -252,13 +253,15 @@ impl EthClient for EthHttpQueryClient {
         &self,
         from: BlockNumber,
         to: BlockNumber,
+        topic1: H256,
+        topic2: Option<H256>,
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
         self.get_events_inner(
             from,
             to,
-            Some(self.topics.clone()),
-            None,
+            Some(vec![topic1]),
+            topic2.map(|topic2| vec![topic2]),
             Some(self.get_default_address_list()),
             retries_left,
         )
