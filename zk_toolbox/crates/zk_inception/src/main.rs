@@ -13,7 +13,7 @@ use config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::commands::{
-    args::RunServerArgs, consensus, chain::ChainCommands, ecosystem::EcosystemCommands,
+    args::RunServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
     explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 

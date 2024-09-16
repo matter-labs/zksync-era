@@ -1,8 +1,8 @@
 pub mod args;
 pub mod chain;
+pub mod consensus;
 pub mod containers;
 pub mod contract_verifier;
-pub mod consensus;
 pub mod ecosystem;
 pub mod explorer;
 pub mod external_node;

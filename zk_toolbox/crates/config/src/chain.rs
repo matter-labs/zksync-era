@@ -19,7 +19,11 @@ use crate::{
         SaveConfigWithBasePath, ZkToolboxConfig,
     },
     //external_node::ENConfig,
-    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    ContractsConfig,
+    GeneralConfig,
+    GenesisConfig,
+    SecretsConfig,
+    WalletsConfig,
 };
 
 /// Chain configuration file. This file is created in the chain
