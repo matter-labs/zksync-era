@@ -2,7 +2,6 @@ use std::{
     fs::{self, File},
     io::Read,
     path::{Path, PathBuf},
-    time::Instant,
 };
 
 use anyhow::Context as _;

@@ -5,7 +5,7 @@ use clap::Parser;
 use tokio_util::sync::CancellationToken;
 use zksync_circuit_prover::{CircuitProver, WitnessVectorGenerator};
 use zksync_config::{
-    configs::{DatabaseSecrets, FriProverConfig, ObservabilityConfig},
+    configs::{FriProverConfig, ObservabilityConfig},
     ObjectStoreConfig,
 };
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
@@ -16,16 +16,15 @@ use zksync_prover_fri_types::{
     ProverServiceDataKey, PROVER_PROTOCOL_SEMANTIC_VERSION,
 };
 use zksync_prover_keystore::{keystore::Keystore, GoldilocksGpuProverSetupData};
-use zksync_types::url::SensitiveUrl;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
 struct Cli {
     #[arg(long)]
-    pub(crate) config_path: Option<std::path::PathBuf>,
+    pub(crate) config_path: Option<PathBuf>,
     #[arg(long)]
-    pub(crate) secrets_path: Option<std::path::PathBuf>,
+    pub(crate) secrets_path: Option<PathBuf>,
     /// Number of WVG jobs to run in parallel.
     /// Default value is 1.
     #[arg(long, default_value_t = 1)]
@@ -56,6 +55,7 @@ async fn main() -> anyhow::Result<()> {
 
     let mut tasks = vec![];
 
+    // TODO: Add config value here
     let (sender, receiver) = tokio::sync::mpsc::channel(5);
 
     for _ in 0..wvg_count {
@@ -101,7 +101,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn load_configs(
-    config_path: Option<std::path::PathBuf>,
+    config_path: Option<PathBuf>,
 ) -> anyhow::Result<(ObservabilityConfig, FriProverConfig, ObjectStoreConfig)> {
     let general_config =
         load_general_config(config_path).context("failed loading general config")?;
