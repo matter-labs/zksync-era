@@ -13,6 +13,7 @@ use common::{ethereum::create_ethers_client, logger};
 use config::EcosystemConfig;
 use ethers::{abi::Bytes, providers::Middleware, types::TransactionRequest, utils::hex};
 use serde::Deserialize;
+use tokio::time::sleep;
 use xshell::Shell;
 use zksync_basic_types::{H160, U256};
 
@@ -26,6 +27,8 @@ use crate::{
 };
 
 pub mod args;
+
+const MAX_ATTEMPTS: u32 = 3;
 
 #[derive(Deserialize)]
 struct Transaction {
@@ -88,13 +91,25 @@ pub async fn run(shell: &Shell, args: SendTransactionsArgs) -> anyhow::Result<()
 
         nonce = nonce.add(1);
 
-        let receipt = client
-            .send_transaction(tx, None)
-            .await?
-            .confirmations(args.confirmations)
-            .interval(Duration::from_millis(30))
-            .await?
-            .context(MSG_FAILED_TO_SEND_TXN_ERR)?;
+        let mut attempts = 0;
+        let receipt = loop {
+            attempts += 1;
+            match client
+                .send_transaction(tx.clone(), None)
+                .await?
+                .confirmations(args.confirmations)
+                .interval(Duration::from_millis(30))
+                .await
+            {
+                Ok(receipt) => break receipt,
+                Err(e) if attempts < MAX_ATTEMPTS => {
+                    eprintln!("Attempt {} failed: {:?}", attempts, e);
+                    sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+                Err(e) => return Err(e).context(MSG_FAILED_TO_SEND_TXN_ERR)?,
+            }
+        };
 
         log_receipt(&log_file, format!("{:?}", receipt).as_str())?;
     }
