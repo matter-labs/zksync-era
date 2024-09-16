@@ -168,7 +168,7 @@ async fn initialize_databases(
 }
 
 fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::Result<()> {
-    let server = Server::new(None, chain_config.link_to_code.clone());
+    let server = Server::new(None, chain_config.link_to_code.clone(), false);
     server
         .run(
             shell,

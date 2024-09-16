@@ -75,6 +75,7 @@ pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
 pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =
     "Minting base token to the governance addresses...";
 pub(super) const MSG_INTALLING_DEPS_SPINNER: &str = "Installing and building dependencies...";
+pub(super) const MSG_PREPARING_CONFIG_SPINNER: &str = "Preparing config files...";
 pub(super) const MSG_DEPLOYING_ERC20_SPINNER: &str = "Deploying ERC20 contracts...";
 pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
     "Deploying ecosystem contracts...";
@@ -120,6 +121,14 @@ pub(super) fn msg_chain_doesnt_exist_err(chain_name: &str, chains: &Vec<String>)
 pub(super) fn msg_chain_load_err(chain_name: &str) -> String {
     format!("Failed to load chain config for {chain_name}")
 }
+
+/// Build ecosystem transactions related messages
+pub(super) const MSG_SENDER_ADDRESS_PROMPT: &str = "What is the address of the transaction sender?";
+pub(super) const MSG_BUILDING_ECOSYSTEM: &str = "Building ecosystem transactions";
+pub(super) const MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER: &str = "Building ecosystem contracts...";
+pub(super) const MSG_WRITING_OUTPUT_FILES_SPINNER: &str = "Writing output files...";
+pub(super) const MSG_ECOSYSTEM_TXN_OUTRO: &str = "Transactions successfully built";
+pub(super) const MSG_ECOSYSTEM_TXN_OUT_PATH_INVALID_ERR: &str = "Invalid path";
 
 /// Chain create related messages
 pub(super) const MSG_PROVER_MODE_HELP: &str = "Prover options";
@@ -177,6 +186,7 @@ pub(super) const MSG_INITIALIZING_SERVER_DATABASE: &str = "Initializing server d
 pub(super) const MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR: &str = "Failed to drop server database";
 pub(super) const MSG_INITIALIZING_PROVER_DATABASE: &str = "Initializing prover database";
 pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop prover database";
+
 /// Chain update related messages
 pub(super) const MSG_WALLETS_CONFIG_MUST_BE_PRESENT: &str = "Wallets configuration must be present";
 
@@ -218,12 +228,22 @@ pub(super) const MSG_DEPLOYING_L2_CONTRACT_SPINNER: &str = "Deploying l2 contrac
 /// Chain deploy paymaster related messages
 pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
 
+/// Chain build related messages
+pub(super) const MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER: &str =
+    "Building chain registration transactions...";
+pub(super) const MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR: &str = "Invalid path";
+pub(super) const MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG: &str =
+    "Missing contract.yaml, please be sure to run this command within initialized ecosystem";
+pub(super) const MSG_CHAIN_TRANSACTIONS_BUILT: &str = "Chain transactions successfully built";
+
 /// Run server related messages
 pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run";
+pub(super) const MSG_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
 pub(super) const MSG_SERVER_GENESIS_HELP: &str = "Run server in genesis mode";
 pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
     "Additional arguments that can be passed through the CLI";
 pub(super) const MSG_SERVER_BUILD_HELP: &str = "Build server but don't run it";
+pub(super) const MSG_SERVER_URING_HELP: &str = "Enables uring support for RocksDB";
 
 /// Accept ownership related messages
 pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
@@ -305,6 +325,11 @@ pub(super) fn msg_preparing_en_config_is_done(path: &Path) -> String {
 
 pub(super) const MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED: &str =
     "External node is not initialized";
+pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is missing";
+pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
+pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
+
+pub(super) const MSG_PORTS_CONFIG_ERR: &str = "Failed to get ports config";
 
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 
