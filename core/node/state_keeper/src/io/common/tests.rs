@@ -318,22 +318,19 @@ async fn loading_pending_batch_with_genesis() {
     .await;
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
-    let first_l2_block_in_batch = provider
-        .load_first_l2_block_in_batch(&mut storage, L1BatchNumber(1))
-        .await
-        .unwrap()
-        .expect("no first L2 block");
-    assert_eq!(first_l2_block_in_batch.number(), L2BlockNumber(1));
-
     let (system_env, l1_batch_env) = provider
-        .load_l1_batch_params(
+        .load_l1_batch_env(
             &mut storage,
-            &first_l2_block_in_batch,
+            L1BatchNumber(1),
             u32::MAX,
             L2ChainId::default(),
         )
         .await
-        .unwrap();
+        .unwrap()
+        .expect("no L1 batch");
+
+    assert_eq!(l1_batch_env.first_l2_block.number, 1);
+
     let pending_batch = load_pending_batch(&mut storage, system_env, l1_batch_env)
         .await
         .unwrap();
@@ -399,25 +396,16 @@ async fn loading_pending_batch_after_snapshot_recovery() {
     .await;
 
     let provider = L1BatchParamsProvider::new(&mut storage).await.unwrap();
-    let first_l2_block_in_batch = provider
-        .load_first_l2_block_in_batch(&mut storage, snapshot_recovery.l1_batch_number + 1)
-        .await
-        .unwrap()
-        .expect("no first L2 block");
-    assert_eq!(
-        first_l2_block_in_batch.number(),
-        snapshot_recovery.l2_block_number + 1
-    );
-
     let (system_env, l1_batch_env) = provider
-        .load_l1_batch_params(
+        .load_l1_batch_env(
             &mut storage,
-            &first_l2_block_in_batch,
+            snapshot_recovery.l1_batch_number + 1,
             u32::MAX,
             L2ChainId::default(),
         )
         .await
-        .unwrap();
+        .unwrap()
+        .expect("no L1 batch");
     let pending_batch = load_pending_batch(&mut storage, system_env, l1_batch_env)
         .await
         .unwrap();
