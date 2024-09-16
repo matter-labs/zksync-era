@@ -22,7 +22,7 @@ use super::args::genesis::GenesisArgsFinal;
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
     consts::{
-        PATH_TO_NO_PROOFS_OVERRIDE_CONFIG, PATH_TO_VALIDIUM_OVERRIDE_CONFIG, PROVER_MIGRATIONS,
+        PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG, PATH_TO_VALIDIUM_OVERRIDE_CONFIG, PROVER_MIGRATIONS,
         SERVER_MIGRATIONS,
     },
     messages::{
@@ -69,7 +69,7 @@ pub async fn genesis(
     if config.prover_version != ProverMode::NoProofs {
         override_config(
             shell,
-            link_to_code.join(PATH_TO_NO_PROOFS_OVERRIDE_CONFIG),
+            link_to_code.join(PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG),
             config,
         )?;
     }
