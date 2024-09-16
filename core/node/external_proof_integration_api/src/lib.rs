@@ -20,7 +20,7 @@ use zksync_basic_types::L1BatchNumber;
 
 pub use crate::processor::Processor;
 use crate::{
-    metrics::{CallOutcome, Method, METRICS},
+    metrics::{Method, METRICS},
     middleware::MetricsMiddleware,
 };
 
@@ -37,11 +37,7 @@ impl Api {
             axum::middleware::from_fn(move |req: Request, next: Next| async move {
                 let middleware = MetricsMiddleware::new(method);
                 let response = next.run(req).await;
-                let outcome = match response.status().is_success() {
-                    true => CallOutcome::Success,
-                    false => CallOutcome::Failure,
-                };
-                middleware.observe(outcome);
+                middleware.observe(response.status());
                 response
             })
         };
@@ -91,28 +87,16 @@ impl Api {
     async fn latest_generation_data(
         State(processor): State<Processor>,
     ) -> Result<ProofGenerationDataResponse, ProcessorError> {
-        let result = processor.get_proof_generation_data().await;
-
-        if let Err(error) = &result {
-            METRICS.failed_calls[&(Method::GetLatestProofGenerationData, error.into())].inc();
-        }
-
-        result
+        processor.get_proof_generation_data().await
     }
 
     async fn generation_data_for_existing_batch(
         State(processor): State<Processor>,
         Path(l1_batch_number): Path<u32>,
     ) -> Result<ProofGenerationDataResponse, ProcessorError> {
-        let result = processor
+        processor
             .proof_generation_data_for_existing_batch(L1BatchNumber(l1_batch_number))
-            .await;
-
-        if let Err(error) = &result {
-            METRICS.failed_calls[&(Method::GetSpecificProofGenerationData, error.into())].inc();
-        }
-
-        result
+            .await
     }
 
     async fn verify_proof(
@@ -120,14 +104,8 @@ impl Api {
         Path(l1_batch_number): Path<u32>,
         proof: ExternalProof,
     ) -> Result<(), ProcessorError> {
-        let result = processor
+        processor
             .verify_proof(L1BatchNumber(l1_batch_number), proof)
-            .await;
-
-        if let Err(error) = &result {
-            METRICS.failed_calls[&(Method::VerifyProof, error.into())].inc();
-        }
-
-        result
+            .await
     }
 }
