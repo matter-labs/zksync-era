@@ -52,6 +52,7 @@ impl ContractsConfig {
         self.ecosystem_contracts.transparent_proxy_admin_addr = deploy_l1_output
             .deployed_addresses
             .transparent_proxy_admin_addr;
+        self.ecosystem_contracts.stm_deployment_tracker_proxy_addr = deploy_l1_output.deployed_addresses.bridgehub.stm_deployment_tracker_proxy_addr;
         self.ecosystem_contracts.force_deployments_data = deploy_l1_output
             .contracts_config
             .force_deployments_data
@@ -134,6 +135,7 @@ pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
+    pub stm_deployment_tracker_proxy_addr: Address,
     pub validator_timelock_addr: Address,
     pub diamond_cut_data: String,
     pub force_deployments_data: String,

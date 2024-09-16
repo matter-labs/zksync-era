@@ -67,3 +67,9 @@ pub const SETUP_LEGACY_BRIDGE: ForgeScriptParams = ForgeScriptParams {
     output: "script-out/setup-legacy-bridge.toml",
     script_path: "deploy-scripts/dev/SetupLegacyBridge.s.sol",
 };
+
+pub const DEPLOY_GATEWAY_CTM: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/config-deploy-gateway-ctm.toml",
+    output: "script-out/output-deploy-gateway-ctm.toml",
+    script_path: "deploy-scripts/GatewayCTMFromL1.s.sol",
+};

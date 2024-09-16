@@ -5,7 +5,7 @@ use common::{
     logger,
     spinner::Spinner,
 };
-use config::{forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig};
+use config::{forge_interface::{deploy_ecosystem::input::InitialDeploymentConfig, deploy_gateway_ctm::{input::DeployGatewayCTMInput, output::DeployGatewayCTMOutput}, script_params::{ACCEPT_GOVERNANCE_SCRIPT_PARAMS, DEPLOY_GATEWAY_CTM}}, traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig}, ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig};
 use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
 use xshell::Shell;
@@ -43,31 +43,73 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .l1_rpc_url
         .expose_str()
         .to_string();
-    let token_multiplier_setter_address = ecosystem_config
-        .get_wallets()
-        .context(MSG_WALLETS_CONFIG_MUST_BE_PRESENT)?
-        .token_multiplier_setter
-        .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
-        .address;
 
-    let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
-    set_token_multiplier_setter(
+        
+
+    let genesis_config = chain_config.get_genesis_config()?;
+
+
+    deploy_gateway_ctm(
         shell,
+        args,
         &ecosystem_config,
-        chain_config.get_wallets_config()?.governor_private_key(),
-        contracts_config.l1.chain_admin_addr,
-        token_multiplier_setter_address,
-        &args.clone(),
+        &chain_config,
+        &genesis_config,
+        &contracts_config,
+        &ecosystem_config.get_initial_deployment_config().unwrap(),
         l1_url,
-    )
-    .await?;
-    spinner.finish();
+    ).await?;
 
-    logger::note(
-        MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO,
-        hex::encode(token_multiplier_setter_address),
+
+    // FIXME: do we need to build l1 contracts here? they are typically pre-built
+
+    // Firstly, deploying gateway outputs
+
+
+
+
+    Ok(())
+}
+
+async fn deploy_gateway_ctm(
+    shell: &Shell,
+    forge_args: ForgeScriptArgs,
+    config: &EcosystemConfig,
+    chain_config: &ChainConfig,
+    genesis_config: &GenesisConfig,
+    contracts_config: &ContractsConfig,
+    initial_deployemnt_config: &InitialDeploymentConfig,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    let deploy_config_path = DEPLOY_GATEWAY_CTM.input(&config.link_to_code);
+
+    let deploy_config = DeployGatewayCTMInput::new(
+        chain_config, 
+        config,
+        genesis_config,
+        contracts_config,
+        initial_deployemnt_config
     );
+    deploy_config.save(shell, deploy_config_path)?;
 
+    let mut forge = Forge::new(&config.path_to_l1_foundry())
+        .script(&DEPLOY_GATEWAY_CTM.script(), forge_args.clone())
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_broadcast();
+
+    // Governor private key should not be needed for this script
+    forge = fill_forge_private_key(forge, config.get_wallets()?.deployer_private_key())?;
+    check_the_balance(&forge).await?;
+    forge.run(shell)?;
+
+    let register_chain_output = DeployGatewayCTMOutput::read(
+        shell,
+        DEPLOY_GATEWAY_CTM.output(&chain_config.link_to_code),
+    )?;
+
+    println!("Gateway contracts successfully deployed: {:#?}", register_chain_output);
+    
     Ok(())
 }
 
