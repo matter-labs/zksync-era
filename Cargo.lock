@@ -337,6 +337,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-recursion"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b43422f69d8ff38f95f1b2bb76517c91589a924d1559a0e935d7c8ce0274c11"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.36",
+ "syn 2.0.72",
+]
+
+[[package]]
 name = "async-signal"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2176,14 +2187,6 @@ name = "equivalent"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
-
-[[package]]
-name = "eravm-stable-interface"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
-dependencies = [
- "primitive-types",
-]
 
 [[package]]
 name = "errno"
@@ -6278,11 +6281,14 @@ dependencies = [
 name = "selector_generator"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap 4.4.6",
+ "ethabi",
  "glob",
+ "hex",
  "serde",
  "serde_json",
- "sha3 0.10.8",
+ "tokio",
 ]
 
 [[package]]
@@ -6848,6 +6854,7 @@ dependencies = [
  "futures 0.3.30",
  "rand 0.8.5",
  "structopt",
+ "test-casing",
  "tokio",
  "tracing",
  "vise",
@@ -8357,18 +8364,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "vm2"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=4ef15d46410ffc11744771a3a6c7c09dd9470c90#4ef15d46410ffc11744771a3a6c7c09dd9470c90"
-dependencies = [
- "enum_dispatch",
- "eravm-stable-interface",
- "primitive-types",
- "zk_evm_abstractions 0.150.5",
- "zkevm_opcode_defs 0.150.5",
-]
-
-[[package]]
 name = "walkdir"
 version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9843,6 +9838,7 @@ name = "zksync_eth_watch"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-recursion",
  "async-trait",
  "thiserror",
  "tokio",
@@ -10156,7 +10152,6 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
- "vm2",
  "zk_evm 0.131.0-rc.2",
  "zk_evm 0.133.0",
  "zk_evm 0.140.0",
@@ -10168,6 +10163,7 @@ dependencies = [
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm2",
  "zksync_vm_interface",
 ]
 
@@ -10964,6 +10960,26 @@ dependencies = [
  "url",
  "vise",
  "vise-exporter",
+]
+
+[[package]]
+name = "zksync_vm2"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vm2.git?rev=cd6136c42ec56856e0abcf2a98d1a9e120161482#cd6136c42ec56856e0abcf2a98d1a9e120161482"
+dependencies = [
+ "enum_dispatch",
+ "primitive-types",
+ "zk_evm_abstractions 0.150.5",
+ "zkevm_opcode_defs 0.150.5",
+ "zksync_vm2_interface",
+]
+
+[[package]]
+name = "zksync_vm2_interface"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/vm2.git?rev=cd6136c42ec56856e0abcf2a98d1a9e120161482#cd6136c42ec56856e0abcf2a98d1a9e120161482"
+dependencies = [
+ "primitive-types",
 ]
 
 [[package]]

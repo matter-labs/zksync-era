@@ -5,6 +5,7 @@ members = [
     "crates/types",
     "crates/zk_inception",
     "crates/zk_supervisor",
+    "crates/git_version_macro",
 ]
 resolver = "2"
 
@@ -25,6 +26,7 @@ keywords = ["zk", "cryptography", "blockchain", "ZKStack", "ZKsync"]
 common = { path = "crates/common" }
 config = { path = "crates/config" }
 types = { path = "crates/types" }
+git_version_macro = { path = "crates/git_version_macro" }
 
 # ZkSync deps
 zksync_config = { path = "../core/lib/config" }
@@ -40,6 +42,7 @@ clap = { version = "4.4", features = ["derive", "wrap_help", "string"] }
 slugify-rs = "0.0.3"
 cliclack = "0.2.5"
 console = "0.15.8"
+chrono = "0.4.38"
 ethers = "2.0"
 futures = "0.3.30"
 human-panic = "2.0"

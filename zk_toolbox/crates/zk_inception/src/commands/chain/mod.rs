@@ -1,6 +1,7 @@
+use ::common::forge::ForgeScriptArgs;
+use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::Subcommand;
-use common::forge::ForgeScriptArgs;
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
@@ -10,6 +11,8 @@ use crate::commands::chain::{
 };
 
 pub(crate) mod args;
+mod build_transactions;
+mod common;
 mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
@@ -22,6 +25,8 @@ mod setup_legacy_bridge;
 pub enum ChainCommands {
     /// Create a new chain, setting the necessary configurations for later initialization
     Create(ChainCreateArgs),
+    /// Create unsigned transactions for chain deployment
+    BuildTransactions(BuildTransactionsArgs),
     /// Initialize chain, deploying necessary contracts and performing on-chain operations
     Init(InitArgs),
     /// Run server genesis
@@ -48,6 +53,7 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
     match args {
         ChainCommands::Create(args) => create::run(args, shell),
         ChainCommands::Init(args) => init::run(args, shell).await,
+        ChainCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
         ChainCommands::Genesis(args) => genesis::run(args, shell).await,
         ChainCommands::DeployL2Contracts(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::All).await
