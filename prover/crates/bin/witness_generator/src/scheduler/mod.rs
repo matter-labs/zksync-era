@@ -1,6 +1,7 @@
 use std::{convert::TryInto, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use zkevm_test_harness::zkevm_circuits::recursion::{
     leaf_layer::input::RecursionLeafParametersWitness, NUM_BASE_LAYER_CIRCUITS,
 };
@@ -27,10 +28,9 @@ use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
-use crate::witness_generator::WitnessGenerator;
 use crate::{
     artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS,
-    utils::SchedulerPartialInputWrapper,
+    utils::SchedulerPartialInputWrapper, witness_generator::WitnessGenerator,
 };
 
 mod artifacts;
@@ -78,49 +78,6 @@ impl SchedulerWitnessGenerator {
             prover_connection_pool,
             protocol_version,
             keystore,
-        }
-    }
-
-    #[tracing::instrument(
-        skip_all,
-        fields(l1_batch = %job.block_number)
-    )]
-    pub fn process_job_sync(
-        job: SchedulerWitnessGeneratorJob,
-        started_at: Instant,
-    ) -> SchedulerArtifacts {
-        tracing::info!(
-            "Starting fri witness generation of type {:?} for block {}",
-            AggregationRound::Scheduler,
-            job.block_number.0
-        );
-        let config = SchedulerConfig {
-            proof_config: recursion_layer_proof_config(),
-            vk_fixed_parameters: job.recursion_tip_vk.clone().into_inner().fixed_parameters,
-            capacity: SCHEDULER_CAPACITY,
-            _marker: std::marker::PhantomData,
-            recursion_tip_vk: job.recursion_tip_vk.into_inner(),
-            node_layer_vk: job.node_vk.into_inner(),
-            leaf_layer_parameters: job.leaf_layer_parameters,
-        };
-
-        let scheduler_circuit = SchedulerCircuit {
-            witness: job.scheduler_witness,
-            config,
-            transcript_params: (),
-            _marker: std::marker::PhantomData,
-        };
-        WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::Scheduler.into()]
-            .observe(started_at.elapsed());
-
-        tracing::info!(
-            "Scheduler generation for block {} is complete in {:?}",
-            job.block_number.0,
-            started_at.elapsed()
-        );
-
-        SchedulerArtifacts {
-            scheduler_circuit: ZkSyncRecursiveLayerCircuit::SchedulerCircuit(scheduler_circuit),
         }
     }
 }
@@ -183,13 +140,55 @@ pub async fn prepare_job(
     })
 }
 
+#[async_trait]
 impl WitnessGenerator for SchedulerWitnessGenerator {
-    type Job = ();
+    type Job = SchedulerWitnessGeneratorJob;
     type Metadata = ();
-    type Artifacts = ();
+    type Artifacts = SchedulerArtifacts;
 
-    fn process_job(job: Self::Job, started_at: Instant) -> anyhow::Result<Self::Artifacts> {
-        todo!()
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %job.block_number)
+    )]
+    async fn process_job(
+        job: SchedulerWitnessGeneratorJob,
+        _object_store: Arc<dyn ObjectStore>,
+        _max_circuits_in_flight: Option<usize>,
+        started_at: Instant,
+    ) -> anyhow::Result<SchedulerArtifacts> {
+        tracing::info!(
+            "Starting fri witness generation of type {:?} for block {}",
+            AggregationRound::Scheduler,
+            job.block_number.0
+        );
+        let config = SchedulerConfig {
+            proof_config: recursion_layer_proof_config(),
+            vk_fixed_parameters: job.recursion_tip_vk.clone().into_inner().fixed_parameters,
+            capacity: SCHEDULER_CAPACITY,
+            _marker: std::marker::PhantomData,
+            recursion_tip_vk: job.recursion_tip_vk.into_inner(),
+            node_layer_vk: job.node_vk.into_inner(),
+            leaf_layer_parameters: job.leaf_layer_parameters,
+        };
+
+        let scheduler_circuit = SchedulerCircuit {
+            witness: job.scheduler_witness,
+            config,
+            transcript_params: (),
+            _marker: std::marker::PhantomData,
+        };
+        WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::Scheduler.into()]
+            .observe(started_at.elapsed());
+
+        tracing::info!(
+            "Scheduler generation for block {} is complete in {:?}",
+            job.block_number.0,
+            started_at.elapsed()
+        );
+
+        Ok(SchedulerArtifacts {
+            scheduler_circuit: ZkSyncRecursiveLayerCircuit::SchedulerCircuit(scheduler_circuit),
+        })
     }
 
     fn prepare_job(

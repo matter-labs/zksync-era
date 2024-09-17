@@ -14,6 +14,7 @@ use crate::{
         prepare_job, NodeAggregationArtifacts, NodeAggregationWitnessGenerator,
         NodeAggregationWitnessGeneratorJob,
     },
+    witness_generator::WitnessGenerator,
 };
 
 #[async_trait]
@@ -63,7 +64,13 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         let object_store = self.object_store.clone();
         let max_circuits_in_flight = self.config.max_circuits_in_flight;
         tokio::spawn(async move {
-            Ok(Self::process_job_impl(job, started_at, object_store, max_circuits_in_flight).await)
+            <Self as WitnessGenerator>::process_job(
+                job,
+                object_store,
+                Some(max_circuits_in_flight),
+                started_at,
+            )
+            .await
         })
     }
 

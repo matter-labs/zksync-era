@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
+use async_trait::async_trait;
 use circuit_definitions::{
     circuit_definitions::recursion_layer::{
         recursion_tip::RecursionTipCircuit, ZkSyncRecursionLayerStorageType,
@@ -43,10 +44,10 @@ use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
-use crate::scheduler::SchedulerWitnessGenerator;
-use crate::witness_generator::WitnessGenerator;
 use crate::{
-    artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS, utils::ClosedFormInputWrapper,
+    artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS,
+    scheduler::SchedulerWitnessGenerator, utils::ClosedFormInputWrapper,
+    witness_generator::WitnessGenerator,
 };
 
 mod artifacts;
@@ -91,48 +92,6 @@ impl RecursionTipWitnessGenerator {
             prover_connection_pool,
             protocol_version,
             keystore,
-        }
-    }
-
-    #[tracing::instrument(
-        skip_all,
-        fields(l1_batch = %job.block_number)
-    )]
-    pub fn process_job_sync(
-        job: RecursionTipWitnessGeneratorJob,
-        started_at: Instant,
-    ) -> RecursionTipArtifacts {
-        tracing::info!(
-            "Starting fri witness generation of type {:?} for block {}",
-            AggregationRound::RecursionTip,
-            job.block_number.0
-        );
-        let config = RecursionTipConfig {
-            proof_config: recursion_layer_proof_config(),
-            vk_fixed_parameters: job.node_vk.clone().into_inner().fixed_parameters,
-            _marker: std::marker::PhantomData,
-        };
-
-        let recursive_tip_circuit = RecursionTipCircuit {
-            witness: job.recursion_tip_witness,
-            config,
-            transcript_params: (),
-            _marker: std::marker::PhantomData,
-        };
-
-        WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::RecursionTip.into()]
-            .observe(started_at.elapsed());
-
-        tracing::info!(
-            "Recursion tip generation for block {} is complete in {:?}",
-            job.block_number.0,
-            started_at.elapsed()
-        );
-
-        RecursionTipArtifacts {
-            recursion_tip_circuit: ZkSyncRecursiveLayerCircuit::RecursionTipCircuit(
-                recursive_tip_circuit,
-            ),
         }
     }
 }
@@ -227,13 +186,54 @@ pub async fn prepare_job(
     })
 }
 
+#[async_trait]
 impl WitnessGenerator for RecursionTipWitnessGenerator {
-    type Job = ();
+    type Job = RecursionTipWitnessGeneratorJob;
     type Metadata = ();
-    type Artifacts = ();
+    type Artifacts = RecursionTipArtifacts;
 
-    fn process_job(job: Self::Job, started_at: Instant) -> anyhow::Result<Self::Artifacts> {
-        todo!()
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %job.block_number)
+    )]
+    async fn process_job(
+        job: Self::Job,
+        _object_store: Arc<dyn ObjectStore>,
+        _max_circuits_in_flight: Option<usize>,
+        started_at: Instant,
+    ) -> anyhow::Result<RecursionTipArtifacts> {
+        tracing::info!(
+            "Starting fri witness generation of type {:?} for block {}",
+            AggregationRound::RecursionTip,
+            job.block_number.0
+        );
+        let config = RecursionTipConfig {
+            proof_config: recursion_layer_proof_config(),
+            vk_fixed_parameters: job.node_vk.clone().into_inner().fixed_parameters,
+            _marker: std::marker::PhantomData,
+        };
+
+        let recursive_tip_circuit = RecursionTipCircuit {
+            witness: job.recursion_tip_witness,
+            config,
+            transcript_params: (),
+            _marker: std::marker::PhantomData,
+        };
+
+        WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::RecursionTip.into()]
+            .observe(started_at.elapsed());
+
+        tracing::info!(
+            "Recursion tip generation for block {} is complete in {:?}",
+            job.block_number.0,
+            started_at.elapsed()
+        );
+
+        Ok(RecursionTipArtifacts {
+            recursion_tip_circuit: ZkSyncRecursiveLayerCircuit::RecursionTipCircuit(
+                recursive_tip_circuit,
+            ),
+        })
     }
 
     fn prepare_job(

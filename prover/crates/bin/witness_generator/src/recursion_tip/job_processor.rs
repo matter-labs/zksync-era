@@ -14,6 +14,7 @@ use crate::{
         prepare_job, RecursionTipArtifacts, RecursionTipWitnessGenerator,
         RecursionTipWitnessGeneratorJob,
     },
+    witness_generator::WitnessGenerator,
 };
 
 #[async_trait]
@@ -77,7 +78,10 @@ impl JobProcessor for RecursionTipWitnessGenerator {
         job: RecursionTipWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<RecursionTipArtifacts>> {
-        tokio::task::spawn_blocking(move || Ok(Self::process_job_sync(job, started_at)))
+        let object_store = self.object_store.clone();
+        tokio::task::spawn_blocking(async move || {
+            <Self as WitnessGenerator>::process_job(job, object_store, None, started_at).await
+        })
     }
 
     #[tracing::instrument(

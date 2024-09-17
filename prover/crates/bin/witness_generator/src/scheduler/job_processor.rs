@@ -13,6 +13,7 @@ use crate::{
     scheduler::{
         prepare_job, SchedulerArtifacts, SchedulerWitnessGenerator, SchedulerWitnessGeneratorJob,
     },
+    witness_generator::WitnessGenerator,
 };
 
 #[async_trait]
@@ -72,10 +73,11 @@ impl JobProcessor for SchedulerWitnessGenerator {
         job: SchedulerWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<SchedulerArtifacts>> {
-        tokio::task::spawn_blocking(move || {
+        let object_store = self.object_store.clone();
+        tokio::task::spawn_blocking(async move || {
             let block_number = job.block_number;
             let _span = tracing::info_span!("scheduler", %block_number).entered();
-            Ok(Self::process_job_sync(job, started_at))
+            <Self as WitnessGenerator>::process_job(job, object_store, None, started_at).await
         })
     }
 

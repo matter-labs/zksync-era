@@ -11,6 +11,7 @@ use crate::{
     artifacts::{ArtifactsManager, BlobUrls, SchedulerBlobUrls},
     basic_circuits::{BasicCircuitArtifacts, BasicWitnessGenerator, BasicWitnessGeneratorJob},
     metrics::WITNESS_GENERATOR_METRICS,
+    witness_generator::WitnessGenerator,
 };
 
 #[async_trait]
@@ -18,7 +19,7 @@ impl JobProcessor for BasicWitnessGenerator {
     type Job = BasicWitnessGeneratorJob;
     type JobId = L1BatchNumber;
     // The artifact is optional to support skipping blocks when sampling is enabled.
-    type JobArtifacts = Option<BasicCircuitArtifacts>;
+    type JobArtifacts = BasicCircuitArtifacts;
 
     const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
 
@@ -68,16 +69,19 @@ impl JobProcessor for BasicWitnessGenerator {
         _job_id: &Self::JobId,
         job: BasicWitnessGeneratorJob,
         started_at: Instant,
-    ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
+    ) -> tokio::task::JoinHandle<anyhow::Result<BasicCircuitArtifacts>> {
         let object_store = Arc::clone(&self.object_store);
         let max_circuits_in_flight = self.config.max_circuits_in_flight;
         tokio::spawn(async move {
             let block_number = job.block_number;
-            Ok(
-                Self::process_job_impl(object_store, job, started_at, max_circuits_in_flight)
-                    .instrument(tracing::info_span!("basic_circuit", %block_number))
-                    .await,
+            <Self as WitnessGenerator>::process_job(
+                job,
+                object_store,
+                Some(max_circuits_in_flight),
+                started_at,
             )
+            .instrument(tracing::info_span!("basic_circuit", %block_number))
+            .await
         })
     }
 

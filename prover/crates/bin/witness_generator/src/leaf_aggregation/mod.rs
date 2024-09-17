@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use circuit_definitions::circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type;
 use tokio::sync::Semaphore;
 use zkevm_test_harness::{
@@ -29,15 +30,15 @@ use zksync_types::{
     prover_dal::LeafAggregationJobMetadata, L1BatchNumber,
 };
 
-use crate::node_aggregation::NodeAggregationWitnessGenerator;
-use crate::witness_generator::WitnessGenerator;
 use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
+    node_aggregation::NodeAggregationWitnessGenerator,
     utils::{
         load_proofs_for_job_ids, save_recursive_layer_prover_input_artifacts,
         ClosedFormInputWrapper,
     },
+    witness_generator::WitnessGenerator,
 };
 
 mod artifacts;
@@ -264,13 +265,35 @@ pub async fn process_leaf_aggregation_job(
     }
 }
 
+#[async_trait]
 impl WitnessGenerator for LeafAggregationWitnessGenerator {
-    type Job = ();
+    type Job = LeafAggregationWitnessGeneratorJob;
     type Metadata = ();
-    type Artifacts = ();
+    type Artifacts = LeafAggregationArtifacts;
 
-    fn process_job(job: Self::Job, started_at: Instant) -> anyhow::Result<Self::Artifacts> {
-        todo!()
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %job.block_number, circuit_id = %job.circuit_id)
+    )]
+    async fn process_job(
+        job: LeafAggregationWitnessGeneratorJob,
+        object_store: Arc<dyn ObjectStore>,
+        max_circuits_in_flight: Option<usize>,
+        started_at: Instant,
+    ) -> anyhow::Result<LeafAggregationArtifacts> {
+        tracing::info!(
+            "Starting witness generation of type {:?} for block {} with circuit {}",
+            AggregationRound::LeafAggregation,
+            job.block_number.0,
+            job.circuit_id,
+        );
+        Ok(process_leaf_aggregation_job(
+            started_at,
+            job,
+            object_store,
+            max_circuits_in_flight.unwrap(),
+        )
+        .await)
     }
 
     fn prepare_job(

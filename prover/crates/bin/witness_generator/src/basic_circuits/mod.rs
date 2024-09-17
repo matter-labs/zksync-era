@@ -5,6 +5,7 @@ use std::{
     time::Instant,
 };
 
+use async_trait::async_trait;
 use circuit_definitions::{
     circuit_definitions::base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerStorage},
     encodings::recursion_request::RecursionQueueSimulator,
@@ -41,10 +42,9 @@ use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
-use crate::node_aggregation::NodeAggregationWitnessGenerator;
-use crate::witness_generator::WitnessGenerator;
 use crate::{
     metrics::WITNESS_GENERATOR_METRICS,
+    node_aggregation::NodeAggregationWitnessGenerator,
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
     storage_oracle::StorageOracle,
     utils::{
@@ -52,6 +52,7 @@ use crate::{
         ClosedFormInputWrapper, KZG_TRUSTED_SETUP_FILE,
     },
     witness::WitnessStorage,
+    witness_generator::WitnessGenerator,
 };
 
 mod artifacts;
@@ -110,35 +111,6 @@ impl BasicWitnessGenerator {
             prover_connection_pool,
             protocol_version,
         }
-    }
-
-    async fn process_job_impl(
-        object_store: Arc<dyn ObjectStore>,
-        basic_job: BasicWitnessGeneratorJob,
-        started_at: Instant,
-        max_circuits_in_flight: usize,
-    ) -> Option<BasicCircuitArtifacts> {
-        let BasicWitnessGeneratorJob {
-            block_number,
-            data: job,
-        } = basic_job;
-
-        tracing::info!(
-            "Starting witness generation of type {:?} for block {}",
-            AggregationRound::BasicCircuits,
-            block_number.0
-        );
-
-        Some(
-            process_basic_circuits_job(
-                object_store,
-                started_at,
-                block_number,
-                job,
-                max_circuits_in_flight,
-            )
-            .await,
-        )
     }
 }
 
@@ -468,13 +440,37 @@ async fn generate_witness(
     )
 }
 
+#[async_trait]
 impl WitnessGenerator for BasicWitnessGenerator {
-    type Job = ();
+    type Job = BasicWitnessGeneratorJob;
     type Metadata = ();
-    type Artifacts = ();
+    type Artifacts = BasicCircuitArtifacts;
 
-    fn process_job(job: Self::Job, started_at: Instant) -> anyhow::Result<Self::Artifacts> {
-        todo!()
+    async fn process_job(
+        job: BasicWitnessGeneratorJob,
+        object_store: Arc<&dyn ObjectStore>,
+        max_circuits_in_flight: Option<usize>,
+        started_at: Instant,
+    ) -> anyhow::Result<BasicCircuitArtifacts> {
+        let BasicWitnessGeneratorJob {
+            block_number,
+            data: job,
+        } = job;
+
+        tracing::info!(
+            "Starting witness generation of type {:?} for block {}",
+            AggregationRound::BasicCircuits,
+            block_number.0
+        );
+
+        Ok(process_basic_circuits_job(
+            object_store,
+            started_at,
+            block_number,
+            job,
+            max_circuits_in_flight.unwrap(),
+        )
+        .await)
     }
 
     fn prepare_job(
