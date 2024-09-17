@@ -20,8 +20,11 @@ export default {
         }
     },
     solidity: {
-        version: '0.8.18',
-        eraVersion: '1.0.1'
+        version: '0.8.26',
+        eraVersion: '1.0.1',
+        settings: {
+            evmVersion: 'cancun'
+        }
     },
     vyper: {
         version: '0.3.10'
