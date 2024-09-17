@@ -1,0 +1,17 @@
+[package]
+name = "git_version_macro"
+edition = "2021"
+description = "Procedural macro to generate metainformation about build in compile time"
+version.workspace = true
+homepage.workspace = true
+license.workspace = true
+authors.workspace = true
+exclude.workspace = true
+repository.workspace = true
+keywords.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+chrono.workspace = true

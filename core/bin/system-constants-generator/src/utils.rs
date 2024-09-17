@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use once_cell::sync::Lazy;
 use zksync_contracts::{
-    load_sys_contract, read_bootloader_code, read_sys_contract_bytecode, read_zbin_bytecode,
+    load_sys_contract, read_bootloader_code, read_bytecode_from_path, read_sys_contract_bytecode,
     BaseSystemContracts, ContractLanguage, SystemContractCode,
 };
 use zksync_multivm::{
@@ -169,9 +169,8 @@ pub(super) fn get_l1_txs(number_of_txs: usize) -> (Vec<Transaction>, Vec<Transac
 }
 
 fn read_bootloader_test_code(test: &str) -> Vec<u8> {
-    read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/tests/artifacts/{}.yul.zbin",
-        test
+    read_bytecode_from_path(format!(
+        "contracts/system-contracts/zkout/{test}.yul/contracts-preprocessed/bootloader/{test}.yul.json",
     ))
 }
 

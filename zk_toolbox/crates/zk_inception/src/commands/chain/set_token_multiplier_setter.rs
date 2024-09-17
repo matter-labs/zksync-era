@@ -43,8 +43,8 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .l1_rpc_url
         .expose_str()
         .to_string();
-    let token_multiplier_setter_address = ecosystem_config
-        .get_wallets()
+    let token_multiplier_setter_address = chain_config
+        .get_wallets_config()
         .context(MSG_WALLETS_CONFIG_MUST_BE_PRESENT)?
         .token_multiplier_setter
         .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
