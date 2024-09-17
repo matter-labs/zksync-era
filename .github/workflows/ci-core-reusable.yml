@@ -126,9 +126,7 @@ jobs:
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run sed -i -e 's/mode: FULL/mode: LIGHTWEIGHT/' chains/legacy/configs/general.yaml
-          ci_run sed -i -e 's/state_keeper_fast_vm_mode:.*/state_keeper_fast_vm_mode: ${{ matrix.vm_mode }}/' chains/legacy/configs/general.yaml
-          ci_run sed -i -e 's/delay_interval:.*/delay_interval: 50/' chains/legacy/configs/general.yaml
+          ci_run zk_supervisor config-writer --path ${{ matrix.vm_mode == 'NEW' && 'etc/env/file_based/overrides/tests/loadtest-new.yaml' || 'etc/env/file_based/overrides/tests/loadtest-old.yaml' }} --chain legacy
           ci_run zk_inception server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
 

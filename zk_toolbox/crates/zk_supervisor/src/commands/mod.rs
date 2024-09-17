@@ -1,4 +1,5 @@
 pub mod clean;
+pub mod config_writer;
 pub mod contracts;
 pub mod database;
 pub mod fmt;
