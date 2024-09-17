@@ -41,7 +41,7 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
         skip_all,
         fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
     )]
-    async fn save_artifacts(
+    async fn save_to_bucket(
         _job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,

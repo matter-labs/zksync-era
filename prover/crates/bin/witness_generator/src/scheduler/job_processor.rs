@@ -95,7 +95,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
         let blob_save_started_at = Instant::now();
 
         let blob_urls =
-            Self::save_artifacts(job_id.0, artifacts.clone(), &*self.object_store).await;
+            Self::save_to_bucket(job_id.0, artifacts.clone(), &*self.object_store).await;
 
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::Scheduler.into()]
             .observe(blob_save_started_at.elapsed());

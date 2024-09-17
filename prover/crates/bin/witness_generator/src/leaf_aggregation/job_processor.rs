@@ -94,7 +94,7 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
 
         let blob_save_started_at = Instant::now();
 
-        let blob_urls = Self::save_artifacts(job_id, artifacts.clone(), &*self.object_store).await;
+        let blob_urls = Self::save_to_bucket(job_id, artifacts.clone(), &*self.object_store).await;
 
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::LeafAggregation.into()]
             .observe(blob_save_started_at.elapsed());

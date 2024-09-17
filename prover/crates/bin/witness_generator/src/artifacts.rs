@@ -34,7 +34,7 @@ pub(crate) trait ArtifactsManager {
         object_store: &dyn ObjectStore,
     ) -> anyhow::Result<Self::InputArtifacts>;
 
-    async fn save_artifacts(
+    async fn save_to_bucket(
         job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,

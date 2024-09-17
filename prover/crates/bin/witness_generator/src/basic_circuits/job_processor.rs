@@ -108,7 +108,7 @@ impl JobProcessor for BasicWitnessGenerator {
                 }
 
                 let scheduler_witness_url =
-                    match Self::save_artifacts(job_id.0, artifacts.clone(), &*self.object_store)
+                    match Self::save_to_bucket(job_id.0, artifacts.clone(), &*self.object_store)
                         .await
                     {
                         BlobUrls::Url(url) => url,
