@@ -1,9 +1,21 @@
-FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 as builder
+FROM nvidia/cuda:12.2.0-devel-ubuntu22.04 AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 ARG CUDA_ARCH=89
 ENV CUDAARCHS=${CUDA_ARCH}
+
+# set of args for use of sccache
+ARG SCCACHE_GCS_BUCKET=""
+ARG SCCACHE_GCS_SERVICE_ACCOUNT=""
+ARG SCCACHE_GCS_RW_MODE=""
+# rustc is default wraper
+ARG RUSTC_WRAPPER="rustc"
+
+ENV SCCACHE_GCS_BUCKET=${SCCACHE_GCS_BUCKET}
+ENV SCCACHE_GCS_SERVICE_ACCOUNT=${SCCACHE_GCS_SERVICE_ACCOUNT}
+ENV SCCACHE_GCS_RW_MODE=${SCCACHE_GCS_RW_MODE}
+ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 
 RUN apt-get update && apt-get install -y curl clang openssl libssl-dev gcc g++ \
     pkg-config build-essential libclang-dev && \

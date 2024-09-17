@@ -1,6 +1,18 @@
 # Will work locally only after prior contracts build
 # syntax=docker/dockerfile:experimental
-FROM matterlabs/zksync-build-base:latest as builder
+FROM matterlabs/zksync-build-base:latest AS builder
+
+# set of args for use of sccache
+ARG SCCACHE_GCS_BUCKET=""
+ARG SCCACHE_GCS_SERVICE_ACCOUNT=""
+ARG SCCACHE_GCS_RW_MODE=""
+# rustc is default wraper
+ARG RUSTC_WRAPPER="rustc"
+
+ENV SCCACHE_GCS_BUCKET=${SCCACHE_GCS_BUCKET}
+ENV SCCACHE_GCS_SERVICE_ACCOUNT=${SCCACHE_GCS_SERVICE_ACCOUNT}
+ENV SCCACHE_GCS_RW_MODE=${SCCACHE_GCS_RW_MODE}
+ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 
 WORKDIR /usr/src/zksync
 
