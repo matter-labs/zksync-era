@@ -3,7 +3,7 @@ use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
 use anyhow::Context as _;
 use clap::Parser;
 use tokio_util::sync::CancellationToken;
-use zksync_circuit_prover::{CircuitProver, WitnessVectorGenerator};
+use zksync_circuit_prover::{Backoff, CircuitProver, WitnessVectorGenerator};
 use zksync_config::{
     configs::{FriProverConfig, ObservabilityConfig},
     ObjectStoreConfig,
@@ -52,6 +52,7 @@ async fn main() -> anyhow::Result<()> {
     .await?;
 
     let cancellation_token = CancellationToken::new();
+    let backoff = Backoff::new(Duration::from_secs(5), Duration::from_secs(30));
 
     let mut tasks = vec![];
 
@@ -63,11 +64,12 @@ async fn main() -> anyhow::Result<()> {
             object_store.clone(),
             connection_pool.clone(),
             PROVER_PROTOCOL_SEMANTIC_VERSION,
-            prover_config.max_attempts,
             hints.clone(),
             sender.clone(),
         );
-        tasks.push(tokio::spawn(wvg.run(cancellation_token.clone())));
+        tasks.push(tokio::spawn(
+            wvg.run(cancellation_token.clone(), backoff.clone()),
+        ));
     }
 
     let prover = CircuitProver::new(
