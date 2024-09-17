@@ -445,7 +445,11 @@ jobs:
           wait $PID4
 
       - name: Fee projection tests
-        run: ci_run zk_supervisor test fees
+        run: |
+          ci_run zk_supervisor test fees --chain era
+          ci_run zk_supervisor test fees --chain validium
+          ci_run zk_supervisor test fees --chain custom_token
+          ci_run zk_supervisor test fees --chain consensus
   
       - name: Run revert tests
         run: |
