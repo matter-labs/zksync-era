@@ -13,6 +13,7 @@ use crate::messages::{
 
 mod args;
 mod build;
+mod fees;
 mod integration;
 mod l1_contracts;
 mod loadtest;
@@ -28,6 +29,8 @@ mod wallet;
 pub enum TestCommands {
     #[clap(about = MSG_INTEGRATION_TESTS_ABOUT, alias = "i")]
     Integration(IntegrationArgs),
+    #[clap(about = "Run fees test", alias = "i")]
+    Fees(IntegrationArgs),
     #[clap(about = MSG_REVERT_TEST_ABOUT, alias = "r")]
     Revert(RevertArgs),
     #[clap(about = MSG_RECOVERY_TEST_ABOUT, alias = "rec")]
@@ -51,6 +54,7 @@ pub enum TestCommands {
 pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
     match args {
         TestCommands::Integration(args) => integration::run(shell, args).await,
+        TestCommands::Fees(args) => fees::run(shell, args).await,
         TestCommands::Revert(args) => revert::run(shell, args).await,
         TestCommands::Recovery(args) => recovery::run(shell, args).await,
         TestCommands::Upgrade(args) => upgrade::run(shell, args),
