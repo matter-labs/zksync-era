@@ -7,7 +7,7 @@ export default {
         version: '1.5.3',
         compilerSource: 'binary',
         settings: {
-            isSystem: true
+            enableEraVMExtensions: true
         }
     },
     zkvyper: {
@@ -20,7 +20,8 @@ export default {
         }
     },
     solidity: {
-        version: '0.8.26'
+        version: '0.8.18',
+        eraVersion: '1.0.1'
     },
     vyper: {
         version: '0.3.10'
