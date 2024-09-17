@@ -84,11 +84,11 @@ impl DatabaseArgs {
         let chain_name = "mychain";
         let server_name = "mychain_server";
         let prover_name = "mychain_prover";
-        let dont_drop = self.dont_drop.clone();
+        let dont_drop = self.dont_drop;
         let DBConfigs {
             server_db,
             prover_db,
-        } = self.prompt_db_configs(&chain_name, &server_name, &prover_name);
+        } = self.prompt_db_configs(chain_name, server_name, prover_name);
 
         DatabaseArgsFinal {
             server_db,
@@ -111,7 +111,7 @@ impl DatabaseArgs {
             Some(x) => PathBuf::from(x),
             None => config.link_to_code.clone(),
         };
-        let dont_drop = self.dont_drop.clone();
+        let dont_drop = self.dont_drop;
 
         if use_default {
             DatabaseArgsFinal {

@@ -61,7 +61,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     if args.dev {
         genesis_args.use_default = true;
     }
-    let skip_genesis = args.skip_genesis.clone();
+    let skip_genesis = args.skip_genesis;
     let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network);
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
