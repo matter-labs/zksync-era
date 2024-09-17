@@ -7,7 +7,7 @@ use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
 use zksync_types::{
     ethabi,
     tokens::{TokenInfo, TokenMetadata},
-    Address, L2BlockNumber, H256,
+    Address, L2BlockNumber, H160, H256,
 };
 use zksync_utils::h256_to_account_address;
 
@@ -333,11 +333,12 @@ impl L2BlockSealSubtask for InsertTokensSubtask {
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         let is_fictive = command.is_l2_block_fictive();
+        let mut deployer_address = command.l2_native_token_vault_proxy_addr;
+        if command.l2_legacy_shared_bridge_addr != H160::zero() {
+            deployer_address = command.l2_legacy_shared_bridge_addr;
+        }
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractAddedTokens, is_fictive);
-        let added_tokens = extract_added_tokens(
-            command.l2_native_token_vault_proxy_addr,
-            &command.l2_block.events,
-        );
+        let added_tokens = extract_added_tokens(deployer_address, &command.l2_block.events);
 
         progress.observe(added_tokens.len());
 
@@ -559,6 +560,7 @@ mod tests {
             protocol_version: Some(ProtocolVersionId::latest()),
             l2_shared_bridge_addr: Default::default(),
             l2_native_token_vault_proxy_addr: Default::default(),
+            l2_legacy_shared_bridge_addr: Default::default(),
             pre_insert_txs: false,
         };
 

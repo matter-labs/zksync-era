@@ -246,6 +246,9 @@ impl MainNodeBuilder {
             self.contracts_config
                 .l2_native_token_vault_proxy_addr
                 .context("L2 native token vault proxy address")?,
+            self.contracts_config
+                .l2_legacy_shared_bridge_addr
+                .context("L2 legacy shared bridge address")?,
             sk_config.l2_block_seal_queue_capacity,
         )
         .with_protective_reads_persistence_enabled(sk_config.protective_reads_persistence_enabled);

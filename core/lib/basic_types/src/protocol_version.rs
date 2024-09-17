@@ -139,6 +139,10 @@ impl ProtocolVersionId {
         self <= &Self::Version22
     }
 
+    pub fn is_pre_gateway(&self) -> bool {
+        self <= &Self::Version24
+    }
+
     pub fn is_1_4_0(&self) -> bool {
         self >= &ProtocolVersionId::Version18 && self < &ProtocolVersionId::Version20
     }
