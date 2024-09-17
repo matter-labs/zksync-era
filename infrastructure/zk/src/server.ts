@@ -112,7 +112,7 @@ export async function externalNode(mainNodeEnv: string, reinit: boolean = false,
                 rpc_url: targetEnv.GATEWAY_API_WEB3_JSON_RPC_HTTP_URL,
                 diamond_proxy_address: await contract.computeMigratedChainAddress(
                     +targetEnv.CHAIN_ETH_ZKSYNC_NETWORK_ID,
-                    process.env.IN_DOCKER === 'true' ? 'docker' : 'dev'
+                    process.env.IN_DOCKER ? 'docker' : 'dev'
                 )
             }
         ]);
