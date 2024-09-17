@@ -75,6 +75,7 @@ pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
 pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =
     "Minting base token to the governance addresses...";
 pub(super) const MSG_INTALLING_DEPS_SPINNER: &str = "Installing and building dependencies...";
+pub(super) const MSG_PREPARING_CONFIG_SPINNER: &str = "Preparing config files...";
 pub(super) const MSG_DEPLOYING_ERC20_SPINNER: &str = "Deploying ERC20 contracts...";
 pub(super) const MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER: &str =
     "Deploying ecosystem contracts...";
@@ -120,6 +121,14 @@ pub(super) fn msg_chain_doesnt_exist_err(chain_name: &str, chains: &Vec<String>)
 pub(super) fn msg_chain_load_err(chain_name: &str) -> String {
     format!("Failed to load chain config for {chain_name}")
 }
+
+/// Build ecosystem transactions related messages
+pub(super) const MSG_SENDER_ADDRESS_PROMPT: &str = "What is the address of the transaction sender?";
+pub(super) const MSG_BUILDING_ECOSYSTEM: &str = "Building ecosystem transactions";
+pub(super) const MSG_BUILDING_ECOSYSTEM_CONTRACTS_SPINNER: &str = "Building ecosystem contracts...";
+pub(super) const MSG_WRITING_OUTPUT_FILES_SPINNER: &str = "Writing output files...";
+pub(super) const MSG_ECOSYSTEM_TXN_OUTRO: &str = "Transactions successfully built";
+pub(super) const MSG_ECOSYSTEM_TXN_OUT_PATH_INVALID_ERR: &str = "Invalid path";
 
 /// Chain create related messages
 pub(super) const MSG_PROVER_MODE_HELP: &str = "Prover options";
@@ -177,6 +186,7 @@ pub(super) const MSG_INITIALIZING_SERVER_DATABASE: &str = "Initializing server d
 pub(super) const MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR: &str = "Failed to drop server database";
 pub(super) const MSG_INITIALIZING_PROVER_DATABASE: &str = "Initializing prover database";
 pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop prover database";
+
 /// Chain update related messages
 pub(super) const MSG_WALLETS_CONFIG_MUST_BE_PRESENT: &str = "Wallets configuration must be present";
 
@@ -217,6 +227,14 @@ pub(super) const MSG_DEPLOYING_L2_CONTRACT_SPINNER: &str = "Deploying l2 contrac
 
 /// Chain deploy paymaster related messages
 pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
+
+/// Chain build related messages
+pub(super) const MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER: &str =
+    "Building chain registration transactions...";
+pub(super) const MSG_CHAIN_TXN_OUT_PATH_INVALID_ERR: &str = "Invalid path";
+pub(super) const MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG: &str =
+    "Missing contract.yaml, please be sure to run this command within initialized ecosystem";
+pub(super) const MSG_CHAIN_TRANSACTIONS_BUILT: &str = "Chain transactions successfully built";
 
 /// Run server related messages
 pub(super) const MSG_SERVER_COMPONENTS_HELP: &str = "Components of server to run";
@@ -396,10 +414,12 @@ pub(super) const MSG_GET_ZKSOLC_RELEASES_ERR: &str = "Failed to get zksolc relea
 pub(super) const MSG_FETCHING_ZKSOLC_RELEASES_SPINNER: &str = "Fetching zksolc releases...";
 pub(super) const MSG_FETCHING_ZKVYPER_RELEASES_SPINNER: &str = "Fetching zkvyper releases...";
 pub(super) const MSG_FETCH_SOLC_RELEASES_SPINNER: &str = "Fetching solc releases...";
+pub(super) const MSG_FETCH_ERA_VM_SOLC_RELEASES_SPINNER: &str = "Fetching era vm solc releases...";
 pub(super) const MSG_FETCHING_VYPER_RELEASES_SPINNER: &str = "Fetching vyper releases...";
 pub(super) const MSG_ZKSOLC_VERSION_PROMPT: &str = "Select the minimal zksolc version:";
 pub(super) const MSG_ZKVYPER_VERSION_PROMPT: &str = "Select the minimal zkvyper version:";
 pub(super) const MSG_SOLC_VERSION_PROMPT: &str = "Select the minimal solc version:";
+pub(super) const MSG_ERA_VM_SOLC_VERSION_PROMPT: &str = "Select the minimal era vm solc version:";
 pub(super) const MSG_VYPER_VERSION_PROMPT: &str = "Select the minimal vyper version:";
 pub(super) const MSG_NO_RELEASES_FOUND_ERR: &str = "No releases found for current architecture";
 pub(super) const MSG_NO_VERSION_FOUND_ERR: &str = "No version found";
@@ -407,6 +427,7 @@ pub(super) const MSG_ARCH_NOT_SUPPORTED_ERR: &str = "Architecture not supported"
 pub(super) const MSG_OS_NOT_SUPPORTED_ERR: &str = "OS not supported";
 pub(super) const MSG_GET_VYPER_RELEASES_ERR: &str = "Failed to get vyper releases";
 pub(super) const MSG_GET_SOLC_RELEASES_ERR: &str = "Failed to get solc releases";
+pub(super) const MSG_GET_ERA_VM_SOLC_RELEASES_ERR: &str = "Failed to get era vm solc releases";
 pub(super) const MSG_GET_ZKVYPER_RELEASES_ERR: &str = "Failed to get zkvyper releases";
 
 pub(super) fn msg_binary_already_exists(name: &str, version: &str) -> String {
@@ -433,7 +454,6 @@ pub(super) const MSG_DIFF_EN_CONFIG: &str =
     "Added the following fields to the external node config:";
 pub(super) const MSG_DIFF_EN_GENERAL_CONFIG: &str =
     "Added the following fields to the external node generalconfig:";
-pub(super) const MSG_INVALID_KEY_TYPE_ERR: &str = "Invalid key type";
 pub(super) const MSG_UPDATING_ERA_OBSERVABILITY_SPINNER: &str = "Updating era observability...";
 
 pub(super) fn msg_diff_genesis_config(chain: &str) -> String {

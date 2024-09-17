@@ -337,6 +337,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-recursion"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b43422f69d8ff38f95f1b2bb76517c91589a924d1559a0e935d7c8ce0274c11"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.36",
+ "syn 2.0.72",
+]
+
+[[package]]
 name = "async-signal"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6270,11 +6281,14 @@ dependencies = [
 name = "selector_generator"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap 4.4.6",
+ "ethabi",
  "glob",
+ "hex",
  "serde",
  "serde_json",
- "sha3 0.10.8",
+ "tokio",
 ]
 
 [[package]]
@@ -6840,6 +6854,7 @@ dependencies = [
  "futures 0.3.30",
  "rand 0.8.5",
  "structopt",
+ "test-casing",
  "tokio",
  "tracing",
  "vise",
@@ -9823,6 +9838,7 @@ name = "zksync_eth_watch"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-recursion",
  "async-trait",
  "thiserror",
  "tokio",
