@@ -14,6 +14,7 @@ pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
 pub(super) const MSG_SUBCOMMAND_CLEAN: &str = "Clean artifacts";
 pub(super) const MSG_SUBCOMMAND_LINT_ABOUT: &str = "Lint code";
 pub(super) const MSG_CONTRACTS_ABOUT: &str = "Build contracts";
+pub(super) const MSG_CONFIG_WRITER_ABOUT: &str = "Overwrite general config";
 
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
@@ -202,6 +203,15 @@ pub(super) const MSG_DESERIALIZE_TEST_WALLETS_ERR: &str = "Impossible to deseria
 pub(super) const MSG_WALLETS_TEST_SUCCESS: &str = "Wallets test success";
 
 pub(super) const MSG_LOADTEST_ABOUT: &str = "Run loadtest";
+
+pub(super) const MSG_OVERRIDE_CONFIG_PATH_HELP: &str = "Path to the config file to override";
+pub(super) const MSG_OVERRRIDE_CONFIG_PATH_PROMPT: &str =
+    "Provide path to the config file to override";
+pub(super) const MSG_OVERRIDE_SUCCESS: &str = "Config was overridden successfully";
+
+pub(super) fn msg_overriding_config(chain: String) -> String {
+    format!("Overriding general config for chain {}", chain)
+}
 
 // Send transactions related messages
 pub(super) const MSG_SEND_TXNS_ABOUT: &str = "Send transactions from file";
