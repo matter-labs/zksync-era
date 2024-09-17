@@ -81,7 +81,7 @@ impl JobProcessor for RecursionTipWitnessGenerator {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<RecursionTipArtifacts>> {
         let object_store = self.object_store.clone();
-        tokio::spawn(async move || {
+        tokio::spawn(async move {
             <Self as WitnessGenerator>::process_job(job, object_store, None, started_at).await
         })
     }
