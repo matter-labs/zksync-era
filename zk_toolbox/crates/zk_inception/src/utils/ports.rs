@@ -119,12 +119,14 @@ impl EcosystemPortsScanner {
         // Create a list of directories to scan:
         // - Ecosystem configs directory
         // - Chain configs directories
+        // - ZKsync repo directory (docker-compose files)
         let mut dirs = vec![ecosystem_config.config.clone()];
         for chain in ecosystem_config.list_of_chains() {
             if let Some(chain_config) = ecosystem_config.load_chain(Some(chain)) {
                 dirs.push(chain_config.configs.clone())
             }
         }
+        dirs.push(ecosystem_config.link_to_code);
 
         let mut ecosystem_ports = EcosystemPorts::with_default_ports();
         for dir in dirs {
