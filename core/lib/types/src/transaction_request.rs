@@ -817,6 +817,11 @@ impl L2Tx {
         let meta = value.eip712_meta.take().unwrap_or_default();
         validate_factory_deps(&meta.factory_deps)?;
 
+        // TODO: Remove this check when evm equivalence gets enabled
+        if value.to.is_none() {
+            return Err(SerializationTransactionError::ToAddressIsNull);
+        }
+
         let mut tx = L2Tx::new(
             value.to,
             value.input.0.clone(),
