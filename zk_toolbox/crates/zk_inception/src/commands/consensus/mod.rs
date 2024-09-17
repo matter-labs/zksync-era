@@ -109,13 +109,13 @@ impl Command {
                 .await
                 .context("get_block_number")?,
         );
-        let provider = Arc::new(SignerMiddleware::new(provider, governor));
+        let signer = Arc::new(SignerMiddleware::new(provider.clone(), governor));
 
         let contracts_cfg = chain_config
             .get_contracts_config()
             .context("get_contracts_config()")?;
         let mut multicall = Multicall::new_with_chain_id(
-            provider.clone(),
+            signer.clone(),
             Some(
                 contracts_cfg
                     .l2
@@ -129,7 +129,7 @@ impl Command {
             .l2
             .consensus_registry
             .context("consensus_registry address not configured")?;
-        let consensus_registry = abi::ConsensusRegistry::new(addr, provider);
+        let consensus_registry = abi::ConsensusRegistry::new(addr, signer.clone());
         match self {
             Self::SetAttesterCommittee => {
                 // Fetch the desired state.
@@ -156,7 +156,7 @@ impl Command {
                     .ok()
                     .context("overflow")?;
                 multicall.block = Some(block_id);
-                let node_owners: Vec<abi::NodeOwnersReturn> = multicall
+                let node_owners: Vec<ethers::types::Address> = multicall
                     .add_calls(
                         false,
                         (0..n).map(|i| consensus_registry.node_owners(i.into())),
@@ -170,14 +170,14 @@ impl Command {
                         false,
                         node_owners
                             .iter()
-                            .map(|node| consensus_registry.nodes(node.0)),
+                            .map(|addr| consensus_registry.nodes(*addr)),
                     )
                     .call_array()
                     .await
                     .context("nodes()")?;
                 multicall.clear_calls();
 
-                // Construct update tx.
+                let mut txs = vec![];
                 let mut want: HashMap<_, _> =
                     want.iter().map(|a| (a.key.clone(), a.weight)).collect();
                 for (i, node) in nodes.into_iter().enumerate() {
@@ -191,46 +191,35 @@ impl Command {
                     };
                     if let Some(weight) = want.remove(&got.key) {
                         if weight != got.weight {
-                            multicall.add_call(
-                                consensus_registry.change_attester_weight(
-                                    node_owners[i].0,
-                                    weight.try_into().context("overflow")?,
-                                ),
-                                false,
-                            );
+                            txs.push(consensus_registry.change_attester_weight(
+                                node_owners[i],
+                                weight.try_into().context("overflow")?,
+                            ).send().await.context("send()")?.tx_hash());
                         }
                         if !node.attester_latest.active {
-                            multicall
-                                .add_call(consensus_registry.activate(node_owners[i].0), false);
+                            txs.push(consensus_registry.activate(node_owners[i]).send().await.context("send()")?.tx_hash());
                         }
                     } else {
-                        multicall.add_call(consensus_registry.remove(node_owners[i].0), false);
+                        txs.push(consensus_registry.remove(node_owners[i]).send().await.context("send()")?.tx_hash());
                     }
                 }
                 for (key, weight) in want {
                     let vk = validator::SecretKey::generate();
-                    multicall.add_call(
-                        consensus_registry.add(
-                            ethers::types::Address::random(),
-                            /*validator_weight=*/ 1,
-                            encode_validator_key(&vk.public()),
-                            encode_validator_pop(&vk.sign_pop()),
-                            weight.try_into().context("overflow")?,
-                            encode_attester_key(&key),
-                        ),
-                        false,
-                    );
+                    txs.push(consensus_registry.add(
+                        ethers::types::Address::random(),
+                        /*validator_weight=*/ 1,
+                        encode_validator_key(&vk.public()),
+                        encode_validator_pop(&vk.sign_pop()),
+                        weight.try_into().context("overflow")?,
+                        encode_attester_key(&key),
+                    ).send().await.context("send()")?.tx_hash());
                 }
-
-                // Execute the update tx.
-                multicall.add_call(consensus_registry.commit_attester_committee(), false);
-                let res = multicall
-                    .send()
-                    .await
-                    .context("send()")?
-                    .await
-                    .context("awaiting transaction")?;
-                println!("result = {res:?}");
+                txs.push(consensus_registry.commit_attester_committee().send().await.context("send()")?.tx_hash());
+                println!("{} transactions in progress",txs.len());
+                for h in txs {
+                    ethers::providers::PendingTransaction::new(h,&provider).await.context("awaiting transactions")?;
+                }
+                println!("done");
             }
             Self::GetAttesterCommittee => {
                 let attesters = consensus_registry.get_attester_committee().call().await?;
@@ -241,7 +230,9 @@ impl Command {
                     .context("decode_weighted_attester")?;
                 let attesters = attester::Committee::new(attesters.into_iter())
                     .context("attester::Committee::new()")?;
-                println!("attesters = {attesters:?}");
+                for a in attesters.iter() {
+                    println!("{a:?}");
+                }
             }
         }
         Ok(())
