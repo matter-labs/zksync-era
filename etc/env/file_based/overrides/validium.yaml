@@ -1,5 +1,5 @@
 eth:
   sender:
     pubdata_sending_mode: CUSTOM
-state_keeper_config:
+state_keeper:
   pubdata_overhead_part: 0
