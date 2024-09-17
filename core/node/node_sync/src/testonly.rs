@@ -71,18 +71,6 @@ impl MainNodeClient for MockMainNodeClient {
         Ok(Some(block))
     }
 
-    async fn fetch_consensus_genesis(
-        &self,
-    ) -> EnrichedClientResult<Option<api::en::ConsensusGenesis>> {
-        unimplemented!()
-    }
-
-    async fn fetch_attestation_status(
-        &self,
-    ) -> EnrichedClientResult<Option<api::en::AttestationStatus>> {
-        unimplemented!()
-    }
-
     async fn fetch_genesis_config(&self) -> EnrichedClientResult<GenesisConfig> {
         Ok(mock_genesis_config())
     }

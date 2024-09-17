@@ -1,19 +1,19 @@
-use std::{path::Path, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::Context;
-use common::{cmd::Cmd, db::wait_for_db, logger};
+use common::{cmd::Cmd, logger};
 use config::EcosystemConfig;
 use url::Url;
 use xshell::{cmd, Shell};
 
 use super::args::rust::RustArgs;
 use crate::{
-    commands::database,
+    commands::test::db::reset_test_databases,
     dals::{Dal, CORE_DAL_PATH, PROVER_DAL_PATH},
     defaults::{TEST_DATABASE_PROVER_URL, TEST_DATABASE_SERVER_URL},
     messages::{
-        MSG_CARGO_NEXTEST_MISSING_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_POSTGRES_CONFIG_NOT_FOUND_ERR,
-        MSG_RESETTING_TEST_DATABASES, MSG_UNIT_TESTS_RUN_SUCCESS, MSG_USING_CARGO_NEXTEST,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_POSTGRES_CONFIG_NOT_FOUND_ERR, MSG_UNIT_TESTS_RUN_SUCCESS,
+        MSG_USING_CARGO_NEXTEST,
     },
 };
 
@@ -61,13 +61,8 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
 
     let _dir_guard = shell.push_dir(&link_to_code);
 
-    let cmd = if nextest_is_installed(shell)? {
-        logger::info(MSG_USING_CARGO_NEXTEST);
-        cmd!(shell, "cargo nextest run --release")
-    } else {
-        logger::error(MSG_CARGO_NEXTEST_MISSING_ERR);
-        cmd!(shell, "cargo test --release")
-    };
+    logger::info(MSG_USING_CARGO_NEXTEST);
+    let cmd = cmd!(shell, "cargo nextest run --release");
 
     let cmd = if let Some(options) = args.options {
         Cmd::new(cmd.args(options.split_whitespace())).with_force_run()
@@ -81,42 +76,5 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
     cmd.run()?;
 
     logger::outro(MSG_UNIT_TESTS_RUN_SUCCESS);
-    Ok(())
-}
-
-fn nextest_is_installed(shell: &Shell) -> anyhow::Result<bool> {
-    let out = String::from_utf8(
-        Cmd::new(cmd!(shell, "cargo install --list"))
-            .run_with_output()?
-            .stdout,
-    )?;
-    Ok(out.contains("cargo-nextest"))
-}
-
-async fn reset_test_databases(
-    shell: &Shell,
-    link_to_code: &Path,
-    dals: Vec<Dal>,
-) -> anyhow::Result<()> {
-    logger::info(MSG_RESETTING_TEST_DATABASES);
-
-    Cmd::new(cmd!(
-        shell,
-        "docker compose -f docker-compose-unit-tests.yml down"
-    ))
-    .run()?;
-    Cmd::new(cmd!(
-        shell,
-        "docker compose -f docker-compose-unit-tests.yml up -d"
-    ))
-    .run()?;
-
-    for dal in dals {
-        let mut url = dal.url.clone();
-        url.set_path("");
-        wait_for_db(&url, 3).await?;
-        database::reset::reset_database(shell, link_to_code, dal.clone()).await?;
-    }
-
     Ok(())
 }

@@ -2,7 +2,7 @@ use clap::{Parser, ValueEnum};
 use common::PromptSelect;
 use strum::{EnumIter, IntoEnumIterator};
 
-use crate::messages::{MSG_SETUP_KEYS_DOWNLOAD_HELP, MSG_SETUP_KEYS_REGION_PROMPT};
+use crate::messages::{MSG_SETUP_KEYS_DOWNLOAD_SELECTION_PROMPT, MSG_SETUP_KEYS_REGION_PROMPT};
 
 #[derive(Debug, Clone, Parser, Default)]
 pub struct SetupKeysArgs {
@@ -33,9 +33,9 @@ pub enum Region {
 
 impl SetupKeysArgs {
     pub fn fill_values_with_prompt(self) -> SetupKeysArgsFinal {
-        let mode = self
-            .mode
-            .unwrap_or_else(|| PromptSelect::new(MSG_SETUP_KEYS_DOWNLOAD_HELP, Mode::iter()).ask());
+        let mode = self.mode.unwrap_or_else(|| {
+            PromptSelect::new(MSG_SETUP_KEYS_DOWNLOAD_SELECTION_PROMPT, Mode::iter()).ask()
+        });
 
         if mode == Mode::Download {
             let region = self.region.unwrap_or_else(|| {

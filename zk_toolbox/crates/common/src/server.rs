@@ -9,6 +9,7 @@ use crate::cmd::Cmd;
 pub struct Server {
     components: Option<Vec<String>>,
     code_path: PathBuf,
+    uring: bool,
 }
 
 /// Possible server modes.
@@ -20,10 +21,11 @@ pub enum ServerMode {
 
 impl Server {
     /// Creates a new instance of the server.
-    pub fn new(components: Option<Vec<String>>, code_path: PathBuf) -> Self {
+    pub fn new(components: Option<Vec<String>>, code_path: PathBuf, uring: bool) -> Self {
         Self {
             components,
             code_path,
+            uring,
         }
     }
 
@@ -52,10 +54,12 @@ impl Server {
             additional_args.push("--genesis".to_string());
         }
 
+        let uring = self.uring.then_some("--features=rocksdb/io-uring");
+
         let mut cmd = Cmd::new(
             cmd!(
                 shell,
-                "cargo run --release --bin zksync_server --
+                "cargo run --release --bin zksync_server {uring...} --
                 --genesis-path {genesis_path}
                 --wallets-path {wallets_path}
                 --config-path {general_path}

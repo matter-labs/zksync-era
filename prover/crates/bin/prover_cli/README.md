@@ -9,6 +9,12 @@ git clone git@github.com:matter-labs/zksync-era.git
 cargo install prover_cli
 ```
 
+Or
+
+```
+cargo +nightly-2024-08-01 install --git https://github.com/matter-labs/zksync-era/ --locked prover_cli --force
+```
+
 ## Usage
 
 ```

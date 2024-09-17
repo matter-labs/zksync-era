@@ -22,6 +22,36 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::models::{parse_h160, parse_h256};
 
+/// Global config of the consensus.
+#[derive(Debug, PartialEq, Clone)]
+pub struct GlobalConfig {
+    pub genesis: validator::Genesis,
+    pub registry_address: Option<ethabi::Address>,
+}
+
+impl ProtoFmt for GlobalConfig {
+    type Proto = proto::GlobalConfig;
+
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        Ok(Self {
+            genesis: read_required(&r.genesis).context("genesis")?,
+            registry_address: r
+                .registry_address
+                .as_ref()
+                .map(|a| parse_h160(a))
+                .transpose()
+                .context("registry_address")?,
+        })
+    }
+
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            genesis: Some(self.genesis.build()),
+            registry_address: self.registry_address.map(|a| a.as_bytes().to_vec()),
+        }
+    }
+}
+
 /// Global attestation status served by
 /// `attestationStatus` RPC.
 #[derive(Debug, PartialEq, Clone)]
@@ -466,6 +496,27 @@ impl ProtoRepr for proto::Transaction {
             common_data: Some(common_data),
             execute: Some(execute),
             raw_bytes: this.raw_bytes.as_ref().map(|inner| inner.0.clone()),
+        }
+    }
+}
+
+impl ProtoRepr for proto::AttesterCommittee {
+    type Type = attester::Committee;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        let members: Vec<_> = self
+            .members
+            .iter()
+            .enumerate()
+            .map(|(i, m)| attester::WeightedAttester::read(m).context(i))
+            .collect::<Result<_, _>>()
+            .context("members")?;
+        Self::Type::new(members)
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            members: this.iter().map(|x| x.build()).collect(),
         }
     }
 }
