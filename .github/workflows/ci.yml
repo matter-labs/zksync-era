@@ -8,6 +8,7 @@ on:
       - staging
       - trying
       - sync-layer-stable # adding this branch here to run CI on it regardless of the conflicts
+      - lyova-en-gateway-support # temporary
       - '!release-please--branches--**'
 
 concurrency:
