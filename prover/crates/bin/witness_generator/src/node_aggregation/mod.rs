@@ -30,7 +30,6 @@ use zksync_types::{
 use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
-    scheduler::SchedulerWitnessGenerator,
     utils::{load_proofs_for_job_ids, save_recursive_layer_prover_input_artifacts},
     witness_generator::WitnessGenerator,
 };
@@ -86,50 +85,10 @@ impl NodeAggregationWitnessGenerator {
     }
 }
 
-#[tracing::instrument(
-    skip_all,
-    fields(l1_batch = % metadata.block_number, circuit_id = % metadata.circuit_id)
-)]
-pub async fn prepare_job(
-    metadata: NodeAggregationJobMetadata,
-    object_store: &dyn ObjectStore,
-    keystore: Keystore,
-) -> anyhow::Result<NodeAggregationWitnessGeneratorJob> {
-    let started_at = Instant::now();
-    let artifacts = NodeAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await?;
-
-    WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
-        .observe(started_at.elapsed());
-
-    let started_at = Instant::now();
-    let leaf_vk = keystore
-        .load_recursive_layer_verification_key(metadata.circuit_id)
-        .context("get_recursive_layer_vk_for_circuit_type")?;
-    let node_vk = keystore
-        .load_recursive_layer_verification_key(
-            ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-        )
-        .context("get_recursive_layer_vk_for_circuit_type()")?;
-
-    WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::NodeAggregation.into()]
-        .observe(started_at.elapsed());
-
-    Ok(NodeAggregationWitnessGeneratorJob {
-        circuit_id: metadata.circuit_id,
-        block_number: metadata.block_number,
-        depth: metadata.depth,
-        aggregations: artifacts.0,
-        proofs_ids: metadata.prover_job_ids_for_proofs,
-        leaf_vk,
-        node_vk,
-        all_leafs_layer_params: get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?,
-    })
-}
-
 #[async_trait]
 impl WitnessGenerator for NodeAggregationWitnessGenerator {
     type Job = NodeAggregationWitnessGeneratorJob;
-    type Metadata = ();
+    type Metadata = NodeAggregationJobMetadata;
     type Artifacts = NodeAggregationArtifacts;
 
     #[tracing::instrument(
@@ -264,11 +223,45 @@ impl WitnessGenerator for NodeAggregationWitnessGenerator {
         })
     }
 
-    fn prepare_job(
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = % metadata.block_number, circuit_id = % metadata.circuit_id)
+    )]
+    async fn prepare_job(
         metadata: Self::Metadata,
         object_store: &dyn ObjectStore,
-        keystore: Option<Keystore>,
-    ) -> Self::Job {
-        todo!()
+        keystore: Keystore,
+    ) -> anyhow::Result<NodeAggregationWitnessGeneratorJob> {
+        let started_at = Instant::now();
+        let artifacts =
+            NodeAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await?;
+
+        WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
+            .observe(started_at.elapsed());
+
+        let started_at = Instant::now();
+        let leaf_vk = keystore
+            .load_recursive_layer_verification_key(metadata.circuit_id)
+            .context("get_recursive_layer_vk_for_circuit_type")?;
+        let node_vk = keystore
+            .load_recursive_layer_verification_key(
+                ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
+            )
+            .context("get_recursive_layer_vk_for_circuit_type()")?;
+
+        WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::NodeAggregation.into()]
+            .observe(started_at.elapsed());
+
+        Ok(NodeAggregationWitnessGeneratorJob {
+            circuit_id: metadata.circuit_id,
+            block_number: metadata.block_number,
+            depth: metadata.depth,
+            aggregations: artifacts.0,
+            proofs_ids: metadata.prover_job_ids_for_proofs,
+            leaf_vk,
+            node_vk,
+            all_leafs_layer_params: get_leaf_vk_params(&keystore)
+                .context("get_leaf_vk_params()")?,
+        })
     }
 }

@@ -11,7 +11,8 @@ use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
     scheduler::{
-        prepare_job, SchedulerArtifacts, SchedulerWitnessGenerator, SchedulerWitnessGeneratorJob,
+        SchedulerArtifacts, SchedulerWitnessGenerator, SchedulerWitnessGeneratorJob,
+        SchedulerWitnessJobMetadata,
     },
     witness_generator::WitnessGenerator,
 };
@@ -45,9 +46,11 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
         Ok(Some((
             l1_batch_number,
-            prepare_job(
-                l1_batch_number,
-                recursion_tip_job_id,
+            <Self as WitnessGenerator>::prepare_job(
+                SchedulerWitnessJobMetadata {
+                    l1_batch_number,
+                    recursion_tip_job_id,
+                },
                 &*self.object_store,
                 self.keystore.clone(),
             )
@@ -74,7 +77,7 @@ impl JobProcessor for SchedulerWitnessGenerator {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<SchedulerArtifacts>> {
         let object_store = self.object_store.clone();
-        tokio::task::spawn_blocking(async move || {
+        tokio::spawn(async move || {
             let block_number = job.block_number;
             let _span = tracing::info_span!("scheduler", %block_number).entered();
             <Self as WitnessGenerator>::process_job(job, object_store, None, started_at).await

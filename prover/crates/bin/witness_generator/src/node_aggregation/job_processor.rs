@@ -11,7 +11,7 @@ use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
     node_aggregation::{
-        prepare_job, NodeAggregationArtifacts, NodeAggregationWitnessGenerator,
+        NodeAggregationArtifacts, NodeAggregationWitnessGenerator,
         NodeAggregationWitnessGeneratorJob,
     },
     witness_generator::WitnessGenerator,
@@ -38,9 +38,13 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         tracing::info!("Processing node aggregation job {:?}", metadata.id);
         Ok(Some((
             metadata.id,
-            prepare_job(metadata, &*self.object_store, self.keystore.clone())
-                .await
-                .context("prepare_job()")?,
+            <Self as WitnessGenerator>::prepare_job(
+                metadata,
+                &*self.object_store,
+                self.keystore.clone(),
+            )
+            .await
+            .context("prepare_job()")?,
         )))
     }
 

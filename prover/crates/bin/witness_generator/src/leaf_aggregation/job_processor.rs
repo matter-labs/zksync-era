@@ -10,7 +10,7 @@ use zksync_types::basic_fri_types::AggregationRound;
 use crate::{
     artifacts::ArtifactsManager,
     leaf_aggregation::{
-        prepare_leaf_aggregation_job, LeafAggregationArtifacts, LeafAggregationWitnessGenerator,
+        LeafAggregationArtifacts, LeafAggregationWitnessGenerator,
         LeafAggregationWitnessGeneratorJob,
     },
     metrics::WITNESS_GENERATOR_METRICS,
@@ -38,9 +38,13 @@ impl JobProcessor for LeafAggregationWitnessGenerator {
         tracing::info!("Processing leaf aggregation job {:?}", metadata.id);
         Ok(Some((
             metadata.id,
-            prepare_leaf_aggregation_job(metadata, &*self.object_store, self.keystore.clone())
-                .await
-                .context("prepare_leaf_aggregation_job()")?,
+            <Self as WitnessGenerator>::prepare_job(
+                metadata,
+                &*self.object_store,
+                self.keystore.clone(),
+            )
+            .await
+            .context("prepare_leaf_aggregation_job()")?,
         )))
     }
 

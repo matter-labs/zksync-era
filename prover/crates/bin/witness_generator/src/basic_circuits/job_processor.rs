@@ -4,6 +4,7 @@ use anyhow::Context as _;
 use tracing::Instrument;
 use zksync_prover_dal::ProverDal;
 use zksync_prover_fri_types::{get_current_pod_name, AuxOutputWitnessWrapper};
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
@@ -19,7 +20,7 @@ impl JobProcessor for BasicWitnessGenerator {
     type Job = BasicWitnessGeneratorJob;
     type JobId = L1BatchNumber;
     // The artifact is optional to support skipping blocks when sampling is enabled.
-    type JobArtifacts = BasicCircuitArtifacts;
+    type JobArtifacts = Option<BasicCircuitArtifacts>;
 
     const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
 
@@ -36,19 +37,15 @@ impl JobProcessor for BasicWitnessGenerator {
             )
             .await
         {
-            Some(block_number) => {
-                tracing::info!(
-                    "Processing FRI basic witness-gen for block {}",
-                    block_number
-                );
-                let started_at = Instant::now();
-                let job = Self::get_artifacts(&block_number, &*self.object_store).await?;
-
-                WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
-                    .observe(started_at.elapsed());
-
-                Ok(Some((block_number, job)))
-            }
+            Some(block_number) => Ok(Some((
+                block_number,
+                <Self as WitnessGenerator>::prepare_job(
+                    block_number,
+                    &*self.object_store,
+                    Keystore::locate(), // todo: this should be removed
+                )
+                .await?,
+            ))),
             None => Ok(None),
         }
     }
@@ -69,7 +66,7 @@ impl JobProcessor for BasicWitnessGenerator {
         _job_id: &Self::JobId,
         job: BasicWitnessGeneratorJob,
         started_at: Instant,
-    ) -> tokio::task::JoinHandle<anyhow::Result<BasicCircuitArtifacts>> {
+    ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
         let object_store = Arc::clone(&self.object_store);
         let max_circuits_in_flight = self.config.max_circuits_in_flight;
         tokio::spawn(async move {
@@ -82,6 +79,7 @@ impl JobProcessor for BasicWitnessGenerator {
             )
             .instrument(tracing::info_span!("basic_circuit", %block_number))
             .await
+            .map(Some)
         })
     }
 

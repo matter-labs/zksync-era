@@ -43,8 +43,8 @@ use zksync_types::{
 };
 
 use crate::{
+    artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
-    node_aggregation::NodeAggregationWitnessGenerator,
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
     storage_oracle::StorageOracle,
     utils::{
@@ -443,12 +443,12 @@ async fn generate_witness(
 #[async_trait]
 impl WitnessGenerator for BasicWitnessGenerator {
     type Job = BasicWitnessGeneratorJob;
-    type Metadata = ();
+    type Metadata = L1BatchNumber;
     type Artifacts = BasicCircuitArtifacts;
 
     async fn process_job(
         job: BasicWitnessGeneratorJob,
-        object_store: Arc<&dyn ObjectStore>,
+        object_store: Arc<dyn ObjectStore>,
         max_circuits_in_flight: Option<usize>,
         started_at: Instant,
     ) -> anyhow::Result<BasicCircuitArtifacts> {
@@ -473,11 +473,18 @@ impl WitnessGenerator for BasicWitnessGenerator {
         .await)
     }
 
-    fn prepare_job(
-        metadata: Self::Metadata,
+    async fn prepare_job(
+        metadata: L1BatchNumber,
         object_store: &dyn ObjectStore,
-        keystore: Option<Keystore>,
-    ) -> Self::Job {
-        todo!()
+        _keystore: Keystore,
+    ) -> anyhow::Result<Self::Job> {
+        tracing::info!("Processing FRI basic witness-gen for block {}", metadata.0);
+        let started_at = Instant::now();
+        let job = Self::get_artifacts(&metadata, object_store).await?;
+
+        WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
+            .observe(started_at.elapsed());
+
+        Ok(job)
     }
 }

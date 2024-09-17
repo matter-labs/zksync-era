@@ -11,7 +11,7 @@ use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
     recursion_tip::{
-        prepare_job, RecursionTipArtifacts, RecursionTipWitnessGenerator,
+        RecursionTipArtifacts, RecursionTipJobMetadata, RecursionTipWitnessGenerator,
         RecursionTipWitnessGeneratorJob,
     },
     witness_generator::WitnessGenerator,
@@ -50,9 +50,11 @@ impl JobProcessor for RecursionTipWitnessGenerator {
 
         Ok(Some((
             l1_batch_number,
-            prepare_job(
-                l1_batch_number,
-                final_node_proof_job_ids,
+            <Self as WitnessGenerator>::prepare_job(
+                RecursionTipJobMetadata {
+                    l1_batch_number,
+                    final_node_proof_job_ids,
+                },
                 &*self.object_store,
                 self.keystore.clone(),
             )
@@ -79,7 +81,7 @@ impl JobProcessor for RecursionTipWitnessGenerator {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<RecursionTipArtifacts>> {
         let object_store = self.object_store.clone();
-        tokio::task::spawn_blocking(async move || {
+        tokio::spawn(async move || {
             <Self as WitnessGenerator>::process_job(job, object_store, None, started_at).await
         })
     }

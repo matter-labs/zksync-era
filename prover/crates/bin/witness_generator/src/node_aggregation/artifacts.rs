@@ -10,7 +10,7 @@ use crate::{
     artifacts::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
     metrics::WITNESS_GENERATOR_METRICS,
     node_aggregation::{NodeAggregationArtifacts, NodeAggregationWitnessGenerator},
-    utils::{save_node_aggregations_artifacts, AggregationWrapper},
+    utils::AggregationWrapper,
 };
 
 #[async_trait]
@@ -53,9 +53,9 @@ impl ArtifactsManager for NodeAggregationWitnessGenerator {
     ) -> BlobUrls {
         let started_at = Instant::now();
         let key = AggregationsKey {
-            block_number,
-            circuit_id,
-            depth,
+            block_number: artifacts.block_number,
+            circuit_id: artifacts.circuit_id,
+            depth: artifacts.depth,
         };
         let aggregation_urls = object_store
             .put(key, &AggregationWrapper(artifacts.next_aggregations))

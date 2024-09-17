@@ -48,9 +48,9 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
     ) -> BlobUrls {
         let started_at = Instant::now();
         let key = AggregationsKey {
-            block_number,
-            circuit_id,
-            depth,
+            block_number: artifacts.block_number,
+            circuit_id: get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
+            depth: 0,
         };
         let aggregation_urls = object_store
             .put(key, &AggregationWrapper(artifacts.aggregations))
