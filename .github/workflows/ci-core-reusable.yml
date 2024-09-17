@@ -327,7 +327,7 @@ jobs:
 
       - name: Initialize Contract verifier
         run: |
-          ci_run zk_inception contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.18-1.0.1 --only --chain era
+          ci_run zk_inception contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
           ci_run zk_inception contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
 
       - name: Run servers
