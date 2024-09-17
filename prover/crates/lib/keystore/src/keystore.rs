@@ -16,14 +16,13 @@ use circuit_definitions::{
 };
 use serde::{Deserialize, Serialize};
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
-use zksync_config::configs::FriProverConfig;
-use zksync_env_config::FromEnv;
+use zksync_basic_types::basic_fri_types::AggregationRound;
 use zksync_prover_fri_types::ProverServiceDataKey;
-use zksync_types::basic_fri_types::AggregationRound;
+use zksync_utils::env::Workspace;
 
 #[cfg(feature = "gpu")]
 use crate::GoldilocksGpuProverSetupData;
-use crate::{utils::core_workspace_dir_or_current_dir, GoldilocksProverSetupData, VkCommitments};
+use crate::{GoldilocksProverSetupData, VkCommitments};
 
 pub enum ProverServiceDataType {
     VerificationKey,
@@ -36,74 +35,65 @@ pub enum ProverServiceDataType {
 /// There are 2 types:
 /// - small verification, finalization keys (used only during verification)
 /// - large setup keys, used during proving.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Keystore {
     /// Directory to store all the small keys.
     basedir: PathBuf,
     /// Directory to store large setup keys.
-    setup_data_path: Option<String>,
-}
-
-fn get_base_path() -> PathBuf {
-    // This will return the path to the _core_ workspace locally,
-    // otherwise (e.g. in Docker) it will return `.` (which is usually equivalent to `/`).
-    //
-    // Note: at the moment of writing this function, it locates the prover workspace, and uses
-    // `..` to get to the core workspace, so the path returned is something like:
-    // `/path/to/workspace/zksync-era/prover/..` (or `.` for binaries).
-    let path = core_workspace_dir_or_current_dir();
-
-    // Check if we're in the folder equivalent to the core workspace root.
-    // Path we're actually checking is:
-    // `/path/to/workspace/zksync-era/prover/../prover/data/keys`
-    let new_path = path.join("prover/data/keys");
-    if new_path.exists() {
-        return new_path;
-    }
-
-    let mut components = path.components();
-    // This removes the last component of `path`, so:
-    // for local workspace, we're removing `..` and putting ourselves back to the prover workspace.
-    // for binaries, we're removing `.` and getting the empty path.
-    components.next_back().unwrap();
-    components.as_path().join("prover/data/keys")
-}
-
-impl Default for Keystore {
-    fn default() -> Self {
-        Self {
-            basedir: get_base_path(),
-            setup_data_path: Some(
-                FriProverConfig::from_env()
-                    .expect("FriProverConfig::from_env()")
-                    .setup_data_path,
-            ),
-        }
-    }
+    setup_data_path: PathBuf,
 }
 
 impl Keystore {
     /// Base-dir is the location of smaller keys (like verification keys and finalization hints).
     /// Setup data path is used for the large setup keys.
-    pub fn new(basedir: PathBuf, setup_data_path: String) -> Self {
+    pub fn new(basedir: PathBuf) -> Self {
         Keystore {
-            basedir,
-            setup_data_path: Some(setup_data_path),
+            basedir: basedir.clone(),
+            setup_data_path: basedir,
         }
     }
 
-    pub fn new_with_optional_setup_path(basedir: PathBuf, setup_data_path: Option<String>) -> Self {
-        Keystore {
-            basedir,
-            setup_data_path,
+    /// Uses automatic detection of the base path, and assumes that setup keys
+    /// are stored in the same directory.
+    ///
+    /// The "base" path is considered to be equivalent to the `prover/data/keys`
+    /// directory in the repository.
+    pub fn locate() -> Self {
+        // There might be several cases:
+        // - We're running from the prover workspace.
+        // - We're running from the core workspace.
+        // - We're running the binary from the docker.
+        let data_dir_path = match Workspace::locate() {
+            Workspace::None => {
+                // We're running a binary, likely in a docker.
+                // Keys can be in one of a few paths.
+                // We want to be very conservative here, and checking
+                // more locations than we likely need to not accidentally
+                // break something.
+                let paths = ["./prover/data", "./data", "/prover/data", "/data"];
+                paths.iter().map(PathBuf::from).find(|path| path.exists()).unwrap_or_else(|| {
+                    panic!("Failed to locate the prover data directory. Locations checked: {paths:?}")
+                })
+            }
+            ws => {
+                // If we're running in the Cargo workspace, the data *must* be in `prover/data`.
+                ws.prover().join("data")
+            }
+        };
+        let base_path = data_dir_path.join("keys");
+
+        Self {
+            basedir: base_path.clone(),
+            setup_data_path: base_path,
         }
     }
 
-    pub fn new_with_setup_data_path(setup_data_path: String) -> Self {
-        Keystore {
-            basedir: get_base_path(),
-            setup_data_path: Some(setup_data_path),
+    /// Will override the setup path, if present.
+    pub fn with_setup_path(mut self, setup_data_path: Option<PathBuf>) -> Self {
+        if let Some(setup_data_path) = setup_data_path {
+            self.setup_data_path = setup_data_path;
         }
+        self
     }
 
     pub fn get_base_path(&self) -> &PathBuf {
@@ -120,13 +110,9 @@ impl Keystore {
             ProverServiceDataType::VerificationKey => {
                 self.basedir.join(format!("verification_{}_key.json", name))
             }
-            ProverServiceDataType::SetupData => PathBuf::from(format!(
-                "{}/setup_{}_data.bin",
-                self.setup_data_path
-                    .as_ref()
-                    .expect("Setup data path not set"),
-                name
-            )),
+            ProverServiceDataType::SetupData => self
+                .setup_data_path
+                .join(format!("setup_{}_data.bin", name)),
             ProverServiceDataType::FinalizationHints => self
                 .basedir
                 .join(format!("finalization_hints_{}.bin", name)),

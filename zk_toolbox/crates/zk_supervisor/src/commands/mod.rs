@@ -5,6 +5,7 @@ pub mod fmt;
 pub mod genesis;
 pub mod lint;
 pub(crate) mod lint_utils;
-pub mod prover_version;
+pub mod prover;
+pub mod send_transactions;
 pub mod snapshot;
 pub mod test;

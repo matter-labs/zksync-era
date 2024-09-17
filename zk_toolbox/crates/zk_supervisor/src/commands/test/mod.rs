@@ -6,9 +6,9 @@ use clap::Subcommand;
 use xshell::Shell;
 
 use crate::messages::{
-    MSG_BUILD_ABOUT, MSG_INTEGRATION_TESTS_ABOUT, MSG_L1_CONTRACTS_ABOUT, MSG_PROVER_TEST_ABOUT,
-    MSG_RECOVERY_TEST_ABOUT, MSG_REVERT_TEST_ABOUT, MSG_RUST_TEST_ABOUT, MSG_TEST_WALLETS_INFO,
-    MSG_UPGRADE_TEST_ABOUT,
+    MSG_BUILD_ABOUT, MSG_INTEGRATION_TESTS_ABOUT, MSG_L1_CONTRACTS_ABOUT, MSG_LOADTEST_ABOUT,
+    MSG_PROVER_TEST_ABOUT, MSG_RECOVERY_TEST_ABOUT, MSG_REVERT_TEST_ABOUT, MSG_RUST_TEST_ABOUT,
+    MSG_TEST_WALLETS_INFO, MSG_UPGRADE_TEST_ABOUT,
 };
 
 mod args;
@@ -16,6 +16,7 @@ mod build;
 mod db;
 mod integration;
 mod l1_contracts;
+mod loadtest;
 mod prover;
 mod recovery;
 mod revert;
@@ -44,6 +45,8 @@ pub enum TestCommands {
     Prover,
     #[clap(about = MSG_TEST_WALLETS_INFO)]
     Wallet,
+    #[clap(about = MSG_LOADTEST_ABOUT)]
+    Loadtest,
 }
 
 pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
@@ -57,5 +60,6 @@ pub async fn run(shell: &Shell, args: TestCommands) -> anyhow::Result<()> {
         TestCommands::L1Contracts => l1_contracts::run(shell),
         TestCommands::Prover => prover::run(shell).await,
         TestCommands::Wallet => wallet::run(shell),
+        TestCommands::Loadtest => loadtest::run(shell),
     }
 }

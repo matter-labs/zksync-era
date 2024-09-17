@@ -61,13 +61,8 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
 
     let _dir_guard = shell.push_dir(&link_to_code);
 
-    let cmd = if nextest_is_installed(shell)? {
-        logger::info(MSG_USING_CARGO_NEXTEST);
-        cmd!(shell, "cargo nextest run --release")
-    } else {
-        logger::error(MSG_CARGO_NEXTEST_MISSING_ERR);
-        cmd!(shell, "cargo test --release")
-    };
+    logger::info(MSG_USING_CARGO_NEXTEST);
+    let cmd = cmd!(shell, "cargo nextest run --release");
 
     let cmd = if let Some(options) = args.options {
         Cmd::new(cmd.args(options.split_whitespace())).with_force_run()
@@ -82,13 +77,4 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
 
     logger::outro(MSG_UNIT_TESTS_RUN_SUCCESS);
     Ok(())
-}
-
-fn nextest_is_installed(shell: &Shell) -> anyhow::Result<bool> {
-    let out = String::from_utf8(
-        Cmd::new(cmd!(shell, "cargo install --list"))
-            .run_with_output()?
-            .stdout,
-    )?;
-    Ok(out.contains("cargo-nextest"))
 }

@@ -317,7 +317,7 @@ impl EthTxAggregator {
     }
 
     /// Loads current verifier config on L1
-    async fn get_recursion_scheduler_level_vk_hash(
+    async fn get_snark_wrapper_vk_hash(
         &mut self,
         verifier_address: Address,
     ) -> Result<H256, EthSenderError> {
@@ -344,15 +344,15 @@ impl EthTxAggregator {
         })?;
         let contracts_are_pre_shared_bridge = protocol_version_id.is_pre_shared_bridge();
 
-        let recursion_scheduler_level_vk_hash = self
-            .get_recursion_scheduler_level_vk_hash(verifier_address)
+        let snark_wrapper_vk_hash = self
+            .get_snark_wrapper_vk_hash(verifier_address)
             .await
             .map_err(|err| {
                 tracing::error!("Failed to get VK hash from the Verifier {err:?}");
                 err
             })?;
         let l1_verifier_config = L1VerifierConfig {
-            recursion_scheduler_level_vk_hash,
+            snark_wrapper_vk_hash,
         };
         if let Some(agg_op) = self
             .aggregator

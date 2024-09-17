@@ -1,5 +1,4 @@
 //! Storage test helpers.
-
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::{attester, validator};
@@ -13,6 +12,7 @@ use zksync_types::{
 };
 
 use super::{Connection, ConnectionPool};
+use crate::registry;
 
 impl Connection<'_> {
     /// Wrapper for `consensus_dal().batch_of_block()`.
@@ -181,16 +181,16 @@ impl ConnectionPool {
         want_last: validator::BlockNumber,
     ) -> ctx::Result<Vec<validator::FinalBlock>> {
         let blocks = self.wait_for_block_certificates(ctx, want_last).await?;
-        let genesis = self
+        let cfg = self
             .connection(ctx)
             .await
             .wrap("connection()")?
-            .genesis(ctx)
+            .global_config(ctx)
             .await
             .wrap("genesis()")?
             .context("genesis is missing")?;
         for block in &blocks {
-            block.verify(&genesis).context(block.number())?;
+            block.verify(&cfg.genesis).context(block.number())?;
         }
         Ok(blocks)
     }
@@ -199,6 +199,7 @@ impl ConnectionPool {
         &self,
         ctx: &ctx::Ctx,
         want_last: attester::BatchNumber,
+        registry_addr: Option<registry::Address>,
     ) -> ctx::Result<()> {
         // Wait for the last batch to be attested.
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
@@ -214,17 +215,17 @@ impl ConnectionPool {
             ctx.sleep(POLL_INTERVAL).await?;
         }
         let mut conn = self.connection(ctx).await.wrap("connection()")?;
-        let genesis = conn
-            .genesis(ctx)
+        let cfg = conn
+            .global_config(ctx)
             .await
-            .wrap("genesis()")?
-            .context("genesis is missing")?;
+            .wrap("global_config()")?
+            .context("global config is missing")?;
         let first = conn
-            .batch_of_block(ctx, genesis.first_block)
+            .batch_of_block(ctx, cfg.genesis.first_block)
             .await
             .wrap("batch_of_block()")?
             .context("batch of first_block is missing")?;
-        let committee = genesis.attesters.as_ref().unwrap();
+        let registry = registry::Registry::new(cfg.genesis.clone(), self.clone()).await;
         for i in first.0..want_last.0 {
             let i = attester::BatchNumber(i);
             let hash = conn
@@ -240,8 +241,13 @@ impl ConnectionPool {
             if cert.message.hash != hash {
                 return Err(anyhow::format_err!("cert[{i:?}]: hash mismatch").into());
             }
-            cert.verify(genesis.hash(), committee)
-                .context("cert[{i:?}].verify()")?;
+            let committee = registry
+                .attester_committee_for(ctx, registry_addr, i)
+                .await
+                .context("attester_committee_for()")?
+                .context("committee not specified")?;
+            cert.verify(cfg.genesis.hash(), &committee)
+                .with_context(|| format!("cert[{i:?}].verify()"))?;
         }
         Ok(())
     }

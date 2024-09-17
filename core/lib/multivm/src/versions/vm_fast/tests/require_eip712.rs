@@ -26,7 +26,7 @@ impl VmTester {
         );
         self.vm
             .inner
-            .world_diff
+            .world_diff()
             .get_storage_state()
             .get(&(L2_BASE_TOKEN_ADDRESS, h256_to_u256(*key.key())))
             .copied()

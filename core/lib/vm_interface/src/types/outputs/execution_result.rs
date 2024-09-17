@@ -11,7 +11,8 @@ use zksync_types::{
 };
 
 use crate::{
-    CompressedBytecodeInfo, Halt, VmExecutionMetrics, VmExecutionStatistics, VmRevertReason,
+    BytecodeCompressionError, CompressedBytecodeInfo, Halt, VmExecutionMetrics,
+    VmExecutionStatistics, VmRevertReason,
 };
 
 const L1_MESSAGE_EVENT_SIGNATURE: H256 = H256([
@@ -297,11 +298,14 @@ impl Call {
     }
 }
 
-/// Mid-level transaction execution output returned by a batch executor.
+/// Mid-level transaction execution output returned by a [batch executor](crate::executor::BatchExecutor).
 #[derive(Debug, Clone)]
 pub struct BatchTransactionExecutionResult {
+    /// VM result.
     pub tx_result: Box<VmExecutionResultAndLogs>,
+    /// Compressed bytecodes used by the transaction.
     pub compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+    /// Call traces (if requested; otherwise, empty).
     pub call_traces: Vec<Call>,
 }
 
@@ -309,6 +313,17 @@ impl BatchTransactionExecutionResult {
     pub fn was_halted(&self) -> bool {
         matches!(self.tx_result.result, ExecutionResult::Halt { .. })
     }
+}
+
+/// Mid-level transaction execution output returned by a [oneshot executor](crate::executor::OneshotExecutor).
+#[derive(Debug)]
+pub struct OneshotTransactionExecutionResult {
+    /// VM result.
+    pub tx_result: Box<VmExecutionResultAndLogs>,
+    /// Result of compressing bytecodes used by the transaction.
+    pub compression_result: Result<(), BytecodeCompressionError>,
+    /// Call traces (if requested; otherwise, empty).
+    pub call_traces: Vec<Call>,
 }
 
 /// High-level transaction execution result used by the API server sandbox etc.
