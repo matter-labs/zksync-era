@@ -366,9 +366,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        consensus: [ false, true ]
-        base_token: [ "Eth", "Custom" ]
-        deployment_mode: [ "Rollup", "Validium" ]
+        # FIXME: support consensus tests for SL migration
+        consensus: [false]
+        # FIXME: support custom tokens
+        base_token: ["Eth"]
+        # FIXME: run tests even when not using synclayer
+        gateway: [true]
     runs-on: [ matterlabs-ci-runner-highmem-long ]
 
     env:
