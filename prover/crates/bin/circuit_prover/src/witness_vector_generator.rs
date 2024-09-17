@@ -4,9 +4,6 @@ use anyhow::Context;
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use zksync_object_store::ObjectStore;
-use zksync_types::{L1BatchNumber, protocol_version::ProtocolSemanticVersion};
-use zksync_utils::panic_extractor::try_extract_panic_message;
-
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -17,11 +14,13 @@ use zksync_prover_fri_types::{
         },
         circuit_definitions::base_layer::ZkSyncBaseLayerCircuit,
     },
-    CircuitAuxData,
-    CircuitWrapper,
-    get_current_pod_name, keys::RamPermutationQueueWitnessKey, ProverJob, ProverServiceDataKey, RamPermutationQueueWitness,
+    get_current_pod_name,
+    keys::RamPermutationQueueWitnessKey,
+    CircuitAuxData, CircuitWrapper, ProverJob, ProverServiceDataKey, RamPermutationQueueWitness,
     WitnessVectorArtifacts,
 };
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
+use zksync_utils::panic_extractor::try_extract_panic_message;
 
 use crate::Backoff;
 
@@ -114,7 +113,8 @@ impl WitnessVectorGenerator {
         let setup_data_key = ProverServiceDataKey {
             circuit_id: prover_job_metadata.circuit_id,
             round: prover_job_metadata.aggregation_round,
-        }.crypto_setup_key();
+        }
+        .crypto_setup_key();
         let prover_job = ProverJob::new(
             prover_job_metadata.block_number,
             prover_job_metadata.id,

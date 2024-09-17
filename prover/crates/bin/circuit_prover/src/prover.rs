@@ -13,11 +13,6 @@ use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
 use zksync_object_store::ObjectStore;
-use zksync_types::{
-    basic_fri_types::AggregationRound, L1BatchNumber, protocol_version::ProtocolSemanticVersion,
-};
-use zksync_utils::panic_extractor::try_extract_panic_message;
-
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -28,7 +23,7 @@ use zksync_prover_fri_types::{
             },
             cs::implementations::{
                 pow::NoPow, proof::Proof, transcript::GoldilocksPoisedon2Transcript,
-                verifier::VerificationKey,
+                verifier::VerificationKey, witness::WitnessVec,
             },
             field::goldilocks::{GoldilocksExt2, GoldilocksField},
             worker::Worker,
@@ -42,8 +37,11 @@ use zksync_prover_fri_types::{
     CircuitWrapper, FriProofWrapper, ProverArtifacts, ProverJob, ProverServiceDataKey,
     WitnessVectorArtifacts,
 };
-use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::witness::WitnessVec;
 use zksync_prover_keystore::GoldilocksGpuProverSetupData;
+use zksync_types::{
+    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
+};
+use zksync_utils::panic_extractor::try_extract_panic_message;
 
 type DefaultTranscript = GoldilocksPoisedon2Transcript;
 type DefaultTreeHasher = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
@@ -74,7 +72,7 @@ impl CircuitProver {
             Some(max_allocation) => ProverContext::create_with_config(
                 ProverContextConfig::default().with_maximum_device_allocation(max_allocation),
             )
-                .context("failed initializing gpu prover context")?,
+            .context("failed initializing gpu prover context")?,
             None => ProverContext::create().context("failed initializing gpu prover context")?,
         };
         Ok(Self {
@@ -210,7 +208,7 @@ impl CircuitProver {
                 (),
                 &worker,
             )
-                .context("crypto primitive: failed to generate proof")?;
+            .context("crypto primitive: failed to generate proof")?;
         Ok((proof.into(), circuit_id))
     }
 
@@ -220,13 +218,12 @@ impl CircuitProver {
         verification_key: &VerificationKey<F, H>,
     ) -> anyhow::Result<()> {
         let is_valid = match circuit_wrapper {
-            CircuitWrapper::Base(base_circuit) => verify_base_layer_proof::<NoPow>(
-                base_circuit,
-                proof,
-                verification_key,
-            ),
-            CircuitWrapper::Recursive(recursive_circuit) =>
-                verify_recursion_layer_proof::<NoPow>(recursive_circuit, proof, verification_key),
+            CircuitWrapper::Base(base_circuit) => {
+                verify_base_layer_proof::<NoPow>(base_circuit, proof, verification_key)
+            }
+            CircuitWrapper::Recursive(recursive_circuit) => {
+                verify_recursion_layer_proof::<NoPow>(recursive_circuit, proof, verification_key)
+            }
             CircuitWrapper::BasePartial(_) => {
                 return Err(anyhow::anyhow!(
                     "received partial proof for verifying, unexpected"

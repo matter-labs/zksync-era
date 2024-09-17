@@ -99,16 +99,16 @@ impl FriProverDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await
         .unwrap()
-            .map(|row| FriProverJobMetadata {
-                id: row.id as u32,
-                block_number: L1BatchNumber(row.l1_batch_number as u32),
-                circuit_id: row.circuit_id as u8,
-                aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
-                    .unwrap(),
-                sequence_number: row.sequence_number as usize,
-                depth: row.depth as u16,
-                is_node_final_proof: row.is_node_final_proof,
-            })
+        .map(|row| FriProverJobMetadata {
+            id: row.id as u32,
+            block_number: L1BatchNumber(row.l1_batch_number as u32),
+            circuit_id: row.circuit_id as u8,
+            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
+                .unwrap(),
+            sequence_number: row.sequence_number as usize,
+            depth: row.depth as u16,
+            is_node_final_proof: row.is_node_final_proof,
+        })
     }
 
     pub async fn get_next_job(
