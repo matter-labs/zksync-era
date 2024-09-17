@@ -114,7 +114,7 @@ async function _build(image: string, tagList: string[], dockerOrg: string, platf
     if (platform != '') {
         buildArgs += `--platform=${platform} `;
     }
-    if (image === 'prover-gpu-fri') {
+    if (image === 'prover-gpu-fri' || image == 'proof-fri-gpu-compressor') {
         const cudaArch = process.env.CUDA_ARCH;
         buildArgs += `--build-arg CUDA_ARCH='${cudaArch}' `;
     }
@@ -125,6 +125,8 @@ async function _build(image: string, tagList: string[], dockerOrg: string, platf
         }
     }
     buildArgs += extraArgs;
+
+    console.log('Build args: ', buildArgs);
 
     const buildCommand =
         `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +

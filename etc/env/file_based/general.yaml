@@ -36,7 +36,7 @@ api:
     filters_limit: 10000
     subscriptions_limit: 10000
     pubsub_polling_interval: 200
-    max_nonce_ahead: 20
+    max_nonce_ahead: 40
     gas_price_scale_factor: 1.5
     estimate_gas_scale_factor: 1.3
     estimate_gas_acceptable_overestimation: 5000
