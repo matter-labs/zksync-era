@@ -31,6 +31,9 @@ pub struct InitContractVerifierArgs {
     /// Version of vyper to install
     #[clap(long)]
     pub vyper_version: Option<String>,
+    /// Install only provided compilers
+    #[clap(long, default_missing_value = "true")]
+    pub only: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -94,21 +97,21 @@ impl InitContractVerifierArgs {
             zksolc_releases.clone(),
             MSG_ZKSOLC_VERSION_PROMPT,
         )?;
-        let zksolc_releases = get_releases_above_version(zksolc_releases, zksolc_version)?;
+        let zksolc_releases = get_final_releases(zksolc_releases, zksolc_version, self.only)?;
 
         let zkvyper_version = select_min_version(
             self.zkvyper_version,
             zkvyper_releases.clone(),
             MSG_ZKVYPER_VERSION_PROMPT,
         )?;
-        let zkvyper_releases = get_releases_above_version(zkvyper_releases, zkvyper_version)?;
+        let zkvyper_releases = get_final_releases(zkvyper_releases, zkvyper_version, self.only)?;
 
         let solc_version = select_min_version(
             self.solc_version,
             solc_releases.clone(),
             MSG_SOLC_VERSION_PROMPT,
         )?;
-        let solc_releases = get_releases_above_version(solc_releases, solc_version)?;
+        let solc_releases = get_final_releases(solc_releases, solc_version, self.only)?;
 
         let era_vm_solc_version = select_min_version(
             self.era_vm_solc_version,
@@ -116,14 +119,14 @@ impl InitContractVerifierArgs {
             MSG_ERA_VM_SOLC_VERSION_PROMPT,
         )?;
         let era_vm_solc_releases =
-            get_releases_above_version(era_vm_solc_releases, era_vm_solc_version)?;
+            get_final_releases(era_vm_solc_releases, era_vm_solc_version, self.only)?;
 
         let vyper_version = select_min_version(
             self.vyper_version,
             vyper_releases.clone(),
             MSG_VYPER_VERSION_PROMPT,
         )?;
-        let vyper_releases = get_releases_above_version(vyper_releases, vyper_version)?;
+        let vyper_releases = get_final_releases(vyper_releases, vyper_version, self.only)?;
 
         Ok(InitContractVerifierArgsFinal {
             zksolc_releases,
@@ -178,14 +181,20 @@ fn select_min_version(
     Ok(selected)
 }
 
-fn get_releases_above_version(
+fn get_final_releases(
     releases: Vec<Version>,
     version: Version,
+    only: bool
 ) -> anyhow::Result<Vec<Version>> {
     let pos = releases
         .iter()
         .position(|r| r.version == version.version)
         .context(MSG_NO_VERSION_FOUND_ERR)?;
 
-    Ok(releases[..=pos].to_vec())
+    let result = if only {
+        vec![releases[pos].clone()]
+    } else {
+        releases[..=pos].to_vec()
+    };
+    Ok(result)
 }
