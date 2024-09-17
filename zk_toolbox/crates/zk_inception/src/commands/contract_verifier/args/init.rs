@@ -184,7 +184,7 @@ fn select_min_version(
 fn get_final_releases(
     releases: Vec<Version>,
     version: Version,
-    only: bool
+    only: bool,
 ) -> anyhow::Result<Vec<Version>> {
     let pos = releases
         .iter()
