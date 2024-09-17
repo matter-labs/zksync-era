@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
-use zksync_config::configs::GatewayConfig;
+use zksync_config::configs::{gateway::GatewayChainConfig, GatewayConfig};
 
 use crate::{
     consts::{
@@ -108,6 +108,10 @@ impl ChainConfig {
 
     pub fn get_gateway_config(&self) -> anyhow::Result<GatewayConfig> {
         GatewayConfig::read_with_base_path(self.get_shell(), &self.configs)
+    }
+
+    pub fn get_gateway_chain_config(&self) -> anyhow::Result<GatewayChainConfig> {
+        GatewayChainConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
 
     pub fn path_to_general_config(&self) -> PathBuf {

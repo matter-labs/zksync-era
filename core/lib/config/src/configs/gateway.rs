@@ -32,6 +32,26 @@ pub struct GatewayChainConfig {
     pub governance_addr: Address,
 }
 
+impl GatewayChainConfig {
+    pub fn from_gateway_and_chain_data(
+        gateway_config: &GatewayConfig,
+        diamond_proxy_addr: Address,
+        chain_admin_addr: Address,
+    ) -> Self {
+        // FIXME: there is no "governnace" for a chain, only an admin, we
+        // need to figure out what we mean here
+
+        Self {
+            state_transition_proxy_addr: gateway_config.state_transition_proxy_addr,
+            validator_timelock_addr: gateway_config.validator_timelock_addr,
+            multicall3_addr: gateway_config.multicall3_addr,
+            diamond_proxy_addr,
+            chain_admin_addr: Some(chain_admin_addr),
+            governance_addr: chain_admin_addr,
+        }
+    }
+}
+
 impl From<ContractsConfig> for GatewayChainConfig {
     fn from(value: ContractsConfig) -> Self {
         Self {

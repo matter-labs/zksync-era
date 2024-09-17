@@ -159,7 +159,7 @@ fn main() -> anyhow::Result<()> {
                 >(&yaml)
                 .context("failed decoding contracts YAML config")?;
 
-                Ok(result)
+                Some(result)
             }
         };
 
@@ -193,6 +193,8 @@ fn main() -> anyhow::Result<()> {
     //     println!("Complete!");
     //     return Ok(());
     // }
+
+    println!("Secrets: {:?}", secrets);
 
     let node = MainNodeBuilder::new(
         configs,

@@ -101,6 +101,7 @@ impl WiringLayer for EthWatchLayer {
         );
 
         let sl_client = if self.settlement_mode.is_gateway() {
+            println!("I am here!!!!!");
             let gateway_client = input.gateway_client.unwrap().0;
             let contracts_config = self.gateway_contracts_config.unwrap();
             EthHttpQueryClient::new(

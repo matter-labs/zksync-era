@@ -22,6 +22,8 @@ pub(crate) const ERC20_DEPLOYMENT_FILE: &str = "erc20_deployments.yaml";
 pub const CONTRACTS_FILE: &str = "contracts.yaml";
 /// Name of the gateway contracts file
 pub const GATEWAY_FILE: &str = "gateway.yaml";
+/// Name of the gateway contracts file
+pub const GATEWAY_CHAIN_FILE: &str = "gateway_chain.yaml";
 /// Main repository for the ZKsync project
 pub const ZKSYNC_ERA_GIT_REPO: &str = "https://github.com/matter-labs/zksync-era";
 /// Name of the docker-compose file inside zksync repository

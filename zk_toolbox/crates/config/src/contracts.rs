@@ -123,19 +123,19 @@ impl ContractsConfig {
         Ok(())
     }
 
-    pub fn update_after_gateway(
-        &mut self,
-        new_diamond_proxy_address: Address,
-        validator_timelock_addr: Address,
-        multicall3_addr: Address,
-    ) {
-        // FIXME: decide on how the finalized config should look like
-        self.l1.diamond_proxy_addr = new_diamond_proxy_address;
-        self.ecosystem_contracts.validator_timelock_addr = validator_timelock_addr;
-        self.l1.validator_timelock_addr = validator_timelock_addr;
+    // pub fn update_after_gateway(
+    //     &mut self,
+    //     new_diamond_proxy_address: Address,
+    //     validator_timelock_addr: Address,
+    //     multicall3_addr: Address,
+    // ) {
+    //     // FIXME: decide on how the finalized config should look like
+    //     self.l1.diamond_proxy_addr = new_diamond_proxy_address;
+    //     self.ecosystem_contracts.validator_timelock_addr = validator_timelock_addr;
+    //     self.l1.validator_timelock_addr = validator_timelock_addr;
 
-        self.l1.multicall3_addr = multicall3_addr;
-    }
+    //     self.l1.multicall3_addr = multicall3_addr;
+    // }
 
     // FIXME: restore sometime in the future
     // pub fn set_consensus_registry(

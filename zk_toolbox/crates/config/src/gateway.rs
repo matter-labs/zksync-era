@@ -1,13 +1,13 @@
 use std::path::Path;
 
 use xshell::Shell;
-use zksync_config::configs::GatewayConfig;
+use zksync_config::configs::{gateway::GatewayChainConfig, GatewayConfig};
 use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
 use crate::{
     forge_interface::deploy_gateway_ctm::output::DeployGatewayCTMOutput,
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkToolboxConfig},
-    CONTRACTS_FILE, GATEWAY_FILE,
+    CONTRACTS_FILE, GATEWAY_CHAIN_FILE, GATEWAY_FILE,
 };
 
 impl FileConfigWithDefaultName for GatewayConfig {
@@ -41,3 +41,9 @@ impl From<DeployGatewayCTMOutput> for GatewayConfig {
         }
     }
 }
+
+impl FileConfigWithDefaultName for GatewayChainConfig {
+    const FILE_NAME: &'static str = GATEWAY_CHAIN_FILE;
+}
+
+impl ZkToolboxConfig for GatewayChainConfig {}

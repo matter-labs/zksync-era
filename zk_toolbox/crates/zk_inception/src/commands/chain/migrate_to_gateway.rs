@@ -27,8 +27,10 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use types::L1BatchCommitmentMode;
 use xshell::Shell;
-use zksync_basic_types::{Address, H256, U256, U64};
-use zksync_config::configs::{chain, GatewayConfig};
+use zksync_basic_types::{settlement::SettlementMode, Address, H256, U256, U64};
+use zksync_config::configs::{
+    chain, eth_sender::PubdataSendingMode, gateway::GatewayChainConfig, GatewayConfig,
+};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use crate::{
@@ -82,6 +84,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let gateway_chain_config = ecosystem_config
         .load_chain(Some(args.gateway_chain_name.clone()))
         .context("Gateway not present")?;
+    let gateway_chain_id = gateway_chain_config.chain_id.0;
     let gateway_gateway_config = gateway_chain_config
         .get_gateway_config()
         .context("Gateway config not present")?;
@@ -292,12 +295,12 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         hex::encode(hash.as_bytes())
     );
 
-    chain_contracts_config.update_after_gateway(
-        new_diamond_proxy_address,
-        gateway_gateway_config.validator_timelock_addr,
-        gateway_gateway_config.multicall3_addr,
-    );
-    chain_contracts_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    // chain_contracts_config.update_after_gateway(
+    //     new_diamond_proxy_address,
+    //     gateway_gateway_config.validator_timelock_addr,
+    //     gateway_gateway_config.multicall3_addr,
+    // );
+    // chain_contracts_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
     let mut chain_secrets_config = chain_config.get_secrets_config().unwrap();
     chain_secrets_config.l1.as_mut().unwrap().gateway_url = Some(
@@ -315,13 +318,36 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     );
     chain_secrets_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
-    Ok(())
-}
+    let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
+        &gateway_gateway_config,
+        new_diamond_proxy_address,
+        // TODO: for now we do not use a noraml chain admin
+        Address::zero(),
+    );
+    gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
-async fn update_chain_config(
-    gateway_provider: &Provider<Http>,
-    chain_config: ChainConfig,
-) -> anyhow::Result<()> {
+    let mut general_config = chain_config.get_general_config().unwrap();
+
+    let eth_config = general_config.eth.as_mut().expect("eth");
+
+    eth_config
+        .gas_adjuster
+        .as_mut()
+        .expect("gas_adjuster")
+        .settlement_mode = SettlementMode::Gateway;
+    // FIXME: for now only rollups are supported
+    eth_config
+        .sender
+        .as_mut()
+        .expect("sender")
+        .pubdata_sending_mode = PubdataSendingMode::RelayedL2Calldata;
+    // println!("Settlement mode set to Gateway {:#?}", general_config.eth.as_mut().unwrap().gas_adjuster.as_mut().unwrap().settlement_mode);
+    general_config.save_with_base_path(shell, chain_config.configs.clone())?;
+
+    let mut chain_genesis_config = chain_config.get_genesis_config().unwrap();
+    chain_genesis_config.sl_chain_id = Some(gateway_chain_id.into());
+    chain_genesis_config.save_with_base_path(shell, chain_config.configs.clone())?;
+
     Ok(())
 }
 

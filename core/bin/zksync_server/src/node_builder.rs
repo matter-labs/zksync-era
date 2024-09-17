@@ -161,7 +161,9 @@ impl MainNodeBuilder {
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let genesis = self.genesis_config.clone();
+        println!("\n{:#?}\n", self.secrets);
         let eth_config = try_load_config!(self.secrets.l1);
+        println!("\n\nETH config: {:?}\n\n", eth_config.gateway_url);
         let query_eth_client_layer = QueryEthClientLayer::new(
             genesis.settlement_layer_id(),
             eth_config.l1_rpc_url,
