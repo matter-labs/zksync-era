@@ -21,10 +21,10 @@ impl From<DeployGatewayCTMOutput> for GatewayConfig {
         GatewayConfig {
             state_transition_proxy_addr: output
                 .gateway_state_transition
-                .state_transition_proxy_addr,
+                .chain_type_manager_proxy_addr,
             state_transition_implementation_addr: output
                 .gateway_state_transition
-                .state_transition_implementation_addr,
+                .chain_type_manager_implementation_addr,
             verifier_addr: output.gateway_state_transition.verifier_addr,
             admin_facet_addr: output.gateway_state_transition.admin_facet_addr,
             mailbox_facet_addr: output.gateway_state_transition.mailbox_facet_addr,

@@ -21,7 +21,7 @@ struct Bridgehub {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct StateTransition {
-    state_transition_proxy_addr: Address,
+    chain_type_manager_proxy_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -68,7 +68,7 @@ impl RegisterChainL1Config {
             },
             deployed_addresses: DeployedAddresses {
                 state_transition: StateTransition {
-                    state_transition_proxy_addr: contracts
+                    chain_type_manager_proxy_addr: contracts
                         .ecosystem_contracts
                         .state_transition_proxy_addr,
                 },

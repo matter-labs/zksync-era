@@ -22,6 +22,21 @@ pub struct DeployL1Output {
     pub deployed_addresses: DeployL1DeployedAddressesOutput,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct DeployL1DeployedAddressesOutput {
+    pub blob_versioned_hash_retriever_addr: Address,
+    pub governance_addr: Address,
+    pub transparent_proxy_admin_addr: Address,
+    pub validator_timelock_addr: Address,
+    pub chain_admin: Address,
+    pub bridgehub: L1BridgehubOutput,
+    pub bridges: L1BridgesOutput,
+    pub state_transition: L1StateTransitionOutput,
+    pub rollup_l1_da_validator_addr: Address,
+    pub validium_l1_da_validator_addr: Address,
+    pub native_token_vault_addr: Address,
+}
+
 impl ZkToolboxConfig for DeployL1Output {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -40,27 +55,13 @@ pub struct DeployL1ContractsConfigOutput {
     pub force_deployments_data: String,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct DeployL1DeployedAddressesOutput {
-    pub blob_versioned_hash_retriever_addr: Address,
-    pub governance_addr: Address,
-    pub transparent_proxy_admin_addr: Address,
-    pub validator_timelock_addr: Address,
-    pub chain_admin: Address,
-    pub bridgehub: L1BridgehubOutput,
-    pub bridges: L1BridgesOutput,
-    pub state_transition: L1StateTransitionOutput,
-    pub rollup_l1_da_validator_addr: Address,
-    pub validium_l1_da_validator_addr: Address,
-    pub native_token_vault_addr: Address,
-}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct L1BridgehubOutput {
     pub bridgehub_implementation_addr: Address,
     pub bridgehub_proxy_addr: Address,
-    pub stm_deployment_tracker_proxy_addr: Address,
-    pub stm_deployment_tracker_implementation_addr: Address,
+    pub ctm_deployment_tracker_proxy_addr: Address,
+    pub ctm_deployment_tracker_implementation_addr: Address,
     pub message_root_proxy_addr: Address,
     pub message_root_implementation_addr: Address,
 }
@@ -71,6 +72,8 @@ pub struct L1BridgesOutput {
     pub erc20_bridge_proxy_addr: Address,
     pub shared_bridge_implementation_addr: Address,
     pub shared_bridge_proxy_addr: Address,
+    pub l1_nullifier_implementation_addr: Address,
+    pub l1_nullifier_proxy_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

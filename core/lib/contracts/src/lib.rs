@@ -40,7 +40,7 @@ const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
 );
 const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
-    "IZkSyncHyperchain.sol/IZkSyncHyperchain.json",
+    "IZKChain.sol/IZKChain.json",
 );
 const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
     "state-transition",

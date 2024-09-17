@@ -13,9 +13,9 @@ use crate::{
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DeployGatewayCTMInput {
     bridgehub_proxy_addr: Address,
-    stm_deployment_tracker_proxy_addr: Address,
+    ctm_deployment_tracker_proxy_addr: Address,
     native_token_vault_addr: Address,
-    state_transition_proxy_addr: Address,
+    chain_type_manager_proxy_addr: Address,
     shared_bridge_proxy_addr: Address,
     governance: Address,
 
@@ -62,11 +62,11 @@ impl DeployGatewayCTMInput {
     ) -> Self {
         Self {
             bridgehub_proxy_addr: contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
-            stm_deployment_tracker_proxy_addr: contracts_config
+            ctm_deployment_tracker_proxy_addr: contracts_config
                 .ecosystem_contracts
                 .stm_deployment_tracker_proxy_addr,
             native_token_vault_addr: contracts_config.ecosystem_contracts.native_token_vault_addr,
-            state_transition_proxy_addr: contracts_config
+            chain_type_manager_proxy_addr: contracts_config
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
             shared_bridge_proxy_addr: contracts_config.bridges.shared.l1_address,

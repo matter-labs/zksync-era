@@ -17,8 +17,8 @@ impl ZkToolboxConfig for DeployGatewayCTMOutput {}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StateTransitionDeployedAddresses {
-    pub state_transition_proxy_addr: Address,
-    pub state_transition_implementation_addr: Address,
+    pub chain_type_manager_proxy_addr: Address,
+    pub chain_type_manager_implementation_addr: Address,
     pub verifier_addr: Address,
     pub admin_facet_addr: Address,
     pub mailbox_facet_addr: Address,
