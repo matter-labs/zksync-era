@@ -15,9 +15,9 @@ use zksync_types::{
     L1BatchNumber,
 };
 use zksync_witness_generator::{
-    leaf_aggregation::{prepare_leaf_aggregation_job, LeafAggregationWitnessGenerator},
-    node_aggregation::{self, NodeAggregationWitnessGenerator},
-    utils::AggregationWrapper,
+    leaf_aggregation::LeafAggregationWitnessGenerator,
+    node_aggregation::NodeAggregationWitnessGenerator, utils::AggregationWrapper,
+    witness_generator::WitnessGenerator,
 };
 
 fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
@@ -52,9 +52,13 @@ async fn test_leaf_witness_gen() {
         .unwrap();
 
     let keystore = Keystore::locate();
-    let job = prepare_leaf_aggregation_job(leaf_aggregation_job_metadata, &*object_store, keystore)
-        .await
-        .unwrap();
+    let job = LeafAggregationWitnessGenerator::prepare_job(
+        leaf_aggregation_job_metadata,
+        &*object_store,
+        keystore,
+    )
+    .await
+    .unwrap();
 
     let artifacts = LeafAggregationWitnessGenerator::process_job_impl(
         job,
@@ -142,10 +146,13 @@ async fn test_node_witness_gen() {
     };
 
     let keystore = Keystore::locate();
-    let job =
-        node_aggregation::prepare_job(node_aggregation_job_metadata, &*object_store, keystore)
-            .await
-            .unwrap();
+    let job = NodeAggregationWitnessGenerator::prepare_job(
+        node_aggregation_job_metadata,
+        &*object_store,
+        keystore,
+    )
+    .await
+    .unwrap();
 
     let artifacts = NodeAggregationWitnessGenerator::process_job_impl(
         job,
