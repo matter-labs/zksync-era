@@ -832,6 +832,17 @@ pub struct L1BatchDetails {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct L1ProcessingDetails {
+    pub commit_tx_hash: Option<H256>,
+    pub committed_at: Option<DateTime<Utc>>,
+    pub prove_tx_hash: Option<H256>,
+    pub proven_at: Option<DateTime<Utc>>,
+    pub execute_tx_hash: Option<H256>,
+    pub executed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StorageProof {
     pub key: H256,
     pub proof: Vec<H256>,

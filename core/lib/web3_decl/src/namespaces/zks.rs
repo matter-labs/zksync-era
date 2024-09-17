@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, mem};
 
 #[cfg_attr(not(feature = "server"), allow(unused_imports))]
 use jsonrpsee::core::RpcResult;
@@ -6,8 +6,8 @@ use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L2ToL1LogProof, LeafAggProof, Proof, ProtocolVersion, TransactionDetailedResult,
-        TransactionDetails,
+        L1ProcessingDetails, L2ToL1LogProof, LeafAggProof, Proof, ProtocolVersion,
+        TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
@@ -119,6 +119,12 @@ pub trait ZksNamespace {
     #[method(name = "getL1BatchDetails")]
     async fn get_l1_batch_details(&self, batch: L1BatchNumber)
         -> RpcResult<Option<L1BatchDetails>>;
+
+    #[method(name = "getL1ProcessingDetails")]
+    async fn get_l1_processing_details(
+        &self,
+        batch: L1BatchNumber,
+    ) -> RpcResult<Option<L1ProcessingDetails>>;
 
     #[method(name = "getBytecodeByHash")]
     async fn get_bytecode_by_hash(&self, hash: H256) -> RpcResult<Option<Vec<u8>>>;

@@ -11,8 +11,7 @@ import {
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-ethers';
-import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
-import { sleep } from 'utils';
+import { scaledGasPrice, waitForBlockToBeFinalizedOnL1, waitUntilBlockFinalized } from '../src/helpers';
 import { ethers } from 'ethers';
 
 describe('ETH token checks', () => {
@@ -254,12 +253,7 @@ describe('ETH token checks', () => {
         await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
         const withdrawalTx = await withdrawalPromise;
         const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
-        await waitUntilBlockFinalized(alice, l2TxReceipt!.blockNumber);
-        // await withdrawalTx.waitFinalize();
-
-        await sleep(60);
-
-        console.log(withdrawalTx.hash);
+        await waitForBlockToBeFinalizedOnL1(alice, l2TxReceipt!.blockNumber);
 
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
