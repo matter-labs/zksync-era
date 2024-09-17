@@ -85,8 +85,6 @@ jobs:
     name: Build and Push Docker Images
     needs: get-protocol-version
     env:
-      ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
-      CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
       PROTOCOL_VERSION: ${{ needs.get-protocol-version.outputs.protocol_version }}
     runs-on: [ matterlabs-ci-runner-high-performance ]
     strategy:
@@ -187,25 +185,17 @@ jobs:
           docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
           gcloud auth configure-docker us-docker.pkg.dev -q
 
-      - name: Build
-        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
-        if:  ${{ inputs.action != 'push' }}
-        with:
-          context: .
-          push: false
-          build-args: CUDA_ARCH=${{ inputs.CUDA_ARCH }},SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage,SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com,SCCACHE_GCS_RW_MODE=READ_WRITE,RUSTC_WRAPPER=sccache
-          file: docker/${{ matrix.components }}/Dockerfile
-          tags: |
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
-            matterlabs/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
-
       - name: Build and push
         uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
-        if:  ${{ inputs.action == 'push' }}
         with:
           context: .
-          push: false
-          build-args: CUDA_ARCH=${{ inputs.CUDA_ARCH }},SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage,SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com,SCCACHE_GCS_RW_MODE=READ_WRITE,RUSTC_WRAPPER=sccache
+          push: ${{ inputs.action == 'push' }}
+          build-args: |
+            CUDA_ARCH=${{ inputs.CUDA_ARCH }}
+            SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
+            SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
+            SCCACHE_GCS_RW_MODE=READ_WRITE
+            RUSTC_WRAPPER=sccache
           file: docker/${{ matrix.components }}/Dockerfile
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.PROTOCOL_VERSION }}-${{ env.IMAGE_TAG_SHA_TS }}
