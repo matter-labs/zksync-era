@@ -309,6 +309,9 @@ jobs:
           wait $PID3
           wait $PID4
 
+      - name: Fee projection tests
+        run: ci_run zk_supervisor test fees
+
       - name: Run revert tests
         run: |
           ci_run killall -INT zksync_server || true
