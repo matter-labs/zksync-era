@@ -1,9 +1,10 @@
 use clap::Parser;
-use serde::{Deserialize, Serialize};
 use config::ChainConfig;
+use serde::{Deserialize, Serialize};
+
 use crate::{
     commands::chain::args::database::{DatabaseArgs, DatabaseArgsFinal},
-    messages::{MSG_USE_DEFAULT_DATABASES_HELP},
+    messages::MSG_USE_DEFAULT_DATABASES_HELP,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
@@ -18,7 +19,9 @@ pub struct GenesisArgs {
 impl GenesisArgs {
     pub fn fill_values_with_prompt(self, config: &ChainConfig) -> GenesisArgsFinal {
         GenesisArgsFinal {
-            database_args: self.database_args.genesis_fill_values_with_prompt(config, self.use_default),
+            database_args: self
+                .database_args
+                .genesis_fill_values_with_prompt(config, self.use_default),
             use_default: self.use_default,
         }
     }

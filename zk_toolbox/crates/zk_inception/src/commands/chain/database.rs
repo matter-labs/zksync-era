@@ -10,14 +10,13 @@ use common::{
 use xshell::Shell;
 
 use crate::{
+    commands::chain::args::database::{DatabaseArgs, DatabaseArgsFinal},
     consts::{PROVER_MIGRATIONS, SERVER_MIGRATIONS},
     messages::{
-        MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
-        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, 
-        MSG_INITIALIZING_DATABASES_SPINNER,
-        MSG_INITIALIZING_PROVER_DATABASE, MSG_INITIALIZING_SERVER_DATABASE,
+        MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR,
+        MSG_INITIALIZING_DATABASES_SPINNER, MSG_INITIALIZING_PROVER_DATABASE,
+        MSG_INITIALIZING_SERVER_DATABASE,
     },
-    commands::chain::args::database::{DatabaseArgs,DatabaseArgsFinal},
 };
 
 pub async fn run(shell: &Shell, args: DatabaseArgs) -> anyhow::Result<()> {
@@ -26,10 +25,7 @@ pub async fn run(shell: &Shell, args: DatabaseArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn database(
-    args: DatabaseArgsFinal,
-    shell: &Shell,
-) -> anyhow::Result<()> {
+pub async fn database(args: DatabaseArgsFinal, shell: &Shell) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
     initialize_databases(
         shell,

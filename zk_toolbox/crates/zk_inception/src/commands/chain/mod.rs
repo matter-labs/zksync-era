@@ -6,7 +6,7 @@ pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
 use crate::commands::chain::{
-    args::{create::ChainCreateArgs, genesis::GenesisArgs, init::InitArgs, database::DatabaseArgs},
+    args::{create::ChainCreateArgs, database::DatabaseArgs, genesis::GenesisArgs, init::InitArgs},
     deploy_l2_contracts::Deploy2ContractsOption,
 };
 
@@ -14,13 +14,13 @@ pub(crate) mod args;
 mod build_transactions;
 mod common;
 mod create;
+mod database;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 pub mod genesis;
 pub(crate) mod init;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
-mod database;
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {

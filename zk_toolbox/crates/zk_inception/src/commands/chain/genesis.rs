@@ -16,20 +16,15 @@ use xshell::Shell;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
 
 use crate::{
-    commands::{
-        chain::{
-            args::genesis::{GenesisArgs, GenesisArgsFinal},
-            database::initialize_databases,
-        }
+    commands::chain::{
+        args::genesis::{GenesisArgs, GenesisArgsFinal},
+        database::initialize_databases,
     },
-    consts::{
-        PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG, PATH_TO_VALIDIUM_OVERRIDE_CONFIG,
-    },
+    consts::{PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG, PATH_TO_VALIDIUM_OVERRIDE_CONFIG},
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR,
-        MSG_GENESIS_COMPLETED, MSG_RECREATE_ROCKS_DB_ERRROR, 
-        MSG_SELECTED_CONFIG, MSG_STARTING_GENESIS,
-        MSG_STARTING_GENESIS_SPINNER, MSG_INITIALIZING_DATABASES_SPINNER,
+        MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_GENESIS_COMPLETED,
+        MSG_INITIALIZING_DATABASES_SPINNER, MSG_RECREATE_ROCKS_DB_ERRROR, MSG_SELECTED_CONFIG,
+        MSG_STARTING_GENESIS, MSG_STARTING_GENESIS_SPINNER,
     },
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
@@ -66,7 +61,9 @@ pub async fn genesis(
     if config.prover_version != ProverMode::NoProofs {
         override_config(
             shell,
-            config.link_to_code.join(PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG),
+            config
+                .link_to_code
+                .join(PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG),
             config,
         )?;
     }
@@ -80,7 +77,11 @@ pub async fn genesis(
     }
 
     let mut secrets = config.get_secrets_config()?;
-    set_databases(&mut secrets, &args.database_args.server_db, &args.database_args.prover_db)?;
+    set_databases(
+        &mut secrets,
+        &args.database_args.server_db,
+        &args.database_args.prover_db,
+    )?;
     secrets.save_with_base_path(shell, &config.configs)?;
 
     logger::note(

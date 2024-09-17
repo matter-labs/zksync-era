@@ -12,9 +12,9 @@ use crate::{
     commands::chain::args::genesis::GenesisArgs,
     defaults::LOCAL_RPC_URL,
     messages::{
-        MSG_DEPLOY_PAYMASTER_PROMPT, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP,
-        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT, MSG_PORT_OFFSET_HELP,
-        MSG_CHAIN_INIT_SKIP_GENESIS,
+        MSG_CHAIN_INIT_SKIP_GENESIS, MSG_DEPLOY_PAYMASTER_PROMPT, MSG_GENESIS_ARGS_HELP,
+        MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
+        MSG_PORT_OFFSET_HELP,
     },
 };
 
@@ -105,5 +105,5 @@ pub struct InitArgsFinal {
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
     pub port_offset: u16,
-    pub skip_genesis: bool
+    pub skip_genesis: bool,
 }

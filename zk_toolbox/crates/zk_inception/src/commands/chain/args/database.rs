@@ -1,18 +1,19 @@
+use std::path::PathBuf;
+
 use clap::Parser;
 use common::{db::DatabaseConfig, Prompt};
 use config::ChainConfig;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use url::Url;
-use std::path::PathBuf;
 
 use crate::{
     defaults::{generate_db_names, DBNames, DATABASE_PROVER_URL, DATABASE_SERVER_URL},
     messages::{
         msg_prover_db_name_prompt, msg_prover_db_url_prompt, msg_server_db_name_prompt,
-        msg_server_db_url_prompt, MSG_PROVER_DB_NAME_HELP, MSG_PROVER_DB_URL_HELP,
-        MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP, MSG_DONT_DROP_HELP,
-        MSG_LINK_TO_CODE_HELP,
+        msg_server_db_url_prompt, MSG_DONT_DROP_HELP, MSG_LINK_TO_CODE_HELP,
+        MSG_PROVER_DB_NAME_HELP, MSG_PROVER_DB_URL_HELP, MSG_SERVER_DB_NAME_HELP,
+        MSG_SERVER_DB_URL_HELP,
     },
 };
 
@@ -38,7 +39,12 @@ struct DBConfigs {
 }
 
 impl DatabaseArgs {
-    fn prompt_db_configs(self, chain_name: &str, server_name: &str, prover_name: &str) -> DBConfigs {
+    fn prompt_db_configs(
+        self,
+        chain_name: &str,
+        server_name: &str,
+        prover_name: &str,
+    ) -> DBConfigs {
         let server_db_url = self.server_db_url.unwrap_or_else(|| {
             Prompt::new(&msg_server_db_url_prompt(chain_name))
                 .default(DATABASE_SERVER_URL.as_str())
@@ -83,7 +89,7 @@ impl DatabaseArgs {
             server_db,
             prover_db,
         } = self.prompt_db_configs(&chain_name, &server_name, &prover_name);
-        
+
         DatabaseArgsFinal {
             server_db,
             prover_db,
@@ -91,18 +97,22 @@ impl DatabaseArgs {
             dont_drop,
         }
     }
-    pub fn genesis_fill_values_with_prompt(self, config: &ChainConfig, use_default: bool) -> DatabaseArgsFinal {
+    pub fn genesis_fill_values_with_prompt(
+        self,
+        config: &ChainConfig,
+        use_default: bool,
+    ) -> DatabaseArgsFinal {
         let DBNames {
             server_name,
             prover_name,
         } = generate_db_names(config);
-        
+
         let link_to_code = match self.link_to_code.clone() {
             Some(x) => PathBuf::from(x),
             None => config.link_to_code.clone(),
         };
         let dont_drop = self.dont_drop.clone();
-        
+
         if use_default {
             DatabaseArgsFinal {
                 server_db: DatabaseConfig::new(DATABASE_SERVER_URL.clone(), server_name),
@@ -115,7 +125,7 @@ impl DatabaseArgs {
                 server_db,
                 prover_db,
             } = self.prompt_db_configs(&config.name, &server_name, &prover_name);
-            
+
             DatabaseArgsFinal {
                 server_db,
                 prover_db,
