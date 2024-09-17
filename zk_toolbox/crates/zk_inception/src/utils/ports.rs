@@ -184,7 +184,22 @@ impl EcosystemPortsScanner {
                         format!("{}:{}", path, key.as_str().unwrap_or_default())
                     };
 
-                    if key.as_str().map(|s| s.ends_with("port")).unwrap_or(false) {
+                    if key.as_str() == Some("ports") {
+                        if let Value::Sequence(ports) = val {
+                            for port_entry in ports {
+                                if let Some(port_str) = port_entry.as_str() {
+                                    let parts: Vec<&str> = port_str.split(':').collect();
+                                    if let Some(assigned_port) = parts.get(1) {
+                                        if let Ok(port) = assigned_port.parse::<u16>() {
+                                            let description =
+                                                format!("[{}] {}", file_path.display(), new_path);
+                                            ecosystem_ports.add_port_info(port, description);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if key.as_str().map(|s| s.ends_with("port")).unwrap_or(false) {
                         if let Some(port) = val.as_u64().and_then(|p| u16::try_from(p).ok()) {
                             let description = format!("[{}] {}", file_path.display(), new_path);
                             ecosystem_ports.add_port_info(port, description);
@@ -261,6 +276,15 @@ mod tests {
                 port: 3070
             prometheus:
                 listener_port: 3412
+            reth:
+                image: "ghcr.io/paradigmxyz/reth:v1.0.6"
+                ports:
+                    - 127.0.0.1:8546:8545
+            postgres:
+                image: "postgres:14"
+                ports:
+                    - "5433:5432"
+            
         "#;
 
         let value = serde_yaml::from_str(yaml_content).unwrap();
@@ -274,6 +298,8 @@ mod tests {
         assert!(ecosystem_ports.is_port_assigned(3051));
         assert!(ecosystem_ports.is_port_assigned(3070));
         assert!(ecosystem_ports.is_port_assigned(3412));
+        assert!(ecosystem_ports.is_port_assigned(8546));
+        assert!(ecosystem_ports.is_port_assigned(5432));
 
         // Free ports:
         assert!(!ecosystem_ports.is_port_assigned(3150));
