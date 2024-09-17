@@ -17,7 +17,7 @@ pub(super) const MSG_ARGS_VALIDATOR_ERR: &str = "Invalid arguments";
 
 /// Ecosystem create related messages
 pub(super) const MSG_L1_NETWORK_HELP: &str = "L1 Network";
-pub(super) const MSG_LINK_TO_CODE_HELP: &str = "Code link";
+pub(super) const MSG_LINK_TO_CODE_HELP: &str = "Path to zksync-era repository on disk";
 pub(super) const MSG_START_CONTAINERS_HELP: &str =
     "Start reth and postgres containers after creation";
 pub(super) const MSG_ECOSYSTEM_NAME_PROMPT: &str = "What do you want to name the ecosystem?";
@@ -177,6 +177,8 @@ pub(super) const MSG_SERVER_DB_NAME_HELP: &str = "Server database name";
 pub(super) const MSG_PROVER_DB_URL_HELP: &str = "Prover database url without database name";
 pub(super) const MSG_PROVER_DB_NAME_HELP: &str = "Prover database name";
 pub(super) const MSG_USE_DEFAULT_DATABASES_HELP: &str = "Use default database urls and names";
+pub(super) const MSG_DONT_DROP_HELP: &str = "Don't drop databases before attempting to create them";
+pub(super) const MSG_CHAIN_INIT_SKIP_GENESIS: &str = "Skip db init and chain genesis";
 pub(super) const MSG_GENESIS_COMPLETED: &str = "Genesis completed successfully";
 pub(super) const MSG_STARTING_GENESIS: &str = "Starting genesis process";
 pub(super) const MSG_INITIALIZING_DATABASES_SPINNER: &str = "Initializing databases...";

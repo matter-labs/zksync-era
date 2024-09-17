@@ -165,10 +165,11 @@ pub async fn init(
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
         spinner.finish();
     }
-
-    genesis(init_args.genesis_args.clone(), shell, chain_config)
-        .await
-        .context(MSG_GENESIS_DATABASE_ERR)?;
+    if !init_args.skip_genesis {
+        genesis(init_args.genesis_args.clone(), shell, chain_config)
+            .await
+            .context(MSG_GENESIS_DATABASE_ERR)?;
+    }
 
     update_portal_config(shell, chain_config)
         .await

@@ -17,53 +17,11 @@ use crate::{
         MSG_INITIALIZING_DATABASES_SPINNER,
         MSG_INITIALIZING_PROVER_DATABASE, MSG_INITIALIZING_SERVER_DATABASE,
     },
+    commands::chain::args::database::{DatabaseArgs,DatabaseArgsFinal},
 };
-
-use clap::Parser;
-use serde::{Deserialize, Serialize};
-use url::Url;
-
-use crate::{
-    messages::{
-        MSG_PROVER_DB_NAME_HELP, MSG_PROVER_DB_URL_HELP,
-        MSG_SERVER_DB_NAME_HELP, MSG_SERVER_DB_URL_HELP, 
-    },
-};
-
-#[derive(Debug, Clone, Serialize, Deserialize, Parser, Default)]
-pub struct DatabaseArgs {
-    #[clap(long, help = MSG_SERVER_DB_URL_HELP)]
-    pub server_db_url: Option<Url>,
-    #[clap(long, help = MSG_SERVER_DB_NAME_HELP)]
-    pub server_db_name: Option<String>,
-    #[clap(long, help = MSG_PROVER_DB_URL_HELP)]
-    pub prover_db_url: Option<Url>,
-    #[clap(long, help = MSG_PROVER_DB_NAME_HELP)]
-    pub prover_db_name: Option<String>,
-    #[clap(long, short, action)]
-    pub dont_drop: bool,
-}
-
-impl DatabaseArgs {
-    pub fn fill_values_with_prompt(self) -> DatabaseArgsFinal {
-        // This is way unsafe and can just panic, but idc. Pass the right args.
-        DatabaseArgsFinal {
-            server_db: DatabaseConfig::new(self.server_db_url.unwrap(), self.server_db_name.unwrap()),
-            prover_db: DatabaseConfig::new(self.prover_db_url.unwrap(), self.prover_db_name.unwrap()),
-            dont_drop: self.dont_drop,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DatabaseArgsFinal {
-    pub server_db: DatabaseConfig,
-    pub prover_db: DatabaseConfig,
-    pub dont_drop: bool,
-}
 
 pub async fn run(shell: &Shell, args: DatabaseArgs) -> anyhow::Result<()> {
-    let args = args.fill_values_with_prompt();
+    let args = args.standalone_fill_values_with_prompt();
     database(args, shell).await?;
     Ok(())
 }
@@ -77,6 +35,7 @@ pub async fn database(
         shell,
         &args.server_db,
         &args.prover_db,
+        args.link_to_code,
         args.dont_drop,
     )
     .await?;
@@ -84,15 +43,15 @@ pub async fn database(
     Ok(())
 }
 
-async fn initialize_databases(
+pub async fn initialize_databases(
     shell: &Shell,
     server_db_config: &DatabaseConfig,
     prover_db_config: &DatabaseConfig,
+    path_to_code: PathBuf,
     dont_drop: bool,
 ) -> anyhow::Result<()> {
-    // Opinions :P
-    let link_to_code = PathBuf::from("/root/zksync-era");
-    let path_to_server_migration = link_to_code.join(SERVER_MIGRATIONS);
+    //let link_to_code = PathBuf::from("/root/zksync-era");
+    let path_to_server_migration = path_to_code.join(SERVER_MIGRATIONS);
 
     if global_config().verbose {
         logger::debug(MSG_INITIALIZING_SERVER_DATABASE)
@@ -101,8 +60,8 @@ async fn initialize_databases(
         drop_db_if_exists(server_db_config)
             .await
             .context(MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR)?;
-        init_db(server_db_config).await?;
     }
+    init_db(server_db_config).await?;
     migrate_db(
         shell,
         path_to_server_migration,
@@ -117,9 +76,9 @@ async fn initialize_databases(
         drop_db_if_exists(prover_db_config)
             .await
             .context(MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR)?;
-        init_db(prover_db_config).await?;
     }
-    let path_to_prover_migration = link_to_code.join(PROVER_MIGRATIONS);
+    init_db(prover_db_config).await?;
+    let path_to_prover_migration = path_to_code.join(PROVER_MIGRATIONS);
     migrate_db(
         shell,
         path_to_prover_migration,

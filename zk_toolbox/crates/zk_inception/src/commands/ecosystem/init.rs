@@ -61,6 +61,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     if args.dev {
         genesis_args.use_default = true;
     }
+    let skip_genesis = args.skip_genesis.clone();
     let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network);
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
@@ -113,6 +114,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             deploy_paymaster: final_ecosystem_args.deploy_paymaster,
             l1_rpc_url: final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
             port_offset: PortOffset::from_chain_id(chain_config.id as u16).into(),
+            skip_genesis,
         };
 
         chain::init::init(

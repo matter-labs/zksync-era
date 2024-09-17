@@ -6,7 +6,7 @@ pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
 use crate::commands::chain::{
-    args::{create::ChainCreateArgs, genesis::GenesisArgs, init::InitArgs},
+    args::{create::ChainCreateArgs, genesis::GenesisArgs, init::InitArgs, database::DatabaseArgs},
     deploy_l2_contracts::Deploy2ContractsOption,
 };
 
@@ -20,6 +20,7 @@ pub mod genesis;
 pub(crate) mod init;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
+mod database;
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {
@@ -47,6 +48,9 @@ pub enum ChainCommands {
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
+    /// Run database initialization alone
+    #[command(alias = "db")]
+    Database(DatabaseArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -71,5 +75,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
+        ChainCommands::Database(args) => database::run(shell, args).await,
     }
 }
