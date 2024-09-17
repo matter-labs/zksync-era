@@ -137,8 +137,7 @@ impl InternalApiConfig {
             l1_chain_id: genesis_config.l1_chain_id,
             l2_chain_id: genesis_config.l2_chain_id,
             sl_chain_id: genesis_config.settlement_layer_id(),
-            // FIXME: pass from config
-            settlement_layer_url: std::env::var("SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL").ok(),
+            settlement_layer_url: web3_config.settlement_layer_url.clone(),
             max_tx_size: web3_config.max_tx_size,
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config

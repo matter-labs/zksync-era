@@ -220,7 +220,7 @@ describe('ERC20 contract checks', () => {
         const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
         const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
         await waitUntilBlockFinalized(alice, l2TxReceipt!.blockNumber);
-        await sleep(35000);
+        await sleep(45000);
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance);

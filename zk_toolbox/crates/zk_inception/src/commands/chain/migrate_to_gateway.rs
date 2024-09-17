@@ -302,20 +302,18 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     // );
     // chain_contracts_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
-    let mut chain_secrets_config = chain_config.get_secrets_config().unwrap();
-    chain_secrets_config.l1.as_mut().unwrap().gateway_url = Some(
-        url::Url::parse(
-            &gateway_chain_config
-                .get_general_config()
-                .unwrap()
-                .api_config
-                .unwrap()
-                .web3_json_rpc
-                .http_url,
-        )
+    let gateway_url = gateway_chain_config
+        .get_general_config()
         .unwrap()
-        .into(),
-    );
+        .api_config
+        .unwrap()
+        .web3_json_rpc
+        .http_url
+        .clone();
+
+    let mut chain_secrets_config = chain_config.get_secrets_config().unwrap();
+    chain_secrets_config.l1.as_mut().unwrap().gateway_url =
+        Some(url::Url::parse(&gateway_url).unwrap().into());
     chain_secrets_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
     let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
@@ -329,6 +327,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let mut general_config = chain_config.get_general_config().unwrap();
 
     let eth_config = general_config.eth.as_mut().expect("eth");
+    let api_config = general_config.api_config.as_mut().expect("api config");
 
     eth_config
         .gas_adjuster
@@ -341,7 +340,13 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .as_mut()
         .expect("sender")
         .pubdata_sending_mode = PubdataSendingMode::RelayedL2Calldata;
-    // println!("Settlement mode set to Gateway {:#?}", general_config.eth.as_mut().unwrap().gas_adjuster.as_mut().unwrap().settlement_mode);
+    // FIXME: do we need to move the following to be u64?
+    eth_config
+        .sender
+        .as_mut()
+        .expect("sender")
+        .max_aggregated_tx_gas = 4294967295;
+    api_config.web3_json_rpc.settlement_layer_url = Some(gateway_url);
     general_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
     let mut chain_genesis_config = chain_config.get_genesis_config().unwrap();

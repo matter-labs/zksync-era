@@ -311,6 +311,8 @@ impl ZksNamespace {
             .await
             .map_err(DalError::generalize)?;
 
+        println!("\n\nHey {}\n\n", all_l1_logs_in_batch.len());
+
         let Some((l1_log_index, _)) = all_l1_logs_in_batch
             .iter()
             .enumerate()
@@ -353,14 +355,19 @@ impl ZksNamespace {
         let final_root = KeccakHasher.compress(&root, &aggregated_root);
         proof.push(aggregated_root);
 
-        println!("Trying to get the final proof! {}", l1_batch_number);
+        println!("\n\nTrying to get the final proof! {}\n\n", l1_batch_number);
 
         // FIXME Definitely refactor all of it
-        const EXPECTED_SYNC_LAYER_CHAIN_ID: u64 = 270;
+        const EXPECTED_SYNC_LAYER_CHAIN_ID: u64 = 505;
 
         let mut log_leaf_proof = LogLeafProof::new(proof);
 
         let settlement_layer: u64 = self.state.api_config.sl_chain_id.0;
+
+        println!(
+            "\n\nTrying to get the final proof2! {}\n\n",
+            settlement_layer
+        );
 
         if settlement_layer == EXPECTED_SYNC_LAYER_CHAIN_ID {
             println!("\nI am on sync layer!!\n");
