@@ -1,4 +1,5 @@
 use std::{collections::HashMap, sync::Arc};
+use std::borrow::Borrow;
 
 /// Consensus registry contract operations.
 /// Includes code duplicated from `zksync_node_consensus::registry::abi`.
@@ -6,11 +7,12 @@ use anyhow::Context as _;
 use common::config::global_config;
 use config::EcosystemConfig;
 use ethers::{
-    contract::Multicall,
-    middleware::{Middleware as _, SignerMiddleware},
-    providers::{Http, Provider, RawCall as _},
+    abi::Detokenize,
+    contract::{Multicall,FunctionCall},
+    middleware::{Middleware, NonceManagerMiddleware, SignerMiddleware},
+    providers::{JsonRpcClient, Http, Provider, RawCall as _, PendingTransaction},
     signers::{LocalWallet, Signer as _},
-    types::BlockId,
+    types::{BlockId,H256},
 };
 use xshell::Shell;
 use zksync_consensus_crypto::ByteFmt;
@@ -65,8 +67,40 @@ fn encode_validator_pop(pop: &validator::ProofOfPossession) -> abi::Bls12381Sign
 
 #[derive(clap::Subcommand, Debug)]
 pub enum Command {
+    /// Sets the attester committee in the consensus registry contract to
+    /// `consensus.genesis_spec.attesters` in general.yaml.
     SetAttesterCommittee,
+    /// Fetches the attester committee from the consensus registry contract.
     GetAttesterCommittee,
+}
+
+/// Collection of sent transactions.
+#[derive(Default)]
+pub struct TxSet(Vec<(H256,&'static str)>);
+
+impl TxSet {
+    /// Sends a transactions and stores the transaction hash.
+    pub async fn send<M:'static + Middleware, B:Borrow<M>, D:Detokenize>(&mut self, name: &'static str, call: FunctionCall<B,M,D>) -> anyhow::Result<()> {
+        let h = call.send().await.context(name)?.tx_hash();
+        self.0.push((h,name));
+        Ok(())
+    }
+
+    /// Waits for all stored transactions to complete.
+    pub async fn wait<P:JsonRpcClient>(self, provider: &Provider<P>) -> anyhow::Result<()> {
+        for (h,name) in self.0 {
+            async {
+                let status = PendingTransaction::new(h,provider).await
+                    .context("await")?
+                    .context("receipt missing")?
+                    .status
+                    .context("status missing")?;
+                anyhow::ensure!(status == 1.into(), "transaction failed");
+                Ok(())
+            }.await.context(name)?;
+        }
+        Ok(())
+    }
 }
 
 impl Command {
@@ -109,11 +143,15 @@ impl Command {
                 .await
                 .context("get_block_number")?,
         );
-        let signer = Arc::new(SignerMiddleware::new(provider.clone(), governor));
+        let signer = SignerMiddleware::new(provider.clone(), governor.clone());
+        // Allows us to send next transaction without waiting for the previous to complete.
+        let signer = NonceManagerMiddleware::new(signer, governor.address());
+        let signer = Arc::new(signer);
 
         let contracts_cfg = chain_config
             .get_contracts_config()
             .context("get_contracts_config()")?;
+        // We use it to batch read calls.
         let mut multicall = Multicall::new_with_chain_id(
             signer.clone(),
             Some(
@@ -177,7 +215,8 @@ impl Command {
                     .context("nodes()")?;
                 multicall.clear_calls();
 
-                let mut txs = vec![];
+                /// Update the state.
+                let mut txs = TxSet::default();
                 let mut want: HashMap<_, _> =
                     want.iter().map(|a| (a.key.clone(), a.weight)).collect();
                 for (i, node) in nodes.into_iter().enumerate() {
@@ -191,34 +230,31 @@ impl Command {
                     };
                     if let Some(weight) = want.remove(&got.key) {
                         if weight != got.weight {
-                            txs.push(consensus_registry.change_attester_weight(
+                            txs.send("changed_attester_weight", consensus_registry.change_attester_weight(
                                 node_owners[i],
                                 weight.try_into().context("overflow")?,
-                            ).send().await.context("send()")?.tx_hash());
+                            )).await?;
                         }
                         if !node.attester_latest.active {
-                            txs.push(consensus_registry.activate(node_owners[i]).send().await.context("send()")?.tx_hash());
+                            txs.send("activate", consensus_registry.activate(node_owners[i])).await?;
                         }
                     } else {
-                        txs.push(consensus_registry.remove(node_owners[i]).send().await.context("send()")?.tx_hash());
+                        txs.send("remove", consensus_registry.remove(node_owners[i])).await?;
                     }
                 }
                 for (key, weight) in want {
                     let vk = validator::SecretKey::generate();
-                    txs.push(consensus_registry.add(
+                    txs.send("add", consensus_registry.add(
                         ethers::types::Address::random(),
                         /*validator_weight=*/ 1,
                         encode_validator_key(&vk.public()),
                         encode_validator_pop(&vk.sign_pop()),
                         weight.try_into().context("overflow")?,
                         encode_attester_key(&key),
-                    ).send().await.context("send()")?.tx_hash());
+                    )).await?;
                 }
-                txs.push(consensus_registry.commit_attester_committee().send().await.context("send()")?.tx_hash());
-                println!("{} transactions in progress",txs.len());
-                for h in txs {
-                    ethers::providers::PendingTransaction::new(h,&provider).await.context("awaiting transactions")?;
-                }
+                txs.send("commit_attester_committee", consensus_registry.commit_attester_committee()).await?;
+                txs.wait(&provider).await.context("wait()")?;
                 println!("done");
             }
             Self::GetAttesterCommittee => {
