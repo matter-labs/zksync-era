@@ -28,7 +28,7 @@ use zksync_node_framework::{
         consensus::MainNodeConsensusLayer,
         contract_verification_api::ContractVerificationApiLayer,
         da_clients::{
-            avail::AvailWiringLayer, no_da::NoDAClientWiringLayer,
+            avail::AvailWiringLayer, eigen_da::EigenDAWiringLayer, no_da::NoDAClientWiringLayer,
             object_store::ObjectStorageClientWiringLayer,
         },
         da_dispatcher::DataAvailabilityDispatcherLayer,
@@ -517,6 +517,9 @@ impl MainNodeBuilder {
             DAClient::ObjectStore(config) => {
                 self.node
                     .add_layer(ObjectStorageClientWiringLayer::new(config));
+            }
+            DAClient::EigenDA(config) => {
+                self.node.add_layer(EigenDAWiringLayer::new(config));
             }
         }
 

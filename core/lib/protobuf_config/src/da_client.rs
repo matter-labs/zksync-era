@@ -1,7 +1,10 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        da_client::DAClient::{Avail, ObjectStore},
+        da_client::{
+            eigen_da::EigenDAConfig,
+            DAClient::{Avail, EigenDA, ObjectStore},
+        },
         {self},
     },
     AvailConfig,
@@ -32,6 +35,13 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
             }
+            proto::data_availability_client::Config::EigenDa(conf) => EigenDA(EigenDAConfig {
+                api_node_url: required(&conf.api_node_url)
+                    .context("api_node_url")?
+                    .clone(),
+                custom_quorum_numbers: Some(conf.custom_quorum_numbers.clone()),
+                account_id: conf.account_id.clone(),
+            }),
         };
 
         Ok(configs::DAClientConfig { client })
@@ -54,6 +64,18 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             ObjectStore(config) => Self {
                 config: Some(proto::data_availability_client::Config::ObjectStore(
                     object_store_proto::ObjectStore::build(config),
+                )),
+            },
+            EigenDA(config) => Self {
+                config: Some(proto::data_availability_client::Config::EigenDa(
+                    proto::EigenDaConfig {
+                        api_node_url: Some(config.api_node_url.clone()),
+                        custom_quorum_numbers: config
+                            .custom_quorum_numbers
+                            .clone()
+                            .unwrap_or_default(),
+                        account_id: config.account_id.clone(),
+                    },
                 )),
             },
         }

@@ -13,10 +13,17 @@ message AvailConfig {
   optional uint64 max_retries = 6;
 }
 
+message EigenDaConfig {
+  optional string api_node_url = 1;
+  repeated uint32 custom_quorum_numbers = 2;
+  optional string account_id = 3;
+}
+
 message DataAvailabilityClient {
   // oneof in protobuf allows for None
   oneof config {
     AvailConfig avail = 1;
     object_store.ObjectStore object_store = 2;
+    EigenDaConfig eigen_da = 3;
   }
 }

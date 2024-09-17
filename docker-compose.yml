@@ -1,4 +1,4 @@
-version: '3.2'
+version: "3.2"
 services:
   reth:
     restart: always
@@ -15,7 +15,6 @@ services:
 
     command: node --dev --datadir /rethdata --http --http.addr 0.0.0.0 --http.port 8545 --http.corsdomain "*" --dev.block-time 600ms --chain /chaindata/reth_config
 
-  
   postgres:
     image: "postgres:14"
     command: postgres -c 'max_connections=1000'
@@ -56,3 +55,20 @@ services:
     profiles:
       - runner
     network_mode: host
+
+  eigenda-proxy:
+    image: ghcr.io/layr-labs/eigenda-proxy
+    ports:
+      - "4242:4242"
+    command: ./eigenda-proxy --addr 0.0.0.0 --port 4242 --memstore.enabled --eigenda-max-blob-length "2MiB"
+
+  eigenda-metrics:
+    depends_on:
+      - eigenda-proxy
+      - postgres
+    build: # This is the project root
+      context: .
+      dockerfile: ./docker/retrieve-blobs/Dockerfile
+    ports:
+      - "7070:7070"
+    command: ./retrieve-blobs
