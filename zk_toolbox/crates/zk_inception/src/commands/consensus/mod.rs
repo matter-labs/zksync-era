@@ -1,5 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
-use std::borrow::Borrow;
+use std::{borrow::Borrow, collections::HashMap, sync::Arc};
 
 /// Consensus registry contract operations.
 /// Includes code duplicated from `zksync_node_consensus::registry::abi`.
@@ -8,11 +7,11 @@ use common::config::global_config;
 use config::EcosystemConfig;
 use ethers::{
     abi::Detokenize,
-    contract::{Multicall,FunctionCall},
+    contract::{FunctionCall, Multicall},
     middleware::{Middleware, NonceManagerMiddleware, SignerMiddleware},
-    providers::{JsonRpcClient, Http, Provider, RawCall as _, PendingTransaction},
+    providers::{Http, JsonRpcClient, PendingTransaction, Provider, RawCall as _},
     signers::{LocalWallet, Signer as _},
-    types::{BlockId,H256},
+    types::{BlockId, H256},
 };
 use xshell::Shell;
 use zksync_consensus_crypto::ByteFmt;
@@ -76,28 +75,35 @@ pub enum Command {
 
 /// Collection of sent transactions.
 #[derive(Default)]
-pub struct TxSet(Vec<(H256,&'static str)>);
+pub struct TxSet(Vec<(H256, &'static str)>);
 
 impl TxSet {
     /// Sends a transactions and stores the transaction hash.
-    pub async fn send<M:'static + Middleware, B:Borrow<M>, D:Detokenize>(&mut self, name: &'static str, call: FunctionCall<B,M,D>) -> anyhow::Result<()> {
+    pub async fn send<M: 'static + Middleware, B: Borrow<M>, D: Detokenize>(
+        &mut self,
+        name: &'static str,
+        call: FunctionCall<B, M, D>,
+    ) -> anyhow::Result<()> {
         let h = call.send().await.context(name)?.tx_hash();
-        self.0.push((h,name));
+        self.0.push((h, name));
         Ok(())
     }
 
     /// Waits for all stored transactions to complete.
-    pub async fn wait<P:JsonRpcClient>(self, provider: &Provider<P>) -> anyhow::Result<()> {
-        for (h,name) in self.0 {
+    pub async fn wait<P: JsonRpcClient>(self, provider: &Provider<P>) -> anyhow::Result<()> {
+        for (h, name) in self.0 {
             async {
-                let status = PendingTransaction::new(h,provider).await
+                let status = PendingTransaction::new(h, provider)
+                    .await
                     .context("await")?
                     .context("receipt missing")?
                     .status
                     .context("status missing")?;
                 anyhow::ensure!(status == 1.into(), "transaction failed");
                 Ok(())
-            }.await.context(name)?;
+            }
+            .await
+            .context(name)?;
         }
         Ok(())
     }
@@ -230,30 +236,44 @@ impl Command {
                     };
                     if let Some(weight) = want.remove(&got.key) {
                         if weight != got.weight {
-                            txs.send("changed_attester_weight", consensus_registry.change_attester_weight(
-                                node_owners[i],
-                                weight.try_into().context("overflow")?,
-                            )).await?;
+                            txs.send(
+                                "changed_attester_weight",
+                                consensus_registry.change_attester_weight(
+                                    node_owners[i],
+                                    weight.try_into().context("overflow")?,
+                                ),
+                            )
+                            .await?;
                         }
                         if !node.attester_latest.active {
-                            txs.send("activate", consensus_registry.activate(node_owners[i])).await?;
+                            txs.send("activate", consensus_registry.activate(node_owners[i]))
+                                .await?;
                         }
                     } else {
-                        txs.send("remove", consensus_registry.remove(node_owners[i])).await?;
+                        txs.send("remove", consensus_registry.remove(node_owners[i]))
+                            .await?;
                     }
                 }
                 for (key, weight) in want {
                     let vk = validator::SecretKey::generate();
-                    txs.send("add", consensus_registry.add(
-                        ethers::types::Address::random(),
-                        /*validator_weight=*/ 1,
-                        encode_validator_key(&vk.public()),
-                        encode_validator_pop(&vk.sign_pop()),
-                        weight.try_into().context("overflow")?,
-                        encode_attester_key(&key),
-                    )).await?;
+                    txs.send(
+                        "add",
+                        consensus_registry.add(
+                            ethers::types::Address::random(),
+                            /*validator_weight=*/ 1,
+                            encode_validator_key(&vk.public()),
+                            encode_validator_pop(&vk.sign_pop()),
+                            weight.try_into().context("overflow")?,
+                            encode_attester_key(&key),
+                        ),
+                    )
+                    .await?;
                 }
-                txs.send("commit_attester_committee", consensus_registry.commit_attester_committee()).await?;
+                txs.send(
+                    "commit_attester_committee",
+                    consensus_registry.commit_attester_committee(),
+                )
+                .await?;
                 txs.wait(&provider).await.context("wait()")?;
                 println!("done");
             }
