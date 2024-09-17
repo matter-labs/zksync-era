@@ -158,6 +158,7 @@ impl MultiVMBaseSystemContracts {
             vm_1_5_0_small_memory: BaseSystemContracts::estimate_gas_1_5_0_small_memory(),
             vm_1_5_0_increased_memory:
                 BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
+            vm_protocol_defense: BaseSystemContracts::estimate_gas_post_protocol_defense(),
         }
     }
 
@@ -174,6 +175,7 @@ impl MultiVMBaseSystemContracts {
             vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
             vm_1_5_0_increased_memory: BaseSystemContracts::playground_post_1_5_0_increased_memory(
             ),
+            vm_protocol_defense: BaseSystemContracts::playground_post_protocol_defense(),
         }
     }
 }

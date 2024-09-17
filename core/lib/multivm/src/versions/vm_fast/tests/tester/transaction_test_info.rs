@@ -191,7 +191,7 @@ impl<S: PartialEq> PartialEq for VmStateDump<S> {
 }
 
 impl<S: ReadStorage> Vm<S> {
-    fn dump_state(&self) -> VmStateDump<impl PartialEq + fmt::Debug> {
+    fn dump_state(&self) -> VmStateDump<impl PartialEq + std::fmt::Debug> {
         VmStateDump {
             state: self.inner.dump_state(),
             storage_writes: self
