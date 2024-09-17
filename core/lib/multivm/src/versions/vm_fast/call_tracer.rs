@@ -1,3 +1,4 @@
+use zksync_types::zk_evm_types::FarCallOpcode;
 use zksync_vm2::interface::{
     CallframeInterface, Opcode, OpcodeType, ShouldStop, StateInterface, Tracer,
 };
@@ -31,9 +32,20 @@ impl Tracer for CallTracer {
         state: &mut S,
     ) -> ShouldStop {
         match OP::VALUE {
-            Opcode::FarCall(_) => {
+            Opcode::FarCall(tipe) => {
                 self.current_stack_depth += 1;
                 self.max_stack_depth = self.max_stack_depth.max(self.current_stack_depth);
+
+                self.stack.push(FarcallAndNearCallCount {
+                    farcall: Call {
+                        r#type: /*match tipe {
+                            zksync_vm2::zksync_vm2_interface::CallingMode::Normal => {*/
+                                zksync_vm_interface::CallType::Call(FarCallOpcode::Normal)
+                        ,
+                        ..Default::default()
+                    },
+                    near_calls_after: 0,
+                });
             }
             Opcode::NearCall => {
                 self.current_stack_depth += 1;
