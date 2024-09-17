@@ -83,6 +83,7 @@ pub const PROVER_CLI_PREREQUISITE: [Prerequisite; 1] = [Prerequisite {
     name: "prover_cli",
     download_link:
         "https://github.com/matter-labs/zksync-era/tree/main/prover/crates/bin/prover_cli",
+    custom_validator: None,
 }];
 
 pub struct Prerequisite {

@@ -27,7 +27,6 @@ use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
     common::deploy_l1,
     setup_observability,
-    utils::{build_system_contracts, install_yarn_dependencies},
 };
 use crate::{
     accept_ownership::{accept_admin, accept_owner},

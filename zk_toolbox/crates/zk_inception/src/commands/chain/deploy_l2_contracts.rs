@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use anyhow::Context;
 use common::{
     config::global_config,
@@ -110,7 +112,7 @@ async fn build_and_deploy(
     signature: Option<&str>,
     mut update_config: impl FnMut(&Shell, &Path) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
-    build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
     call_forge(shell, chain_config, ecosystem_config, forge_args, signature).await?;
     update_config(
         shell,
