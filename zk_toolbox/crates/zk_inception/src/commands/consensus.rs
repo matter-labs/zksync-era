@@ -221,7 +221,7 @@ impl Command {
                     .context("nodes()")?;
                 multicall.clear_calls();
 
-                /// Update the state.
+                // Update the state.
                 let mut txs = TxSet::default();
                 let mut want: HashMap<_, _> =
                     want.iter().map(|a| (a.key.clone(), a.weight)).collect();
