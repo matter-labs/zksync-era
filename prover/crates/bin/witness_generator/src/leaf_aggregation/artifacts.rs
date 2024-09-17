@@ -7,12 +7,11 @@ use zksync_prover_fri_types::keys::{AggregationsKey, ClosedFormInputKey};
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_types::{basic_fri_types::AggregationRound, prover_dal::LeafAggregationJobMetadata};
 
-use crate::utils::AggregationWrapper;
 use crate::{
     artifacts::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
     leaf_aggregation::{LeafAggregationArtifacts, LeafAggregationWitnessGenerator},
     metrics::WITNESS_GENERATOR_METRICS,
-    utils::{save_node_aggregations_artifacts, ClosedFormInputWrapper},
+    utils::{AggregationWrapper, ClosedFormInputWrapper},
 };
 
 #[async_trait]
