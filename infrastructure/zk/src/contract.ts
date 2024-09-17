@@ -93,10 +93,19 @@ async function registerSyncLayer() {
     await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer register-sync-layer`);
 }
 
-export async function computeMigratedChainAddress(chainId: number, gatewayEnv: string) {
-    gatewayEnv = gatewayEnv ?? 'dev';
-    const address = await utils.exec(`ZKSYNC_ENV=${gatewayEnv} CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn -s l1-contracts sync-layer compute-migrated-chain-address --chain-id ${chainId} | tail -1`);
-    return address.stdout.trim();
+export async function computeMigratedChainAddress(chainId: number, gatewayEnv?: string) {
+    gatewayEnv ??= 'dev';
+    const thisEnv = process.env.ZKSYNC_ENV!;
+    env.set(gatewayEnv);
+    const output = await utils.exec(
+        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn -s l1-contracts sync-layer compute-migrated-chain-address --chain-id ${chainId} | tail -1`
+    );
+    env.set(thisEnv);
+    const address = output.stdout.trim();
+    if (!address.match(/^0x[0-9A-Fa-f]{40}$/)) {
+        throw new Error(`Could not compute migrated address:\n${output.stderr}`);
+    }
+    return address;
 }
 
 async function migrateToSyncLayer() {
