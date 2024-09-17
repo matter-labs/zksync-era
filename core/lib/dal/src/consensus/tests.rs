@@ -17,7 +17,7 @@ use crate::tests::mock_protocol_upgrade_transaction;
 
 fn execute(rng: &mut impl Rng) -> Execute {
     Execute {
-        contract_address: rng.gen(),
+        contract_address: Some(rng.gen()),
         value: rng.gen::<u128>().into(),
         calldata: (0..10 * 32).map(|_| rng.gen()).collect(),
         // TODO: find a way to generate valid random bytecode.
