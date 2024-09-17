@@ -414,10 +414,12 @@ pub(super) const MSG_GET_ZKSOLC_RELEASES_ERR: &str = "Failed to get zksolc relea
 pub(super) const MSG_FETCHING_ZKSOLC_RELEASES_SPINNER: &str = "Fetching zksolc releases...";
 pub(super) const MSG_FETCHING_ZKVYPER_RELEASES_SPINNER: &str = "Fetching zkvyper releases...";
 pub(super) const MSG_FETCH_SOLC_RELEASES_SPINNER: &str = "Fetching solc releases...";
+pub(super) const MSG_FETCH_ERA_VM_SOLC_RELEASES_SPINNER: &str = "Fetching era vm solc releases...";
 pub(super) const MSG_FETCHING_VYPER_RELEASES_SPINNER: &str = "Fetching vyper releases...";
 pub(super) const MSG_ZKSOLC_VERSION_PROMPT: &str = "Select the minimal zksolc version:";
 pub(super) const MSG_ZKVYPER_VERSION_PROMPT: &str = "Select the minimal zkvyper version:";
 pub(super) const MSG_SOLC_VERSION_PROMPT: &str = "Select the minimal solc version:";
+pub(super) const MSG_ERA_VM_SOLC_VERSION_PROMPT: &str = "Select the minimal era vm solc version:";
 pub(super) const MSG_VYPER_VERSION_PROMPT: &str = "Select the minimal vyper version:";
 pub(super) const MSG_NO_RELEASES_FOUND_ERR: &str = "No releases found for current architecture";
 pub(super) const MSG_NO_VERSION_FOUND_ERR: &str = "No version found";
@@ -425,6 +427,7 @@ pub(super) const MSG_ARCH_NOT_SUPPORTED_ERR: &str = "Architecture not supported"
 pub(super) const MSG_OS_NOT_SUPPORTED_ERR: &str = "OS not supported";
 pub(super) const MSG_GET_VYPER_RELEASES_ERR: &str = "Failed to get vyper releases";
 pub(super) const MSG_GET_SOLC_RELEASES_ERR: &str = "Failed to get solc releases";
+pub(super) const MSG_GET_ERA_VM_SOLC_RELEASES_ERR: &str = "Failed to get era vm solc releases";
 pub(super) const MSG_GET_ZKVYPER_RELEASES_ERR: &str = "Failed to get zkvyper releases";
 
 pub(super) fn msg_binary_already_exists(name: &str, version: &str) -> String {
@@ -451,7 +454,6 @@ pub(super) const MSG_DIFF_EN_CONFIG: &str =
     "Added the following fields to the external node config:";
 pub(super) const MSG_DIFF_EN_GENERAL_CONFIG: &str =
     "Added the following fields to the external node generalconfig:";
-pub(super) const MSG_INVALID_KEY_TYPE_ERR: &str = "Invalid key type";
 pub(super) const MSG_UPDATING_ERA_OBSERVABILITY_SPINNER: &str = "Updating era observability...";
 
 pub(super) fn msg_diff_genesis_config(chain: &str) -> String {

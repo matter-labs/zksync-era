@@ -13,7 +13,7 @@ mod common;
 mod create;
 pub mod create_configs;
 pub(crate) mod init;
-mod setup_observability;
+pub(crate) mod setup_observability;
 mod utils;
 
 #[derive(Subcommand, Debug)]
