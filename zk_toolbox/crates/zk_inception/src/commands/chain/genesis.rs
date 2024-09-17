@@ -9,7 +9,7 @@ use common::{
     spinner::Spinner,
 };
 use config::{
-    override_config, set_databases, set_file_artifacts, set_rocks_db_config,
+    set_databases, set_file_artifacts, set_rocks_db_config,
     traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig, FileArtifacts, GeneralConfig, GenesisConfig,
     SecretsConfig, WalletsConfig,
@@ -17,14 +17,12 @@ use config::{
 use types::ProverMode;
 use xshell::Shell;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
+use zksync_config::configs::eth_sender::{ProofSendingMode, PubdataSendingMode};
 
 use super::args::genesis::GenesisArgsFinal;
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
-    consts::{
-        PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG, PATH_TO_VALIDIUM_OVERRIDE_CONFIG,
-        PROVER_MIGRATIONS, SERVER_MIGRATIONS,
-    },
+    consts::{PROVER_MIGRATIONS, SERVER_MIGRATIONS},
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
         MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_FAILED_TO_RUN_SERVER_ERR,
