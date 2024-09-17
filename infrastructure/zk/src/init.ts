@@ -303,8 +303,8 @@ initCommand
     .description('Registers a hyperchain and deploys L2 contracts only. It requires an already deployed shared bridge.')
     .option('--skip-setup-completely', 'skip the setup completely, use this if server was started already')
     .option('--skip-contract-compilation-override')
-    .option('--bump-chain-id', 'bump chain id to not conflict with previously deployed hyperchain')
     .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--bump-chain-id', 'bump chain id to not conflict with previously deployed hyperchain')
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')
     .action(initHyperCmdAction);
