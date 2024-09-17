@@ -128,7 +128,6 @@ jobs:
         run: |
           mkdir -p ./volumes/postgres
           docker compose up -d postgres
-          zk || true
           zkt || true
 
       - name: build contracts
