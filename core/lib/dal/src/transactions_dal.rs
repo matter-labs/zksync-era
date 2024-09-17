@@ -59,9 +59,7 @@ impl TransactionsDal<'_, '_> {
         l1_block_number: L1BlockNumber,
     ) -> DalResult<()> {
         let contract_address = tx.execute.contract_address;
-        let contract_address_as_bytes = contract_address
-            .map(|addr| addr.as_bytes().to_vec())
-            .unwrap_or_default();
+        let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
         let tx_hash = tx.hash();
         let tx_hash_bytes = tx_hash.as_bytes();
         let json_data = serde_json::to_value(&tx.execute)
@@ -165,9 +163,7 @@ impl TransactionsDal<'_, '_> {
 
     pub async fn insert_system_transaction(&mut self, tx: &ProtocolUpgradeTx) -> DalResult<()> {
         let contract_address = tx.execute.contract_address;
-        let contract_address_as_bytes = contract_address
-            .map(|addr| addr.as_bytes().to_vec())
-            .unwrap_or_default();
+        let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
         let tx_hash = tx.common_data.hash().0.to_vec();
         let json_data = serde_json::to_value(&tx.execute)
             .unwrap_or_else(|_| panic!("cannot serialize tx {:?} to json", tx.common_data.hash()));
@@ -291,9 +287,7 @@ impl TransactionsDal<'_, '_> {
 
         let initiator_address = tx.initiator_account();
         let contract_address = tx.execute.contract_address;
-        let contract_address_as_bytes = contract_address
-            .map(|addr| addr.as_bytes().to_vec())
-            .unwrap_or_default();
+        let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
         let json_data = serde_json::to_value(&tx.execute)
             .unwrap_or_else(|_| panic!("cannot serialize tx {:?} to json", tx.hash()));
         let gas_limit = u256_to_big_decimal(tx.common_data.fee.gas_limit);
@@ -707,9 +701,7 @@ impl TransactionsDal<'_, '_> {
             })?;
 
             let contract_address = transaction.execute.contract_address;
-            let contract_address_as_bytes = contract_address
-                .map(|addr| addr.as_bytes().to_vec())
-                .unwrap_or_default();
+            let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
             l2_values.push(u256_to_big_decimal(transaction.execute.value));
             l2_contract_addresses.push(contract_address_as_bytes);
             l2_paymaster_input.push(&common_data.paymaster_params.paymaster_input[..]);
@@ -831,7 +823,7 @@ impl TransactionsDal<'_, '_> {
             &l2_inputs as &[&[u8]],
             &l2_datas,
             &l2_tx_formats,
-            &l2_contract_addresses,
+            &l2_contract_addresses as &[Option<Vec<u8>>],
             &l2_values,
             &l2_paymaster as &[&[u8]],
             &l2_paymaster_input as &[&[u8]],
@@ -915,9 +907,7 @@ impl TransactionsDal<'_, '_> {
             })?;
 
             let contract_address = transaction.execute.contract_address;
-            let contract_address_as_bytes = contract_address
-                .map(|addr| addr.as_bytes().to_vec())
-                .unwrap_or_default();
+            let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
             l2_values.push(u256_to_big_decimal(transaction.execute.value));
             l2_contract_addresses.push(contract_address_as_bytes);
             l2_paymaster_input.push(&common_data.paymaster_params.paymaster_input[..]);
@@ -1030,7 +1020,7 @@ impl TransactionsDal<'_, '_> {
             &l2_datas,
             &l2_refunded_gas,
             &l2_values,
-            &l2_contract_addresses,
+            &l2_contract_addresses as &[Option<Vec<u8>>],
             &l2_paymaster as &[&[u8]],
             &l2_paymaster_input as &[&[u8]],
             l2_block_number.0 as i32,
@@ -1101,9 +1091,7 @@ impl TransactionsDal<'_, '_> {
             })?;
 
             let contract_address = transaction.execute.contract_address;
-            let contract_address_as_bytes = contract_address
-                .map(|addr| addr.as_bytes().to_vec())
-                .unwrap_or_default();
+            let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
             let tx = &tx_res.transaction;
             l1_hashes.push(tx_res.hash.as_bytes());
             l1_initiator_address.push(common_data.sender.as_bytes());
@@ -1224,7 +1212,7 @@ impl TransactionsDal<'_, '_> {
             &l1_priority_op_id,
             &l1_full_fee,
             &l1_layer_2_tip_fee,
-            &l1_contract_address,
+            &l1_contract_address as &[Option<Vec<u8>>],
             &l1_l1_block_number,
             &l1_value,
             &l1_tx_format,
@@ -1395,9 +1383,7 @@ impl TransactionsDal<'_, '_> {
             })?;
 
             let contract_address = transaction.execute.contract_address;
-            let contract_address_as_bytes = contract_address
-                .map(|addr| addr.as_bytes().to_vec())
-                .unwrap_or_default();
+            let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
             let tx = &tx_res.transaction;
             upgrade_hashes.push(tx_res.hash.as_bytes());
             upgrade_initiator_address.push(common_data.sender.as_bytes());
@@ -1509,7 +1495,7 @@ impl TransactionsDal<'_, '_> {
             &upgrade_gas_per_pubdata_limit,
             &upgrade_data,
             &upgrade_upgrade_id,
-            &upgrade_contract_address,
+            &upgrade_contract_address as &[Option<Vec<u8>>],
             &upgrade_l1_block_number,
             &upgrade_value,
             &upgrade_tx_format,
