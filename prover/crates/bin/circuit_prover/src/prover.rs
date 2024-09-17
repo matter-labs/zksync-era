@@ -13,6 +13,11 @@ use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
 use zksync_object_store::ObjectStore;
+use zksync_types::{
+    basic_fri_types::AggregationRound, L1BatchNumber, protocol_version::ProtocolSemanticVersion,
+};
+use zksync_utils::panic_extractor::try_extract_panic_message;
+
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -34,22 +39,24 @@ use zksync_prover_fri_types::{
         },
         recursion_layer_proof_config,
     },
-    CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
+    CircuitWrapper, FriProofWrapper, ProverArtifacts, ProverJob, ProverServiceDataKey,
+    WitnessVectorArtifacts,
 };
+use zksync_prover_fri_types::circuit_definitions::boojum::cs::implementations::witness::WitnessVec;
 use zksync_prover_keystore::GoldilocksGpuProverSetupData;
-use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
-};
-use zksync_utils::panic_extractor::try_extract_panic_message;
 
 type DefaultTranscript = GoldilocksPoisedon2Transcript;
 type DefaultTreeHasher = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
+pub type F = GoldilocksField;
+pub type H = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
+pub type Ext = GoldilocksExt2;
 
 pub struct CircuitProver {
     connection_pool: ConnectionPool<Prover>,
     object_store: Arc<dyn ObjectStore>,
     protocol_version: ProtocolSemanticVersion,
     receiver: Receiver<WitnessVectorArtifacts>,
+    #[allow(dead_code)]
     prover_context: ProverContext,
     setup_keys: HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>,
 }
@@ -62,43 +69,120 @@ impl CircuitProver {
         receiver: Receiver<WitnessVectorArtifacts>,
         max_allocation: Option<usize>,
         setup_keys: HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         let prover_context = match max_allocation {
             Some(max_allocation) => ProverContext::create_with_config(
                 ProverContextConfig::default().with_maximum_device_allocation(max_allocation),
             )
-            .expect("failed initializing gpu prover context"),
-            None => ProverContext::create().expect("failed initializing gpu prover context"),
+                .context("failed initializing gpu prover context")?,
+            None => ProverContext::create().context("failed initializing gpu prover context")?,
         };
-        Self {
+        Ok(Self {
             connection_pool,
             object_store,
             protocol_version,
             receiver,
             prover_context,
             setup_keys,
-        }
+        })
     }
 
-    const POLLING_INTERVAL_MS: u64 = 1500;
+    pub async fn run(mut self, cancellation_token: CancellationToken) -> anyhow::Result<()> {
+        while !cancellation_token.is_cancelled() {
+            let mut get_vector_timer = Instant::now();
 
+            let artifact = self
+                .receiver
+                .recv()
+                .await
+                .context("no witness vector generators are available")?;
+            tracing::info!(
+                "Prover received job after: {:?}",
+                get_vector_timer.elapsed()
+            );
+            self.prove(artifact, cancellation_token.clone())
+                .await
+                .context("failed to prove circuit proof")?;
+
+            get_vector_timer = Instant::now();
+        }
+        tracing::warn!("Stop signal received, shutting down Witness Vector Generator");
+        Ok(())
+    }
+
+    async fn prove(
+        &self,
+        artifact: WitnessVectorArtifacts,
+        cancellation_token: CancellationToken,
+    ) -> anyhow::Result<()> {
+        let start = Instant::now();
+        let block_number = artifact.prover_job.block_number;
+        let setup_data_key = artifact.prover_job.setup_data_key.crypto_setup_key();
+        let job_id = artifact.prover_job.job_id;
+        let setup_data = self
+            .setup_keys
+            .get(&setup_data_key)
+            .context("couldn't find key for setup_data_key")?
+            .clone();
+        let task = tokio::task::spawn_blocking(move || {
+            let _span = tracing::info_span!("gpu_prove", %block_number).entered();
+            Self::prove_circuit_proof(artifact, setup_data).context("failed to prove circuit")
+        });
+
+        self.wait_for_task(job_id, start, task, cancellation_token.clone())
+            .await?;
+        Ok(())
+    }
     #[tracing::instrument(
         name = "Prover::prove",
         skip_all,
         fields(l1_batch = % witness_vector_artifacts.prover_job.block_number)
     )]
-    pub fn prove(
+    pub fn prove_circuit_proof(
         witness_vector_artifacts: WitnessVectorArtifacts,
         setup_data: Arc<GoldilocksGpuProverSetupData>,
-    ) -> ProverArtifacts {
-        let worker = Worker::new();
-
+    ) -> anyhow::Result<ProverArtifacts> {
         let WitnessVectorArtifacts {
             witness_vector,
             prover_job,
         } = witness_vector_artifacts;
 
-        let (gpu_proof_config, proof_config, circuit_id) = match &prover_job.circuit_wrapper {
+        let job_id = prover_job.job_id;
+        let circuit_wrapper = prover_job.circuit_wrapper;
+        let block_number = prover_job.block_number;
+
+        let (proof, circuit_id) =
+            Self::generate_proof(&circuit_wrapper, witness_vector, &setup_data)
+                .context(format!("failed to generate proof for job id {job_id}"))?;
+
+        Self::verify_proof(&circuit_wrapper, &proof, &setup_data.vk).context(format!(
+            "failed to verify proof with job_id {job_id}, circuit_id: {circuit_id}"
+        ))?;
+
+        let proof_wrapper = match &circuit_wrapper {
+            CircuitWrapper::Base(_) => {
+                FriProofWrapper::Base(ZkSyncBaseLayerProof::from_inner(circuit_id, proof))
+            }
+            CircuitWrapper::Recursive(_) => {
+                FriProofWrapper::Recursive(ZkSyncRecursionLayerProof::from_inner(circuit_id, proof))
+            }
+            CircuitWrapper::BasePartial(_) => {
+                return Err(anyhow::anyhow!(
+                    "Unexpected partial base circuit for proving"
+                ))
+            }
+        };
+        Ok(ProverArtifacts::new(block_number, proof_wrapper))
+    }
+
+    fn generate_proof(
+        circuit_wrapper: &CircuitWrapper,
+        witness_vector: WitnessVec<GoldilocksField>,
+        setup_data: &Arc<GoldilocksGpuProverSetupData>,
+    ) -> anyhow::Result<(Proof<F, H, Ext>, u8)> {
+        let worker = Worker::new();
+
+        let (gpu_proof_config, proof_config, circuit_id) = match circuit_wrapper {
             CircuitWrapper::Base(circuit) => (
                 GpuProofConfig::from_base_layer_circuit(circuit),
                 base_layer_proof_config(),
@@ -109,10 +193,13 @@ impl CircuitProver {
                 recursion_layer_proof_config(),
                 circuit.numeric_circuit_type(),
             ),
-            CircuitWrapper::BasePartial(_) => panic!("Invalid CircuitWrapper received"),
+            CircuitWrapper::BasePartial(_) => {
+                return Err(anyhow::anyhow!(
+                    "Received unexpected partial base circuit for proving"
+                ))
+            }
         };
 
-        let _started_at = Instant::now();
         let proof =
             gpu_prove_from_external_witness_data::<DefaultTranscript, DefaultTreeHasher, NoPow, _>(
                 &gpu_proof_config,
@@ -123,157 +210,86 @@ impl CircuitProver {
                 (),
                 &worker,
             )
-            .unwrap_or_else(|_| {
-                panic!("failed generating GPU proof for id: {}", prover_job.job_id)
-            });
-        // tracing::info!(
-        //     "Successfully generated gpu proof for job {} took: {:?}",
-        //     prover_job.job_id,
-        //     started_at.elapsed()
-        // );
-        // METRICS.gpu_proof_generation_time[&circuit_id.to_string()]
-        //     .observe(started_at.elapsed());
-
-        let proof = proof.into();
-        verify_proof(
-            &prover_job.circuit_wrapper,
-            &proof,
-            &setup_data.vk,
-            prover_job.job_id,
-        );
-        let proof_wrapper = match &prover_job.circuit_wrapper {
-            CircuitWrapper::Base(_) => {
-                FriProofWrapper::Base(ZkSyncBaseLayerProof::from_inner(circuit_id, proof))
-            }
-            CircuitWrapper::Recursive(_) => {
-                FriProofWrapper::Recursive(ZkSyncRecursionLayerProof::from_inner(circuit_id, proof))
-            }
-            CircuitWrapper::BasePartial(_) => panic!("Received partial base circuit"),
-        };
-        ProverArtifacts::new(prover_job.block_number, proof_wrapper)
+                .context("crypto primitive: failed to generate proof")?;
+        Ok((proof.into(), circuit_id))
     }
 
-    pub async fn run(mut self, cancellation_token: CancellationToken) -> anyhow::Result<()> {
-        let mut backoff: u64 = Self::POLLING_INTERVAL_MS;
-        let mut start = Instant::now();
-        while !cancellation_token.is_cancelled() {
-            if let Some((job_id, job)) = self
-                .get_next_job()
-                .await
-                .context("failed during get_next_job()")?
-            {
-                tracing::info!("Prover received job after: {:?}", start.elapsed());
-                let started_at = Instant::now();
-                backoff = Self::POLLING_INTERVAL_MS;
-                // tracing::debug!(
-                //                     "Spawning thread processing {:?} job with id {:?}",
-                //                     Self::SERVICE_NAME,
-                //                     job_id
-                //                 );
-                let task = self.process_job(job_id, job, started_at).await;
+    fn verify_proof(
+        circuit_wrapper: &CircuitWrapper,
+        proof: &Proof<F, H, Ext>,
+        verification_key: &VerificationKey<F, H>,
+    ) -> anyhow::Result<()> {
+        let is_valid = match circuit_wrapper {
+            CircuitWrapper::Base(base_circuit) => verify_base_layer_proof::<NoPow>(
+                base_circuit,
+                proof,
+                verification_key,
+            ),
+            CircuitWrapper::Recursive(recursive_circuit) =>
+                verify_recursion_layer_proof::<NoPow>(recursive_circuit, proof, verification_key),
+            CircuitWrapper::BasePartial(_) => {
+                return Err(anyhow::anyhow!(
+                    "received partial proof for verifying, unexpected"
+                ))
+            }
+        };
 
-                tokio::select! {
-                    _ = cancellation_token.cancelled() => {
-                        tracing::info!("received cancellation!");
-                        return Ok(())
-                    }
-                    result = task => {
-                        let error_message = match result {
-                            Ok(Ok(data)) => {
-                                // tracing::info!(
-                                //     "{} Job {:?} finished successfully",
-                                //     "witness_vector_generator",
-                                //     job_id
-                                // );
-                // METRICS.attempts[&Self::SERVICE_NAME].observe(attempts as usize);
-                                self
-                                    .save_result(job_id, started_at, data)
-                                    .await;
-                                                tracing::info!("Prover executed job in: {:?}", started_at.elapsed());
-                start = Instant::now();
-                                continue;
-                            }
-                            Ok(Err(error)) => error.to_string(),
-                            Err(error) => try_extract_panic_message(error),
-                        };
-                        tracing::error!(
-                            "Error occurred while processing {} job {:?}: {:?}",
-                            "witness_vector_generator",
-                            job_id,
-                            error_message
-                        );
-
-                        self.save_failure(job_id, started_at, error_message).await;
-                    }
-                }
-                tracing::info!("Prover executed job in: {:?}", started_at.elapsed());
-                start = Instant::now();
-                continue;
-            };
-            tracing::info!("Backing off for {} ms", backoff);
-            // Error here corresponds to a timeout w/o receiving task cancel; we're OK with this.
-            tokio::time::timeout(
-                Duration::from_millis(backoff),
-                cancellation_token.cancelled(),
-            )
-            .await
-            .ok();
-            const MAX_BACKOFF_MS: u64 = 60_000;
-            const BACKOFF_MULTIPLIER: u64 = 2;
-            backoff = (backoff * BACKOFF_MULTIPLIER).min(MAX_BACKOFF_MS);
+        if !is_valid {
+            return Err(anyhow::anyhow!("crypto primitive: failed to verify proof"));
         }
-        tracing::warn!("Stop signal received, shutting down Witness Vector Generator");
         Ok(())
     }
 
-    async fn get_next_job(&mut self) -> anyhow::Result<Option<(u32, WitnessVectorArtifacts)>> {
-        // let now = Instant::now();
-        let job = match self.receiver.recv().await {
-            None => {
-                tracing::error!("No producers available");
-                Err(anyhow!("No producer available"))
+    async fn wait_for_task(
+        &self,
+        job_id: u32,
+        started_at: Instant,
+        task: JoinHandle<anyhow::Result<ProverArtifacts>>,
+        cancellation_token: CancellationToken,
+    ) -> anyhow::Result<()> {
+        tokio::select! {
+            _ = cancellation_token.cancelled() => {
+                tracing::info!("received cancellation!");
+                return Ok(())
             }
-            Some(witness_vector) => Ok(Some((witness_vector.prover_job.job_id, witness_vector))),
-        };
-        // tracing::info!("Received job after {:?}", now.elapsed());
-        job
+            result = task => {
+                let error_message = match result {
+                    Ok(Ok(prover_artifact)) => {
+                        self
+                            .save_result(job_id, started_at, prover_artifact)
+                            .await.context("failed to save result")?;
+                        tracing::info!("Prover executed job in: {:?}", started_at.elapsed());
+                        return Ok(())
+                    }
+                    Ok(Err(error)) => error.to_string(),
+                    Err(error) => try_extract_panic_message(error),
+                };
+                tracing::error!(
+                    "Error occurred while processing {} job {:?}: {:?}",
+                    "prover",
+                    job_id,
+                    error_message
+                );
+                self.save_failure(job_id, error_message).await.context("failed to save result")?;
+            }
+        }
+
+        Ok(())
     }
 
-    async fn save_failure(&self, job_id: u32, _started_at: Instant, error: String) {
-        self.connection_pool
+    async fn save_result(
+        &self,
+        job_id: u32,
+        started_at: Instant,
+        artifacts: ProverArtifacts,
+    ) -> anyhow::Result<()> {
+        let mut connection = self
+            .connection_pool
             .connection()
             .await
-            .unwrap()
-            .fri_prover_jobs_dal()
-            .save_proof_error(job_id, error)
-            .await;
-    }
-
-    async fn process_job(
-        &self,
-        _job_id: u32,
-        witness_vector: WitnessVectorArtifacts,
-        _started_at: Instant,
-    ) -> JoinHandle<anyhow::Result<ProverArtifacts>> {
-        let setup_data = self.get_setup_data(witness_vector.prover_job.setup_data_key.clone());
-        tokio::task::spawn_blocking(move || {
-            let block_number = witness_vector.prover_job.block_number;
-            let _span = tracing::info_span!("gpu_prove", %block_number).entered();
-            Ok(Self::prove(
-                witness_vector,
-                setup_data.context("get_setup_data()")?,
-            ))
-        })
-    }
-
-    async fn save_result(&self, job_id: u32, started_at: Instant, artifacts: ProverArtifacts) {
-        // METRICS.gpu_total_proving_time.observe(started_at.elapsed());
-
-        let mut connection = self.connection_pool.connection().await.unwrap();
+            .context("failed to get connection")?;
         let proof = artifacts.proof_wrapper;
 
-        // We save the scheduler proofs in public bucket,
-        // so that it can be verified independently while we're doing shadow proving
         let (_circuit_type, is_scheduler_proof) = match &proof {
             FriProofWrapper::Base(base) => (base.numeric_circuit_type(), false),
             FriProofWrapper::Recursive(recursive_circuit) => match recursive_circuit {
@@ -285,11 +301,18 @@ impl CircuitProver {
         };
 
         // let blob_save_started_at = Instant::now();
-        let blob_url = self.object_store.put(job_id, &proof).await.unwrap();
+        let blob_url = self
+            .object_store
+            .put(job_id, &proof)
+            .await
+            .context("failed to upload to object store")?;
 
         // METRICS.blob_save_time[&circuit_type.to_string()].observe(blob_save_started_at.elapsed());
 
-        let mut transaction = connection.start_transaction().await.unwrap();
+        let mut transaction = connection
+            .start_transaction()
+            .await
+            .context("failed to start transaction")?;
         transaction
             .fri_prover_jobs_dal()
             .save_proof(job_id, started_at.elapsed(), &blob_url)
@@ -304,72 +327,21 @@ impl CircuitProver {
                 )
                 .await;
         }
-        transaction.commit().await.unwrap();
+        transaction
+            .commit()
+            .await
+            .context("failed to commit transaction")?;
+        Ok(())
     }
-    #[tracing::instrument(name = "Prover::get_setup_data", skip_all)]
-    fn get_setup_data(
-        &self,
-        key: ProverServiceDataKey,
-    ) -> anyhow::Result<Arc<GoldilocksGpuProverSetupData>> {
-        let key = get_setup_data_key(key);
-        Ok(self.setup_keys.get(&key).unwrap().clone())
-    }
-}
 
-pub struct ProverArtifacts {
-    block_number: L1BatchNumber,
-    pub proof_wrapper: FriProofWrapper,
-}
-
-impl ProverArtifacts {
-    pub fn new(block_number: L1BatchNumber, proof_wrapper: FriProofWrapper) -> Self {
-        Self {
-            block_number,
-            proof_wrapper,
-        }
-    }
-}
-
-pub type F = GoldilocksField;
-pub type H = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
-pub type Ext = GoldilocksExt2;
-pub fn verify_proof(
-    circuit_wrapper: &CircuitWrapper,
-    proof: &Proof<F, H, Ext>,
-    vk: &VerificationKey<F, H>,
-    job_id: u32,
-) {
-    // let started_at = Instant::now();
-    let (is_valid, circuit_id) = match circuit_wrapper {
-        CircuitWrapper::Base(base_circuit) => (
-            verify_base_layer_proof::<NoPow>(base_circuit, proof, vk),
-            base_circuit.numeric_circuit_type(),
-        ),
-        CircuitWrapper::Recursive(recursive_circuit) => (
-            verify_recursion_layer_proof::<NoPow>(recursive_circuit, proof, vk),
-            recursive_circuit.numeric_circuit_type(),
-        ),
-        CircuitWrapper::BasePartial(_) => panic!("Invalid CircuitWrapper received"),
-    };
-
-    // METRICS.proof_verification_time[&circuit_id.to_string()].observe(started_at.elapsed());
-
-    if !is_valid {
-        let msg = format!("Failed to verify proof for job-id: {job_id} circuit_type {circuit_id}");
-        tracing::error!("{}", msg);
-        panic!("{}", msg);
-    }
-}
-
-pub fn get_setup_data_key(key: ProverServiceDataKey) -> ProverServiceDataKey {
-    match key.round {
-        AggregationRound::NodeAggregation => {
-            // For node aggregation only one key exist for all circuit types
-            ProverServiceDataKey {
-                circuit_id: ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-                round: key.round,
-            }
-        }
-        _ => key,
+    async fn save_failure(&self, job_id: u32, error: String) -> anyhow::Result<()> {
+        Ok(self
+            .connection_pool
+            .connection()
+            .await
+            .context("failed to get db connection")?
+            .fri_prover_jobs_dal()
+            .save_proof_error(job_id, error)
+            .await)
     }
 }

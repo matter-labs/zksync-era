@@ -125,7 +125,7 @@ pub trait JobProcessor: Sync + Send {
         }
 
         let result = loop {
-            tracing::trace!(
+            tracing::info!(
                 "Polling {} task with id {:?}. Is finished: {}",
                 Self::SERVICE_NAME,
                 job_id,
@@ -134,9 +134,9 @@ pub trait JobProcessor: Sync + Send {
             if task.is_finished() {
                 break task.await;
             }
-            if stop_receiver.changed().await.is_ok() {
-                return Ok(());
-            }
+            // if stop_receiver.changed().await.is_ok() {
+            //     return Ok(());
+            // }
         };
         let error_message = match result {
             Ok(Ok(data)) => {

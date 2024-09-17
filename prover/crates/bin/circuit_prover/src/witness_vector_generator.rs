@@ -4,6 +4,9 @@ use anyhow::Context;
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use zksync_object_store::ObjectStore;
+use zksync_types::{L1BatchNumber, protocol_version::ProtocolSemanticVersion};
+use zksync_utils::panic_extractor::try_extract_panic_message;
+
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -14,13 +17,11 @@ use zksync_prover_fri_types::{
         },
         circuit_definitions::base_layer::ZkSyncBaseLayerCircuit,
     },
-    get_current_pod_name,
-    keys::RamPermutationQueueWitnessKey,
-    CircuitAuxData, CircuitWrapper, ProverJob, ProverServiceDataKey, RamPermutationQueueWitness,
+    CircuitAuxData,
+    CircuitWrapper,
+    get_current_pod_name, keys::RamPermutationQueueWitnessKey, ProverJob, ProverServiceDataKey, RamPermutationQueueWitness,
     WitnessVectorArtifacts,
 };
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
-use zksync_utils::panic_extractor::try_extract_panic_message;
 
 use crate::Backoff;
 
@@ -58,7 +59,7 @@ impl WitnessVectorGenerator {
     ) -> anyhow::Result<()> {
         let mut get_job_timer = Instant::now();
         while !cancellation_token.is_cancelled() {
-            if let Some(job) = self
+            if let Some(prover_job) = self
                 .get_job()
                 .await
                 .context("failed to get next witness generation job")?
@@ -67,7 +68,7 @@ impl WitnessVectorGenerator {
                     "Witness Vector Generator received job after: {:?}",
                     get_job_timer.elapsed()
                 );
-                self.generate_witness(job.job_id, job, cancellation_token.clone())
+                self.generate(prover_job, cancellation_token.clone())
                     .await
                     .context("failed to generate witness")?;
 
@@ -113,7 +114,7 @@ impl WitnessVectorGenerator {
         let setup_data_key = ProverServiceDataKey {
             circuit_id: prover_job_metadata.circuit_id,
             round: prover_job_metadata.aggregation_round,
-        };
+        }.crypto_setup_key();
         let prover_job = ProverJob::new(
             prover_job_metadata.block_number,
             prover_job_metadata.id,
@@ -171,22 +172,22 @@ impl WitnessVectorGenerator {
         ))
     }
 
-    async fn generate_witness(
+    async fn generate(
         &self,
-        job_id: u32,
-        job: ProverJob,
+        prover_job: ProverJob,
         cancellation_token: CancellationToken,
     ) -> anyhow::Result<()> {
         let started_at = Instant::now();
         let finalization_hints = self
             .finalization_hints
-            .get(&job.setup_data_key)
+            .get(&prover_job.setup_data_key)
             .expect("no finalization hints for setup_data_key")
             .clone();
+        let job_id = prover_job.job_id;
         let task = tokio::task::spawn_blocking(move || {
-            let block_number = job.block_number;
+            let block_number = prover_job.block_number;
             let _span = tracing::info_span!("witness_vector_generator", %block_number).entered();
-            Self::generate_witness_vector(job, finalization_hints)
+            Self::generate_witness_vector(prover_job, finalization_hints)
         });
 
         self.wait_for_task(job_id, started_at, task, cancellation_token.clone())
@@ -201,13 +202,13 @@ impl WitnessVectorGenerator {
 
     #[tracing::instrument(
         skip_all,
-        fields(l1_batch = % job.block_number)
+        fields(l1_batch = % prover_job.block_number)
     )]
     pub fn generate_witness_vector(
-        job: ProverJob,
+        prover_job: ProverJob,
         finalization_hints: Arc<FinalizationHintsForProver>,
     ) -> anyhow::Result<WitnessVectorArtifacts> {
-        let cs = match job.circuit_wrapper.clone() {
+        let cs = match prover_job.circuit_wrapper.clone() {
             CircuitWrapper::Base(base_circuit) => {
                 base_circuit.synthesis::<GoldilocksField>(&finalization_hints)
             }
@@ -220,7 +221,7 @@ impl WitnessVectorGenerator {
                 ));
             }
         };
-        Ok(WitnessVectorArtifacts::new(cs.witness.unwrap(), job))
+        Ok(WitnessVectorArtifacts::new(cs.witness.unwrap(), prover_job))
     }
 
     async fn wait_for_task(
@@ -237,9 +238,9 @@ impl WitnessVectorGenerator {
             }
             result = task => {
                 let error_message = match result {
-                    Ok(Ok(data)) => {
+                    Ok(Ok(witness_vector)) => {
                         self
-                            .save_result(job_id, started_at, data)
+                            .save_result(witness_vector)
                             .await.context("failed to save result")?;
                         tracing::info!("Witness Vector Generator executed job in: {:?}", started_at.elapsed());
                         return Ok(())
@@ -261,12 +262,7 @@ impl WitnessVectorGenerator {
         Ok(())
     }
 
-    async fn save_result(
-        &self,
-        _job_id: u32,
-        _started_at: Instant,
-        artifacts: WitnessVectorArtifacts,
-    ) -> anyhow::Result<()> {
+    async fn save_result(&self, artifacts: WitnessVectorArtifacts) -> anyhow::Result<()> {
         let now = Instant::now();
         self.sender
             .send(artifacts)
