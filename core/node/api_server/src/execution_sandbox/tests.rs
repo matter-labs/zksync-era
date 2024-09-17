@@ -300,7 +300,7 @@ async fn validating_transaction(set_balance: bool) {
         assert_matches!(
             validation_result.unwrap_err(),
             ValidationError::FailedTx(Halt::ValidationFailed(reason))
-                if reason.to_string().contains("Not enough balance")
+                if reason.encoded_data() == vec![3, 235, 139, 84, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 6, 157, 185, 192, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         );
     }
 }
