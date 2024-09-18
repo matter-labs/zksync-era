@@ -3,6 +3,18 @@ use std::{
     marker::PhantomData,
 };
 
+use zk_evm_1_5_0::{
+    aux_structures::Timestamp,
+    tracing::{
+        AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
+    },
+    vm_state::VmLocalState,
+    witness_trace::DummyTracer,
+    zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
+};
+use zksync_config::configs::use_evm_simulator::{self};
+use zksync_env_config::FromEnv;
+
 use super::{EvmDeployTracer, PubdataTracer};
 use crate::{
     glue::GlueInto,
@@ -26,17 +38,6 @@ use crate::{
         VmTracer,
     },
 };
-use zk_evm_1_5_0::{
-    aux_structures::Timestamp,
-    tracing::{
-        AfterDecodingData, AfterExecutionData, BeforeExecutionData, Tracer, VmLocalStateData,
-    },
-    vm_state::VmLocalState,
-    witness_trace::DummyTracer,
-    zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
-};
-use zksync_config::configs::use_evm_simulator::{self};
-use zksync_env_config::FromEnv;
 
 /// Default tracer for the VM. It manages the other tracers execution and stop the vm when needed.
 pub struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {

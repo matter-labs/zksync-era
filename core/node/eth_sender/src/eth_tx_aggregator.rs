@@ -1,8 +1,10 @@
 use std::str::FromStr;
 
 use tokio::sync::watch;
-use zksync_config::configs::eth_sender::SenderConfig;
-use zksync_config::configs::use_evm_simulator::{self};
+use zksync_config::configs::{
+    eth_sender::SenderConfig,
+    use_evm_simulator::{self},
+};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_env_config::FromEnv;
