@@ -684,6 +684,7 @@ dependencies = [
  "console",
  "ethers",
  "futures",
+ "git_version_macro",
  "once_cell",
  "serde",
  "serde_json",
@@ -724,6 +725,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "serde_yaml",
  "strum",
  "thiserror",
  "types",
@@ -1961,6 +1963,13 @@ name = "gimli"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40ecd4077b5ae9fd2e9e169b102c6c330d0605168eb0e8bf79952b256dbefffd"
+
+[[package]]
+name = "git_version_macro"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+]
 
 [[package]]
 name = "glob"
@@ -6434,6 +6443,7 @@ name = "zk_supervisor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "clap-markdown",
  "common",
@@ -6449,6 +6459,7 @@ dependencies = [
  "types",
  "url",
  "xshell",
+ "zksync_basic_types",
 ]
 
 [[package]]

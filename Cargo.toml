@@ -105,6 +105,7 @@ categories = ["cryptography"]
 anyhow = "1"
 assert_matches = "1.5"
 async-trait = "0.1"
+async-recursion = "1"
 axum = "0.7.5"
 backon = "0.4.4"
 bigdecimal = "0.4.5"
