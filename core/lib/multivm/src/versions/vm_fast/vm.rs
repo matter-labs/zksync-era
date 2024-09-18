@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt, mem};
 
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
@@ -23,6 +23,7 @@ use zksync_vm2::{
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
     bytecode::compress_bytecodes,
+    circuits_tracer::CircuitsTracer,
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
     transaction_data::TransactionData,
@@ -31,10 +32,10 @@ use crate::{
     glue::GlueInto,
     interface::{
         storage::ReadStorage, BytecodeCompressionError, BytecodeCompressionResult,
-        CircuitStatistic, CurrentExecutionState, ExecutionResult, FinishedL1Batch, Halt,
-        L1BatchEnv, L2BlockEnv, Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs,
-        VmExecutionMode, VmExecutionResultAndLogs, VmExecutionStatistics, VmInterface,
-        VmInterfaceHistoryEnabled, VmMemoryMetrics, VmRevertReason,
+        CurrentExecutionState, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
+        Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode,
+        VmExecutionResultAndLogs, VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics, VmRevertReason,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_fast::{
@@ -54,9 +55,11 @@ use crate::{
 
 const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
 
+type FullTracer<Tr> = (Tr, CircuitsTracer);
+
 pub struct Vm<S, Tr = ()> {
-    pub(crate) world: World<S, Tr>,
-    pub(crate) inner: VirtualMachine<Tr, World<S, Tr>>,
+    pub(crate) world: World<S, FullTracer<Tr>>,
+    pub(crate) inner: VirtualMachine<FullTracer<Tr>, World<S, FullTracer<Tr>>>,
     gas_for_account_validation: u32,
     pub(crate) bootloader_state: BootloaderState,
     pub(crate) batch_env: L1BatchEnv,
@@ -70,7 +73,7 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,
-        tracer: &mut Tr,
+        tracer: &mut (Tr, CircuitsTracer),
         track_refunds: bool,
     ) -> (ExecutionResult, Refunds) {
         let mut refunds = Refunds {
@@ -520,7 +523,10 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
         let pubdata_before = self.inner.world_diff().pubdata();
         let gas_before = self.gas_remaining();
 
-        let (result, refunds) = self.run(execution_mode, tracer, track_refunds);
+        let mut full_tracer = (mem::take(tracer), CircuitsTracer::default());
+        let (result, refunds) = self.run(execution_mode, &mut full_tracer, track_refunds);
+        *tracer = full_tracer.0; // place the tracer back
+
         let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
             && matches!(result, ExecutionResult::Halt { .. });
 
@@ -585,7 +591,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
                 computational_gas_used: 0,
                 total_log_queries: 0,
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
-                circuit_statistic: CircuitStatistic::default(), // FIXME
+                circuit_statistic: full_tracer.1.circuit_statistic(),
             },
             refunds,
         }

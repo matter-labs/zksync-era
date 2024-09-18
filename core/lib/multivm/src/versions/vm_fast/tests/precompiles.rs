@@ -3,8 +3,7 @@ use zksync_types::{Address, Execute};
 
 use super::{tester::VmTesterBuilder, utils::read_precompiles_contract};
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_fast::CircuitsTracer,
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
@@ -20,7 +19,7 @@ fn test_keccak() {
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_custom_contracts(vec![(contract, address, true)])
-        .build_with_tracer();
+        .build();
 
     // calldata for `doKeccak(1000)`.
     let keccak1000_calldata =
@@ -38,13 +37,11 @@ fn test_keccak() {
     );
     vm.vm.push_transaction(tx);
 
-    let mut circuits_tracer = CircuitsTracer::default();
-    let exec_result = vm.vm.inspect(&mut circuits_tracer, VmExecutionMode::OneTx);
+    let exec_result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
-    let circuit_statistic = circuits_tracer.circuit_statistic();
-    let keccak_count =
-        circuit_statistic.keccak256 * get_geometry_config().cycles_per_keccak256_circuit as f32;
+    let keccak_count = exec_result.statistics.circuit_statistic.keccak256
+        * get_geometry_config().cycles_per_keccak256_circuit as f32;
     assert!(keccak_count >= 1000.0, "{keccak_count}");
 }
 
@@ -60,7 +57,7 @@ fn test_sha256() {
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_custom_contracts(vec![(contract, address, true)])
-        .build_with_tracer();
+        .build();
 
     // calldata for `doSha256(1000)`.
     let sha1000_calldata =
@@ -78,11 +75,10 @@ fn test_sha256() {
     );
     vm.vm.push_transaction(tx);
 
-    let mut circuits_tracer = CircuitsTracer::default();
-    let exec_result = vm.vm.inspect(&mut circuits_tracer, VmExecutionMode::OneTx);
+    let exec_result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
-    let circuit_statistic = circuits_tracer.circuit_statistic();
+    let circuit_statistic = exec_result.statistics.circuit_statistic;
     let sha_count =
         circuit_statistic.sha256 * get_geometry_config().cycles_per_sha256_circuit as f32;
     assert!(sha_count >= 1000.0, "{sha_count}");
@@ -97,7 +93,7 @@ fn test_ecrecover() {
         .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .build_with_tracer();
+        .build();
 
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
@@ -111,11 +107,10 @@ fn test_ecrecover() {
     );
     vm.vm.push_transaction(tx);
 
-    let mut circuits_tracer = CircuitsTracer::default();
-    let exec_result = vm.vm.inspect(&mut circuits_tracer, VmExecutionMode::OneTx);
+    let exec_result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
-    let circuit_statistic = circuits_tracer.circuit_statistic();
+    let circuit_statistic = exec_result.statistics.circuit_statistic;
     let ecrecover_count =
         circuit_statistic.ecrecover * get_geometry_config().cycles_per_ecrecover_circuit as f32;
     assert!((ecrecover_count - 1.0).abs() < 1e-4, "{ecrecover_count}");
