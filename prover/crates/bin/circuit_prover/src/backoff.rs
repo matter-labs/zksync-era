@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-// TODO: Add docs
+/// Backoff - convenience structure that takes care of backoff timings.
 #[derive(Debug, Clone)]
 pub struct Backoff {
     base_delay: Duration,
