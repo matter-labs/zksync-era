@@ -61,7 +61,7 @@ impl EcosystemPorts {
         &mut self,
         general_config: &mut config::GeneralConfig,
     ) -> anyhow::Result<()> {
-        let mut ports = PortsConfig {
+        let ports = PortsConfig {
             web3_json_rpc_http_port: self
                 .allocate_port(PORT_RANGE, "Web3 JSON RPC HTTP".to_string())?,
             web3_json_rpc_ws_port: self

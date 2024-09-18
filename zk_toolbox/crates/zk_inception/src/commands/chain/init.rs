@@ -182,7 +182,7 @@ pub async fn init(
     Ok(())
 }
 
-fn apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> anyhow::Result<()> {
+fn _apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> anyhow::Result<()> {
     let Some(mut ports_config) = ports_config(general_config) else {
         bail!("Missing ports config");
     };
