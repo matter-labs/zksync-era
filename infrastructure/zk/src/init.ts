@@ -117,13 +117,13 @@ const initHyperchain = async ({
     localLegacyBridgeTesting,
     deploymentMode
 }: InitHyperchainOptions): Promise<void> => {
-    await announced('Registering Hyperchain', contract.registerHyperchain({ baseTokenName, deploymentMode }));
+    await announced(
+        'Registering ZKChain',
+        contract.registerZKChain({ baseTokenName, localLegacyBridgeTesting, deploymentMode })
+    );
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced(
-        'Deploying L2 contracts',
-        contract.deployL2ThroughL1({ includePaymaster, localLegacyBridgeTesting, deploymentMode })
-    );
+    await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster, deploymentMode }));
 };
 
 const makeEraChainIdSameAsCurrent = async () => {
@@ -255,12 +255,16 @@ export const initHyperCmdAction = async ({
         deploymentMode
     });
 };
-
-export const configCmdAction = async (): Promise<void> => {
-    await Promise.all([
-        announced('Building L1 L2 contracts', contract.build(false)),
-        announced('Compile L2 system contracts', compiler.compileAll())
-    ]);
+type ConfigCmdActionOptions = {
+    skipContractCompilationOverride?: boolean;
+};
+export const configCmdAction = async ({ skipContractCompilationOverride }: ConfigCmdActionOptions): Promise<void> => {
+    if (!skipContractCompilationOverride) {
+        await Promise.all([
+            announced('Building L1 L2 contracts', contract.build(false)),
+            announced('Compile L2 system contracts', compiler.compileAll())
+        ]);
+    }
     await initDatabase(true);
     await announced('Running server genesis setup', server.genesisFromSources());
 };
@@ -299,10 +303,10 @@ initCommand
     .description('Registers a hyperchain and deploys L2 contracts only. It requires an already deployed shared bridge.')
     .option('--skip-setup-completely', 'skip the setup completely, use this if server was started already')
     .option('--skip-contract-compilation-override')
-    .option('--bump-chain-id', 'bump chain id to not conflict with previously deployed hyperchain')
     .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--bump-chain-id', 'bump chain id to not conflict with previously deployed hyperchain')
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')
     .action(initHyperCmdAction);
 
-initCommand.command('config').action(configCmdAction);
+initCommand.command('config').option('--skip-contract-compilation-override').action(configCmdAction);

@@ -48,6 +48,7 @@ impl UpdatesManager {
         pool: ConnectionPool<Core>,
         l2_shared_bridge_addr: Address,
         l2_native_token_vault_proxy_addr: Address,
+        l2_legacy_shared_bridge_addr: Address,
         insert_protective_reads: bool,
     ) -> anyhow::Result<()> {
         let started_at = Instant::now();
@@ -62,6 +63,7 @@ impl UpdatesManager {
         let l2_block_command = self.seal_l2_block_command(
             l2_shared_bridge_addr,
             l2_native_token_vault_proxy_addr,
+            l2_legacy_shared_bridge_addr,
             false, // fictive L2 blocks don't have txs, so it's fine to pass `false` here.
         );
 

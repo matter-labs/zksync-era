@@ -252,6 +252,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_erc20_bridge_addr: self.sample_opt(|| rng.gen()),
             l1_shared_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
             l2_shared_bridge_addr: self.sample_opt(|| rng.gen()),
+            l2_legacy_shared_bridge_addr: self.sample_opt(|| rng.gen()),
             l1_weth_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
             l2_weth_bridge_addr: self.sample_opt(|| rng.gen()),
             l2_testnet_paymaster_addr: self.sample_opt(|| rng.gen()),

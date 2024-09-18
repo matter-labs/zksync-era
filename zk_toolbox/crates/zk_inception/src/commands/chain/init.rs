@@ -172,7 +172,7 @@ pub async fn init(
         chain_config.get_wallets_config()?.governor_private_key(),
         contracts_config.l1.diamond_proxy_addr,
         l1_da_validator_addr,
-        contracts_config.l2.da_validator_addr,
+        contracts_config.l2.l2_da_validator_addr,
         &init_args.forge_args.clone(),
         init_args.l1_rpc_url.clone(),
     )

@@ -8,6 +8,7 @@ pub struct RegisterChainOutput {
     pub diamond_proxy_addr: Address,
     pub governance_addr: Address,
     pub chain_admin_addr: Address,
+    pub l2_legacy_shared_bridge_addr: Address,
 }
 
 impl ZkToolboxConfig for RegisterChainOutput {}

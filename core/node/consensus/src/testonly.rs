@@ -564,6 +564,7 @@ impl StateKeeperRunner {
                 self.pool.0.clone(),
                 ethabi::Address::repeat_byte(11),
                 ethabi::Address::repeat_byte(12),
+                ethabi::Address::repeat_byte(13),
                 5,
             );
 
@@ -677,6 +678,7 @@ impl StateKeeperRunner {
                 self.pool.0.clone(),
                 ethabi::Address::repeat_byte(11),
                 ethabi::Address::repeat_byte(12),
+                ethabi::Address::repeat_byte(13),
                 5,
             );
             let tree_writes_persistence = TreeWritesPersistence::new(self.pool.0.clone());

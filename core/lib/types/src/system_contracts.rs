@@ -189,13 +189,13 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 30] = [
         ContractLanguage::Sol,
     ),
     (
-        "../../../l2-contracts/artifacts-zk/contracts/bridge/",
+        "../../../l1-contracts/artifacts-zk/contracts/bridge/asset-router/",
         "L2AssetRouter",
         L2_ASSET_ROUTER_ADDRESS,
         ContractLanguage::Sol,
     ),
     (
-        "../../../l2-contracts/artifacts-zk/contracts/bridge/",
+        "../../../l1-contracts/artifacts-zk/contracts/bridge/ntv/",
         "L2NativeTokenVault",
         L2_NATIVE_TOKEN_VAULT_ADDRESS,
         ContractLanguage::Sol,

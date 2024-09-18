@@ -20,6 +20,12 @@ struct Bridgehub {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
+struct Bridges {
+    shared_bridge_proxy_addr: Address,
+    l1_nullifier_proxy_addr: Address
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct StateTransition {
     chain_type_manager_proxy_addr: Address,
 }
@@ -28,6 +34,7 @@ struct StateTransition {
 struct DeployedAddresses {
     state_transition: StateTransition,
     bridgehub: Bridgehub,
+    bridges: Bridges,
     validator_timelock_addr: Address,
     native_token_vault_addr: Address,
 }
@@ -74,6 +81,10 @@ impl RegisterChainL1Config {
                 },
                 bridgehub: Bridgehub {
                     bridgehub_proxy_addr: contracts.ecosystem_contracts.bridgehub_proxy_addr,
+                },
+                bridges: Bridges {
+                    shared_bridge_proxy_addr: contracts.bridges.shared.l1_address,
+                    l1_nullifier_proxy_addr: contracts.bridges.l1_nullifier_addr,
                 },
                 validator_timelock_addr: contracts.ecosystem_contracts.validator_timelock_addr,
                 native_token_vault_addr: contracts.ecosystem_contracts.native_token_vault_addr,

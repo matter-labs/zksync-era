@@ -38,6 +38,7 @@ pub struct OutputHandlerLayer {
     l2_shared_bridge_addr: Address,
     l2_block_seal_queue_capacity: usize,
     l2_native_token_vault_proxy_addr: Address,
+    l2_legacy_shared_bridge_addr: Address,
     /// Whether transactions should be pre-inserted to DB.
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
     /// before they are included into L2 blocks.
@@ -67,12 +68,14 @@ impl OutputHandlerLayer {
     pub fn new(
         l2_shared_bridge_addr: Address,
         l2_native_token_vault_proxy_addr: Address,
+        l2_legacy_shared_bridge_addr: Address,
         l2_block_seal_queue_capacity: usize,
     ) -> Self {
         Self {
             l2_shared_bridge_addr,
             l2_block_seal_queue_capacity,
             l2_native_token_vault_proxy_addr,
+            l2_legacy_shared_bridge_addr,
             pre_insert_txs: false,
             protective_reads_persistence_enabled: false,
         }
@@ -113,6 +116,7 @@ impl WiringLayer for OutputHandlerLayer {
             persistence_pool.clone(),
             self.l2_shared_bridge_addr,
             self.l2_native_token_vault_proxy_addr,
+            self.l2_legacy_shared_bridge_addr,
             self.l2_block_seal_queue_capacity,
         );
         if self.pre_insert_txs {

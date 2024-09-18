@@ -55,6 +55,9 @@ pub trait ZksNamespace {
     #[method(name = "getNativeTokenVault")]
     async fn get_native_token_vault_proxy_addr(&self) -> RpcResult<Option<Address>>;
 
+    #[method(name = "getLegacySharedBridge")]
+    async fn get_legacy_shared_bridge(&self) -> RpcResult<Option<Address>>;
+
     #[method(name = "getBridgeContracts")]
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses>;
 

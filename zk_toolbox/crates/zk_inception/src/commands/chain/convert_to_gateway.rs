@@ -34,8 +34,8 @@ lazy_static! {
     static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
             "function governanceRegisterGateway() public",
-            "function governanceWhitelistGatewaySTM(address gatewaySTMAddress, bytes32 governanoceOperationSalt) public",
-            "function governanceSetSTMAssetHandler(bytes32 governanoceOperationSalt)",
+            "function governanceWhitelistGatewayCTM(address gatewaySTMAddress, bytes32 governanoceOperationSalt) public",
+            "function governanceSetCTMAssetHandler(bytes32 governanoceOperationSalt)",
             "function registerAssetIdInBridgehub(address gatewaySTMAddress, bytes32 governanoceOperationSalt)"
         ])
         .unwrap(),
@@ -171,7 +171,7 @@ async fn gateway_governance_whitelisting(
         forge_args.clone(),
         &GATEWAY_PREPARATION_INTERFACE
             .encode(
-                "governanceWhitelistGatewaySTM",
+                "governanceWhitelistGatewayCTM",
                 (gateway_config.state_transition_proxy_addr, H256::random()),
             )
             .unwrap(),
@@ -191,7 +191,7 @@ async fn gateway_governance_whitelisting(
         shell,
         forge_args.clone(),
         &GATEWAY_PREPARATION_INTERFACE
-            .encode("governanceSetSTMAssetHandler", (H256::random()))
+            .encode("governanceSetCTMAssetHandler", (H256::random()))
             .unwrap(),
         config,
         chain_config,
