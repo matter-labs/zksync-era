@@ -10949,7 +10949,7 @@ dependencies = [
 [[package]]
 name = "zksync_vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=1ae1ba8aac0852f906485899726560de65febfdb#1ae1ba8aac0852f906485899726560de65febfdb"
+source = "git+https://github.com/matter-labs/vm2.git?rev=6f9d8328dcca5f683d5df189cfad56340b7c87a8#6f9d8328dcca5f683d5df189cfad56340b7c87a8"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
@@ -10961,7 +10961,7 @@ dependencies = [
 [[package]]
 name = "zksync_vm2_interface"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=1ae1ba8aac0852f906485899726560de65febfdb#1ae1ba8aac0852f906485899726560de65febfdb"
+source = "git+https://github.com/matter-labs/vm2.git?rev=6f9d8328dcca5f683d5df189cfad56340b7c87a8#6f9d8328dcca5f683d5df189cfad56340b7c87a8"
 dependencies = [
  "primitive-types",
 ]
