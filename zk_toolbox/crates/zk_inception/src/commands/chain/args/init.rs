@@ -13,7 +13,7 @@ use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_PAYMASTER_PROMPT, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP,
-        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT, MSG_PORT_OFFSET_HELP,
+        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
     },
 };
 
@@ -55,8 +55,6 @@ pub struct InitArgs {
     pub deploy_paymaster: Option<bool>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
-    #[clap(long, help = MSG_PORT_OFFSET_HELP)]
-    pub port_offset: Option<PortOffset>,
 }
 
 impl InitArgs {
@@ -86,10 +84,6 @@ impl InitArgs {
             genesis_args: self.genesis_args.fill_values_with_prompt(config),
             deploy_paymaster,
             l1_rpc_url,
-            port_offset: self
-                .port_offset
-                .unwrap_or(PortOffset::from_chain_id(config.id as u16))
-                .into(),
         }
     }
 }
@@ -100,5 +94,4 @@ pub struct InitArgsFinal {
     pub genesis_args: GenesisArgsFinal,
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
-    pub port_offset: u16,
 }
