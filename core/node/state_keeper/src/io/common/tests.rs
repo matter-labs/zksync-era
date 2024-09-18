@@ -19,7 +19,7 @@ use zksync_types::{
     block::L2BlockHasher, protocol_version::ProtocolSemanticVersion, L2ChainId, ProtocolVersion,
     ProtocolVersionId,
 };
-use zksync_vm_utils::storage::L1BatchParamsProvider;
+use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use super::*;
 

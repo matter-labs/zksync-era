@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                consensus_replica_state (fake_key, global_config, genesis, state)\n            VALUES\n                (TRUE, $1, $2, $3)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Jsonb",
+        "Jsonb",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1f43731fa0736a91ba8da41f52b6b22abb03e2a9b2d3b53dc858e5c5a08bfb85"
+}

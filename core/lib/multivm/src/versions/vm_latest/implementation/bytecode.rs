@@ -5,7 +5,7 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words};
 use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
-        CompressedBytecodeInfo, VmInterface,
+        CompressedBytecodeInfo,
     },
     utils::bytecode,
     vm_latest::Vm,
@@ -15,15 +15,18 @@ use crate::{
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Checks the last transaction has successfully published compressed bytecodes and returns `true` if there is at least one is still unknown.
     pub(crate) fn has_unpublished_bytecodes(&mut self) -> bool {
-        self.get_last_tx_compressed_bytecodes().iter().any(|info| {
-            !self
-                .state
-                .storage
-                .storage
-                .get_ptr()
-                .borrow_mut()
-                .is_bytecode_known(&hash_bytecode(&info.original))
-        })
+        self.bootloader_state
+            .get_last_tx_compressed_bytecodes()
+            .iter()
+            .any(|info| {
+                !self
+                    .state
+                    .storage
+                    .storage
+                    .get_ptr()
+                    .borrow_mut()
+                    .is_bytecode_known(&hash_bytecode(&info.original))
+            })
     }
 }
 

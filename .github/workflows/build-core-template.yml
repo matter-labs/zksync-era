@@ -33,7 +33,7 @@ jobs:
     name: Build and Push Docker Images
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}${{ (inputs.en_alpha_release && matrix.components == 'external-node') && '-alpha' || '' }}
-    runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
+    runs-on: ${{ fromJSON('["matterlabs-ci-runner-high-performance", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
         components:
@@ -158,7 +158,8 @@ jobs:
 
   create_manifest:
     name: Create release manifest
-    runs-on: matterlabs-ci-runner
+    # TODO: After migraton switch to CI
+    runs-on: matterlabs-default-infra-runners
     needs: build-images
     if: ${{ inputs.action == 'push' }}
     strategy:

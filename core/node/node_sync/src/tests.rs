@@ -110,6 +110,7 @@ impl StateKeeperHandles {
             pool.clone(),
             Address::repeat_byte(1),
             Address::default(),
+            Address::repeat_byte(13),
             5,
         );
         let tree_writes_persistence = TreeWritesPersistence::new(pool.clone());
@@ -127,15 +128,15 @@ impl StateKeeperHandles {
         .unwrap();
 
         let (stop_sender, stop_receiver) = watch::channel(false);
-        let mut batch_executor_base = TestBatchExecutorBuilder::default();
+        let mut batch_executor = TestBatchExecutorBuilder::default();
         for &tx_hashes_in_l1_batch in tx_hashes {
-            batch_executor_base.push_successful_transactions(tx_hashes_in_l1_batch);
+            batch_executor.push_successful_transactions(tx_hashes_in_l1_batch);
         }
 
         let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver,
             Box::new(io),
-            Box::new(batch_executor_base),
+            Box::new(batch_executor),
             output_handler,
             Arc::new(NoopSealer),
             Arc::new(MockReadStorageFactory),

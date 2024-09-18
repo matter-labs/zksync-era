@@ -22,7 +22,6 @@ use zksync_config::{
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
-    delete_l1_txs_history,
     temp_config_store::{decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
@@ -159,22 +158,22 @@ fn main() -> anyhow::Result<()> {
         .clone()
         .context("observability config")?;
 
-    // FIXME: don't merge this into prod
-    if opt.clear_l1_txs_history {
-        println!("Clearing L1 txs history!");
+    // // FIXME: don't merge this into prod
+    // if opt.clear_l1_txs_history {
+    //     println!("Clearing L1 txs history!");
 
-        let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()?;
+    //     let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
+    //         .enable_all()
+    //         .build()?;
 
-        tokio_runtime.block_on(async move {
-            let database_secrets = secrets.database.clone().context("DatabaseSecrets").unwrap();
-            delete_l1_txs_history(&database_secrets).await.unwrap();
-        });
+    //     tokio_runtime.block_on(async move {
+    //         let database_secrets = secrets.database.clone().context("DatabaseSecrets").unwrap();
+    //         delete_l1_txs_history(&database_secrets).await.unwrap();
+    //     });
 
-        println!("Complete!");
-        return Ok(());
-    }
+    //     println!("Complete!");
+    //     return Ok(());
+    // }
 
     let node = MainNodeBuilder::new(
         configs,

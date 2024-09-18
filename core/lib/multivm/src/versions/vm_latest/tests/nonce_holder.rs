@@ -2,7 +2,7 @@ use zksync_types::{Execute, Nonce};
 
 use crate::{
     interface::{
-        ExecutionResult, Halt, TxExecutionMode, TxRevertReason, VmExecutionMode, VmInterface,
+        ExecutionResult, Halt, TxExecutionMode, TxRevertReason, VmExecutionMode, VmInterfaceExt,
         VmRevertReason,
     },
     vm_latest::{

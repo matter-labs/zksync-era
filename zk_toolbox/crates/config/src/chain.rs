@@ -34,9 +34,12 @@ pub struct ChainConfigInternal {
     pub configs: PathBuf,
     pub rocks_db_path: PathBuf,
     pub external_node_config_path: Option<PathBuf>,
+    pub artifacts_path: Option<PathBuf>,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub base_token: BaseToken,
     pub wallet_creation: WalletCreation,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub legacy_bridge: Option<bool>,
 }
 
 /// Chain configuration file. This file is created in the chain
@@ -50,12 +53,14 @@ pub struct ChainConfig {
     pub l1_network: L1Network,
     pub link_to_code: PathBuf,
     pub rocks_db_path: PathBuf,
+    pub artifacts: PathBuf,
     pub configs: PathBuf,
     pub external_node_config_path: Option<PathBuf>,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub base_token: BaseToken,
     pub wallet_creation: WalletCreation,
     pub shell: OnceCell<Shell>,
+    pub legacy_bridge: Option<bool>,
 }
 
 impl Serialize for ChainConfig {
@@ -147,9 +152,11 @@ impl ChainConfig {
             configs: self.configs.clone(),
             rocks_db_path: self.rocks_db_path.clone(),
             external_node_config_path: self.external_node_config_path.clone(),
+            artifacts_path: Some(self.artifacts.clone()),
             l1_batch_commit_data_generator_mode: self.l1_batch_commit_data_generator_mode,
             base_token: self.base_token.clone(),
             wallet_creation: self.wallet_creation,
+            legacy_bridge: self.legacy_bridge,
         }
     }
 }

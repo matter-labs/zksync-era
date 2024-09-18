@@ -3,9 +3,9 @@ use std::collections::HashSet;
 use anyhow::Context as _;
 use tracing::Instrument;
 use zksync_dal::{Connection, Core, CoreDal};
-use zksync_multivm::{
-    interface::ExecutionResult,
-    tracers::{ValidationError as RawValidationError, ValidationTracerParams},
+use zksync_multivm::interface::{
+    executor::TransactionValidator,
+    tracer::{ValidationError as RawValidationError, ValidationParams},
 };
 use zksync_types::{
     api::state_override::StateOverride, l2::L2Tx, Address, TRUSTED_ADDRESS_SLOTS,
@@ -17,7 +17,7 @@ use super::{
     execute::TransactionExecutor,
     storage::StorageWithOverrides,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
-    ApiTracer, BlockArgs, OneshotExecutor, TxExecutionArgs, TxSetupArgs, VmPermit,
+    BlockArgs, TxSetupArgs, VmPermit,
 };
 
 /// Validation error used by the sandbox. Besides validation errors returned by VM, it also includes an internal error
@@ -42,7 +42,7 @@ impl TransactionExecutor {
         computational_gas_limit: u32,
     ) -> Result<(), ValidationError> {
         let total_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
-        let params = get_validation_params(
+        let validation_params = get_validation_params(
             &mut connection,
             &tx,
             computational_gas_limit,
@@ -55,21 +55,14 @@ impl TransactionExecutor {
             apply::prepare_env_and_storage(connection, setup_args, &block_args).await?;
         let storage = StorageWithOverrides::new(storage, &StateOverride::default());
 
-        let execution_args = TxExecutionArgs::for_validation(tx);
-        let (tracer, validation_result) = ApiTracer::validation(params);
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
-        let result = self
-            .inspect_transaction(storage, env, execution_args, vec![tracer])
+        let validation_result = self
+            .validate_transaction(storage, env, tx, validation_params)
             .instrument(tracing::debug_span!("validation"))
             .await?;
         drop(vm_permit);
         stage_latency.observe();
 
-        let validation_result = match (result.result, validation_result.get()) {
-            (_, Some(rule)) => Err(RawValidationError::ViolatedRule(rule.clone())),
-            (ExecutionResult::Halt { reason }, _) => Err(RawValidationError::FailedTx(reason)),
-            (_, None) => Ok(()),
-        };
         total_latency.observe();
         validation_result.map_err(ValidationError::Vm)
     }
@@ -78,12 +71,12 @@ impl TransactionExecutor {
 /// Some slots can be marked as "trusted". That is needed for slots which can not be
 /// trusted to change between validation and execution in general case, but
 /// sometimes we can safely rely on them to not change often.
-async fn get_validation_params(
+pub(super) async fn get_validation_params(
     connection: &mut Connection<'_, Core>,
     tx: &L2Tx,
     computational_gas_limit: u32,
     whitelisted_tokens_for_aa: &[Address],
-) -> anyhow::Result<ValidationTracerParams> {
+) -> anyhow::Result<ValidationParams> {
     let method_latency = EXECUTION_METRICS.get_validation_params.start();
     let user_address = tx.common_data.initiator_address;
     let paymaster_address = tx.common_data.paymaster_params.paymaster;
@@ -122,7 +115,7 @@ async fn get_validation_params(
     span.exit();
 
     method_latency.observe();
-    Ok(ValidationTracerParams {
+    Ok(ValidationParams {
         user_address,
         paymaster_address,
         trusted_slots,

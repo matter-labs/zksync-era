@@ -6,9 +6,10 @@ use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
 use zksync_consensus_storage::{BatchStore, BlockStore};
+use zksync_dal::consensus_dal;
 
 use crate::{
-    config,
+    config, registry,
     storage::{ConnectionPool, InsertCertificateError, Store},
 };
 
@@ -36,9 +37,9 @@ pub async fn run_main_node(
             pool.connection(ctx)
                 .await
                 .wrap("connection()")?
-                .adjust_genesis(ctx, &spec)
+                .adjust_global_config(ctx, &spec)
                 .await
-                .wrap("adjust_genesis()")?;
+                .wrap("adjust_global_config()")?;
         }
 
         // The main node doesn't have a payload queue as it produces all the L2 blocks itself.
@@ -47,17 +48,24 @@ pub async fn run_main_node(
             .wrap("Store::new()")?;
         s.spawn_bg(runner.run(ctx));
 
+        let global_config = pool
+            .connection(ctx)
+            .await
+            .wrap("connection()")?
+            .global_config(ctx)
+            .await
+            .wrap("global_config()")?
+            .context("global_config() disappeared")?;
+        anyhow::ensure!(
+            global_config.genesis.leader_selection
+                == validator::LeaderSelectionMode::Sticky(validator_key.public()),
+            "unsupported leader selection mode - main node has to be the leader"
+        );
+
         let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
             .await
             .wrap("BlockStore::new()")?;
         s.spawn_bg(runner.run(ctx));
-
-        let genesis = block_store.genesis().clone();
-        anyhow::ensure!(
-            genesis.leader_selection
-                == validator::LeaderSelectionMode::Sticky(validator_key.public()),
-            "unsupported leader selection mode - main node has to be the leader"
-        );
 
         let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
             .await
@@ -65,15 +73,15 @@ pub async fn run_main_node(
         s.spawn_bg(runner.run(ctx));
 
         let attestation = Arc::new(attestation::Controller::new(attester));
-        s.spawn_bg(run_attestation_updater(
+        s.spawn_bg(run_attestation_controller(
             ctx,
             &pool,
-            genesis,
+            global_config,
             attestation.clone(),
         ));
 
         let executor = executor::Executor {
-            config: config::executor(&cfg, &secrets)?,
+            config: config::executor(&cfg, &secrets, None)?,
             block_store,
             batch_store,
             validator: Some(executor::Validator {
@@ -93,18 +101,17 @@ pub async fn run_main_node(
 /// Manages attestation state by configuring the
 /// next batch to attest and storing the collected
 /// certificates.
-async fn run_attestation_updater(
+async fn run_attestation_controller(
     ctx: &ctx::Ctx,
     pool: &ConnectionPool,
-    genesis: validator::Genesis,
+    cfg: consensus_dal::GlobalConfig,
     attestation: Arc<attestation::Controller>,
 ) -> anyhow::Result<()> {
     const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
+    let registry = registry::Registry::new(cfg.genesis, pool.clone()).await;
+    let registry_addr = cfg.registry_address.map(registry::Address::new);
+    let mut next = attester::BatchNumber(0);
     let res = async {
-        let Some(committee) = &genesis.attesters else {
-            return Ok(());
-        };
-        let committee = Arc::new(committee.clone());
         loop {
             // After regenesis it might happen that the batch number for the first block
             // is not immediately known (the first block was not produced yet),
@@ -118,10 +125,12 @@ async fn run_attestation_updater(
                     .await
                     .wrap("attestation_status()")?
                 {
-                    Some(status) => break status,
-                    None => ctx.sleep(POLL_INTERVAL).await?,
+                    Some(status) if status.next_batch_to_attest >= next => break status,
+                    _ => {}
                 }
+                ctx.sleep(POLL_INTERVAL).await?;
             };
+            next = status.next_batch_to_attest.next();
             tracing::info!(
                 "waiting for hash of batch {:?}",
                 status.next_batch_to_attest
@@ -129,6 +138,22 @@ async fn run_attestation_updater(
             let hash = pool
                 .wait_for_batch_hash(ctx, status.next_batch_to_attest)
                 .await?;
+            let Some(committee) = registry
+                .attester_committee_for(ctx, registry_addr, status.next_batch_to_attest)
+                .await
+                .wrap("attester_committee_for()")?
+            else {
+                tracing::info!("attestation not required");
+                continue;
+            };
+            let committee = Arc::new(committee);
+            // Persist the derived committee.
+            pool.connection(ctx)
+                .await
+                .wrap("connection")?
+                .upsert_attester_committee(ctx, status.next_batch_to_attest, &committee)
+                .await
+                .wrap("upsert_attester_committee()")?;
             tracing::info!(
                 "attesting batch {:?} with hash {hash:?}",
                 status.next_batch_to_attest
@@ -140,7 +165,7 @@ async fn run_attestation_updater(
                         number: status.next_batch_to_attest,
                         genesis: status.genesis,
                     },
-                    committee: committee.clone(),
+                    committee,
                 }))
                 .await
                 .context("start_attestation()")?;
