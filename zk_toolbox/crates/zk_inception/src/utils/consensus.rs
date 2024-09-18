@@ -34,7 +34,7 @@ pub(crate) fn parse_attester_committee(
         })
         .collect::<anyhow::Result<_>>()
         .context("attesters")?;
-    attester::Committee::new(attesters.into_iter()).context("Committee::new()")
+    attester::Committee::new(attesters).context("Committee::new()")
 }
 
 #[derive(Debug, Clone)]

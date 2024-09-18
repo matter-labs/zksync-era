@@ -19,6 +19,7 @@ use zksync_consensus_roles::{attester, validator};
 
 use crate::{messages, utils::consensus::parse_attester_committee};
 
+#[allow(warnings)]
 mod abi {
     include!(concat!(env!("OUT_DIR"), "/consensus_registry_abi.rs"));
 }
@@ -205,7 +206,7 @@ impl Command {
                     )
                 })()
                 .context("consensus.genesis_spec.attesters missing in general.yaml")?;
-                let want = parse_attester_committee(&want).context("parse_attester_committee()")?;
+                let want = parse_attester_committee(want).context("parse_attester_committee()")?;
 
                 // Fetch contract state.
                 let n: usize = consensus_registry
