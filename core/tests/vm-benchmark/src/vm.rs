@@ -5,9 +5,9 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, StorageView},
-        ExecutionResult, L1BatchEnv, L2BlockEnv, OwnedTracer, SystemEnv, TxExecutionMode,
-        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
-        VmInterfaceHistoryEnabled,
+        BorrowedTracer, ExecutionResult, L1BatchEnv, L2BlockEnv, OwnedTracer, SystemEnv,
+        TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+        VmInterfaceExt, VmInterfaceHistoryEnabled,
     },
     vm_fast, vm_latest,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled},
@@ -82,7 +82,7 @@ pub struct Fast(());
 impl BenchmarkingVmFactory for Fast {
     const LABEL: VmLabel = VmLabel::Fast;
 
-    type TracerKind = OwnedTracer;
+    type TracerKind = BorrowedTracer;
     type Instance = vm_fast::Vm<&'static InMemoryStorage>;
 
     fn create(

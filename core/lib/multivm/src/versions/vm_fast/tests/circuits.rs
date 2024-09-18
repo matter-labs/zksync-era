@@ -3,6 +3,7 @@ use zksync_types::{Address, Execute, U256};
 use super::tester::VmTesterBuilder;
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    vm_fast,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
@@ -16,7 +17,7 @@ fn test_circuits() {
         .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .build();
+        .build_with_tracer();
 
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
@@ -29,9 +30,11 @@ fn test_circuits() {
         None,
     );
     vm.vm.push_transaction(tx);
-    let res = vm.vm.inspect((), VmExecutionMode::OneTx);
+    let mut circuits_tracer = vm_fast::CircuitsTracer::default();
+    let res = vm.vm.inspect(&mut circuits_tracer, VmExecutionMode::OneTx);
+    assert!(!res.result.is_failed(), "{res:#?}");
 
-    let s = res.statistics.circuit_statistic;
+    let s = circuits_tracer.circuit_statistic();
     // Check `circuit_statistic`.
     const EXPECTED: [f32; 13] = [
         1.34935, 0.15026, 1.66666, 0.00315, 1.0594, 0.00058, 0.00348, 0.00076, 0.11945, 0.14285,

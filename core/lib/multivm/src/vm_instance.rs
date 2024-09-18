@@ -1,4 +1,5 @@
 use zksync_types::{vm::VmVersion, Transaction};
+use zksync_vm2::Tracer;
 
 use crate::{
     glue::history_mode::HistoryMode,
@@ -206,14 +207,15 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
 }
 
 /// Shadowed fast VM.
-pub type ShadowedFastVm<S> = ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, HistoryEnabled>>;
+pub type ShadowedFastVm<S, Tr> =
+    ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, HistoryEnabled>, Tr>;
 
 /// Fast VM variants.
 // FIXME: generalize by tracer
 #[derive(Debug)]
-pub enum FastVmInstance<S: ReadStorage> {
-    Fast(crate::vm_fast::Vm<ImmutableStorageView<S>>),
-    Shadowed(ShadowedFastVm<S>),
+pub enum FastVmInstance<S: ReadStorage, Tr> {
+    Fast(crate::vm_fast::Vm<ImmutableStorageView<S>, Tr>),
+    Shadowed(ShadowedFastVm<S, Tr>),
 }
 
 macro_rules! dispatch_fast_vm {
@@ -225,8 +227,11 @@ macro_rules! dispatch_fast_vm {
     };
 }
 
-impl<S: ReadStorage> VmInterface for FastVmInstance<S> {
-    type TracerDispatcher<'a> = ();
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInstance<S, Tr> {
+    type TracerDispatcher<'a> = (
+        crate::vm_latest::TracerDispatcher<StorageView<S>, HistoryEnabled>,
+        &'a mut Tr,
+    );
 
     fn push_transaction(&mut self, tx: Transaction) {
         dispatch_fast_vm!(self.push_transaction(tx));
@@ -234,12 +239,12 @@ impl<S: ReadStorage> VmInterface for FastVmInstance<S> {
 
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher<'_>,
+        tracer: Self::TracerDispatcher<'_>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         match self {
-            Self::Fast(vm) => vm.inspect(dispatcher, execution_mode),
-            Self::Shadowed(vm) => vm.inspect(Default::default(), execution_mode), // FIXME
+            Self::Fast(vm) => vm.inspect(tracer.1, execution_mode),
+            Self::Shadowed(vm) => vm.inspect(tracer, execution_mode),
         }
     }
 
@@ -255,13 +260,11 @@ impl<S: ReadStorage> VmInterface for FastVmInstance<S> {
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         match self {
             Self::Fast(vm) => {
+                vm.inspect_transaction_with_bytecode_compression(tracer.1, tx, with_compression)
+            }
+            Self::Shadowed(vm) => {
                 vm.inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
             }
-            Self::Shadowed(vm) => vm.inspect_transaction_with_bytecode_compression(
-                Default::default(),
-                tx,
-                with_compression,
-            ),
         }
     }
 
@@ -274,7 +277,9 @@ impl<S: ReadStorage> VmInterface for FastVmInstance<S> {
     }
 }
 
-impl<S: ReadStorage> VmInterfaceHistoryEnabled for FastVmInstance<S> {
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterfaceHistoryEnabled
+    for FastVmInstance<S, Tr>
+{
     fn make_snapshot(&mut self) {
         dispatch_fast_vm!(self.make_snapshot());
     }
@@ -288,7 +293,7 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for FastVmInstance<S> {
     }
 }
 
-impl<S: ReadStorage> FastVmInstance<S> {
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> FastVmInstance<S, Tr> {
     pub fn fast(
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,

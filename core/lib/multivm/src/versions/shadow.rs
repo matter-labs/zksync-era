@@ -17,15 +17,16 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct ShadowVm<S, T> {
+pub struct ShadowVm<S, T, Tr> {
     main: T,
-    shadow: vm_fast::Vm<ImmutableStorageView<S>>,
+    shadow: vm_fast::Vm<ImmutableStorageView<S>, Tr>,
 }
 
-impl<S, T> VmFactory<StorageView<S>> for ShadowVm<S, T>
+impl<S, T, Tr> VmFactory<StorageView<S>> for ShadowVm<S, T, Tr>
 where
     S: ReadStorage,
     T: VmFactory<StorageView<S>>,
+    Tr: vm_fast::Tracer + Default + 'static,
 {
     fn new(
         batch_env: L1BatchEnv,
@@ -39,13 +40,13 @@ where
     }
 }
 
-// FIXME: combine tracers
-impl<S, T> VmInterface for ShadowVm<S, T>
+impl<S, T, Tr> VmInterface for ShadowVm<S, T, Tr>
 where
     S: ReadStorage,
     T: VmInterface,
+    Tr: vm_fast::Tracer + Default + 'static,
 {
-    type TracerDispatcher<'a> = T::TracerDispatcher<'a>;
+    type TracerDispatcher<'a> = (T::TracerDispatcher<'a>, &'a mut Tr);
 
     fn push_transaction(&mut self, tx: Transaction) {
         self.shadow.push_transaction(tx.clone());
@@ -54,11 +55,11 @@ where
 
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher<'_>,
+        (main_tracer, shadow_tracer): Self::TracerDispatcher<'_>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        let shadow_result = self.shadow.inspect((), execution_mode);
-        let main_result = self.main.inspect(dispatcher, execution_mode);
+        let shadow_result = self.shadow.inspect(shadow_tracer, execution_mode);
+        let main_result = self.main.inspect(main_tracer, execution_mode);
         let mut errors = DivergenceErrors::default();
         errors.check_results_match(&main_result, &shadow_result);
         errors
@@ -75,19 +76,21 @@ where
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher<'_>,
+        (main_tracer, shadow_tracer): Self::TracerDispatcher<'_>,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         let tx_hash = tx.hash();
         let main_result = self.main.inspect_transaction_with_bytecode_compression(
-            tracer,
+            main_tracer,
             tx.clone(),
             with_compression,
         );
-        let shadow_result =
-            self.shadow
-                .inspect_transaction_with_bytecode_compression((), tx, with_compression);
+        let shadow_result = self.shadow.inspect_transaction_with_bytecode_compression(
+            shadow_tracer,
+            tx,
+            with_compression,
+        );
         let mut errors = DivergenceErrors::default();
         errors.check_results_match(&main_result.1, &shadow_result.1);
         errors
@@ -284,10 +287,11 @@ impl UniqueStorageLogs {
     }
 }
 
-impl<S, T> VmInterfaceHistoryEnabled for ShadowVm<S, T>
+impl<S, T, Tr> VmInterfaceHistoryEnabled for ShadowVm<S, T, Tr>
 where
     S: ReadStorage,
     T: VmInterfaceHistoryEnabled,
+    Tr: vm_fast::Tracer + Default + 'static,
 {
     fn make_snapshot(&mut self) {
         self.shadow.make_snapshot();

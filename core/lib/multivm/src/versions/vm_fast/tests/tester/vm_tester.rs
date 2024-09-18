@@ -12,20 +12,19 @@ use zksync_types::{
     StorageKey, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
-use zksync_vm2::WorldDiff;
+use zksync_vm2::{Tracer, WorldDiff};
 
 use crate::{
     interface::{
         storage::{InMemoryStorage, StoragePtr},
         L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
-        VmInterfaceExt,
     },
     versions::vm_fast::{tests::utils::read_test_contract, vm::Vm},
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, utils::l2_blocks::load_last_l2_block},
 };
 
-pub(crate) struct VmTester {
-    pub(crate) vm: Vm<StoragePtr<InMemoryStorage>>,
+pub(crate) struct VmTester<Tr> {
+    pub(crate) vm: Vm<StoragePtr<InMemoryStorage>, Tr>,
     pub(crate) storage: StoragePtr<InMemoryStorage>,
     pub(crate) deployer: Option<Account>,
     pub(crate) test_contract: Option<Address>,
@@ -34,7 +33,7 @@ pub(crate) struct VmTester {
     pub(crate) custom_contracts: Vec<ContractsToDeploy>,
 }
 
-impl VmTester {
+impl<Tr: Tracer + Default + 'static> VmTester<Tr> {
     pub(crate) fn deploy_test_contract(&mut self) {
         let contract = read_test_contract();
         let tx = self
@@ -45,7 +44,7 @@ impl VmTester {
             .tx;
         let nonce = tx.nonce().unwrap().0.into();
         self.vm.push_transaction(tx);
-        self.vm.execute(VmExecutionMode::OneTx);
+        self.vm.inspect(&mut Tr::default(), VmExecutionMode::OneTx);
         let deployed_address =
             deployed_address_create(self.deployer.as_ref().unwrap().address, nonce);
         self.test_contract = Some(deployed_address);
@@ -215,7 +214,11 @@ impl VmTesterBuilder {
         self
     }
 
-    pub(crate) fn build(self) -> VmTester {
+    pub(crate) fn build(self) -> VmTester<()> {
+        self.build_with_tracer()
+    }
+
+    pub(crate) fn build_with_tracer<Tr: Tracer>(self) -> VmTester<Tr> {
         let l1_batch_env = self
             .l1_batch_env
             .unwrap_or_else(|| default_l1_batch(L1BatchNumber(1)));
