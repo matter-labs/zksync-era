@@ -1,8 +1,8 @@
-use anyhow::{bail, Context};
+use anyhow::Context;
 use common::{config::global_config, git, logger, spinner::Spinner};
 use config::{
     copy_configs, ports_config, set_l1_rpc_url, traits::SaveConfigWithBasePath,
-    update_from_chain_config, update_ports, ChainConfig, EcosystemConfig, GeneralConfig,
+    update_from_chain_config, ChainConfig, EcosystemConfig,
 };
 use types::BaseToken;
 use xshell::Shell;
@@ -178,18 +178,6 @@ pub async fn init(
     update_portal_config(shell, chain_config)
         .await
         .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?;
-
-    Ok(())
-}
-
-fn _apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> anyhow::Result<()> {
-    let Some(mut ports_config) = ports_config(general_config) else {
-        bail!("Missing ports config");
-    };
-
-    ports_config.apply_offset(port_offset);
-
-    update_ports(general_config, &ports_config)?;
 
     Ok(())
 }

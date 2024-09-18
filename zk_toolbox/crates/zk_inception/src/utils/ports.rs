@@ -10,9 +10,7 @@ use config::{EcosystemConfig, PortsConfig};
 use serde_yaml::Value;
 use xshell::Shell;
 
-use crate::defaults::{
-    LOCAL_HTTP_RPC_PORT, LOCAL_WS_RPC_PORT, OBSERVABILITY_PORT, PORT_RANGE, POSTGRES_DB_PORT,
-};
+use crate::defaults::PORT_RANGE;
 
 #[derive(Default)]
 pub struct EcosystemPorts {
@@ -20,18 +18,6 @@ pub struct EcosystemPorts {
 }
 
 impl EcosystemPorts {
-    /// Creates a new EcosystemPorts instance with default port configurations.
-    /// These ports are not configured in ecosystem yaml file configs, but are
-    /// commonly used or pre-assigned within the ecosystem.
-    pub fn with_default_ports() -> Self {
-        let mut ports = HashMap::new();
-        ports.insert(OBSERVABILITY_PORT, vec!["Observability".to_string()]);
-        ports.insert(POSTGRES_DB_PORT, vec!["PostgreSQL".to_string()]);
-        ports.insert(LOCAL_HTTP_RPC_PORT, vec!["Local HTTP RPC".to_string()]);
-        ports.insert(LOCAL_WS_RPC_PORT, vec!["Local WebSockets RPC".to_string()]);
-        Self { ports }
-    }
-
     pub fn get_assigned_ports(&self) -> HashSet<u16> {
         self.ports.keys().cloned().collect()
     }
@@ -153,7 +139,7 @@ impl EcosystemPortsScanner {
         }
         dirs.push(ecosystem_config.link_to_code);
 
-        let mut ecosystem_ports = EcosystemPorts::with_default_ports();
+        let mut ecosystem_ports = EcosystemPorts::default();
         for dir in dirs {
             if dir.is_dir() {
                 Self::scan_yaml_files(shell, &dir, &mut ecosystem_ports)
