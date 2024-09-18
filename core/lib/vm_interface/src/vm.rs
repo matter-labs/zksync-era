@@ -20,7 +20,7 @@ use crate::{
 
 pub trait VmInterface {
     /// Lifetime is used to be able to define `Option<&mut _>` as a dispatcher.
-    type TracerDispatcher<'a>: Default;
+    type TracerDispatcher<'a>;
 
     /// Push transaction to bootloader memory.
     fn push_transaction(&mut self, tx: Transaction);
@@ -53,7 +53,7 @@ pub trait VmInterface {
 }
 
 /// Extension trait for [`VmInterface`] that provides some additional methods.
-pub trait VmInterfaceExt: VmInterface {
+pub trait VmInterfaceExt: VmInterface<TracerDispatcher<'static>: Default> {
     /// Executes the next VM step (either next transaction or bootloader or the whole batch).
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
         self.inspect(Self::TracerDispatcher::default(), execution_mode)
@@ -73,7 +73,7 @@ pub trait VmInterfaceExt: VmInterface {
     }
 }
 
-impl<T: VmInterface> VmInterfaceExt for T {}
+impl<T: VmInterface<TracerDispatcher<'static>: Default>> VmInterfaceExt for T {}
 
 /// Encapsulates creating VM instance based on the provided environment.
 pub trait VmFactory<S>: VmInterface {

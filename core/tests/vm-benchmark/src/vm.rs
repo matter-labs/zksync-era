@@ -64,7 +64,7 @@ pub trait BenchmarkingVmFactory {
     const LABEL: VmLabel;
 
     /// Type of the VM instance created by this factory.
-    type Instance: VmInterfaceHistoryEnabled;
+    type Instance: VmInterfaceHistoryEnabled<TracerDispatcher<'static>: Default>;
 
     /// Creates a VM instance.
     fn create(
