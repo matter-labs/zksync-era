@@ -220,7 +220,7 @@ impl EcosystemPortsScanner {
                                     // Handle 3-part (IP:host:container) or 2-part (host:container) port mappings
                                     let host_port_str = match parts.len() {
                                         3 => parts.get(1),
-                                        2 => parts.get(0),
+                                        2 => parts.first(),
                                         _ => None,
                                     };
 
