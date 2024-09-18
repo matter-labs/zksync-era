@@ -95,11 +95,10 @@ impl ObservabilityENConfig {
                 )
             })
             .transpose()?;
-        let guard = zksync_vlog::ObservabilityBuilder::new()
+        zksync_vlog::ObservabilityBuilder::new()
             .with_logs(Some(logs))
             .with_sentry(sentry)
-            .build();
-        Ok(guard)
+            .try_build()
     }
 
     pub(crate) fn from_configs(general_config: &GeneralConfig) -> anyhow::Result<Self> {
