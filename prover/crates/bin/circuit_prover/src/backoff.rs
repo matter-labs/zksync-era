@@ -9,6 +9,7 @@ pub struct Backoff {
 }
 
 impl Backoff {
+    /// Create a backoff with base_delay (first delay to start from) and max_delay (maximum delay possible).
     pub fn new(base_delay: Duration, max_delay: Duration) -> Self {
         Backoff {
             base_delay,
@@ -17,27 +18,16 @@ impl Backoff {
         }
     }
 
-    // TODO: Let's add some jitter as well
-
-    // Determine the next delay (exponential backoff with jitter)
+    /// Get current delay
     pub fn delay(&mut self) -> Duration {
-        let delay = self.current_delay * 2;
-        self.current_delay = delay.min(self.max_delay);
-        self.current_delay
-        // delay = delay *
-        // Calculate exponential backoff with jitter
-        // let exp_delay = self.base_delay * (1 << (self.attempt - 1));
-        // let jitter: u64 = rand::thread_rng().gen_range(0..100);
-        // let delay = exp_delay + Duration::from_millis(jitter);
-
-        // Cap the delay at max_delay
-        // Some(delay.min(self.max_delay))
+        let delay = self.current_delay;
+        self.current_delay *= 2;
+        self.current_delay = self.current_delay.min(self.max_delay);
+        delay
     }
 
-    // Reset the backoff for reuse
+    /// Reset the backoff for to initial value
     pub fn reset(&mut self) {
         self.current_delay = self.base_delay;
     }
 }
-
-// TODO -- add tests
