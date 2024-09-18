@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::Context;
+use common::yaml::merge_yaml;
 use url::Url;
 use xshell::Shell;
 pub use zksync_config::configs::GeneralConfig;
@@ -10,7 +11,7 @@ use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 use crate::{
     consts::GENERAL_FILE,
     traits::{ConfigWithL2RpcUrl, FileConfigWithDefaultName, ReadConfig, SaveConfig},
-    DEFAULT_CONSENSUS_PORT,
+    ChainConfig, DEFAULT_CONSENSUS_PORT,
 };
 
 pub struct RocksDbs {
@@ -171,6 +172,15 @@ pub fn update_ports(config: &mut GeneralConfig, ports_config: &PortsConfig) -> a
 
     prometheus.listener_port = ports_config.prometheus_listener_port;
 
+    Ok(())
+}
+
+pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> anyhow::Result<()> {
+    let chain_config_path = chain.path_to_general_config();
+    let override_config = serde_yaml::from_str(&shell.read_file(path)?)?;
+    let mut chain_config = serde_yaml::from_str(&shell.read_file(chain_config_path.clone())?)?;
+    merge_yaml(&mut chain_config, override_config, true)?;
+    shell.write_file(chain_config_path, serde_yaml::to_string(&chain_config)?)?;
     Ok(())
 }
 
