@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
+use std::{borrow::Cow, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
@@ -6,13 +6,14 @@ use tokio::sync::mpsc;
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
-        storage::{ReadStorage, StorageView, StorageViewStats},
-        BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
-        L2BlockEnv, SystemEnv, VmInterface, VmInterfaceHistoryEnabled,
+        storage::{ReadStorage, StoragePtr, StorageView, StorageViewStats},
+        BatchTransactionExecutionResult, BytecodeCompressionError, CompressedBytecodeInfo,
+        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmFactory,
+        VmInterface, VmInterfaceHistoryEnabled,
     },
     tracers::CallTracer,
     vm_latest::HistoryEnabled,
-    MultiVMTracer, VmInstance,
+    FastVmInstance, LegacyVmInstance, MultiVMTracer,
 };
 use zksync_types::{vm::FastVmMode, Transaction};
 
@@ -91,6 +92,102 @@ impl<S: ReadStorage + Send + 'static> BatchExecutorFactory<S> for MainBatchExecu
     }
 }
 
+type BytecodeResult = Result<Vec<CompressedBytecodeInfo>, BytecodeCompressionError>;
+
+#[derive(Debug)]
+enum BatchVm<S: ReadStorage> {
+    Legacy(LegacyVmInstance<S, HistoryEnabled>),
+    Fast(FastVmInstance<S>),
+}
+
+macro_rules! dispatch_batch_vm {
+    ($self:ident.$function:ident($($params:tt)*)) => {
+        match $self {
+            BatchVm::Legacy(vm) => vm.$function($($params)*),
+            BatchVm::Fast(vm) => vm.$function($($params)*),
+        }
+    };
+}
+
+impl<S: ReadStorage> BatchVm<S> {
+    fn new(
+        l1_batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage_ptr: StoragePtr<StorageView<S>>,
+        mode: FastVmMode,
+    ) -> Self {
+        match mode {
+            FastVmMode::Old => {
+                Self::Legacy(LegacyVmInstance::new(l1_batch_env, system_env, storage_ptr))
+            }
+            FastVmMode::New => {
+                Self::Fast(FastVmInstance::fast(l1_batch_env, system_env, storage_ptr))
+            }
+            FastVmMode::Shadow => Self::Fast(FastVmInstance::shadowed(
+                l1_batch_env,
+                system_env,
+                storage_ptr,
+            )),
+        }
+    }
+
+    fn start_new_l2_block(&mut self, l2_block: L2BlockEnv) {
+        dispatch_batch_vm!(self.start_new_l2_block(l2_block));
+    }
+
+    fn finish_batch(&mut self) -> FinishedL1Batch {
+        dispatch_batch_vm!(self.finish_batch())
+    }
+
+    fn make_snapshot(&mut self) {
+        dispatch_batch_vm!(self.make_snapshot());
+    }
+
+    fn rollback_to_the_latest_snapshot(&mut self) {
+        dispatch_batch_vm!(self.rollback_to_the_latest_snapshot());
+    }
+
+    fn pop_snapshot_no_rollback(&mut self) {
+        dispatch_batch_vm!(self.pop_snapshot_no_rollback());
+    }
+
+    fn inspect_transaction(
+        &mut self,
+        trace_calls: bool, // FIXME: should be a type param
+        tx: Transaction,
+        with_compression: bool,
+    ) -> BatchTransactionExecutionResult<BytecodeResult> {
+        let call_tracer_result = Arc::new(OnceCell::default());
+        let legacy_tracer = if trace_calls {
+            vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
+        } else {
+            vec![]
+        };
+
+        let (compression_result, tx_result) = match self {
+            Self::Legacy(vm) => vm.inspect_transaction_with_bytecode_compression(
+                legacy_tracer.into(),
+                tx,
+                with_compression,
+            ),
+            Self::Fast(vm) => {
+                vm.inspect_transaction_with_bytecode_compression((), tx, with_compression)
+            }
+        };
+
+        let compressed_bytecodes = compression_result.map(Cow::into_owned);
+        let call_traces = Arc::try_unwrap(call_tracer_result)
+            .expect("failed extracting call traces")
+            .take()
+            .unwrap_or_default();
+        BatchTransactionExecutionResult {
+            tx_result: Box::new(tx_result),
+            compressed_bytecodes,
+            call_traces,
+        }
+    }
+}
+
 /// Implementation of the "primary" (non-test) batch executor.
 /// Upon launch, it initializes the VM object with provided block context and properties, and keeps invoking the commands
 /// sent to it one by one until the batch is finished.
@@ -117,7 +214,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
 
         let storage_view = StorageView::new(storage).to_rc_ptr();
-        let mut vm = VmInstance::maybe_fast(
+        let mut vm = BatchVm::new(
             l1_batch_params,
             system_env,
             storage_view.clone(),
@@ -151,7 +248,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
                     }
                 }
                 Command::StartNextL2Block(l2_block_env, resp) => {
-                    self.start_next_l2_block(l2_block_env, &mut vm);
+                    vm.start_new_l2_block(l2_block_env);
                     if resp.send(()).is_err() {
                         break;
                     }
@@ -187,7 +284,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
     fn execute_tx(
         &self,
         transaction: Transaction,
-        vm: &mut VmInstance<S, HistoryEnabled>,
+        vm: &mut BatchVm<S>,
     ) -> anyhow::Result<(BatchTransactionExecutionResult, Duration)> {
         // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
         // was already removed), or that we build on top of it (in which case, it can be removed now).
@@ -206,24 +303,13 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         Ok((result, latency.observe()))
     }
 
-    fn rollback_last_tx(&self, vm: &mut VmInstance<S, HistoryEnabled>) {
+    fn rollback_last_tx(&self, vm: &mut BatchVm<S>) {
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::TxRollback].start();
         vm.rollback_to_the_latest_snapshot();
         latency.observe();
     }
 
-    fn start_next_l2_block(
-        &self,
-        l2_block_env: L2BlockEnv,
-        vm: &mut VmInstance<S, HistoryEnabled>,
-    ) {
-        vm.start_new_l2_block(l2_block_env);
-    }
-
-    fn finish_batch(
-        &self,
-        vm: &mut VmInstance<S, HistoryEnabled>,
-    ) -> anyhow::Result<FinishedL1Batch> {
+    fn finish_batch(&self, vm: &mut BatchVm<S>) -> anyhow::Result<FinishedL1Batch> {
         // The vm execution was paused right after the last transaction was executed.
         // There is some post-processing work that the VM needs to do before the block is fully processed.
         let result = vm.finish_batch();
@@ -242,7 +328,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
     fn execute_tx_in_vm_with_optional_compression(
         &self,
         tx: &Transaction,
-        vm: &mut VmInstance<S, HistoryEnabled>,
+        vm: &mut BatchVm<S>,
     ) -> anyhow::Result<BatchTransactionExecutionResult> {
         // Note, that the space where we can put the calldata for compressing transactions
         // is limited and the transactions do not pay for taking it.
@@ -253,24 +339,12 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         // it means that there is no sense in polluting the space of compressed bytecodes,
         // and so we re-execute the transaction, but without compression.
 
-        let call_tracer_result = Arc::new(OnceCell::default());
-        let tracer = if self.save_call_traces {
-            vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
-        } else {
-            vec![]
-        };
-
-        if let (Ok(compressed_bytecodes), tx_result) =
-            vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true)
-        {
-            let call_traces = Arc::try_unwrap(call_tracer_result)
-                .map_err(|_| anyhow::anyhow!("failed extracting call traces"))?
-                .take()
-                .unwrap_or_default();
+        let res = vm.inspect_transaction(self.save_call_traces, tx.clone(), true);
+        if let Ok(compressed_bytecodes) = res.compressed_bytecodes {
             return Ok(BatchTransactionExecutionResult {
-                tx_result: Box::new(tx_result),
-                compressed_bytecodes: compressed_bytecodes.into_owned(),
-                call_traces,
+                tx_result: res.tx_result,
+                compressed_bytecodes,
+                call_traces: res.call_traces,
             });
         }
 
@@ -279,29 +353,14 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         vm.rollback_to_the_latest_snapshot();
         vm.make_snapshot();
 
-        let call_tracer_result = Arc::new(OnceCell::default());
-        let tracer = if self.save_call_traces {
-            vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
-        } else {
-            vec![]
-        };
-
-        let (compression_result, tx_result) =
-            vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), false);
-        let compressed_bytecodes = compression_result
-            .context("compression failed when it wasn't applied")?
-            .into_owned();
-
-        // TODO implement tracer manager which will be responsible
-        //   for collecting result from all tracers and save it to the database
-        let call_traces = Arc::try_unwrap(call_tracer_result)
-            .map_err(|_| anyhow::anyhow!("failed extracting call traces"))?
-            .take()
-            .unwrap_or_default();
+        let res = vm.inspect_transaction(self.save_call_traces, tx.clone(), false);
+        let compressed_bytecodes = res
+            .compressed_bytecodes
+            .context("compression failed when it wasn't applied")?;
         Ok(BatchTransactionExecutionResult {
-            tx_result: Box::new(tx_result),
+            tx_result: res.tx_result,
             compressed_bytecodes,
-            call_traces,
+            call_traces: res.call_traces,
         })
     }
 
@@ -310,34 +369,23 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
     fn execute_tx_in_vm(
         &self,
         tx: &Transaction,
-        vm: &mut VmInstance<S, HistoryEnabled>,
+        vm: &mut BatchVm<S>,
     ) -> anyhow::Result<BatchTransactionExecutionResult> {
-        let call_tracer_result = Arc::new(OnceCell::default());
-        let tracer = if self.save_call_traces {
-            vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
-        } else {
-            vec![]
-        };
-
-        let (bytecodes_result, mut tx_result) =
-            vm.inspect_transaction_with_bytecode_compression(tracer.into(), tx.clone(), true);
-        if let Ok(compressed_bytecodes) = bytecodes_result {
-            let call_traces = Arc::try_unwrap(call_tracer_result)
-                .map_err(|_| anyhow::anyhow!("failed extracting call traces"))?
-                .take()
-                .unwrap_or_default();
+        let res = vm.inspect_transaction(self.save_call_traces, tx.clone(), false);
+        if let Ok(compressed_bytecodes) = res.compressed_bytecodes {
             Ok(BatchTransactionExecutionResult {
-                tx_result: Box::new(tx_result),
-                compressed_bytecodes: compressed_bytecodes.into_owned(),
-                call_traces,
+                tx_result: res.tx_result,
+                compressed_bytecodes,
+                call_traces: res.call_traces,
             })
         } else {
             // Transaction failed to publish bytecodes, we reject it so initiator doesn't pay fee.
+            let mut tx_result = res.tx_result;
             tx_result.result = ExecutionResult::Halt {
                 reason: Halt::FailedToPublishCompressedBytecodes,
             };
             Ok(BatchTransactionExecutionResult {
-                tx_result: Box::new(tx_result),
+                tx_result,
                 compressed_bytecodes: vec![],
                 call_traces: vec![],
             })

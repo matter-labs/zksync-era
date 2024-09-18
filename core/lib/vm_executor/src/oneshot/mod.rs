@@ -20,7 +20,7 @@ use zksync_multivm::{
     utils::adjust_pubdata_price_for_tx,
     vm_latest::HistoryDisabled,
     zk_evm_latest::ethereum_types::U256,
-    MultiVMTracer, VmInstance,
+    LegacyVmInstance, MultiVMTracer,
 };
 use zksync_types::{
     block::pack_block_info,
@@ -171,7 +171,7 @@ where
 
 #[derive(Debug)]
 struct VmSandbox<S: ReadStorage> {
-    vm: Box<VmInstance<S, HistoryDisabled>>,
+    vm: Box<LegacyVmInstance<S, HistoryDisabled>>,
     storage_view: StoragePtr<StorageView<S>>,
     transaction: Transaction,
     execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
@@ -199,7 +199,7 @@ impl<S: ReadStorage> VmSandbox<S> {
         };
 
         let storage_view = storage_view.to_rc_ptr();
-        let vm = Box::new(VmInstance::new_with_specific_version(
+        let vm = Box::new(LegacyVmInstance::new_with_specific_version(
             env.l1_batch,
             env.system,
             storage_view.clone(),
@@ -264,7 +264,7 @@ impl<S: ReadStorage> VmSandbox<S> {
 
     pub(super) fn apply<T, F>(mut self, apply_fn: F) -> T
     where
-        F: FnOnce(&mut VmInstance<S, HistoryDisabled>, Transaction) -> T,
+        F: FnOnce(&mut LegacyVmInstance<S, HistoryDisabled>, Transaction) -> T,
     {
         let tx_id = format!(
             "{:?}-{}",
