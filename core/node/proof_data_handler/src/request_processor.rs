@@ -45,6 +45,7 @@ impl RequestProcessor {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub(crate) async fn get_proof_generation_data(
         &self,
         request: Json<ProofGenerationDataRequest>,
@@ -105,6 +106,7 @@ impl RequestProcessor {
     ///
     /// Expects all the data to be present in the database.
     /// Will panic if any of the required data is missing.
+    #[tracing::instrument(skip(self))]
     async fn proof_generation_data_for_existing_batch(
         &self,
         l1_batch_number: L1BatchNumber,

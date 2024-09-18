@@ -6,14 +6,16 @@ use zk_evm_1_3_3::{
     zkevm_opcode_defs::FatPointer,
 };
 use zksync_contracts::{read_zbin_bytecode, BaseSystemContracts};
-use zksync_state::WriteStorage;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{Address, StorageLogKind, H160, MAX_L2_TX_GAS_LIMIT, U256};
 use zksync_utils::h256_to_u256;
 
-use crate::vm_1_3_2::{
-    history_recorder::HistoryMode, memory::SimpleMemory, oracles::tracer::PubdataSpentTracer,
-    vm_with_bootloader::BlockContext, VmInstance,
+use crate::{
+    interface::storage::WriteStorage,
+    vm_1_3_2::{
+        history_recorder::HistoryMode, memory::SimpleMemory, oracles::tracer::PubdataSpentTracer,
+        vm_with_bootloader::BlockContext, VmInstance,
+    },
 };
 
 pub const INITIAL_TIMESTAMP: u32 = 1024;

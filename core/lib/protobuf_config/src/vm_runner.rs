@@ -1,6 +1,6 @@
 use anyhow::Context;
 use zksync_basic_types::L1BatchNumber;
-use zksync_config::configs::{self};
+use zksync_config::configs;
 use zksync_protobuf::{required, ProtoRepr};
 
 use crate::proto::vm_runner as proto;

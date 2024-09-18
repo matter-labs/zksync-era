@@ -1,5 +1,8 @@
 use clap::{command, Parser, Subcommand};
-use commands::contract_verifier::ContractVerifierCommands;
+use commands::{
+    args::{ContainersArgs, UpdateArgs},
+    contract_verifier::ContractVerifierCommands,
+};
 use common::{
     check_general_prerequisites,
     config::{global_config, init_global_config, GlobalConfig},
@@ -11,7 +14,7 @@ use xshell::Shell;
 
 use crate::commands::{
     args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands,
-    external_node::ExternalNodeCommands, prover::ProverCommands,
+    explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 
 pub mod accept_ownership;
@@ -44,15 +47,25 @@ pub enum InceptionSubcommands {
     Prover(ProverCommands),
     /// Run server
     Server(RunServerArgs),
-    // Run External Node
+    ///  External Node related commands
     #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),
     /// Run containers for local development
     #[command(alias = "up")]
-    Containers,
+    Containers(ContainersArgs),
     /// Run contract verifier
     #[command(subcommand)]
     ContractVerifier(ContractVerifierCommands),
+    /// Run dapp-portal
+    Portal,
+    /// Run block-explorer
+    #[command(subcommand)]
+    Explorer(ExplorerCommands),
+    /// Update ZKsync
+    #[command(alias = "u")]
+    Update(UpdateArgs),
+    #[command(hide = true)]
+    Markdown,
 }
 
 #[derive(Parser, Debug)]
@@ -103,12 +116,18 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::Chain(args) => commands::chain::run(shell, args).await?,
         InceptionSubcommands::Prover(args) => commands::prover::run(shell, args).await?,
         InceptionSubcommands::Server(args) => commands::server::run(shell, args)?,
-        InceptionSubcommands::Containers => commands::containers::run(shell)?,
+        InceptionSubcommands::Containers(args) => commands::containers::run(shell, args)?,
         InceptionSubcommands::ExternalNode(args) => {
             commands::external_node::run(shell, args).await?
         }
         InceptionSubcommands::ContractVerifier(args) => {
             commands::contract_verifier::run(shell, args).await?
+        }
+        InceptionSubcommands::Explorer(args) => commands::explorer::run(shell, args).await?,
+        InceptionSubcommands::Portal => commands::portal::run(shell).await?,
+        InceptionSubcommands::Update(args) => commands::update::run(shell, args)?,
+        InceptionSubcommands::Markdown => {
+            clap_markdown::print_help_markdown::<Inception>();
         }
     }
     Ok(())

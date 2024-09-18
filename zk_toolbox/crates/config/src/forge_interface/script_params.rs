@@ -32,10 +32,10 @@ pub const DEPLOY_ECOSYSTEM_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams 
     script_path: "deploy-scripts/DeployL1.s.sol",
 };
 
-pub const INITIALIZE_BRIDGES_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
-    input: "script-config/config-initialize-shared-bridges.toml",
-    output: "script-out/output-initialize-shared-bridges.toml",
-    script_path: "deploy-scripts/InitializeSharedBridgeOnL2.sol",
+pub const DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/config-deploy-l2-contracts.toml",
+    output: "script-out/output-deploy-l2-contracts.toml",
+    script_path: "deploy-scripts/DeployL2Contracts.sol",
 };
 
 pub const REGISTER_CHAIN_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
@@ -60,4 +60,10 @@ pub const ACCEPT_GOVERNANCE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams
     input: "script-config/config-accept-admin.toml",
     output: "script-out/output-accept-admin.toml",
     script_path: "deploy-scripts/AcceptAdmin.s.sol",
+};
+
+pub const SETUP_LEGACY_BRIDGE: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/setup-legacy-bridge.toml",
+    output: "script-out/setup-legacy-bridge.toml",
+    script_path: "deploy-scripts/dev/SetupLegacyBridge.s.sol",
 };

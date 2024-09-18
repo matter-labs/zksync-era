@@ -17,6 +17,7 @@ zksync_types.workspace = true
 zksync_utils.workspace = true
 zksync_shared_metrics.workspace = true
 zksync_storage.workspace = true
+zksync_vm_interface.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true

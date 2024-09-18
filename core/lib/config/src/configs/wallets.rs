@@ -62,6 +62,7 @@ impl Wallet {
 pub struct EthSender {
     pub operator: Wallet,
     pub blob_operator: Option<Wallet>,
+    pub gateway: Option<Wallet>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -70,9 +71,15 @@ pub struct StateKeeper {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct TokenMultiplierSetter {
+    pub wallet: Wallet,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Wallets {
     pub eth_sender: Option<EthSender>,
     pub state_keeper: Option<StateKeeper>,
+    pub token_multiplier_setter: Option<TokenMultiplierSetter>,
 }
 
 impl Wallets {
@@ -83,9 +90,13 @@ impl Wallets {
                 blob_operator: Some(
                     Wallet::from_private_key_bytes(H256::repeat_byte(0x2), None).unwrap(),
                 ),
+                gateway: None,
             }),
             state_keeper: Some(StateKeeper {
                 fee_account: AddressWallet::from_address(H160::repeat_byte(0x3)),
+            }),
+            token_multiplier_setter: Some(TokenMultiplierSetter {
+                wallet: Wallet::from_private_key_bytes(H256::repeat_byte(0x4), None).unwrap(),
             }),
         }
     }

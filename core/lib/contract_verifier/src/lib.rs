@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    path::Path,
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 
@@ -12,7 +12,6 @@ use regex::Regex;
 use tokio::time;
 use zksync_config::ContractVerifierConfig;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_env_config::FromEnv;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
     contract_verification_api::{
@@ -21,7 +20,7 @@ use zksync_types::{
     },
     Address,
 };
-use zksync_utils::workspace_dir_or_current_dir;
+use zksync_utils::env::Workspace;
 
 use crate::{
     error::ContractVerifierError,
@@ -39,8 +38,8 @@ lazy_static! {
     static ref DEPLOYER_CONTRACT: Contract = zksync_contracts::deployer_contract();
 }
 
-fn home_path() -> &'static Path {
-    workspace_dir_or_current_dir()
+fn home_path() -> PathBuf {
+    Workspace::locate().core()
 }
 
 #[derive(Debug)]
@@ -272,7 +271,9 @@ impl ContractVerifier {
                 let bytecode_str = artifact["bytecode"]
                     .as_str()
                     .ok_or(ContractVerifierError::InternalError)?;
-                let bytecode = hex::decode(bytecode_str).unwrap();
+                let bytecode_without_prefix =
+                    bytecode_str.strip_prefix("0x").unwrap_or(bytecode_str);
+                let bytecode = hex::decode(bytecode_without_prefix).unwrap();
                 return Ok(CompilationArtifacts {
                     abi: artifact["abi"].clone(),
                     bytecode,
@@ -524,11 +525,10 @@ impl JobProcessor for ContractVerifier {
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
         let connection_pool = self.connection_pool.clone();
+        let config = self.config.clone();
         tokio::task::spawn(async move {
             tracing::info!("Started to process request with id = {}", job.id);
 
-            let config: ContractVerifierConfig =
-                ContractVerifierConfig::from_env().context("ContractVerifierConfig")?;
             let mut connection = connection_pool.connection().await.unwrap();
 
             let job_id = job.id;

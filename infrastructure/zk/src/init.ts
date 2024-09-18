@@ -76,9 +76,9 @@ const initSetup = async ({
     }
 };
 
-const initDatabase = async (): Promise<void> => {
+const initDatabase = async (shouldCheck: boolean = true): Promise<void> => {
     await announced('Drop postgres db', db.drop({ core: true, prover: true }));
-    await announced('Setup postgres db', db.setup({ core: true, prover: true }));
+    await announced('Setup postgres db', db.setup({ core: true, prover: true }, shouldCheck));
     await announced('Clean rocksdb', clean(`db/${process.env.ZKSYNC_ENV!}`));
     await announced('Clean backups', clean(`backups/${process.env.ZKSYNC_ENV!}`));
 };
@@ -117,13 +117,13 @@ const initHyperchain = async ({
     localLegacyBridgeTesting,
     deploymentMode
 }: InitHyperchainOptions): Promise<void> => {
-    await announced('Registering Hyperchain', contract.registerHyperchain({ baseTokenName, deploymentMode }));
+    await announced(
+        'Registering ZKChain',
+        contract.registerZKChain({ baseTokenName, localLegacyBridgeTesting, deploymentMode })
+    );
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
-    await announced(
-        'Deploying L2 contracts',
-        contract.deployL2ThroughL1({ includePaymaster, localLegacyBridgeTesting, deploymentMode })
-    );
+    await announced('Deploying L2 contracts', contract.deployL2ThroughL1({ includePaymaster, deploymentMode }));
 };
 
 const makeEraChainIdSameAsCurrent = async () => {
@@ -149,6 +149,7 @@ type InitDevCmdActionOptions = InitSetupOptions & {
     baseTokenName?: string;
     validiumMode?: boolean;
     localLegacyBridgeTesting?: boolean;
+    shouldCheckPostgres: boolean; // Whether to perform `cargo sqlx prepare --check`
 };
 export const initDevCmdAction = async ({
     skipEnvSetup,
@@ -160,7 +161,8 @@ export const initDevCmdAction = async ({
     baseTokenName,
     runObservability,
     validiumMode,
-    localLegacyBridgeTesting
+    localLegacyBridgeTesting,
+    shouldCheckPostgres
 }: InitDevCmdActionOptions): Promise<void> => {
     if (localLegacyBridgeTesting) {
         await makeEraChainIdSameAsCurrent();
@@ -180,7 +182,7 @@ export const initDevCmdAction = async ({
         await deployTestTokens(testTokenOptions);
     }
     await initBridgehubStateTransition();
-    await initDatabase();
+    await initDatabase(shouldCheckPostgres);
     await initHyperchain({
         includePaymaster: true,
         baseTokenName,
@@ -246,12 +248,25 @@ export const initHyperCmdAction = async ({
             deploymentMode
         });
     }
-    await initDatabase();
+    await initDatabase(false);
     await initHyperchain({
         includePaymaster: true,
         baseTokenName,
         deploymentMode
     });
+};
+type ConfigCmdActionOptions = {
+    skipContractCompilationOverride?: boolean;
+};
+export const configCmdAction = async ({ skipContractCompilationOverride }: ConfigCmdActionOptions): Promise<void> => {
+    if (!skipContractCompilationOverride) {
+        await Promise.all([
+            announced('Building L1 L2 contracts', contract.build(false)),
+            announced('Compile L2 system contracts', compiler.compileAll())
+        ]);
+    }
+    await initDatabase(true);
+    await announced('Running server genesis setup', server.genesisFromSources());
 };
 
 // ########################### Command Definitions ###########################
@@ -266,6 +281,7 @@ export const initCommand = new Command('init')
         '--local-legacy-bridge-testing',
         'used to test LegacyBridge compatibily. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
     )
+    .option('--should-check-postgres', 'Whether to perform cargo sqlx prepare --check during database setup', true)
     .description('Deploys the shared bridge and registers a hyperchain locally, as quickly as possible.')
     .action(initDevCmdAction);
 
@@ -287,8 +303,10 @@ initCommand
     .description('Registers a hyperchain and deploys L2 contracts only. It requires an already deployed shared bridge.')
     .option('--skip-setup-completely', 'skip the setup completely, use this if server was started already')
     .option('--skip-contract-compilation-override')
-    .option('--bump-chain-id', 'bump chain id to not conflict with previously deployed hyperchain')
     .option('--base-token-name <base-token-name>', 'base token name')
+    .option('--bump-chain-id', 'bump chain id to not conflict with previously deployed hyperchain')
     .option('--validium-mode', 'deploy contracts in Validium mode')
     .option('--run-observability', 'run observability suite')
     .action(initHyperCmdAction);
+
+initCommand.command('config').option('--skip-contract-compilation-override').action(configCmdAction);

@@ -15,7 +15,6 @@ use zksync_types::{
         AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchAuxiliaryOutput,
         L1BatchCommitment, L1BatchCommitmentArtifacts, L1BatchCommitmentMode,
     },
-    event::convert_vm_events_to_log_queries,
     web3::keccak256,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
     AccountTreeId, L1BatchNumber, ProtocolVersionId, StorageKey, H256, L2_MESSAGE_ROOT_ADDRESS,
@@ -24,7 +23,7 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     metrics::{CommitmentStage, METRICS},
-    utils::{CommitmentComputer, RealCommitmentComputer},
+    utils::{convert_vm_events_to_log_queries, CommitmentComputer, RealCommitmentComputer},
 };
 
 mod metrics;
@@ -78,6 +77,7 @@ impl CommitmentGenerator {
         self.health_updater.subscribe()
     }
 
+    #[tracing::instrument(skip(self))]
     async fn calculate_aux_commitments(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -148,6 +148,7 @@ impl CommitmentGenerator {
         })
     }
 
+    #[tracing::instrument(skip(self))]
     async fn prepare_input(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -297,8 +298,8 @@ impl CommitmentGenerator {
 
             println!("message_root_addr = {:#?}", message_root_addr);
 
-            const FULL_TREE_SLOT: usize = 4;
-            const NODES_SLOT: usize = 6;
+            const FULL_TREE_SLOT: usize = 3;
+            const NODES_SLOT: usize = 5;
 
             let agg_tree_height_slot = StorageKey::new(
                 AccountTreeId::new(message_root_addr),
@@ -361,6 +362,7 @@ impl CommitmentGenerator {
         Ok(input)
     }
 
+    #[tracing::instrument(skip(self))]
     async fn process_batch(
         &self,
         l1_batch_number: L1BatchNumber,
@@ -383,6 +385,7 @@ impl CommitmentGenerator {
         Ok(artifacts)
     }
 
+    #[tracing::instrument(skip(self))]
     async fn step(
         &self,
         l1_batch_numbers: ops::RangeInclusive<L1BatchNumber>,
@@ -460,6 +463,7 @@ impl CommitmentGenerator {
         }
     }
 
+    #[tracing::instrument(skip(self))]
     async fn next_batch_range(&self) -> anyhow::Result<Option<ops::RangeInclusive<L1BatchNumber>>> {
         let mut connection = self
             .connection_pool

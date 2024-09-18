@@ -5,23 +5,19 @@ use zk_evm_1_4_0::{
     aux_structures::Timestamp,
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
-use zksync_state::{StoragePtr, WriteStorage};
-use zksync_types::{
-    event::{
-        extract_bytecode_publication_requests_from_l1_messenger,
-        extract_l2tol1logs_from_l1_messenger, extract_long_l2_to_l1_messages, L1MessengerL2ToL1Log,
-    },
-    writes::StateDiffRecord,
-    AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS,
-};
+use zksync_types::{writes::StateDiffRecord, AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS};
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
     interface::{
-        dyn_tracers::vm_1_4_0::DynTracer,
+        storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-        types::inputs::L1BatchEnv,
-        VmExecutionMode,
+        L1BatchEnv, VmEvent, VmExecutionMode,
+    },
+    tracers::dynamic::vm_1_4_0::DynTracer,
+    utils::events::{
+        extract_bytecode_publication_requests_from_l1_messenger,
+        extract_l2tol1logs_from_l1_messenger, L1MessengerL2ToL1Log,
     },
     vm_boojum_integration::{
         bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
@@ -80,8 +76,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             &self.l1_batch_env,
             Timestamp(0),
         );
-
-        extract_long_l2_to_l1_messages(&all_generated_events)
+        VmEvent::extract_long_l2_to_l1_messages(&all_generated_events)
     }
 
     // Packs part of L1 Messenger total pubdata that corresponds to

@@ -12,7 +12,7 @@ use serde_with::{DeserializeFromStr, SerializeDisplay};
 
 use crate::{
     ethabi::Token,
-    vm_version::VmVersion,
+    vm::VmVersion,
     web3::contract::{Detokenize, Error},
     H256, U256,
 };
@@ -139,6 +139,10 @@ impl ProtocolVersionId {
         self <= &Self::Version22
     }
 
+    pub fn is_pre_gateway(&self) -> bool {
+        self <= &Self::Version24
+    }
+
     pub fn is_1_4_0(&self) -> bool {
         self >= &ProtocolVersionId::Version18 && self < &ProtocolVersionId::Version20
     }
@@ -240,8 +244,12 @@ impl Detokenize for VerifierParams {
 
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Serialize, Deserialize)]
 pub struct L1VerifierConfig {
-    pub params: VerifierParams,
-    pub recursion_scheduler_level_vk_hash: H256,
+    // Rename is required to not introduce breaking changes in the API for existing clients.
+    #[serde(
+        alias = "recursion_scheduler_level_vk_hash",
+        rename(serialize = "recursion_scheduler_level_vk_hash")
+    )]
+    pub snark_wrapper_vk_hash: H256,
 }
 
 impl From<ProtocolVersionId> for VmVersion {
@@ -397,5 +405,23 @@ mod tests {
         let unpacked = ProtocolSemanticVersion::try_from_packed(packed).unwrap();
 
         assert_eq!(version, unpacked);
+    }
+
+    #[test]
+    fn test_verifier_config_serde() {
+        let de = [
+            r#"{"recursion_scheduler_level_vk_hash": "0x1111111111111111111111111111111111111111111111111111111111111111"}"#,
+            r#"{"snark_wrapper_vk_hash": "0x1111111111111111111111111111111111111111111111111111111111111111"}"#,
+        ];
+        for de in de.iter() {
+            let _: L1VerifierConfig = serde_json::from_str(de)
+                .unwrap_or_else(|err| panic!("Failed deserialization. String: {de}, error {err}"));
+        }
+        let ser = L1VerifierConfig {
+            snark_wrapper_vk_hash: H256::repeat_byte(0x11),
+        };
+        let ser_str = serde_json::to_string(&ser).unwrap();
+        let expected_str = r#"{"recursion_scheduler_level_vk_hash":"0x1111111111111111111111111111111111111111111111111111111111111111"}"#;
+        assert_eq!(ser_str, expected_str);
     }
 }

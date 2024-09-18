@@ -1,9 +1,5 @@
-use std::time::Duration;
-
-use tokio::sync::watch;
 use vise::{EncodeLabelSet, Gauge, Info, Metrics};
-use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_types::{L1ChainId, L2ChainId};
+use zksync_types::{L1ChainId, L2ChainId, SLChainId};
 
 use crate::metadata::SERVER_VERSION;
 
@@ -14,6 +10,7 @@ pub(crate) mod framework;
 struct ExternalNodeInfo {
     server_version: &'static str,
     l1_chain_id: u64,
+    sl_chain_id: u64,
     l2_chain_id: u64,
     /// Size of the main Postgres connection pool.
     postgres_pool_size: u32,
@@ -32,12 +29,14 @@ impl ExternalNodeMetrics {
     pub(crate) fn observe_config(
         &self,
         l1_chain_id: L1ChainId,
+        sl_chain_id: SLChainId,
         l2_chain_id: L2ChainId,
         postgres_pool_size: u32,
     ) {
         let info = ExternalNodeInfo {
             server_version: SERVER_VERSION,
             l1_chain_id: l1_chain_id.0,
+            sl_chain_id: sl_chain_id.0,
             l2_chain_id: l2_chain_id.as_u64(),
             postgres_pool_size,
         };
@@ -49,31 +48,6 @@ impl ExternalNodeMetrics {
                 self.info.get()
             );
         }
-    }
-
-    pub(crate) async fn run_protocol_version_updates(
-        &self,
-        pool: ConnectionPool<Core>,
-        mut stop_receiver: watch::Receiver<bool>,
-    ) -> anyhow::Result<()> {
-        const QUERY_INTERVAL: Duration = Duration::from_secs(10);
-
-        while !*stop_receiver.borrow_and_update() {
-            let maybe_protocol_version = pool
-                .connection()
-                .await?
-                .protocol_versions_dal()
-                .last_used_version_id()
-                .await;
-            if let Some(version) = maybe_protocol_version {
-                self.protocol_version.set(version as u64);
-            }
-
-            tokio::time::timeout(QUERY_INTERVAL, stop_receiver.changed())
-                .await
-                .ok();
-        }
-        Ok(())
     }
 }
 

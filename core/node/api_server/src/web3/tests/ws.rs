@@ -8,7 +8,7 @@ use http::StatusCode;
 use tokio::sync::watch;
 use zksync_config::configs::chain::NetworkConfig;
 use zksync_dal::ConnectionPool;
-use zksync_types::{api, Address, L1BatchNumber, H160, H2048, H256, U64};
+use zksync_types::{api, Address, Bloom, L1BatchNumber, H160, H256, U64};
 use zksync_web3_decl::{
     client::{WsClient, L2},
     jsonrpsee::{
@@ -318,7 +318,7 @@ impl WsTest for BasicSubscriptionsTest {
             Some(new_l2_block.base_fee_per_gas.into())
         );
         assert_eq!(received_block_header.extra_data, Bytes::default());
-        assert_eq!(received_block_header.logs_bloom, H2048::default());
+        assert_eq!(received_block_header.logs_bloom, Bloom::default());
         assert_eq!(
             received_block_header.timestamp,
             new_l2_block.timestamp.into()

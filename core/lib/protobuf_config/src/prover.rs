@@ -198,6 +198,9 @@ impl ProtoRepr for proto::WitnessGenerator {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("prometheus_listener_port")?,
+            max_circuits_in_flight: required(&self.max_circuits_in_flight)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("max_circuits_in_flight")?,
         })
     }
 
@@ -219,6 +222,7 @@ impl ProtoRepr for proto::WitnessGenerator {
                 .scheduler_generation_timeout_in_secs
                 .map(|x| x.into()),
             prometheus_listener_port: this.prometheus_listener_port.map(|x| x.into()),
+            max_circuits_in_flight: Some(this.max_circuits_in_flight as u64),
         }
     }
 }
@@ -293,16 +297,16 @@ impl proto::SetupLoadMode {
 }
 
 impl proto::CloudType {
-    fn new(x: &configs::fri_prover::CloudType) -> Self {
-        use configs::fri_prover::CloudType as From;
+    fn new(x: &configs::fri_prover::CloudConnectionMode) -> Self {
+        use configs::fri_prover::CloudConnectionMode as From;
         match x {
             From::GCP => Self::Gcp,
             From::Local => Self::Local,
         }
     }
 
-    fn parse(&self) -> configs::fri_prover::CloudType {
-        use configs::fri_prover::CloudType as To;
+    fn parse(&self) -> configs::fri_prover::CloudConnectionMode {
+        use configs::fri_prover::CloudConnectionMode as To;
         match self {
             Self::Gcp => To::GCP,
             Self::Local => To::Local,

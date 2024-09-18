@@ -1,8 +1,11 @@
 //! High-level tests for EN.
 
+use std::time::Duration;
+
 use assert_matches::assert_matches;
 use framework::inject_test_layers;
 use test_casing::test_casing;
+use zksync_health_check::HealthStatus;
 use zksync_types::{fee_model::FeeParams, L1BatchNumber, U64};
 use zksync_web3_decl::jsonrpsee::core::ClientError;
 
@@ -38,7 +41,7 @@ async fn external_node_basics(components_str: &'static str) {
             );
 
             let node = node.build(env.components.0.into_iter().collect())?;
-            node.run()?;
+            node.run(None)?;
             anyhow::Ok(())
         })
         .join()
@@ -107,7 +110,7 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
             );
 
             let node = node.build(env.components.0.into_iter().collect())?;
-            node.run()?;
+            node.run(None)?;
             anyhow::Ok(())
         })
         .join()

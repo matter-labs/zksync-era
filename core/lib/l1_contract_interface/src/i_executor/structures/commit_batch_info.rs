@@ -5,7 +5,7 @@ use zksync_types::{
         pre_boojum_serialize_commitments, serialize_commitments, L1BatchCommitmentMode,
         L1BatchWithMetadata,
     },
-    ethabi::Token,
+    ethabi::{ParamType, Token},
     pubdata_da::PubdataDA,
     web3::{contract::Error as ContractError, keccak256},
     ProtocolVersionId, H256, U256,
@@ -40,6 +40,21 @@ impl<'a> CommitBatchInfo<'a> {
             l1_batch_with_metadata,
             pubdata_da,
         }
+    }
+
+    pub fn schema() -> ParamType {
+        ParamType::Tuple(vec![
+            ParamType::Uint(64),       // `batch_number`
+            ParamType::Uint(64),       // `timestamp`
+            ParamType::Uint(64),       // `index_repeated_storage_changes`
+            ParamType::FixedBytes(32), // `new_state_root`
+            ParamType::Uint(256),      // `numberOfLayer1Txs`
+            ParamType::FixedBytes(32), // `priorityOperationsHash`
+            ParamType::FixedBytes(32), // `bootloaderHeapInitialContentsHash`
+            ParamType::FixedBytes(32), // `eventsQueueStateHash`
+            ParamType::Bytes,          // `systemLogs`
+            ParamType::Bytes,          // `operatorDAInput`
+        ])
     }
 
     fn base_tokens(&self) -> Vec<Token> {
@@ -204,7 +219,10 @@ impl Tokenizable for CommitBatchInfo<'_> {
         } else {
             tokens.push(Token::Bytes(match (self.mode, self.pubdata_da) {
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
-                (L1BatchCommitmentMode::Validium, PubdataDA::Calldata) => self
+                (
+                    L1BatchCommitmentMode::Validium,
+                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                ) => self
                     .l1_batch_with_metadata
                     .metadata
                     .state_diff_hash
@@ -224,7 +242,10 @@ impl Tokenizable for CommitBatchInfo<'_> {
                     vec![PUBDATA_SOURCE_CUSTOM]
                 }
 
-                (L1BatchCommitmentMode::Rollup, PubdataDA::Calldata) => {
+                (
+                    L1BatchCommitmentMode::Rollup,
+                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                ) => {
                     let pubdata = self.pubdata_input();
 
                     let header = compose_header_for_l1_commit_rollup(

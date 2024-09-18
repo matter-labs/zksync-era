@@ -2,6 +2,8 @@ import { Command } from 'commander';
 import * as utils from 'utils';
 import * as env from './env';
 import fs from 'fs';
+import { Wallet } from 'ethers';
+import path from 'path';
 
 export async function build(zkSyncNetwork: boolean): Promise<void> {
     const additionalParams = zkSyncNetwork ? `CONTRACTS_BASE_NETWORK_ZKSYNC=true` : '';
@@ -11,44 +13,44 @@ export async function build(zkSyncNetwork: boolean): Promise<void> {
 }
 
 const syncLayerEnvVars = [
-    'SYNC_LAYER_CREATE2_FACTORY_ADDR',
+    'GATEWAY_CREATE2_FACTORY_ADDR',
 
-    'SYNC_LAYER_STATE_TRANSITION_PROXY_ADDR',
-    'SYNC_LAYER_STATE_TRANSITION_IMPL_ADDR',
+    'GATEWAY_STATE_TRANSITION_PROXY_ADDR',
+    'GATEWAY_STATE_TRANSITION_IMPL_ADDR',
 
-    'SYNC_LAYER_DIAMOND_INIT_ADDR',
-    'SYNC_LAYER_DEFAULT_UPGRADE_ADDR',
-    'SYNC_LAYER_GENESIS_UPGRADE_ADDR',
-    'SYNC_LAYER_GOVERNANCE_ADDR',
-    'SYNC_LAYER_ADMIN_FACET_ADDR',
-    'SYNC_LAYER_EXECUTOR_FACET_ADDR',
-    'SYNC_LAYER_GETTERS_FACET_ADDR',
-    'SYNC_LAYER_MAILBOX_FACET_ADDR',
+    'GATEWAY_DIAMOND_INIT_ADDR',
+    'GATEWAY_DEFAULT_UPGRADE_ADDR',
+    'GATEWAY_GENESIS_UPGRADE_ADDR',
+    'GATEWAY_GOVERNANCE_ADDR',
+    'GATEWAY_ADMIN_FACET_ADDR',
+    'GATEWAY_EXECUTOR_FACET_ADDR',
+    'GATEWAY_GETTERS_FACET_ADDR',
+    'GATEWAY_MAILBOX_FACET_ADDR',
 
-    'SYNC_LAYER_VERIFIER_ADDR',
-    'SYNC_LAYER_VALIDATOR_TIMELOCK_ADDR',
+    'GATEWAY_VERIFIER_ADDR',
+    'GATEWAY_VALIDATOR_TIMELOCK_ADDR',
 
-    // 'SYNC_LAYER_TRANSPARENT_PROXY_ADMIN_ADDR',
+    // 'GATEWAY_TRANSPARENT_PROXY_ADMIN_ADDR',
 
-    'SYNC_LAYER_L1_MULTICALL3_ADDR',
-    'SYNC_LAYER_BLOB_VERSIONED_HASH_RETRIEVER_ADDR',
+    'GATEWAY_L1_MULTICALL3_ADDR',
+    'GATEWAY_BLOB_VERSIONED_HASH_RETRIEVER_ADDR',
 
-    'SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL',
-    'SYNC_LAYER_CHAIN_ID',
+    'GATEWAY_API_WEB3_JSON_RPC_HTTP_URL',
+    'GATEWAY_CHAIN_ID',
 
-    'SYNC_LAYER_BRIDGEHUB_IMPL_ADDR',
-    'SYNC_LAYER_BRIDGEHUB_PROXY_ADDR',
+    'GATEWAY_BRIDGEHUB_IMPL_ADDR',
+    'GATEWAY_BRIDGEHUB_PROXY_ADDR',
 
-    // 'SYNC_LAYER_TRANSPARENT_PROXY_ADMIN_ADDR',
+    // 'GATEWAY_TRANSPARENT_PROXY_ADMIN_ADDR',
 
-    // 'SYNC_LAYER_L1_SHARED_BRIDGE_IMPL_ADDR',
-    // 'SYNC_LAYER_L1_SHARED_BRIDGE_PROXY_ADDR',
-    // 'SYNC_LAYER_L1_ERC20_BRIDGE_IMPL_ADDR',
-    // 'SYNC_LAYER_L1_ERC20_BRIDGE_PROXY_ADDR',
-    'CONTRACTS_STM_ASSET_INFO',
+    // 'GATEWAY_L1_SHARED_BRIDGE_IMPL_ADDR',
+    // 'GATEWAY_L1_SHARED_BRIDGE_PROXY_ADDR',
+    // 'GATEWAY_L1_ERC20_BRIDGE_IMPL_ADDR',
+    // 'GATEWAY_L1_ERC20_BRIDGE_PROXY_ADDR',
+    'GATEWAY_CTM_ASSET_INFO',
 
-    'SYNC_LAYER_DIAMOND_PROXY_ADDR',
-    'SYNC_LAYER_L1_RELAYED_SL_DA_VALIDATOR'
+    'GATEWAY_DIAMOND_PROXY_ADDR',
+    'GATEWAY_L1_RELAYED_SL_DA_VALIDATOR'
 ];
 
 const USER_FACING_ENV_VARS = ['CONTRACTS_USER_FACING_DIAMOND_PROXY_ADDR', 'CONTRACTS_USER_FACING_BRIDGEHUB_PROXY_ADDR'];
@@ -63,15 +65,15 @@ export async function prepareSyncLayer(): Promise<void> {
     );
 
     const paramsFromEnv = [
-        `SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL=${process.env.API_WEB3_JSON_RPC_HTTP_URL}`,
-        `SYNC_LAYER_CHAIN_ID=${process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID}`
+        `GATEWAY_API_WEB3_JSON_RPC_HTTP_URL=${process.env.API_WEB3_JSON_RPC_HTTP_URL}`,
+        `GATEWAY_CHAIN_ID=${process.env.CHAIN_ETH_ZKSYNC_NETWORK_ID}`
     ].join('\n');
 
     const deployLog =
         fs
             .readFileSync('sync-layer-prep.log')
             .toString()
-            .replace(/CONTRACTS/g, 'SYNC_LAYER') +
+            .replace(/CONTRACTS/g, 'GATEWAY') +
         '\n' +
         paramsFromEnv;
 
@@ -102,14 +104,17 @@ async function migrateToSyncLayer() {
     const migrationLog = fs
         .readFileSync('sync-layer-migration.log')
         .toString()
-        .replace(/CONTRACTS/g, 'SYNC_LAYER');
+        .replace(/CONTRACTS/g, 'GATEWAY');
 
     const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
     console.log('Writing to', envFile);
 
     // FIXME: consider creating new sync_layer_* variable.
-    updateContractsEnv(envFile, migrationLog, ['SYNC_LAYER_DIAMOND_PROXY_ADDR']);
-    env.modify('CONTRACTS_DIAMOND_PROXY_ADDR', process.env.SYNC_LAYER_DIAMOND_PROXY_ADDR!, envFile, true);
+    updateContractsEnv(envFile, migrationLog, ['GATEWAY_DIAMOND_PROXY_ADDR', 'GATEWAY_STM_ASSET_INFO']);
+    fs.writeFileSync('backup_diamond.txt', process.env.CONTRACTS_DIAMOND_PROXY_ADDR!);
+    env.modify('CONTRACTS_DIAMOND_PROXY_ADDR', process.env.GATEWAY_DIAMOND_PROXY_ADDR!, envFile, true);
+    env.modify('ETH_SENDER_SENDER_PUBDATA_SENDING_MODE', 'RelayedL2Calldata', envFile, true);
+    env.modify('ETH_SENDER_GAS_ADJUSTER_SETTLEMENT_MODE', 'Gateway', envFile, true);
 }
 
 async function prepareValidatorsOnSyncLayer() {
@@ -125,7 +130,7 @@ async function recoverFromFailedMigrationToSyncLayer(failedTxSLHash: string) {
 /// FIXME: generally we should use a different approach for config maintaining within sync layer
 /// the chain should retain both "sync_layer" and "contracts_" contracts and be able to switch between them
 async function updateConfigOnSyncLayer() {
-    const specialParams = ['SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL', 'SYNC_LAYER_CHAIN_ID'];
+    const specialParams = ['GATEWAY_API_WEB3_JSON_RPC_HTTP_URL', 'GATEWAY_CHAIN_ID'];
 
     const envFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
 
@@ -136,27 +141,34 @@ async function updateConfigOnSyncLayer() {
 
     console.log('a');
 
+    env.modify(
+        'CONTRACTS_DIAMOND_PROXY_ADDR',
+        fs.readFileSync('backup_diamond.txt', { encoding: 'utf-8' }),
+        envFile,
+        false
+    );
+
     for (const envVar of syncLayerEnvVars) {
         if (specialParams.includes(envVar)) {
             continue;
         }
-        const contractsVar = envVar.replace(/SYNC_LAYER/g, 'CONTRACTS');
+        const contractsVar = envVar.replace(/GATEWAY/g, 'GATEWAY_CONTRACTS');
         env.modify(contractsVar, process.env[envVar]!, envFile, false);
     }
     env.modify('BRIDGE_LAYER_WEB3_URL', process.env.ETH_CLIENT_WEB3_URL!, envFile, false);
-    env.modify('ETH_CLIENT_WEB3_URL', process.env.SYNC_LAYER_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
+    env.modify('ETH_CLIENT_GATEWAY_WEB3_URL', process.env.GATEWAY_API_WEB3_JSON_RPC_HTTP_URL!, envFile, false);
+    // for loadtest
     env.modify('L1_RPC_ADDRESS', process.env.ETH_CLIENT_WEB3_URL!, envFile, false);
-    env.modify('ETH_CLIENT_CHAIN_ID', process.env.SYNC_LAYER_CHAIN_ID!, envFile, false);
-
-    console.log('b');
+    env.modify('ETH_CLIENT_CHAIN_ID', process.env.GATEWAY_CHAIN_ID!, envFile, false);
 
     env.modify('CHAIN_ETH_NETWORK', 'localhostL2', envFile, false);
 
-    env.modify(`ETH_SENDER_SENDER_IGNORE_DB_NONCE`, 'true', envFile, false);
     env.modify('CONTRACTS_BASE_NETWORK_ZKSYNC', 'true', envFile, false);
     env.modify('ETH_SENDER_SENDER_MAX_AGGREGATED_TX_GAS', '4294967295', envFile, false);
 
     env.modify('ETH_SENDER_SENDER_WAIT_CONFIRMATIONS', '0', envFile, false);
+    env.modify('ETH_SENDER_SENDER_PUBDATA_SENDING_MODE', 'RelayedL2Calldata', envFile, false);
+    env.modify('ETH_SENDER_GAS_ADJUSTER_SETTLEMENT_MODE', 'Gateway', envFile, false);
 
     // FIXME: while logically incorrect, it is temporarily needed to make the synclayer start
     fs.copyFileSync(
@@ -216,8 +228,6 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
         await utils.spawn(`yarn l2-contracts build`);
     }
 
-    await utils.spawn(`yarn l2-contracts deploy-shared-bridge-on-l2 ${args.join(' ')} | tee deployL2.log`);
-
     if (includePaymaster) {
         await utils.spawn(`yarn l2-contracts deploy-testnet-paymaster ${args.join(' ')} | tee -a deployL2.log`);
     }
@@ -226,7 +236,6 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 
     let l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [
-        'CONTRACTS_L2_SHARED_BRIDGE_ADDR',
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
@@ -238,11 +247,9 @@ export async function deployL2(args: any[] = [], includePaymaster?: boolean): Pr
 // for testnet and development purposes it is ok to deploy contracts form L1.
 export async function deployL2ThroughL1({
     includePaymaster = true,
-    localLegacyBridgeTesting,
     deploymentMode
 }: {
     includePaymaster: boolean;
-    localLegacyBridgeTesting?: boolean;
     deploymentMode: DeploymentMode;
 }): Promise<void> {
     await utils.confirmAction();
@@ -263,12 +270,6 @@ export async function deployL2ThroughL1({
         `yarn l2-contracts deploy-l2-da-validator-on-l2-through-l1 ${daArgs.join(' ')} | tee deployL2.log`
     );
 
-    await utils.spawn(
-        `yarn l2-contracts deploy-shared-bridge-on-l2-through-l1 ${args.join(' ')} ${
-            localLegacyBridgeTesting ? '--local-legacy-bridge-testing' : ''
-        } | tee -a deployL2.log`
-    );
-
     if (includePaymaster) {
         await utils.spawn(
             `yarn l2-contracts deploy-testnet-paymaster-through-l1 ${args.join(' ')} | tee -a deployL2.log`
@@ -281,25 +282,15 @@ export async function deployL2ThroughL1({
 
     let l2DeployLog = fs.readFileSync('deployL2.log').toString();
     const l2DeploymentEnvVars = [
-        'CONTRACTS_L2_SHARED_BRIDGE_ADDR',
-        'CONTRACTS_L2_ERC20_BRIDGE_ADDR',
         'CONTRACTS_L2_TESTNET_PAYMASTER_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_IMPL_ADDR',
         'CONTRACTS_L2_WETH_TOKEN_PROXY_ADDR',
         'CONTRACTS_L2_DEFAULT_UPGRADE_ADDR',
         'CONTRACTS_L1_DA_VALIDATOR_ADDR',
-        'CONTRACTS_L2_DA_VALIDATOR_ADDR',
-        'CONTRACTS_L2_NATIVE_TOKEN_VAULT_IMPL_ADDR',
-        'CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR',
-        'CONTRACTS_L2_PROXY_ADMIN_ADDR'
+        'CONTRACTS_L2_DA_VALIDATOR_ADDR'
     ];
     updateContractsEnv(`etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`, l2DeployLog, l2DeploymentEnvVars);
     // erc20 bridge is now deployed as shared bridge, but we still need the config var:
-    updateContractsEnv(
-        `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`,
-        `CONTRACTS_L2_ERC20_BRIDGE_ADDR=${process.env.CONTRACTS_L2_SHARED_BRIDGE_ADDR}`,
-        l2DeploymentEnvVars
-    );
 }
 
 async function _deployL1(onlyVerifier: boolean): Promise<void> {
@@ -355,9 +346,12 @@ async function _deployL1(onlyVerifier: boolean): Promise<void> {
 
         'CONTRACTS_L1_ROLLUP_DA_VALIDATOR',
         'CONTRACTS_L1_VALIDIUM_DA_VALIDATOR',
-        'CONTRACTS_STM_DEPLOYMENT_TRACKER_IMPL_ADDR',
-        'CONTRACTS_STM_DEPLOYMENT_TRACKER_PROXY_ADDR',
-        'CONTRACTS_STM_ASSET_INFO',
+        'CONTRACTS_CTM_DEPLOYMENT_TRACKER_IMPL_ADDR',
+        'CONTRACTS_CTM_DEPLOYMENT_TRACKER_PROXY_ADDR',
+        'CONTRACTS_CTM_ASSET_INFO',
+
+        'CONTRACTS_L1_NULLIFIER_IMPL_ADDR',
+        'CONTRACTS_L1_NULLIFIER_PROXY_ADDR',
 
         /// temporary:
         'CONTRACTS_HYPERCHAIN_UPGRADE_ADDR'
@@ -392,26 +386,52 @@ export async function erc20BridgeFinish(args: any[] = []): Promise<void> {
     await utils.spawn(`yarn l1-contracts erc20-finish-deployment-on-chain ${args.join(' ')} | tee -a deployL2.log`);
 }
 
-export async function registerHyperchain({
+export async function registerZKChain({
     baseTokenName,
+    localLegacyBridgeTesting,
     deploymentMode
 }: {
     baseTokenName?: string;
+    localLegacyBridgeTesting?: boolean;
     deploymentMode?: DeploymentMode;
 }): Promise<void> {
     await utils.confirmAction();
 
     const privateKey = process.env.GOVERNOR_PRIVATE_KEY;
+    let tokenMultiplierSetterAddress = process.env.TOKEN_MULTIPLIER_SETTER_ADDRESS;
+
+    if (baseTokenName && !tokenMultiplierSetterAddress) {
+        const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
+        const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
+        // this is one of the rich accounts
+        tokenMultiplierSetterAddress = Wallet.fromMnemonic(
+            process.env.MNEMONIC ?? ethTestConfig.mnemonic,
+            "m/44'/60'/0'/0/2"
+        ).address;
+        console.log(`Defaulting token multiplier setter address to ${tokenMultiplierSetterAddress}`);
+    }
+
     const args = [
         privateKey ? `--private-key ${privateKey}` : '',
         baseTokenName ? `--base-token-name ${baseTokenName}` : '',
         deploymentMode == DeploymentMode.Validium ? '--validium-mode' : '',
+        tokenMultiplierSetterAddress ? `--token-multiplier-setter-address ${tokenMultiplierSetterAddress}` : '',
         '--use-governance'
     ];
-    await utils.spawn(`yarn l1-contracts register-hyperchain ${args.join(' ')} | tee registerHyperchain.log`);
-    const deployLog = fs.readFileSync('registerHyperchain.log').toString();
+    await utils.spawn(
+        `yarn l1-contracts register-zk-chain ${args.join(' ')} ${
+            localLegacyBridgeTesting ? '--local-legacy-bridge-testing' : ''
+        } | tee registerZKChain.log`
+    );
+    const deployLog = fs.readFileSync('registerZKChain.log').toString();
 
-    const l2EnvVars = ['CHAIN_ETH_ZKSYNC_NETWORK_ID', 'CONTRACTS_DIAMOND_PROXY_ADDR', 'CONTRACTS_BASE_TOKEN_ADDR'];
+    const l2EnvVars = [
+        'CHAIN_ETH_ZKSYNC_NETWORK_ID',
+        'CONTRACTS_DIAMOND_PROXY_ADDR',
+        'CONTRACTS_BASE_TOKEN_ADDR',
+        'CONTRACTS_L2_LEGACY_SHARED_BRIDGE_ADDR',
+        'CONTRACTS_CTM_ASSET_INFO'
+    ];
     const l2EnvFile = `etc/env/l2-inits/${process.env.ZKSYNC_ENV!}.init.env`;
     console.log('Writing to', l2EnvFile);
 
@@ -543,7 +563,11 @@ command
     .description('register hyperchain')
     .option('--base-token-name <base-token-name>', 'base token name')
     .option('--deployment-mode <deployment-mode>', 'deploy contracts in Validium mode')
-    .action(registerHyperchain);
+    .option(
+        '--token-multiplier-setter-address <token-multiplier-setter-address>',
+        'address of the token multiplier setter'
+    )
+    .action(registerZKChain);
 command
     .command('deploy-l2-through-l1')
     .description('deploy l2 through l1')
@@ -551,6 +575,5 @@ command
         '--local-legacy-bridge-testing',
         'used to test LegacyBridge compatibility. The chain will have the same id as the era chain id, while eraChainId in L2SharedBridge will be 0'
     )
-    .option('--deployment-mode <deployment-mode>', 'deploy contracts in Validium mode')
     .action(deployL2ThroughL1);
 command.command('deploy-verifier').description('deploy verifier to l1').action(deployVerifier);

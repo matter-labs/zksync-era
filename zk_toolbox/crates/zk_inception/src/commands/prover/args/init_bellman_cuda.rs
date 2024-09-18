@@ -30,7 +30,7 @@ impl std::fmt::Display for BellmanCudaPathSelection {
 }
 
 impl InitBellmanCudaArgs {
-    pub fn fill_values_with_prompt(self) -> anyhow::Result<InitBellmanCudaArgs> {
+    pub fn fill_values_with_prompt(self) -> InitBellmanCudaArgs {
         let bellman_cuda_dir = self.bellman_cuda_dir.unwrap_or_else(|| {
             match PromptSelect::new(
                 MSG_BELLMAN_CUDA_ORIGIN_SELECT,
@@ -43,8 +43,8 @@ impl InitBellmanCudaArgs {
             }
         });
 
-        Ok(InitBellmanCudaArgs {
+        InitBellmanCudaArgs {
             bellman_cuda_dir: Some(bellman_cuda_dir),
-        })
+        }
     }
 }

@@ -4,11 +4,12 @@ use zksync_config::{
     EthConfig,
 };
 use zksync_eth_client::clients::PKSigningClient;
-use zksync_types::L1ChainId;
+use zksync_types::SLChainId;
 
 use crate::{
     implementations::resources::eth_interface::{
-        BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource, EthInterfaceResource,
+        BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
+        BoundEthInterfaceResource, EthInterfaceResource, GatewayEthInterfaceResource,
     },
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
@@ -19,7 +20,8 @@ use crate::{
 pub struct PKSigningEthClientLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
-    l1_chain_id: L1ChainId,
+    gateway_contracts_config: Option<ContractsConfig>,
+    sl_chain_id: SLChainId,
     wallets: wallets::EthSender,
 }
 
@@ -27,6 +29,7 @@ pub struct PKSigningEthClientLayer {
 #[context(crate = crate)]
 pub struct Input {
     pub eth_client: EthInterfaceResource,
+    pub gateway_client: Option<GatewayEthInterfaceResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -35,19 +38,22 @@ pub struct Output {
     pub signing_client: BoundEthInterfaceResource,
     /// Only provided if the blob operator key is provided to the layer.
     pub signing_client_for_blobs: Option<BoundEthInterfaceForBlobsResource>,
+    pub signing_client_for_gateway: Option<BoundEthInterfaceForL2Resource>,
 }
 
 impl PKSigningEthClientLayer {
     pub fn new(
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
-        l1_chain_id: L1ChainId,
+        gateway_contracts_config: Option<ContractsConfig>,
+        sl_chain_id: SLChainId,
         wallets: wallets::EthSender,
     ) -> Self {
         Self {
             eth_sender_config,
             contracts_config,
-            l1_chain_id,
+            gateway_contracts_config,
+            sl_chain_id,
             wallets,
         }
     }
@@ -75,7 +81,7 @@ impl WiringLayer for PKSigningEthClientLayer {
             private_key.clone(),
             self.contracts_config.diamond_proxy_addr,
             gas_adjuster_config.default_priority_fee_per_gas,
-            self.l1_chain_id,
+            self.sl_chain_id,
             query_client.clone(),
         );
         let signing_client = BoundEthInterfaceResource(Box::new(signing_client));
@@ -86,15 +92,32 @@ impl WiringLayer for PKSigningEthClientLayer {
                 private_key.clone(),
                 self.contracts_config.diamond_proxy_addr,
                 gas_adjuster_config.default_priority_fee_per_gas,
-                self.l1_chain_id,
+                self.sl_chain_id,
                 query_client,
             );
             BoundEthInterfaceForBlobsResource(Box::new(signing_client_for_blobs))
         });
+        let signing_client_for_gateway = if input.gateway_client.is_some() {
+            self.wallets.gateway.map(|gateway_operator| {
+                let private_key = gateway_operator.private_key();
+                let GatewayEthInterfaceResource(gateway_client) = input.gateway_client.unwrap();
+                let signing_client_for_blobs = PKSigningClient::new_raw(
+                    private_key.clone(),
+                    self.gateway_contracts_config.unwrap().diamond_proxy_addr,
+                    gas_adjuster_config.default_priority_fee_per_gas,
+                    self.sl_chain_id,
+                    gateway_client,
+                );
+                BoundEthInterfaceForL2Resource(Box::new(signing_client_for_blobs))
+            })
+        } else {
+            None
+        };
 
         Ok(Output {
             signing_client,
             signing_client_for_blobs,
+            signing_client_for_gateway,
         })
     }
 }

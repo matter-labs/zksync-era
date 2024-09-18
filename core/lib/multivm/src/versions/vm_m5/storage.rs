@@ -1,7 +1,8 @@
 use std::{cell::RefCell, collections::HashMap, fmt::Debug, rc::Rc};
 
-use zksync_state::{ReadStorage, WriteStorage};
 use zksync_types::{StorageKey, StorageValue, H256};
+
+use crate::interface::storage::{ReadStorage, WriteStorage};
 
 pub trait Storage: Debug {
     fn get_value(&mut self, key: &StorageKey) -> StorageValue;

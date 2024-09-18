@@ -15,8 +15,9 @@ use crate::{
     base_token_dal::BaseTokenDal, blocks_dal::BlocksDal, blocks_web3_dal::BlocksWeb3Dal,
     consensus_dal::ConsensusDal, contract_verification_dal::ContractVerificationDal,
     data_availability_dal::DataAvailabilityDal, eth_sender_dal::EthSenderDal,
-    events_dal::EventsDal, events_web3_dal::EventsWeb3Dal, factory_deps_dal::FactoryDepsDal,
-    proof_generation_dal::ProofGenerationDal, protocol_versions_dal::ProtocolVersionsDal,
+    eth_watcher_dal::ProcessedEventsDal, events_dal::EventsDal, events_web3_dal::EventsWeb3Dal,
+    factory_deps_dal::FactoryDepsDal, proof_generation_dal::ProofGenerationDal,
+    protocol_versions_dal::ProtocolVersionsDal,
     protocol_versions_web3_dal::ProtocolVersionsWeb3Dal, pruning_dal::PruningDal,
     snapshot_recovery_dal::SnapshotRecoveryDal, snapshots_creator_dal::SnapshotsCreatorDal,
     snapshots_dal::SnapshotsDal, storage_logs_dal::StorageLogsDal,
@@ -60,6 +61,8 @@ pub mod tokens_web3_dal;
 pub mod transactions_dal;
 pub mod transactions_web3_dal;
 pub mod vm_runner_dal;
+
+pub mod eth_watcher_dal;
 
 #[cfg(test)]
 mod tests;
@@ -132,6 +135,7 @@ where
     fn vm_runner_dal(&mut self) -> VmRunnerDal<'_, 'a>;
 
     fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a>;
+    fn processed_events_dal(&mut self) -> ProcessedEventsDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -257,5 +261,9 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
 
     fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a> {
         BaseTokenDal { storage: self }
+    }
+
+    fn processed_events_dal(&mut self) -> ProcessedEventsDal<'_, 'a> {
+        ProcessedEventsDal { storage: self }
     }
 }

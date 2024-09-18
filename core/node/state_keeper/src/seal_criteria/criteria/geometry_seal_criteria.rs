@@ -69,7 +69,7 @@ impl SealCriterion for CircuitsCriterion {
 }
 #[cfg(test)]
 mod tests {
-    use zksync_types::{circuit::CircuitStatistic, tx::ExecutionMetrics};
+    use zksync_multivm::interface::{CircuitStatistic, VmExecutionMetrics};
 
     use super::*;
 
@@ -85,7 +85,7 @@ mod tests {
     }
 
     fn test_no_seal_block_resolution(
-        block_execution_metrics: ExecutionMetrics,
+        block_execution_metrics: VmExecutionMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
     ) {
@@ -105,7 +105,7 @@ mod tests {
     }
 
     fn test_include_and_seal_block_resolution(
-        block_execution_metrics: ExecutionMetrics,
+        block_execution_metrics: VmExecutionMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
     ) {
@@ -125,7 +125,7 @@ mod tests {
     }
 
     fn test_exclude_and_seal_block_resolution(
-        block_execution_metrics: ExecutionMetrics,
+        block_execution_metrics: VmExecutionMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
     ) {
@@ -145,7 +145,7 @@ mod tests {
     }
 
     fn test_unexecutable_tx_resolution(
-        tx_execution_metrics: ExecutionMetrics,
+        tx_execution_metrics: VmExecutionMetrics,
         criterion: &dyn SealCriterion,
         protocol_version: ProtocolVersionId,
     ) {
@@ -169,12 +169,12 @@ mod tests {
     fn circuits_seal_criterion() {
         let config = get_config();
         let protocol_version = ProtocolVersionId::latest();
-        let block_execution_metrics = ExecutionMetrics {
+        let block_execution_metrics = VmExecutionMetrics {
             circuit_statistic: CircuitStatistic {
                 main_vm: (MAX_CIRCUITS_PER_BATCH / 4) as f32,
                 ..CircuitStatistic::default()
             },
-            ..ExecutionMetrics::default()
+            ..VmExecutionMetrics::default()
         };
         test_no_seal_block_resolution(
             block_execution_metrics,
@@ -182,7 +182,7 @@ mod tests {
             protocol_version,
         );
 
-        let block_execution_metrics = ExecutionMetrics {
+        let block_execution_metrics = VmExecutionMetrics {
             circuit_statistic: CircuitStatistic {
                 main_vm: (MAX_CIRCUITS_PER_BATCH
                     - 1
@@ -191,7 +191,7 @@ mod tests {
                     )) as f32,
                 ..CircuitStatistic::default()
             },
-            ..ExecutionMetrics::default()
+            ..VmExecutionMetrics::default()
         };
 
         test_include_and_seal_block_resolution(
@@ -200,12 +200,12 @@ mod tests {
             protocol_version,
         );
 
-        let block_execution_metrics = ExecutionMetrics {
+        let block_execution_metrics = VmExecutionMetrics {
             circuit_statistic: CircuitStatistic {
                 main_vm: MAX_CIRCUITS_PER_BATCH as f32,
                 ..CircuitStatistic::default()
             },
-            ..ExecutionMetrics::default()
+            ..VmExecutionMetrics::default()
         };
 
         test_exclude_and_seal_block_resolution(
@@ -214,14 +214,14 @@ mod tests {
             protocol_version,
         );
 
-        let tx_execution_metrics = ExecutionMetrics {
+        let tx_execution_metrics = VmExecutionMetrics {
             circuit_statistic: CircuitStatistic {
                 main_vm: MAX_CIRCUITS_PER_BATCH as f32
                     * config.reject_tx_at_geometry_percentage as f32
                     + 1.0,
                 ..CircuitStatistic::default()
             },
-            ..ExecutionMetrics::default()
+            ..VmExecutionMetrics::default()
         };
 
         test_unexecutable_tx_resolution(tx_execution_metrics, &CircuitsCriterion, protocol_version);

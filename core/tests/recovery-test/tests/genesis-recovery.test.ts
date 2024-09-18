@@ -2,15 +2,19 @@ import { expect } from 'chai';
 import * as zksync from 'zksync-ethers';
 import { ethers } from 'ethers';
 
-import {
-    NodeProcess,
-    dropNodeDatabase,
-    dropNodeStorage,
-    getExternalNodeHealth,
-    NodeComponents,
-    sleep,
-    FundedWallet
-} from '../src';
+import { NodeProcess, dropNodeData, getExternalNodeHealth, NodeComponents, sleep, FundedWallet } from '../src';
+import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+
+import path from 'path';
+
+const pathToHome = path.join(__dirname, '../../../..');
+const fileConfig = shouldLoadConfigFromFile();
+
+import { logsTestPath } from 'utils/build/logs';
+
+async function logsPath(name: string): Promise<string> {
+    return await logsTestPath(fileConfig.chain, 'logs/recovery/genesis', name);
+}
 
 /**
  * Tests recovery of an external node from scratch.
@@ -37,24 +41,53 @@ describe('genesis recovery', () => {
         ZKSYNC_ENV: externalNodeEnvProfile,
         EN_SNAPSHOTS_RECOVERY_ENABLED: 'false'
     };
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
 
     let mainNode: zksync.Provider;
     let externalNode: zksync.Provider;
     let externalNodeProcess: NodeProcess;
     let externalNodeBatchNumber: number;
 
+    let apiWeb3JsonRpcHttpUrl: string;
+    let ethRpcUrl: string;
+    let externalNodeUrl: string;
+    let extNodeHealthUrl: string;
+
     before('prepare environment', async () => {
         expect(process.env.ZKSYNC_ENV, '`ZKSYNC_ENV` should not be set to allow running both server and EN components')
             .to.be.undefined;
-        mainNode = new zksync.Provider('http://127.0.0.1:3050');
-        externalNode = new zksync.Provider('http://127.0.0.1:3060');
-        await NodeProcess.stopAll('KILL');
+
+        if (fileConfig.loadFromFile) {
+            const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
+            const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+            const externalNodeGeneralConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                configsFolderSuffix: 'external_node',
+                config: 'general.yaml'
+            });
+
+            ethRpcUrl = secretsConfig.l1.l1_rpc_url;
+            apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
+            externalNodeUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
+            extNodeHealthUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.healthcheck.port}/health`;
+        } else {
+            ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
+            apiWeb3JsonRpcHttpUrl = 'http://127.0.0.1:3050';
+            externalNodeUrl = 'http://127.0.0.1:3060';
+            extNodeHealthUrl = 'http://127.0.0.1:3081/health';
+        }
+
+        mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
+        externalNode = new zksync.Provider(externalNodeUrl);
+        if (autoKill) {
+            await NodeProcess.stopAll('KILL');
+        }
     });
 
     let fundedWallet: FundedWallet;
 
     before('create test wallet', async () => {
-        const ethRpcUrl = process.env.ETH_CLIENT_WEB3_URL ?? 'http://127.0.0.1:8545';
         console.log(`Using L1 RPC at ${ethRpcUrl}`);
         const eth = new ethers.JsonRpcProvider(ethRpcUrl);
         fundedWallet = await FundedWallet.create(mainNode, eth);
@@ -78,19 +111,18 @@ describe('genesis recovery', () => {
         }
     });
 
-    step('drop external node database', async () => {
-        await dropNodeDatabase(externalNodeEnv);
-    });
-
-    step('drop external node storage', async () => {
-        await dropNodeStorage(externalNodeEnv);
+    step('drop external node data', async () => {
+        await dropNodeData(externalNodeEnv, fileConfig.loadFromFile, fileConfig.chain);
     });
 
     step('initialize external node w/o a tree', async () => {
         externalNodeProcess = await NodeProcess.spawn(
             externalNodeEnv,
-            'genesis-recovery.log',
-            NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE
+            await logsPath('external-node.log'),
+            pathToHome,
+            NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE,
+            fileConfig.loadFromFile,
+            fileConfig.chain
         );
 
         const mainNodeBatchNumber = await mainNode.getL1BatchNumber();
@@ -103,7 +135,7 @@ describe('genesis recovery', () => {
 
         while (!treeFetcherSucceeded || !reorgDetectorSucceeded || !consistencyCheckerSucceeded) {
             await sleep(1000);
-            const health = await getExternalNodeHealth();
+            const health = await getExternalNodeHealth(extNodeHealthUrl);
             if (health === null) {
                 continue;
             }
@@ -170,13 +202,16 @@ describe('genesis recovery', () => {
         externalNodeProcess = await NodeProcess.spawn(
             externalNodeEnv,
             externalNodeProcess.logs,
-            NodeComponents.WITH_TREE_FETCHER
+            pathToHome,
+            NodeComponents.WITH_TREE_FETCHER,
+            fileConfig.loadFromFile,
+            fileConfig.chain
         );
 
         let isNodeReady = false;
         while (!isNodeReady) {
             await sleep(1000);
-            const health = await getExternalNodeHealth();
+            const health = await getExternalNodeHealth(extNodeHealthUrl);
             if (health === null) {
                 continue;
             }
@@ -197,7 +232,7 @@ describe('genesis recovery', () => {
 
         while (!treeSucceeded || !reorgDetectorSucceeded || !consistencyCheckerSucceeded) {
             await sleep(1000);
-            const health = await getExternalNodeHealth();
+            const health = await getExternalNodeHealth(extNodeHealthUrl);
             if (health === null) {
                 continue;
             }

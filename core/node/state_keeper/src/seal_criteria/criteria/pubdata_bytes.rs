@@ -66,7 +66,7 @@ impl SealCriterion for PubDataBytesCriterion {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::tx::ExecutionMetrics;
+    use zksync_multivm::interface::VmExecutionMetrics;
 
     use super::*;
 
@@ -84,7 +84,7 @@ mod tests {
             max_pubdata_per_batch: 100000,
         };
 
-        let block_execution_metrics = ExecutionMetrics {
+        let block_execution_metrics = VmExecutionMetrics {
             l2_l1_long_messages: (config.max_pubdata_per_batch as f64
                 * config.close_block_at_eth_params_percentage
                 - 1.0
@@ -92,7 +92,7 @@ mod tests {
                     ProtocolVersionId::latest().into(),
                 ) as f64)
                 .round() as usize,
-            ..ExecutionMetrics::default()
+            ..VmExecutionMetrics::default()
         };
 
         let empty_block_resolution = criterion.should_seal(
@@ -108,12 +108,12 @@ mod tests {
         );
         assert_eq!(empty_block_resolution, SealResolution::NoSeal);
 
-        let block_execution_metrics = ExecutionMetrics {
+        let block_execution_metrics = VmExecutionMetrics {
             l2_l1_long_messages: (config.max_pubdata_per_batch as f64
                 * config.close_block_at_eth_params_percentage
                 + 1f64)
                 .round() as usize,
-            ..ExecutionMetrics::default()
+            ..VmExecutionMetrics::default()
         };
 
         let full_block_resolution = criterion.should_seal(
@@ -129,9 +129,9 @@ mod tests {
         );
         assert_eq!(full_block_resolution, SealResolution::IncludeAndSeal);
 
-        let block_execution_metrics = ExecutionMetrics {
+        let block_execution_metrics = VmExecutionMetrics {
             l2_l1_long_messages: config.max_pubdata_per_batch as usize + 1,
-            ..ExecutionMetrics::default()
+            ..VmExecutionMetrics::default()
         };
         let full_block_resolution = criterion.should_seal(
             &config,

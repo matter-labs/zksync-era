@@ -1,22 +1,40 @@
 use zksync_config::{configs::EcosystemContracts, ContractsConfig};
 
-use crate::{envy_load, FromEnv};
+use crate::{envy_load, FromEnv, FromEnvVariant};
 
 impl FromEnv for EcosystemContracts {
     fn from_env() -> anyhow::Result<Self> {
+        Self::from_env_variant("".to_string())
+    }
+}
+impl FromEnvVariant for EcosystemContracts {
+    fn from_env_variant(variant: String) -> anyhow::Result<Self> {
         Ok(Self {
-            bridgehub_proxy_addr: std::env::var("CONTRACTS_BRIDGEHUB_PROXY_ADDR")?.parse()?,
-            state_transition_proxy_addr: std::env::var("CONTRACTS_STATE_TRANSITION_PROXY_ADDR")?
-                .parse()?,
-            transparent_proxy_admin_addr: std::env::var("CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR")?
-                .parse()?,
+            bridgehub_proxy_addr: std::env::var(format!(
+                "{variant}CONTRACTS_BRIDGEHUB_PROXY_ADDR"
+            ))?
+            .parse()?,
+            state_transition_proxy_addr: std::env::var(format!(
+                "{variant}CONTRACTS_STATE_TRANSITION_PROXY_ADDR"
+            ))?
+            .parse()?,
+            transparent_proxy_admin_addr: std::env::var(format!(
+                "{variant}CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR"
+            ))?
+            .parse()?,
         })
     }
 }
 
 impl FromEnv for ContractsConfig {
     fn from_env() -> anyhow::Result<Self> {
-        let mut contracts: ContractsConfig = envy_load("contracts", "CONTRACTS_")?;
+        Self::from_env_variant("".to_string())
+    }
+}
+impl FromEnvVariant for ContractsConfig {
+    fn from_env_variant(variant: String) -> anyhow::Result<Self> {
+        let mut contracts: ContractsConfig =
+            envy_load("contracts", &format!("{variant}CONTRACTS_"))?;
         // Note: we are renaming the bridge, the address remains the same
         // These two config variables should always have the same value.
         // TODO(EVM-578): double check and potentially forbid both of them being `None`.
@@ -35,7 +53,7 @@ impl FromEnv for ContractsConfig {
                 panic!("L2 erc20 bridge address and L2 shared bridge address are different.");
             }
         }
-        contracts.ecosystem_contracts = EcosystemContracts::from_env().ok();
+        contracts.ecosystem_contracts = EcosystemContracts::from_env_variant(variant).ok();
         Ok(contracts)
     }
 }
@@ -80,7 +98,9 @@ mod tests {
             l2_native_token_vault_proxy_addr: Some(addr(
                 "0xfc073319977e314f251eae6ae6be76b0b3baeecf",
             )),
+            l2_legacy_shared_bridge_addr: Some(addr("0x8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             chain_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
+            l2_da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
         }
     }
 
@@ -98,6 +118,7 @@ CONTRACTS_L2_ERC20_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L1_WETH_BRIDGE_PROXY_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L2_WETH_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L2_TESTNET_PAYMASTER_ADDR="FC073319977e314F251EAE6ae6bE76B0B3BAeeCF"
+CONTRACTS_L2_CONSENSUS_REGISTRY_ADDR="D64e136566a9E04eb05B30184fF577F52682D182"
 CONTRACTS_L1_MULTICALL3_ADDR="0xcA11bde05977b3631167028862bE2a173976CA11"
 CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L2_SHARED_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
@@ -108,7 +129,9 @@ CONTRACTS_BASE_TOKEN_ADDR="0x0000000000000000000000000000000000000001"
 CONTRACTS_USER_FACING_BRIDGEHUB_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
 CONTRACTS_USER_FACING_DIAMOND_PROXY_ADDR="0xF00B988a98Ca742e7958DeF9F7823b5908715f4a
 CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR="0xfc073319977e314f251eae6ae6be76b0b3baeecf"
+CONTRACTS_L2_DA_VALIDATOR_ADDR="0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
 CONTRACTS_CHAIN_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
+CONTRACTS_L2_LEGACY_SHARED_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
         "#;
         lock.set_env(config);
 

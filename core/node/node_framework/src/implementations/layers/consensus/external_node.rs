@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use zksync_concurrency::{ctx, scope};
+use zksync_concurrency::{ctx, scope, sync};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_dal::{ConnectionPool, Core};
 use zksync_node_consensus as consensus;
@@ -23,6 +23,7 @@ use crate::{
 /// Wiring layer for external node consensus component.
 #[derive(Debug)]
 pub struct ExternalNodeConsensusLayer {
+    pub build_version: semver::Version,
     pub config: Option<ConsensusConfig>,
     pub secrets: Option<ConsensusSecrets>,
 }
@@ -78,6 +79,7 @@ impl WiringLayer for ExternalNodeConsensusLayer {
         };
 
         let consensus_task = ExternalNodeTask {
+            build_version: self.build_version,
             config,
             pool,
             main_node_client,
@@ -90,6 +92,7 @@ impl WiringLayer for ExternalNodeConsensusLayer {
 
 #[derive(Debug)]
 pub struct ExternalNodeTask {
+    build_version: semver::Version,
     config: Option<(ConsensusConfig, ConsensusSecrets)>,
     pool: ConnectionPool<Core>,
     main_node_client: Box<DynClient<L2>>,
@@ -110,8 +113,7 @@ impl Task for ExternalNodeTask {
         // Note, however, that awaiting for the `stop_receiver` is related to the root context behavior,
         // not the consensus task itself. There may have been any number of tasks running in the root context,
         // but we only need to wait for stop signal once, and it will be propagated to all child contexts.
-        let root_ctx = ctx::root();
-        scope::run!(&root_ctx, |ctx, s| async {
+        scope::run!(&ctx::root(), |ctx, s| async {
             s.spawn_bg(consensus::era::run_external_node(
                 ctx,
                 self.config,
@@ -119,8 +121,12 @@ impl Task for ExternalNodeTask {
                 self.sync_state,
                 self.main_node_client,
                 self.action_queue_sender,
+                self.build_version,
             ));
-            let _ = stop_receiver.0.wait_for(|stop| *stop).await?;
+            // `run_external_node` might return an error or panic,
+            // in which case we need to return immediately,
+            // rather than wait for the `stop_receiver`.
+            let _ = sync::wait_for(ctx, &mut stop_receiver.0, |stop| *stop).await;
             Ok(())
         })
         .await

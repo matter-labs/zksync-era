@@ -6,19 +6,19 @@ use serde::Serialize;
 #[derive(Debug)]
 pub struct DAError {
     pub error: anyhow::Error,
-    pub is_transient: bool,
+    pub is_retriable: bool,
 }
 
 impl DAError {
-    pub fn is_transient(&self) -> bool {
-        self.is_transient
+    pub fn is_retriable(&self) -> bool {
+        self.is_retriable
     }
 }
 
 impl Display for DAError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let kind = if self.is_transient {
-            "transient"
+        let kind = if self.is_retriable {
+            "retriable"
         } else {
             "fatal"
         };
@@ -33,6 +33,12 @@ impl error::Error for DAError {}
 pub struct DispatchResponse {
     /// The blob_id is needed to fetch the inclusion data.
     pub blob_id: String,
+}
+
+impl From<String> for DispatchResponse {
+    fn from(blob_id: String) -> Self {
+        DispatchResponse { blob_id }
+    }
 }
 
 /// `InclusionData` is the data needed to verify on L1 that a blob is included in the DA layer.

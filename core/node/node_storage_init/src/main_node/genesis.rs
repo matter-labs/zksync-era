@@ -30,6 +30,12 @@ impl InitializeStorage for MainNodeGenesis {
         }
 
         let params = GenesisParams::load_genesis_params(self.genesis.clone())?;
+        zksync_node_genesis::validate_genesis_params(
+            &params,
+            &self.l1_client,
+            self.contracts.diamond_proxy_addr,
+        )
+        .await?;
         zksync_node_genesis::ensure_genesis_state(&mut storage, &params).await?;
 
         zksync_node_genesis::save_set_chain_id_tx(

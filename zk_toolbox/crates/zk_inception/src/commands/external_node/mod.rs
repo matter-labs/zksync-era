@@ -10,8 +10,11 @@ mod run;
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub enum ExternalNodeCommands {
+    /// Prepare configs for EN
     Configs(PrepareConfigArgs),
+    /// Init databases
     Init,
+    /// Run external node
     Run(RunExternalNodeArgs),
 }
 

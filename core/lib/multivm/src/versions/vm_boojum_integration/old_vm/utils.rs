@@ -6,12 +6,14 @@ use zk_evm_1_4_0::{
         FatPointer, RET_IMPLICIT_RETURNDATA_PARAMS_REGISTER,
     },
 };
-use zksync_state::WriteStorage;
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{Address, U256};
 
-use crate::vm_boojum_integration::{
-    old_vm::memory::SimpleMemory, types::internals::ZkSyncVmState, HistoryMode,
+use crate::{
+    interface::storage::WriteStorage,
+    vm_boojum_integration::{
+        old_vm::memory::SimpleMemory, types::internals::ZkSyncVmState, HistoryMode,
+    },
 };
 
 #[derive(Debug, Clone)]

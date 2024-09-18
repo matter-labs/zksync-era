@@ -12,7 +12,7 @@ use zk_evm_1_3_3::{
     aux_structures::{LogQuery, Timestamp},
 };
 
-use zksync_state::{StoragePtr, WriteStorage};
+use crate::interface::storage::{StoragePtr, WriteStorage};
 use zksync_types::utils::storage_key_for_eth_balance;
 use zksync_types::{
     AccountTreeId, Address, StorageKey, StorageLogQuery, StorageLogQueryType, BOOTLOADER_ADDRESS,

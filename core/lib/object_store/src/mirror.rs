@@ -23,7 +23,7 @@ impl<S: ObjectStore> MirroringObjectStore<S> {
 
 #[async_trait]
 impl<S: ObjectStore> ObjectStore for MirroringObjectStore<S> {
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(name = "MirroringObjectStore::get_raw", skip(self))]
     async fn get_raw(&self, bucket: Bucket, key: &str) -> Result<Vec<u8>, ObjectStoreError> {
         match self.mirror_store.get_raw(bucket, key).await {
             Ok(object) => {
@@ -49,7 +49,11 @@ impl<S: ObjectStore> ObjectStore for MirroringObjectStore<S> {
         }
     }
 
-    #[tracing::instrument(skip(self, value), fields(value.len = value.len()))]
+    #[tracing::instrument(
+        name = "MirroringObjectStore::put_raw",
+        skip(self, value),
+        fields(value.len = value.len())
+    )]
     async fn put_raw(
         &self,
         bucket: Bucket,
@@ -66,7 +70,7 @@ impl<S: ObjectStore> ObjectStore for MirroringObjectStore<S> {
         Ok(())
     }
 
-    #[tracing::instrument(skip(self))]
+    #[tracing::instrument(name = "MirroringObjectStore::remove_raw", skip(self))]
     async fn remove_raw(&self, bucket: Bucket, key: &str) -> Result<(), ObjectStoreError> {
         self.inner.remove_raw(bucket, key).await?;
         // Only remove the value from the mirror once it has been removed in the underlying store

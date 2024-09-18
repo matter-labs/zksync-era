@@ -44,6 +44,7 @@ pub struct DeployL1DeployedAddressesOutput {
     pub governance_addr: Address,
     pub transparent_proxy_admin_addr: Address,
     pub validator_timelock_addr: Address,
+    pub chain_admin: Address,
     pub bridgehub: L1BridgehubOutput,
     pub bridges: L1BridgesOutput,
     pub state_transition: L1StateTransitionOutput,
@@ -79,7 +80,7 @@ pub struct L1StateTransitionOutput {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct TokenDeployErc20Output {
+pub struct Erc20Token {
     pub address: Address,
     pub name: String,
     pub symbol: String,
@@ -89,12 +90,12 @@ pub struct TokenDeployErc20Output {
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct DeployErc20Output {
-    pub tokens: HashMap<String, TokenDeployErc20Output>,
+pub struct ERC20Tokens {
+    pub tokens: HashMap<String, Erc20Token>,
 }
 
-impl FileConfigWithDefaultName for DeployErc20Output {
+impl FileConfigWithDefaultName for ERC20Tokens {
     const FILE_NAME: &'static str = ERC20_CONFIGS_FILE;
 }
 
-impl ZkToolboxConfig for DeployErc20Output {}
+impl ZkToolboxConfig for ERC20Tokens {}

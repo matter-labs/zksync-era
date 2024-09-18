@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::SLChainId;
 
 use crate::{aggregated_operations::AggregatedActionType, Address, Nonce, H256};
 
@@ -51,6 +52,8 @@ pub struct EthTx {
     /// this transaction. If it is set to `None` this transaction was sent by the main operator.
     pub from_addr: Option<Address>,
     pub blob_sidecar: Option<EthTxBlobSidecar>,
+    pub is_gateway: bool,
+    pub chain_id: Option<SLChainId>,
 }
 
 impl std::fmt::Debug for EthTx {
@@ -63,6 +66,7 @@ impl std::fmt::Debug for EthTx {
             .field("tx_type", &self.tx_type)
             .field("created_at_timestamp", &self.created_at_timestamp)
             .field("predicted_gas_cost", &self.predicted_gas_cost)
+            .field("chain_id", &self.chain_id)
             .finish()
     }
 }

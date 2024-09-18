@@ -122,10 +122,11 @@ impl StateDiffRecord {
     ///      entry <- enumeration_index || compressed value
     /// 2. if initial write:
     ///      entry <- blake2(bytes32(address), key) || compressed value
+    ///
     /// size:
-    ///      initial:  max of 65 bytes
-    ///      repeated: max of 38 bytes
-    ///      before:  156 bytes for each
+    /// - initial:  max of 65 bytes
+    /// - repeated: max of 38 bytes
+    /// - before:  156 bytes for each
     pub fn compress(&self) -> Vec<u8> {
         let mut comp_state_diff = match self.enumeration_index {
             0 => self.derived_key.to_vec(),

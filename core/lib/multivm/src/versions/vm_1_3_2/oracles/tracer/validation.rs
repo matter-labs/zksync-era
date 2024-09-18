@@ -6,7 +6,6 @@ use zk_evm_1_3_3::{
     },
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::{
     ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     KECCAK256_PRECOMPILE_ADDRESS, L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
@@ -17,15 +16,18 @@ use zksync_utils::{
     be_bytes_to_safe_address, h256_to_account_address, u256_to_account_address, u256_to_h256,
 };
 
-use crate::vm_1_3_2::{
-    errors::VmRevertReasonParsingResult,
-    history_recorder::HistoryMode,
-    memory::SimpleMemory,
-    oracles::tracer::{
-        utils::{
-            computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
+use crate::{
+    interface::storage::{StoragePtr, WriteStorage},
+    vm_1_3_2::{
+        errors::VmRevertReasonParsingResult,
+        history_recorder::HistoryMode,
+        memory::SimpleMemory,
+        oracles::tracer::{
+            utils::{
+                computational_gas_price, get_calldata_page_via_abi, print_debug_if_needed, VmHook,
+            },
+            ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer, StorageInvocationTracer,
         },
-        ExecutionEndTracer, PendingRefundTracer, PubdataSpentTracer, StorageInvocationTracer,
     },
 };
 

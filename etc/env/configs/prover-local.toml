@@ -1,8 +1,9 @@
 # Config for running prover locally
-__imports__ = [ "base", "l1-inits/.init.env", "l2-inits/dev.init.env" ]
+__imports__ = [ "base", "l1-inits/.init.env", "l2-inits/prover-local.init.env" ]
 
 [eth_sender.sender]
 proof_sending_mode = "OnlyRealProofs"
+pubdata_sending_mode = "Blobs"
 
 [fri_prover]
 cloud_type = "Local"

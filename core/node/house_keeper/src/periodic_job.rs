@@ -3,6 +3,7 @@ use std::time::Duration;
 use anyhow::Context;
 use async_trait::async_trait;
 use tokio::sync::watch;
+use tracing::Instrument;
 
 #[async_trait]
 pub trait PeriodicJob: Sync + Send {
@@ -20,8 +21,12 @@ pub trait PeriodicJob: Sync + Send {
             "Starting periodic job: {} with frequency: {timeout:?}",
             Self::SERVICE_NAME
         );
+
         while !*stop_receiver.borrow_and_update() {
             self.run_routine_task()
+                .instrument(
+                    tracing::info_span!("run_routine_task", service_name = %Self::SERVICE_NAME),
+                )
                 .await
                 .context("run_routine_task()")?;
             // Error here corresponds to a timeout w/o `stop_receiver` changed; we're OK with this.

@@ -1,17 +1,17 @@
 // use std::fs::read_to_string;
 
-use serde::{Deserialize, Serialize};
+// use serde::{Deserialize, Serialize};
 
-use super::*;
+// use super::*;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct CommitmentTest {
-    input: CommitmentInput,
-    pass_through_data: L1BatchPassThroughData,
-    meta_parameters: L1BatchMetaParameters,
-    auxiliary_output: L1BatchAuxiliaryOutput,
-    hashes: L1BatchCommitmentHash,
-}
+// #[derive(Debug, Serialize, Deserialize)]
+// struct CommitmentTest {
+//     input: CommitmentInput,
+//     pass_through_data: L1BatchPassThroughData,
+//     meta_parameters: L1BatchMetaParameters,
+//     auxiliary_output: L1BatchAuxiliaryOutput,
+//     hashes: L1BatchCommitmentHash,
+// }
 
 // fn run_test(test_name: &str) {
 //     let contents = read_to_string(format!("src/commitment/tests/{test_name}.json")).unwrap();

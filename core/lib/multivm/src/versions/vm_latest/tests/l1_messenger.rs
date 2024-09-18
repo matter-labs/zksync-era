@@ -2,6 +2,7 @@ use ethabi::Token;
 use zksync_contracts::l1_messenger_contract;
 use zksync_types::{web3::keccak256, Execute, L1_MESSENGER_ADDRESS, U256};
 use zksync_utils::{address_to_h256, u256_to_h256};
+use zksync_vm_interface::VmInterfaceExt;
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
@@ -19,8 +20,8 @@ use crate::{
     },
 };
 
-pub(crate) const L2_DA_VALIDATOR_OUTPUT_HASH_KEY: usize = 7;
-pub(crate) const USED_L2_DA_VALIDATOR_ADDRESS_KEY: usize = 8;
+pub(crate) const L2_DA_VALIDATOR_OUTPUT_HASH_KEY: usize = 5;
+pub(crate) const USED_L2_DA_VALIDATOR_ADDRESS_KEY: usize = 6;
 
 pub(crate) fn encoded_uncompressed_state_diffs(input: &PubdataInput) -> Vec<u8> {
     let mut result = vec![];

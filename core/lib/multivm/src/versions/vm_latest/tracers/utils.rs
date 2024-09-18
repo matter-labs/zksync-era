@@ -6,7 +6,8 @@ use zk_evm_1_5_0::{
     },
 };
 use zksync_system_constants::{
-    ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
+    ECRECOVER_PRECOMPILE_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS,
+    SECP256R1_VERIFY_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS,
 };
 use zksync_types::U256;
 use zksync_utils::u256_to_h256;
@@ -95,7 +96,10 @@ pub(crate) fn get_debug_log<H: HistoryMode>(
         .into_iter()
         .map(u256_to_h256)
         .collect();
-    let msg = vm_hook_params[0].as_bytes().to_vec();
+    let mut msg = vm_hook_params[0].as_bytes().to_vec();
+    while msg.last() == Some(&0) {
+        msg.pop();
+    }
     let data = vm_hook_params[1].as_bytes().to_vec();
 
     let msg = String::from_utf8(msg).expect("Invalid debug message");
@@ -109,10 +113,8 @@ pub(crate) fn get_debug_log<H: HistoryMode>(
     } else {
         data.to_string()
     };
-
     let tx_id = state.vm_local_state.tx_number_in_block;
-
-    format!("Bootloader transaction {}: {} {}", tx_id, msg, data_str)
+    format!("Bootloader transaction {tx_id}: {msg}: {data_str}")
 }
 
 /// Reads the memory slice represented by the fat pointer.
@@ -167,8 +169,7 @@ pub(crate) fn print_debug_if_needed<H: HistoryMode>(
         VmHook::DebugReturnData => get_debug_returndata(memory, latest_returndata_ptr),
         _ => return,
     };
-
-    tracing::trace!("{}", log);
+    tracing::trace!("{log}");
 }
 
 pub(crate) fn computational_gas_price(
@@ -187,6 +188,7 @@ pub(crate) fn computational_gas_price(
             if address == KECCAK256_PRECOMPILE_ADDRESS
                 || address == SHA256_PRECOMPILE_ADDRESS
                 || address == ECRECOVER_PRECOMPILE_ADDRESS
+                || address == SECP256R1_VERIFY_PRECOMPILE_ADDRESS
             {
                 data.src1_value.value.low_u32()
             } else {

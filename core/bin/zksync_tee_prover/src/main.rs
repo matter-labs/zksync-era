@@ -30,22 +30,20 @@ mod tee_prover;
 fn main() -> anyhow::Result<()> {
     let observability_config =
         ObservabilityConfig::from_env().context("ObservabilityConfig::from_env()")?;
-    let _observability_guard = observability_config.install()?;
 
     let tee_prover_config = TeeProverConfig::from_env()?;
-    let attestation_quote_bytes = std::fs::read(tee_prover_config.attestation_quote_file_path)?;
-
     let prometheus_config = PrometheusConfig::from_env()?;
 
     let mut builder = ZkStackServiceBuilder::new()?;
+    let observability_guard = {
+        // Observability initialization should be performed within tokio context.
+        let _context_guard = builder.runtime_handle().enter();
+        observability_config.install()?
+    };
+
     builder
         .add_layer(SigintHandlerLayer)
-        .add_layer(TeeProverLayer::new(
-            tee_prover_config.api_url,
-            tee_prover_config.signing_key,
-            attestation_quote_bytes,
-            tee_prover_config.tee_type,
-        ));
+        .add_layer(TeeProverLayer::new(tee_prover_config));
 
     if let Some(gateway) = prometheus_config.gateway_endpoint() {
         let exporter_config =
@@ -53,6 +51,6 @@ fn main() -> anyhow::Result<()> {
         builder.add_layer(PrometheusExporterLayer(exporter_config));
     }
 
-    builder.build().run()?;
+    builder.build().run(observability_guard)?;
     Ok(())
 }

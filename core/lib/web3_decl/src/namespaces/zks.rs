@@ -16,17 +16,17 @@ use zksync_types::{
 };
 
 use crate::{
-    client::{ForNetwork, L2},
+    client::{ForWeb3Network, L2},
     types::{Bytes, Token},
 };
 
 #[cfg_attr(
     feature = "server",
-    rpc(server, client, namespace = "zks", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(server, client, namespace = "zks", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 #[cfg_attr(
     not(feature = "server"),
-    rpc(client, namespace = "zks", client_bounds(Self: ForNetwork<Net = L2>))
+    rpc(client, namespace = "zks", client_bounds(Self: ForWeb3Network<Net = L2>))
 )]
 pub trait ZksNamespace {
     #[method(name = "estimateFee")]
@@ -54,6 +54,9 @@ pub trait ZksNamespace {
 
     #[method(name = "getNativeTokenVault")]
     async fn get_native_token_vault_proxy_addr(&self) -> RpcResult<Option<Address>>;
+
+    #[method(name = "getLegacySharedBridge")]
+    async fn get_legacy_shared_bridge(&self) -> RpcResult<Option<Address>>;
 
     #[method(name = "getBridgeContracts")]
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses>;

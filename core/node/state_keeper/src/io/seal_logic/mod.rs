@@ -9,21 +9,22 @@ use std::{
 use anyhow::Context as _;
 use itertools::Itertools;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_multivm::utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte};
+use zksync_multivm::{
+    interface::{DeduplicatedWritesMetrics, TransactionExecutionResult, VmEvent},
+    utils::{
+        get_max_batch_gas_limit, get_max_gas_per_pubdata_byte, ModifiedSlot,
+        StorageWritesDeduplicator,
+    },
+};
 use zksync_shared_metrics::{BlockStage, L2BlockStage, APP_METRICS};
 use zksync_types::{
-    block::{L1BatchHeader, L2BlockHeader},
-    event::extract_long_l2_to_l1_messages,
+    block::{build_bloom, L1BatchHeader, L2BlockHeader},
     helpers::unix_timestamp_ms,
     l2_to_l1_log::UserL2ToL1Log,
-    storage_writes_deduplicator::{ModifiedSlot, StorageWritesDeduplicator},
-    tx::{
-        tx_execution_info::DeduplicatedWritesMetrics, IncludedTxLocation,
-        TransactionExecutionResult,
-    },
+    tx::IncludedTxLocation,
     utils::display_timestamp,
-    Address, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog, Transaction,
-    VmEvent, H256,
+    Address, BloomInput, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
+    Transaction, H256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -47,6 +48,7 @@ impl UpdatesManager {
         pool: ConnectionPool<Core>,
         l2_shared_bridge_addr: Address,
         l2_native_token_vault_proxy_addr: Address,
+        l2_legacy_shared_bridge_addr: Address,
         insert_protective_reads: bool,
     ) -> anyhow::Result<()> {
         let started_at = Instant::now();
@@ -61,6 +63,7 @@ impl UpdatesManager {
         let l2_block_command = self.seal_l2_block_command(
             l2_shared_bridge_addr,
             l2_native_token_vault_proxy_addr,
+            l2_legacy_shared_bridge_addr,
             false, // fictive L2 blocks don't have txs, so it's fine to pass `false` here.
         );
 
@@ -113,7 +116,7 @@ impl UpdatesManager {
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
         let l2_to_l1_messages =
-            extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
+            VmEvent::extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
         let l1_batch = L1BatchHeader {
             number: self.l1_batch.number,
             timestamp: self.batch_timestamp(),
@@ -362,6 +365,17 @@ impl L2BlockSealCommand {
         // Run sub-tasks in parallel.
         L2BlockSealProcess::run_subtasks(self, strategy).await?;
 
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::CalculateLogsBloom, is_fictive);
+        let iter = self.l2_block.events.iter().flat_map(|event| {
+            event
+                .indexed_topics
+                .iter()
+                .map(|topic| BloomInput::Raw(topic.as_bytes()))
+                .chain([BloomInput::Raw(event.address.as_bytes())])
+        });
+        let logs_bloom = build_bloom(iter);
+        progress.observe(Some(self.l2_block.events.len()));
+
         // Seal block header at the last step.
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertL2BlockHeader, is_fictive);
         let definite_vm_version = self
@@ -376,6 +390,7 @@ impl L2BlockSealCommand {
             l1_tx_count: l1_tx_count as u16,
             l2_tx_count: l2_tx_count as u16,
             fee_account_address: self.fee_account_address,
+            pubdata_params: self.pubdata_params,
             base_fee_per_gas: self.base_fee_per_gas,
             batch_fee_input: self.fee_input,
             base_system_contracts_hashes: self.base_system_contracts_hashes,
@@ -383,6 +398,7 @@ impl L2BlockSealCommand {
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(definite_vm_version),
             virtual_blocks: self.l2_block.virtual_blocks,
             gas_limit: get_max_batch_gas_limit(definite_vm_version),
+            logs_bloom,
         };
 
         let mut connection = strategy.connection().await?;

@@ -12,6 +12,7 @@ use zksync_object_store::ObjectStoreFactory;
 use zksync_prover_dal::ConnectionPool;
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_fri_utils::{get_all_circuit_id_round_tuples_for, region_fetcher::RegionFetcher};
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
@@ -87,6 +88,9 @@ async fn main() -> anyhow::Result<()> {
     .await
     .context("get_zone()")?;
 
+    let keystore =
+        Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
+
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
 
     let (stop_sender, stop_receiver) = watch::channel(false);
@@ -120,7 +124,7 @@ async fn main() -> anyhow::Result<()> {
             config.clone(),
             protocol_version,
             prover_config.max_attempts,
-            Some(prover_config.setup_data_path.clone()),
+            keystore.clone(),
         );
         tasks.push(tokio::spawn(
             witness_vector_generator.run(stop_receiver.clone(), opt.n_iterations),

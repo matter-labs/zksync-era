@@ -7,8 +7,8 @@ use test_casing::{test_casing, Product};
 use tokio::sync::mpsc;
 use zksync_config::GenesisConfig;
 use zksync_dal::Connection;
-use zksync_eth_client::{clients::MockEthereum, Options};
-use zksync_l1_contract_interface::{i_executor::methods::CommitBatches, Tokenizable, Tokenize};
+use zksync_eth_client::{clients::MockSettlementLayer, Options};
+use zksync_l1_contract_interface::{i_executor::methods::CommitBatches, Tokenizable};
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
@@ -45,6 +45,7 @@ pub(crate) fn create_pre_boojum_l1_batch_with_metadata(number: u32) -> L1BatchWi
         raw_published_factory_deps: vec![],
     };
     l1_batch.header.protocol_version = Some(PRE_BOOJUM_PROTOCOL_VERSION);
+    l1_batch.header.l2_to_l1_logs = vec![];
     l1_batch.metadata.bootloader_initial_content_commitment = None;
     l1_batch.metadata.events_queue_commitment = None;
     l1_batch
@@ -66,7 +67,7 @@ pub(crate) fn build_commit_tx_input_data(
         pubdata_da: PubdataDA::Calldata,
         mode,
     }
-    .into_tokens();
+    .into_tokens(protocol_version.is_pre_gateway());
 
     if protocol_version.is_pre_boojum() {
         PRE_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
@@ -91,7 +92,7 @@ pub(crate) fn build_commit_tx_input_data(
 }
 
 pub(crate) fn create_mock_checker(
-    client: MockEthereum,
+    client: MockSettlementLayer,
     pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
 ) -> ConsistencyChecker {
@@ -110,8 +111,8 @@ pub(crate) fn create_mock_checker(
     }
 }
 
-fn create_mock_ethereum() -> MockEthereum {
-    let mock = MockEthereum::builder().with_call_handler(|call, _block_id| {
+fn create_mock_ethereum() -> MockSettlementLayer {
+    let mock = MockSettlementLayer::builder().with_call_handler(|call, _block_id| {
         assert_eq!(call.to, Some(DIAMOND_PROXY_ADDR));
         let packed_semver = ProtocolVersionId::latest().into_packed_semver_with_patch(0);
         let contract = zksync_contracts::hyperchain_contract();
@@ -162,6 +163,7 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
             &commit_tx_input_data,
             commit_function,
             batch.header.number,
+            false,
         )
         .unwrap();
         assert_eq!(
@@ -171,67 +173,70 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
     }
 }
 
-#[test]
-fn extracting_commit_data_for_boojum_batch() {
-    let contract = zksync_contracts::hyperchain_contract();
-    let commit_function = contract.function("commitBatches").unwrap();
-    // Calldata taken from the commit transaction for `https://sepolia.explorer.zksync.io/batch/4470`;
-    // `https://sepolia.etherscan.io/tx/0x300b9115037028b1f8aa2177abf98148c3df95c9b04f95a4e25baf4dfee7711f`
-    let commit_tx_input_data = include_bytes!("commit_l1_batch_4470_testnet_sepolia.calldata");
+// TODO: restore test by introducing `commitBatches` into server-only code
+//
+// #[test]
+// fn extracting_commit_data_for_boojum_batch() {
+//     let contract = zksync_contracts::hyperchain_contract();
+//     let commit_function = contract.function("commitBatches").unwrap();
+//     // Calldata taken from the commit transaction for `https://sepolia.explorer.zksync.io/batch/4470`;
+//     // `https://sepolia.etherscan.io/tx/0x300b9115037028b1f8aa2177abf98148c3df95c9b04f95a4e25baf4dfee7711f`
+//     let commit_tx_input_data = include_bytes!("commit_l1_batch_4470_testnet_sepolia.calldata");
 
-    let commit_data = ConsistencyChecker::extract_commit_data(
-        commit_tx_input_data,
-        commit_function,
-        L1BatchNumber(4_470),
-    )
-    .unwrap();
+//     let commit_data = ConsistencyChecker::extract_commit_data(
+//         commit_tx_input_data,
+//         commit_function,
+//         L1BatchNumber(4_470),
+//     )
+//     .unwrap();
 
-    assert_matches!(
-        commit_data,
-        ethabi::Token::Tuple(tuple) if tuple[0] == ethabi::Token::Uint(4_470.into())
-    );
+//     assert_matches!(
+//         commit_data,
+//         ethabi::Token::Tuple(tuple) if tuple[0] == ethabi::Token::Uint(4_470.into())
+//     );
 
-    for bogus_l1_batch in [0, 1, 1_000, 4_469, 4_471, 100_000] {
-        ConsistencyChecker::extract_commit_data(
-            commit_tx_input_data,
-            commit_function,
-            L1BatchNumber(bogus_l1_batch),
-        )
-        .unwrap_err();
-    }
-}
+//     for bogus_l1_batch in [0, 1, 1_000, 4_469, 4_471, 100_000] {
+//         ConsistencyChecker::extract_commit_data(
+//             commit_tx_input_data,
+//             commit_function,
+//             L1BatchNumber(bogus_l1_batch),
+//         )
+//         .unwrap_err();
+//     }
+// }
 
-#[test]
-fn extracting_commit_data_for_multiple_batches() {
-    let contract = zksync_contracts::hyperchain_contract();
-    let commit_function = contract.function("commitBatches").unwrap();
-    // Calldata taken from the commit transaction for `https://explorer.zksync.io/batch/351000`;
-    // `https://etherscan.io/tx/0xbd8dfe0812df0da534eb95a2d2a4382d65a8172c0b648a147d60c1c2921227fd`
-    let commit_tx_input_data = include_bytes!("commit_l1_batch_351000-351004_mainnet.calldata");
+// TODO: restore test by introducing `commitBatches` into server-only code
+// #[test]
+// fn extracting_commit_data_for_multiple_batches() {
+//     let contract = zksync_contracts::hyperchain_contract();
+//     let commit_function = contract.function("commitBatches").unwrap();
+//     // Calldata taken from the commit transaction for `https://explorer.zksync.io/batch/351000`;
+//     // `https://etherscan.io/tx/0xbd8dfe0812df0da534eb95a2d2a4382d65a8172c0b648a147d60c1c2921227fd`
+//     let commit_tx_input_data = include_bytes!("commit_l1_batch_351000-351004_mainnet.calldata");
 
-    for l1_batch in 351_000..=351_004 {
-        let commit_data = ConsistencyChecker::extract_commit_data(
-            commit_tx_input_data,
-            commit_function,
-            L1BatchNumber(l1_batch),
-        )
-        .unwrap();
+//     for l1_batch in 351_000..=351_004 {
+//         let commit_data = ConsistencyChecker::extract_commit_data(
+//             commit_tx_input_data,
+//             commit_function,
+//             L1BatchNumber(l1_batch),
+//         )
+//         .unwrap();
 
-        assert_matches!(
-            commit_data,
-            ethabi::Token::Tuple(tuple) if tuple[0] == ethabi::Token::Uint(l1_batch.into())
-        );
-    }
+//         assert_matches!(
+//             commit_data,
+//             ethabi::Token::Tuple(tuple) if tuple[0] == ethabi::Token::Uint(l1_batch.into())
+//         );
+//     }
 
-    for bogus_l1_batch in [350_000, 350_999, 351_005, 352_000] {
-        ConsistencyChecker::extract_commit_data(
-            commit_tx_input_data,
-            commit_function,
-            L1BatchNumber(bogus_l1_batch),
-        )
-        .unwrap_err();
-    }
-}
+//     for bogus_l1_batch in [350_000, 350_999, 351_005, 352_000] {
+//         ConsistencyChecker::extract_commit_data(
+//             commit_tx_input_data,
+//             commit_function,
+//             L1BatchNumber(bogus_l1_batch),
+//         )
+//         .unwrap_err();
+//     }
+// }
 
 #[test]
 fn extracting_commit_data_for_pre_boojum_batch() {
@@ -243,6 +248,7 @@ fn extracting_commit_data_for_pre_boojum_batch() {
         commit_tx_input_data,
         &PRE_BOOJUM_COMMIT_FUNCTION,
         L1BatchNumber(200_000),
+        true,
     )
     .unwrap();
 
@@ -649,7 +655,7 @@ impl IncorrectDataKind {
 
     async fn apply(
         self,
-        client: &MockEthereum,
+        client: &MockSettlementLayer,
         l1_batch: &L1BatchWithMetadata,
         commitment_mode: L1BatchCommitmentMode,
     ) -> H256 {

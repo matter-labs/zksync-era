@@ -9,7 +9,6 @@ use std::{
 use tokio::sync::Mutex;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_db_connection::connection_pool::ConnectionPoolBuilder;
-use zksync_prover_dal::Prover;
 use zksync_types::url::SensitiveUrl;
 
 use crate::resource::Resource;
@@ -86,7 +85,20 @@ impl<P: PoolKind> PoolResource<P> {
     }
 
     pub async fn get_custom(&self, size: u32) -> anyhow::Result<ConnectionPool<P::DbMarker>> {
-        let result = self.builder().set_max_size(size).build().await;
+        self.build(|builder| {
+            builder.set_max_size(size);
+        })
+        .await
+    }
+
+    pub async fn build<F>(&self, build_fn: F) -> anyhow::Result<ConnectionPool<P::DbMarker>>
+    where
+        F: FnOnce(&mut ConnectionPoolBuilder<P::DbMarker>),
+    {
+        let mut builder = self.builder();
+        build_fn(&mut builder);
+        let size = builder.max_size();
+        let result = builder.build().await;
 
         if result.is_ok() {
             let old_count = self.connections_count.fetch_add(size, Ordering::Relaxed);
@@ -109,10 +121,6 @@ pub struct MasterPool {}
 #[non_exhaustive]
 pub struct ReplicaPool {}
 
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct ProverPool {}
-
 pub trait PoolKind: Clone + Sync + Send + 'static {
     type DbMarker: zksync_db_connection::connection::DbMarker;
 
@@ -132,13 +140,5 @@ impl PoolKind for ReplicaPool {
 
     fn kind_str() -> &'static str {
         "replica"
-    }
-}
-
-impl PoolKind for ProverPool {
-    type DbMarker = Prover;
-
-    fn kind_str() -> &'static str {
-        "prover"
     }
 }

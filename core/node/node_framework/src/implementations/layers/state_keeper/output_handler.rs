@@ -38,13 +38,14 @@ pub struct OutputHandlerLayer {
     l2_shared_bridge_addr: Address,
     l2_block_seal_queue_capacity: usize,
     l2_native_token_vault_proxy_addr: Address,
+    l2_legacy_shared_bridge_addr: Address,
     /// Whether transactions should be pre-inserted to DB.
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
     /// before they are included into L2 blocks.
     pre_insert_txs: bool,
     /// Whether protective reads persistence is enabled.
-    /// Must be `true` for any node that maintains a full Merkle Tree (e.g. any instance of main node).
-    /// May be set to `false` for nodes that do not participate in the sequencing process (e.g. external nodes).
+    /// May be set to `false` for nodes that do not participate in the sequencing process (e.g. external nodes)
+    /// or run `vm_runner_protective_reads` component.
     protective_reads_persistence_enabled: bool,
 }
 
@@ -67,14 +68,16 @@ impl OutputHandlerLayer {
     pub fn new(
         l2_shared_bridge_addr: Address,
         l2_native_token_vault_proxy_addr: Address,
+        l2_legacy_shared_bridge_addr: Address,
         l2_block_seal_queue_capacity: usize,
     ) -> Self {
         Self {
             l2_shared_bridge_addr,
             l2_block_seal_queue_capacity,
             l2_native_token_vault_proxy_addr,
+            l2_legacy_shared_bridge_addr,
             pre_insert_txs: false,
-            protective_reads_persistence_enabled: true,
+            protective_reads_persistence_enabled: false,
         }
     }
 
@@ -113,15 +116,13 @@ impl WiringLayer for OutputHandlerLayer {
             persistence_pool.clone(),
             self.l2_shared_bridge_addr,
             self.l2_native_token_vault_proxy_addr,
+            self.l2_legacy_shared_bridge_addr,
             self.l2_block_seal_queue_capacity,
         );
         if self.pre_insert_txs {
             persistence = persistence.with_tx_insertion();
         }
         if !self.protective_reads_persistence_enabled {
-            // **Important:** Disabling protective reads persistence is only sound if the node will never
-            // run a full Merkle tree OR an accompanying protective-reads-writer is being run.
-            tracing::warn!("Disabling persisting protective reads; this should be safe, but is considered an experimental option at the moment");
             persistence = persistence.without_protective_reads();
         }
 

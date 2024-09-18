@@ -10,13 +10,11 @@ use zk_evm_1_3_1::{
     },
 };
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_types::{
-    vm_trace::{Call, CallType},
-    U256,
-};
+use zksync_types::U256;
 
 use crate::{
     glue::GlueInto,
+    interface::{Call, CallType},
     vm_m6::{errors::VmRevertReason, history_recorder::HistoryMode, memory::SimpleMemory},
 };
 

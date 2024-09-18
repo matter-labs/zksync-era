@@ -30,6 +30,7 @@ pub struct ContractsConfig {
     pub validator_timelock_addr: Address,
     pub l1_shared_bridge_proxy_addr: Option<Address>,
     pub l2_shared_bridge_addr: Option<Address>,
+    pub l2_legacy_shared_bridge_addr: Option<Address>,
     pub l1_erc20_bridge_proxy_addr: Option<Address>,
     pub l2_erc20_bridge_addr: Option<Address>,
     pub l1_weth_bridge_proxy_addr: Option<Address>,
@@ -45,6 +46,8 @@ pub struct ContractsConfig {
     pub user_facing_diamond_proxy_addr: Option<Address>,
     pub l2_native_token_vault_proxy_addr: Option<Address>,
 
+    pub l2_da_validator_addr: Option<Address>,
+
     pub chain_admin_addr: Option<Address>,
 }
 
@@ -59,6 +62,7 @@ impl ContractsConfig {
             l2_erc20_bridge_addr: Some(Address::repeat_byte(0x0c)),
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(0x0e)),
             l2_shared_bridge_addr: Some(Address::repeat_byte(0x0f)),
+            l2_legacy_shared_bridge_addr: Some(Address::repeat_byte(0x10)),
             l1_weth_bridge_proxy_addr: Some(Address::repeat_byte(0x0b)),
             l2_weth_bridge_addr: Some(Address::repeat_byte(0x0c)),
             l2_testnet_paymaster_addr: Some(Address::repeat_byte(0x11)),
@@ -70,6 +74,7 @@ impl ContractsConfig {
             user_facing_diamond_proxy_addr: Some(Address::repeat_byte(0x16)),
             l2_native_token_vault_proxy_addr: Some(Address::repeat_byte(0x0d)),
             chain_admin_addr: Some(Address::repeat_byte(0x18)),
+            l2_da_validator_addr: Some(Address::repeat_byte(0x19)),
         }
     }
 }

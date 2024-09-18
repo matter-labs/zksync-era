@@ -4,16 +4,17 @@ use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
-use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
+use zksync_multivm::{
+    interface::{TransactionExecutionMetrics, VmEvent, VmExecutionMetrics},
+    utils::derive_base_fee_and_gas_per_pubdata,
+};
 use zksync_node_test_utils::prepare_recovery_snapshot;
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
     commitment::L1BatchCommitmentMode,
-    fee::TransactionExecutionMetrics,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
-    tx::ExecutionMetrics,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, StorageKey, VmEvent, H256, U256,
+    ProtocolVersionId, StorageKey, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
@@ -246,7 +247,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         tx,
         execution_result,
         BlockGasCount::default(),
-        ExecutionMetrics::default(),
+        VmExecutionMetrics::default(),
         vec![],
         vec![],
     );
@@ -264,7 +265,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         tx,
         execution_result,
         BlockGasCount::default(),
-        ExecutionMetrics::default(),
+        VmExecutionMetrics::default(),
         vec![],
         vec![],
     );
@@ -281,10 +282,12 @@ async fn processing_storage_logs_when_sealing_l2_block() {
             fair_pubdata_price: 100,
         }),
         base_fee_per_gas: 10,
+        pubdata_params: Default::default(),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_shared_bridge_addr: Address::default(),
         l2_native_token_vault_proxy_addr: Address::default(),
+        l2_legacy_shared_bridge_addr: Address::default(),
         pre_insert_txs: false,
     };
     connection_pool
@@ -354,7 +357,7 @@ async fn processing_events_when_sealing_l2_block() {
             tx,
             execution_result,
             BlockGasCount::default(),
-            ExecutionMetrics::default(),
+            VmExecutionMetrics::default(),
             vec![],
             vec![],
         );
@@ -370,11 +373,13 @@ async fn processing_events_when_sealing_l2_block() {
             fair_l2_gas_price: 100,
             fair_pubdata_price: 100,
         }),
+        pubdata_params: Default::default(),
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
         l2_shared_bridge_addr: Address::default(),
         l2_native_token_vault_proxy_addr: Address::default(),
+        l2_legacy_shared_bridge_addr: Address::default(),
         pre_insert_txs: false,
     };
     pool.connection()
@@ -459,12 +464,13 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         create_execution_result([]),
         vec![],
         BlockGasCount::default(),
-        ExecutionMetrics::default(),
+        VmExecutionMetrics::default(),
         vec![],
     );
 
     let (mut persistence, l2_block_sealer) = StateKeeperPersistence::new(
         connection_pool.clone(),
+        Address::default(),
         Address::default(),
         Address::default(),
         0,

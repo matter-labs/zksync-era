@@ -1,7 +1,5 @@
-use zksync_state::WriteStorage;
-
 use crate::{
-    interface::VmInterface,
+    interface::storage::WriteStorage,
     vm_virtual_blocks::{tracers::DefaultExecutionTracer, vm::Vm},
     HistoryMode,
 };

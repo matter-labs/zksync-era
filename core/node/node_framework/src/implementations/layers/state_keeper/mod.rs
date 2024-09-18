@@ -1,20 +1,14 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use zksync_state::{AsyncCatchupTask, ReadStorageFactory};
+pub use zksync_state::RocksdbStorageOptions;
+use zksync_state::{AsyncCatchupTask, OwnedStorage, ReadStorageFactory};
 use zksync_state_keeper::{
-    seal_criteria::ConditionalSealer, AsyncRocksdbCache, BatchExecutor, OutputHandler,
-    StateKeeperIO, ZkSyncStateKeeper,
+    seal_criteria::ConditionalSealer, AsyncRocksdbCache, OutputHandler, StateKeeperIO,
+    ZkSyncStateKeeper,
 };
 use zksync_storage::RocksDB;
-
-pub mod external_io;
-pub mod main_batch_executor;
-pub mod mempool_io;
-pub mod output_handler;
-
-// Public re-export to not require the user to directly depend on `zksync_state`.
-pub use zksync_state::RocksdbStorageOptions;
+use zksync_vm_executor::interface::BatchExecutorFactory;
 
 use crate::{
     implementations::resources::{
@@ -29,6 +23,11 @@ use crate::{
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+
+pub mod external_io;
+pub mod main_batch_executor;
+pub mod mempool_io;
+pub mod output_handler;
 
 /// Wiring layer for the state keeper.
 #[derive(Debug)]
@@ -102,7 +101,7 @@ impl WiringLayer for StateKeeperLayer {
 
         let state_keeper = StateKeeperTask {
             io,
-            batch_executor_base,
+            executor_factory: batch_executor_base,
             output_handler,
             sealer,
             storage_factory: Arc::new(storage_factory),
@@ -125,7 +124,7 @@ impl WiringLayer for StateKeeperLayer {
 #[derive(Debug)]
 pub struct StateKeeperTask {
     io: Box<dyn StateKeeperIO>,
-    batch_executor_base: Box<dyn BatchExecutor>,
+    executor_factory: Box<dyn BatchExecutorFactory<OwnedStorage>>,
     output_handler: OutputHandler,
     sealer: Arc<dyn ConditionalSealer>,
     storage_factory: Arc<dyn ReadStorageFactory>,
@@ -141,7 +140,7 @@ impl Task for StateKeeperTask {
         let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver.0,
             self.io,
-            self.batch_executor_base,
+            self.executor_factory,
             self.output_handler,
             self.sealer,
             self.storage_factory,

@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
 use zksync_contracts::{l2_rollup_da_validator_bytecode, BaseSystemContracts};
-use zksync_state::{InMemoryStorage, StoragePtr, StorageView, WriteStorage};
 use zksync_types::{
     block::L2BlockHasher,
+    commitment::{L1BatchCommitmentMode, PubdataParams},
     fee_model::BatchFeeInput,
     get_code_key, get_is_account_key,
     helpers::unix_timestamp_ms,
@@ -14,8 +14,9 @@ use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
     interface::{
-        types::inputs::system_env::{PubdataParams, PubdataType},
-        L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+        storage::{InMemoryStorage, StoragePtr, StorageView, WriteStorage},
+        L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
+        VmInterface, VmInterfaceExt,
     },
     vm_latest::{
         constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
@@ -59,10 +60,10 @@ impl<H: HistoryMode> VmTester<H> {
         self.test_contract = Some(deployed_address);
     }
 
-    pub(crate) fn reset_with_empty_storage(&mut self) {
-        self.storage = StorageView::new(get_empty_storage()).to_rc_ptr();
-        self.reset_state(false);
-    }
+    // pub(crate) fn reset_with_empty_storage(&mut self) {
+    //     self.storage = StorageView::new(get_empty_storage()).to_rc_ptr();
+    //     self.reset_state(false);
+    // }
 
     /// Reset the state of the VM to the initial state.
     /// If `use_latest_l2_block` is true, then the VM will use the latest L2 block from storage,
@@ -83,7 +84,7 @@ impl<H: HistoryMode> VmTester<H> {
 
         let mut l1_batch = self.vm.batch_env.clone();
         if use_latest_l2_block {
-            let last_l2_block = load_last_l2_block(self.storage.clone()).unwrap_or(L2Block {
+            let last_l2_block = load_last_l2_block(&self.storage).unwrap_or(L2Block {
                 number: 0,
                 timestamp: 0,
                 hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
@@ -194,7 +195,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
 
         self.pubdata_params = Some(PubdataParams {
             l2_da_validator_address,
-            pubdata_type: PubdataType::Rollup,
+            pubdata_type: L1BatchCommitmentMode::Rollup,
         });
 
         self.custom_contracts

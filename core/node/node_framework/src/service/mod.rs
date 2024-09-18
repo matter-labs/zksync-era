@@ -4,6 +4,7 @@ use error::TaskError;
 use futures::future::Fuse;
 use tokio::{runtime::Runtime, sync::watch, task::JoinHandle};
 use zksync_utils::panic_extractor::try_extract_panic_message;
+use zksync_vlog::ObservabilityGuard;
 
 pub use self::{
     context::ServiceContext,
@@ -58,10 +59,19 @@ impl ZkStackServiceBuilder {
             .enable_all()
             .build()
             .unwrap();
-        Ok(Self {
+        Ok(Self::on_runtime(runtime))
+    }
+
+    /// Creates a new builder with the provided Tokio runtime.
+    /// This method can be used if asynchronous tasks must be performed before the service is built.
+    ///
+    /// However, it is not recommended to use this method to spawn any tasks that will not be managed
+    /// by the service itself, so whenever it can be avoided, using [`ZkStackServiceBuilder::new`] is preferred.
+    pub fn on_runtime(runtime: Runtime) -> Self {
+        Self {
             layers: Vec::new(),
             runtime,
-        })
+        }
     }
 
     /// Returns a handle to the Tokio runtime used by the service.
@@ -132,7 +142,13 @@ impl ZkStackService {
     ///
     /// In case of errors during wiring phase, will return the list of all the errors that happened, in the order
     /// of their occurrence.
-    pub fn run(mut self) -> Result<(), ZkStackServiceError> {
+    ///
+    /// `observability_guard`, if provided, will be used to deinitialize the observability subsystem
+    /// as the very last step before exiting the node.
+    pub fn run(
+        mut self,
+        observability_guard: impl Into<Option<ObservabilityGuard>>,
+    ) -> Result<(), ZkStackServiceError> {
         self.wire()?;
 
         let TaskReprs {
@@ -145,6 +161,13 @@ impl ZkStackService {
         self.run_shutdown_hooks(shutdown_hooks);
 
         tracing::info!("Exiting the service");
+
+        if let Some(observability_guard) = &mut observability_guard.into() {
+            // Make sure that the shutdown happens in the `tokio` context.
+            let _guard = self.runtime.enter();
+            observability_guard.shutdown();
+        }
+
         if self.errors.is_empty() {
             Ok(())
         } else {
@@ -177,7 +200,7 @@ impl ZkStackService {
         // Report all the errors we've met during the init.
         if !errors.is_empty() {
             for (layer, error) in &errors {
-                tracing::error!("Wiring layer {layer} can't be initialized: {error}");
+                tracing::error!("Wiring layer {layer} can't be initialized: {error:?}");
             }
             return Err(ZkStackServiceError::Wiring(errors));
         }
@@ -279,7 +302,7 @@ impl ZkStackService {
                     tracing::info!("Shutdown hook {name} completed");
                 }
                 Ok(Err(err)) => {
-                    tracing::error!("Shutdown hook {name} failed: {err}");
+                    tracing::error!("Shutdown hook {name} failed: {err:?}");
                     self.errors.push(TaskError::ShutdownHookFailed(name, err));
                 }
                 Err(_) => {
@@ -301,7 +324,7 @@ impl ZkStackService {
                 tracing::info!("Task {task_name} finished");
             }
             Ok(Err(err)) => {
-                tracing::error!("Task {task_name} failed: {err}");
+                tracing::error!("Task {task_name} failed: {err:?}");
                 self.errors.push(TaskError::TaskFailed(task_name, err));
             }
             Err(panic_err) => {

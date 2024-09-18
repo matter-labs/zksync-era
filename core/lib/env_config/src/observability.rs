@@ -35,8 +35,13 @@ impl FromEnv for ObservabilityConfig {
         };
         let opentelemetry_level = std::env::var("OPENTELEMETRY_LEVEL").ok();
         let otlp_endpoint = std::env::var("OTLP_ENDPOINT").ok();
+        let logs_endpoint = std::env::var("OTLP_LOGS_ENDPOINT").ok(); // OK to be absent.
         let opentelemetry = match (opentelemetry_level, otlp_endpoint) {
-            (Some(level), Some(endpoint)) => Some(OpentelemetryConfig { level, endpoint }),
+            (Some(level), Some(endpoint)) => Some(OpentelemetryConfig {
+                level,
+                endpoint,
+                logs_endpoint,
+            }),
             _ => None,
         };
 

@@ -10,7 +10,7 @@ use std::{collections::HashMap, convert::TryFrom};
 
 use ethabi::Token;
 use serde::{Deserialize, Serialize};
-pub use zksync_basic_types::{commitment::L1BatchCommitmentMode, web3::contract::Tokenize};
+pub use zksync_basic_types::{commitment::*, web3::contract::Tokenize};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_mini_merkle_tree::MiniMerkleTree;

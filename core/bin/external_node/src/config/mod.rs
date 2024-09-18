@@ -31,7 +31,7 @@ use zksync_protobuf_config::proto;
 use zksync_snapshots_applier::SnapshotsApplierConfig;
 use zksync_types::{
     api::BridgeAddresses, commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address,
-    L1BatchNumber, L1ChainId, L2ChainId, ETHEREUM_ADDRESS,
+    L1BatchNumber, L1ChainId, L2ChainId, SLChainId, ETHEREUM_ADDRESS,
 };
 use zksync_web3_decl::{
     client::{DynClient, L2},
@@ -104,12 +104,14 @@ pub(crate) struct RemoteENConfig {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
+    /// Should not be accessed directly. Use [`ExternalNodeConfig::diamond_proxy_address`] instead.
     pub user_facing_diamond_proxy: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
     // a different name, with names adapted only for consistency.
     pub l1_shared_bridge_proxy_addr: Option<Address>,
     pub l2_shared_bridge_addr: Option<Address>,
+    pub l2_legacy_shared_bridge_addr: Option<Address>,
     pub l1_erc20_bridge_proxy_addr: Option<Address>,
     pub l2_erc20_bridge_addr: Option<Address>,
     pub l1_weth_bridge_addr: Option<Address>,
@@ -136,6 +138,10 @@ impl RemoteENConfig {
         let l2_native_token_vault_proxy_addr = client
             .get_native_token_vault_proxy_addr()
             .rpc_context("get_native_token_vault")
+            .await?;
+        let l2_legacy_shared_bridge_addr = client
+            .get_legacy_shared_bridge()
+            .rpc_context("get_legacy_shared_bridge")
             .await?;
         let genesis = client.genesis_config().rpc_context("genesis").await.ok();
         let ecosystem_contracts = client
@@ -202,6 +208,7 @@ impl RemoteENConfig {
             l2_erc20_bridge_addr: l2_erc20_default_bridge,
             l1_shared_bridge_proxy_addr: bridges.l1_shared_default_bridge,
             l2_shared_bridge_addr: l2_erc20_shared_bridge,
+            l2_legacy_shared_bridge_addr,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             base_token_addr,
@@ -233,17 +240,12 @@ impl RemoteENConfig {
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(5)),
             l1_weth_bridge_addr: None,
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
+            l2_legacy_shared_bridge_addr: Some(Address::repeat_byte(7)),
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             dummy_verifier: true,
             l2_native_token_vault_proxy_addr: Some(Address::repeat_byte(7)),
         }
     }
-}
-
-#[derive(Debug, Deserialize)]
-pub(crate) enum BlockFetcher {
-    ServerAPI,
-    Consensus,
 }
 
 /// This part of the external node config is completely optional to provide.
@@ -413,8 +415,7 @@ pub(crate) struct OptionalENConfig {
     /// Configures whether to persist protective reads when persisting L1 batches in the state keeper.
     /// Protective reads are never required by full nodes so far, not until such a node runs a full Merkle tree
     /// (presumably, to participate in L1 batch proving).
-    /// By default, set to `true` as a temporary safety measure.
-    #[serde(default = "OptionalENConfig::default_protective_reads_persistence_enabled")]
+    #[serde(default)]
     pub protective_reads_persistence_enabled: bool,
     /// Address of the L1 diamond proxy contract used by the consistency checker to match with the origin of logs emitted
     /// by commit transactions. If not set, it will not be verified.
@@ -461,6 +462,9 @@ pub(crate) struct OptionalENConfig {
     /// If set to 0, L1 batches will not be retained based on their timestamp. The default value is 7 days.
     #[serde(default = "OptionalENConfig::default_pruning_data_retention_sec")]
     pruning_data_retention_sec: u64,
+    /// Gateway RPC URL, needed for operating during migration.
+    #[allow(dead_code)]
+    pub gateway_url: Option<SensitiveUrl>,
 }
 
 impl OptionalENConfig {
@@ -664,7 +668,7 @@ impl OptionalENConfig {
                 .db_config
                 .as_ref()
                 .map(|a| a.experimental.protective_reads_persistence_enabled)
-                .unwrap_or(true),
+                .unwrap_or_default(),
             merkle_tree_processing_delay_ms: load_config_or_default!(
                 general_config.db_config,
                 experimental.processing_delay_ms,
@@ -685,6 +689,7 @@ impl OptionalENConfig {
                 .unwrap_or_else(Self::default_main_node_rate_limit_rps),
             api_namespaces,
             contracts_diamond_proxy_addr: None,
+            gateway_url: enconfig.gateway_url.clone(),
         })
     }
 
@@ -785,10 +790,6 @@ impl OptionalENConfig {
 
     const fn default_l2_block_seal_queue_capacity() -> usize {
         10
-    }
-
-    const fn default_protective_reads_persistence_enabled() -> bool {
-        true
     }
 
     const fn default_mempool_cache_update_interval_ms() -> u64 {
@@ -925,9 +926,11 @@ impl OptionalENConfig {
 /// This part of the external node config is required for its operation.
 #[derive(Debug, Deserialize)]
 pub(crate) struct RequiredENConfig {
-    /// L1 chain ID (e.g., 9 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
-    /// to ensure that there's no mismatch between the expected and actual L1 network.
+    /// The chain ID of the L1 network (e.g., 1 for Ethereum mainnet). In the future, it may be different from the settlement layer.
     pub l1_chain_id: L1ChainId,
+    /// The chain ID of the settlement layer (e.g., 1 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
+    /// to ensure that there's no mismatch between the expected and actual settlement layer network.
+    pub sl_chain_id: Option<SLChainId>,
     /// L2 chain ID (e.g., 270 for ZKsync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L2 network.
     pub l2_chain_id: L2ChainId,
@@ -949,6 +952,10 @@ pub(crate) struct RequiredENConfig {
 }
 
 impl RequiredENConfig {
+    pub fn settlement_layer_id(&self) -> SLChainId {
+        self.sl_chain_id.unwrap_or(self.l1_chain_id.into())
+    }
+
     fn from_env() -> anyhow::Result<Self> {
         envy::prefixed("EN_")
             .from_env()
@@ -970,6 +977,7 @@ impl RequiredENConfig {
             .context("Database config is required")?;
         Ok(RequiredENConfig {
             l1_chain_id: en_config.l1_chain_id,
+            sl_chain_id: None,
             l2_chain_id: en_config.l2_chain_id,
             http_port: api_config.web3_json_rpc.http_port,
             ws_port: api_config.web3_json_rpc.ws_port,
@@ -990,6 +998,7 @@ impl RequiredENConfig {
     fn mock(temp_dir: &tempfile::TempDir) -> Self {
         Self {
             l1_chain_id: L1ChainId(9),
+            sl_chain_id: None,
             l2_chain_id: L2ChainId::default(),
             http_port: 0,
             ws_port: 0,
@@ -1232,6 +1241,7 @@ pub(crate) struct ExternalNodeConfig<R = RemoteENConfig> {
     pub observability: ObservabilityENConfig,
     pub experimental: ExperimentalENConfig,
     pub consensus: Option<ConsensusConfig>,
+    pub consensus_secrets: Option<ConsensusSecrets>,
     pub api_component: ApiComponentConfig,
     pub tree_component: TreeComponentConfig,
     pub remote: R,
@@ -1255,6 +1265,8 @@ impl ExternalNodeConfig<()> {
             tree_component: envy::prefixed("EN_TREE_")
                 .from_env::<TreeComponentConfig>()
                 .context("could not load external node config (tree component params)")?,
+            consensus_secrets: read_consensus_secrets()
+                .context("config::read_consensus_secrets()")?,
             remote: (),
         })
     }
@@ -1277,7 +1289,7 @@ impl ExternalNodeConfig<()> {
             .map(read_yaml_repr::<proto::consensus::Config>)
             .transpose()
             .context("failed decoding consensus YAML config")?;
-
+        let consensus_secrets = secrets_config.consensus.clone();
         let required = RequiredENConfig::from_configs(
             &general_config,
             &external_node_config,
@@ -1313,6 +1325,7 @@ impl ExternalNodeConfig<()> {
             consensus,
             api_component,
             tree_component,
+            consensus_secrets,
             remote: (),
         })
     }
@@ -1325,6 +1338,19 @@ impl ExternalNodeConfig<()> {
         let remote = RemoteENConfig::fetch(main_node_client)
             .await
             .context("Unable to fetch required config values from the main node")?;
+        let remote_diamond_proxy_addr = remote.user_facing_diamond_proxy;
+        if let Some(local_diamond_proxy_addr) = self.optional.contracts_diamond_proxy_addr {
+            anyhow::ensure!(
+                local_diamond_proxy_addr == remote_diamond_proxy_addr,
+                "Diamond proxy address {local_diamond_proxy_addr:?} specified in config doesn't match one returned \
+                by main node ({remote_diamond_proxy_addr:?})"
+            );
+        } else {
+            tracing::info!(
+                "Diamond proxy address is not specified in config; will use address \
+                returned by main node: {remote_diamond_proxy_addr:?}"
+            );
+        }
         Ok(ExternalNodeConfig {
             required: self.required,
             postgres: self.postgres,
@@ -1334,6 +1360,7 @@ impl ExternalNodeConfig<()> {
             consensus: self.consensus,
             tree_component: self.tree_component,
             api_component: self.api_component,
+            consensus_secrets: self.consensus_secrets,
             remote,
         })
     }
@@ -1350,11 +1377,23 @@ impl ExternalNodeConfig {
             observability: ObservabilityENConfig::default(),
             experimental: ExperimentalENConfig::mock(),
             consensus: None,
+            consensus_secrets: None,
             api_component: ApiComponentConfig {
                 tree_api_remote_url: None,
             },
             tree_component: TreeComponentConfig { api_port: None },
         }
+    }
+
+    /// Returns a verified diamond proxy address.
+    /// If local configuration contains the address, it will be checked against the one returned by the main node.
+    /// Otherwise, the remote value will be used. However, using remote value has trust implications for the main
+    /// node so relying on it solely is not recommended.
+    /// FIXME: This method is not used as of now, it should be used just like in the main branch
+    pub fn _diamond_proxy_address(&self) -> Address {
+        self.optional
+            .contracts_diamond_proxy_addr
+            .unwrap_or(self.remote.user_facing_diamond_proxy)
     }
 }
 
@@ -1389,6 +1428,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             l2_native_token_vault_proxy_addr: config.remote.l2_native_token_vault_proxy_addr,
+            l2_legacy_shared_bridge_addr: config.remote.l2_legacy_shared_bridge_addr,
         }
     }
 }

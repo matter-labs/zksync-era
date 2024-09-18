@@ -11,7 +11,7 @@ use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 #[cfg(test)]
 use zksync_types::H256;
-use zksync_types::{get_nonce_key, Address, Nonce, Transaction, VmVersion};
+use zksync_types::{get_nonce_key, vm::VmVersion, Address, Nonce, Transaction};
 
 use super::{metrics::KEEPER_METRICS, types::MempoolGuard};
 
@@ -158,13 +158,11 @@ async fn get_transaction_nonces(
 
 #[cfg(test)]
 mod tests {
+    use zksync_multivm::interface::TransactionExecutionMetrics;
     use zksync_node_fee_model::MockBatchFeeParamsProvider;
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_node_test_utils::create_l2_transaction;
-    use zksync_types::{
-        fee::TransactionExecutionMetrics, L2BlockNumber, PriorityOpId, ProtocolVersionId,
-        StorageLog, H256,
-    };
+    use zksync_types::{L2BlockNumber, PriorityOpId, ProtocolVersionId, StorageLog, H256};
     use zksync_utils::u256_to_h256;
 
     use super::*;

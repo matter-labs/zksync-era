@@ -2,18 +2,22 @@ use zk_evm_1_3_3::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
-use zksync_state::{StoragePtr, WriteStorage};
 use zksync_system_constants::KECCAK256_PRECOMPILE_ADDRESS;
-use zksync_types::{
-    get_code_key, vm_trace::ViolatedValidationRule, AccountTreeId, StorageKey, H256,
-};
+use zksync_types::{get_code_key, AccountTreeId, StorageKey, H256};
 use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h256};
 
 use crate::{
-    interface::{dyn_tracers::vm_1_3_3::DynTracer, VmExecutionResultAndLogs},
-    tracers::validator::{
-        types::{NewTrustedValidationItems, ValidationTracerMode},
-        ValidationRoundResult, ValidationTracer,
+    interface::{
+        storage::{StoragePtr, WriteStorage},
+        tracer::ViolatedValidationRule,
+        VmExecutionResultAndLogs,
+    },
+    tracers::{
+        dynamic::vm_1_3_3::DynTracer,
+        validator::{
+            types::{NewTrustedValidationItems, ValidationTracerMode},
+            ValidationRoundResult, ValidationTracer,
+        },
     },
     vm_virtual_blocks::{
         tracers::utils::{
@@ -84,7 +88,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
             Opcode::Context(context) => {
                 match context {
                     ContextOpcode::Meta => {
-                        return Err(ViolatedValidationRule::TouchedUnallowedContext);
+                        return Err(ViolatedValidationRule::TouchedDisallowedContext);
                     }
                     ContextOpcode::ErgsLeft => {
                         // TODO (SMA-1168): implement the correct restrictions for the gas left opcode.
@@ -98,7 +102,7 @@ impl<H: HistoryMode> ValidationTracer<H> {
                 let msg_sender = state.vm_local_state.callstack.current.msg_sender;
 
                 if !self.is_allowed_storage_read(storage.clone(), this_address, key, msg_sender) {
-                    return Err(ViolatedValidationRule::TouchedUnallowedStorageSlots(
+                    return Err(ViolatedValidationRule::TouchedDisallowedStorageSlots(
                         this_address,
                         key,
                     ));

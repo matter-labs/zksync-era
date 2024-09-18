@@ -1,4 +1,4 @@
-use zksync_state::ReadStorage;
+use crate::interface::storage::ReadStorage;
 use zksync_types::get_nonce_key;
 
 use crate::interface::{TxExecutionMode, VmExecutionMode};

@@ -13,7 +13,7 @@ use serde::{
 };
 use serde_json::Value;
 
-use crate::{H160, H2048, H256, U256, U64};
+use crate::{Bloom, H160, H256, U256, U64};
 
 pub mod contract;
 #[cfg(test)]
@@ -389,7 +389,7 @@ pub struct BlockHeader {
     pub extra_data: Bytes,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
-    pub logs_bloom: H2048,
+    pub logs_bloom: Bloom,
     /// Timestamp
     pub timestamp: U256,
     /// Difficulty
@@ -441,7 +441,7 @@ pub struct Block<TX> {
     pub extra_data: Bytes,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
-    pub logs_bloom: Option<H2048>,
+    pub logs_bloom: Option<Bloom>,
     /// Timestamp
     pub timestamp: U256,
     /// Difficulty
@@ -727,7 +727,7 @@ pub struct TransactionReceipt {
     pub root: Option<H256>,
     /// Logs bloom
     #[serde(rename = "logsBloom")]
-    pub logs_bloom: H2048,
+    pub logs_bloom: Bloom,
     /// Transaction type, Some(1) for AccessList transaction, None for Legacy
     #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
     pub transaction_type: Option<U64>,

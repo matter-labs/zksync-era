@@ -2,9 +2,11 @@ use std::time::Duration;
 
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zk_evm_1_4_1::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
 
-use crate::vm_1_4_2::{old_vm::oracles::OracleWithHistory, types::internals::VmSnapshot, vm::Vm};
+use crate::{
+    interface::storage::WriteStorage,
+    vm_1_4_2::{old_vm::oracles::OracleWithHistory, types::internals::VmSnapshot, vm::Vm},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelSet, EncodeLabelValue)]
 #[metrics(label = "stage", rename_all = "snake_case")]

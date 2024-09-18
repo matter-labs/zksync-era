@@ -5,7 +5,7 @@ use std::{
     fmt,
 };
 
-use zksync_state::ReadStorage;
+use zksync_multivm::interface::storage::ReadStorage;
 use zksync_types::{
     api::state_override::{OverrideState, StateOverride},
     get_code_key, get_nonce_key,
@@ -119,7 +119,7 @@ impl<S: ReadStorage + fmt::Debug> ReadStorage for StorageWithOverrides<S> {
 
 #[cfg(test)]
 mod tests {
-    use zksync_state::InMemoryStorage;
+    use zksync_multivm::interface::storage::InMemoryStorage;
     use zksync_types::{
         api::state_override::{Bytecode, OverrideAccount},
         Address,

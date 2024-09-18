@@ -10,7 +10,7 @@ impl From<io::Error> for ObjectStoreError {
         match err.kind() {
             io::ErrorKind::NotFound => ObjectStoreError::KeyNotFound(err.into()),
             kind => ObjectStoreError::Other {
-                is_transient: matches!(kind, io::ErrorKind::Interrupted | io::ErrorKind::TimedOut),
+                is_retriable: matches!(kind, io::ErrorKind::Interrupted | io::ErrorKind::TimedOut),
                 source: err.into(),
             },
         }

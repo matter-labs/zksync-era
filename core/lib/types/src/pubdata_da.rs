@@ -15,6 +15,8 @@ pub enum PubdataDA {
     Blobs,
     /// Pubdata is sent to the external storage (GCS/DA layers) or not sent at all.
     Custom,
+    /// Pubdata is sent to an L2 to be eventually relayed to L1.
+    RelayedL2Calldata,
 }
 
 impl From<PubdataSendingMode> for PubdataDA {
@@ -23,6 +25,7 @@ impl From<PubdataSendingMode> for PubdataDA {
             PubdataSendingMode::Calldata => PubdataDA::Calldata,
             PubdataSendingMode::Blobs => PubdataDA::Blobs,
             PubdataSendingMode::Custom => PubdataDA::Custom,
+            PubdataSendingMode::RelayedL2Calldata => PubdataDA::RelayedL2Calldata,
         }
     }
 }

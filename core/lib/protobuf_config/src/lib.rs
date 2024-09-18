@@ -29,7 +29,10 @@ mod pruning;
 mod secrets;
 mod snapshots_creator;
 
+mod da_client;
 mod external_price_api_client;
+mod external_proof_integration_api;
+mod prover_job_monitor;
 mod snapshot_recovery;
 #[cfg(test)]
 mod tests;
@@ -54,8 +57,18 @@ fn parse_h160(bytes: &str) -> anyhow::Result<H160> {
     Ok(H160::from_str(bytes)?)
 }
 
-pub fn read_optional_repr<P: ProtoRepr>(field: &Option<P>) -> anyhow::Result<Option<P::Type>> {
-    field.as_ref().map(|x| x.read()).transpose()
+pub fn read_optional_repr<P: ProtoRepr>(field: &Option<P>) -> Option<P::Type> {
+    field
+        .as_ref()
+        .map(|x| x.read())
+        .transpose()
+        // This error will printed, only if the config partially filled, allows to debug config issues easier
+        .map_err(|err| {
+            tracing::error!("Failed to serialize config: {err}");
+            err
+        })
+        .ok()
+        .flatten()
 }
 
 pub fn decode_yaml_repr<T: ProtoRepr>(

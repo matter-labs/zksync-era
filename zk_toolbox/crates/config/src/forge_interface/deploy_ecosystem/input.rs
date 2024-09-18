@@ -92,13 +92,6 @@ impl Default for Erc20DeploymentConfig {
                     implementation: String::from("TestnetERC20Token.sol"),
                     mint: U256::from_str("9000000000000000000000").unwrap(),
                 },
-                Erc20DeploymentTokensConfig {
-                    name: String::from("Wrapped Ether"),
-                    symbol: String::from("WETH"),
-                    decimals: 18,
-                    implementation: String::from("WETH9.sol"),
-                    mint: U256::zero(),
-                },
             ],
         }
     }

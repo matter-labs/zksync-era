@@ -62,6 +62,7 @@ impl MockMainNodeClient {
             l2_fair_gas_price: 3,
             fair_pubdata_price: Some(24),
             base_system_contracts_hashes: BaseSystemContractsHashes::default(),
+            pubdata_params: Default::default(),
             operator_address: Address::repeat_byte(2),
             transactions: Some(vec![]),
             virtual_blocks: Some(0),
@@ -109,6 +110,7 @@ impl StateKeeperHandles {
             pool.clone(),
             Address::repeat_byte(1),
             Address::default(),
+            Address::repeat_byte(13),
             5,
         );
         let tree_writes_persistence = TreeWritesPersistence::new(pool.clone());
@@ -118,7 +120,7 @@ impl StateKeeperHandles {
 
         tokio::spawn(l2_block_sealer.run());
         let io = ExternalIO::new(
-            pool,
+            pool.clone(),
             actions,
             Box::new(main_node_client),
             L2ChainId::default(),
@@ -126,15 +128,15 @@ impl StateKeeperHandles {
         .unwrap();
 
         let (stop_sender, stop_receiver) = watch::channel(false);
-        let mut batch_executor_base = TestBatchExecutorBuilder::default();
+        let mut batch_executor = TestBatchExecutorBuilder::default();
         for &tx_hashes_in_l1_batch in tx_hashes {
-            batch_executor_base.push_successful_transactions(tx_hashes_in_l1_batch);
+            batch_executor.push_successful_transactions(tx_hashes_in_l1_batch);
         }
 
         let state_keeper = ZkSyncStateKeeper::new(
             stop_receiver,
             Box::new(io),
-            Box::new(batch_executor_base),
+            Box::new(batch_executor),
             output_handler,
             Arc::new(NoopSealer),
             Arc::new(MockReadStorageFactory),

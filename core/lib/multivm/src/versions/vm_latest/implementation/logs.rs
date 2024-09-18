@@ -1,14 +1,10 @@
 use zk_evm_1_5_0::aux_structures::Timestamp;
-use zksync_state::WriteStorage;
-use zksync_types::{
-    event::extract_l2tol1logs_from_l1_messenger,
-    l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
-    VmEvent,
-};
+use zksync_types::l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log};
 
 use crate::{
     glue::GlueInto,
-    interface::types::outputs::VmExecutionLogs,
+    interface::{storage::WriteStorage, VmEvent, VmExecutionLogs},
+    utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_latest::{old_vm::utils::precompile_calls_count_after_timestamp, utils::logs, vm::Vm},
     HistoryMode,
 };

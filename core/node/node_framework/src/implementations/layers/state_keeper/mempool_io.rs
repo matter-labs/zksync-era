@@ -1,14 +1,17 @@
 use anyhow::Context as _;
-use zksync_config::configs::{
-    chain::{MempoolConfig, StateKeeperConfig},
-    wallets,
+use zksync_config::{
+    configs::{
+        chain::{MempoolConfig, StateKeeperConfig},
+        wallets,
+    },
+    ContractsConfig, GenesisConfig,
 };
 use zksync_state_keeper::{MempoolFetcher, MempoolGuard, MempoolIO, SequencerSealer};
 use zksync_types::L2ChainId;
 
 use crate::{
     implementations::resources::{
-        fee_input::FeeInputResource,
+        fee_input::SequencerFeeInputResource,
         pools::{MasterPool, PoolResource},
         state_keeper::{ConditionalSealerResource, StateKeeperIOResource},
     },
@@ -38,13 +41,15 @@ pub struct MempoolIOLayer {
     zksync_network_id: L2ChainId,
     state_keeper_config: StateKeeperConfig,
     mempool_config: MempoolConfig,
+    contracts_config: ContractsConfig,
+    genesis_config: GenesisConfig,
     wallets: wallets::StateKeeper,
 }
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub fee_input: FeeInputResource,
+    pub fee_input: SequencerFeeInputResource,
     pub master_pool: PoolResource<MasterPool>,
 }
 
@@ -62,12 +67,16 @@ impl MempoolIOLayer {
         zksync_network_id: L2ChainId,
         state_keeper_config: StateKeeperConfig,
         mempool_config: MempoolConfig,
+        contracts_config: ContractsConfig,
+        genesis_config: GenesisConfig,
         wallets: wallets::StateKeeper,
     ) -> Self {
         Self {
             zksync_network_id,
             state_keeper_config,
             mempool_config,
+            contracts_config,
+            genesis_config,
             wallets,
         }
     }
@@ -127,6 +136,10 @@ impl WiringLayer for MempoolIOLayer {
             mempool_db_pool,
             &self.state_keeper_config,
             self.wallets.fee_account.address(),
+            self.contracts_config
+                .l2_da_validator_addr
+                .expect("L2 DA validator address not found"),
+            self.genesis_config.l1_batch_commit_data_generator_mode,
             self.mempool_config.delay_interval(),
             self.zksync_network_id,
         )?;

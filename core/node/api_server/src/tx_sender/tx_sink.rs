@@ -1,12 +1,8 @@
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, Core};
+use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_types::{
     api::{Transaction, TransactionDetails, TransactionId},
-    fee::TransactionExecutionMetrics,
-    Address,
-    // l2::L2Tx,
-    ExternalTx,
-    Nonce,
-    H256,
+    Address, Nonce, H256, ExternalTx,
 };
 use zksync_web3_decl::error::Web3Error;
 

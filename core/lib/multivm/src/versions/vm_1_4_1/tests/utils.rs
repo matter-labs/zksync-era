@@ -3,7 +3,7 @@ use once_cell::sync::Lazy;
 use zksync_contracts::{
     load_contract, read_bytecode, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
-use zksync_state::{StoragePtr, WriteStorage};
+use crate::interface::storage::{StoragePtr, WriteStorage};
 use zksync_types::{
     utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H256, U256,
 };

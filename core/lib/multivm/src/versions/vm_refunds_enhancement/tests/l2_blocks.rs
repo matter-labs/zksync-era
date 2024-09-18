@@ -12,7 +12,7 @@ use crate::vm_refunds_enhancement::tests::tester::VmTesterBuilder;
 use crate::vm_refunds_enhancement::utils::l2_blocks::get_l2_block_hash_key;
 use crate::vm_refunds_enhancement::{HistoryEnabled, HistoryMode, Vm};
 use zk_evm_1_3_3::aux_structures::Timestamp;
-use zksync_state::{ReadStorage, WriteStorage};
+use crate::interface::storage::{ReadStorage, WriteStorage};
 use zksync_system_constants::{
     CURRENT_VIRTUAL_BLOCK_INFO_POSITION, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };

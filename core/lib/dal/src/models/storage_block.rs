@@ -7,10 +7,10 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
     block::{L1BatchHeader, L2BlockHeader},
-    commitment::{L1BatchMetaParameters, L1BatchMetadata},
+    commitment::{L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, PubdataParams},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
-    Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H2048, H256,
+    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
 };
 
 /// This is the gas limit that was used inside blocks before we started saving block gas limit into the database.
@@ -76,7 +76,7 @@ impl StorageL1BatchHeader {
             l2_to_l1_logs,
             l2_to_l1_messages: self.l2_to_l1_messages,
 
-            bloom: H2048::from_slice(&self.bloom),
+            bloom: Bloom::from_slice(&self.bloom),
             used_contract_hashes: serde_json::from_value(self.used_contract_hashes)
                 .expect("invalid value for used_contract_hashes in the DB"),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
@@ -175,7 +175,7 @@ impl StorageL1Batch {
             l2_to_l1_logs,
             l2_to_l1_messages: self.l2_to_l1_messages,
 
-            bloom: H2048::from_slice(&self.bloom),
+            bloom: Bloom::from_slice(&self.bloom),
             used_contract_hashes: serde_json::from_value(self.used_contract_hashes)
                 .expect("invalid value for used_contract_hashes in the DB"),
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
@@ -437,6 +437,8 @@ pub(crate) struct StorageL2BlockHeader {
     // L2 gas price assumed in the corresponding batch
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub l2_da_validator_address: Vec<u8>,
+    pub pubdata_type: String,
     pub protocol_version: Option<i32>,
 
     pub fair_pubdata_price: Option<i64>,
@@ -452,6 +454,7 @@ pub(crate) struct StorageL2BlockHeader {
     /// The formal value of the gas limit for the miniblock.
     /// This value should bound the maximal amount of gas that can be spent by transactions in the miniblock.
     pub gas_limit: Option<i64>,
+    pub logs_bloom: Option<Vec<u8>>,
 }
 
 impl From<StorageL2BlockHeader> for L2BlockHeader {
@@ -490,10 +493,18 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 row.bootloader_code_hash,
                 row.default_aa_code_hash,
             ),
+            pubdata_params: PubdataParams {
+                l2_da_validator_address: Address::from_slice(&row.l2_da_validator_address),
+                pubdata_type: L1BatchCommitmentMode::from_str(&row.pubdata_type).unwrap(),
+            },
             gas_per_pubdata_limit: row.gas_per_pubdata_limit as u64,
             protocol_version,
             virtual_blocks: row.virtual_blocks as u32,
             gas_limit: row.gas_limit.unwrap_or(i64::from(LEGACY_BLOCK_GAS_LIMIT)) as u64,
+            logs_bloom: row
+                .logs_bloom
+                .map(|b| Bloom::from_slice(&b))
+                .unwrap_or_default(),
         }
     }
 }

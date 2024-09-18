@@ -61,7 +61,7 @@ async fn snapshots_creator_can_successfully_recover_db(
                 Ok(()) // "recover" after 3 retries
             } else {
                 Err(ObjectStoreError::Other {
-                    is_transient: true,
+                    is_retriable: true,
                     source: "transient error".into(),
                 })
             }
@@ -550,7 +550,7 @@ async fn applier_returns_error_after_too_many_object_store_retries() {
     let (object_store, client) = prepare_clients(&expected_status, &storage_logs).await;
     let object_store = ObjectStoreWithErrors::new(object_store, |_| {
         Err(ObjectStoreError::Other {
-            is_transient: true,
+            is_retriable: true,
             source: "service not available".into(),
         })
     });

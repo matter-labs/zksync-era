@@ -16,6 +16,9 @@ impl ObservabilityConfig {
             .with_sentry(sentry)
             .with_opentelemetry(opentelemetry)
             .build();
+
+        tracing::info!("Installed observability stack with the following configuration: {self:?}");
+
         Ok(guard)
     }
 }
@@ -46,7 +49,13 @@ impl TryFrom<ObservabilityConfig> for Option<zksync_vlog::OpenTelemetry> {
     fn try_from(config: ObservabilityConfig) -> Result<Self, Self::Error> {
         Ok(config
             .opentelemetry
-            .map(|config| zksync_vlog::OpenTelemetry::new(&config.level, config.endpoint))
+            .map(|config| {
+                zksync_vlog::OpenTelemetry::new(
+                    &config.level,
+                    Some(config.endpoint),
+                    config.logs_endpoint,
+                )
+            })
             .transpose()?)
     }
 }

@@ -22,6 +22,7 @@ use zksync_node_framework::{
         consistency_checker::ConsistencyCheckerLayer,
         healtcheck_server::HealthCheckLayer,
         l1_batch_commitment_mode_validation::L1BatchCommitmentModeValidationLayer,
+        logs_bloom_backfill::LogsBloomBackfillLayer,
         main_node_client::MainNodeClientLayer,
         main_node_fee_params_fetcher::MainNodeFeeParamsFetcherLayer,
         metadata_calculator::MetadataCalculatorLayer,
@@ -55,11 +56,7 @@ use zksync_node_framework::{
 };
 use zksync_state::RocksdbStorageOptions;
 
-use crate::{
-    config::{self, ExternalNodeConfig},
-    metrics::framework::ExternalNodeMetricsLayer,
-    Component,
-};
+use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 
 /// Builder for the external node.
 #[derive(Debug)]
@@ -69,11 +66,19 @@ pub(crate) struct ExternalNodeBuilder {
 }
 
 impl ExternalNodeBuilder {
+    #[cfg(test)]
     pub fn new(config: ExternalNodeConfig) -> anyhow::Result<Self> {
         Ok(Self {
             node: ZkStackServiceBuilder::new().context("Cannot create ZkStackServiceBuilder")?,
             config,
         })
+    }
+
+    pub fn on_runtime(runtime: tokio::runtime::Runtime, config: ExternalNodeConfig) -> Self {
+        Self {
+            node: ZkStackServiceBuilder::on_runtime(runtime),
+            config,
+        }
     }
 
     fn add_sigint_handler_layer(mut self) -> anyhow::Result<Self> {
@@ -91,7 +96,11 @@ impl ExternalNodeBuilder {
             max_connections_master: Some(self.config.postgres.max_connections),
             acquire_timeout_sec: None,
             statement_timeout_sec: None,
-            long_connection_threshold_ms: None,
+            long_connection_threshold_ms: self
+                .config
+                .optional
+                .long_connection_threshold()
+                .map(|d| d.as_millis() as u64),
             slow_query_threshold_ms: self
                 .config
                 .optional
@@ -121,6 +130,7 @@ impl ExternalNodeBuilder {
     fn add_external_node_metrics_layer(mut self) -> anyhow::Result<Self> {
         self.node.add_layer(ExternalNodeMetricsLayer {
             l1_chain_id: self.config.required.l1_chain_id,
+            sl_chain_id: self.config.required.settlement_layer_id(),
             l2_chain_id: self.config.required.l2_chain_id,
             postgres_pool_size: self.config.postgres.max_connections,
         });
@@ -166,8 +176,9 @@ impl ExternalNodeBuilder {
 
     fn add_query_eth_client_layer(mut self) -> anyhow::Result<Self> {
         let query_eth_client_layer = QueryEthClientLayer::new(
-            self.config.required.l1_chain_id,
+            self.config.required.settlement_layer_id(),
             self.config.required.eth_client_url.clone(),
+            self.config.optional.gateway_url.clone(),
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -189,6 +200,10 @@ impl ExternalNodeBuilder {
                 .remote
                 .l2_native_token_vault_proxy_addr
                 .expect("L2 native token vault proxy address is not set"),
+            self.config
+                .remote
+                .l2_legacy_shared_bridge_addr
+                .expect("L2 legacy shared bridge address is not set"),
             self.config.optional.l2_block_seal_queue_capacity,
         )
         .with_pre_insert_txs(true) // EN requires txs to be pre-inserted.
@@ -219,8 +234,8 @@ impl ExternalNodeBuilder {
             rocksdb_options,
         );
         self.node
-            .add_layer(persistence_layer)
             .add_layer(io_layer)
+            .add_layer(persistence_layer)
             .add_layer(main_node_batch_executor_builder_layer)
             .add_layer(state_keeper_layer);
         Ok(self)
@@ -228,9 +243,14 @@ impl ExternalNodeBuilder {
 
     fn add_consensus_layer(mut self) -> anyhow::Result<Self> {
         let config = self.config.consensus.clone();
-        let secrets =
-            config::read_consensus_secrets().context("config::read_consensus_secrets()")?;
-        let layer = ExternalNodeConsensusLayer { config, secrets };
+        let secrets = self.config.consensus_secrets.clone();
+        let layer = ExternalNodeConsensusLayer {
+            build_version: crate::metadata::SERVER_VERSION
+                .parse()
+                .context("CRATE_VERSION.parse()")?,
+            config,
+            secrets,
+        };
         self.node.add_layer(layer);
         Ok(self)
     }
@@ -260,7 +280,7 @@ impl ExternalNodeBuilder {
 
     fn add_validate_chain_ids_layer(mut self) -> anyhow::Result<Self> {
         let layer = ValidateChainIdsLayer::new(
-            self.config.required.l1_chain_id,
+            self.config.required.settlement_layer_id(),
             self.config.required.l2_chain_id,
         );
         self.node.add_layer(layer);
@@ -401,6 +421,11 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_logs_bloom_backfill_layer(mut self) -> anyhow::Result<Self> {
+        self.node.add_layer(LogsBloomBackfillLayer);
+        Ok(self)
+    }
+
     fn web3_api_optional_config(&self) -> Web3ServerOptionalConfig {
         // The refresh interval should be several times lower than the pruning removal delay, so that
         // soft-pruning will timely propagate to the API server.
@@ -409,11 +434,12 @@ impl ExternalNodeBuilder {
         Web3ServerOptionalConfig {
             namespaces: Some(self.config.optional.api_namespaces()),
             filters_limit: Some(self.config.optional.filters_limit),
-            subscriptions_limit: Some(self.config.optional.filters_limit),
+            subscriptions_limit: Some(self.config.optional.subscriptions_limit),
             batch_request_size_limit: Some(self.config.optional.max_batch_request_size),
             response_body_size_limit: Some(self.config.optional.max_response_body_size()),
             with_extended_tracing: self.config.optional.extended_rpc_tracing,
             pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
+            polling_interval: Some(self.config.optional.polling_interval()),
             websocket_requests_per_minute_limit: None, // To be set by WS server layer method if required.
             replication_lag_limit: None,               // TODO: Support replication lag limit
         }
@@ -487,6 +513,10 @@ impl ExternalNodeBuilder {
                 });
         self.node.add_layer(ExternalNodeInitStrategyLayer {
             l2_chain_id: self.config.required.l2_chain_id,
+            max_postgres_concurrency: self
+                .config
+                .optional
+                .snapshots_recovery_postgres_max_concurrency,
             snapshot_recovery_config,
         });
         let mut layer = NodeStorageInitializerLayer::new();
@@ -586,7 +616,8 @@ impl ExternalNodeBuilder {
                         .add_pruning_layer()?
                         .add_consistency_checker_layer()?
                         .add_commitment_generator_layer()?
-                        .add_batch_status_updater_layer()?;
+                        .add_batch_status_updater_layer()?
+                        .add_logs_bloom_backfill_layer()?;
                 }
             }
         }
