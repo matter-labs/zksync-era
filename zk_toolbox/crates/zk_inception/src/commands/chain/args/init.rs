@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use clap::Parser;
 use common::{forge::ForgeScriptArgs, Prompt};
 use config::ChainConfig;
@@ -16,31 +14,6 @@ use crate::{
         MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
     },
 };
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct PortOffset(u16);
-
-impl PortOffset {
-    pub fn from_chain_id(chain_id: u16) -> Self {
-        Self((chain_id - 1) * 100)
-    }
-}
-
-impl FromStr for PortOffset {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        s.parse::<u16>()
-            .map(PortOffset)
-            .map_err(|_| "Invalid port offset".to_string())
-    }
-}
-
-impl From<PortOffset> for u16 {
-    fn from(port_offset: PortOffset) -> Self {
-        port_offset.0
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct InitArgs {
