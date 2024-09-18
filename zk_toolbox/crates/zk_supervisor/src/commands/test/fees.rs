@@ -6,7 +6,7 @@ use super::{
     args::fees::FeesArgs,
     utils::{build_contracts, install_and_build_dependencies, TS_INTEGRATION_PATH},
 };
-use crate::messages::{msg_integration_tests_run, MSG_INTEGRATION_TESTS_RUN_SUCCESS};
+use crate::messages::MSG_INTEGRATION_TESTS_RUN_SUCCESS;
 
 pub async fn run(shell: &Shell, args: FeesArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
