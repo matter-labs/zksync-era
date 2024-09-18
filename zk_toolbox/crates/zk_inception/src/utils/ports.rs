@@ -191,8 +191,16 @@ impl EcosystemPortsScanner {
                             for port_entry in ports {
                                 if let Some(port_str) = port_entry.as_str() {
                                     let parts: Vec<&str> = port_str.split(':').collect();
-                                    if let Some(assigned_port) = parts.get(1) {
-                                        if let Ok(port) = assigned_port.parse::<u16>() {
+
+                                    // Handle 3-part (IP:host:container) or 2-part (host:container) port mappings
+                                    let host_port_str = match parts.len() {
+                                        3 => parts.get(1),
+                                        2 => parts.get(0),
+                                        _ => None,
+                                    };
+
+                                    if let Some(host_port) = host_port_str {
+                                        if let Ok(port) = host_port.parse::<u16>() {
                                             let description =
                                                 format!("[{}] {}", file_path.display(), new_path);
                                             ecosystem_ports.add_port_info(port, description);
@@ -301,12 +309,13 @@ mod tests {
         assert!(ecosystem_ports.is_port_assigned(3070));
         assert!(ecosystem_ports.is_port_assigned(3412));
         assert!(ecosystem_ports.is_port_assigned(8546));
-        assert!(ecosystem_ports.is_port_assigned(5432));
+        assert!(ecosystem_ports.is_port_assigned(5433));
 
         // Free ports:
         assert!(!ecosystem_ports.is_port_assigned(3150));
         assert!(!ecosystem_ports.is_port_assigned(3151));
         assert!(!ecosystem_ports.is_port_assigned(8545));
+        assert!(!ecosystem_ports.is_port_assigned(5432));
 
         // Check description:
         let port_3050_info = ecosystem_ports.ports.get(&3050).unwrap();
