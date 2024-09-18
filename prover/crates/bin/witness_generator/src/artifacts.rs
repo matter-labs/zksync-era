@@ -9,25 +9,18 @@ pub(crate) struct AggregationBlobUrls {
     pub aggregation_urls: String,
     pub circuit_ids_and_urls: Vec<(u8, String)>,
 }
+/// Marker trait for managing different types of blob urls
+pub trait BlobUrl {}
 
-#[derive(Debug)]
-pub(crate) struct SchedulerBlobUrls {
-    pub circuit_ids_and_urls: Vec<(u8, String)>,
-    pub closed_form_inputs_and_urls: Vec<(u8, String, usize)>,
-    pub scheduler_witness_url: String,
-}
-
-pub(crate) enum BlobUrls {
-    Url(String),
-    Aggregation(AggregationBlobUrls),
-    Scheduler(SchedulerBlobUrls),
-}
+impl BlobUrl for AggregationBlobUrls {}
+impl BlobUrl for String {}
 
 #[async_trait]
 pub(crate) trait ArtifactsManager {
     type InputMetadata;
     type InputArtifacts;
     type OutputArtifacts;
+    type BlobUrls: BlobUrl;
 
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
@@ -38,13 +31,13 @@ pub(crate) trait ArtifactsManager {
         job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
-    ) -> BlobUrls;
+    ) -> Self::BlobUrls;
 
     async fn save_to_database(
         connection_pool: &ConnectionPool<Prover>,
         job_id: u32,
         started_at: Instant,
-        blob_urls: BlobUrls,
+        blob_urls: Self::BlobUrls,
         artifacts: Self::OutputArtifacts,
     ) -> anyhow::Result<()>;
 }

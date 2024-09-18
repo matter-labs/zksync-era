@@ -66,7 +66,8 @@ async fn test_leaf_witness_gen() {
         Some(500),
         Instant::now(),
     )
-    .await?;
+    .await
+    .unwrap();
 
     let aggregations = AggregationWrapper(artifacts.aggregations);
 
@@ -160,7 +161,8 @@ async fn test_node_witness_gen() {
         Some(500),
         Instant::now(),
     )
-    .await?;
+    .await
+    .unwrap();
 
     let aggregations = AggregationWrapper(artifacts.next_aggregations);
 

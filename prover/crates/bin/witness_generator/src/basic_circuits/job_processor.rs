@@ -9,7 +9,7 @@ use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
-    artifacts::{ArtifactsManager, BlobUrls, SchedulerBlobUrls},
+    artifacts::ArtifactsManager,
     basic_circuits::{BasicCircuitArtifacts, BasicWitnessGenerator, BasicWitnessGeneratorJob},
     metrics::WITNESS_GENERATOR_METRICS,
     witness_generator::WitnessGenerator,
@@ -94,8 +94,6 @@ impl JobProcessor for BasicWitnessGenerator {
             None => Ok(()),
             Some(artifacts) => {
                 let blob_started_at = Instant::now();
-                let circuit_urls = artifacts.circuit_urls.clone();
-                let queue_urls = artifacts.queue_urls.clone();
 
                 let aux_output_witness_wrapper =
                     AuxOutputWitnessWrapper(artifacts.aux_output_witness.clone());
@@ -107,13 +105,8 @@ impl JobProcessor for BasicWitnessGenerator {
                         .unwrap();
                 }
 
-                let scheduler_witness_url =
-                    match Self::save_to_bucket(job_id.0, artifacts.clone(), &*self.object_store)
-                        .await
-                    {
-                        BlobUrls::Url(url) => url,
-                        _ => unreachable!(),
-                    };
+                let blob_urls =
+                    Self::save_to_bucket(job_id.0, artifacts.clone(), &*self.object_store).await;
 
                 WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
                     .observe(blob_started_at.elapsed());
@@ -122,11 +115,7 @@ impl JobProcessor for BasicWitnessGenerator {
                     &self.prover_connection_pool,
                     job_id.0,
                     started_at,
-                    BlobUrls::Scheduler(SchedulerBlobUrls {
-                        circuit_ids_and_urls: circuit_urls,
-                        closed_form_inputs_and_urls: queue_urls,
-                        scheduler_witness_url,
-                    }),
+                    blob_urls,
                     artifacts,
                 )
                 .await?;
