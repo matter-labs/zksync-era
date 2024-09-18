@@ -5,8 +5,8 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, StorageView},
-        ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
+        ExecutionResult, L1BatchEnv, L2BlockEnv, OwnedTracer, SystemEnv, TxExecutionMode,
+        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
     vm_fast, vm_latest,
@@ -63,8 +63,9 @@ pub trait BenchmarkingVmFactory {
     /// VM label used to name `criterion` benchmarks.
     const LABEL: VmLabel;
 
+    type TracerKind;
     /// Type of the VM instance created by this factory.
-    type Instance: VmInterfaceHistoryEnabled<TracerDispatcher<'static>: Default>;
+    type Instance: VmInterfaceHistoryEnabled + VmInterfaceExt<Self::TracerKind>;
 
     /// Creates a VM instance.
     fn create(
@@ -81,6 +82,7 @@ pub struct Fast(());
 impl BenchmarkingVmFactory for Fast {
     const LABEL: VmLabel = VmLabel::Fast;
 
+    type TracerKind = OwnedTracer;
     type Instance = vm_fast::Vm<&'static InMemoryStorage>;
 
     fn create(
@@ -99,6 +101,7 @@ pub struct Legacy;
 impl BenchmarkingVmFactory for Legacy {
     const LABEL: VmLabel = VmLabel::Legacy;
 
+    type TracerKind = OwnedTracer;
     type Instance = vm_latest::Vm<StorageView<&'static InMemoryStorage>, HistoryEnabled>;
 
     fn create(
@@ -157,11 +160,9 @@ impl<VM: BenchmarkingVmFactory> BenchmarkingVm<VM> {
 
     pub fn run_transaction_full(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
         self.0.make_snapshot();
-        let (compression_result, tx_result) = self.0.inspect_transaction_with_bytecode_compression(
-            Default::default(),
-            tx.clone(),
-            true,
-        );
+        let (compression_result, tx_result) = self
+            .0
+            .execute_transaction_with_bytecode_compression(tx.clone(), true);
         compression_result.expect("compressing bytecodes failed");
 
         if matches!(tx_result.result, ExecutionResult::Halt { .. }) {
@@ -175,7 +176,7 @@ impl<VM: BenchmarkingVmFactory> BenchmarkingVm<VM> {
     pub fn instruction_count(&mut self, tx: &Transaction) -> usize {
         self.0.push_transaction(tx.clone());
         let count = Rc::new(RefCell::new(0));
-        self.0.inspect(Default::default(), VmExecutionMode::OneTx); // FIXME: re-enable instruction counting once new tracers are merged
+        self.0.execute(VmExecutionMode::OneTx); // FIXME: re-enable instruction counting once new tracers are merged
         count.take()
     }
 }

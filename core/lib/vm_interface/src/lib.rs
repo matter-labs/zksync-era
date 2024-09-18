@@ -37,7 +37,10 @@ pub use crate::{
         },
         tracer,
     },
-    vm::{VmFactory, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled},
+    vm::{
+        BorrowedTracer, OwnedTracer, VmFactory, VmInterface, VmInterfaceExt,
+        VmInterfaceHistoryEnabled,
+    },
 };
 
 pub mod executor;

@@ -18,6 +18,12 @@ use crate::{
     SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmMemoryMetrics,
 };
 
+#[derive(Debug)]
+pub struct OwnedTracer(());
+
+#[derive(Debug)]
+pub struct BorrowedTracer(());
+
 pub trait VmInterface {
     /// Lifetime is used to be able to define `Option<&mut _>` as a dispatcher.
     type TracerDispatcher<'a>;
@@ -53,27 +59,49 @@ pub trait VmInterface {
 }
 
 /// Extension trait for [`VmInterface`] that provides some additional methods.
-pub trait VmInterfaceExt: VmInterface<TracerDispatcher<'static>: Default> {
+pub trait VmInterfaceExt<Kind>: VmInterface {
     /// Executes the next VM step (either next transaction or bootloader or the whole batch).
-    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        self.inspect(Self::TracerDispatcher::default(), execution_mode)
-    }
+    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs;
 
     /// Executes a transaction with optional bytecode compression.
     fn execute_transaction_with_bytecode_compression(
         &mut self,
         tx: Transaction,
         with_compression: bool,
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs);
+}
+
+impl<Tr: Default, T: for<'a> VmInterface<TracerDispatcher<'a> = Tr>> VmInterfaceExt<OwnedTracer>
+    for T
+{
+    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
+        self.inspect(Tr::default(), execution_mode)
+    }
+
+    fn execute_transaction_with_bytecode_compression(
+        &mut self,
+        tx: Transaction,
+        with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
-        self.inspect_transaction_with_bytecode_compression(
-            Self::TracerDispatcher::default(),
-            tx,
-            with_compression,
-        )
+        self.inspect_transaction_with_bytecode_compression(Tr::default(), tx, with_compression)
     }
 }
 
-impl<T: VmInterface<TracerDispatcher<'static>: Default>> VmInterfaceExt for T {}
+impl<Tr: Default, T: for<'a> VmInterface<TracerDispatcher<'a> = &'a mut Tr>>
+    VmInterfaceExt<BorrowedTracer> for T
+{
+    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
+        self.inspect(&mut Tr::default(), execution_mode)
+    }
+
+    fn execute_transaction_with_bytecode_compression(
+        &mut self,
+        tx: Transaction,
+        with_compression: bool,
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
+        self.inspect_transaction_with_bytecode_compression(&mut Tr::default(), tx, with_compression)
+    }
+}
 
 /// Encapsulates creating VM instance based on the provided environment.
 pub trait VmFactory<S>: VmInterface {
