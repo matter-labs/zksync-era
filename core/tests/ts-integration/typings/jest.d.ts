@@ -1,6 +1,8 @@
 import { MatcherModifier } from '../src/matchers/transaction-modifiers';
 
 export declare global {
+    function rawWriteToConsole(message: string, ...args: any[]);
+
     namespace jest {
         interface Matchers<R> {
             // Generic matchers

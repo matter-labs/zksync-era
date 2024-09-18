@@ -111,7 +111,7 @@ jobs:
     name: Build core images
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-    uses: ./.github/workflows/build-core-template.yml
+    uses: ./.github/workflows/new-build-core-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
@@ -136,7 +136,7 @@ jobs:
     name: Build contract verifier
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-    uses: ./.github/workflows/build-contract-verifier-template.yml
+    uses: ./.github/workflows/new-build-contract-verifier-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
@@ -148,7 +148,7 @@ jobs:
     name: Build prover images
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-    uses: ./.github/workflows/build-prover-template.yml
+    uses: ./.github/workflows/new-build-prover-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
       action: "build"
@@ -162,12 +162,10 @@ jobs:
     name: Build prover images with avx512 instructions
     needs: changed_files
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
-    uses: ./.github/workflows/build-witness-generator-template.yml
+    uses: ./.github/workflows/new-build-witness-generator-template.yml
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
       action: "build"
-      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
-      is_pr_from_fork: ${{ github.event.pull_request.head.repo.fork == true }}
       WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl"
     secrets:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
