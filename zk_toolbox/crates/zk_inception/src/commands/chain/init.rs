@@ -27,7 +27,10 @@ use crate::{
         MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
-    utils::consensus::{generate_consensus_keys, get_consensus_config, get_consensus_secrets},
+    utils::{
+        consensus::{generate_consensus_keys, get_consensus_config, get_consensus_secrets},
+        ports::EcosystemPortsScanner,
+    },
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -54,10 +57,12 @@ pub async fn init(
     ecosystem_config: &EcosystemConfig,
     chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
+    let mut ecosystem_ports = EcosystemPortsScanner::scan(shell)?;
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
     let mut general_config = chain_config.get_general_config()?;
-    apply_port_offset(init_args.port_offset, &mut general_config)?;
+    ecosystem_ports.allocate_ports(&mut general_config)?;
+
     let ports = ports_config(&general_config).context(MSG_PORTS_CONFIG_ERR)?;
 
     let consensus_keys = generate_consensus_keys();

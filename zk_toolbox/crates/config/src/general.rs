@@ -194,6 +194,7 @@ impl FileConfigWithDefaultName for GeneralConfig {
     const FILE_NAME: &'static str = GENERAL_FILE;
 }
 
+#[derive(Debug, Default, Clone)]
 pub struct PortsConfig {
     pub web3_json_rpc_http_port: u16,
     pub web3_json_rpc_ws_port: u16,

@@ -6,12 +6,12 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use config::EcosystemConfig;
+use config::{EcosystemConfig, PortsConfig};
 use serde_yaml::Value;
 use xshell::Shell;
 
 use crate::defaults::{
-    LOCAL_HTTP_RPC_PORT, LOCAL_WS_RPC_PORT, OBSERVABILITY_PORT, POSTGRES_DB_PORT,
+    LOCAL_HTTP_RPC_PORT, LOCAL_WS_RPC_PORT, OBSERVABILITY_PORT, PORT_RANGE, POSTGRES_DB_PORT,
 };
 
 #[derive(Default)]
@@ -44,14 +44,39 @@ impl EcosystemPorts {
         self.ports.entry(port).or_default().push(info);
     }
 
-    pub fn allocate_port(&mut self, range: Range<u16>, info: String) -> Result<u16> {
+    pub fn allocate_port(&mut self, range: Range<u16>, info: String) -> anyhow::Result<u16> {
         for port in range {
             if !self.is_port_assigned(port) {
                 self.add_port_info(port, info.to_string());
                 return Ok(port);
             }
         }
-        anyhow::bail!("No available ports in the given range")
+        anyhow::bail!(format!(
+            "No available ports in the given range. Failed to allocate port for: {}",
+            info
+        ));
+    }
+
+    pub fn allocate_ports(
+        &mut self,
+        general_config: &mut config::GeneralConfig,
+    ) -> anyhow::Result<()> {
+        let mut ports = PortsConfig::default();
+        ports.web3_json_rpc_http_port =
+            self.allocate_port(PORT_RANGE, "Web3 JSON RPC HTTP".to_string())?;
+        ports.web3_json_rpc_ws_port =
+            self.allocate_port(PORT_RANGE, "Web3 JSON RPC WS".to_string())?;
+        ports.healthcheck_port = self.allocate_port(PORT_RANGE, "Healthcheck".to_string())?;
+        ports.merkle_tree_port = self.allocate_port(PORT_RANGE, "Merkle Tree".to_string())?;
+        ports.prometheus_listener_port =
+            self.allocate_port(PORT_RANGE, "Prometheus".to_string())?;
+        ports.contract_verifier_port =
+            self.allocate_port(PORT_RANGE, "Contract Verifier".to_string())?;
+        ports.consensus_port = self.allocate_port(PORT_RANGE, "Consensus".to_string())?;
+
+        config::update_ports(general_config, &ports)?;
+
+        Ok(())
     }
 
     /// Finds the smallest multiple of the offset that, when added to the base ports,

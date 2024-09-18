@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use config::ChainConfig;
 use lazy_static::lazy_static;
 use url::Url;
@@ -16,6 +18,11 @@ pub const OBSERVABILITY_PORT: u16 = 3000;
 pub const POSTGRES_DB_PORT: u16 = 5432;
 pub const LOCAL_HTTP_RPC_PORT: u16 = 8545;
 pub const LOCAL_WS_RPC_PORT: u16 = 8546;
+
+// Default port range
+pub const PORT_RANGE_START: u16 = 3000;
+pub const PORT_RANGE_END: u16 = 5000;
+pub const PORT_RANGE: Range<u16> = PORT_RANGE_START..PORT_RANGE_END;
 
 pub const ROCKS_DB_STATE_KEEPER: &str = "state_keeper";
 pub const ROCKS_DB_TREE: &str = "tree";
