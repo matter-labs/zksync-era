@@ -4,6 +4,7 @@
 use std::time::Duration;
 
 use ::sentry::ClientInitGuard;
+use anyhow::Context as _;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 pub use crate::{logs::Logs, opentelemetry::OpenTelemetry, sentry::Sentry};
@@ -126,8 +127,9 @@ impl ObservabilityBuilder {
         self
     }
 
-    /// Initializes the observability subsystem.
-    pub fn build(self) -> ObservabilityGuard {
+    /// Tries to initialize the observability subsystem. Returns an error if it's already initialized.
+    /// This is mostly useful in tests.
+    pub fn try_build(self) -> anyhow::Result<ObservabilityGuard> {
         let logs = self.logs.unwrap_or_default();
         logs.install_panic_hook();
 
@@ -151,14 +153,20 @@ impl ObservabilityBuilder {
             .with(logs_layer)
             .with(otlp_tracing_layer)
             .with(otlp_logging_layer)
-            .init();
+            .try_init()
+            .context("failed installing global tracer / logger")?;
 
         let sentry_guard = self.sentry.map(|sentry| sentry.install());
 
-        ObservabilityGuard {
+        Ok(ObservabilityGuard {
             otlp_tracing_provider,
             otlp_logging_provider,
             sentry_guard,
-        }
+        })
+    }
+
+    /// Initializes the observability subsystem.
+    pub fn build(self) -> ObservabilityGuard {
+        self.try_build().unwrap()
     }
 }
