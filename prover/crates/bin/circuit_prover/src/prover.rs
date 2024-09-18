@@ -1,10 +1,6 @@
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, sync::Arc, time::Instant};
 
-use anyhow::{anyhow, Context};
+use anyhow::Context;
 use shivini::{
     gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data, ProverContext,
     ProverContextConfig,
@@ -29,19 +25,18 @@ use zksync_prover_fri_types::{
             worker::Worker,
         },
         circuit_definitions::{
-            base_layer::ZkSyncBaseLayerProof,
-            recursion_layer::{ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType},
+            base_layer::ZkSyncBaseLayerProof, recursion_layer::ZkSyncRecursionLayerProof,
         },
         recursion_layer_proof_config,
     },
-    CircuitWrapper, FriProofWrapper, ProverArtifacts, ProverJob, ProverServiceDataKey,
-    WitnessVectorArtifacts,
+    CircuitWrapper, FriProofWrapper, ProverArtifacts, ProverServiceDataKey,
+    WitnessVectorArtifactsTemp,
 };
 use zksync_prover_keystore::GoldilocksGpuProverSetupData;
-use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
-};
+use zksync_types::protocol_version::ProtocolSemanticVersion;
 use zksync_utils::panic_extractor::try_extract_panic_message;
+
+use crate::CIRCUIT_PROVER_METRICS;
 
 type DefaultTranscript = GoldilocksPoisedon2Transcript;
 type DefaultTreeHasher = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
@@ -53,9 +48,7 @@ pub struct CircuitProver {
     connection_pool: ConnectionPool<Prover>,
     object_store: Arc<dyn ObjectStore>,
     protocol_version: ProtocolSemanticVersion,
-    receiver: Receiver<WitnessVectorArtifacts>,
-    #[allow(dead_code)]
-    prover_context: ProverContext,
+    receiver: Receiver<WitnessVectorArtifactsTemp>,
     setup_keys: HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>,
 }
 
@@ -64,10 +57,10 @@ impl CircuitProver {
         connection_pool: ConnectionPool<Prover>,
         object_store: Arc<dyn ObjectStore>,
         protocol_version: ProtocolSemanticVersion,
-        receiver: Receiver<WitnessVectorArtifacts>,
+        receiver: Receiver<WitnessVectorArtifactsTemp>,
         max_allocation: Option<usize>,
         setup_keys: HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>,
-    ) -> anyhow::Result<Self> {
+    ) -> anyhow::Result<(Self, ProverContext)> {
         let prover_context = match max_allocation {
             Some(max_allocation) => ProverContext::create_with_config(
                 ProverContextConfig::default().with_maximum_device_allocation(max_allocation),
@@ -75,19 +68,21 @@ impl CircuitProver {
             .context("failed initializing gpu prover context")?,
             None => ProverContext::create().context("failed initializing gpu prover context")?,
         };
-        Ok(Self {
-            connection_pool,
-            object_store,
-            protocol_version,
-            receiver,
+        Ok((
+            Self {
+                connection_pool,
+                object_store,
+                protocol_version,
+                receiver,
+                setup_keys,
+            },
             prover_context,
-            setup_keys,
-        })
+        ))
     }
 
     pub async fn run(mut self, cancellation_token: CancellationToken) -> anyhow::Result<()> {
         while !cancellation_token.is_cancelled() {
-            let mut get_vector_timer = Instant::now();
+            let time = Instant::now();
 
             let artifact = self
                 .receiver
@@ -95,14 +90,15 @@ impl CircuitProver {
                 .await
                 .context("no witness vector generators are available")?;
             tracing::info!(
-                "Prover received job after: {:?}",
-                get_vector_timer.elapsed()
+                "Circuit Prover received job {:?} after: {:?}",
+                artifact.prover_job.job_id,
+                time.elapsed()
             );
+            CIRCUIT_PROVER_METRICS.job_wait_time.observe(time.elapsed());
+
             self.prove(artifact, cancellation_token.clone())
                 .await
                 .context("failed to prove circuit proof")?;
-
-            get_vector_timer = Instant::now();
         }
         tracing::warn!("Stop signal received, shutting down Witness Vector Generator");
         Ok(())
@@ -110,13 +106,14 @@ impl CircuitProver {
 
     async fn prove(
         &self,
-        artifact: WitnessVectorArtifacts,
+        artifact: WitnessVectorArtifactsTemp,
         cancellation_token: CancellationToken,
     ) -> anyhow::Result<()> {
-        let start = Instant::now();
+        let time = Instant::now();
         let block_number = artifact.prover_job.block_number;
         let setup_data_key = artifact.prover_job.setup_data_key.crypto_setup_key();
         let job_id = artifact.prover_job.job_id;
+        let job_start_time = artifact.time;
         let setup_data = self
             .setup_keys
             .get(&setup_data_key)
@@ -127,8 +124,25 @@ impl CircuitProver {
             Self::prove_circuit_proof(artifact, setup_data).context("failed to prove circuit")
         });
 
-        self.wait_for_task(job_id, start, task, cancellation_token.clone())
-            .await?;
+        self.wait_for_task(
+            job_id,
+            time,
+            job_start_time,
+            task,
+            cancellation_token.clone(),
+        )
+        .await?;
+        tracing::info!(
+            "Circuit Prover finished job {:?} in: {:?}",
+            job_id,
+            time.elapsed()
+        );
+        CIRCUIT_PROVER_METRICS
+            .job_finished_time
+            .observe(time.elapsed());
+        CIRCUIT_PROVER_METRICS
+            .full_proving_time
+            .observe(job_start_time.elapsed());
         Ok(())
     }
     #[tracing::instrument(
@@ -137,12 +151,14 @@ impl CircuitProver {
         fields(l1_batch = % witness_vector_artifacts.prover_job.block_number)
     )]
     pub fn prove_circuit_proof(
-        witness_vector_artifacts: WitnessVectorArtifacts,
+        witness_vector_artifacts: WitnessVectorArtifactsTemp,
         setup_data: Arc<GoldilocksGpuProverSetupData>,
     ) -> anyhow::Result<ProverArtifacts> {
-        let WitnessVectorArtifacts {
+        let time = Instant::now();
+        let WitnessVectorArtifactsTemp {
             witness_vector,
             prover_job,
+            ..
         } = witness_vector_artifacts;
 
         let job_id = prover_job.job_id;
@@ -170,6 +186,9 @@ impl CircuitProver {
                 ))
             }
         };
+        CIRCUIT_PROVER_METRICS
+            .crypto_primitives_time
+            .observe(time.elapsed());
         Ok(ProverArtifacts::new(block_number, proof_wrapper))
     }
 
@@ -178,6 +197,8 @@ impl CircuitProver {
         witness_vector: WitnessVec<GoldilocksField>,
         setup_data: &Arc<GoldilocksGpuProverSetupData>,
     ) -> anyhow::Result<(Proof<F, H, Ext>, u8)> {
+        let time = Instant::now();
+
         let worker = Worker::new();
 
         let (gpu_proof_config, proof_config, circuit_id) = match circuit_wrapper {
@@ -209,6 +230,9 @@ impl CircuitProver {
                 &worker,
             )
             .context("crypto primitive: failed to generate proof")?;
+        CIRCUIT_PROVER_METRICS
+            .generate_proof_time
+            .observe(time.elapsed());
         Ok((proof.into(), circuit_id))
     }
 
@@ -217,6 +241,8 @@ impl CircuitProver {
         proof: &Proof<F, H, Ext>,
         verification_key: &VerificationKey<F, H>,
     ) -> anyhow::Result<()> {
+        let time = Instant::now();
+
         let is_valid = match circuit_wrapper {
             CircuitWrapper::Base(base_circuit) => {
                 verify_base_layer_proof::<NoPow>(base_circuit, proof, verification_key)
@@ -231,6 +257,10 @@ impl CircuitProver {
             }
         };
 
+        CIRCUIT_PROVER_METRICS
+            .verify_proof_time
+            .observe(time.elapsed());
+
         if !is_valid {
             return Err(anyhow::anyhow!("crypto primitive: failed to verify proof"));
         }
@@ -240,7 +270,8 @@ impl CircuitProver {
     async fn wait_for_task(
         &self,
         job_id: u32,
-        started_at: Instant,
+        time: Instant,
+        job_start_time: Instant,
         task: JoinHandle<anyhow::Result<ProverArtifacts>>,
         cancellation_token: CancellationToken,
     ) -> anyhow::Result<()> {
@@ -252,21 +283,22 @@ impl CircuitProver {
             result = task => {
                 let error_message = match result {
                     Ok(Ok(prover_artifact)) => {
+                        tracing::info!("Circuit Prover executed job {:?} in: {:?}", job_id, time.elapsed());
+                        CIRCUIT_PROVER_METRICS.execution_time.observe(time.elapsed());
                         self
-                            .save_result(job_id, started_at, prover_artifact)
+                            .save_result(job_id, job_start_time, prover_artifact)
                             .await.context("failed to save result")?;
-                        tracing::info!("Prover executed job in: {:?}", started_at.elapsed());
                         return Ok(())
                     }
                     Ok(Err(error)) => error.to_string(),
                     Err(error) => try_extract_panic_message(error),
                 };
                 tracing::error!(
-                    "Error occurred while processing {} job {:?}: {:?}",
-                    "prover",
+                    "Circuit Prover failed on job {:?} with error {:?}",
                     job_id,
                     error_message
                 );
+
                 self.save_failure(job_id, error_message).await.context("failed to save result")?;
             }
         }
@@ -277,9 +309,10 @@ impl CircuitProver {
     async fn save_result(
         &self,
         job_id: u32,
-        started_at: Instant,
+        job_start_time: Instant,
         artifacts: ProverArtifacts,
     ) -> anyhow::Result<()> {
+        let time = Instant::now();
         let mut connection = self
             .connection_pool
             .connection()
@@ -297,14 +330,15 @@ impl CircuitProver {
             },
         };
 
-        // let blob_save_started_at = Instant::now();
+        let upload_time = Instant::now();
         let blob_url = self
             .object_store
             .put(job_id, &proof)
             .await
             .context("failed to upload to object store")?;
-
-        // METRICS.blob_save_time[&circuit_type.to_string()].observe(blob_save_started_at.elapsed());
+        CIRCUIT_PROVER_METRICS
+            .artifact_upload_time
+            .observe(upload_time.elapsed());
 
         let mut transaction = connection
             .start_transaction()
@@ -312,7 +346,7 @@ impl CircuitProver {
             .context("failed to start transaction")?;
         transaction
             .fri_prover_jobs_dal()
-            .save_proof(job_id, started_at.elapsed(), &blob_url)
+            .save_proof(job_id, job_start_time.elapsed(), &blob_url)
             .await;
         if is_scheduler_proof {
             transaction
@@ -328,6 +362,14 @@ impl CircuitProver {
             .commit()
             .await
             .context("failed to commit transaction")?;
+
+        tracing::info!(
+            "Circuit Prover saved job {:?} after {:?}",
+            job_id,
+            time.elapsed()
+        );
+        CIRCUIT_PROVER_METRICS.save_time.observe(time.elapsed());
+
         Ok(())
     }
 

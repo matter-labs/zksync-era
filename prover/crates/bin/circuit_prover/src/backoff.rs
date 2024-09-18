@@ -22,7 +22,8 @@ impl Backoff {
     // Determine the next delay (exponential backoff with jitter)
     pub fn delay(&mut self) -> Duration {
         let delay = self.current_delay * 2;
-        delay.min(self.max_delay)
+        self.current_delay = delay.min(self.max_delay);
+        self.current_delay
         // delay = delay *
         // Calculate exponential backoff with jitter
         // let exp_delay = self.base_delay * (1 << (self.attempt - 1));

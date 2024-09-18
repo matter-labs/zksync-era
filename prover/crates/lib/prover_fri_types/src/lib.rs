@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, time::Instant};
 
 pub use circuit_definitions;
 use circuit_definitions::{
@@ -94,6 +94,27 @@ impl WitnessVectorArtifacts {
         Self {
             witness_vector,
             prover_job,
+        }
+    }
+}
+
+// #[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct WitnessVectorArtifactsTemp {
+    pub witness_vector: WitnessVec<GoldilocksField>,
+    pub prover_job: ProverJob,
+    pub time: Instant,
+}
+
+impl WitnessVectorArtifactsTemp {
+    pub fn new(
+        witness_vector: WitnessVec<GoldilocksField>,
+        prover_job: ProverJob,
+        time: Instant,
+    ) -> Self {
+        Self {
+            witness_vector,
+            prover_job,
+            time,
         }
     }
 }

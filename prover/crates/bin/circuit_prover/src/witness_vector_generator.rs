@@ -17,19 +17,19 @@ use zksync_prover_fri_types::{
     get_current_pod_name,
     keys::RamPermutationQueueWitnessKey,
     CircuitAuxData, CircuitWrapper, ProverJob, ProverServiceDataKey, RamPermutationQueueWitness,
-    WitnessVectorArtifacts,
+    WitnessVectorArtifactsTemp,
 };
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
-use crate::Backoff;
+use crate::{Backoff, WITNESS_VECTOR_GENERATOR_METRICS};
 
 pub struct WitnessVectorGenerator {
     object_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
     finalization_hints: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
-    sender: Sender<WitnessVectorArtifacts>,
+    sender: Sender<WitnessVectorArtifactsTemp>,
     pod_name: String,
 }
 
@@ -39,7 +39,7 @@ impl WitnessVectorGenerator {
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
         finalization_hints: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
-        sender: Sender<WitnessVectorArtifacts>,
+        sender: Sender<WitnessVectorArtifactsTemp>,
     ) -> Self {
         Self {
             object_store,
@@ -64,9 +64,13 @@ impl WitnessVectorGenerator {
                 .context("failed to get next witness generation job")?
             {
                 tracing::info!(
-                    "Witness Vector Generator received job after: {:?}",
+                    "Witness Vector Generator received job {:?} after: {:?}",
+                    prover_job.job_id,
                     get_job_timer.elapsed()
                 );
+                WITNESS_VECTOR_GENERATOR_METRICS
+                    .job_wait_time
+                    .observe(get_job_timer.elapsed());
                 self.generate(prover_job, cancellation_token.clone())
                     .await
                     .context("failed to generate witness")?;
@@ -77,7 +81,7 @@ impl WitnessVectorGenerator {
             };
             self.backoff(&mut backoff, cancellation_token.clone()).await;
         }
-        tracing::warn!("Stop signal received, shutting down Witness Vector Generator");
+        tracing::info!("Witness Vector Generator shut down.");
         Ok(())
     }
 
@@ -96,6 +100,7 @@ impl WitnessVectorGenerator {
             Some(job) => job,
         };
 
+        let time = Instant::now();
         let circuit_wrapper = self
             .object_store
             .get(prover_job_metadata.into())
@@ -109,6 +114,9 @@ impl WitnessVectorGenerator {
                 .await
                 .context("failed to fill witness")?,
         };
+        WITNESS_VECTOR_GENERATOR_METRICS
+            .artifact_download_time
+            .observe(time.elapsed());
 
         let setup_data_key = ProverServiceDataKey {
             circuit_id: prover_job_metadata.circuit_id,
@@ -177,7 +185,7 @@ impl WitnessVectorGenerator {
         prover_job: ProverJob,
         cancellation_token: CancellationToken,
     ) -> anyhow::Result<()> {
-        let started_at = Instant::now();
+        let start_time = Instant::now();
         let finalization_hints = self
             .finalization_hints
             .get(&prover_job.setup_data_key)
@@ -190,13 +198,17 @@ impl WitnessVectorGenerator {
             Self::generate_witness_vector(prover_job, finalization_hints)
         });
 
-        self.wait_for_task(job_id, started_at, task, cancellation_token.clone())
+        self.wait_for_task(job_id, start_time, task, cancellation_token.clone())
             .await?;
 
         tracing::info!(
-            "Witness Vector Generator executed job in: {:?}",
-            started_at.elapsed()
+            "Witness Vector Generator finished job {:?} in: {:?}",
+            job_id,
+            start_time.elapsed()
         );
+        WITNESS_VECTOR_GENERATOR_METRICS
+            .job_finished_time
+            .observe(start_time.elapsed());
         Ok(())
     }
 
@@ -207,7 +219,8 @@ impl WitnessVectorGenerator {
     pub fn generate_witness_vector(
         prover_job: ProverJob,
         finalization_hints: Arc<FinalizationHintsForProver>,
-    ) -> anyhow::Result<WitnessVectorArtifacts> {
+    ) -> anyhow::Result<WitnessVectorArtifactsTemp> {
+        let time = Instant::now();
         let cs = match prover_job.circuit_wrapper.clone() {
             CircuitWrapper::Base(base_circuit) => {
                 base_circuit.synthesis::<GoldilocksField>(&finalization_hints)
@@ -221,70 +234,77 @@ impl WitnessVectorGenerator {
                 ));
             }
         };
-        Ok(WitnessVectorArtifacts::new(cs.witness.unwrap(), prover_job))
+        WITNESS_VECTOR_GENERATOR_METRICS
+            .crypto_primitive_time
+            .observe(time.elapsed());
+        Ok(WitnessVectorArtifactsTemp::new(
+            cs.witness.unwrap(),
+            prover_job,
+            time,
+        ))
     }
 
     async fn wait_for_task(
         &self,
         job_id: u32,
-        started_at: Instant,
-        task: JoinHandle<anyhow::Result<WitnessVectorArtifacts>>,
+        time: Instant,
+        task: JoinHandle<anyhow::Result<WitnessVectorArtifactsTemp>>,
         cancellation_token: CancellationToken,
     ) -> anyhow::Result<()> {
         tokio::select! {
             _ = cancellation_token.cancelled() => {
-                tracing::info!("Task received cancellation!");
+                tracing::info!("Stop signal received, shutting down witness vector generator...");
                 return Ok(())
             }
             result = task => {
                 let error_message = match result {
                     Ok(Ok(witness_vector)) => {
+                        tracing::info!("Witness Vector Generator executed job {:?} in: {:?}", job_id, time.elapsed());
+                        WITNESS_VECTOR_GENERATOR_METRICS.execution_time.observe(time.elapsed());
                         self
-                            .save_result(witness_vector)
-                            .await.context("failed to save result")?;
-                        tracing::info!("Witness Vector Generator executed job in: {:?}", started_at.elapsed());
+                            .save_result(witness_vector, job_id)
+                            .await
+                            .context("failed to save result")?;
                         return Ok(())
                     }
                     Ok(Err(error)) => error.to_string(),
                     Err(error) => try_extract_panic_message(error),
                 };
-                tracing::error!(
-                    "Error occurred while processing {} job {:?}: {:?}",
-                    "witness_vector_generator",
-                    job_id,
-                    error_message
-                );
+                tracing::error!("Witness Vector Generator failed on job {job_id:?} with error {error_message:?}");
 
-                self.save_failure(job_id, started_at, error_message).await.context("failed to save result")?;
+                self.save_failure(job_id, error_message).await.context("failed to save result")?;
             }
         }
 
         Ok(())
     }
 
-    async fn save_result(&self, artifacts: WitnessVectorArtifacts) -> anyhow::Result<()> {
-        let now = Instant::now();
+    async fn save_result(
+        &self,
+        artifacts: WitnessVectorArtifactsTemp,
+        job_id: u32,
+    ) -> anyhow::Result<()> {
+        let time = Instant::now();
         self.sender
             .send(artifacts)
             .await
             .context("failed to send witness vector to prover")?;
         tracing::info!(
-            "Witness Vector Generator sent job after {:?}",
-            now.elapsed()
+            "Witness Vector Generator sent job {:?} after {:?}",
+            job_id,
+            time.elapsed()
         );
+        WITNESS_VECTOR_GENERATOR_METRICS
+            .send_time
+            .observe(time.elapsed());
         Ok(())
     }
 
-    async fn save_failure(
-        &self,
-        job_id: u32,
-        _started_at: Instant,
-        error: String,
-    ) -> anyhow::Result<()> {
+    async fn save_failure(&self, job_id: u32, error: String) -> anyhow::Result<()> {
         self.connection_pool
             .connection()
             .await
-            .context("failed to get connection from connection pool")?
+            .context("failed to get connection")?
             .fri_prover_jobs_dal()
             .save_proof_error(job_id, error)
             .await;
@@ -293,7 +313,7 @@ impl WitnessVectorGenerator {
 
     async fn backoff(&self, backoff: &mut Backoff, cancellation_token: CancellationToken) {
         let backoff_duration = backoff.delay();
-        tracing::info!("Backing off for {:?} ms", backoff_duration);
+        tracing::info!("Backing off for {:?}...", backoff_duration);
         // Error here corresponds to a timeout w/o receiving task cancel; we're OK with this.
         tokio::time::timeout(backoff_duration, cancellation_token.cancelled())
             .await

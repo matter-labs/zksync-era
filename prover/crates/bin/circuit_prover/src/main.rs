@@ -1,9 +1,16 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::Arc,
+    time::{Duration, Instant},
+};
 
 use anyhow::Context as _;
 use clap::Parser;
 use tokio_util::sync::CancellationToken;
-use zksync_circuit_prover::{Backoff, CircuitProver, WitnessVectorGenerator};
+use zksync_circuit_prover::{
+    Backoff, CircuitProver, WitnessVectorGenerator, PROVER_BINARY_METRICS,
+};
 use zksync_config::{
     configs::{FriProverConfig, ObservabilityConfig},
     ObjectStoreConfig,
@@ -32,14 +39,17 @@ struct Cli {
     #[arg(long)]
     pub(crate) max_allocation: Option<usize>,
 }
-//
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let time = Instant::now();
     let opt = Cli::parse();
 
     let (observability_config, prover_config, object_store_config) = load_configs(opt.config_path)?;
 
-    let _observability_guard = observability_config.install()?;
+    let _observability_guard = observability_config
+        .install()
+        .context("failed to install observability")?;
 
     let wvg_count = opt.witness_vector_generator_count as u32;
 
@@ -49,15 +59,19 @@ async fn main() -> anyhow::Result<()> {
         prover_config.setup_data_path.into(),
         wvg_count,
     )
-    .await?;
+    .await
+    .context("failed to load configs")?;
+
+    PROVER_BINARY_METRICS.start_up.observe(time.elapsed());
 
     let cancellation_token = CancellationToken::new();
     let backoff = Backoff::new(Duration::from_secs(5), Duration::from_secs(30));
 
     let mut tasks = vec![];
 
-    // TODO: Add config value here
     let (sender, receiver) = tokio::sync::mpsc::channel(5);
+
+    tracing::info!("Preparing to start {wvg_count} witness vector generators.");
 
     for _ in 0..wvg_count {
         let wvg = WitnessVectorGenerator::new(
@@ -72,7 +86,7 @@ async fn main() -> anyhow::Result<()> {
         ));
     }
 
-    let prover = CircuitProver::new(
+    let (prover, _prover_context) = CircuitProver::new(
         connection_pool,
         object_store,
         PROVER_PROTOCOL_SEMANTIC_VERSION,
@@ -89,7 +103,7 @@ async fn main() -> anyhow::Result<()> {
         result = tokio::signal::ctrl_c() => {
             match result {
                 Ok(_) => {
-                    tracing::info!("Stop signal received, shutting down");
+                    tracing::info!("Stop signal received, shutting down...");
                     cancellation_token.cancel();
                 },
                 Err(_err) => {
@@ -98,14 +112,20 @@ async fn main() -> anyhow::Result<()> {
             }
         }
     }
+    PROVER_BINARY_METRICS.run_time.observe(time.elapsed());
     tasks.complete(Duration::from_secs(5)).await;
 
     Ok(())
 }
 
+/// Loads configs necessary for proving.
+/// - observability config - for observability setup
+/// - prover config - necessary for setup data
+/// - object store config - for retrieving artifacts for WVG & CP
 fn load_configs(
     config_path: Option<PathBuf>,
 ) -> anyhow::Result<(ObservabilityConfig, FriProverConfig, ObjectStoreConfig)> {
+    tracing::info!("loading configs...");
     let general_config =
         load_general_config(config_path).context("failed loading general config")?;
     let observability_config = general_config
@@ -118,9 +138,15 @@ fn load_configs(
         .prover_object_store
         .clone()
         .context("failed loading prover object store config")?;
+    tracing::info!("Loaded configs.");
     Ok((observability_config, prover_config, object_store_config))
 }
 
+/// Loads resources necessary for proving.
+/// - connection pool - necessary to pick & store jobs from database
+/// - object store - necessary  for loading and storing artifacts to object store
+/// - setup keys - necessary for circuit proving
+/// - finalization hints - necessary for generating witness vectors
 async fn load_resources(
     secrets_path: Option<PathBuf>,
     object_store_config: ObjectStoreConfig,
@@ -132,12 +158,13 @@ async fn load_resources(
     HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>,
     HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
 )> {
-    let database_secrets = load_database_secrets(secrets_path).context("database secrets")?;
+    let database_secrets =
+        load_database_secrets(secrets_path).context("failed to load database secrets")?;
     let database_url = database_secrets
         .prover_url
         .context("no prover DB URl present")?;
 
-    // 1 connection for the prover and another one for each vector generator
+    // 1 connection for the prover and one for each vector generator
     let max_connections = 1 + wvg_count;
     let connection_pool = ConnectionPool::<Prover>::builder(database_url, max_connections)
         .build()
@@ -147,11 +174,22 @@ async fn load_resources(
     let object_store = ObjectStoreFactory::new(object_store_config)
         .create_store()
         .await
-        .expect("failed to create object store");
+        .context("failed to create object store")?;
+
+    tracing::info!("Loading key mappings from disk...");
 
     let keystore = Keystore::locate().with_setup_path(Some(setup_data_path));
-    let setup_keys = keystore.load_all_setup_key_mappings().await?;
-    let finalization_hints = keystore.load_all_finalization_hints_mappings().await?;
+    let setup_keys = keystore
+        .load_all_setup_key_mapping()
+        .await
+        .context("failed to load setup key mapping")?;
+    let finalization_hints = keystore
+        .load_all_finalization_hints_mapping()
+        .await
+        .context("failed to load finalization hints mapping")?;
+
+    tracing::info!("Loaded key mappings from disk.");
+
     Ok((
         connection_pool,
         object_store,

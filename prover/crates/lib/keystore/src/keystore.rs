@@ -473,25 +473,25 @@ impl Keystore {
         Self::save_json_pretty(self.get_base_path().join("commitments.json"), &commitments)
     }
 
-    /// Async loads a mapping of all circuits to setup key, if successful
-    pub async fn load_all_setup_key_mappings(
+    /// Async loads mapping of all circuits to setup key, if successful
+    pub async fn load_all_setup_key_mapping(
         &self,
     ) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>> {
-        self.load_key_mappings(ProverServiceDataType::SetupData)
+        self.load_key_mapping(ProverServiceDataType::SetupData)
             .await
     }
 
-    /// Async loads a mapping of all circuits to finalization hints, if successful
-    pub async fn load_all_finalization_hints_mappings(
+    /// Async loads mapping of all circuits to finalization hints, if successful
+    pub async fn load_all_finalization_hints_mapping(
         &self,
     ) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>> {
-        self.load_key_mappings(ProverServiceDataType::FinalizationHints)
+        self.load_key_mapping(ProverServiceDataType::FinalizationHints)
             .await
     }
 
     /// Async function that loads mapping from disk.
-    /// This is done because serialization/deserialization can be slow
-    async fn load_key_mappings<T: DeserializeOwned + Send + Sync + 'static>(
+    /// Whilst IO is not parallelizable, ser/de is.
+    async fn load_key_mapping<T: DeserializeOwned + Send + Sync + 'static>(
         &self,
         data_type: ProverServiceDataType,
     ) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<T>>> {

@@ -16,6 +16,7 @@ anyhow.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
 bincode.workspace = true
+clap = { workspace = true, features = ["derive"] }
 
 zksync_config.workspace = true
 zksync_object_store.workspace = true
@@ -29,10 +30,10 @@ zksync_env_config.workspace = true
 zksync_core_leftovers.workspace = true
 zksync_utils.workspace = true
 
+vise.workspace = true
 
 shivini = { workspace = true, features = [
     "circuit_definitions",
     "zksync",
 ] }
 zkevm_test_harness.workspace = true
-clap = { workspace = true, features = ["derive"] }

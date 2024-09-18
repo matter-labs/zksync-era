@@ -7356,6 +7356,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+ "vise",
  "zkevm_test_harness",
  "zksync_config",
  "zksync_core_leftovers",
