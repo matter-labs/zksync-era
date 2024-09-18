@@ -1,6 +1,6 @@
 # Will work locally only after prior contracts build
 
-FROM matterlabs/zksync-build-base:latest AS builder
+FROM ghcr.io/matter-labs/zksync-build-base:latest AS builder
 
 # set of args for use of sccache
 ARG SCCACHE_GCS_BUCKET=""
