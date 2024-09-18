@@ -17,6 +17,7 @@ keys/setup
 !db/
 !backups/
 !core/
+!retrieve-blobs/
 !prover/
 !yarn.lock
 !package.json
