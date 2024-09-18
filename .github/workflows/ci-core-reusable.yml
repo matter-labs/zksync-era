@@ -300,6 +300,7 @@ jobs:
           ci_run zk_inception chain migrate-to-gateway --chain era --gateway-chain-name gateway
 
       - name: Run era chain
+        run: |
           ci_run zk_inception server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
 
       - name: Run integration tests
