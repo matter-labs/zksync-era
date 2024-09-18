@@ -499,7 +499,7 @@ impl<S: ReadStorage> Vm<S> {
 }
 
 impl<S: ReadStorage> VmInterface for Vm<S> {
-    type TracerDispatcher = ();
+    type TracerDispatcher<'a> = ();
 
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
         self.push_transaction_inner(tx, 0, true);
@@ -507,7 +507,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
     fn inspect(
         &mut self,
-        (): Self::TracerDispatcher,
+        (): Self::TracerDispatcher<'_>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut track_refunds = false;
@@ -596,7 +596,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        (): Self::TracerDispatcher,
+        (): Self::TracerDispatcher<'_>,
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {

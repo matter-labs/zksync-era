@@ -19,7 +19,8 @@ use crate::{
 };
 
 pub trait VmInterface {
-    type TracerDispatcher: Default;
+    /// Lifetime is used to be able to define `Option<&mut _>` as a dispatcher.
+    type TracerDispatcher<'a>: Default;
 
     /// Push transaction to bootloader memory.
     fn push_transaction(&mut self, tx: Transaction);
@@ -28,7 +29,7 @@ pub trait VmInterface {
     /// with custom tracers.
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher,
+        dispatcher: Self::TracerDispatcher<'_>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs;
 
@@ -38,7 +39,7 @@ pub trait VmInterface {
     /// Execute transaction with optional bytecode compression using custom tracers.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: Self::TracerDispatcher<'_>,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs);

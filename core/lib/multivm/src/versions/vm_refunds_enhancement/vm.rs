@@ -73,7 +73,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
-    type TracerDispatcher = TracerDispatcher<S, H::VmVirtualBlocksRefundsEnhancement>;
+    type TracerDispatcher<'a> = TracerDispatcher<S, H::VmVirtualBlocksRefundsEnhancement>;
 
     /// Push tx into memory for the future execution
     fn push_transaction(&mut self, tx: Transaction) {
@@ -83,7 +83,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     /// Execute VM with custom tracers.
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher,
+        dispatcher: Self::TracerDispatcher<'_>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         self.inspect_inner(dispatcher, execution_mode)
@@ -96,7 +96,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     /// Inspect transaction with optional bytecode compression.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        dispatcher: Self::TracerDispatcher,
+        dispatcher: Self::TracerDispatcher<'_>,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {

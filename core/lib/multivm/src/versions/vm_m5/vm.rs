@@ -54,7 +54,7 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
 
 impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
     /// Tracers are not supported for here we use `()` as a placeholder
-    type TracerDispatcher = ();
+    type TracerDispatcher<'a> = ();
 
     fn push_transaction(&mut self, tx: Transaction) {
         crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
@@ -66,7 +66,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn inspect(
         &mut self,
-        _tracer: Self::TracerDispatcher,
+        _tracer: Self::TracerDispatcher<'_>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         match execution_mode {
@@ -90,7 +90,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        _tracer: Self::TracerDispatcher,
+        _tracer: Self::TracerDispatcher<'_>,
         tx: Transaction,
         _with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {

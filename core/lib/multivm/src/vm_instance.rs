@@ -43,7 +43,7 @@ macro_rules! dispatch_legacy_vm {
 }
 
 impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
-    type TracerDispatcher = TracerDispatcher<StorageView<S>, H>;
+    type TracerDispatcher<'a> = TracerDispatcher<StorageView<S>, H>;
 
     /// Push tx into memory for the future execution
     fn push_transaction(&mut self, tx: Transaction) {
@@ -53,7 +53,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     /// Execute next transaction with custom tracers
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher,
+        dispatcher: Self::TracerDispatcher<'_>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         dispatch_legacy_vm!(self.inspect(dispatcher.into(), execution_mode))
@@ -66,7 +66,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     /// Inspect transaction with optional bytecode compression.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        dispatcher: Self::TracerDispatcher,
+        dispatcher: Self::TracerDispatcher<'_>,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
@@ -226,7 +226,7 @@ macro_rules! dispatch_fast_vm {
 }
 
 impl<S: ReadStorage> VmInterface for FastVmInstance<S> {
-    type TracerDispatcher = ();
+    type TracerDispatcher<'a> = ();
 
     fn push_transaction(&mut self, tx: Transaction) {
         dispatch_fast_vm!(self.push_transaction(tx));
@@ -234,7 +234,7 @@ impl<S: ReadStorage> VmInterface for FastVmInstance<S> {
 
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher,
+        dispatcher: Self::TracerDispatcher<'_>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         match self {
@@ -249,7 +249,7 @@ impl<S: ReadStorage> VmInterface for FastVmInstance<S> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: Self::TracerDispatcher<'_>,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {

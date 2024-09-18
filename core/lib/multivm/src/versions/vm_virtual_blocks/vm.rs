@@ -73,7 +73,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
-    type TracerDispatcher = TracerDispatcher<S, H::VmVirtualBlocksMode>;
+    type TracerDispatcher<'a> = TracerDispatcher<S, H::VmVirtualBlocksMode>;
 
     /// Push tx into memory for the future execution
     fn push_transaction(&mut self, tx: Transaction) {

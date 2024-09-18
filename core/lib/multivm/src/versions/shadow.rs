@@ -39,12 +39,13 @@ where
     }
 }
 
+// FIXME: combine tracers
 impl<S, T> VmInterface for ShadowVm<S, T>
 where
     S: ReadStorage,
     T: VmInterface,
 {
-    type TracerDispatcher = T::TracerDispatcher;
+    type TracerDispatcher<'a> = T::TracerDispatcher<'a>;
 
     fn push_transaction(&mut self, tx: Transaction) {
         self.shadow.push_transaction(tx.clone());
@@ -53,7 +54,7 @@ where
 
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher,
+        dispatcher: Self::TracerDispatcher<'_>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let shadow_result = self.shadow.inspect((), execution_mode);
@@ -74,7 +75,7 @@ where
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: Self::TracerDispatcher<'_>,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
