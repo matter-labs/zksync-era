@@ -109,6 +109,24 @@ impl TxSet {
     }
 }
 
+async fn get_attester_committee(
+    consensus_registry: &abi::ConsensusRegistry<impl 'static + Middleware>,
+) -> anyhow::Result<attester::Committee> {
+    let attesters = consensus_registry
+        .get_attester_committee()
+        .call()
+        .await
+        .context("get_attester_committee()")?;
+    let attesters: Vec<_> = attesters
+        .iter()
+        .map(decode_weighted_attester)
+        .collect::<Result<_, _>>()
+        .context("decode_weighted_attester")?;
+    let attesters =
+        attester::Committee::new(attesters.into_iter()).context("attester::Committee::new()")?;
+    Ok(attesters)
+}
+
 impl Command {
     pub(crate) async fn run(self, shell: &Shell) -> anyhow::Result<()> {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -223,7 +241,7 @@ impl Command {
 
                 // Update the state.
                 let mut txs = TxSet::default();
-                let mut want: HashMap<_, _> =
+                let mut to_insert: HashMap<_, _> =
                     want.iter().map(|a| (a.key.clone(), a.weight)).collect();
                 for (i, node) in nodes.into_iter().enumerate() {
                     if node.attester_latest.removed {
@@ -234,7 +252,7 @@ impl Command {
                             .context("decode_attester_key")?,
                         weight: node.attester_latest.weight.into(),
                     };
-                    if let Some(weight) = want.remove(&got.key) {
+                    if let Some(weight) = to_insert.remove(&got.key) {
                         if weight != got.weight {
                             txs.send(
                                 "changed_attester_weight",
@@ -254,7 +272,7 @@ impl Command {
                             .await?;
                     }
                 }
-                for (key, weight) in want {
+                for (key, weight) in to_insert {
                     let vk = validator::SecretKey::generate();
                     txs.send(
                         "add",
@@ -275,17 +293,15 @@ impl Command {
                 )
                 .await?;
                 txs.wait(&provider).await.context("wait()")?;
+                let got = get_attester_committee(&consensus_registry).await?;
+                anyhow::ensure!(
+                    got == want,
+                    "setting attester committee failed: got {got:?}, want {want:?}"
+                );
                 println!("done");
             }
             Self::GetAttesterCommittee => {
-                let attesters = consensus_registry.get_attester_committee().call().await?;
-                let attesters: Vec<_> = attesters
-                    .iter()
-                    .map(decode_weighted_attester)
-                    .collect::<Result<_, _>>()
-                    .context("decode_weighted_attester")?;
-                let attesters = attester::Committee::new(attesters.into_iter())
-                    .context("attester::Committee::new()")?;
+                let attesters = get_attester_committee(&consensus_registry).await?;
                 for a in attesters.iter() {
                     println!("{a:?}");
                 }
