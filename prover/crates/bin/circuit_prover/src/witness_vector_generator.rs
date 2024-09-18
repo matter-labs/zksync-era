@@ -71,9 +71,15 @@ impl WitnessVectorGenerator {
                 WITNESS_VECTOR_GENERATOR_METRICS
                     .job_wait_time
                     .observe(get_job_timer.elapsed());
-                self.generate(prover_job, cancellation_token.clone())
-                    .await
-                    .context("failed to generate witness")?;
+                match self.generate(prover_job, cancellation_token.clone()).await {
+                    e @ Err(_) => {
+                        if cancellation_token.is_cancelled() {
+                            return Ok(());
+                        }
+                        e.context("failed to generate witness")?
+                    }
+                    _ => {}
+                }
 
                 get_job_timer = Instant::now();
                 backoff.reset();
@@ -253,7 +259,7 @@ impl WitnessVectorGenerator {
     ) -> anyhow::Result<()> {
         tokio::select! {
             _ = cancellation_token.cancelled() => {
-                tracing::info!("Stop signal received, shutting down witness vector generator...");
+                tracing::info!("Stop signal received, shutting down Witness Vector Generator...");
                 return Ok(())
             }
             result = task => {

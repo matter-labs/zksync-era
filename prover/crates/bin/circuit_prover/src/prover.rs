@@ -100,7 +100,7 @@ impl CircuitProver {
                 .await
                 .context("failed to prove circuit proof")?;
         }
-        tracing::warn!("Stop signal received, shutting down Witness Vector Generator");
+        tracing::info!("Circuit Prover shut down.");
         Ok(())
     }
 
@@ -277,7 +277,7 @@ impl CircuitProver {
     ) -> anyhow::Result<()> {
         tokio::select! {
             _ = cancellation_token.cancelled() => {
-                tracing::info!("received cancellation!");
+                tracing::info!("Stop signal received, shutting down Circuit Prover...");
                 return Ok(())
             }
             result = task => {
