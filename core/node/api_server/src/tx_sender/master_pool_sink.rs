@@ -4,7 +4,7 @@ use tokio::sync::Mutex;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, ConnectionPool, Core, CoreDal};
 use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_types::{ExternalTx, Address, Nonce, H256};
+use zksync_types::{Address, ExternalTx, Nonce, H256};
 
 use super::{tx_sink::TxSink, SubmitTxError};
 use crate::web3::metrics::API_METRICS;

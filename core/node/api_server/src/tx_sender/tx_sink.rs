@@ -2,7 +2,7 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, Core};
 use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_types::{
     api::{Transaction, TransactionDetails, TransactionId},
-    Address, Nonce, H256, ExternalTx,
+    Address, ExternalTx, Nonce, H256,
 };
 use zksync_web3_decl::error::Web3Error;
 

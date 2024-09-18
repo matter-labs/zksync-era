@@ -13,7 +13,7 @@ use zksync_dal::{
 };
 use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_types::{api, ExternalTx, Address, Nonce, H256, U256};
+use zksync_types::{api, Address, ExternalTx, Nonce, H256, U256};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     error::{ClientRpcContext, EnrichedClientResult, Web3Error},
