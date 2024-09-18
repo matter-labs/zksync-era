@@ -1,8 +1,10 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 
 use once_cell::sync::Lazy;
 use zksync_basic_types::{AccountTreeId, Address, H256, U256};
+use zksync_config::configs::use_evm_simulator;
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
+use zksync_env_config::FromEnv;
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
     EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, P256VERIFY_PRECOMPILE_ADDRESS,
@@ -27,7 +29,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 25] = [
     (
         "",
         "AccountCodeStorage",
@@ -149,12 +151,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
         COMPLEX_UPGRADER_ADDRESS,
         ContractLanguage::Sol,
     ),
-    (
-        "",
-        "EvmGasManager",
-        EVM_GAS_MANAGER_ADDRESS,
-        ContractLanguage::Sol,
-    ),
+    // (
+    //     "",
+    //     "EvmGasManager",
+    //     EVM_GAS_MANAGER_ADDRESS,
+    //     ContractLanguage::Sol,
+    // ),
     // For now, only zero address and the bootloader address have empty bytecode at the init
     // In the future, we might want to set all of the system contracts this way.
     ("", "EmptyContract", Address::zero(), ContractLanguage::Sol),
@@ -179,11 +181,19 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
 ];
 
 static EVM_SIMULATOR_HASH: Lazy<H256> = Lazy::new(|| {
-    hash_bytecode(&read_sys_contract_bytecode(
-        "",
-        "EvmInterpreter",
-        ContractLanguage::Yul,
-    ))
+    if use_evm_simulator::UseEvmSimulator::from_env()
+        .unwrap()
+        .use_evm_simulator
+    {
+        hash_bytecode(&read_sys_contract_bytecode(
+            "",
+            "EvmInterpreter",
+            ContractLanguage::Yul,
+        ))
+    } else {
+        H256::from_str("0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32")
+            .unwrap()
+    }
 });
 
 pub fn get_evm_simulator_hash() -> H256 {

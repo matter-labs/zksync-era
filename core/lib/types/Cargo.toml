@@ -17,6 +17,7 @@ zksync_basic_types.workspace = true
 zksync_contracts.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_config.workspace = true
+zksync_env_config.workspace = true
 zksync_protobuf.workspace = true
 zksync_crypto_primitives.workspace = true
 

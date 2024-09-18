@@ -1,10 +1,12 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, str::FromStr};
 
 use once_cell::sync::Lazy;
+use zksync_config::configs::use_evm_simulator;
 use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_bytecode_from_path, read_sys_contract_bytecode,
     BaseSystemContracts, ContractLanguage, SystemContractCode,
 };
+use zksync_env_config::FromEnv;
 use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, StorageView, WriteStorage},
@@ -24,8 +26,9 @@ use zksync_types::{
     block::L2BlockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
     utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, K256PrivateKey,
     L1BatchNumber, L1TxCommonData, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, StorageKey,
-    Transaction, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
-    SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256, ZKPORTER_IS_AVAILABLE,
+    Transaction, BOOTLOADER_ADDRESS, H256, SYSTEM_CONTEXT_ADDRESS,
+    SYSTEM_CONTEXT_GAS_PRICE_POSITION, SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256,
+    ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
 
@@ -71,9 +74,28 @@ pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
 
     let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
     let hash = hash_bytecode(&bytecode);
-    let evm_simulator_bytecode =
-        read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
-    let evm_simulator_hash = hash_bytecode(&evm_simulator_bytecode);
+    // let evm_simulator_bytecode =
+    //     read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
+    // let evm_simulator_hash = hash_bytecode(&evm_simulator_bytecode);
+
+    let mut evm_simulator_bytecode = vec![];
+    let mut evm_simulator_hash =
+        // H256::from_str("0x0100000000000000000000000000000000000000000000000000000000000000")
+        H256::from_str("0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32")
+            .unwrap();
+    // Empty hash: 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+    // hash_bytecode(&evm_simulator_bytecode);
+    // let evm_simulator_hash = H256::zero();
+
+    if use_evm_simulator::UseEvmSimulator::from_env()
+        .unwrap()
+        .use_evm_simulator
+    {
+        evm_simulator_bytecode =
+            read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
+        evm_simulator_hash = hash_bytecode(&evm_simulator_bytecode.clone());
+    }
+
     BaseSystemContracts {
         default_aa: SystemContractCode {
             code: bytes_to_be_words(bytecode),
