@@ -7,8 +7,11 @@ use zksync_multivm::interface::{
     ExecutionResult, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
 };
 use zksync_types::{
-    api::ApiStorageLog, get_intrinsic_constants, transaction_request::CallRequest, K256PrivateKey,
-    L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue, U256,
+    api::{ApiStorageLog, CallTracerResult},
+    get_intrinsic_constants,
+    transaction_request::CallRequest,
+    K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue,
+    U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
@@ -427,24 +430,34 @@ impl HttpTest for TraceCallTest {
         drop(connection);
 
         let call_request = CallTest::call_request(b"pending");
-        let call_result = client.trace_call(call_request.clone(), None, None).await?;
+        let CallTracerResult::CallTrace(call_result) =
+            client.trace_call(call_request.clone(), None, None).await?
+        else {
+            unreachable!()
+        };
         Self::assert_debug_call(&call_request, &call_result);
         let pending_block_number = api::BlockId::Number(api::BlockNumber::Pending);
-        let call_result = client
+        let CallTracerResult::CallTrace(call_result) = client
             .trace_call(call_request.clone(), Some(pending_block_number), None)
-            .await?;
+            .await?
+        else {
+            unreachable!()
+        };
         Self::assert_debug_call(&call_request, &call_result);
 
         let latest_block_numbers = [api::BlockNumber::Latest, 1.into()];
         let call_request = CallTest::call_request(b"latest");
         for number in latest_block_numbers {
-            let call_result = client
+            let CallTracerResult::CallTrace(call_result) = client
                 .trace_call(
                     call_request.clone(),
                     Some(api::BlockId::Number(number)),
                     None,
                 )
-                .await?;
+                .await?
+            else {
+                unreachable!()
+            };
             Self::assert_debug_call(&call_request, &call_result);
         }
 
@@ -492,12 +505,19 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         _pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
         let call_request = CallTest::call_request(b"pending");
-        let call_result = client.trace_call(call_request.clone(), None, None).await?;
+        let CallTracerResult::CallTrace(call_result) =
+            client.trace_call(call_request.clone(), None, None).await?
+        else {
+            unreachable!()
+        };
         TraceCallTest::assert_debug_call(&call_request, &call_result);
         let pending_block_number = api::BlockId::Number(api::BlockNumber::Pending);
-        let call_result = client
+        let CallTracerResult::CallTrace(call_result) = client
             .trace_call(call_request.clone(), Some(pending_block_number), None)
-            .await?;
+            .await?
+        else {
+            unreachable!()
+        };
         TraceCallTest::assert_debug_call(&call_request, &call_result);
 
         let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
@@ -515,9 +535,12 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         let first_l2_block_numbers = [api::BlockNumber::Latest, first_local_l2_block.0.into()];
         for number in first_l2_block_numbers {
             let number = api::BlockId::Number(number);
-            let call_result = client
+            let CallTracerResult::CallTrace(call_result) = client
                 .trace_call(call_request.clone(), Some(number), None)
-                .await?;
+                .await?
+            else {
+                unreachable!()
+            };
             TraceCallTest::assert_debug_call(&call_request, &call_result);
         }
         Ok(())

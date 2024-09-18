@@ -12,7 +12,10 @@ use zksync_contracts::BaseSystemContractsHashes;
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
-use crate::{protocol_version::L1VerifierConfig, Address, L2BlockNumber, ProtocolVersionId};
+use crate::{
+    debug_flat_call::DebugCallFlat, protocol_version::L1VerifierConfig, Address, L2BlockNumber,
+    ProtocolVersionId,
+};
 
 pub mod en;
 pub mod state_override;
@@ -597,10 +600,11 @@ pub struct GetLogsFilter {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ResultDebugCall {
-    pub result: DebugCall,
+    pub result: CallTracerResult,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub enum DebugCallType {
     #[default]
     Call,
@@ -700,19 +704,20 @@ impl ProtocolVersion {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub enum SupportedTracers {
     CallTracer,
+    FlatCallTracer,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct CallTracerConfig {
     pub only_top_call: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct TracerConfig {
     pub tracer: SupportedTracers,
@@ -725,6 +730,22 @@ pub struct TracerConfig {
 pub enum BlockStatus {
     Sealed,
     Verified,
+}
+
+/// FlatTracer is always more than one trace, so when we have to trace one transaction it also appeared as many traces
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase", untagged)]
+pub enum CallTracerResult {
+    CallTrace(DebugCall),
+    FlattCallTrace(Box<Vec<DebugCallFlat>>),
+}
+
+/// For tracing blocks we need to have all traces being combined all together without separation.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase", untagged)]
+pub enum CallTracerOption {
+    CallTrace(DebugCall),
+    FlattCallTrace(Box<DebugCallFlat>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

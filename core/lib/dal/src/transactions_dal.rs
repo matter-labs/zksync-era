@@ -20,7 +20,7 @@ use zksync_vm_interface::{
 };
 
 use crate::{
-    models::storage_transaction::{CallTrace, StorageTransaction},
+    models::storage_transaction::{serialize_call_into_bytes, CallTrace, StorageTransaction},
     Core, CoreDal,
 };
 
@@ -518,8 +518,7 @@ impl TransactionsDal<'_, '_> {
         let mut bytea_call_traces = Vec::with_capacity(transactions.len());
         for tx_res in transactions {
             if let Some(call_trace) = tx_res.call_trace() {
-                bytea_call_traces
-                    .push(CallTrace::from_call(call_trace, protocol_version).call_trace);
+                bytea_call_traces.push(serialize_call_into_bytes(call_trace, protocol_version));
                 call_traces_tx_hashes.push(tx_res.hash.as_bytes());
             }
         }
@@ -2101,7 +2100,10 @@ impl TransactionsDal<'_, '_> {
         Ok(data)
     }
 
-    pub async fn get_call_trace(&mut self, tx_hash: H256) -> DalResult<Option<Call>> {
+    pub async fn get_call_trace(
+        &mut self,
+        tx_hash: H256,
+    ) -> DalResult<Option<(Call, H256, usize)>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -2132,7 +2134,9 @@ impl TransactionsDal<'_, '_> {
             CallTrace,
             r#"
             SELECT
-                call_trace
+                call_trace,
+                tx_hash AS hash,
+                0 AS index_in_block
             FROM
                 call_traces
             WHERE
@@ -2144,7 +2148,11 @@ impl TransactionsDal<'_, '_> {
         .with_arg("tx_hash", &tx_hash)
         .fetch_optional(self.storage)
         .await?
-        .map(|call_trace| call_trace.into_call(protocol_version)))
+        .map(|call_trace| {
+            let hash = H256::from_slice(&call_trace.hash);
+            let index = call_trace.index_in_block.unwrap_or_default() as usize;
+            (call_trace.into_call(protocol_version), hash, index)
+        }))
     }
 
     pub(crate) async fn get_tx_by_hash(&mut self, hash: H256) -> DalResult<Option<Transaction>> {
@@ -2216,7 +2224,7 @@ mod tests {
             .await
             .unwrap();
 
-        let call_trace = conn
+        let (call_trace, _, _) = conn
             .transactions_dal()
             .get_call_trace(tx_hash)
             .await

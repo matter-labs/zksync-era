@@ -561,6 +561,8 @@ impl StorageApiTransaction {
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub(crate) struct CallTrace {
     pub call_trace: Vec<u8>,
+    pub hash: Vec<u8>,
+    pub index_in_block: Option<i32>,
 }
 
 impl CallTrace {
@@ -578,15 +580,16 @@ impl CallTrace {
             bincode::deserialize(&self.call_trace).unwrap()
         }
     }
+}
 
-    pub(crate) fn from_call(call: Call, protocol_version: ProtocolVersionId) -> Self {
-        let call_trace = if protocol_version.is_pre_1_5_0() {
-            bincode::serialize(&LegacyCall::try_from(call).unwrap())
-        } else {
-            bincode::serialize(&call)
-        }
-        .unwrap();
-
-        Self { call_trace }
+pub(crate) fn serialize_call_into_bytes(
+    call: Call,
+    protocol_version: ProtocolVersionId,
+) -> Vec<u8> {
+    if protocol_version.is_pre_1_5_0() {
+        bincode::serialize(&LegacyCall::try_from(call).unwrap())
+    } else {
+        bincode::serialize(&call)
     }
+    .unwrap()
 }
