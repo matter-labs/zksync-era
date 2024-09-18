@@ -9,18 +9,13 @@ pub(crate) struct AggregationBlobUrls {
     pub aggregation_urls: String,
     pub circuit_ids_and_urls: Vec<(u8, String)>,
 }
-/// Marker trait for managing different types of blob urls
-pub trait BlobUrl {}
-
-impl BlobUrl for AggregationBlobUrls {}
-impl BlobUrl for String {}
 
 #[async_trait]
 pub(crate) trait ArtifactsManager {
     type InputMetadata;
     type InputArtifacts;
     type OutputArtifacts;
-    type BlobUrls: BlobUrl;
+    type BlobUrls;
 
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
