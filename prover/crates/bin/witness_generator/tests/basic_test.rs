@@ -60,13 +60,13 @@ async fn test_leaf_witness_gen() {
     .await
     .unwrap();
 
-    let artifacts = LeafAggregationWitnessGenerator::process_job_impl(
+    let artifacts = LeafAggregationWitnessGenerator::process_job(
         job,
-        Instant::now(),
         object_store.clone(),
-        500,
+        Some(500),
+        Instant::now(),
     )
-    .await;
+    .await?;
 
     let aggregations = AggregationWrapper(artifacts.aggregations);
 
@@ -154,13 +154,14 @@ async fn test_node_witness_gen() {
     .await
     .unwrap();
 
-    let artifacts = NodeAggregationWitnessGenerator::process_job_impl(
+    let artifacts = NodeAggregationWitnessGenerator::process_job(
         job,
-        Instant::now(),
         object_store.clone(),
-        500,
+        Some(500),
+        Instant::now(),
     )
-    .await;
+    .await?;
+
     let aggregations = AggregationWrapper(artifacts.next_aggregations);
 
     let expected_results_object_store_config = ObjectStoreConfig {
