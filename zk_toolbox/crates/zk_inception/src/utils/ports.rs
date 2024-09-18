@@ -61,18 +61,18 @@ impl EcosystemPorts {
         &mut self,
         general_config: &mut config::GeneralConfig,
     ) -> anyhow::Result<()> {
-        let mut ports = PortsConfig::default();
-        ports.web3_json_rpc_http_port =
-            self.allocate_port(PORT_RANGE, "Web3 JSON RPC HTTP".to_string())?;
-        ports.web3_json_rpc_ws_port =
-            self.allocate_port(PORT_RANGE, "Web3 JSON RPC WS".to_string())?;
-        ports.healthcheck_port = self.allocate_port(PORT_RANGE, "Healthcheck".to_string())?;
-        ports.merkle_tree_port = self.allocate_port(PORT_RANGE, "Merkle Tree".to_string())?;
-        ports.prometheus_listener_port =
-            self.allocate_port(PORT_RANGE, "Prometheus".to_string())?;
-        ports.contract_verifier_port =
-            self.allocate_port(PORT_RANGE, "Contract Verifier".to_string())?;
-        ports.consensus_port = self.allocate_port(PORT_RANGE, "Consensus".to_string())?;
+        let mut ports = PortsConfig {
+            web3_json_rpc_http_port: self
+                .allocate_port(PORT_RANGE, "Web3 JSON RPC HTTP".to_string())?,
+            web3_json_rpc_ws_port: self
+                .allocate_port(PORT_RANGE, "Web3 JSON RPC WS".to_string())?,
+            healthcheck_port: self.allocate_port(PORT_RANGE, "Healthcheck".to_string())?,
+            merkle_tree_port: self.allocate_port(PORT_RANGE, "Merkle Tree".to_string())?,
+            prometheus_listener_port: self.allocate_port(PORT_RANGE, "Prometheus".to_string())?,
+            contract_verifier_port: self
+                .allocate_port(PORT_RANGE, "Contract Verifier".to_string())?,
+            consensus_port: self.allocate_port(PORT_RANGE, "Consensus".to_string())?,
+        };
 
         config::update_ports(general_config, &ports)?;
 
