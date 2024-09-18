@@ -151,7 +151,7 @@ jobs:
 
             for arch in "${archs[@]}"; do
               TAG="$IMAGE_TAG_SUFFIX"
-              us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksync-build-base:${TAG}-${arch} --platform linux/${arch}
+              docker pull us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksync-build-base:${TAG}-${arch} --platform linux/${arch}
               individual_images+=("us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zksync-build-base:${TAG}-${arch}")
             done
 
