@@ -398,7 +398,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         tx: &Transaction,
         vm: &mut BatchVm<S, Tr>,
     ) -> anyhow::Result<BatchTransactionExecutionResult> {
-        let res = vm.inspect_transaction(tx.clone(), false);
+        let res = vm.inspect_transaction(tx.clone(), true);
         if let Ok(compressed_bytecodes) = res.compressed_bytecodes {
             Ok(BatchTransactionExecutionResult {
                 tx_result: res.tx_result,
