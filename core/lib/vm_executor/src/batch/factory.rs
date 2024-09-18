@@ -1,4 +1,4 @@
-use std::{borrow::Cow, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
+use std::{borrow::Cow, fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
@@ -12,6 +12,7 @@ use zksync_multivm::{
         VmInterface, VmInterfaceHistoryEnabled,
     },
     tracers::CallTracer,
+    vm_fast,
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVMTracer,
 };
@@ -23,11 +24,33 @@ use super::{
 };
 use crate::shared::{InteractionType, STORAGE_METRICS};
 
+/// Encapsulates a tracer used during batch processing. Currently supported tracers are `()` (no-op) and [`TraceCalls`].
+pub trait BatchTracer: fmt::Debug + 'static + Send {
+    /// True if call tracing is enabled.
+    const TRACE_CALLS: bool;
+    /// Tracer for the fast VM.
+    type Fast: vm_fast::Tracer + Default + 'static;
+}
+
+/// No-op implementation that doesn't trace anything.
+impl BatchTracer for () {
+    const TRACE_CALLS: bool = false;
+    type Fast = ();
+}
+
+/// [`BatchTracer`] implementation tracing calls (returned in [`BatchTransactionExecutionResult`]s).
+#[derive(Debug)]
+pub struct TraceCalls(());
+
+impl BatchTracer for TraceCalls {
+    const TRACE_CALLS: bool = true;
+    type Fast = (); // TODO: change
+}
+
 /// The default implementation of [`BatchExecutorFactory`].
 /// Creates real batch executors which maintain the VM (as opposed to the test factories which don't use the VM).
 #[derive(Debug, Clone)]
-pub struct MainBatchExecutorFactory {
-    save_call_traces: bool,
+pub struct MainBatchExecutorFactory<Tr> {
     /// Whether batch executor would allow transactions with bytecode that cannot be compressed.
     /// For new blocks, bytecode compression is mandatory -- if bytecode compression is not supported,
     /// the transaction will be rejected.
@@ -37,15 +60,16 @@ pub struct MainBatchExecutorFactory {
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
     observe_storage_metrics: bool,
+    _tracer: PhantomData<Tr>,
 }
 
-impl MainBatchExecutorFactory {
-    pub fn new(save_call_traces: bool, optional_bytecode_compression: bool) -> Self {
+impl<Tr: BatchTracer> MainBatchExecutorFactory<Tr> {
+    pub fn new(optional_bytecode_compression: bool) -> Self {
         Self {
-            save_call_traces,
             optional_bytecode_compression,
             fast_vm_mode: FastVmMode::Old,
             observe_storage_metrics: false,
+            _tracer: PhantomData,
         }
     }
 
@@ -67,7 +91,9 @@ impl MainBatchExecutorFactory {
     }
 }
 
-impl<S: ReadStorage + Send + 'static> BatchExecutorFactory<S> for MainBatchExecutorFactory {
+impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
+    for MainBatchExecutorFactory<Tr>
+{
     fn init_batch(
         &mut self,
         storage: S,
@@ -78,12 +104,12 @@ impl<S: ReadStorage + Send + 'static> BatchExecutorFactory<S> for MainBatchExecu
         // until a previous command is processed), capacity 1 is enough for the commands channel.
         let (commands_sender, commands_receiver) = mpsc::channel(1);
         let executor = CommandReceiver {
-            save_call_traces: self.save_call_traces,
             optional_bytecode_compression: self.optional_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
             observe_storage_metrics: self.observe_storage_metrics,
             commands: commands_receiver,
             _storage: PhantomData,
+            _tracer: PhantomData::<Tr>,
         };
 
         let handle =
@@ -95,9 +121,9 @@ impl<S: ReadStorage + Send + 'static> BatchExecutorFactory<S> for MainBatchExecu
 type BytecodeResult = Result<Vec<CompressedBytecodeInfo>, BytecodeCompressionError>;
 
 #[derive(Debug)]
-enum BatchVm<S: ReadStorage> {
+enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
     Legacy(LegacyVmInstance<S, HistoryEnabled>),
-    Fast(FastVmInstance<S>),
+    Fast(FastVmInstance<S, Tr::Fast>),
 }
 
 macro_rules! dispatch_batch_vm {
@@ -109,7 +135,7 @@ macro_rules! dispatch_batch_vm {
     };
 }
 
-impl<S: ReadStorage> BatchVm<S> {
+impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
     fn new(
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
@@ -153,25 +179,26 @@ impl<S: ReadStorage> BatchVm<S> {
 
     fn inspect_transaction(
         &mut self,
-        trace_calls: bool, // FIXME: should be a type param
         tx: Transaction,
         with_compression: bool,
     ) -> BatchTransactionExecutionResult<BytecodeResult> {
         let call_tracer_result = Arc::new(OnceCell::default());
-        let legacy_tracer = if trace_calls {
+        let legacy_tracer = if Tr::TRACE_CALLS {
             vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
         };
+        let legacy_tracer = legacy_tracer.into();
 
         let (compression_result, tx_result) = match self {
             Self::Legacy(vm) => vm.inspect_transaction_with_bytecode_compression(
-                legacy_tracer.into(),
+                legacy_tracer,
                 tx,
                 with_compression,
             ),
             Self::Fast(vm) => {
-                vm.inspect_transaction_with_bytecode_compression((), tx, with_compression)
+                let tracer = (legacy_tracer.into(), &mut <Tr::Fast>::default());
+                vm.inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
             }
         };
 
@@ -195,16 +222,16 @@ impl<S: ReadStorage> BatchVm<S> {
 /// One `CommandReceiver` can execute exactly one batch, so once the batch is sealed, a new `CommandReceiver` object must
 /// be constructed.
 #[derive(Debug)]
-struct CommandReceiver<S> {
-    save_call_traces: bool,
+struct CommandReceiver<S, Tr> {
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
     observe_storage_metrics: bool,
     commands: mpsc::Receiver<Command>,
     _storage: PhantomData<S>,
+    _tracer: PhantomData<Tr>,
 }
 
-impl<S: ReadStorage + 'static> CommandReceiver<S> {
+impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
     pub(super) fn run(
         mut self,
         storage: S,
@@ -214,7 +241,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
 
         let storage_view = StorageView::new(storage).to_rc_ptr();
-        let mut vm = BatchVm::new(
+        let mut vm = BatchVm::<S, Tr>::new(
             l1_batch_params,
             system_env,
             storage_view.clone(),
@@ -284,7 +311,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
     fn execute_tx(
         &self,
         transaction: Transaction,
-        vm: &mut BatchVm<S>,
+        vm: &mut BatchVm<S, Tr>,
     ) -> anyhow::Result<(BatchTransactionExecutionResult, Duration)> {
         // Executing a next transaction means that a previous transaction was either rolled back (in which case its snapshot
         // was already removed), or that we build on top of it (in which case, it can be removed now).
@@ -303,13 +330,13 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         Ok((result, latency.observe()))
     }
 
-    fn rollback_last_tx(&self, vm: &mut BatchVm<S>) {
+    fn rollback_last_tx(&self, vm: &mut BatchVm<S, Tr>) {
         let latency = KEEPER_METRICS.tx_execution_time[&TxExecutionStage::TxRollback].start();
         vm.rollback_to_the_latest_snapshot();
         latency.observe();
     }
 
-    fn finish_batch(&self, vm: &mut BatchVm<S>) -> anyhow::Result<FinishedL1Batch> {
+    fn finish_batch(&self, vm: &mut BatchVm<S, Tr>) -> anyhow::Result<FinishedL1Batch> {
         // The vm execution was paused right after the last transaction was executed.
         // There is some post-processing work that the VM needs to do before the block is fully processed.
         let result = vm.finish_batch();
@@ -328,7 +355,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
     fn execute_tx_in_vm_with_optional_compression(
         &self,
         tx: &Transaction,
-        vm: &mut BatchVm<S>,
+        vm: &mut BatchVm<S, Tr>,
     ) -> anyhow::Result<BatchTransactionExecutionResult> {
         // Note, that the space where we can put the calldata for compressing transactions
         // is limited and the transactions do not pay for taking it.
@@ -339,7 +366,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         // it means that there is no sense in polluting the space of compressed bytecodes,
         // and so we re-execute the transaction, but without compression.
 
-        let res = vm.inspect_transaction(self.save_call_traces, tx.clone(), true);
+        let res = vm.inspect_transaction(tx.clone(), true);
         if let Ok(compressed_bytecodes) = res.compressed_bytecodes {
             return Ok(BatchTransactionExecutionResult {
                 tx_result: res.tx_result,
@@ -353,7 +380,7 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         vm.rollback_to_the_latest_snapshot();
         vm.make_snapshot();
 
-        let res = vm.inspect_transaction(self.save_call_traces, tx.clone(), false);
+        let res = vm.inspect_transaction(tx.clone(), false);
         let compressed_bytecodes = res
             .compressed_bytecodes
             .context("compression failed when it wasn't applied")?;
@@ -369,9 +396,9 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
     fn execute_tx_in_vm(
         &self,
         tx: &Transaction,
-        vm: &mut BatchVm<S>,
+        vm: &mut BatchVm<S, Tr>,
     ) -> anyhow::Result<BatchTransactionExecutionResult> {
-        let res = vm.inspect_transaction(self.save_call_traces, tx.clone(), false);
+        let res = vm.inspect_transaction(tx.clone(), false);
         if let Ok(compressed_bytecodes) = res.compressed_bytecodes {
             Ok(BatchTransactionExecutionResult {
                 tx_result: res.tx_result,

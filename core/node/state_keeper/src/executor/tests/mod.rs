@@ -425,7 +425,6 @@ async fn bootloader_out_of_gas_for_any_tx(vm_mode: FastVmMode) {
     let mut tester = Tester::with_config(
         connection_pool,
         TestConfig {
-            save_call_traces: false,
             vm_gas_limit: Some(10),
             validation_computational_gas_limit: u32::MAX,
             fast_vm_mode: vm_mode,
@@ -470,7 +469,6 @@ async fn bootloader_tip_out_of_gas() {
     // Just a bit below the gas used for the previous batch execution should be fine to execute the tx
     // but not enough to execute the block tip.
     tester.set_config(TestConfig {
-        save_call_traces: false,
         vm_gas_limit: Some(
             finished_batch
                 .block_tip_execution_result
