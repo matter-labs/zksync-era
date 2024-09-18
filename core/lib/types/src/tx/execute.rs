@@ -72,10 +72,9 @@ impl EIP712TypedStructure for Execute {
     const TYPE_NAME: &'static str = "Transaction";
 
     fn build_structure<BUILDER: StructBuilder>(&self, builder: &mut BUILDER) {
-        builder.add_member(
-            "to",
-            &U256::from(self.contract_address.unwrap_or_default().as_bytes()),
-        );
+        if let Some(contract_address) = self.contract_address {
+            builder.add_member("to", &contract_address);
+        }
         builder.add_member("value", &self.value);
         builder.add_member("data", &self.calldata.as_slice());
         // Factory deps are not included into the transaction signature, since they are parsed from the

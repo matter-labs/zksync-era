@@ -74,7 +74,7 @@ fn test_vm_rollbacks() {
         ),
     ]);
 
-    assert_eq!(result_without_rollbacks, result_with_rollbacks);
+    pretty_assertions::assert_eq!(result_without_rollbacks, result_with_rollbacks);
 }
 
 #[test]

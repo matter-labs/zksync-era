@@ -274,7 +274,9 @@ impl From<L1Tx> for abi::NewPriorityRequest {
             transaction: abi::L2CanonicalTransaction {
                 tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
                 from: address_to_u256(&t.common_data.sender),
-                to: address_to_u256(&t.execute.contract_address.unwrap_or_default()),
+                // Unwrap used here because the contract address should always be present for L1 transactions.
+                // TODO: Consider restricting the contract address to not be optional in L1Tx.
+                to: address_to_u256(&t.execute.contract_address.unwrap()),
                 gas_limit: t.common_data.gas_limit,
                 gas_per_pubdata_byte_limit: t.common_data.gas_per_pubdata_limit,
                 max_fee_per_gas: t.common_data.max_fee_per_gas,

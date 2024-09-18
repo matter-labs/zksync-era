@@ -12,8 +12,12 @@ use zksync_basic_types::{
 use zksync_consensus_utils::EncodeDist;
 use zksync_crypto_primitives::K256PrivateKey;
 
-use crate::configs::{
-    self, eth_sender::PubdataSendingMode, external_price_api_client::ForcedPriceClientConfig,
+use crate::{
+    configs::{
+        self, da_client::DAClient::Avail, eth_sender::PubdataSendingMode,
+        external_price_api_client::ForcedPriceClientConfig,
+    },
+    AvailConfig,
 };
 
 trait Sample {
@@ -924,6 +928,21 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
     }
 }
 
+impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_client::DAClientConfig {
+        configs::da_client::DAClientConfig {
+            client: Avail(AvailConfig {
+                api_node_url: self.sample(rng),
+                bridge_api_url: self.sample(rng),
+                seed: self.sample(rng),
+                app_id: self.sample(rng),
+                timeout: self.sample(rng),
+                max_retries: self.sample(rng),
+            }),
+        }
+    }
+}
+
 impl Distribution<configs::da_dispatcher::DADispatcherConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_dispatcher::DADispatcherConfig {
         configs::da_dispatcher::DADispatcherConfig {
@@ -1123,6 +1142,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             eth: self.sample(rng),
             snapshot_creator: self.sample(rng),
             observability: self.sample(rng),
+            da_client_config: self.sample(rng),
             da_dispatcher_config: self.sample(rng),
             protective_reads_writer_config: self.sample(rng),
             basic_witness_input_producer_config: self.sample(rng),
