@@ -246,7 +246,7 @@ impl EthTxAggregator {
         ];
 
         if let Some(call) = get_evm_simulator_hash_call {
-            token_vec.push(call.into_token());
+            token_vec.insert(2, call.into_token());
         }
 
         token_vec
