@@ -75,9 +75,7 @@ impl AutoscalerQueueReporter {
             .await;
 
         for (protocol_version, job_stats) in stats {
-            let report = state
-                .entry(protocol_version)
-                .or_insert_with(QueueReport::default);
+            let report = state.entry(protocol_version).or_default();
 
             match aggregation_round {
                 AggregationRound::BasicCircuits => report.basic_witness_jobs = job_stats,
@@ -103,9 +101,7 @@ impl AutoscalerQueueReporter {
             .await;
 
         for (protocol_version, stats) in stats {
-            let report = state
-                .entry(protocol_version)
-                .or_insert_with(QueueReport::default);
+            let report = state.entry(protocol_version).or_default();
 
             report.prover_jobs = stats;
         }
@@ -125,9 +121,7 @@ impl AutoscalerQueueReporter {
             .await;
 
         for (protocol_version, stats) in stats {
-            let report = state
-                .entry(protocol_version)
-                .or_insert_with(QueueReport::default);
+            let report = state.entry(protocol_version).or_default();
 
             report.proof_compressor_jobs = stats;
         }
