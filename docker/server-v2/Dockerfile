@@ -19,9 +19,9 @@ COPY . .
 
 RUN cargo build --release --features=rocksdb/io-uring
 
-FROM debian:bookworm-slim
+FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
-RUN apt-get update && apt-get install -y curl libpq5 liburing-dev ca-certificates && \
+RUN apt-get update && apt-get install -y liburing-dev && \
     rm -rf /var/lib/apt/lists/*
 
 EXPOSE 3000
