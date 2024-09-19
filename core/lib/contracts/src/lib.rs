@@ -348,7 +348,6 @@ impl BaseSystemContracts {
         // If evm simulator is not enabled, use the default account bytecode and hash.
         let mut evm_simulator_bytecode = bytecode;
         let mut evm_simulator_hash =
-            // H256::from_str("0x0100000000000000000000000000000000000000000000000000000000000000")
             H256::from_str("0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32")
                 .unwrap();
 
