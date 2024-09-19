@@ -189,20 +189,23 @@ impl EthTxAggregator {
             calldata: get_l2_default_aa_hash_input,
         };
 
-        let get_l2_evm_simulator_hash_input = self
+        let mut get_l2_evm_simulator_hash_input = self
             .functions
             .get_evm_simulator_bytecode_hash
             .as_ref()
             .and_then(|f| f.encode_input(&[]).ok());
 
-        let get_evm_simulator_hash_call = if let Some(input) = get_l2_evm_simulator_hash_input {
-            Some(Multicall3Call {
+        let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env()
+            .unwrap()
+            .use_evm_simulator;
+
+        let get_evm_simulator_hash_call = match get_l2_evm_simulator_hash_input {
+            Some(input) if use_evm_simulator => Some(Multicall3Call {
                 target: self.state_transition_chain_contract,
                 allow_failure: ALLOW_FAILURE,
                 calldata: input,
-            })
-        } else {
-            None
+            }),
+            _ => None,
         };
 
         // Third zksync contract call
