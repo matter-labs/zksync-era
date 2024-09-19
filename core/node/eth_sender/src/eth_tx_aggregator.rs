@@ -189,16 +189,21 @@ impl EthTxAggregator {
             calldata: get_l2_default_aa_hash_input,
         };
 
-        // let get_l2_evm_simulator_hash_input = self
-        //     .functions
-        //     .get_evm_simulator_bytecode_hash
-        //     .encode_input(&[])
-        //     .unwrap();
-        // let get_evm_simulator_hash_call = Multicall3Call {
-        //     target: self.state_transition_chain_contract,
-        //     allow_failure: ALLOW_FAILURE,
-        //     calldata: get_l2_evm_simulator_hash_input,
-        // };
+        let get_l2_evm_simulator_hash_input = self
+            .functions
+            .get_evm_simulator_bytecode_hash
+            .as_ref()
+            .and_then(|f| f.encode_input(&[]).ok());
+
+        let get_evm_simulator_hash_call = if let Some(input) = get_l2_evm_simulator_hash_input {
+            Some(Multicall3Call {
+                target: self.state_transition_chain_contract,
+                allow_failure: ALLOW_FAILURE,
+                calldata: input,
+            })
+        } else {
+            None
+        };
 
         // Third zksync contract call
         let get_verifier_params_input = self
@@ -232,15 +237,19 @@ impl EthTxAggregator {
             calldata: get_protocol_version_input,
         };
 
-        // Convert structs into tokens and return vector with them
-        vec![
+        let mut token_vec = vec![
             get_bootloader_hash_call.into_token(),
             get_default_aa_hash_call.into_token(),
-            // get_evm_simulator_hash_call.into_token(),
             get_verifier_params_call.into_token(),
             get_verifier_call.into_token(),
             get_protocol_version_call.into_token(),
-        ]
+        ];
+
+        if let Some(call) = get_evm_simulator_hash_call {
+            token_vec.push(call.into_token());
+        }
+
+        token_vec
     }
 
     // The role of the method below is to de-tokenize multicall call's result, which is actually a token.
