@@ -11,9 +11,10 @@ use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
     node_aggregation::{
-        prepare_job, NodeAggregationArtifacts, NodeAggregationWitnessGenerator,
+        NodeAggregationArtifacts, NodeAggregationWitnessGenerator,
         NodeAggregationWitnessGeneratorJob,
     },
+    witness_generator::WitnessGenerator,
 };
 
 #[async_trait]
@@ -37,9 +38,13 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         tracing::info!("Processing node aggregation job {:?}", metadata.id);
         Ok(Some((
             metadata.id,
-            prepare_job(metadata, &*self.object_store, self.keystore.clone())
-                .await
-                .context("prepare_job()")?,
+            <Self as WitnessGenerator>::prepare_job(
+                metadata,
+                &*self.object_store,
+                self.keystore.clone(),
+            )
+            .await
+            .context("prepare_job()")?,
         )))
     }
 
@@ -63,7 +68,13 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
         let object_store = self.object_store.clone();
         let max_circuits_in_flight = self.config.max_circuits_in_flight;
         tokio::spawn(async move {
-            Ok(Self::process_job_impl(job, started_at, object_store, max_circuits_in_flight).await)
+            <Self as WitnessGenerator>::process_job(
+                job,
+                object_store,
+                Some(max_circuits_in_flight),
+                started_at,
+            )
+            .await
         })
     }
 
@@ -79,12 +90,12 @@ impl JobProcessor for NodeAggregationWitnessGenerator {
     ) -> anyhow::Result<()> {
         let blob_save_started_at = Instant::now();
 
-        let blob_urls = Self::save_artifacts(job_id, artifacts.clone(), &*self.object_store).await;
+        let blob_urls = Self::save_to_bucket(job_id, artifacts.clone(), &*self.object_store).await;
 
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::NodeAggregation.into()]
             .observe(blob_save_started_at.elapsed());
 
-        Self::update_database(
+        Self::save_to_database(
             &self.prover_connection_pool,
             job_id,
             started_at,
