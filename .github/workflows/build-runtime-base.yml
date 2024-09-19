@@ -1,0 +1,66 @@
+name: Build zksync-runtime-base Docker image
+on:
+  workflow_dispatch:
+    inputs:
+      repo_ref:
+        description: "git reference of the zksync-era to build"
+        required: true
+        default: main
+jobs:
+  build-images:
+    name: Build and Push Docker Images
+    runs-on: matterlabs-ci-runner-high-performance
+    outputs:
+      image_tag_sha: ${{ steps.get-sha.outputs.image_tag_sha }}
+    # Needed to push to Gihub Package Registry
+    permissions:
+      packages: write
+      contents: read
+    env:
+      REPO_REF: ${{ github.event.inputs.repo_ref }}
+    strategy:
+      matrix:
+        name: [ runtime-base ]
+        image_name: [ zksync-runtime-base ]
+
+    steps:
+      - uses: actions/checkout@6d193bf28034eafb982f37bd894289fe649468fc # v4.1.7
+        with:
+          submodules: "recursive"
+
+      - name: Login to google container registry
+        run: |
+          gcloud auth configure-docker us-docker.pkg.dev -q
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get tag
+        id: get-sha
+        run: |
+          echo IMAGE_TAG_SHA=$(git rev-parse --short HEAD) >> $GITHUB_ENV
+          echo image_tag_sha=$(git rev-parse --short HEAD) >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
+
+      - name: Build and push
+        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
+        with:
+          push: true
+          context: .
+          platforms: arm64, amd64
+          file: docker/${{ matrix.name }}/Dockerfile
+          labels: |
+            org.opencontainers.image.source=https://github.com/matter-labs/zksync-era
+            org.opencontainers.image.licenses="MIT OR Apache-2.0"
+          tags: |
+            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.image_name }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.image_name }}:latest
