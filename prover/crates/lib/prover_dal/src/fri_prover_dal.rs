@@ -51,11 +51,11 @@ impl FriProverDal<'_, '_> {
 
     /// Retrieves the next prover job to be proven. Called by WVGs.
     ///
-    /// Prover jobs must be seen as ordered.
+    /// Prover jobs must be thought of as ordered.
     /// Prover must prioritize proving such jobs that will make the chain move forward the fastest.
     /// Current ordering:
     /// - pick the lowest batch
-    /// - within lowest batch, look at lowest aggregation level (move up the proof tree)
+    /// - within the lowest batch, look at the lowest aggregation level (move up the proof tree)
     /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
     ///
     /// NOTE: Most of this function is a duplicate of `get_next_job()`. Get next job will be deleted together with old prover.
@@ -108,7 +108,7 @@ impl FriProverDal<'_, '_> {
         )
         .fetch_optional(self.storage.conn())
         .await
-        .unwrap()
+        .expect("failed to get prover job")
         .map(|row| FriProverJobMetadata {
             id: row.id as u32,
             block_number: L1BatchNumber(row.l1_batch_number as u32),

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Instant};
+use std::{sync::Arc, time::Instant};
 
 use anyhow::Context;
 use shivini::{
@@ -9,19 +9,16 @@ use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
 use zksync_object_store::ObjectStore;
+use zksync_types::protocol_version::ProtocolSemanticVersion;
+use zksync_utils::panic_extractor::try_extract_panic_message;
+
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         base_layer_proof_config,
         boojum::{
-            algebraic_props::{
-                round_function::AbsorptionModeOverwrite, sponge::GoldilocksPoseidon2Sponge,
-            },
-            cs::implementations::{
-                pow::NoPow, proof::Proof, transcript::GoldilocksPoisedon2Transcript,
-                verifier::VerificationKey, witness::WitnessVec,
-            },
-            field::goldilocks::{GoldilocksExt2, GoldilocksField},
+            cs::implementations::{pow::NoPow, witness::WitnessVec},
+            field::goldilocks::GoldilocksField,
             worker::Worker,
         },
         circuit_definitions::{
@@ -29,31 +26,25 @@ use zksync_prover_fri_types::{
         },
         recursion_layer_proof_config,
     },
-    CircuitWrapper, FriProofWrapper, ProverArtifacts, ProverServiceDataKey,
-    WitnessVectorArtifactsTemp,
+    CircuitWrapper, FriProofWrapper, ProverArtifacts, WitnessVectorArtifactsTemp,
 };
 use zksync_prover_keystore::GoldilocksGpuProverSetupData;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
-use zksync_utils::panic_extractor::try_extract_panic_message;
 
-use crate::CIRCUIT_PROVER_METRICS;
-
-type DefaultTranscript = GoldilocksPoisedon2Transcript;
-type DefaultTreeHasher = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
-pub type F = GoldilocksField;
-pub type H = GoldilocksPoseidon2Sponge<AbsorptionModeOverwrite>;
-pub type Ext = GoldilocksExt2;
+use crate::metrics::CIRCUIT_PROVER_METRICS;
+use crate::types::{DefaultTranscript, DefaultTreeHasher, Proof, VerificationKey};
+use crate::SetupDataCache;
 
 /// In charge of proving circuits, given a Witness Vector source.
-/// Both the runner & job executor.
+/// Both job runner & job executor.
+#[derive(Debug)]
 pub struct CircuitProver {
     connection_pool: ConnectionPool<Prover>,
     object_store: Arc<dyn ObjectStore>,
     protocol_version: ProtocolSemanticVersion,
     /// Witness Vector source receiver
     receiver: Receiver<WitnessVectorArtifactsTemp>,
-    /// Setup Data in-memory cache
-    setup_keys: HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>,
+    /// Setup Data used for proving & proof verification
+    setup_data_cache: SetupDataCache,
 }
 
 impl CircuitProver {
@@ -63,13 +54,14 @@ impl CircuitProver {
         protocol_version: ProtocolSemanticVersion,
         receiver: Receiver<WitnessVectorArtifactsTemp>,
         max_allocation: Option<usize>,
-        setup_keys: HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>,
+        setup_data_cache: SetupDataCache,
     ) -> anyhow::Result<(Self, ProverContext)> {
+        // VRAM allocation
         let prover_context = match max_allocation {
             Some(max_allocation) => ProverContext::create_with_config(
                 ProverContextConfig::default().with_maximum_device_allocation(max_allocation),
             )
-            .context("failed initializing gpu prover context")?,
+            .context("failed initializing fixed gpu prover context")?,
             None => ProverContext::create().context("failed initializing gpu prover context")?,
         };
         Ok((
@@ -78,7 +70,7 @@ impl CircuitProver {
                 object_store,
                 protocol_version,
                 receiver,
-                setup_keys,
+                setup_data_cache,
             },
             prover_context,
         ))
@@ -122,7 +114,7 @@ impl CircuitProver {
         let job_start_time = artifact.time;
         let setup_data_key = artifact.prover_job.setup_data_key.crypto_setup_key();
         let setup_data = self
-            .setup_keys
+            .setup_data_cache
             .get(&setup_data_key)
             .context(format!(
                 "failed to get setup data for key {setup_data_key:?}"
@@ -206,7 +198,7 @@ impl CircuitProver {
         circuit_wrapper: &CircuitWrapper,
         witness_vector: WitnessVec<GoldilocksField>,
         setup_data: &Arc<GoldilocksGpuProverSetupData>,
-    ) -> anyhow::Result<(Proof<F, H, Ext>, u8)> {
+    ) -> anyhow::Result<(Proof, u8)> {
         let time = Instant::now();
 
         let worker = Worker::new();
@@ -247,8 +239,8 @@ impl CircuitProver {
     /// Verifies a proof from crypto primitives
     fn verify_proof(
         circuit_wrapper: &CircuitWrapper,
-        proof: &Proof<F, H, Ext>,
-        verification_key: &VerificationKey<F, H>,
+        proof: &Proof,
+        verification_key: &VerificationKey,
     ) -> anyhow::Result<()> {
         let time = Instant::now();
 
@@ -314,7 +306,7 @@ impl CircuitProver {
                     error_message
                 );
 
-                self.save_failure(job_id, error_message).await.context("failed to save result")?;
+                self.save_failure(job_id, error_message).await.context("failed to save failure")?;
             }
         }
 
@@ -360,7 +352,7 @@ impl CircuitProver {
         let mut transaction = connection
             .start_transaction()
             .await
-            .context("failed to start transaction")?;
+            .context("failed to start db transaction")?;
         transaction
             .fri_prover_jobs_dal()
             .save_proof(job_id, job_start_time.elapsed(), &blob_url)
@@ -378,7 +370,7 @@ impl CircuitProver {
         transaction
             .commit()
             .await
-            .context("failed to commit transaction")?;
+            .context("failed to commit db transaction")?;
 
         tracing::info!(
             "Circuit Prover saved job {:?} after {:?}",

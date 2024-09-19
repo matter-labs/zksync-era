@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     path::PathBuf,
     sync::Arc,
     time::{Duration, Instant},
@@ -8,22 +7,21 @@ use std::{
 use anyhow::Context as _;
 use clap::Parser;
 use tokio_util::sync::CancellationToken;
-use zksync_circuit_prover::{
-    Backoff, CircuitProver, WitnessVectorGenerator, PROVER_BINARY_METRICS,
-};
 use zksync_config::{
     configs::{FriProverConfig, ObservabilityConfig},
     ObjectStoreConfig,
 };
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_prover_fri_types::{
-    circuit_definitions::boojum::cs::implementations::setup::FinalizationHintsForProver,
-    ProverServiceDataKey, PROVER_PROTOCOL_SEMANTIC_VERSION,
-};
-use zksync_prover_keystore::{keystore::Keystore, GoldilocksGpuProverSetupData};
 use zksync_utils::wait_for_tasks::ManagedTasks;
+
+use zksync_circuit_prover::{
+    Backoff, CircuitProver, FinalizationHintsCache, SetupDataCache, WitnessVectorGenerator,
+    PROVER_BINARY_METRICS,
+};
+use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
+use zksync_prover_keystore::keystore::Keystore;
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
@@ -55,7 +53,7 @@ async fn main() -> anyhow::Result<()> {
 
     let wvg_count = opt.witness_vector_generator_count as u32;
 
-    let (connection_pool, object_store, setup_keys, hints) = load_resources(
+    let (connection_pool, object_store, setup_data_cache, hints) = load_resources(
         opt.secrets_path,
         object_store_config,
         prover_config.setup_data_path.into(),
@@ -80,8 +78,8 @@ async fn main() -> anyhow::Result<()> {
             object_store.clone(),
             connection_pool.clone(),
             PROVER_PROTOCOL_SEMANTIC_VERSION,
-            hints.clone(),
             sender.clone(),
+            hints.clone(),
         );
         tasks.push(tokio::spawn(
             wvg.run(cancellation_token.clone(), backoff.clone()),
@@ -97,7 +95,7 @@ async fn main() -> anyhow::Result<()> {
         PROVER_PROTOCOL_SEMANTIC_VERSION,
         receiver,
         opt.max_allocation,
-        setup_keys,
+        setup_data_cache,
     )
     .context("failed to create circuit prover")?;
     tasks.push(tokio::spawn(prover.run(cancellation_token.clone())));
@@ -150,7 +148,7 @@ fn load_configs(
 /// Loads resources necessary for proving.
 /// - connection pool - necessary to pick & store jobs from database
 /// - object store - necessary  for loading and storing artifacts to object store
-/// - setup keys - necessary for circuit proving
+/// - setup data - necessary for circuit proving
 /// - finalization hints - necessary for generating witness vectors
 async fn load_resources(
     secrets_path: Option<PathBuf>,
@@ -160,8 +158,8 @@ async fn load_resources(
 ) -> anyhow::Result<(
     ConnectionPool<Prover>,
     Arc<dyn ObjectStore>,
-    HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>,
-    HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
+    SetupDataCache,
+    FinalizationHintsCache,
 )> {
     let database_secrets =
         load_database_secrets(secrets_path).context("failed to load database secrets")?;
@@ -181,24 +179,25 @@ async fn load_resources(
         .await
         .context("failed to create object store")?;
 
-    tracing::info!("Loading key mappings from disk...");
+    tracing::info!("Loading mappings from disk...");
 
     let keystore = Keystore::locate().with_setup_path(Some(setup_data_path));
-    let setup_keys = keystore
+    let setup_data_cache = keystore
         .load_all_setup_key_mapping()
         .await
-        .context("failed to load setup key mapping")?;
+        .context("failed to load setup key mapping")?
+        .into();
     let finalization_hints = keystore
         .load_all_finalization_hints_mapping()
         .await
         .context("failed to load finalization hints mapping")?;
 
-    tracing::info!("Loaded key mappings from disk.");
+    tracing::info!("Loaded mappings from disk.");
 
     Ok((
         connection_pool,
         object_store,
-        setup_keys,
+        setup_data_cache,
         finalization_hints,
     ))
 }

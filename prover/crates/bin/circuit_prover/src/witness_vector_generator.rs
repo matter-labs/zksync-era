@@ -4,6 +4,9 @@ use anyhow::Context;
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use zksync_object_store::ObjectStore;
+use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
+use zksync_utils::panic_extractor::try_extract_panic_message;
+
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -19,19 +22,20 @@ use zksync_prover_fri_types::{
     CircuitAuxData, CircuitWrapper, ProverJob, ProverServiceDataKey, RamPermutationQueueWitness,
     WitnessVectorArtifactsTemp,
 };
-use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
-use zksync_utils::panic_extractor::try_extract_panic_message;
 
-use crate::{Backoff, WITNESS_VECTOR_GENERATOR_METRICS};
+use crate::metrics::WITNESS_VECTOR_GENERATOR_METRICS;
+use crate::Backoff;
+use crate::FinalizationHintsCache;
 
 /// In charge of generating Witness Vectors and sending them to Circuit Prover.
-/// Both the runner & job executor.
+/// Both job runner & job executor.
+#[derive(Debug)]
 pub struct WitnessVectorGenerator {
     object_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Prover>,
     protocol_version: ProtocolSemanticVersion,
-    /// Finalization Hints in-memory cache
-    finalization_hints: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
+    /// Finalization Hints used for Witness Vector generation
+    finalization_hints_cache: FinalizationHintsCache,
     /// Witness Vector sender for Circuit Prover
     sender: Sender<WitnessVectorArtifactsTemp>,
     pod_name: String,
@@ -42,20 +46,20 @@ impl WitnessVectorGenerator {
         object_store: Arc<dyn ObjectStore>,
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,
-        finalization_hints: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
         sender: Sender<WitnessVectorArtifactsTemp>,
+        finalization_hints: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
     ) -> Self {
         Self {
             object_store,
             connection_pool,
             protocol_version,
-            finalization_hints,
+            finalization_hints_cache: finalization_hints,
             sender,
             pod_name: get_current_pod_name(),
         }
     }
 
-    /// Continuously pols database for new prover jobs and generates witness vectors for them.
+    /// Continuously polls database for new prover jobs and generates witness vectors for them.
     /// All job executions are persisted.
     pub async fn run(
         self,
@@ -99,7 +103,7 @@ impl WitnessVectorGenerator {
         Ok(())
     }
 
-    /// Retrieves a prover job from database, artifacts from object store and hydrates them.
+    /// Retrieves a prover job from database, loads artifacts from object store and hydrates them.
     async fn get_job(&self) -> anyhow::Result<Option<ProverJob>> {
         let mut connection = self
             .connection_pool
@@ -191,7 +195,7 @@ impl WitnessVectorGenerator {
             ));
         }
         Err(anyhow::anyhow!(
-            "Unexpected circuit received with partial witness, expected RAM permutation, got {:?}",
+            "unexpected circuit received with partial witness, expected RAM permutation, got {:?}",
             circuit.short_description()
         ))
     }
@@ -204,9 +208,12 @@ impl WitnessVectorGenerator {
     ) -> anyhow::Result<()> {
         let start_time = Instant::now();
         let finalization_hints = self
-            .finalization_hints
+            .finalization_hints_cache
             .get(&prover_job.setup_data_key)
-            .expect("no finalization hints for setup_data_key")
+            .context(format!(
+                "failed to get finalization hints for key {:?}",
+                &prover_job.setup_data_key
+            ))?
             .clone();
         let job_id = prover_job.job_id;
         let task = tokio::task::spawn_blocking(move || {
@@ -291,7 +298,7 @@ impl WitnessVectorGenerator {
                 };
                 tracing::error!("Witness Vector Generator failed on job {job_id:?} with error {error_message:?}");
 
-                self.save_failure(job_id, error_message).await.context("failed to save result")?;
+                self.save_failure(job_id, error_message).await.context("failed to save failure")?;
             }
         }
 
@@ -332,7 +339,7 @@ impl WitnessVectorGenerator {
         Ok(())
     }
 
-    /// Backoffs, whilst being cancellation aware.
+    /// Backs off, whilst being cancellation aware.
     async fn backoff(&self, backoff: &mut Backoff, cancellation_token: CancellationToken) {
         let backoff_duration = backoff.delay();
         tracing::info!("Backing off for {:?}...", backoff_duration);
