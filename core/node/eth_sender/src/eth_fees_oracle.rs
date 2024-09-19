@@ -40,6 +40,12 @@ impl GasAdjusterFeesOracle {
         previous_sent_tx: &Option<TxHistory>,
     ) -> Result<EthFees, EthSenderError> {
         let base_fee_per_gas = self.gas_adjuster.get_blob_tx_base_fee();
+        if base_fee_per_gas == 0 {
+            panic!(
+                "L1 RPC incorrectly reported blob prices, either it doesn't return them at all \
+            or returns 0's, eth-sender cannot continue without proper blob prices!"
+            );
+        }
         let priority_fee_per_gas = self.gas_adjuster.get_blob_tx_priority_fee();
         let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_tx_blob_base_fee());
 
