@@ -64,45 +64,6 @@ impl EcosystemPorts {
 
         Ok(())
     }
-
-    /// Finds the smallest multiple of the offset that, when added to the base ports,
-    /// results in a set of available ports within the specified range.
-    ///
-    /// The function iteratively checks port sets by adding multiples of the offset to the base ports:
-    /// base, base + offset, base + 2*offset, etc., until it finds a set where all ports are:
-    /// 1) Within the specified range
-    /// 2) Not already assigned
-    pub fn find_offset(
-        &mut self,
-        base_ports: &[u16],
-        range: Range<u16>,
-        offset: u16,
-    ) -> Result<u16> {
-        let mut i = 0;
-        loop {
-            let candidate_ports: Vec<u16> =
-                base_ports.iter().map(|&port| port + i * offset).collect();
-
-            // Check if any of the candidate ports ran beyond the upper range
-            if candidate_ports.iter().any(|&port| port >= range.end) {
-                anyhow::bail!(
-                    "No suitable ports found within the given range {:?}. Tried {} iterations with offset {}",
-                    range,
-                    i,
-                    offset
-                )
-            }
-
-            // Check if all candidate ports are within the range and not assigned
-            if candidate_ports
-                .iter()
-                .all(|&port| range.contains(&port) && !self.is_port_assigned(port))
-            {
-                return Ok(offset * i);
-            }
-            i += 1;
-        }
-    }
 }
 
 impl fmt::Display for EcosystemPorts {
@@ -248,39 +209,6 @@ mod tests {
     use crate::utils::ports::{EcosystemPorts, EcosystemPortsScanner};
 
     #[test]
-    fn test_allocate_ports() {
-        let mut ecosystem_ports = EcosystemPorts::default();
-
-        // Test case 1: Allocate ports within range
-        let result = ecosystem_ports.find_offset(&[8000, 8001, 8002], 8000..9000, 100);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 0);
-
-        // Test case 2: Allocate ports with offset
-        let result = ecosystem_ports.find_offset(&[8000, 8001, 8002], 8000..9000, 100);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 100);
-
-        // Test case 3: Fail to allocate ports - not available with offset
-        let result = ecosystem_ports.find_offset(&[8000, 8001, 8002], 8000..8200, 100);
-        assert!(result.is_err());
-
-        // Test case 4: Fail to allocate ports - base ports outside range
-        let result = ecosystem_ports.find_offset(&[9500, 9501, 9502], 8000..9000, 100);
-        assert!(result.is_err());
-
-        // Test case 5: Allocate consecutive ports
-        let result = ecosystem_ports.find_offset(&[8000, 8001, 8002], 8000..9000, 1);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 3);
-
-        // Test case 6: Allocate ports at the edge of the range
-        let result = ecosystem_ports.find_offset(&[8998, 8999], 8000..9000, 1);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 0);
-    }
-
-    #[test]
     fn test_traverse_yaml() {
         let yaml_content = r#"
             api:
@@ -310,7 +238,7 @@ mod tests {
 
         let value = serde_yaml::from_str(yaml_content).unwrap();
         let mut ecosystem_ports = EcosystemPorts::default();
-        let file_path: PathBuf = PathBuf::from("test_config.yaml");
+        let file_path = PathBuf::from("test_config.yaml");
 
         EcosystemPortsScanner::traverse_yaml(&value, "", &file_path, &mut ecosystem_ports);
 
