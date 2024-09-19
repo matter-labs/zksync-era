@@ -30,15 +30,15 @@ pub enum LegacyVmInstance<S: ReadStorage, H: HistoryMode> {
 macro_rules! dispatch_legacy_vm {
     ($self:ident.$function:ident($($params:tt)*)) => {
         match $self {
-            LegacyVmInstance::VmM5(vm) => vm.$function($($params)*),
-            LegacyVmInstance::VmM6(vm) => vm.$function($($params)*),
-            LegacyVmInstance::Vm1_3_2(vm) => vm.$function($($params)*),
-            LegacyVmInstance::VmVirtualBlocks(vm) => vm.$function($($params)*),
-            LegacyVmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm.$function($($params)*),
-            LegacyVmInstance::VmBoojumIntegration(vm) => vm.$function($($params)*),
-            LegacyVmInstance::Vm1_4_1(vm) => vm.$function($($params)*),
-            LegacyVmInstance::Vm1_4_2(vm) => vm.$function($($params)*),
-            LegacyVmInstance::Vm1_5_0(vm) => vm.$function($($params)*),
+            Self::VmM5(vm) => vm.$function($($params)*),
+            Self::VmM6(vm) => vm.$function($($params)*),
+            Self::Vm1_3_2(vm) => vm.$function($($params)*),
+            Self::VmVirtualBlocks(vm) => vm.$function($($params)*),
+            Self::VmVirtualBlocksRefundsEnhancement(vm) => vm.$function($($params)*),
+            Self::VmBoojumIntegration(vm) => vm.$function($($params)*),
+            Self::Vm1_4_1(vm) => vm.$function($($params)*),
+            Self::Vm1_4_2(vm) => vm.$function($($params)*),
+            Self::Vm1_5_0(vm) => vm.$function($($params)*),
         }
     };
 }
@@ -129,7 +129,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     storage_view,
                     crate::vm_m5::vm_instance::MultiVMSubversion::V1,
                 );
-                LegacyVmInstance::VmM5(vm)
+                Self::VmM5(vm)
             }
             VmVersion::M5WithRefunds => {
                 let vm = crate::vm_m5::Vm::new_with_subversion(
@@ -138,7 +138,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     storage_view,
                     crate::vm_m5::vm_instance::MultiVMSubversion::V2,
                 );
-                LegacyVmInstance::VmM5(vm)
+                Self::VmM5(vm)
             }
             VmVersion::M6Initial => {
                 let vm = crate::vm_m6::Vm::new_with_subversion(
@@ -147,7 +147,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     storage_view,
                     crate::vm_m6::vm_instance::MultiVMSubversion::V1,
                 );
-                LegacyVmInstance::VmM6(vm)
+                Self::VmM6(vm)
             }
             VmVersion::M6BugWithCompressionFixed => {
                 let vm = crate::vm_m6::Vm::new_with_subversion(
@@ -156,33 +156,33 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     storage_view,
                     crate::vm_m6::vm_instance::MultiVMSubversion::V2,
                 );
-                LegacyVmInstance::VmM6(vm)
+                Self::VmM6(vm)
             }
             VmVersion::Vm1_3_2 => {
                 let vm = crate::vm_1_3_2::Vm::new(l1_batch_env, system_env, storage_view);
-                LegacyVmInstance::Vm1_3_2(vm)
+                Self::Vm1_3_2(vm)
             }
             VmVersion::VmVirtualBlocks => {
                 let vm = crate::vm_virtual_blocks::Vm::new(l1_batch_env, system_env, storage_view);
-                LegacyVmInstance::VmVirtualBlocks(vm)
+                Self::VmVirtualBlocks(vm)
             }
             VmVersion::VmVirtualBlocksRefundsEnhancement => {
                 let vm =
                     crate::vm_refunds_enhancement::Vm::new(l1_batch_env, system_env, storage_view);
-                LegacyVmInstance::VmVirtualBlocksRefundsEnhancement(vm)
+                Self::VmVirtualBlocksRefundsEnhancement(vm)
             }
             VmVersion::VmBoojumIntegration => {
                 let vm =
                     crate::vm_boojum_integration::Vm::new(l1_batch_env, system_env, storage_view);
-                LegacyVmInstance::VmBoojumIntegration(vm)
+                Self::VmBoojumIntegration(vm)
             }
             VmVersion::Vm1_4_1 => {
                 let vm = crate::vm_1_4_1::Vm::new(l1_batch_env, system_env, storage_view);
-                LegacyVmInstance::Vm1_4_1(vm)
+                Self::Vm1_4_1(vm)
             }
             VmVersion::Vm1_4_2 => {
                 let vm = crate::vm_1_4_2::Vm::new(l1_batch_env, system_env, storage_view);
-                LegacyVmInstance::Vm1_4_2(vm)
+                Self::Vm1_4_2(vm)
             }
             VmVersion::Vm1_5_0SmallBootloaderMemory => {
                 let vm = crate::vm_latest::Vm::new_with_subversion(
@@ -191,7 +191,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     storage_view,
                     crate::vm_latest::MultiVMSubversion::SmallBootloaderMemory,
                 );
-                LegacyVmInstance::Vm1_5_0(vm)
+                Self::Vm1_5_0(vm)
             }
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
                 let vm = crate::vm_latest::Vm::new_with_subversion(
@@ -200,7 +200,7 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     storage_view,
                     crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
                 );
-                LegacyVmInstance::Vm1_5_0(vm)
+                Self::Vm1_5_0(vm)
             }
         }
     }
@@ -222,8 +222,8 @@ pub enum FastVmInstance<S: ReadStorage, Tr> {
 macro_rules! dispatch_fast_vm {
     ($self:ident.$function:ident($($params:tt)*)) => {
         match $self {
-            FastVmInstance::Fast(vm) => vm.$function($($params)*),
-            FastVmInstance::Shadowed(vm) => vm.$function($($params)*),
+            Self::Fast(vm) => vm.$function($($params)*),
+            Self::Shadowed(vm) => vm.$function($($params)*),
         }
     };
 }

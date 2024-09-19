@@ -133,8 +133,8 @@ enum BatchVm<S: ReadStorage, Tr: BatchTracer> {
 macro_rules! dispatch_batch_vm {
     ($self:ident.$function:ident($($params:tt)*)) => {
         match $self {
-            BatchVm::Legacy(vm) => vm.$function($($params)*),
-            BatchVm::Fast(vm) => vm.$function($($params)*),
+            Self::Legacy(vm) => vm.$function($($params)*),
+            Self::Fast(vm) => vm.$function($($params)*),
         }
     };
 }
