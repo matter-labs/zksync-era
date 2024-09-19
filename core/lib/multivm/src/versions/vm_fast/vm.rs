@@ -16,8 +16,8 @@ use zksync_types::{
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 use zksync_vm2::{
-    decode::decode_program, CallframeInterface, ExecutionEnd, FatPointer, HeapId, Program,
-    Settings, StateInterface, Tracer, VirtualMachine,
+    interface::{CallframeInterface, HeapId, StateInterface, Tracer},
+    ExecutionEnd, FatPointer, Program, Settings, VirtualMachine,
 };
 
 use super::{
@@ -79,7 +79,7 @@ impl<S: ReadStorage> Vm<S> {
             operator_suggested_refund: 0,
         };
         let mut last_tx_result = None;
-        let mut pubdata_before = self.inner.world_diff().pubdata() as u32;
+        let mut pubdata_before = self.inner.pubdata() as u32;
 
         let result = loop {
             let hook = match self.inner.run(&mut self.world, tracer) {
@@ -125,7 +125,7 @@ impl<S: ReadStorage> Vm<S> {
                             )
                             .as_u64();
 
-                        let pubdata_published = self.inner.world_diff().pubdata() as u32;
+                        let pubdata_published = self.inner.pubdata() as u32;
 
                         refunds.operator_suggested_refund = compute_refund(
                             &self.batch_env,
@@ -186,8 +186,7 @@ impl<S: ReadStorage> Vm<S> {
                         unreachable!("We do not provide the pubdata when executing the block tip or a single transaction");
                     }
 
-                    let events =
-                        merge_events(self.inner.world_diff().events(), self.batch_env.number);
+                    let events = merge_events(self.inner.events(), self.batch_env.number);
 
                     let published_bytecodes = events
                         .iter()
@@ -421,7 +420,7 @@ impl<S: ReadStorage> Vm<S> {
             BOOTLOADER_ADDRESS,
             bootloader,
             H160::zero(),
-            vec![],
+            &[],
             system_env.bootloader_gas_limit,
             Settings {
                 default_aa_code_hash,
@@ -461,7 +460,8 @@ impl<S: ReadStorage> Vm<S> {
     // visible for testing
     pub(super) fn get_current_execution_state(&self) -> CurrentExecutionState {
         let world_diff = self.inner.world_diff();
-        let events = merge_events(world_diff.events(), self.batch_env.number);
+        let vm = &self.inner;
+        let events = merge_events(vm.events(), self.batch_env.number);
 
         let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
             .into_iter()
@@ -480,20 +480,10 @@ impl<S: ReadStorage> Vm<S> {
                 })
                 .collect(),
             used_contract_hashes: self.decommitted_hashes().collect(),
-            system_logs: world_diff
-                .l2_to_l1_logs()
-                .iter()
-                .map(|x| x.glue_into())
-                .collect(),
+            system_logs: vm.l2_to_l1_logs().map(GlueInto::glue_into).collect(),
             user_l2_to_l1_logs,
             storage_refunds: world_diff.storage_refunds().to_vec(),
             pubdata_costs: world_diff.pubdata_costs().to_vec(),
-        }
-    }
-
-    fn delete_history_if_appropriate(&mut self) {
-        if self.snapshot.is_none() && !self.has_previous_far_calls() {
-            self.inner.delete_history();
         }
     }
 }
@@ -519,7 +509,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
         let mut tracer = CircuitsTracer::default();
         let start = self.inner.world_diff().snapshot();
-        let pubdata_before = self.inner.world_diff().pubdata();
+        let pubdata_before = self.inner.pubdata();
         let gas_before = self.gas_remaining();
 
         let (result, refunds) = self.run(execution_mode, &mut tracer, track_refunds);
@@ -549,7 +539,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                 })
                 .collect();
             let events = merge_events(
-                self.inner.world_diff().events_after(&start),
+                self.inner.world_diff().events_after(&start).iter().copied(),
                 self.batch_env.number,
             );
             let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
@@ -562,7 +552,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                 .world_diff()
                 .l2_to_l1_logs_after(&start)
                 .iter()
-                .map(|x| x.glue_into())
+                .map(|&log| log.glue_into())
                 .collect();
             VmExecutionLogs {
                 storage_logs,
@@ -573,7 +563,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             }
         };
 
-        let pubdata_after = self.inner.world_diff().pubdata();
+        let pubdata_after = self.inner.pubdata();
         let circuit_statistic = tracer.circuit_statistic();
         let gas_remaining = self.gas_remaining();
         VmExecutionResultAndLogs {
@@ -648,7 +638,6 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
 #[derive(Debug)]
 struct VmSnapshot {
-    vm_snapshot: zksync_vm2::Snapshot,
     bootloader_snapshot: BootloaderStateSnapshot,
     gas_for_account_validation: u32,
 }
@@ -660,9 +649,8 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
             "cannot create a VM snapshot until a previous snapshot is rolled back to or popped"
         );
 
-        self.delete_history_if_appropriate();
+        self.inner.make_snapshot();
         self.snapshot = Some(VmSnapshot {
-            vm_snapshot: self.inner.snapshot(),
             bootloader_snapshot: self.bootloader_state.get_snapshot(),
             gas_for_account_validation: self.gas_for_account_validation,
         });
@@ -670,21 +658,18 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
 
     fn rollback_to_the_latest_snapshot(&mut self) {
         let VmSnapshot {
-            vm_snapshot,
             bootloader_snapshot,
             gas_for_account_validation,
         } = self.snapshot.take().expect("no snapshots to rollback to");
 
-        self.inner.rollback(vm_snapshot);
+        self.inner.rollback();
         self.bootloader_state.apply_snapshot(bootloader_snapshot);
         self.gas_for_account_validation = gas_for_account_validation;
-
-        self.delete_history_if_appropriate();
     }
 
     fn pop_snapshot_no_rollback(&mut self) {
+        self.inner.pop_snapshot();
         self.snapshot = None;
-        self.delete_history_if_appropriate();
     }
 }
 
@@ -721,39 +706,13 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
         }
     }
 
-    fn bytecode_to_program(bytecode: &[u8]) -> Program<T, Self> {
-        Program::new(
-            decode_program(
-                &bytecode
-                    .chunks_exact(8)
-                    .map(|chunk| u64::from_be_bytes(chunk.try_into().unwrap()))
-                    .collect::<Vec<_>>(),
-                false,
-            ),
-            bytecode
-                .chunks_exact(32)
-                .map(U256::from_big_endian)
-                .collect::<Vec<_>>(),
-        )
-    }
-
     fn convert_system_contract_code(
         code: &SystemContractCode,
         is_bootloader: bool,
     ) -> (U256, Program<T, Self>) {
         (
             h256_to_u256(code.hash),
-            Program::new(
-                decode_program(
-                    &code
-                        .code
-                        .iter()
-                        .flat_map(|x| x.0.into_iter().rev())
-                        .collect::<Vec<_>>(),
-                    is_bootloader,
-                ),
-                code.code.clone(),
-            ),
+            Program::from_words(code.code.clone(), is_bootloader),
         )
     }
 }
@@ -808,11 +767,12 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
         self.program_cache
             .entry(hash)
             .or_insert_with(|| {
-                Self::bytecode_to_program(self.bytecode_cache.entry(hash).or_insert_with(|| {
+                let bytecode = self.bytecode_cache.entry(hash).or_insert_with(|| {
                     self.storage
                         .load_factory_dep(u256_to_h256(hash))
                         .expect("vm tried to decommit nonexistent bytecode")
-                }))
+                });
+                Program::new(bytecode, false)
             })
             .clone()
     }
