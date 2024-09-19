@@ -6,8 +6,10 @@ use zksync_basic_types::{
         AggregationRound, CircuitIdRoundTuple, CircuitProverStatsEntry,
         ProtocolVersionedCircuitProverStats,
     },
-    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId},
-    prover_dal::{FriProverJobMetadata, ProverJobFriInfo, ProverJobStatus, StuckJobs},
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    prover_dal::{
+        FriProverJobMetadata, JobCountStatistics, ProverJobFriInfo, ProverJobStatus, StuckJobs,
+    },
     L1BatchNumber,
 };
 use zksync_db_connection::{
@@ -440,6 +442,47 @@ impl FriProverDal<'_, '_> {
                     &row.status,
                     row.count,
                 )
+            })
+            .collect()
+        }
+    }
+
+    pub async fn get_generic_prover_jobs_stats(
+        &mut self,
+    ) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {
+        {
+            sqlx::query!(
+                r#"
+                SELECT
+                    protocol_version AS "protocol_version!",
+                    protocol_version_patch AS "protocol_version_patch!",
+                    COUNT(*) FILTER (WHERE status = 'queued') as queued,
+                    COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress
+                FROM
+                    prover_jobs_fri
+                WHERE
+                    status IN ('queued', 'in_progress')
+                    AND protocol_version IS NOT NULL
+                GROUP BY
+                    protocol_version,
+                    protocol_version_patch
+                "#
+            )
+            .fetch_all(self.storage.conn())
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|row| {
+                let protocol_semantic_version = ProtocolSemanticVersion::new(
+                    ProtocolVersionId::try_from(row.protocol_version as u16).unwrap(),
+                    VersionPatch(row.protocol_version_patch as u32),
+                );
+                let key = protocol_semantic_version;
+                let value = JobCountStatistics {
+                    queued: row.queued.unwrap() as usize,
+                    in_progress: row.in_progress.unwrap() as usize,
+                };
+                (key, value)
             })
             .collect()
         }
