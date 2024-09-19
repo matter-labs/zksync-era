@@ -74,6 +74,7 @@ impl TxExecutionArgs {
         // while for L1->L2 transactions the `to_mint` field plays this role
         let added_balance = match &transaction.common_data {
             ExecuteTransactionCommon::L2(data) => data.fee.gas_limit * data.fee.max_fee_per_gas,
+            ExecuteTransactionCommon::XL2(_) => U256::zero(),
             ExecuteTransactionCommon::L1(_) => U256::zero(),
             ExecuteTransactionCommon::ProtocolUpgrade(_) => U256::zero(),
         };
