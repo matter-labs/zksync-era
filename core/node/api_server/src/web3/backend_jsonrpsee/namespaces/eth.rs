@@ -46,10 +46,7 @@ impl EthNamespaceServer for EthNamespace {
     ) -> RpcResult<U256> {
         self.estimate_gas_impl(req, block, state_override)
             .await
-            .map_err(|err| {
-                tracing::error!("estimate_gas(): {err:#}");
-                self.current_method().map_err(err)
-            })
+            .map_err(|err| self.current_method().map_err(err))
     }
 
     async fn gas_price(&self) -> RpcResult<U256> {
