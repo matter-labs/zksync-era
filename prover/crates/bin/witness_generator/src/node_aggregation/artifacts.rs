@@ -7,10 +7,10 @@ use zksync_prover_fri_types::keys::AggregationsKey;
 use zksync_types::{basic_fri_types::AggregationRound, prover_dal::NodeAggregationJobMetadata};
 
 use crate::{
-    artifacts::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
+    artifacts::{AggregationBlobUrls, ArtifactsManager},
     metrics::WITNESS_GENERATOR_METRICS,
     node_aggregation::{NodeAggregationArtifacts, NodeAggregationWitnessGenerator},
-    utils::{save_node_aggregations_artifacts, AggregationWrapper},
+    utils::AggregationWrapper,
 };
 
 #[async_trait]
@@ -18,6 +18,7 @@ impl ArtifactsManager for NodeAggregationWitnessGenerator {
     type InputMetadata = NodeAggregationJobMetadata;
     type InputArtifacts = AggregationWrapper;
     type OutputArtifacts = NodeAggregationArtifacts;
+    type BlobUrls = AggregationBlobUrls;
 
     #[tracing::instrument(
         skip_all,
@@ -46,46 +47,43 @@ impl ArtifactsManager for NodeAggregationWitnessGenerator {
         skip_all,
         fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
     )]
-    async fn save_artifacts(
+    async fn save_to_bucket(
         _job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
-    ) -> BlobUrls {
+    ) -> AggregationBlobUrls {
         let started_at = Instant::now();
-        let aggregations_urls = save_node_aggregations_artifacts(
-            artifacts.block_number,
-            artifacts.circuit_id,
-            artifacts.depth,
-            artifacts.next_aggregations,
-            object_store,
-        )
-        .await;
+        let key = AggregationsKey {
+            block_number: artifacts.block_number,
+            circuit_id: artifacts.circuit_id,
+            depth: artifacts.depth,
+        };
+        let aggregation_urls = object_store
+            .put(key, &AggregationWrapper(artifacts.next_aggregations))
+            .await
+            .unwrap();
 
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::NodeAggregation.into()]
             .observe(started_at.elapsed());
 
-        BlobUrls::Aggregation(AggregationBlobUrls {
-            aggregations_urls,
+        AggregationBlobUrls {
+            aggregation_urls,
             circuit_ids_and_urls: artifacts.recursive_circuit_ids_and_urls,
-        })
+        }
     }
 
     #[tracing::instrument(
         skip_all,
         fields(l1_batch = % job_id)
     )]
-    async fn update_database(
+    async fn save_to_database(
         connection_pool: &ConnectionPool<Prover>,
         job_id: u32,
         started_at: Instant,
-        blob_urls: BlobUrls,
+        blob_urls: AggregationBlobUrls,
         artifacts: Self::OutputArtifacts,
     ) -> anyhow::Result<()> {
         let mut prover_connection = connection_pool.connection().await.unwrap();
-        let blob_urls = match blob_urls {
-            BlobUrls::Aggregation(blobs) => blobs,
-            _ => unreachable!(),
-        };
         let mut transaction = prover_connection.start_transaction().await.unwrap();
         let dependent_jobs = blob_urls.circuit_ids_and_urls.len();
         let protocol_version_id = transaction
@@ -111,7 +109,7 @@ impl ArtifactsManager for NodeAggregationWitnessGenerator {
                         artifacts.circuit_id,
                         Some(dependent_jobs as i32),
                         artifacts.depth,
-                        &blob_urls.aggregations_urls,
+                        &blob_urls.aggregation_urls,
                         protocol_version_id,
                     )
                     .await;
