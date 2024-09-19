@@ -41,7 +41,7 @@ async fn main() {
 async fn get_blobs(blobs: &mut HashMap<String, usize>) -> Result<(), Box<dyn Error>> {
     // Connect to the PostgreSQL server
     let (client, connection) = tokio_postgres::connect(
-        "host=postgres user=postgres password=notsecurepassword dbname=zksync_local",
+        "host=postgres user=postgres password=notsecurepassword dbname=zksync_server_localhost_eigen_da",
         NoTls,
     )
     .await?;
