@@ -17,9 +17,7 @@ WORKDIR /usr/src/zksync
 COPY . .
 RUN cargo build --release
 
-FROM debian:bookworm-slim
-
-RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
+FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_external_node /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/block_reverter /usr/bin

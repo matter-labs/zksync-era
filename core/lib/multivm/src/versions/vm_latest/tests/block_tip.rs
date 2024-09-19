@@ -164,7 +164,7 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
     for (i, data) in txs_data.into_iter().enumerate() {
         let tx = account.get_l2_tx_for_execute(
             Execute {
-                contract_address: CONTRACT_FORCE_DEPLOYER_ADDRESS,
+                contract_address: Some(CONTRACT_FORCE_DEPLOYER_ADDRESS),
                 calldata: data,
                 value: U256::zero(),
                 factory_deps: vec![],
