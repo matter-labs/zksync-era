@@ -461,10 +461,7 @@ impl FriProverDal<'_, '_> {
                 FROM
                     prover_jobs_fri
                 WHERE
-                    (
-                        status = 'queued'
-                        OR status = 'in_progress'
-                    )
+                    status IN ('queued', 'in_progress')
                     AND protocol_version IS NOT NULL
                 GROUP BY
                     protocol_version,
