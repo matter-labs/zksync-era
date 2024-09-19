@@ -100,7 +100,7 @@ async fn main() -> anyhow::Result<()> {
 
     let bind_address = SocketAddr::from(([0, 0, 0, 0], prover_job_monitor_config.http_port));
 
-    tracing::debug!("Starting PJM server on {bind_address}");
+    tracing::info!("Starting PJM server on {bind_address}");
 
     let listener = tokio::net::TcpListener::bind(bind_address)
         .await
