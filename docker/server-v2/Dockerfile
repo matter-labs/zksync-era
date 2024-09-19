@@ -1,6 +1,6 @@
 # Will work locally only after prior contracts build
 # syntax=docker/dockerfile:experimental
-FROM matterlabs/zksync-build-base:latest AS builder
+FROM ghcr.io/matter-labs/zksync-build-base:latest AS builder
 
 # set of args for use of sccache
 ARG SCCACHE_GCS_BUCKET=""
@@ -19,9 +19,9 @@ COPY . .
 
 RUN cargo build --release --features=rocksdb/io-uring
 
-FROM debian:bookworm-slim
+FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
-RUN apt-get update && apt-get install -y curl libpq5 liburing-dev ca-certificates && \
+RUN apt-get update && apt-get install -y liburing-dev && \
     rm -rf /var/lib/apt/lists/*
 
 EXPOSE 3000

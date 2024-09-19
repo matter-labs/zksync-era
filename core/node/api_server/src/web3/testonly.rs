@@ -182,7 +182,7 @@ async fn spawn_server(
     let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
-    namespaces.extend([Namespace::Debug, Namespace::Snapshots]);
+    namespaces.extend([Namespace::Debug, Namespace::Snapshots, Namespace::Unstable]);
 
     let server_builder = match transport {
         ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),

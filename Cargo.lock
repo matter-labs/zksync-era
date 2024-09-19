@@ -9855,7 +9855,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.24.0"
+version = "24.25.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -10898,6 +10898,7 @@ dependencies = [
  "secp256k1",
  "serde",
  "serde_json",
+ "serde_with",
  "strum",
  "thiserror",
  "tokio",

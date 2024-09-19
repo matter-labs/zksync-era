@@ -58,7 +58,7 @@ fn test_code_oracle() {
     // Firstly, let's ensure that the contract works.
     let tx1 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: precompiles_contract_address,
+            contract_address: Some(precompiles_contract_address),
             calldata: call_code_oracle_function
                 .encode_input(&[
                     Token::FixedBytes(normal_zkevm_bytecode_hash.0.to_vec()),
@@ -82,7 +82,7 @@ fn test_code_oracle() {
     // the decommitted bytecode gets erased (it shouldn't).
     let tx2 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: precompiles_contract_address,
+            contract_address: Some(precompiles_contract_address),
             calldata: call_code_oracle_function
                 .encode_input(&[
                     Token::FixedBytes(normal_zkevm_bytecode_hash.0.to_vec()),
@@ -152,7 +152,7 @@ fn test_code_oracle_big_bytecode() {
     // Firstly, let's ensure that the contract works.
     let tx1 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: precompiles_contract_address,
+            contract_address: Some(precompiles_contract_address),
             calldata: call_code_oracle_function
                 .encode_input(&[
                     Token::FixedBytes(big_zkevm_bytecode_hash.0.to_vec()),
@@ -220,7 +220,7 @@ fn refunds_in_code_oracle() {
 
         let tx = account.get_l2_tx_for_execute(
             Execute {
-                contract_address: precompiles_contract_address,
+                contract_address: Some(precompiles_contract_address),
                 calldata: call_code_oracle_function
                     .encode_input(&[
                         Token::FixedBytes(normal_zkevm_bytecode_hash.0.to_vec()),
