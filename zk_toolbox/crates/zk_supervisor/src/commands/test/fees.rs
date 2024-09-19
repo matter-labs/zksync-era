@@ -23,7 +23,7 @@ pub async fn run(shell: &Shell, args: FeesArgs) -> anyhow::Result<()> {
         ecosystem_config.current_chain()
     ));
 
-    let mut command = cmd!(shell, "yarn jest -- fees.test.ts")
+    let mut command = cmd!(shell, "yarn jest fees.test.ts")
         .env("RUN_FEE_TEST", "1")
         .env("CHAIN_NAME", ecosystem_config.current_chain());
 
