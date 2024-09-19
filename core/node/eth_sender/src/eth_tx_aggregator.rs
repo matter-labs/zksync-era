@@ -1,7 +1,13 @@
+use std::str::FromStr;
+
 use tokio::sync::watch;
-use zksync_config::configs::eth_sender::SenderConfig;
+use zksync_config::configs::{
+    eth_sender::SenderConfig,
+    use_evm_simulator::{self},
+};
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_env_config::FromEnv;
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
     i_executor::{
@@ -186,12 +192,17 @@ impl EthTxAggregator {
         let get_l2_evm_simulator_hash_input = self
             .functions
             .get_evm_simulator_bytecode_hash
-            .encode_input(&[])
-            .unwrap();
-        let get_evm_simulator_hash_call = Multicall3Call {
-            target: self.state_transition_chain_contract,
-            allow_failure: ALLOW_FAILURE,
-            calldata: get_l2_evm_simulator_hash_input,
+            .as_ref()
+            .and_then(|f| f.encode_input(&[]).ok());
+
+        let get_evm_simulator_hash_call = if let Some(input) = get_l2_evm_simulator_hash_input {
+            Some(Multicall3Call {
+                target: self.state_transition_chain_contract,
+                allow_failure: ALLOW_FAILURE,
+                calldata: input,
+            })
+        } else {
+            None
         };
 
         // Third zksync contract call
@@ -226,15 +237,19 @@ impl EthTxAggregator {
             calldata: get_protocol_version_input,
         };
 
-        // Convert structs into tokens and return vector with them
-        vec![
+        let mut token_vec = vec![
             get_bootloader_hash_call.into_token(),
             get_default_aa_hash_call.into_token(),
-            get_evm_simulator_hash_call.into_token(),
             get_verifier_params_call.into_token(),
             get_verifier_call.into_token(),
             get_protocol_version_call.into_token(),
-        ]
+        ];
+
+        if let Some(call) = get_evm_simulator_hash_call {
+            token_vec.push(call.into_token());
+        }
+
+        token_vec
     }
 
     // The role of the method below is to de-tokenize multicall call's result, which is actually a token.
@@ -250,8 +265,12 @@ impl EthTxAggregator {
         };
 
         if let Token::Array(call_results) = token {
+            let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env()
+                .unwrap()
+                .use_evm_simulator;
+            let number_of_calls = if use_evm_simulator { 6 } else { 5 };
             // 5 calls are aggregated in multicall
-            if call_results.len() != 6 {
+            if call_results.len() != number_of_calls {
                 return parse_error(&call_results);
             }
             let mut call_results_iterator = call_results.into_iter();
@@ -280,17 +299,26 @@ impl EthTxAggregator {
                 )));
             }
             let default_aa = H256::from_slice(&multicall3_default_aa);
-            let multicall3_evm_simulator =
-                Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;
-            if multicall3_evm_simulator.len() != 32 {
-                return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
-                    format!(
-                        "multicall3 evm simulator hash data is not of the len of 32: {:?}",
-                        multicall3_evm_simulator
-                    ),
-                )));
+
+            let mut evm_simulator = H256::from_str(
+                "0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32",
+            )
+            .unwrap();
+
+            if use_evm_simulator {
+                let multicall3_evm_simulator =
+                    Multicall3Result::from_token(call_results_iterator.next().unwrap())?
+                        .return_data;
+                if multicall3_evm_simulator.len() != 32 {
+                    return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                        format!(
+                            "multicall3 evm simulator hash data is not of the len of 32: {:?}",
+                            multicall3_evm_simulator
+                        ),
+                    )));
+                }
+                evm_simulator = H256::from_slice(&multicall3_evm_simulator);
             }
-            let evm_simulator = H256::from_slice(&multicall3_evm_simulator);
 
             let base_system_contracts_hashes = BaseSystemContractsHashes {
                 bootloader,
