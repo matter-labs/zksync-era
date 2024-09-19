@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::anyhow;
 use clap::{Parser, ValueEnum};
 use common::{Prompt, PromptSelect};
@@ -92,6 +94,7 @@ impl ProverComponent {
         in_docker: bool,
         args: ProverRunArgs,
         chain: &ChainConfig,
+        path_to_ecosystem: &PathBuf,
     ) -> anyhow::Result<Vec<String>> {
         let mut additional_args = vec![];
         if in_docker {
@@ -108,6 +111,24 @@ impl ProverComponent {
                 .into_os_string()
                 .into_string()
                 .map_err(|_| anyhow!("Failed to convert path to string"))?;
+
+            let general_config = if general_config.starts_with("./") {
+                path_to_ecosystem.join(general_config)
+            } else {
+                PathBuf::from(general_config)
+            }
+            .into_os_string()
+            .into_string()
+            .unwrap();
+
+            let secrets_config = if secrets_config.starts_with("./") {
+                path_to_ecosystem.join(secrets_config)
+            } else {
+                PathBuf::from(secrets_config)
+            }
+            .into_os_string()
+            .into_string()
+            .unwrap();
 
             additional_args.push(format!("--config-path={}", general_config));
             additional_args.push(format!("--secrets-path={}", secrets_config));
