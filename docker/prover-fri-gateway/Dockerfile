@@ -1,4 +1,4 @@
-FROM matterlabs/zksync-build-base:latest AS builder
+FROM ghcr.io/matter-labs/zksync-build-base:latest AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 
@@ -18,8 +18,7 @@ COPY . .
 
 RUN cd prover && cargo build --release --bin zksync_prover_fri_gateway
 
-FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
+FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
 # copy VK required for proof wrapping
 COPY prover/data/keys/ /prover/data/keys/

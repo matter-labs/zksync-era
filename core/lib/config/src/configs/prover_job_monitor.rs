@@ -61,6 +61,8 @@ pub struct ProverJobMonitorConfig {
     /// The interval between runs for Witness Job Queuer.
     #[serde(default = "ProverJobMonitorConfig::default_witness_job_queuer_run_interval_ms")]
     pub witness_job_queuer_run_interval_ms: u64,
+    /// HTTP port of the ProverJobMonitor to send requests to.
+    pub http_port: u16,
 }
 
 impl ProverJobMonitorConfig {

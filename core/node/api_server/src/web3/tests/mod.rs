@@ -63,6 +63,7 @@ use crate::web3::testonly::{spawn_http_server, spawn_ws_server};
 mod debug;
 mod filters;
 mod snapshots;
+mod unstable;
 mod vm;
 mod ws;
 
