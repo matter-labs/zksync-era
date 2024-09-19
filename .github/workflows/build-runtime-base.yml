@@ -62,7 +62,7 @@ jobs:
         with:
           push: true
           context: .
-          file: docker/build-base/Dockerfile
+          file: docker/${{ matrix.name }}/Dockerfile
           labels: |
             org.opencontainers.image.source=https://github.com/matter-labs/zksync-era
             org.opencontainers.image.licenses="MIT OR Apache-2.0"
