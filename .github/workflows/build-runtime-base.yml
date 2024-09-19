@@ -56,9 +56,7 @@ jobs:
         with:
           push: true
           context: .
-          platforms: |
-            - arm64
-            - amd64
+          platforms: arm64, amd64
           file: docker/${{ matrix.name }}/Dockerfile
           labels: |
             org.opencontainers.image.source=https://github.com/matter-labs/zksync-era
