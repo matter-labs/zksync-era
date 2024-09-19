@@ -1,4 +1,4 @@
-name: Build base Docker image
+name: Build zksync-runtime-base Docker image
 on:
   workflow_dispatch:
     inputs:
