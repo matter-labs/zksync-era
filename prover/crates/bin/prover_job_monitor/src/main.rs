@@ -104,7 +104,7 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(bind_address)
         .await
-        .with_context(|| format!("Failed binding PJMr server to {bind_address}"))?;
+        .with_context(|| format!("Failed binding PJM server to {bind_address}"))?;
 
     let mut receiver = stop_receiver.clone();
     let app = axum::serve(listener, get_queue_reporter_router(connection_pool))
