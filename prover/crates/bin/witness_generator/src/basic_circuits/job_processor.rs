@@ -4,13 +4,15 @@ use anyhow::Context as _;
 use tracing::Instrument;
 use zksync_prover_dal::ProverDal;
 use zksync_prover_fri_types::{get_current_pod_name, AuxOutputWitnessWrapper};
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
-    artifacts::{ArtifactsManager, BlobUrls, SchedulerBlobUrls},
+    artifacts::ArtifactsManager,
     basic_circuits::{BasicCircuitArtifacts, BasicWitnessGenerator, BasicWitnessGeneratorJob},
     metrics::WITNESS_GENERATOR_METRICS,
+    witness_generator::WitnessGenerator,
 };
 
 #[async_trait]
@@ -35,19 +37,15 @@ impl JobProcessor for BasicWitnessGenerator {
             )
             .await
         {
-            Some(block_number) => {
-                tracing::info!(
-                    "Processing FRI basic witness-gen for block {}",
-                    block_number
-                );
-                let started_at = Instant::now();
-                let job = Self::get_artifacts(&block_number, &*self.object_store).await?;
-
-                WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
-                    .observe(started_at.elapsed());
-
-                Ok(Some((block_number, job)))
-            }
+            Some(block_number) => Ok(Some((
+                block_number,
+                <Self as WitnessGenerator>::prepare_job(
+                    block_number,
+                    &*self.object_store,
+                    Keystore::locate(), // todo: this should be removed
+                )
+                .await?,
+            ))),
             None => Ok(None),
         }
     }
@@ -73,11 +71,15 @@ impl JobProcessor for BasicWitnessGenerator {
         let max_circuits_in_flight = self.config.max_circuits_in_flight;
         tokio::spawn(async move {
             let block_number = job.block_number;
-            Ok(
-                Self::process_job_impl(object_store, job, started_at, max_circuits_in_flight)
-                    .instrument(tracing::info_span!("basic_circuit", %block_number))
-                    .await,
+            <Self as WitnessGenerator>::process_job(
+                job,
+                object_store,
+                Some(max_circuits_in_flight),
+                started_at,
             )
+            .instrument(tracing::info_span!("basic_circuit", %block_number))
+            .await
+            .map(Some)
         })
     }
 
@@ -92,8 +94,6 @@ impl JobProcessor for BasicWitnessGenerator {
             None => Ok(()),
             Some(artifacts) => {
                 let blob_started_at = Instant::now();
-                let circuit_urls = artifacts.circuit_urls.clone();
-                let queue_urls = artifacts.queue_urls.clone();
 
                 let aux_output_witness_wrapper =
                     AuxOutputWitnessWrapper(artifacts.aux_output_witness.clone());
@@ -105,26 +105,17 @@ impl JobProcessor for BasicWitnessGenerator {
                         .unwrap();
                 }
 
-                let scheduler_witness_url =
-                    match Self::save_artifacts(job_id.0, artifacts.clone(), &*self.object_store)
-                        .await
-                    {
-                        BlobUrls::Url(url) => url,
-                        _ => unreachable!(),
-                    };
+                let blob_urls =
+                    Self::save_to_bucket(job_id.0, artifacts.clone(), &*self.object_store).await;
 
                 WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
                     .observe(blob_started_at.elapsed());
 
-                Self::update_database(
+                Self::save_to_database(
                     &self.prover_connection_pool,
                     job_id.0,
                     started_at,
-                    BlobUrls::Scheduler(SchedulerBlobUrls {
-                        circuit_ids_and_urls: circuit_urls,
-                        closed_form_inputs_and_urls: queue_urls,
-                        scheduler_witness_url,
-                    }),
+                    blob_urls,
                     artifacts,
                 )
                 .await?;

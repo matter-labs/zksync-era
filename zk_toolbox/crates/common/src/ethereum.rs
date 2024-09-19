@@ -10,7 +10,7 @@ use ethers::{
 };
 use types::TokenInfo;
 
-use crate::{logger, wallets::Wallet};
+use crate::wallets::Wallet;
 
 pub fn create_ethers_client(
     private_key: H256,
@@ -89,35 +89,30 @@ pub async fn mint_token(
     chain_id: u64,
     amount: u128,
 ) -> anyhow::Result<()> {
-    let client = Arc::new(create_ethers_client(
-        main_wallet.private_key.unwrap(),
-        l1_rpc,
-        Some(chain_id),
-    )?);
+    let client = Arc::new(
+        create_ethers_client(main_wallet.private_key.unwrap(), l1_rpc, Some(chain_id))?
+            .nonce_manager(main_wallet.address),
+    );
 
     let contract = TokenContract::new(token_address, client);
-    // contract
+
+    let mut pending_calls = vec![];
     for address in addresses {
-        if let Err(err) = mint(&contract, address, amount).await {
-            logger::warn(format!("Failed to mint {err}"))
-        }
+        pending_calls.push(contract.mint(address, amount.into()));
     }
 
-    Ok(())
-}
+    let mut pending_txs = vec![];
+    for call in &pending_calls {
+        pending_txs.push(
+            call.send()
+                .await?
+                // It's safe to set such low number of confirmations and low interval for localhost
+                .confirmations(3)
+                .interval(Duration::from_millis(30)),
+        );
+    }
 
-async fn mint<T: Middleware + 'static>(
-    contract: &TokenContract<T>,
-    address: Address,
-    amount: u128,
-) -> anyhow::Result<()> {
-    contract
-        .mint(address, amount.into())
-        .send()
-        .await?
-        // It's safe to set such low number of confirmations and low interval for localhost
-        .confirmations(1)
-        .interval(Duration::from_millis(30))
-        .await?;
+    futures::future::join_all(pending_txs).await;
+
     Ok(())
 }

@@ -3,15 +3,15 @@ use std::time::Instant;
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::keys::ClosedFormInputKey;
+use zksync_prover_fri_types::keys::{AggregationsKey, ClosedFormInputKey};
 use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_types::{basic_fri_types::AggregationRound, prover_dal::LeafAggregationJobMetadata};
 
 use crate::{
-    artifacts::{AggregationBlobUrls, ArtifactsManager, BlobUrls},
+    artifacts::{AggregationBlobUrls, ArtifactsManager},
     leaf_aggregation::{LeafAggregationArtifacts, LeafAggregationWitnessGenerator},
     metrics::WITNESS_GENERATOR_METRICS,
-    utils::{save_node_aggregations_artifacts, ClosedFormInputWrapper},
+    utils::{AggregationWrapper, ClosedFormInputWrapper},
 };
 
 #[async_trait]
@@ -19,6 +19,7 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
     type InputMetadata = LeafAggregationJobMetadata;
     type InputArtifacts = ClosedFormInputWrapper;
     type OutputArtifacts = LeafAggregationArtifacts;
+    type BlobUrls = AggregationBlobUrls;
 
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
@@ -41,38 +42,40 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
         skip_all,
         fields(l1_batch = %artifacts.block_number, circuit_id = %artifacts.circuit_id)
     )]
-    async fn save_artifacts(
+    async fn save_to_bucket(
         _job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
-    ) -> BlobUrls {
+    ) -> AggregationBlobUrls {
         let started_at = Instant::now();
-        let aggregations_urls = save_node_aggregations_artifacts(
-            artifacts.block_number,
-            get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
-            0,
-            artifacts.aggregations,
-            object_store,
-        )
-        .await;
+        let key = AggregationsKey {
+            block_number: artifacts.block_number,
+            circuit_id: get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
+            depth: 0,
+        };
+        let aggregation_urls = object_store
+            .put(key, &AggregationWrapper(artifacts.aggregations))
+            .await
+            .unwrap();
+
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::LeafAggregation.into()]
             .observe(started_at.elapsed());
 
-        BlobUrls::Aggregation(AggregationBlobUrls {
-            aggregations_urls,
+        AggregationBlobUrls {
+            aggregation_urls,
             circuit_ids_and_urls: artifacts.circuit_ids_and_urls,
-        })
+        }
     }
 
     #[tracing::instrument(
         skip_all,
         fields(l1_batch = %job_id)
     )]
-    async fn update_database(
+    async fn save_to_database(
         connection_pool: &ConnectionPool<Prover>,
         job_id: u32,
         started_at: Instant,
-        blob_urls: BlobUrls,
+        blob_urls: AggregationBlobUrls,
         artifacts: Self::OutputArtifacts,
     ) -> anyhow::Result<()> {
         tracing::info!(
@@ -81,11 +84,6 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
             artifacts.block_number.0,
             artifacts.circuit_id,
         );
-
-        let blob_urls = match blob_urls {
-            BlobUrls::Aggregation(blob_urls) => blob_urls,
-            _ => panic!("Unexpected blob urls type"),
-        };
 
         let mut prover_connection = connection_pool.connection().await.unwrap();
         let mut transaction = prover_connection.start_transaction().await.unwrap();
@@ -124,7 +122,7 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
                 get_recursive_layer_circuit_id_for_base_layer(artifacts.circuit_id),
                 number_of_dependent_jobs,
                 0,
-                blob_urls.aggregations_urls,
+                blob_urls.aggregation_urls,
             )
             .await;
         tracing::info!(

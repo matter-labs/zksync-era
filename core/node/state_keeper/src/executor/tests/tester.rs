@@ -396,7 +396,7 @@ impl AccountLoadNextExecutable for Account {
 
         self.get_l2_tx_for_execute(
             Execute {
-                contract_address: address,
+                contract_address: Some(address),
                 calldata: LoadnextContractExecutionParams {
                     reads: 100,
                     initial_writes: initial_writes as usize,
@@ -433,7 +433,7 @@ impl AccountLoadNextExecutable for Account {
 
         self.get_l2_tx_for_execute(
             Execute {
-                contract_address: address,
+                contract_address: Some(address),
                 calldata,
                 value: Default::default(),
                 factory_deps: vec![],
