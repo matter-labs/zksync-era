@@ -10,9 +10,8 @@ use config::{EcosystemConfig, PortsConfig};
 use serde_yaml::Value;
 use xshell::Shell;
 
-use crate::defaults::PORT_RANGE;
+use crate::defaults::{DEFAULT_OBSERVABILITY_PORT, PORT_RANGE};
 
-#[derive(Default)]
 pub struct EcosystemPorts {
     pub ports: HashMap<u16, Vec<String>>,
 }
@@ -76,6 +75,19 @@ impl fmt::Display for EcosystemPorts {
             }
         }
         Ok(())
+    }
+}
+
+impl Default for EcosystemPorts {
+    fn default() -> Self {
+        let mut ports = HashMap::new();
+        ports.insert(
+            DEFAULT_OBSERVABILITY_PORT,
+            vec!["Observability".to_string()],
+        );
+        Self {
+            ports: HashMap::new(),
+        }
     }
 }
 
