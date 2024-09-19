@@ -184,8 +184,7 @@ async fn load_resources(
     let setup_data_cache = keystore
         .load_all_setup_key_mapping()
         .await
-        .context("failed to load setup key mapping")?
-        .into();
+        .context("failed to load setup key mapping")?;
     let finalization_hints = keystore
         .load_all_finalization_hints_mapping()
         .await

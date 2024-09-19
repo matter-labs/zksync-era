@@ -78,15 +78,12 @@ impl WitnessVectorGenerator {
                 WITNESS_VECTOR_GENERATOR_METRICS
                     .job_wait_time
                     .observe(get_job_timer.elapsed());
-                match self.generate(prover_job, cancellation_token.clone()).await {
-                    e @ Err(_) => {
-                        // this means that the witness vector receiver is closed, no need to report the error, just return
-                        if cancellation_token.is_cancelled() {
-                            return Ok(());
-                        }
-                        e.context("failed to generate witness")?
+                if let e @ Err(_) = self.generate(prover_job, cancellation_token.clone()).await {
+                    // this means that the witness vector receiver is closed, no need to report the error, just return
+                    if cancellation_token.is_cancelled() {
+                        return Ok(());
                     }
-                    _ => {}
+                    e.context("failed to generate witness")?
                 }
 
                 // waiting for a job timer starts as soon as the other is finished

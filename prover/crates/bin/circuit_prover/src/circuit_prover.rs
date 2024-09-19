@@ -385,13 +385,13 @@ impl CircuitProver {
 
     /// Persists job execution error to database.
     async fn save_failure(&self, job_id: u32, error: String) -> anyhow::Result<()> {
-        Ok(self
-            .connection_pool
+        self.connection_pool
             .connection()
             .await
             .context("failed to get db connection")?
             .fri_prover_jobs_dal()
             .save_proof_error(job_id, error)
-            .await)
+            .await;
+        Ok(())
     }
 }
