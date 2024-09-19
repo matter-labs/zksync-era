@@ -144,7 +144,7 @@ where
             .unwrap_or_default();
 
         let execute = L2Tx::new(
-            contract_address,
+            Some(contract_address),
             calldata,
             Nonce(0),
             Default::default(),

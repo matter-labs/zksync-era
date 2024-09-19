@@ -388,7 +388,7 @@ impl AccountLoadNextExecutable for Account {
     fn execute_with_factory_deps(&mut self, factory_deps: Vec<Vec<u8>>) -> Transaction {
         self.get_l2_tx_for_execute(
             Execute {
-                contract_address: Address::random(),
+                contract_address: Some(Address::random()),
                 calldata: vec![],
                 value: Default::default(),
                 factory_deps,
@@ -416,7 +416,7 @@ impl AccountLoadNextExecutable for Account {
 
         self.get_l2_tx_for_execute(
             Execute {
-                contract_address: address,
+                contract_address: Some(address),
                 calldata: LoadnextContractExecutionParams {
                     reads: 100,
                     writes: writes as usize,
@@ -452,7 +452,7 @@ impl AccountLoadNextExecutable for Account {
 
         self.get_l2_tx_for_execute(
             Execute {
-                contract_address: address,
+                contract_address: Some(address),
                 calldata,
                 value: Default::default(),
                 factory_deps: vec![],

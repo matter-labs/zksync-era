@@ -21,7 +21,7 @@ fn test_circuits() {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: Address::random(),
+            contract_address: Some(Address::random()),
             calldata: Vec::new(),
             value: U256::from(1u8),
             factory_deps: vec![],

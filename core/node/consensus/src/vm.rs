@@ -56,7 +56,7 @@ impl VM {
         call: abi::Call<F>,
     ) -> ctx::Result<F::Outputs> {
         let tx = L2Tx::new(
-            *address,
+            Some(*address),
             call.calldata().context("call.calldata()")?,
             Nonce(0),
             Fee {
