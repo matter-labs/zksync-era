@@ -1,4 +1,4 @@
-FROM matterlabs/zksync-build-base:latest AS builder
+FROM ghcr.io/matter-labs/zksync-build-base:latest AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG RUST_FLAGS=""
