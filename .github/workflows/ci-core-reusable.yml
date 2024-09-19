@@ -447,15 +447,6 @@ jobs:
           wait $PID3
           wait $PID4
 
-      - name: Re-run servers
-        run: |
-          ci_run zk_inception server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
-          ci_run zk_inception server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
-          ci_run zk_inception server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
-          ci_run zk_inception server --ignore-prerequisites --chain consensus \
-          --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus \
-          &> ${{ env.SERVER_LOGS_DIR }}/consensus.log &
-
       - name: Fee projection tests
         run: |
           ci_run zk_supervisor test fees --chain era &> ${{ env.FEES_LOGS_DIR }}/era.log 
