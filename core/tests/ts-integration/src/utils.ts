@@ -108,7 +108,7 @@ export class Node<TYPE extends NodeType> {
         public readonly tester: Tester,
         private readonly proc: ChildProcessWithoutNullStreams,
         private readonly type: TYPE
-    ) { }
+    ) {}
 
     public async terminate() {
         try {
@@ -165,7 +165,7 @@ export class NodeSpawner {
         private readonly fileConfig: FileConfig,
         private readonly options: MainNodeSpawnOptions,
         private readonly env?: ProcessEnvOptions['env']
-    ) { }
+    ) {}
 
     public async spawnMainNode(newL1GasPrice?: string, newPubdataPrice?: string): Promise<Node<NodeType.MAIN>> {
         const env = this.env ?? process.env;
