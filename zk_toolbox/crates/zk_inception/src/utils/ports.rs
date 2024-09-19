@@ -176,18 +176,16 @@ impl EcosystemPortsScanner {
                                 if let Some(port_str) = port_entry.as_str() {
                                     let parts: Vec<&str> = port_str.split(':').collect();
 
-                                    // Handle 3-part (IP:host:container) or 2-part (host:container) port mappings
-                                    let host_port_str = match parts.len() {
-                                        3 => parts.get(1),
-                                        2 => parts.first(),
-                                        _ => None,
-                                    };
-
-                                    if let Some(host_port) = host_port_str {
-                                        if let Ok(port) = host_port.parse::<u16>() {
-                                            let description =
-                                                format!("[{}] {}", file_path.display(), new_path);
-                                            ecosystem_ports.add_port_info(port, description);
+                                    if parts.len() > 1 {
+                                        if let Some(host_port_str) = parts.get(parts.len() - 2) {
+                                            if let Ok(port) = host_port_str.parse::<u16>() {
+                                                let description = format!(
+                                                    "[{}] {}",
+                                                    file_path.display(),
+                                                    new_path
+                                                );
+                                                ecosystem_ports.add_port_info(port, description);
+                                            }
                                         }
                                     }
                                 }
