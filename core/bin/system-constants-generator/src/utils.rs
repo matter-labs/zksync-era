@@ -75,7 +75,7 @@ pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
     let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
     let hash = hash_bytecode(&bytecode);
 
-    let mut evm_simulator_bytecode = vec![];
+    let mut evm_simulator_bytecode = bytecode.clone();
     let mut evm_simulator_hash =
         H256::from_str("0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32")
             .unwrap();

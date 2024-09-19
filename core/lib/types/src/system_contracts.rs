@@ -230,6 +230,7 @@ pub fn get_system_smart_contracts_from_dir(path: PathBuf) -> Vec<DeployedContrac
     let evm_simulator_is_used = use_evm_simulator::UseEvmSimulator::from_env()
         .unwrap()
         .use_evm_simulator;
+    let repo = SystemContractsRepo { root: path };
     SYSTEM_CONTRACT_LIST
         .iter()
         .filter_map(|(path, name, address, contract_lang)| {
@@ -238,7 +239,7 @@ pub fn get_system_smart_contracts_from_dir(path: PathBuf) -> Vec<DeployedContrac
             } else {
                 Some(DeployedContract {
                     account_id: AccountTreeId::new(*address),
-                    bytecode: read_sys_contract_bytecode(path, name, contract_lang.clone()),
+                    bytecode: repo.read_sys_contract_bytecode(path, name, contract_lang.clone()),
                 })
             };
             result
