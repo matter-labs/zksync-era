@@ -44,6 +44,7 @@ pub struct DeployL1DeployedAddressesOutput {
     pub governance_addr: Address,
     pub transparent_proxy_admin_addr: Address,
     pub validator_timelock_addr: Address,
+    pub chain_admin: Address,
     pub bridgehub: L1BridgehubOutput,
     pub bridges: L1BridgesOutput,
     pub state_transition: L1StateTransitionOutput,

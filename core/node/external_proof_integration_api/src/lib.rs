@@ -19,10 +19,7 @@ use types::{ExternalProof, ProofGenerationDataResponse};
 use zksync_basic_types::L1BatchNumber;
 
 pub use crate::processor::Processor;
-use crate::{
-    metrics::{CallOutcome, Method},
-    middleware::MetricsMiddleware,
-};
+use crate::{metrics::Method, middleware::MetricsMiddleware};
 
 /// External API implementation.
 #[derive(Debug)]
@@ -37,11 +34,7 @@ impl Api {
             axum::middleware::from_fn(move |req: Request, next: Next| async move {
                 let middleware = MetricsMiddleware::new(method);
                 let response = next.run(req).await;
-                let outcome = match response.status().is_success() {
-                    true => CallOutcome::Success,
-                    false => CallOutcome::Failure,
-                };
-                middleware.observe(outcome);
+                middleware.observe(response.status());
                 response
             })
         };

@@ -231,8 +231,14 @@ async fn get_prover_tasks(
 
     let keystore =
         Keystore::locate().with_setup_path(Some(prover_config.setup_data_path.clone().into()));
-    let setup_load_mode = gpu_prover::load_setup_data_cache(&keystore, &prover_config)
-        .context("load_setup_data_cache()")?;
+    let setup_load_mode = gpu_prover::load_setup_data_cache(
+        &keystore,
+        prover_config.setup_load_mode,
+        prover_config.specialized_group_id,
+        &circuit_ids_for_round_to_be_proven,
+    )
+    .await
+    .context("load_setup_data_cache()")?;
     let witness_vector_queue = FixedSizeQueue::new(prover_config.queue_capacity);
     let shared_witness_vector_queue = Arc::new(Mutex::new(witness_vector_queue));
     let consumer = shared_witness_vector_queue.clone();

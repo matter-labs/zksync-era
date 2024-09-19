@@ -13,7 +13,7 @@ pub(crate) fn make_tx<F: crate::abi::Function>(
 ) -> Transaction {
     account.get_l2_tx_for_execute(
         Execute {
-            contract_address: *address,
+            contract_address: Some(*address),
             calldata: call.calldata().unwrap(),
             value: U256::zero(),
             factory_deps: vec![],

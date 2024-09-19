@@ -10,6 +10,7 @@ use std::{
 };
 
 use rand::{thread_rng, Rng};
+use test_casing::test_casing;
 use zksync_config::SnapshotsCreatorConfig;
 use zksync_dal::{Connection, CoreDal};
 use zksync_object_store::{MockObjectStore, ObjectStore};
@@ -64,6 +65,15 @@ impl HandleEvent for TestEventListener {
     }
 }
 
+#[derive(Debug)]
+struct UnreachableEventListener;
+
+impl HandleEvent for UnreachableEventListener {
+    fn on_chunk_started(&self) -> TestBehavior {
+        unreachable!("should not be reached");
+    }
+}
+
 impl SnapshotCreator {
     fn for_tests(blob_store: Arc<dyn ObjectStore>, pool: ConnectionPool<Core>) -> Self {
         Self {
@@ -77,6 +87,13 @@ impl SnapshotCreator {
     fn stop_after_chunk_count(self, stop_after_chunk_count: usize) -> Self {
         Self {
             event_listener: Box::new(TestEventListener::new(stop_after_chunk_count)),
+            ..self
+        }
+    }
+
+    fn panic_on_chunk_start(self) -> Self {
+        Self {
+            event_listener: Box::new(UnreachableEventListener),
             ..self
         }
     }
@@ -431,8 +448,9 @@ async fn persisting_snapshot_logs_for_v0_snapshot() {
     assert_eq!(actual_logs, expected_outputs.storage_logs);
 }
 
+#[test_casing(2, [false, true])]
 #[tokio::test]
-async fn recovery_workflow() {
+async fn recovery_workflow(specify_batch_after_recovery: bool) {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut rng = thread_rng();
     let object_store = MockObjectStore::arc();
@@ -462,29 +480,9 @@ async fn recovery_workflow() {
     let actual_deps: HashSet<_> = factory_deps.into_iter().collect();
     assert_eq!(actual_deps, expected_outputs.deps);
 
-    // Check that the creator does nothing unless it's requested to create a new snapshot.
-    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
-        .stop_after_chunk_count(2)
-        .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
-        .await
-        .unwrap();
-    let snapshot_metadata = conn
-        .snapshots_dal()
-        .get_snapshot_metadata(snapshot_l1_batch_number)
-        .await
-        .unwrap()
-        .expect("No snapshot metadata");
-    assert!(
-        snapshot_metadata
-            .storage_logs_filepaths
-            .iter()
-            .all(Option::is_none),
-        "{snapshot_metadata:?}"
-    );
-
     // Process 2 storage log chunks, then stop.
     let recovery_config = SnapshotsCreatorConfig {
-        l1_batch_number: Some(snapshot_l1_batch_number),
+        l1_batch_number: specify_batch_after_recovery.then_some(snapshot_l1_batch_number),
         ..SEQUENTIAL_TEST_CONFIG
     };
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
@@ -510,11 +508,68 @@ async fn recovery_workflow() {
 
     // Process the remaining chunks.
     SnapshotCreator::for_tests(object_store.clone(), pool.clone())
-        .run(recovery_config, MIN_CHUNK_COUNT)
+        .run(recovery_config.clone(), MIN_CHUNK_COUNT)
         .await
         .unwrap();
 
     assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
+
+    // Check that the snapshot is not created anew after it is completed.
+    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
+        .panic_on_chunk_start()
+        .run(recovery_config, MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+
+    let snapshot_metadata = conn
+        .snapshots_dal()
+        .get_snapshot_metadata(snapshot_l1_batch_number)
+        .await
+        .unwrap()
+        .expect("No snapshot metadata");
+    assert!(snapshot_metadata.is_complete(), "{snapshot_metadata:#?}");
+}
+
+#[tokio::test]
+async fn recovery_workflow_with_new_l1_batch() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut rng = thread_rng();
+    let object_store = MockObjectStore::arc();
+    let mut conn = pool.connection().await.unwrap();
+    let expected_outputs = prepare_postgres(&mut rng, &mut conn, 10).await;
+
+    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
+        .stop_after_chunk_count(2)
+        .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+
+    let snapshot_l1_batch_number = L1BatchNumber(8);
+    let snapshot_metadata = conn
+        .snapshots_dal()
+        .get_snapshot_metadata(snapshot_l1_batch_number)
+        .await
+        .unwrap()
+        .expect("No snapshot metadata");
+    assert!(!snapshot_metadata.is_complete(), "{snapshot_metadata:#?}");
+
+    let new_logs = gen_storage_logs(&mut thread_rng(), 50);
+    create_l1_batch(&mut conn, snapshot_l1_batch_number + 2, &new_logs).await;
+
+    // The old snapshot should be completed.
+    SnapshotCreator::for_tests(object_store.clone(), pool.clone())
+        .run(SEQUENTIAL_TEST_CONFIG, MIN_CHUNK_COUNT)
+        .await
+        .unwrap();
+    assert_storage_logs(&*object_store, snapshot_l1_batch_number, &expected_outputs).await;
+
+    let snapshot_metadata = conn
+        .snapshots_dal()
+        .get_snapshot_metadata(snapshot_l1_batch_number)
+        .await
+        .unwrap()
+        .expect("No snapshot metadata");
+    assert!(snapshot_metadata.is_complete(), "{snapshot_metadata:#?}");
 }
 
 #[tokio::test]

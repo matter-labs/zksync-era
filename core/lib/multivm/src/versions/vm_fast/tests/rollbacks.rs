@@ -56,7 +56,7 @@ fn test_vm_rollbacks() {
         TransactionTestInfo::new_rejected(tx_0, TxModifier::NonceReused.into()),
     ]);
 
-    assert_eq!(result_without_rollbacks, result_with_rollbacks);
+    pretty_assertions::assert_eq!(result_without_rollbacks, result_with_rollbacks);
 }
 
 #[test]
@@ -83,7 +83,7 @@ fn test_vm_loadnext_rollbacks() {
 
     let loadnext_tx_1 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
                 writes: 100,
@@ -101,7 +101,7 @@ fn test_vm_loadnext_rollbacks() {
 
     let loadnext_tx_2 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
                 writes: 100,
