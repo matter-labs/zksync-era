@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::anyhow;
 use clap::{Parser, ValueEnum};
@@ -94,7 +94,7 @@ impl ProverComponent {
         in_docker: bool,
         args: ProverRunArgs,
         chain: &ChainConfig,
-        path_to_ecosystem: &PathBuf,
+        path_to_ecosystem: &Path,
     ) -> anyhow::Result<Vec<String>> {
         let mut additional_args = vec![];
         if in_docker {

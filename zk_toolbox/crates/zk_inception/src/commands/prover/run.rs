@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
 use common::{check_prerequisites, cmd::Cmd, config::global_config, logger, GPU_PREREQUISITES};
@@ -109,7 +109,7 @@ fn run_dockerized_component(
     error: &'static str,
     path_to_configs: &PathBuf,
     path_to_prover: &PathBuf,
-    path_to_ecosystem: &PathBuf,
+    path_to_ecosystem: &Path,
 ) -> anyhow::Result<()> {
     logger::info(message);
 
