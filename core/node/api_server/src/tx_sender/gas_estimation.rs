@@ -198,12 +198,12 @@ impl TxSender {
 
             // It is assumed that there is no overflow here
             let gas_for_pubdata =
-                (result.statistics.pubdata_published as u64) * gas_per_pubdata_byte;
+                u64::from(result.statistics.pubdata_published) * gas_per_pubdata_byte;
             (Some(result.statistics.gas_used), gas_for_pubdata)
         };
 
-        // We are using binary search to find the minimal values of gas_limit under which
-        // the transaction succeeds
+        // We are using binary search to find the minimal values of gas_limit under which the transaction succeeds.
+        // **Important.** Lower and upper bound do not include `additional_gas_for_pubdata`; it needs to be added when calling `estimate_gas_step()`.
         let mut lower_bound = gas_used.unwrap_or(0);
         let mut upper_bound = MAX_L2_TX_GAS_LIMIT;
         tracing::trace!(
@@ -212,18 +212,21 @@ impl TxSender {
         );
         let mut number_of_iterations = 0_usize;
 
-        if let Some(gas_used) = gas_used {
-            // Perform an initial search iteration with the pivot slightly greater than `gas_used` to account for 63/64 rule for far calls etc.
-            // If the transaction succeeds, it will discard most of the search space at once.
-            let iteration_started_at = Instant::now();
-            let optimistic_gas_limit =
-                (gas_used * 6 / 5).min(upper_bound) + additional_gas_for_pubdata;
+        // Perform an initial search iteration with the pivot slightly greater than `gas_used` to account for 63/64 rule for far calls etc.
+        // If the transaction succeeds, it will discard most of the search space at once.
+        let optimistic_gas_limit = gas_used.and_then(|gas_used| {
+            let optimistic_gas_limit = gas_used * 6 / 5;
+            // If `optimistic_gas_limit` is greater than the ordinary binary search pivot, there's no sense using it.
+            (optimistic_gas_limit < (lower_bound + upper_bound) / 2).then_some(optimistic_gas_limit)
+        });
 
+        if let Some(optimistic_gas_limit) = optimistic_gas_limit {
+            let iteration_started_at = Instant::now();
             let (result, _) = self
                 .estimate_gas_step(
                     vm_permit.clone(),
                     tx.clone(),
-                    optimistic_gas_limit,
+                    optimistic_gas_limit + additional_gas_for_pubdata,
                     gas_per_pubdata_byte as u32,
                     fee_input,
                     block_args,
@@ -268,7 +271,7 @@ impl TxSender {
                 )
                 .await
                 .context("estimate_gas step failed")?;
-            Self::adjust_search_bounds(&mut lower_bound, &mut upper_bound, try_gas_limit, &result);
+            Self::adjust_search_bounds(&mut lower_bound, &mut upper_bound, mid, &result);
 
             tracing::trace!(
                 "iteration {number_of_iterations} took {:?}. lower_bound: {lower_bound}, upper_bound: {upper_bound}",

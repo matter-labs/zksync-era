@@ -17,15 +17,12 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
 use zksync_types::{
     api::state_override::{OverrideAccount, StateOverride},
-    fee::Fee,
-    l2::L2Tx,
-    transaction_request::PaymasterParams,
-    K256PrivateKey, Nonce, ProtocolVersionId, Transaction, U256,
+    ProtocolVersionId, Transaction, U256,
 };
 use zksync_vm_executor::oneshot::MainOneshotExecutor;
 
 use super::{storage::StorageWithOverrides, *};
-use crate::tx_sender::ApiContracts;
+use crate::{testonly::create_transfer, tx_sender::ApiContracts};
 
 #[tokio::test]
 async fn creating_block_args() {
@@ -210,7 +207,7 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
         ProtocolVersionId::latest().into(),
     );
     setup_args.enforced_base_fee = Some(base_fee);
-    let transaction = Transaction::from(create_transfer(base_fee, gas_per_pubdata));
+    let transaction = Transaction::from(create_transfer(0.into(), base_fee, gas_per_pubdata));
 
     let execution_args = TxExecutionArgs::for_gas_estimate(transaction.clone());
     let (env, storage) = apply::prepare_env_and_storage(connection, setup_args, &block_args)
@@ -226,27 +223,6 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
     output.compression_result.unwrap();
     let tx_result = *output.tx_result;
     assert!(!tx_result.result.is_failed(), "{tx_result:#?}");
-}
-
-fn create_transfer(fee_per_gas: u64, gas_per_pubdata: u64) -> L2Tx {
-    let fee = Fee {
-        gas_limit: 200_000.into(),
-        max_fee_per_gas: fee_per_gas.into(),
-        max_priority_fee_per_gas: 0_u64.into(),
-        gas_per_pubdata_limit: gas_per_pubdata.into(),
-    };
-    L2Tx::new_signed(
-        Some(Address::random()),
-        vec![],
-        Nonce(0),
-        fee,
-        U256::zero(),
-        L2ChainId::default(),
-        &K256PrivateKey::random(),
-        vec![],
-        PaymasterParams::default(),
-    )
-    .unwrap()
 }
 
 #[test_casing(2, [false, true])]
@@ -267,7 +243,7 @@ async fn validating_transaction(set_balance: bool) {
         ProtocolVersionId::latest().into(),
     );
     setup_args.enforced_base_fee = Some(base_fee);
-    let transaction = create_transfer(base_fee, gas_per_pubdata);
+    let transaction = create_transfer(0.into(), base_fee, gas_per_pubdata);
 
     let validation_params =
         validate::get_validation_params(&mut connection, &transaction, u32::MAX, &[])

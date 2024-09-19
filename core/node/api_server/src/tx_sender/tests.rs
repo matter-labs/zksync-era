@@ -1,18 +1,24 @@
 //! Tests for the transaction sender.
 
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use assert_matches::assert_matches;
 use zksync_multivm::interface::ExecutionResult;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
-use zksync_types::{api, get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
+use zksync_types::{
+    api, api::state_override::OverrideAccount, get_nonce_key, L1BatchNumber, L2BlockNumber,
+    StorageLog,
+};
 use zksync_utils::u256_to_h256;
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
 use super::*;
-use crate::{execution_sandbox::BlockStartInfo, web3::testonly::create_test_tx_sender};
+use crate::{
+    execution_sandbox::BlockStartInfo, testonly::create_transfer,
+    web3::testonly::create_test_tx_sender,
+};
 
 #[tokio::test]
 async fn getting_nonce_for_account() {
@@ -199,4 +205,62 @@ async fn eth_call_requires_single_connection() {
         .await
         .unwrap();
     assert_eq!(output, b"success!");
+}
+
+#[tokio::test]
+async fn estimating_gas_for_transfer() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut storage = pool.connection().await.unwrap();
+    let genesis_params = GenesisParams::mock();
+    insert_genesis_batch(&mut storage, &genesis_params)
+        .await
+        .unwrap();
+    drop(storage);
+
+    let tx_executor = TransactionExecutor::real(usize::MAX);
+    let (tx_sender, _) = create_test_tx_sender(
+        pool.clone(),
+        genesis_params.config().l2_chain_id,
+        tx_executor,
+    )
+    .await;
+
+    let value = 1_000_000_000.into();
+    let tx = create_transfer(value, 55, 555); // fee params don't matter; they should be overwritten by the estimation logic
+    let fee_scale_factor = 1.0;
+    let acceptable_overestimation = 1_000;
+    // Without overrides, the transaction should fail because of insufficient balance.
+    let err = tx_sender
+        .get_txs_fee_in_wei(
+            tx.clone().into(),
+            fee_scale_factor,
+            acceptable_overestimation,
+            None,
+        )
+        .await
+        .unwrap_err();
+    assert_matches!(err, SubmitTxError::InsufficientFundsForTransfer);
+
+    let account_overrides = OverrideAccount {
+        balance: Some(value * 2),
+        ..OverrideAccount::default()
+    };
+    let call_overrides =
+        StateOverride::new(HashMap::from([(tx.initiator_account(), account_overrides)]));
+    let fee = tx_sender
+        .get_txs_fee_in_wei(
+            tx.into(),
+            fee_scale_factor,
+            acceptable_overestimation,
+            Some(call_overrides),
+        )
+        .await
+        .unwrap();
+    // Sanity-check gas limit
+    assert!(
+        fee.gas_limit > 1_000.into() && fee.gas_limit < 1_000_000.into(),
+        "{fee:?}"
+    );
+
+    // FIXME: check that transaction with this limit doesn't fail & fails with a lower one
 }
