@@ -17,8 +17,6 @@ jobs:
       packages: write
       contents: read
     env:
-      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       REPO_REF: ${{ github.event.inputs.repo_ref }}
     strategy:
       matrix:
