@@ -18,12 +18,6 @@ use crate::{
     SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmMemoryMetrics,
 };
 
-#[derive(Debug)]
-pub struct OwnedTracer(());
-
-#[derive(Debug)]
-pub struct BorrowedTracer(());
-
 pub trait VmInterface {
     /// Lifetime is used to be able to define `Option<&mut _>` as a dispatcher.
     type TracerDispatcher<'a>;
@@ -58,7 +52,19 @@ pub trait VmInterface {
     fn finish_batch(&mut self) -> FinishedL1Batch;
 }
 
+/// Owned tracer kind used as a type param in [`VmInterfaceExt`].
+#[derive(Debug)]
+pub struct OwnedTracer(());
+
+/// Borrowed tracer kind used as a type param in [`VmInterfaceExt`].
+#[derive(Debug)]
+pub struct BorrowedTracer(());
+
 /// Extension trait for [`VmInterface`] that provides some additional methods.
+///
+/// The `Kind` type param indicates the tracer kind (owned or borrowed) used by the VM. It allows to
+/// have 2 wildcard implementations that the Rust compiler cannot prove don't intersect (they don't in reality).
+/// You won't need to specify this type param explicitly in 99% of the cases.
 pub trait VmInterfaceExt<Kind>: VmInterface {
     /// Executes the next VM step (either next transaction or bootloader or the whole batch).
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs;
@@ -71,8 +77,10 @@ pub trait VmInterfaceExt<Kind>: VmInterface {
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs);
 }
 
-impl<Tr: Default, T: for<'a> VmInterface<TracerDispatcher<'a> = Tr>> VmInterfaceExt<OwnedTracer>
-    for T
+impl<Tr, T> VmInterfaceExt<OwnedTracer> for T
+where
+    Tr: Default,
+    T: for<'a> VmInterface<TracerDispatcher<'a> = Tr>,
 {
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
         self.inspect(Tr::default(), execution_mode)
@@ -87,8 +95,10 @@ impl<Tr: Default, T: for<'a> VmInterface<TracerDispatcher<'a> = Tr>> VmInterface
     }
 }
 
-impl<Tr: Default, T: for<'a> VmInterface<TracerDispatcher<'a> = &'a mut Tr>>
-    VmInterfaceExt<BorrowedTracer> for T
+impl<Tr, T> VmInterfaceExt<BorrowedTracer> for T
+where
+    Tr: Default,
+    T: for<'a> VmInterface<TracerDispatcher<'a> = &'a mut Tr>,
 {
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
         self.inspect(&mut Tr::default(), execution_mode)

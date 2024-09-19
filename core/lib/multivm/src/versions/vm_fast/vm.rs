@@ -57,6 +57,11 @@ const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemo
 
 type FullTracer<Tr> = (Tr, CircuitsTracer);
 
+/// Fast VM wrapper.
+///
+/// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait, a tracer must have `'static` lifetime
+/// and implement [`Default`] (the latter is necessary to complete batches). [`CircuitsTracer`] is currently always enabled;
+/// you don't need to specify it explicitly.
 pub struct Vm<S, Tr = ()> {
     pub(crate) world: World<S, FullTracer<Tr>>,
     pub(crate) inner: VirtualMachine<FullTracer<Tr>, World<S, FullTracer<Tr>>>,

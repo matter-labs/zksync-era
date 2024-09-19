@@ -206,15 +206,16 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
     }
 }
 
-/// Shadowed fast VM.
+/// Fast VM shadowed by the latest legacy VM.
 pub type ShadowedFastVm<S, Tr> =
     ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, HistoryEnabled>, Tr>;
 
 /// Fast VM variants.
-// FIXME: generalize by tracer
 #[derive(Debug)]
 pub enum FastVmInstance<S: ReadStorage, Tr> {
+    /// Fast VM running in isolation.
     Fast(crate::vm_fast::Vm<ImmutableStorageView<S>, Tr>),
+    /// Fast VM shadowed by the latest legacy VM.
     Shadowed(ShadowedFastVm<S, Tr>),
 }
 
@@ -294,6 +295,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterfaceHistoryEnabled
 }
 
 impl<S: ReadStorage, Tr: Tracer + Default + 'static> FastVmInstance<S, Tr> {
+    /// Creates an isolated fast VM.
     pub fn fast(
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
@@ -303,6 +305,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> FastVmInstance<S, Tr> {
         Self::Fast(crate::vm_fast::Vm::new(l1_batch_env, system_env, storage))
     }
 
+    /// Creates a shadowed fast VM.
     pub fn shadowed(
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
