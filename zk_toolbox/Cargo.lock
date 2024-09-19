@@ -6416,7 +6416,6 @@ dependencies = [
  "cliclack",
  "common",
  "config",
- "console",
  "ethers",
  "eyre",
  "human-panic",

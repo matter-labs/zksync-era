@@ -3,7 +3,7 @@ use std::{borrow::Borrow, collections::HashMap, sync::Arc};
 /// Consensus registry contract operations.
 /// Includes code duplicated from `zksync_node_consensus::registry::abi`.
 use anyhow::Context as _;
-use common::config::global_config;
+use common::{config::global_config, logger};
 use config::EcosystemConfig;
 use ethers::{
     abi::Detokenize,
@@ -126,6 +126,16 @@ async fn get_attester_committee(
     let attesters =
         attester::Committee::new(attesters.into_iter()).context("attester::Committee::new()")?;
     Ok(attesters)
+}
+
+fn print_attesters(committee: &attester::Committee) {
+    logger::success(
+        committee
+            .iter()
+            .map(|a| format!("{a:?}"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    );
 }
 
 impl Command {
@@ -299,13 +309,11 @@ impl Command {
                     got == want,
                     "setting attester committee failed: got {got:?}, want {want:?}"
                 );
-                println!("done");
+                print_attesters(&got);
             }
             Self::GetAttesterCommittee => {
                 let attesters = get_attester_committee(&consensus_registry).await?;
-                for a in attesters.iter() {
-                    println!("{a:?}");
-                }
+                print_attesters(&attesters);
             }
         }
         Ok(())
