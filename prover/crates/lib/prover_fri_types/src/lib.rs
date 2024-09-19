@@ -14,14 +14,13 @@ use circuit_definitions::{
         aux::BaseLayerCircuitType, block_header::BlockAuxilaryOutputWitness,
     },
 };
+use keys::RamPermutationQueueWitnessKey;
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::AggregationRound,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
     L1BatchNumber, ProtocolVersionId,
 };
-
-use keys::RamPermutationQueueWitnessKey;
 
 use crate::keys::FriCircuitKey;
 

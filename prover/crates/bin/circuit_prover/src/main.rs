@@ -7,21 +7,20 @@ use std::{
 use anyhow::Context as _;
 use clap::Parser;
 use tokio_util::sync::CancellationToken;
+use zksync_circuit_prover::{
+    Backoff, CircuitProver, FinalizationHintsCache, SetupDataCache, WitnessVectorGenerator,
+    PROVER_BINARY_METRICS,
+};
 use zksync_config::{
     configs::{FriProverConfig, ObservabilityConfig},
     ObjectStoreConfig,
 };
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_utils::wait_for_tasks::ManagedTasks;
-
-use zksync_circuit_prover::{
-    Backoff, CircuitProver, FinalizationHintsCache, SetupDataCache, WitnessVectorGenerator,
-    PROVER_BINARY_METRICS,
-};
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
 use zksync_prover_keystore::keystore::Keystore;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]

@@ -9,9 +9,6 @@ use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
 use zksync_object_store::ObjectStore;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
-use zksync_utils::panic_extractor::try_extract_panic_message;
-
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
@@ -29,10 +26,14 @@ use zksync_prover_fri_types::{
     CircuitWrapper, FriProofWrapper, ProverArtifacts, WitnessVectorArtifactsTemp,
 };
 use zksync_prover_keystore::GoldilocksGpuProverSetupData;
+use zksync_types::protocol_version::ProtocolSemanticVersion;
+use zksync_utils::panic_extractor::try_extract_panic_message;
 
-use crate::metrics::CIRCUIT_PROVER_METRICS;
-use crate::types::{DefaultTranscript, DefaultTreeHasher, Proof, VerificationKey};
-use crate::SetupDataCache;
+use crate::{
+    metrics::CIRCUIT_PROVER_METRICS,
+    types::{DefaultTranscript, DefaultTreeHasher, Proof, VerificationKey},
+    SetupDataCache,
+};
 
 /// In charge of proving circuits, given a Witness Vector source.
 /// Both job runner & job executor.

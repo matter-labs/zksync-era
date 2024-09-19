@@ -1,5 +1,4 @@
-use std::ops::Mul;
-use std::time::Duration;
+use std::{ops::Mul, time::Duration};
 
 /// Backoff - convenience structure that takes care of backoff timings.
 #[derive(Debug, Clone)]
