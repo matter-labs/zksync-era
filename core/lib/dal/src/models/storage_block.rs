@@ -147,6 +147,7 @@ pub(crate) struct StorageL1Batch {
     pub events_queue_commitment: Option<Vec<u8>>,
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub blob_id: Option<String>,
 }
 
 impl StorageL1Batch {
@@ -249,6 +250,7 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
             bootloader_initial_content_commitment: batch
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
+            da_blob_id: batch.blob_id.map(|s| s.into_bytes())
         })
     }
 }
