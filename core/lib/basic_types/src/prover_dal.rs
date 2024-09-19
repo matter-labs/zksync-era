@@ -2,6 +2,7 @@
 use std::{net::IpAddr, ops::Add, str::FromStr};
 
 use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
+use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 use crate::{
@@ -27,7 +28,7 @@ pub struct ExtendedJobCountStatistics {
     pub successful: usize,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct JobCountStatistics {
     pub queued: usize,
     pub in_progress: usize,

@@ -95,6 +95,9 @@ impl ProtoRepr for proto::ProverJobMonitor {
                     .or_else(|| Some(Self::Type::default_witness_job_queuer_run_interval_ms())),
             )
             .context("witness_job_queuer_run_interval_ms")?,
+            http_port: required(&self.http_port)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("http_port")?,
         })
     }
 
@@ -126,6 +129,7 @@ impl ProtoRepr for proto::ProverJobMonitor {
                 this.witness_generator_queue_reporter_run_interval_ms,
             ),
             witness_job_queuer_run_interval_ms: Some(this.witness_job_queuer_run_interval_ms),
+            http_port: Some(this.http_port.into()),
         }
     }
 }

@@ -31,6 +31,7 @@ mod tests {
             prover_queue_reporter_run_interval_ms: 10000,
             witness_generator_queue_reporter_run_interval_ms: 10000,
             witness_job_queuer_run_interval_ms: 10000,
+            http_port: 3074,
         }
     }
 
@@ -55,6 +56,7 @@ mod tests {
     fn from_env_with_default() {
         let config = r#"
             PROVER_JOB_MONITOR_PROMETHEUS_PORT=3317
+            PROVER_JOB_MONITOR_HTTP_PORT=3074
             PROVER_JOB_MONITOR_MAX_DB_CONNECTIONS=9
         "#;
         let mut lock = MUTEX.lock();
@@ -80,6 +82,7 @@ mod tests {
             PROVER_JOB_MONITOR_PROVER_QUEUE_REPORTER_RUN_INTERVAL_MS=10001
             PROVER_JOB_MONITOR_WITNESS_GENERATOR_QUEUE_REPORTER_RUN_INTERVAL_MS=10001
             PROVER_JOB_MONITOR_WITNESS_JOB_QUEUER_RUN_INTERVAL_MS=10001
+            PROVER_JOB_MONITOR_HTTP_PORT=3074
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);
