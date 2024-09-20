@@ -20,6 +20,8 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
         ERA_OBSERBAVILITY_GIT_REPO,
         ERA_OBSERBAVILITY_DIR,
     )?;
+
+    git::checkout(shell, path_to_era_observability, "eigenda")?;
     spinner.finish();
 
     Ok(())
