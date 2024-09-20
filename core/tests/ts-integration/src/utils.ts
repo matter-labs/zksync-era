@@ -6,6 +6,11 @@ import { killPidWithAllChilds } from 'utils/build/kill';
 import * as utils from 'utils';
 import fs from 'node:fs/promises';
 import * as zksync from 'zksync-ethers';
+import {
+    setInternalL1PricingMultiplier,
+    setInternalPubdataPricingMultiplier,
+    setTransactionSlots
+} from '../tests/utils';
 
 // executes a command in background and returns a child process handle
 // by default pipes data to parent's stdio but this can be overridden
@@ -50,8 +55,6 @@ export function runServerInBackground({
     cwd,
     env,
     useZkInception,
-    newL1GasPrice,
-    newPubdataPrice,
     chain
 }: {
     components?: string[];
@@ -71,22 +74,6 @@ export function runServerInBackground({
         }
     } else {
         command = 'zk server';
-        command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
-
-        if (newPubdataPrice) {
-            command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE=${newPubdataPrice} ${command}`;
-        }
-
-        if (newL1GasPrice) {
-            // We need to ensure that each transaction gets into its own batch for more fair comparison.
-            command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newL1GasPrice}  ${command}`;
-        }
-
-        const testMode = newPubdataPrice || newL1GasPrice;
-        if (testMode) {
-            // We need to ensure that each transaction gets into its own batch for more fair comparison.
-            command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ${command}`;
-        }
     }
     return runInBackground({ command, components, stdio, cwd, env });
 }
@@ -171,6 +158,37 @@ export class NodeSpawner {
         const env = this.env ?? process.env;
         const { fileConfig, pathToHome, options, logs } = this;
 
+        const testMode = newPubdataPrice || newL1GasPrice;
+
+        console.log('New L1 Gas Price: ', newL1GasPrice);
+        console.log('New Pubdata Price: ', newPubdataPrice);
+
+        if (fileConfig.loadFromFile) {
+            setTransactionSlots(pathToHome, fileConfig, testMode ? 1 : 8192);
+            setInternalL1PricingMultiplier(pathToHome, fileConfig, newL1GasPrice ? parseFloat(newL1GasPrice) : 0.8);
+            setInternalPubdataPricingMultiplier(
+                pathToHome,
+                fileConfig,
+                newPubdataPrice ? parseFloat(newPubdataPrice) : 1.0
+            );
+        } else {
+            env['DATABASE_MERKLE_TREE_MODE'] = 'full';
+
+            if (newPubdataPrice) {
+                env['ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE'] = newPubdataPrice;
+            }
+
+            if (newL1GasPrice) {
+                // We need to ensure that each transaction gets into its own batch for more fair comparison.
+                env['ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE'] = newL1GasPrice;
+            }
+
+            if (testMode) {
+                // We need to ensure that each transaction gets into its own batch for more fair comparison.
+                env['CHAIN_STATE_KEEPER_TRANSACTION_SLOTS'] = '1';
+            }
+        }
+
         let components = 'api,tree,eth,state_keeper,da_dispatcher,vm_runner_protective_reads';
         if (options.enableConsensus) {
             components += ',consensus';
@@ -184,8 +202,6 @@ export class NodeSpawner {
             cwd: pathToHome,
             env: env,
             useZkInception: fileConfig.loadFromFile,
-            newL1GasPrice: newL1GasPrice,
-            newPubdataPrice: newPubdataPrice,
             chain: fileConfig.chain
         });
 

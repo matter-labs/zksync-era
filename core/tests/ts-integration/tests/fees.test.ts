@@ -21,6 +21,7 @@ import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
 import path from 'path';
 import { NodeSpawner, Node, NodeType } from '../src/utils';
+import { setInternalL1PricingMultiplier, setInternalPubdataPricingMultiplier, setTransactionSlots } from './utils';
 
 const UINT32_MAX = 2n ** 32n - 1n;
 const MAX_GAS_PER_PUBDATA = 50_000n;
@@ -273,6 +274,11 @@ testFees('Test fees', function () {
         // Returning the pubdata price to the default one
         await mainNode.killAndWaitForShutdown();
         mainNode = await mainNodeSpawner.spawnMainNode();
+
+        // Restore defaults
+        setTransactionSlots(pathToHome, fileConfig, 8192);
+        setInternalL1PricingMultiplier(pathToHome, fileConfig, 0.8);
+        setInternalPubdataPricingMultiplier(pathToHome, fileConfig, 1.0);
 
         await testMaster.deinitialize();
     });
