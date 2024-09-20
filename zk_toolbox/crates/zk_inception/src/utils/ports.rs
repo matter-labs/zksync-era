@@ -177,31 +177,19 @@ impl EcosystemPortsScanner {
                     };
 
                     if key.as_str() == Some("ports") {
-                        if let Value::Sequence(ports) = val {
-                            for port_entry in ports {
-                                if let Some(port_str) = port_entry.as_str() {
-                                    let parts: Vec<&str> = port_str.split(':').collect();
-
-                                    if parts.len() > 1 {
-                                        if let Some(host_port_str) = parts.get(parts.len() - 2) {
-                                            if let Ok(port) = host_port_str.parse::<u16>() {
-                                                let description = format!(
-                                                    "[{}] {}",
-                                                    file_path.display(),
-                                                    new_path
-                                                );
-                                                ecosystem_ports.add_port_info(port, description);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        Self::process_docker_compose_ports(
+                            val,
+                            &new_path,
+                            file_path,
+                            ecosystem_ports,
+                        );
                     } else if key.as_str().map(|s| s.ends_with("port")).unwrap_or(false) {
-                        if let Some(port) = val.as_u64().and_then(|p| u16::try_from(p).ok()) {
-                            let description = format!("[{}] {}", file_path.display(), new_path);
-                            ecosystem_ports.add_port_info(port, description);
-                        }
+                        Self::process_general_config_port(
+                            val,
+                            &new_path,
+                            file_path,
+                            ecosystem_ports,
+                        );
                     }
 
                     Self::traverse_yaml(val, &new_path, file_path, ecosystem_ports);
@@ -215,6 +203,57 @@ impl EcosystemPortsScanner {
             }
             _ => {}
         }
+    }
+
+    fn process_general_config_port(
+        value: &Value,
+        path: &str,
+        file_path: &Path,
+        ecosystem_ports: &mut EcosystemPorts,
+    ) {
+        if let Some(port) = value.as_u64().and_then(|p| u16::try_from(p).ok()) {
+            let description = format!("[{}] {}", file_path.display(), path);
+            ecosystem_ports.add_port_info(port, description);
+        }
+    }
+
+    fn process_docker_compose_ports(
+        value: &Value,
+        path: &str,
+        file_path: &Path,
+        ecosystem_ports: &mut EcosystemPorts,
+    ) {
+        if let Value::Sequence(ports) = value {
+            for port_entry in ports {
+                if let Some(port_str) = port_entry.as_str() {
+                    if let Some(port) = Self::parse_host_port(port_str) {
+                        Self::add_parsed_port(port, path, file_path, ecosystem_ports);
+                    }
+                }
+            }
+        }
+    }
+
+    fn parse_host_port(port_str: &str) -> Option<u16> {
+        let parts: Vec<&str> = port_str.split(':').collect();
+        if parts.len() > 1 {
+            if let Some(host_port_str) = parts.get(parts.len() - 2) {
+                if let Ok(port) = host_port_str.parse::<u16>() {
+                    return Some(port);
+                }
+            }
+        }
+        None
+    }
+
+    fn add_parsed_port(
+        port: u16,
+        path: &str,
+        file_path: &Path,
+        ecosystem_ports: &mut EcosystemPorts,
+    ) {
+        let description = format!("[{}] {}", file_path.display(), path);
+        ecosystem_ports.add_port_info(port, description);
     }
 }
 
@@ -397,5 +436,59 @@ mod tests {
             port_3412_info[1],
             "[test_config.yaml] prometheus:listener_port"
         );
+    }
+
+    #[test]
+    fn test_process_port_value() {
+        let yaml_content = r#"
+        web3_json_rpc:
+            http_port: 3050
+        "#;
+
+        let value: serde_yaml::Value = serde_yaml::from_str(yaml_content).unwrap();
+        let mut ecosystem_ports = EcosystemPorts::default();
+        let file_path = PathBuf::from("test_config.yaml");
+
+        EcosystemPortsScanner::process_general_config_port(
+            &value["web3_json_rpc"]["http_port"],
+            "web3_json_rpc:http_port",
+            &file_path,
+            &mut ecosystem_ports,
+        );
+
+        assert!(ecosystem_ports.is_port_assigned(3050));
+        let port_info = ecosystem_ports.ports.get(&3050).unwrap();
+        assert_eq!(port_info[0], "[test_config.yaml] web3_json_rpc:http_port");
+    }
+
+    #[test]
+    fn test_parse_process_docker_compose_ports() {
+        assert_eq!(
+            EcosystemPortsScanner::parse_host_port("127.0.0.1:8546:8545"),
+            Some(8546)
+        );
+        assert_eq!(
+            EcosystemPortsScanner::parse_host_port("5433:5432"),
+            Some(5433)
+        );
+        assert_eq!(EcosystemPortsScanner::parse_host_port("localhost:80"), None);
+        assert_eq!(EcosystemPortsScanner::parse_host_port("8080"), None);
+    }
+
+    #[test]
+    fn test_add_parsed_port() {
+        let mut ecosystem_ports = EcosystemPorts::default();
+        let file_path = PathBuf::from("test_config.yaml");
+
+        EcosystemPortsScanner::add_parsed_port(
+            8546,
+            "reth:ports",
+            &file_path,
+            &mut ecosystem_ports,
+        );
+
+        assert!(ecosystem_ports.is_port_assigned(8546));
+        let port_info = ecosystem_ports.ports.get(&8546).unwrap();
+        assert_eq!(port_info[0], "[test_config.yaml] reth:ports");
     }
 }
