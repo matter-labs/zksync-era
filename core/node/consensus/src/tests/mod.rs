@@ -49,6 +49,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
             &consensus_dal::GlobalConfig {
                 genesis: setup.genesis.clone(),
                 registry_address: None,
+                seed_peers: [].into(),
             },
         )
         .await

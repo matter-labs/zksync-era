@@ -35,7 +35,7 @@ fn get_l1_noop() -> Transaction {
             ..Default::default()
         }),
         execute: Execute {
-            contract_address: H160::zero(),
+            contract_address: Some(H160::zero()),
             calldata: vec![],
             value: U256::zero(),
             factory_deps: vec![],

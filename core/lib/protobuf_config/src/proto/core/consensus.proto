@@ -31,10 +31,10 @@ package zksync.core.consensus;
 
 import "zksync/std.proto";
 
-// (public key, ip address) of a gossip network node.
+// (public key, host address) of a gossip network node.
 message NodeAddr {
   optional string key = 1; // required; NodePublicKey
-  optional string addr = 2; // required; IpAddr
+  optional string addr = 2; // required; Host
 }
 
 // Weighted member of a validator committee. 
@@ -58,6 +58,7 @@ message GenesisSpec {
   repeated WeightedAttester attesters = 5; // can be empty; attester committee.
   // Currently not in consensus genesis, but still a part of the global configuration.
   optional string registry_address = 6; // optional; H160
+  repeated NodeAddr seed_peers = 7;
 }
 
 // Per peer connection RPC rate limits.

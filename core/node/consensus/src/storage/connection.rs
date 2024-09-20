@@ -317,6 +317,7 @@ impl<'a> Connection<'a> {
             }
             .with_hash(),
             registry_address: spec.registry_address,
+            seed_peers: spec.seed_peers.clone(),
         };
 
         txn.try_update_global_config(ctx, &new)

@@ -125,7 +125,7 @@ impl Harness {
 
     fn execute_on_vm(&mut self, vm: &mut impl VmInterface) {
         let transfer_exec = Execute {
-            contract_address: self.bob.address(),
+            contract_address: Some(self.bob.address()),
             calldata: vec![],
             value: 1_000_000_000.into(),
             factory_deps: vec![],
@@ -152,7 +152,7 @@ impl Harness {
         let write_fn = self.storage_contract_abi.function("simpleWrite").unwrap();
         let simple_write_tx = self.alice.get_l2_tx_for_execute(
             Execute {
-                contract_address: Self::STORAGE_CONTRACT_ADDRESS,
+                contract_address: Some(Self::STORAGE_CONTRACT_ADDRESS),
                 calldata: write_fn.encode_input(&[]).unwrap(),
                 value: 0.into(),
                 factory_deps: vec![],

@@ -1,14 +1,23 @@
 # Will work locally only after prior contracts build
 
-FROM matterlabs/zksync-build-base:latest as builder
+FROM ghcr.io/matter-labs/zksync-build-base:latest AS builder
+
+# set of args for use of sccache
+ARG SCCACHE_GCS_BUCKET=""
+ARG SCCACHE_GCS_SERVICE_ACCOUNT=""
+ARG SCCACHE_GCS_RW_MODE=""
+ARG RUSTC_WRAPPER=""
+
+ENV SCCACHE_GCS_BUCKET=${SCCACHE_GCS_BUCKET}
+ENV SCCACHE_GCS_SERVICE_ACCOUNT=${SCCACHE_GCS_SERVICE_ACCOUNT}
+ENV SCCACHE_GCS_RW_MODE=${SCCACHE_GCS_RW_MODE}
+ENV RUSTC_WRAPPER=${RUSTC_WRAPPER}
 
 WORKDIR /usr/src/zksync
 COPY . .
 RUN cargo build --release
 
-FROM debian:bookworm-slim
-
-RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
+FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_external_node /usr/bin
 COPY --from=builder /usr/src/zksync/target/release/block_reverter /usr/bin
