@@ -133,48 +133,6 @@ pub fn ports_config(config: &GeneralConfig) -> Option<PortsConfig> {
     })
 }
 
-pub fn update_ports(config: &mut GeneralConfig, ports_config: &PortsConfig) -> anyhow::Result<()> {
-    let api = config
-        .api_config
-        .as_mut()
-        .context("Api config is not presented")?;
-    let contract_verifier = config
-        .contract_verifier
-        .as_mut()
-        .context("Contract Verifier config is not presented")?;
-    let prometheus = config
-        .prometheus_config
-        .as_mut()
-        .context("Prometheus config is not presented")?;
-    if let Some(consensus) = config.consensus_config.as_mut() {
-        consensus.server_addr.set_port(ports_config.consensus_port);
-        update_port_in_host(&mut consensus.public_addr, ports_config.consensus_port)?;
-    }
-
-    api.web3_json_rpc.http_port = ports_config.web3_json_rpc_http_port;
-    update_port_in_url(
-        &mut api.web3_json_rpc.http_url,
-        ports_config.web3_json_rpc_http_port,
-    )?;
-    api.web3_json_rpc.ws_port = ports_config.web3_json_rpc_ws_port;
-    update_port_in_url(
-        &mut api.web3_json_rpc.ws_url,
-        ports_config.web3_json_rpc_ws_port,
-    )?;
-    contract_verifier.port = ports_config.contract_verifier_port;
-    update_port_in_url(
-        &mut contract_verifier.url,
-        ports_config.contract_verifier_port,
-    )?;
-    api.healthcheck.port = ports_config.healthcheck_port;
-    api.merkle_tree.port = ports_config.merkle_tree_port;
-    api.prometheus.listener_port = ports_config.prometheus_listener_port;
-
-    prometheus.listener_port = ports_config.prometheus_listener_port;
-
-    Ok(())
-}
-
 pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> anyhow::Result<()> {
     let chain_config_path = chain.path_to_general_config();
     let override_config = serde_yaml::from_str(&shell.read_file(path)?)?;
