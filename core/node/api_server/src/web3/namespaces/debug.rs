@@ -26,7 +26,7 @@ pub(crate) struct DebugNamespace {
 impl DebugNamespace {
     pub async fn new(state: RpcState) -> anyhow::Result<Self> {
         let fee_input_provider = &state.tx_sender.0.batch_fee_input_provider;
-        // FIXME: is using constant input correct?
+        // FIXME (PLA-1033): use the fee input provider instead of a constant value
         let batch_fee_input = fee_input_provider
             .get_batch_fee_input_scaled(
                 state.api_config.estimate_gas_scale_factor,
