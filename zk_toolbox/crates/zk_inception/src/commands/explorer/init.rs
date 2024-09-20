@@ -12,7 +12,7 @@ use xshell::Shell;
 
 use crate::{
     consts::L2_BASE_TOKEN_ADDRESS,
-    defaults::{generate_explorer_db_name, DATABASE_EXPLORER_URL, PORT_RANGE},
+    defaults::{generate_explorer_db_name, DATABASE_EXPLORER_URL},
     messages::{
         msg_chain_load_err, msg_explorer_db_name_prompt, msg_explorer_db_url_prompt,
         msg_explorer_initializing_database_for, MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR,
@@ -68,7 +68,8 @@ fn build_backend_config(
     let db_config = fill_database_values_with_prompt(chain_config);
 
     // Allocate ports for backend services
-    let backend_ports = allocate_explorer_services_ports(ports)?;
+    let mut backend_ports = ExplorerBackendPorts::default();
+    ports.allocate_ports_with_offset_from_defaults(&mut backend_ports, chain_config.id)?;
 
     // Build explorer backend config
     Ok(ExplorerBackendConfig::new(
@@ -97,17 +98,6 @@ fn fill_database_values_with_prompt(config: &ChainConfig) -> db::DatabaseConfig 
         .ask();
     let explorer_db_name = slugify!(&explorer_db_name, separator = "_");
     db::DatabaseConfig::new(explorer_db_url, explorer_db_name)
-}
-
-fn allocate_explorer_services_ports(
-    ports: &mut EcosystemPorts,
-) -> anyhow::Result<ExplorerBackendPorts> {
-    Ok(ExplorerBackendPorts {
-        api_http_port: ports.allocate_port(PORT_RANGE, "Explorer API".to_string())?,
-        data_fetcher_http_port: ports
-            .allocate_port(PORT_RANGE, "Explorer Data Fetcher".to_string())?,
-        worker_http_port: ports.allocate_port(PORT_RANGE, "Explorer Worker".to_string())?,
-    })
 }
 
 fn build_explorer_chain_config(

@@ -5,12 +5,15 @@ use std::{
     path::Path,
 };
 
-use anyhow::{Context, Result};
-use config::{EcosystemConfig, PortsConfig};
+use anyhow::{bail, Context, Result};
+use config::{
+    explorer_compose::ExplorerBackendPorts, EcosystemConfig, PortsConfig,
+    DEFAULT_EXPLORER_API_PORT, DEFAULT_EXPLORER_DATA_FETCHER_PORT, DEFAULT_EXPLORER_WORKER_PORT,
+};
 use serde_yaml::Value;
 use xshell::Shell;
 
-use crate::defaults::{DEFAULT_OBSERVABILITY_PORT, PORT_RANGE};
+use crate::defaults::{DEFAULT_OBSERVABILITY_PORT, PORT_RANGE, PORT_RANGE_END, PORT_RANGE_START};
 
 pub struct EcosystemPorts {
     pub ports: HashMap<u16, Vec<String>>,
@@ -61,6 +64,28 @@ impl EcosystemPorts {
 
         config::update_ports(general_config, &ports)?;
 
+        Ok(())
+    }
+
+    pub fn allocate_ports_with_offset_from_defaults<T: ConfigWithChainPorts>(
+        &mut self,
+        config: &mut T,
+        chain_number: u32,
+    ) -> Result<()> {
+        let offset = ((chain_number - 1) as u16) * 100;
+        let port_range = (PORT_RANGE_START + offset)..PORT_RANGE_END;
+
+        let mut new_ports = HashMap::new();
+        for (desc, port) in T::get_default_ports() {
+            let mut new_port = port + offset;
+            if self.is_port_assigned(new_port) {
+                new_port = self.allocate_port(port_range.clone(), desc.clone())?;
+            } else {
+                self.add_port_info(new_port, desc.to_string());
+            }
+            new_ports.insert(desc, new_port);
+        }
+        config.set_ports(new_ports)?;
         Ok(())
     }
 }
@@ -209,6 +234,39 @@ impl EcosystemPortsScanner {
             }
             _ => {}
         }
+    }
+}
+
+pub trait ConfigWithChainPorts {
+    fn get_default_ports() -> HashMap<String, u16>;
+    fn set_ports(&mut self, ports: HashMap<String, u16>) -> Result<()>;
+}
+
+impl ConfigWithChainPorts for ExplorerBackendPorts {
+    fn get_default_ports() -> HashMap<String, u16> {
+        HashMap::from([
+            ("api_http_port".to_string(), DEFAULT_EXPLORER_API_PORT),
+            (
+                "data_fetcher_http_port".to_string(),
+                DEFAULT_EXPLORER_DATA_FETCHER_PORT,
+            ),
+            ("worker_http_port".to_string(), DEFAULT_EXPLORER_WORKER_PORT),
+        ])
+    }
+
+    fn set_ports(&mut self, ports: HashMap<String, u16>) -> anyhow::Result<()> {
+        if ports.len() != Self::get_default_ports().len() {
+            bail!("Incorrect number of ports provided");
+        }
+        for (desc, port) in ports {
+            match desc.as_str() {
+                "api_http_port" => self.api_http_port = port,
+                "data_fetcher_http_port" => self.data_fetcher_http_port = port,
+                "worker_http_port" => self.worker_http_port = port,
+                _ => bail!("Unknown port descriptor: {}", desc),
+            }
+        }
+        Ok(())
     }
 }
 
