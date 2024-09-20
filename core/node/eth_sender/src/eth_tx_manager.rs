@@ -413,8 +413,6 @@ impl EthTxManager {
         tx_status: ExecutedTxStatus,
         finalized_block: L1BlockNumber,
     ) {
-        // println!("status: {:#?}", tx_status);
-        // println!("finalized block: {:#?}", finalized_block);
         let receipt_block_number = tx_status.receipt.block_number.unwrap().as_u32();
         if receipt_block_number <= finalized_block.0 {
             if tx_status.success {

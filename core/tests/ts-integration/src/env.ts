@@ -29,10 +29,8 @@ export async function waitForServer(l2NodeUrl: string) {
         try {
             await l2Provider.getNetwork(); // Will throw if the server is not ready yet.
             const bridgeAddress = (await l2Provider.getDefaultBridgeAddresses()).sharedL2;
-            console.log(bridgeAddress);
             const code = await l2Provider.getCode(bridgeAddress);
             if (code == '0x') {
-                console.log('Code is 0!');
                 throw Error('L2 ERC20 bridge is not deployed yet, server is not ready');
             }
             reporter.finishAction();
@@ -83,14 +81,10 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
 
     const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
 
-    console.log(l2NodeUrl);
-
     await waitForServer(l2NodeUrl);
 
     const l2Provider = new zksync.Provider(l2NodeUrl);
-    console.log('a');
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
-    console.log('b');
 
     const l1NodeUrl = secretsConfig.l1.l1_rpc_url;
     const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
@@ -116,7 +110,6 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
             baseToken = token;
         }
     }
-    console.log('c');
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
 
     const l2TokenAddress = await new zksync.Wallet(
@@ -124,8 +117,6 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
         l2Provider,
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(token.address);
-
-    console.log('getting l2 token addr');
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
     const l2ChainId = BigInt(genesisConfig.l2_chain_id);

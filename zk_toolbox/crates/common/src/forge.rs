@@ -70,6 +70,8 @@ impl ForgeScript {
             }
         }
 
+        // TODO: This line is very helpful for debugging purposes,
+        // maybe it makes sense to make it conditionally displayed. 
         let command = format!(
             "forge script {} --legacy {}",
             script_path.to_str().unwrap(),

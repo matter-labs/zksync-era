@@ -53,7 +53,7 @@ pub struct MigrateToGatewayArgs {
     pub gateway_chain_name: String,
 }
 
-// FIXME: use a different script here (i.e. make it have a different file)
+// TODO: use a different script here (i.e. make it have a different file)
 lazy_static! {
     static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
@@ -98,8 +98,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .expose_str()
         .to_string();
 
-    // FIXME: do we need to build l1 contracts here? they are typically pre-built
-
     let genesis_config = chain_config.get_genesis_config()?;
 
     if genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium {
@@ -108,14 +106,14 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     // Firstly, deploying gateway contracts
 
-    let whitelist_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
+    let preparation_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
     let preparation_config = GatewayPreparationConfig::new(
         &gateway_chain_config,
         &gateway_chain_config.get_contracts_config()?,
         &ecosystem_config.get_contracts_config()?,
         &gateway_gateway_config,
     )?;
-    preparation_config.save(shell, whitelist_config_path)?;
+    preparation_config.save(shell, preparation_config_path)?;
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
     let chain_admin_addr = chain_contracts_config.l1.chain_admin_addr;
@@ -328,13 +326,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         hex::encode(hash.as_bytes())
     );
 
-    // chain_contracts_config.update_after_gateway(
-    //     new_diamond_proxy_address,
-    //     gateway_gateway_config.validator_timelock_addr,
-    //     gateway_gateway_config.multicall3_addr,
-    // );
-    // chain_contracts_config.save_with_base_path(shell, chain_config.configs.clone())?;
-
     let gateway_url = gateway_chain_config
         .get_general_config()
         .unwrap()
@@ -373,6 +364,11 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .as_mut()
         .expect("sender")
         .pubdata_sending_mode = PubdataSendingMode::RelayedL2Calldata;
+    eth_config
+        .sender
+        .as_mut()
+        .context("sender")?
+        .wait_confirmations = 0;
     // FIXME: do we need to move the following to be u64?
     eth_config
         .sender
@@ -443,6 +439,7 @@ async fn call_script(
     Ok(gateway_preparation_script_output.governance_l2_tx_hash)
 }
 
+// TODO(EVM-751): we need to set token multiplier setter on L2
 // pub async fn set_token_multiplier_setter(
 //     shell: &Shell,
 //     ecosystem_config: &EcosystemConfig,
@@ -475,15 +472,4 @@ async fn call_script(
 //         .with_broadcast()
 //         .with_calldata(&calldata);
 //     update_token_multiplier_setter(shell, governor, forge).await
-// }
-
-// async fn update_token_multiplier_setter(
-//     shell: &Shell,
-//     governor: Option<H256>,
-//     mut forge: ForgeScript,
-// ) -> anyhow::Result<()> {
-//     forge = fill_forge_private_key(forge, governor)?;
-//     check_the_balance(&forge).await?;
-//     forge.run(shell)?;
-//     Ok(())
 // }

@@ -98,8 +98,6 @@ impl WiringLayer for PKSigningEthClientLayer {
             BoundEthInterfaceForBlobsResource(Box::new(signing_client_for_blobs))
         });
         let signing_client_for_gateway = if input.gateway_client.is_some() {
-            // TODO: do we want to have a separate private key for the gateway?
-            // .map(|gateway_operator| {
             let private_key = self.wallets.operator.private_key();
             let GatewayEthInterfaceResource(gateway_client) = input.gateway_client.unwrap();
             let signing_client_for_blobs = PKSigningClient::new_raw(
@@ -112,7 +110,6 @@ impl WiringLayer for PKSigningEthClientLayer {
             Some(BoundEthInterfaceForL2Resource(Box::new(
                 signing_client_for_blobs,
             )))
-            // })
         } else {
             None
         };

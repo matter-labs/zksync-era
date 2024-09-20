@@ -135,28 +135,13 @@ impl ContractsConfig {
         self.l1.transaction_filterer_addr = transaction_filterer_addr;
     }
 
-    // pub fn update_after_gateway(
-    //     &mut self,
-    //     new_diamond_proxy_address: Address,
-    //     validator_timelock_addr: Address,
-    //     multicall3_addr: Address,
-    // ) {
-    //     // FIXME: decide on how the finalized config should look like
-    //     self.l1.diamond_proxy_addr = new_diamond_proxy_address;
-    //     self.ecosystem_contracts.validator_timelock_addr = validator_timelock_addr;
-    //     self.l1.validator_timelock_addr = validator_timelock_addr;
-
-    //     self.l1.multicall3_addr = multicall3_addr;
-    // }
-
-    // FIXME: restore sometime in the future
-    // pub fn set_consensus_registry(
-    //     &mut self,
-    //     consensus_registry_output: &ConsensusRegistryOutput,
-    // ) -> anyhow::Result<()> {
-    //     self.l2.consensus_registry = Some(consensus_registry_output.consensus_registry_proxy);
-    //     Ok(())
-    // }
+    pub fn set_consensus_registry(
+        &mut self,
+        consensus_registry_output: &ConsensusRegistryOutput,
+    ) -> anyhow::Result<()> {
+        self.l2.consensus_registry = Some(consensus_registry_output.consensus_registry_proxy);
+        Ok(())
+    }
 
     pub fn set_default_l2_upgrade(
         &mut self,

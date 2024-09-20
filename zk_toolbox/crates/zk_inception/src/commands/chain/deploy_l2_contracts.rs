@@ -173,18 +173,17 @@ pub async fn deploy_consensus_registry(
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
 ) -> anyhow::Result<()> {
-    panic!("Not implemented");
-    // build_and_deploy(
-    //     shell,
-    //     chain_config,
-    //     ecosystem_config,
-    //     forge_args,
-    //     Some("runDeployConsensusRegistry"),
-    //     |shell, out| {
-    //         contracts_config.set_consensus_registry(&ConsensusRegistryOutput::read(shell, out)?)
-    //     },
-    // )
-    // .await
+    build_and_deploy(
+        shell,
+        chain_config,
+        ecosystem_config,
+        forge_args,
+        Some("runDeployConsensusRegistry"),
+        |shell, out| {
+            contracts_config.set_consensus_registry(&ConsensusRegistryOutput::read(shell, out)?)
+        },
+    )
+    .await
 }
 
 pub async fn deploy_l2_contracts(
@@ -208,7 +207,7 @@ pub async fn deploy_l2_contracts(
         |shell, out| {
             contracts_config.set_l2_shared_bridge(&InitializeBridgeOutput::read(shell, out)?)?;
             contracts_config.set_default_l2_upgrade(&DefaultL2UpgradeOutput::read(shell, out)?)?;
-            // contracts_config.set_consensus_registry(&ConsensusRegistryOutput::read(shell, out)?)?;
+            contracts_config.set_consensus_registry(&ConsensusRegistryOutput::read(shell, out)?)?;
             Ok(())
         },
     )

@@ -57,11 +57,8 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .l1_rpc_url
         .expose_str()
         .to_string();
-    let mut contracts_config = chain_config.get_contracts_config()?;
-
-    // FIXME: do we need to build l1 contracts here? they are typically pre-built
-
-    let genesis_config = chain_config.get_genesis_config()?;
+    let mut chain_contracts_config = chain_config.get_contracts_config()?;
+    let chain_genesis_config = chain_config.get_genesis_config()?;
 
     // Firstly, deploying gateway contracts
     let gateway_config = deploy_gateway_ctm(
@@ -69,7 +66,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         args.clone(),
         &ecosystem_config,
         &chain_config,
-        &genesis_config,
+        &chain_genesis_config,
         &ecosystem_config.get_initial_deployment_config().unwrap(),
         l1_url.clone(),
     )
@@ -78,7 +75,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let gateway_preparation_config_path = GATEWAY_PREPARATION.input(&chain_config.link_to_code);
     let preparation_config = GatewayPreparationConfig::new(
         &chain_config,
-        &chain_config.get_contracts_config()?,
+        &chain_contracts_config,
         &ecosystem_config.get_contracts_config()?,
         &gateway_config,
     )?;
@@ -89,7 +86,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         args.clone(),
         &ecosystem_config,
         &chain_config,
-        &genesis_config,
+        &chain_genesis_config,
         gateway_config,
         l1_url.clone(),
     )
@@ -104,16 +101,15 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &ecosystem_config,
         &chain_config,
         chain_config
-            .get_wallets_config()
-            .unwrap()
+            .get_wallets_config()?
             .governor_private_key(),
         l1_url,
     )
     .await?;
 
-    contracts_config.set_transaction_filterer(output.gateway_transaction_filterer_proxy);
+    chain_contracts_config.set_transaction_filterer(output.gateway_transaction_filterer_proxy);
 
-    contracts_config.save_with_base_path(shell, chain_config.configs);
+    chain_contracts_config.save_with_base_path(shell, chain_config.configs);
 
     Ok(())
 }
@@ -123,7 +119,7 @@ async fn deploy_gateway_ctm(
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
-    genesis_config: &GenesisConfig,
+    chain_genesis_config: &GenesisConfig,
     initial_deployemnt_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<GatewayConfig> {
@@ -133,7 +129,7 @@ async fn deploy_gateway_ctm(
     let deploy_config = DeployGatewayCTMInput::new(
         chain_config,
         config,
-        genesis_config,
+        chain_genesis_config,
         &contracts_config,
         initial_deployemnt_config,
     );
@@ -177,7 +173,7 @@ async fn gateway_governance_whitelisting(
             .unwrap(),
         config,
         chain_config,
-        config.get_wallets().unwrap().governor_private_key(),
+        config.get_wallets()?.governor_private_key(),
         l1_rpc_url.clone(),
     )
     .await?
@@ -199,7 +195,7 @@ async fn gateway_governance_whitelisting(
             .unwrap(),
         config,
         chain_config,
-        config.get_wallets().unwrap().governor_private_key(),
+        config.get_wallets()?.governor_private_key(),
         l1_rpc_url.clone(),
     )
     .await?
@@ -219,7 +215,7 @@ async fn gateway_governance_whitelisting(
             .unwrap(),
         config,
         chain_config,
-        config.get_wallets().unwrap().governor_private_key(),
+        config.get_wallets()?.governor_private_key(),
         l1_rpc_url.clone(),
     )
     .await?
@@ -242,7 +238,7 @@ async fn gateway_governance_whitelisting(
             .unwrap(),
         config,
         chain_config,
-        config.get_wallets().unwrap().governor_private_key(),
+        config.get_wallets()?.governor_private_key(),
         l1_rpc_url.clone(),
     )
     .await?
@@ -283,48 +279,3 @@ async fn call_script(
         GATEWAY_PREPARATION.output(&chain_config.link_to_code),
     )
 }
-
-// pub async fn set_token_multiplier_setter(
-//     shell: &Shell,
-//     ecosystem_config: &EcosystemConfig,
-//     governor: Option<H256>,
-//     chain_admin_address: Address,
-//     target_address: Address,
-//     forge_args: &ForgeScriptArgs,
-//     l1_rpc_url: String,
-// ) -> anyhow::Result<()> {
-//     // Resume for accept admin doesn't work properly. Foundry assumes that if signature of the function is the same,
-//     // then it's the same call, but because we are calling this function multiple times during the init process,
-//     // code assumes that doing only once is enough, but actually we need to accept admin multiple times
-//     let mut forge_args = forge_args.clone();
-//     forge_args.resume = false;
-
-//     let calldata = SET_TOKEN_MULTIPLIER_SETTER
-//         .encode(
-//             "chainSetTokenMultiplierSetter",
-//             (chain_admin_address, target_address),
-//         )
-//         .unwrap();
-//     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
-//     let forge = Forge::new(&foundry_contracts_path)
-//         .script(
-//             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
-//             forge_args.clone(),
-//         )
-//         .with_ffi()
-//         .with_rpc_url(l1_rpc_url)
-//         .with_broadcast()
-//         .with_calldata(&calldata);
-//     update_token_multiplier_setter(shell, governor, forge).await
-// }
-
-// async fn update_token_multiplier_setter(
-//     shell: &Shell,
-//     governor: Option<H256>,
-//     mut forge: ForgeScript,
-// ) -> anyhow::Result<()> {
-//     forge = fill_forge_private_key(forge, governor)?;
-//     check_the_balance(&forge).await?;
-//     forge.run(shell)?;
-//     Ok(())
-// }

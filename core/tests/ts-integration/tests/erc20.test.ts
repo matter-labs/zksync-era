@@ -271,30 +271,3 @@ describe('ERC20 contract checks', () => {
         await testMaster.deinitialize();
     });
 });
-
-async function getL1BatchFinalizationStatus(provider: zksync.Provider, number: number) {
-    const result = await provider.send('zks_getL1ProcessingDetails', [number]);
-
-    if (result == null) {
-        return null;
-    }
-    if (result.executedAt != null) {
-        return {
-            finalizedHash: result.executeTxHash,
-            finalizedAt: result.executedAt
-        };
-    }
-    return null;
-}
-
-async function waitForBatchToBeFullyFinalized(provider: zksync.Provider, batchNumber: number) {
-    let result = await getL1BatchFinalizationStatus(provider, batchNumber);
-
-    while (result == null) {
-        console.log('Batch not finalized yet');
-        await sleep(1000);
-
-        result = await getL1BatchFinalizationStatus(provider, batchNumber);
-    }
-    console.log('Batch finalized at:', result);
-}

@@ -21,7 +21,6 @@ async function performSetup(_globalConfig: any, _projectConfig: any) {
     // be the case, for example, right after deployment on stage).
 
     const testEnvironment = await loadTestEnvironment();
-    console.log('loaded!');
     const testContextOwner = new TestContextOwner(testEnvironment);
     const testContext = await testContextOwner.setupContext();
 

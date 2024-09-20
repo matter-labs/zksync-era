@@ -124,25 +124,26 @@ pub async fn init(
     .await?;
     spinner.finish();
 
-    // if chain_config.base_token != BaseToken::eth() {
-    //     let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
-    //     set_token_multiplier_setter(
-    //         shell,
-    //         ecosystem_config,
-    //         chain_config.get_wallets_config()?.governor_private_key(),
-    //         contracts_config.l1.chain_admin_addr,
-    //         chain_config
-    //             .get_wallets_config()
-    //             .unwrap()
-    //             .token_multiplier_setter
-    //             .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
-    //             .address,
-    //         &init_args.forge_args.clone(),
-    //         init_args.l1_rpc_url.clone(),
-    //     )
-    //     .await?;
-    //     spinner.finish();
-    // }
+    if chain_config.base_token != BaseToken::eth() {
+        let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
+        set_token_multiplier_setter(
+            shell,
+            ecosystem_config,
+            chain_config.get_wallets_config()?.governor_private_key(),
+            contracts_config.l1.chain_admin_addr,
+            contracts_config.l1.access_control_restriction_addr,
+            chain_config
+                .get_wallets_config()
+                .unwrap()
+                .token_multiplier_setter
+                .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
+                .address,
+            &init_args.forge_args.clone(),
+            init_args.l1_rpc_url.clone(),
+        )
+        .await?;
+        spinner.finish();
+    }
 
     deploy_l2_contracts::deploy_l2_contracts(
         shell,
@@ -154,7 +155,6 @@ pub async fn init(
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
-    // TODO: move it into a separate func
     let validium_mode =
         chain_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium;
 
