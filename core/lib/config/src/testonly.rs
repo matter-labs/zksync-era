@@ -1113,6 +1113,7 @@ impl Distribution<configs::prover_job_monitor::ProverJobMonitorConfig> for Encod
             prover_queue_reporter_run_interval_ms: self.sample(rng),
             witness_generator_queue_reporter_run_interval_ms: self.sample(rng),
             witness_job_queuer_run_interval_ms: self.sample(rng),
+            http_port: self.sample(rng),
         }
     }
 }

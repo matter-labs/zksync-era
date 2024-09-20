@@ -8,7 +8,7 @@ use zksync_prover_fri_utils::get_recursive_layer_circuit_id_for_base_layer;
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
-    artifacts::{ArtifactsManager, BlobUrls},
+    artifacts::ArtifactsManager,
     basic_circuits::{BasicCircuitArtifacts, BasicWitnessGenerator, BasicWitnessGeneratorJob},
     utils::SchedulerPartialInputWrapper,
 };
@@ -18,6 +18,7 @@ impl ArtifactsManager for BasicWitnessGenerator {
     type InputMetadata = L1BatchNumber;
     type InputArtifacts = BasicWitnessGeneratorJob;
     type OutputArtifacts = BasicCircuitArtifacts;
+    type BlobUrls = String;
 
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
@@ -31,38 +32,31 @@ impl ArtifactsManager for BasicWitnessGenerator {
         })
     }
 
-    async fn save_artifacts(
+    async fn save_to_bucket(
         job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
-    ) -> BlobUrls {
+    ) -> String {
         let aux_output_witness_wrapper = AuxOutputWitnessWrapper(artifacts.aux_output_witness);
         object_store
             .put(L1BatchNumber(job_id), &aux_output_witness_wrapper)
             .await
             .unwrap();
         let wrapper = SchedulerPartialInputWrapper(artifacts.scheduler_witness);
-        let url = object_store
+        object_store
             .put(L1BatchNumber(job_id), &wrapper)
             .await
-            .unwrap();
-
-        BlobUrls::Url(url)
+            .unwrap()
     }
 
     #[tracing::instrument(skip_all, fields(l1_batch = %job_id))]
-    async fn update_database(
+    async fn save_to_database(
         connection_pool: &ConnectionPool<Prover>,
         job_id: u32,
         started_at: Instant,
-        blob_urls: BlobUrls,
-        _artifacts: Self::OutputArtifacts,
+        blob_urls: String,
+        artifacts: Self::OutputArtifacts,
     ) -> anyhow::Result<()> {
-        let blob_urls = match blob_urls {
-            BlobUrls::Scheduler(blobs) => blobs,
-            _ => unreachable!(),
-        };
-
         let mut connection = connection_pool
             .connection()
             .await
@@ -79,7 +73,7 @@ impl ArtifactsManager for BasicWitnessGenerator {
             .fri_prover_jobs_dal()
             .insert_prover_jobs(
                 L1BatchNumber(job_id),
-                blob_urls.circuit_ids_and_urls,
+                artifacts.circuit_urls,
                 AggregationRound::BasicCircuits,
                 0,
                 protocol_version_id,
@@ -89,8 +83,8 @@ impl ArtifactsManager for BasicWitnessGenerator {
             .fri_witness_generator_dal()
             .create_aggregation_jobs(
                 L1BatchNumber(job_id),
-                &blob_urls.closed_form_inputs_and_urls,
-                &blob_urls.scheduler_witness_url,
+                &artifacts.queue_urls,
+                &blob_urls,
                 get_recursive_layer_circuit_id_for_base_layer,
                 protocol_version_id,
             )

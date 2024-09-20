@@ -5,6 +5,7 @@ use std::{
     time::Instant,
 };
 
+use async_trait::async_trait;
 use circuit_definitions::{
     circuit_definitions::base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerStorage},
     encodings::recursion_request::RecursionQueueSimulator,
@@ -35,12 +36,14 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::{keys::ClosedFormInputKey, CircuitAuxData};
 use zksync_prover_interface::inputs::WitnessInputData;
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
 use crate::{
+    artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
     storage_oracle::StorageOracle,
@@ -49,6 +52,7 @@ use crate::{
         ClosedFormInputWrapper, KZG_TRUSTED_SETUP_FILE,
     },
     witness::WitnessStorage,
+    witness_generator::WitnessGenerator,
 };
 
 mod artifacts;
@@ -108,17 +112,24 @@ impl BasicWitnessGenerator {
             protocol_version,
         }
     }
+}
 
-    async fn process_job_impl(
+#[async_trait]
+impl WitnessGenerator for BasicWitnessGenerator {
+    type Job = BasicWitnessGeneratorJob;
+    type Metadata = L1BatchNumber;
+    type Artifacts = BasicCircuitArtifacts;
+
+    async fn process_job(
+        job: BasicWitnessGeneratorJob,
         object_store: Arc<dyn ObjectStore>,
-        basic_job: BasicWitnessGeneratorJob,
+        max_circuits_in_flight: Option<usize>,
         started_at: Instant,
-        max_circuits_in_flight: usize,
-    ) -> Option<BasicCircuitArtifacts> {
+    ) -> anyhow::Result<BasicCircuitArtifacts> {
         let BasicWitnessGeneratorJob {
             block_number,
             data: job,
-        } = basic_job;
+        } = job;
 
         tracing::info!(
             "Starting witness generation of type {:?} for block {}",
@@ -126,65 +137,43 @@ impl BasicWitnessGenerator {
             block_number.0
         );
 
-        Some(
-            process_basic_circuits_job(
-                object_store,
-                started_at,
-                block_number,
-                job,
-                max_circuits_in_flight,
-            )
-            .await,
+        let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
+            block_number,
+            object_store,
+            job,
+            max_circuits_in_flight.unwrap(),
         )
+        .await;
+        WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
+            .observe(started_at.elapsed());
+        tracing::info!(
+            "Witness generation for block {} is complete in {:?}",
+            block_number.0,
+            started_at.elapsed()
+        );
+
+        Ok(BasicCircuitArtifacts {
+            circuit_urls,
+            queue_urls,
+            scheduler_witness,
+            aux_output_witness,
+        })
     }
-}
 
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
-pub(super) async fn process_basic_circuits_job(
-    object_store: Arc<dyn ObjectStore>,
-    started_at: Instant,
-    block_number: L1BatchNumber,
-    job: WitnessInputData,
-    max_circuits_in_flight: usize,
-) -> BasicCircuitArtifacts {
-    let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) =
-        generate_witness(block_number, object_store, job, max_circuits_in_flight).await;
-    WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
-        .observe(started_at.elapsed());
-    tracing::info!(
-        "Witness generation for block {} is complete in {:?}",
-        block_number.0,
-        started_at.elapsed()
-    );
+    async fn prepare_job(
+        metadata: L1BatchNumber,
+        object_store: &dyn ObjectStore,
+        _keystore: Keystore,
+    ) -> anyhow::Result<Self::Job> {
+        tracing::info!("Processing FRI basic witness-gen for block {}", metadata.0);
+        let started_at = Instant::now();
+        let job = Self::get_artifacts(&metadata, object_store).await?;
 
-    BasicCircuitArtifacts {
-        circuit_urls,
-        queue_urls,
-        scheduler_witness,
-        aux_output_witness,
+        WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
+            .observe(started_at.elapsed());
+
+        Ok(job)
     }
-}
-
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number, circuit_id = %circuit_id))]
-async fn save_recursion_queue(
-    block_number: L1BatchNumber,
-    circuit_id: u8,
-    recursion_queue_simulator: RecursionQueueSimulator<GoldilocksField>,
-    closed_form_inputs: Vec<ClosedFormInputCompactFormWitness<GoldilocksField>>,
-    object_store: Arc<dyn ObjectStore>,
-) -> (u8, String, usize) {
-    let key = ClosedFormInputKey {
-        block_number,
-        circuit_id,
-    };
-    let basic_circuit_count = closed_form_inputs.len();
-    let closed_form_inputs = closed_form_inputs
-        .iter()
-        .map(|x| ZkSyncBaseLayerStorage::from_inner(circuit_id, x.clone()))
-        .collect();
-    let wrapper = ClosedFormInputWrapper(closed_form_inputs, recursion_queue_simulator);
-    let blob_url = object_store.put(key, &wrapper).await.unwrap();
-    (circuit_id, blob_url, basic_circuit_count)
 }
 
 #[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
@@ -463,4 +452,26 @@ async fn generate_witness(
         scheduler_witness,
         block_aux_witness,
     )
+}
+
+#[tracing::instrument(skip_all, fields(l1_batch = %block_number, circuit_id = %circuit_id))]
+async fn save_recursion_queue(
+    block_number: L1BatchNumber,
+    circuit_id: u8,
+    recursion_queue_simulator: RecursionQueueSimulator<GoldilocksField>,
+    closed_form_inputs: Vec<ClosedFormInputCompactFormWitness<GoldilocksField>>,
+    object_store: Arc<dyn ObjectStore>,
+) -> (u8, String, usize) {
+    let key = ClosedFormInputKey {
+        block_number,
+        circuit_id,
+    };
+    let basic_circuit_count = closed_form_inputs.len();
+    let closed_form_inputs = closed_form_inputs
+        .iter()
+        .map(|x| ZkSyncBaseLayerStorage::from_inner(circuit_id, x.clone()))
+        .collect();
+    let wrapper = ClosedFormInputWrapper(closed_form_inputs, recursion_queue_simulator);
+    let blob_url = object_store.put(key, &wrapper).await.unwrap();
+    (circuit_id, blob_url, basic_circuit_count)
 }

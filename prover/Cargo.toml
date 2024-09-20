@@ -19,6 +19,7 @@ categories = ["cryptography"]
 [workspace.dependencies]
 # Common dependencies
 anyhow = "1.0"
+axum = "0.7.5"
 async-trait = "0.1"
 bincode = "1"
 chrono = "0.4.38"

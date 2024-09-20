@@ -108,8 +108,8 @@ impl CallRequestBuilder {
     }
 
     /// Set to address (None allowed for eth_estimateGas)
-    pub fn to(mut self, to: Address) -> Self {
-        self.call_request.to = Some(to);
+    pub fn to(mut self, to: Option<Address>) -> Self {
+        self.call_request.to = to;
         self
     }
 
@@ -817,10 +817,13 @@ impl L2Tx {
         let meta = value.eip712_meta.take().unwrap_or_default();
         validate_factory_deps(&meta.factory_deps)?;
 
+        // TODO: Remove this check when evm equivalence gets enabled
+        if value.to.is_none() {
+            return Err(SerializationTransactionError::ToAddressIsNull);
+        }
+
         let mut tx = L2Tx::new(
-            value
-                .to
-                .ok_or(SerializationTransactionError::ToAddressIsNull)?,
+            value.to,
             value.input.0.clone(),
             nonce,
             fee,
