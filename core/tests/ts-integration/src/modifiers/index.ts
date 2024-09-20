@@ -2,7 +2,8 @@
  * Base interface for custom transaction matcher modifiers.
  */
 
-import * as zksync from 'zksync-ethers';
+// import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
 
 /**
  * Base class for custom transaction matcher modifiers.
