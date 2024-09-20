@@ -449,7 +449,9 @@ jobs:
 
       - name: Fee projection tests
         run: |
-          ci_run zk_supervisor test fees --chain era &> ${{ env.FEES_LOGS_DIR }}/era.log 
+          ci_run killall -INT zksync_server || true
+          
+          ci_run zk_supervisor test fees --chain era &> ${{ env.FEES_LOGS_DIR }}/era.log
           ci_run zk_supervisor test fees --chain validium &> ${{ env.FEES_LOGS_DIR }}/validium.log
           ci_run zk_supervisor test fees --chain custom_token &> ${{ env.FEES_LOGS_DIR }}/custom_token.log
           ci_run zk_supervisor test fees --chain consensus &> ${{ env.FEES_LOGS_DIR }}/consensus.log
