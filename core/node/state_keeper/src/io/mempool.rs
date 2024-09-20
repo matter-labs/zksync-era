@@ -97,30 +97,18 @@ impl StateKeeperIO for MempoolIO {
 
         L2BlockSealProcess::clear_pending_l2_block(&mut storage, cursor.next_l2_block - 1).await?;
 
-        let pending_l2_block_header = self
+        let Some((system_env, l1_batch_env)) = self
             .l1_batch_params_provider
-            .load_first_l2_block_in_batch(&mut storage, cursor.l1_batch)
-            .await
-            .with_context(|| {
-                format!(
-                    "failed loading first L2 block for L1 batch #{}",
-                    cursor.l1_batch
-                )
-            })?;
-        let Some(pending_l2_block_header) = pending_l2_block_header else {
-            return Ok((cursor, None));
-        };
-
-        let (system_env, l1_batch_env) = self
-            .l1_batch_params_provider
-            .load_l1_batch_params(
+            .load_l1_batch_env(
                 &mut storage,
-                &pending_l2_block_header,
+                cursor.l1_batch,
                 self.validation_computational_gas_limit,
                 self.chain_id,
             )
-            .await
-            .with_context(|| format!("failed loading params for L1 batch #{}", cursor.l1_batch))?;
+            .await?
+        else {
+            return Ok((cursor, None));
+        };
         let pending_batch_data = load_pending_batch(&mut storage, system_env, l1_batch_env)
             .await
             .with_context(|| {
@@ -436,7 +424,7 @@ impl MempoolIO {
             l2_block_max_payload_size_sealer: L2BlockMaxPayloadSizeSealer::new(config),
             filter: L2TxFilter::default(),
             // ^ Will be initialized properly on the first newly opened batch
-            l1_batch_params_provider: L1BatchParamsProvider::new(),
+            l1_batch_params_provider: L1BatchParamsProvider::uninitialized(),
             fee_account,
             validation_computational_gas_limit: config.validation_computational_gas_limit,
             max_allowed_tx_gas_limit: config.max_allowed_l2_tx_gas_limit.into(),
