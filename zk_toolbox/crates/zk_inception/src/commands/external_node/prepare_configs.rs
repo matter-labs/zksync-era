@@ -4,7 +4,7 @@ use anyhow::Context;
 use common::{config::global_config, logger};
 use config::{
     external_node::ENConfig, ports_config, set_rocks_db_config, traits::SaveConfigWithBasePath,
-    update_ports, ChainConfig, EcosystemConfig, SecretsConfig,
+    ChainConfig, EcosystemConfig, SecretsConfig,
 };
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
@@ -24,6 +24,7 @@ use crate::{
     },
     utils::{
         consensus::{get_consensus_config, node_public_key},
+        ports::EcosystemPortsScanner,
         rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
     },
 };
@@ -55,6 +56,7 @@ fn prepare_configs(
     en_configs_path: &Path,
     args: PrepareConfigFinal,
 ) -> anyhow::Result<()> {
+    let mut ports = EcosystemPortsScanner::scan(shell)?;
     let genesis = config.get_genesis_config()?;
     let general = config.get_general_config()?;
     let en_config = ENConfig {
@@ -74,10 +76,8 @@ fn prepare_configs(
         gateway_url: None,
     };
     let mut general_en = general.clone();
-    let next_empty_ports_config = ports_config(&general)
-        .context(MSG_PORTS_CONFIG_ERR)?
-        .next_empty_ports_config();
-    update_ports(&mut general_en, &next_empty_ports_config)?;
+    ports.allocate_ports_with_offset_from_defaults(&mut general_en, config.id)?;
+    let ports = ports_config(&general_en).context(MSG_PORTS_CONFIG_ERR)?;
 
     // Set consensus config
     let main_node_consensus_config = general
@@ -95,12 +95,8 @@ fn prepare_configs(
 
     gossip_static_outbound.insert(main_node_public_key, main_node_consensus_config.public_addr);
 
-    let en_consensus_config = get_consensus_config(
-        config,
-        next_empty_ports_config,
-        None,
-        Some(gossip_static_outbound),
-    )?;
+    let en_consensus_config =
+        get_consensus_config(config, ports, None, Some(gossip_static_outbound))?;
     general_en.consensus_config = Some(en_consensus_config.clone());
     en_consensus_config.save_with_base_path(shell, en_configs_path)?;
 
