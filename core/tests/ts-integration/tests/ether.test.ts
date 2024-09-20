@@ -11,7 +11,7 @@ import {
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-ethers';
-import { scaledGasPrice, waitForBlockToBeFinalizedOnL1, waitUntilBlockFinalized } from '../src/helpers';
+import { scaledGasPrice, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
 import { ethers } from 'ethers';
 
 describe('ETH token checks', () => {

@@ -8,9 +8,8 @@ import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/b
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice, waitForBlockToBeFinalizedOnL1, waitUntilBlockFinalized } from '../src/helpers';
+import { scaledGasPrice, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
-import { sleep } from 'zksync-ethers/build/utils';
 
 describe('ERC20 contract checks', () => {
     let testMaster: TestMaster;
