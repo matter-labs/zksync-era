@@ -72,6 +72,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn set_token_multiplier_setter(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,

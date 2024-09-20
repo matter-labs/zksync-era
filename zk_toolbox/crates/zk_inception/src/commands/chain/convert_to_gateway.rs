@@ -79,7 +79,6 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         args.clone(),
         &ecosystem_config,
         &chain_config,
-        &chain_genesis_config,
         gateway_config,
         l1_url.clone(),
     )
@@ -100,7 +99,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     chain_contracts_config.set_transaction_filterer(output.gateway_transaction_filterer_proxy);
 
-    chain_contracts_config.save_with_base_path(shell, chain_config.configs);
+    chain_contracts_config.save_with_base_path(shell, chain_config.configs)?;
 
     Ok(())
 }
@@ -152,7 +151,6 @@ async fn gateway_governance_whitelisting(
     forge_args: ForgeScriptArgs,
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
-    genesis_config: &GenesisConfig,
     gateway_config: GatewayConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {

@@ -88,6 +88,7 @@ pub async fn accept_owner(
     accept_ownership(shell, governor, forge).await
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn set_da_validator_pair(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
