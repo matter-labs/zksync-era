@@ -11,7 +11,7 @@ use zksync_types::{
         BYTES_PER_ENUMERATION_INDEX,
     },
     AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
-    BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
+    BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
@@ -31,11 +31,12 @@ use super::{
 use crate::{
     glue::GlueInto,
     interface::{
-        storage::ReadStorage, BytecodeCompressionError, BytecodeCompressionResult,
-        CurrentExecutionState, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
-        Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode,
-        VmExecutionResultAndLogs, VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics, VmRevertReason,
+        storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
+        BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
+        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv,
+        TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
+        VmExecutionStatistics, VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        VmRevertReason, VmTrackingContracts,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_fast::{
@@ -68,6 +69,65 @@ pub struct Vm<S> {
 }
 
 impl<S: ReadStorage> Vm<S> {
+    pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
+        let default_aa_code_hash = system_env
+            .base_system_smart_contracts
+            .default_aa
+            .hash
+            .into();
+
+        let program_cache = HashMap::from([World::convert_system_contract_code(
+            &system_env.base_system_smart_contracts.default_aa,
+            false,
+        )]);
+
+        let (_, bootloader) = World::convert_system_contract_code(
+            &system_env.base_system_smart_contracts.bootloader,
+            true,
+        );
+        let bootloader_memory = bootloader_initial_memory(&batch_env);
+
+        let mut inner = VirtualMachine::new(
+            BOOTLOADER_ADDRESS,
+            bootloader,
+            H160::zero(),
+            &[],
+            system_env.bootloader_gas_limit,
+            Settings {
+                default_aa_code_hash,
+                // this will change after 1.5
+                evm_interpreter_code_hash: default_aa_code_hash,
+                hook_address: get_vm_hook_position(VM_VERSION) * 32,
+            },
+        );
+
+        inner.current_frame().set_stack_pointer(0);
+        // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
+        inner.current_frame().set_heap_bound(u32::MAX);
+        inner.current_frame().set_aux_heap_bound(u32::MAX);
+        inner
+            .current_frame()
+            .set_exception_handler(INITIAL_FRAME_FORMAL_EH_LOCATION);
+
+        let mut this = Self {
+            world: World::new(storage, program_cache),
+            inner,
+            gas_for_account_validation: system_env.default_validation_computational_gas_limit,
+            bootloader_state: BootloaderState::new(
+                system_env.execution_mode,
+                bootloader_memory.clone(),
+                batch_env.first_l2_block,
+            ),
+            system_env,
+            batch_env,
+            snapshot: None,
+            #[cfg(test)]
+            enforced_state_diffs: None,
+        };
+        this.write_to_bootloader_heap(bootloader_memory);
+        this
+    }
+
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,
@@ -393,69 +453,6 @@ impl<S: ReadStorage> Vm<S> {
     pub(super) fn gas_remaining(&mut self) -> u32 {
         self.inner.current_frame().gas()
     }
-}
-
-// We don't implement `VmFactory` trait because, unlike old VMs, the new VM doesn't require storage to be writable;
-// it maintains its own storage cache and a write buffer.
-impl<S: ReadStorage> Vm<S> {
-    pub fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
-        let default_aa_code_hash = system_env
-            .base_system_smart_contracts
-            .default_aa
-            .hash
-            .into();
-
-        let program_cache = HashMap::from([World::convert_system_contract_code(
-            &system_env.base_system_smart_contracts.default_aa,
-            false,
-        )]);
-
-        let (_, bootloader) = World::convert_system_contract_code(
-            &system_env.base_system_smart_contracts.bootloader,
-            true,
-        );
-        let bootloader_memory = bootloader_initial_memory(&batch_env);
-
-        let mut inner = VirtualMachine::new(
-            BOOTLOADER_ADDRESS,
-            bootloader,
-            H160::zero(),
-            &[],
-            system_env.bootloader_gas_limit,
-            Settings {
-                default_aa_code_hash,
-                // this will change after 1.5
-                evm_interpreter_code_hash: default_aa_code_hash,
-                hook_address: get_vm_hook_position(VM_VERSION) * 32,
-            },
-        );
-
-        inner.current_frame().set_stack_pointer(0);
-        // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
-        inner.current_frame().set_heap_bound(u32::MAX);
-        inner.current_frame().set_aux_heap_bound(u32::MAX);
-        inner
-            .current_frame()
-            .set_exception_handler(INITIAL_FRAME_FORMAL_EH_LOCATION);
-
-        let mut this = Self {
-            world: World::new(storage, program_cache),
-            inner,
-            gas_for_account_validation: system_env.default_validation_computational_gas_limit,
-            bootloader_state: BootloaderState::new(
-                system_env.execution_mode,
-                bootloader_memory.clone(),
-                batch_env.first_l2_block,
-            ),
-            system_env,
-            batch_env,
-            snapshot: None,
-            #[cfg(test)]
-            enforced_state_diffs: None,
-        };
-        this.write_to_bootloader_heap(bootloader_memory);
-        this
-    }
 
     // visible for testing
     pub(super) fn get_current_execution_state(&self) -> CurrentExecutionState {
@@ -485,6 +482,17 @@ impl<S: ReadStorage> Vm<S> {
             storage_refunds: world_diff.storage_refunds().to_vec(),
             pubdata_costs: world_diff.pubdata_costs().to_vec(),
         }
+    }
+}
+
+impl<S: ReadStorage> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>> {
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<StorageView<S>>,
+    ) -> Self {
+        let storage = ImmutableStorageView::new(storage);
+        Self::custom(batch_env, system_env, storage)
     }
 }
 
@@ -670,6 +678,12 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
     fn pop_snapshot_no_rollback(&mut self) {
         self.inner.pop_snapshot();
         self.snapshot = None;
+    }
+}
+
+impl<S: ReadStorage> VmTrackingContracts for Vm<S> {
+    fn used_contract_hashes(&self) -> Vec<H256> {
+        self.decommitted_hashes().map(u256_to_h256).collect()
     }
 }
 

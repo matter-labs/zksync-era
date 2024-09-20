@@ -4,15 +4,19 @@ use crate::{
     glue::history_mode::HistoryMode,
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
+        utils::ShadowVm,
         BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
         VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
         VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
-    versions::shadow::ShadowVm,
 };
 
-pub type ShadowedFastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, H>>;
+pub(crate) type ShadowedVmFast<S, H> = ShadowVm<
+    S,
+    crate::vm_latest::Vm<StorageView<S>, H>,
+    crate::vm_fast::Vm<ImmutableStorageView<S>>,
+>;
 
 #[derive(Debug)]
 pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
@@ -26,7 +30,7 @@ pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
     Vm1_4_2(crate::vm_1_4_2::Vm<StorageView<S>, H>),
     Vm1_5_0(crate::vm_latest::Vm<StorageView<S>, H>),
     VmFast(crate::vm_fast::Vm<ImmutableStorageView<S>>),
-    ShadowedVmFast(ShadowedFastVm<S, H>),
+    ShadowedVmFast(ShadowedVmFast<S, H>),
 }
 
 macro_rules! dispatch_vm {
@@ -222,10 +226,15 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 FastVmMode::Old => Self::new(l1_batch_env, system_env, storage_view),
                 FastVmMode::New => {
                     let storage = ImmutableStorageView::new(storage_view);
-                    Self::VmFast(crate::vm_fast::Vm::new(l1_batch_env, system_env, storage))
+                    Self::VmFast(crate::vm_fast::Vm::custom(
+                        l1_batch_env,
+                        system_env,
+                        storage,
+                    ))
                 }
                 FastVmMode::Shadow => {
-                    Self::ShadowedVmFast(ShadowVm::new(l1_batch_env, system_env, storage_view))
+                    let vm = ShadowVm::new(l1_batch_env, system_env, storage_view);
+                    Self::ShadowedVmFast(vm)
                 }
             },
             _ => Self::new(l1_batch_env, system_env, storage_view),
