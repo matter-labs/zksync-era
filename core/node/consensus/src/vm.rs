@@ -4,9 +4,7 @@ use zksync_concurrency::{ctx, error::Wrap as _};
 use zksync_consensus_roles::attester;
 use zksync_state::PostgresStorage;
 use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
-use zksync_types::{
-    ethabi, fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, AccountTreeId, L2ChainId, Nonce, U256,
-};
+use zksync_types::{ethabi, fee::Fee, l2::L2Tx, AccountTreeId, L2ChainId, Nonce, U256};
 use zksync_vm_executor::oneshot::{CallOrExecute, MainOneshotExecutor, OneshotEnvParameters};
 use zksync_vm_interface::{
     executor::OneshotExecutor, ExecutionResult, OneshotTracingParams, TxExecutionArgs,
@@ -27,6 +25,7 @@ impl VM {
     pub async fn new(pool: ConnectionPool) -> Self {
         Self {
             pool,
+            // L2 chain ID and fee account don't seem to matter for calls, hence the use of default values.
             options: OneshotEnvParameters::for_execution(
                 L2ChainId::default(),
                 AccountTreeId::default(),
@@ -62,11 +61,10 @@ impl VM {
         );
 
         let mut conn = self.pool.connection(ctx).await.wrap("connection()")?;
-        let block_info = conn
+        let (block_info, fee_input) = conn
             .vm_block_info(ctx, batch)
             .await
             .wrap("vm_block_info()")?;
-        let fee_input = BatchFeeInput::sensible_l1_pegged_default(); // FIXME: double-check
         let env = ctx
             .wait(
                 self.options

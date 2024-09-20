@@ -7,7 +7,9 @@ use zksync_dal::{consensus_dal, consensus_dal::Payload, Core, CoreDal, DalError}
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
-use zksync_types::{commitment::L1BatchWithMetadata, L1BatchNumber, L2BlockNumber};
+use zksync_types::{
+    commitment::L1BatchWithMetadata, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber,
+};
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
 use super::{InsertCertificateError, PayloadQueue};
@@ -473,7 +475,7 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         batch: attester::BatchNumber,
-    ) -> ctx::Result<ResolvedBlockInfo> {
+    ) -> ctx::Result<(ResolvedBlockInfo, BatchFeeInput)> {
         let (_, block) = self
             .get_l2_block_range_of_l1_batch(ctx, batch)
             .await
@@ -485,9 +487,14 @@ impl<'a> Connection<'a> {
             .wait(BlockInfo::for_existing_block(&mut self.0, block))
             .await?
             .context("BlockInfo")?;
-        Ok(ctx
+        let resolved_block_info = ctx
             .wait(block_info.resolve(&mut self.0))
             .await?
-            .context("resolve()")?)
+            .context("resolve()")?;
+        let fee_input = ctx
+            .wait(block_info.historical_fee_input(&mut self.0))
+            .await?
+            .context("historical_fee_input()")?;
+        Ok((resolved_block_info, fee_input))
     }
 }
