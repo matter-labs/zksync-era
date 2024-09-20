@@ -194,8 +194,6 @@ fn main() -> anyhow::Result<()> {
     //     return Ok(());
     // }
 
-    println!("Secrets: {:?}", secrets);
-
     let node = MainNodeBuilder::new(
         configs,
         wallets,

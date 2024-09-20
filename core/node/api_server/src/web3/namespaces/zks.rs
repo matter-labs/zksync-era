@@ -315,8 +315,6 @@ impl ZksNamespace {
             .await
             .map_err(DalError::generalize)?;
 
-        println!("\n\nHey {}\n\n", all_l1_logs_in_batch.len());
-
         let Some((l1_log_index, _)) = all_l1_logs_in_batch
             .iter()
             .enumerate()
@@ -367,11 +365,6 @@ impl ZksNamespace {
         let mut log_leaf_proof = LogLeafProof::new(proof);
 
         let settlement_layer: u64 = self.state.api_config.sl_chain_id.0;
-
-        println!(
-            "\n\nTrying to get the final proof2! {}\n\n",
-            settlement_layer
-        );
 
         if settlement_layer == EXPECTED_SYNC_LAYER_CHAIN_ID {
             println!("\nI am on sync layer!!\n");
@@ -961,7 +954,6 @@ impl ZksNamespace {
             .await
             .map_err(DalError::generalize)?;
 
-        println!("\n\n{:#?}\n\n", batch_details);
         let Some(batch_details) = batch_details else {
             return Ok(None);
         };
@@ -971,8 +963,6 @@ impl ZksNamespace {
             .get_batch_finalization_info(batch_number)
             .await
             .map_err(DalError::generalize)?;
-
-        println!("\n\n{:#?}\n\n", settlement_info);
 
         let Some(info) = settlement_info else {
             return Ok(None);
@@ -1001,8 +991,6 @@ impl ZksNamespace {
                 .for_network(L2::from(L2ChainId(self.state.api_config.l1_chain_id.0)))
                 .build();
 
-                println!("\n\nObtaining data...\n\n");
-
                 let info = client
                     .get_transaction_receipt(info.settlement_layer_tx_hash)
                     .await
@@ -1014,8 +1002,6 @@ impl ZksNamespace {
                 let Some(sl_l1_batch_number) = sl_l1_batch_number else {
                     return Ok(None);
                 };
-                println!("\n\nObtaining data2...\n\n");
-
                 let batch_details = client
                     .get_l1_batch_details(L1BatchNumber(sl_l1_batch_number.as_u32()))
                     .await
@@ -1038,8 +1024,6 @@ impl ZksNamespace {
             execute_tx_hash: execute_tx_hash,
             executed_at: executed_at,
         };
-
-        println!("\n\nDONE {:#?}...\n\n", details);
 
         Ok(Some(details))
     }

@@ -9,7 +9,7 @@ use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     git,
-    hardhat::build_l2_contracts,
+    hardhat::{build_l1_contracts, build_l2_contracts},
     logger,
     spinner::Spinner,
     Prompt,
@@ -146,6 +146,8 @@ async fn init(
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
+    build_da_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l1_contracts(shell, &ecosystem_config.link_to_code)?;
     build_system_contracts(shell, &ecosystem_config.link_to_code)?;
     build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
@@ -410,6 +412,7 @@ async fn deploy_ecosystem_inner(
     Ok(contracts_config)
 }
 
+
 fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code);
     Ok(Cmd::new(cmd!(shell, "yarn install")).run()?)
@@ -418,4 +421,9 @@ fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Resu
 fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
     Ok(Cmd::new(cmd!(shell, "yarn sc build")).run()?)
+}
+
+fn build_da_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
+    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
+    Ok(Cmd::new(cmd!(shell, "yarn da build:foundry")).run()?)
 }

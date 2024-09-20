@@ -779,13 +779,10 @@ impl EthSenderDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        if info.len() > 1 {
-            println!("{:#?}", info);
-        }
-
         assert!(
             info.len() <= 1,
-            "Batch number must be unique in the database"
+            "Batch number must be unique in the database {:#?}",
+            info
         );
 
         Ok(info.pop().and_then(Into::into))
