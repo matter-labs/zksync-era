@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     env,
     ffi::OsString,
     num::{NonZeroU32, NonZeroU64, NonZeroUsize},
@@ -8,7 +7,7 @@ use std::{
 };
 
 use anyhow::Context;
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use zksync_config::{
     configs::{
         api::{MaxResponseSize, MaxResponseSizeOverrides},
@@ -35,7 +34,7 @@ use zksync_types::{
     L1BatchNumber, L1ChainId, L2ChainId, SLChainId, ETHEREUM_ADDRESS,
 };
 use zksync_web3_decl::{
-    client::{DynClient, L2},
+    client::{ClientMap, DynClient, L2},
     error::ClientRpcContext,
     jsonrpsee::{core::ClientError, types::error::ErrorCode},
     namespaces::{EnNamespaceClient, ZksNamespaceClient},
@@ -468,43 +467,8 @@ pub(crate) struct OptionalENConfig {
     pub gateway_url: Option<SensitiveUrl>,
 
     /// Map of settlement layer chain IDs to their respective RPC URLs and diamond proxy addresses.
-    #[serde(default, deserialize_with = "deserialize_sl_client_map")]
-    pub sl_client_map: HashMap<SLChainId, (SensitiveUrl, Address)>,
-}
-
-fn deserialize_sl_client_map<'de, D>(
-    deserializer: D,
-) -> Result<HashMap<SLChainId, (SensitiveUrl, Address)>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let mut list: serde_json::Value = serde_json::Value::deserialize(deserializer)?;
-    if list.is_string() {
-        list = serde_json::from_str(list.as_str().unwrap()).map_err(serde::de::Error::custom)?;
-    }
-    let mut result = HashMap::new();
-    let error = || {
-        serde::de::Error::custom(
-            "invalid sl_client_map: expected object [{chain_id: int, rpc_url: str, diamond_proxy_address: str}]",
-        )
-    };
-    let list = list.as_array().ok_or_else(error)?;
-    for client in list {
-        let client = client.as_object().ok_or_else(error)?;
-        let chain_id = client["chain_id"].as_u64().ok_or_else(error)?;
-        let url = client["rpc_url"]
-            .as_str()
-            .ok_or_else(error)?
-            .parse()
-            .map_err(serde::de::Error::custom)?;
-        let addr = client["diamond_proxy_address"]
-            .as_str()
-            .ok_or_else(error)?
-            .parse()
-            .map_err(serde::de::Error::custom)?;
-        result.insert(SLChainId(chain_id), (url, addr));
-    }
-    Ok(result)
+    #[serde(default)]
+    pub sl_client_map: ClientMap,
 }
 
 impl OptionalENConfig {
@@ -730,7 +694,7 @@ impl OptionalENConfig {
             api_namespaces,
             contracts_diamond_proxy_addr: None,
             gateway_url: enconfig.gateway_url.clone(),
-            sl_client_map: enconfig.sl_client_map.clone(),
+            sl_client_map: enconfig.sl_client_map.clone().into(),
         })
     }
 

@@ -279,7 +279,7 @@ impl ExternalNodeBuilder {
         let layer = ValidateChainIdsLayer::new(
             self.config.required.settlement_layer_id(),
             self.config.required.l2_chain_id,
-            self.config.optional.sl_client_map.clone().into(),
+            self.config.optional.sl_client_map.clone(),
         );
         self.node.add_layer(layer);
         Ok(self)
@@ -292,7 +292,7 @@ impl ExternalNodeBuilder {
             self.config.remote.settlement_layer_diamond_proxy,
             max_batches_to_recheck,
             self.config.optional.l1_batch_commit_data_generator_mode,
-            self.config.optional.sl_client_map.clone().into(),
+            self.config.optional.sl_client_map.clone(),
         );
 
         self.node.add_layer(layer);
@@ -321,7 +321,7 @@ impl ExternalNodeBuilder {
         let layer = TreeDataFetcherLayer::new(
             // TODO: we don't really need to pass this separately.
             self.config.remote.settlement_layer_diamond_proxy,
-            self.config.optional.sl_client_map.clone().into(),
+            self.config.optional.sl_client_map.clone(),
         );
 
         self.node.add_layer(layer);

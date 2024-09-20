@@ -514,6 +514,42 @@ impl From<HashMap<SLChainId, (SensitiveUrl, Address)>> for ClientMap {
     }
 }
 
+impl<'de> serde::Deserialize<'de> for ClientMap {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let mut list: serde_json::Value = serde_json::Value::deserialize(deserializer)?;
+        if list.is_string() {
+            list =
+                serde_json::from_str(list.as_str().unwrap()).map_err(serde::de::Error::custom)?;
+        }
+        let mut result = HashMap::new();
+        let error = || {
+            serde::de::Error::custom(
+            "invalid sl_client_map: expected object [{chain_id: int, rpc_url: str, diamond_proxy_address: str}]",
+        )
+        };
+        let list = list.as_array().ok_or_else(error)?;
+        for client in list {
+            let client = client.as_object().ok_or_else(error)?;
+            let chain_id = client["chain_id"].as_u64().ok_or_else(error)?;
+            let url = client["rpc_url"]
+                .as_str()
+                .ok_or_else(error)?
+                .parse()
+                .map_err(serde::de::Error::custom)?;
+            let addr = client["diamond_proxy_address"]
+                .as_str()
+                .ok_or_else(error)?
+                .parse()
+                .map_err(serde::de::Error::custom)?;
+            result.insert(SLChainId(chain_id), (url, addr));
+        }
+        Ok(result.into())
+    }
+}
+
 impl ClientMap {
     pub fn get(&self, chain_id: SLChainId) -> Option<(Client<L1>, Address)> {
         self.0.get(&chain_id).map(|(url, address)| {
