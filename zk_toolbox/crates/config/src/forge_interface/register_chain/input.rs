@@ -2,7 +2,7 @@ use ethers::types::Address;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use types::L1BatchCommitmentMode;
-use zksync_basic_types::{web3::Bytes, L2ChainId};
+use zksync_basic_types::L2ChainId;
 
 use crate::{traits::ZkToolboxConfig, ChainConfig, ContractsConfig};
 

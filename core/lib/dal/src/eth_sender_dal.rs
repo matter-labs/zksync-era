@@ -772,7 +772,7 @@ impl EthSenderDal<'_, '_> {
             WHERE
                 l1_batches.number = $1
             "#,
-            batch_number.0 as i64
+            i64::from(batch_number.0)
         )
         .instrument("get_batch_finalization_info")
         .with_arg("batch_number", &batch_number)

@@ -1,12 +1,11 @@
 use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
 use types::ProverMode;
-use zksync_basic_types::{web3::Bytes, H256, U256};
+use zksync_basic_types::{H256, U256};
 use zksync_config::GenesisConfig;
 
 use crate::{
-    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
-    traits::{FileConfigWithDefaultName, ZkToolboxConfig},
+    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::ZkToolboxConfig,
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
 

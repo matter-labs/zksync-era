@@ -18,7 +18,7 @@ pub use self::{
     fri_prover_gateway::FriProverGatewayConfig,
     fri_witness_generator::FriWitnessGeneratorConfig,
     fri_witness_vector_generator::FriWitnessVectorGeneratorConfig,
-    gateway::GatewayConfig,
+    gateway::{GatewayChainConfig, GatewayConfig},
     general::GeneralConfig,
     genesis::GenesisConfig,
     object_store::ObjectStoreConfig,

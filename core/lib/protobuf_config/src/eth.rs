@@ -204,7 +204,7 @@ impl ProtoRepr for proto::GasAdjuster {
             max_blob_base_fee: self.max_blob_base_fee,
             settlement_mode: self
                 .settlement_mode
-                .map(|x| proto::SettlementMode::try_from(x))
+                .map(proto::SettlementMode::try_from)
                 .transpose()?
                 .map(|x| x.parse())
                 .unwrap_or_default(),

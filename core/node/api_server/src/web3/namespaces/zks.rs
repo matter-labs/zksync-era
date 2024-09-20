@@ -1021,8 +1021,8 @@ impl ZksNamespace {
             committed_at: None,
             prove_tx_hash: None,
             proven_at: None,
-            execute_tx_hash: execute_tx_hash,
-            executed_at: executed_at,
+            execute_tx_hash,
+            executed_at,
         };
 
         Ok(Some(details))

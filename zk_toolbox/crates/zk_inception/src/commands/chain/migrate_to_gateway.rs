@@ -1,20 +1,16 @@
-use anyhow::{Chain, Context};
+use anyhow::Context;
 use clap::Parser;
 use common::{
     config::global_config,
-    forge::{Forge, ForgeScript, ForgeScriptArgs},
-    logger,
-    spinner::Spinner,
+    forge::{Forge, ForgeScriptArgs},
 };
 use config::{
     forge_interface::{
-        deploy_ecosystem::input::InitialDeploymentConfig,
-        deploy_gateway_ctm::{input::DeployGatewayCTMInput, output::DeployGatewayCTMOutput},
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
-        script_params::{ACCEPT_GOVERNANCE_SCRIPT_PARAMS, DEPLOY_GATEWAY_CTM, GATEWAY_PREPARATION},
+        script_params::GATEWAY_PREPARATION,
     },
-    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
+    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    EcosystemConfig,
 };
 use ethers::{
     abi::parse_abi,
@@ -28,17 +24,11 @@ use serde::{Deserialize, Serialize};
 use types::L1BatchCommitmentMode;
 use xshell::Shell;
 use zksync_basic_types::{settlement::SettlementMode, Address, H256, U256, U64};
-use zksync_config::configs::{
-    chain, eth_sender::PubdataSendingMode, gateway::GatewayChainConfig, GatewayConfig,
-};
+use zksync_config::configs::{eth_sender::PubdataSendingMode, gateway::GatewayChainConfig};
 use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use crate::{
-    messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED,
-        MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
-        MSG_WALLETS_CONFIG_MUST_BE_PRESENT, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
-    },
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
@@ -203,7 +193,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         hex::encode(new_diamond_proxy_address.as_bytes())
     );
 
-    let mut chain_contracts_config = chain_config.get_contracts_config().unwrap();
+    let chain_contracts_config = chain_config.get_contracts_config().unwrap();
 
     println!("Setting DA validator pair...");
     let hash = call_script(

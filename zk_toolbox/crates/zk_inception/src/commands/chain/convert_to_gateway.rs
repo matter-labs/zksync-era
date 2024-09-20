@@ -1,33 +1,26 @@
 use anyhow::Context;
 use common::{
     config::global_config,
-    forge::{Forge, ForgeScript, ForgeScriptArgs},
-    logger,
-    spinner::Spinner,
+    forge::{Forge, ForgeScriptArgs},
 };
 use config::{
     forge_interface::{
         deploy_ecosystem::input::InitialDeploymentConfig,
         deploy_gateway_ctm::{input::DeployGatewayCTMInput, output::DeployGatewayCTMOutput},
         gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
-        script_params::{ACCEPT_GOVERNANCE_SCRIPT_PARAMS, DEPLOY_GATEWAY_CTM, GATEWAY_PREPARATION},
+        script_params::{DEPLOY_GATEWAY_CTM, GATEWAY_PREPARATION},
     },
-    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    ChainConfig, ContractsConfig, EcosystemConfig, GenesisConfig,
+    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    ChainConfig, EcosystemConfig, GenesisConfig,
 };
 use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
 use lazy_static::lazy_static;
 use xshell::Shell;
-use zksync_basic_types::{Address, H256};
-use zksync_config::configs::{chain, GatewayConfig};
+use zksync_basic_types::H256;
+use zksync_config::configs::GatewayConfig;
 
 use crate::{
-    commands::ecosystem,
-    messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED,
-        MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
-        MSG_WALLETS_CONFIG_MUST_BE_PRESENT, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
-    },
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
@@ -209,7 +202,7 @@ async fn gateway_governance_whitelisting(
         shell,
         forge_args.clone(),
         &GATEWAY_PREPARATION_INTERFACE
-            .encode("governanceSetCTMAssetHandler", (H256::random()))
+            .encode("governanceSetCTMAssetHandler", H256::random())
             .unwrap(),
         config,
         chain_config,

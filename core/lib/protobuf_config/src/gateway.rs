@@ -1,7 +1,5 @@
 use anyhow::Context as _;
-use zksync_config::configs::{
-    gateway::GatewayChainConfig, ContractsConfig, EcosystemContracts, GatewayConfig,
-};
+use zksync_config::configs::gateway::GatewayChainConfig;
 use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::{parse_h160, proto::gateway as proto};

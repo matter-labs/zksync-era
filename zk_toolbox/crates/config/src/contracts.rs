@@ -1,8 +1,5 @@
-use std::ops::Add;
-
 use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::{web3::Bytes, H160};
 use zksync_system_constants::{L2_ASSET_ROUTER_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 
 use crate::{

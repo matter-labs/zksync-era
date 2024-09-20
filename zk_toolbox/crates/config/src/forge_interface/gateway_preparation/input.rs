@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::{web3::Bytes, Address};
 use zksync_config::configs::GatewayConfig;
 
-use crate::{traits::ZkToolboxConfig, ChainConfig, ContractsConfig, EcosystemConfig};
+use crate::{traits::ZkToolboxConfig, ChainConfig, ContractsConfig};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GatewayPreparationConfig {

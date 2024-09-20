@@ -79,7 +79,7 @@ impl ProtoRepr for proto::Genesis {
             l1_chain_id: required(&self.l1_chain_id)
                 .map(|x| L1ChainId(*x))
                 .context("l1_chain_id")?,
-            sl_chain_id: self.sl_chain_id.map(|x| SLChainId(x)),
+            sl_chain_id: self.sl_chain_id.map(SLChainId),
             l2_chain_id: required(&self.l2_chain_id)
                 .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))
                 .context("l2_chain_id")?,

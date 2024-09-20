@@ -2,7 +2,6 @@ use std::path::Path;
 
 use anyhow::Context;
 use common::{
-    cmd::Cmd,
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     hardhat::build_l2_contracts,
@@ -19,9 +18,7 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::{cmd, Shell};
-use zksync_basic_types::H256;
-use zksync_config::configs::chain;
+use xshell::Shell;
 
 use crate::{
     messages::{
