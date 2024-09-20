@@ -346,19 +346,12 @@ impl BaseSystemContracts {
         };
 
         // If evm simulator is not enabled, use the default account bytecode and hash.
-        let mut evm_simulator_bytecode = bytecode;
-        let mut evm_simulator_hash =
-            H256::from_str("0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32")
-                .unwrap();
-
-        if use_evm_simulator::UseEvmSimulator::from_env()
-            .unwrap()
-            .use_evm_simulator
-        {
-            evm_simulator_bytecode =
-                read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
-            evm_simulator_hash = hash_bytecode(&evm_simulator_bytecode);
-        }
+        let (evm_simulator_bytecode, evm_simulator_hash) = if use_evm_simulator::UseEvmSimulator::from_env().unwrap().use_evm_simulator {
+          let evm_simulator_bytecode = read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
+          (evm_simulator_bytecode.clone(), hash_bytecode(&evm_simulator_bytecode))
+        } else {
+            (bytecode.clone(), hash)
+        };
 
         let evm_simulator = SystemContractCode {
             code: bytes_to_be_words(evm_simulator_bytecode),

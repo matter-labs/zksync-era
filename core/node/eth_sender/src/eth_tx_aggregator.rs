@@ -303,12 +303,7 @@ impl EthTxAggregator {
             }
             let default_aa = H256::from_slice(&multicall3_default_aa);
 
-            let mut evm_simulator = H256::from_str(
-                "0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32",
-            )
-            .unwrap();
-
-            if use_evm_simulator {
+            let evm_simulator = if use_evm_simulator {
                 let multicall3_evm_simulator =
                     Multicall3Result::from_token(call_results_iterator.next().unwrap())?
                         .return_data;
@@ -320,8 +315,10 @@ impl EthTxAggregator {
                         ),
                     )));
                 }
-                evm_simulator = H256::from_slice(&multicall3_evm_simulator);
-            }
+                H256::from_slice(&multicall3_evm_simulator)
+            } else {
+                default_aa
+            };
 
             let base_system_contracts_hashes = BaseSystemContractsHashes {
                 bootloader,

@@ -822,6 +822,7 @@ impl L2Tx {
         let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env()
             .unwrap()
             .use_evm_simulator;
+        
         // TODO: Remove this check when evm equivalence gets enabled
         if value.to.is_none() && !use_evm_simulator {
             return Err(SerializationTransactionError::ToAddressIsNull);
