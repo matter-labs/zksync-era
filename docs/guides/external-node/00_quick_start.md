@@ -35,7 +35,7 @@ docker compose --file testnet-external-node-docker-compose.yml down --volumes
 ```
 
 You can see the status of the node (after recovery) in
-[local grafana dashboard](http://localhost:3000/d/0/external-node).
+[local grafana dashboard](http://localhost:3000/dashboards).
 
 Those commands start ZKsync node locally inside docker.
 
