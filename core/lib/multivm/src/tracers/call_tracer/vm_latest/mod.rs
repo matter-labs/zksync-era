@@ -67,7 +67,9 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for CallTracer {
         _bootloader_state: &BootloaderState,
         _stop_reason: VmExecutionStopReason,
     ) {
-        self.store_result()
+        let result = std::mem::take(&mut self.finished_calls);
+        let cell = self.result.as_ref();
+        cell.set(result).unwrap();
     }
 }
 
@@ -199,7 +201,7 @@ impl CallTracer {
         if let Some(parent_call) = self.stack.last_mut() {
             parent_call.farcall.calls.push(current_call.farcall);
         } else {
-            self.push_call_and_update_stats(current_call.farcall, current_call.near_calls_after);
+            self.finished_calls.push(current_call.farcall);
         }
     }
 }

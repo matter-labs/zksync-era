@@ -3,8 +3,10 @@ use zksync_vm_interface::InspectExecutionMode;
 
 use crate::{
     interface::{TxExecutionMode, VmInterface},
+    utils::testonly::check_call_tracer_test_result,
     versions::testonly::{read_test_contract, ContractToDeploy, VmTester, VmTesterBuilder},
-    vm_fast::{call_tracer::CallTracer, Vm},
+    vm_fast::call_tracer::CallTracer,
+    vm_fast::Vm,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
@@ -76,9 +78,6 @@ fn test_basic_behavior() {
 
     let call_tracer_result = call_tracer.result();
 
-    assert_eq!(call_tracer_result.len(), 1);
-    // Expect that there are a plenty of subcalls underneath.
-    let subcall = &call_tracer_result[0].calls;
-    assert!(subcall.len() > 10);
+    check_call_tracer_test_result(&call_tracer_result);
     assert!(!res.result.is_failed());
 }
