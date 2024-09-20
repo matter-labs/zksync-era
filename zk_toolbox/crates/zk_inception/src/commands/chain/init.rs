@@ -61,7 +61,8 @@ pub async fn init(
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
     let mut general_config = chain_config.get_general_config()?;
-    ecosystem_ports.allocate_ports(&mut general_config)?;
+    ecosystem_ports
+        .allocate_ports_with_offset_from_defaults(&mut general_config, chain_config.id)?;
 
     let ports = ports_config(&general_config).context(MSG_PORTS_CONFIG_ERR)?;
 

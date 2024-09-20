@@ -1,5 +1,3 @@
-use std::ops::Range;
-
 use config::ChainConfig;
 use lazy_static::lazy_static;
 use url::Url;
@@ -18,7 +16,6 @@ pub const DEFAULT_OBSERVABILITY_PORT: u16 = 3000;
 // Default port range
 pub const PORT_RANGE_START: u16 = 3000;
 pub const PORT_RANGE_END: u16 = 5000;
-pub const PORT_RANGE: Range<u16> = PORT_RANGE_START..PORT_RANGE_END;
 
 pub const ROCKS_DB_STATE_KEEPER: &str = "state_keeper";
 pub const ROCKS_DB_TREE: &str = "tree";

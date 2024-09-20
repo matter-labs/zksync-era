@@ -184,7 +184,7 @@ pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> any
     Ok(())
 }
 
-fn update_port_in_url(http_url: &mut String, port: u16) -> anyhow::Result<()> {
+pub fn update_port_in_url(http_url: &mut String, port: u16) -> anyhow::Result<()> {
     let mut http_url_url = Url::parse(http_url)?;
     if let Err(()) = http_url_url.set_port(Some(port)) {
         anyhow::bail!("Wrong url, setting port is impossible");
@@ -193,7 +193,7 @@ fn update_port_in_url(http_url: &mut String, port: u16) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn update_port_in_host(host: &mut Host, port: u16) -> anyhow::Result<()> {
+pub fn update_port_in_host(host: &mut Host, port: u16) -> anyhow::Result<()> {
     let url = Url::parse(&format!("http://{}", host.0))?;
     let host_str = url.host_str().context("Failed to get host")?;
     host.0 = format!("{host_str}:{port}");

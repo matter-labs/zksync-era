@@ -7,13 +7,16 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use config::{
-    explorer_compose::ExplorerBackendPorts, EcosystemConfig, PortsConfig,
+    explorer_compose::ExplorerBackendPorts, update_port_in_host, update_port_in_url,
+    EcosystemConfig, GeneralConfig, DEFAULT_CONSENSUS_PORT, DEFAULT_CONTRACT_VERIFIER_PORT,
     DEFAULT_EXPLORER_API_PORT, DEFAULT_EXPLORER_DATA_FETCHER_PORT, DEFAULT_EXPLORER_WORKER_PORT,
+    DEFAULT_HEALTHCHECK_PORT, DEFAULT_MERKLE_TREE_PORT, DEFAULT_PROMETHEUS_PORT,
+    DEFAULT_WEB3_JSON_RPC_PORT, DEFAULT_WEB3_WS_RPC_PORT,
 };
 use serde_yaml::Value;
 use xshell::Shell;
 
-use crate::defaults::{DEFAULT_OBSERVABILITY_PORT, PORT_RANGE, PORT_RANGE_END, PORT_RANGE_START};
+use crate::defaults::{DEFAULT_OBSERVABILITY_PORT, PORT_RANGE_END, PORT_RANGE_START};
 
 pub struct EcosystemPorts {
     pub ports: HashMap<u16, Vec<String>>,
@@ -43,28 +46,6 @@ impl EcosystemPorts {
             "No available ports in the given range. Failed to allocate port for: {}",
             info
         ));
-    }
-
-    pub fn allocate_ports(
-        &mut self,
-        general_config: &mut config::GeneralConfig,
-    ) -> anyhow::Result<()> {
-        let ports = PortsConfig {
-            web3_json_rpc_http_port: self
-                .allocate_port(PORT_RANGE, "Web3 JSON RPC HTTP".to_string())?,
-            web3_json_rpc_ws_port: self
-                .allocate_port(PORT_RANGE, "Web3 JSON RPC WS".to_string())?,
-            healthcheck_port: self.allocate_port(PORT_RANGE, "Healthcheck".to_string())?,
-            merkle_tree_port: self.allocate_port(PORT_RANGE, "Merkle Tree".to_string())?,
-            prometheus_listener_port: self.allocate_port(PORT_RANGE, "Prometheus".to_string())?,
-            contract_verifier_port: self
-                .allocate_port(PORT_RANGE, "Contract Verifier".to_string())?,
-            consensus_port: self.allocate_port(PORT_RANGE, "Consensus".to_string())?,
-        };
-
-        config::update_ports(general_config, &ports)?;
-
-        Ok(())
     }
 
     pub fn allocate_ports_with_offset_from_defaults<T: ConfigWithChainPorts>(
@@ -266,6 +247,80 @@ impl ConfigWithChainPorts for ExplorerBackendPorts {
                 _ => bail!("Unknown port descriptor: {}", desc),
             }
         }
+        Ok(())
+    }
+}
+
+impl ConfigWithChainPorts for GeneralConfig {
+    fn get_default_ports() -> HashMap<String, u16> {
+        HashMap::from([
+            (
+                "web3_json_rpc_http_port".to_string(),
+                DEFAULT_WEB3_JSON_RPC_PORT,
+            ),
+            (
+                "web3_json_rpc_ws_port".to_string(),
+                DEFAULT_WEB3_WS_RPC_PORT,
+            ),
+            ("healthcheck_port".to_string(), DEFAULT_HEALTHCHECK_PORT),
+            ("merkle_tree_port".to_string(), DEFAULT_MERKLE_TREE_PORT),
+            (
+                "prometheus_listener_port".to_string(),
+                DEFAULT_PROMETHEUS_PORT,
+            ),
+            (
+                "contract_verifier_port".to_string(),
+                DEFAULT_CONTRACT_VERIFIER_PORT,
+            ),
+            ("consensus_port".to_string(), DEFAULT_CONSENSUS_PORT),
+        ])
+    }
+
+    fn set_ports(&mut self, ports: HashMap<String, u16>) -> anyhow::Result<()> {
+        if ports.len() != Self::get_default_ports().len() {
+            bail!("Incorrect number of ports provided");
+        }
+
+        let api = self
+            .api_config
+            .as_mut()
+            .context("Api config is not presented")?;
+        let contract_verifier = self
+            .contract_verifier
+            .as_mut()
+            .context("Contract Verifier config is not presented")?;
+        let prometheus = self
+            .prometheus_config
+            .as_mut()
+            .context("Prometheus config is not presented")?;
+
+        for (desc, port) in ports {
+            match desc.as_str() {
+                "web3_json_rpc_http_port" => {
+                    api.web3_json_rpc.http_port = port;
+                    update_port_in_url(&mut api.web3_json_rpc.http_url, port)?;
+                }
+                "web3_json_rpc_ws_port" => {
+                    api.web3_json_rpc.ws_port = port;
+                    update_port_in_url(&mut api.web3_json_rpc.ws_url, port)?;
+                }
+                "healthcheck_port" => api.healthcheck.port = port,
+                "merkle_tree_port" => api.merkle_tree.port = port,
+                "prometheus_listener_port" => prometheus.listener_port = port,
+                "contract_verifier_port" => {
+                    contract_verifier.port = port;
+                    update_port_in_url(&mut contract_verifier.url, port)?;
+                }
+                "consensus_port" => {
+                    if let Some(consensus) = self.consensus_config.as_mut() {
+                        consensus.server_addr.set_port(port);
+                        update_port_in_host(&mut consensus.public_addr, port)?;
+                    }
+                }
+                _ => bail!("Unknown port descriptor: {}", desc),
+            }
+        }
+
         Ok(())
     }
 }
