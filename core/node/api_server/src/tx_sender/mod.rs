@@ -34,14 +34,11 @@ use zksync_types::{
 };
 use zksync_utils::h256_to_u256;
 
-pub(super) use self::result::SubmitTxError;
-use self::{master_pool_sink::MasterPoolSink, tx_sink::TxSink};
-use crate::{
-    execution_sandbox::{
-        BlockArgs, SubmitTxStage, TransactionExecutor, TxSetupArgs, VmConcurrencyBarrier,
-        VmConcurrencyLimiter, SANDBOX_METRICS,
-    },
-    tx_sender::result::ApiCallResult,
+pub(super) use self::{gas_estimation::BinarySearchKind, result::SubmitTxError};
+use self::{master_pool_sink::MasterPoolSink, result::ApiCallResult, tx_sink::TxSink};
+use crate::execution_sandbox::{
+    BlockArgs, SubmitTxStage, TransactionExecutor, TxSetupArgs, VmConcurrencyBarrier,
+    VmConcurrencyLimiter, SANDBOX_METRICS,
 };
 
 mod gas_estimation;

@@ -17,12 +17,12 @@ use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
 use zksync_types::{
     api::state_override::{OverrideAccount, StateOverride},
-    ProtocolVersionId, Transaction, U256,
+    K256PrivateKey, ProtocolVersionId, Transaction, U256,
 };
 use zksync_vm_executor::oneshot::MainOneshotExecutor;
 
 use super::{storage::StorageWithOverrides, *};
-use crate::{testonly::create_transfer, tx_sender::ApiContracts};
+use crate::{testonly::TestAccount, tx_sender::ApiContracts};
 
 #[tokio::test]
 async fn creating_block_args() {
@@ -207,7 +207,8 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
         ProtocolVersionId::latest().into(),
     );
     setup_args.enforced_base_fee = Some(base_fee);
-    let transaction = Transaction::from(create_transfer(0.into(), base_fee, gas_per_pubdata));
+    let alice = K256PrivateKey::random();
+    let transaction = Transaction::from(alice.create_transfer(0.into(), base_fee, gas_per_pubdata));
 
     let execution_args = TxExecutionArgs::for_gas_estimate(transaction.clone());
     let (env, storage) = apply::prepare_env_and_storage(connection, setup_args, &block_args)
@@ -243,7 +244,8 @@ async fn validating_transaction(set_balance: bool) {
         ProtocolVersionId::latest().into(),
     );
     setup_args.enforced_base_fee = Some(base_fee);
-    let transaction = create_transfer(0.into(), base_fee, gas_per_pubdata);
+    let alice = K256PrivateKey::random();
+    let transaction = alice.create_transfer(0.into(), base_fee, gas_per_pubdata);
 
     let validation_params =
         validate::get_validation_params(&mut connection, &transaction, u32::MAX, &[])

@@ -3,21 +3,21 @@
 use std::{collections::HashMap, time::Duration};
 
 use assert_matches::assert_matches;
+use test_casing::test_casing;
 use zksync_multivm::interface::ExecutionResult;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
 use zksync_types::{
-    api, api::state_override::OverrideAccount, get_nonce_key, L1BatchNumber, L2BlockNumber,
-    StorageLog,
+    api, api::state_override::OverrideAccount, get_nonce_key, K256PrivateKey, L1BatchNumber,
+    L2BlockNumber, StorageLog,
 };
 use zksync_utils::u256_to_h256;
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
-use super::*;
+use super::{gas_estimation::GasEstimator, *};
 use crate::{
-    execution_sandbox::BlockStartInfo, testonly::create_transfer,
-    web3::testonly::create_test_tx_sender,
+    execution_sandbox::BlockStartInfo, testonly::TestAccount, web3::testonly::create_test_tx_sender,
 };
 
 #[tokio::test]
@@ -208,7 +208,7 @@ async fn eth_call_requires_single_connection() {
 }
 
 #[tokio::test]
-async fn estimating_gas_for_transfer() {
+async fn initial_gas_estimation_is_somewhat_accurate() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
@@ -225,10 +225,69 @@ async fn estimating_gas_for_transfer() {
     )
     .await;
 
-    let value = 1_000_000_000.into();
-    let tx = create_transfer(value, 55, 555); // fee params don't matter; they should be overwritten by the estimation logic
+    let alice = K256PrivateKey::random();
+    let transfer_value = U256::from(1_000_000_000);
+    let account_overrides = OverrideAccount {
+        balance: Some(transfer_value * 2),
+        ..OverrideAccount::default()
+    };
+    let state_override = StateOverride::new(HashMap::from([(alice.address(), account_overrides)]));
+    // fee params don't matter; we adjust via `adjust_transaction_fee()`
+    let tx = alice.create_transfer(transfer_value, 55, 555);
+
+    let mut estimator = GasEstimator::new(&tx_sender, tx.into(), Some(state_override))
+        .await
+        .unwrap();
+    estimator.adjust_transaction_fee();
+    let initial_estimate = estimator.initialize().await.unwrap();
+    assert!(initial_estimate.gas_charged_for_pubdata > 0);
+    assert!(initial_estimate.operator_overhead > 0);
+    let total_gas_charged = initial_estimate.total_gas_charged.unwrap();
+    assert!(
+        total_gas_charged
+            > initial_estimate.gas_charged_for_pubdata + initial_estimate.operator_overhead,
+        "{initial_estimate:?}"
+    );
+
+    // Check that a transaction fails if supplied with the lower bound.
+    let lower_bound = initial_estimate.lower_gas_bound_without_overhead().unwrap()
+        + initial_estimate.operator_overhead;
+    assert!(lower_bound < total_gas_charged, "{initial_estimate:?}");
+    let (vm_result, _) = estimator.unadjusted_step(lower_bound).await.unwrap();
+    assert!(vm_result.result.is_failed(), "{:?}", vm_result.result);
+
+    // A slightly larger limit should work.
+    let initial_pivot = total_gas_charged * 64 / 63;
+    let (vm_result, _) = estimator.unadjusted_step(initial_pivot).await.unwrap();
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+}
+
+// FIXME: also test far call recursion
+
+#[test_casing(3, [1, 100, 1_000])]
+#[tokio::test]
+async fn estimating_gas_for_transfer(acceptable_overestimation: u64) {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut storage = pool.connection().await.unwrap();
+    let genesis_params = GenesisParams::mock();
+    insert_genesis_batch(&mut storage, &genesis_params)
+        .await
+        .unwrap();
+    drop(storage);
+
+    let tx_executor = TransactionExecutor::real(usize::MAX);
+    let (tx_sender, _) = create_test_tx_sender(
+        pool.clone(),
+        genesis_params.config().l2_chain_id,
+        tx_executor,
+    )
+    .await;
+
+    let alice = K256PrivateKey::random();
+    let transfer_value = 1_000_000_000.into();
+    // fee params don't matter; they should be overwritten by the estimation logic
+    let tx = alice.create_transfer(transfer_value, 55, 555);
     let fee_scale_factor = 1.0;
-    let acceptable_overestimation = 1_000;
     // Without overrides, the transaction should fail because of insufficient balance.
     let err = tx_sender
         .get_txs_fee_in_wei(
@@ -236,31 +295,56 @@ async fn estimating_gas_for_transfer() {
             fee_scale_factor,
             acceptable_overestimation,
             None,
+            BinarySearchKind::Full,
         )
         .await
         .unwrap_err();
     assert_matches!(err, SubmitTxError::InsufficientFundsForTransfer);
 
     let account_overrides = OverrideAccount {
-        balance: Some(value * 2),
+        balance: Some(transfer_value * 2),
         ..OverrideAccount::default()
     };
-    let call_overrides =
-        StateOverride::new(HashMap::from([(tx.initiator_account(), account_overrides)]));
+    let state_override = StateOverride::new(HashMap::from([(alice.address(), account_overrides)]));
+    let fee = tx_sender
+        .get_txs_fee_in_wei(
+            tx.clone().into(),
+            fee_scale_factor,
+            acceptable_overestimation,
+            Some(state_override.clone()),
+            BinarySearchKind::Full,
+        )
+        .await
+        .unwrap();
+    // Sanity-check gas limit
+    let gas_limit_after_full_search = u64::try_from(fee.gas_limit).unwrap();
+    assert!(
+        (10_000..1_000_000).contains(&gas_limit_after_full_search),
+        "{fee:?}"
+    );
+
     let fee = tx_sender
         .get_txs_fee_in_wei(
             tx.into(),
             fee_scale_factor,
             acceptable_overestimation,
-            Some(call_overrides),
+            Some(state_override.clone()),
+            BinarySearchKind::Optimized,
         )
         .await
         .unwrap();
-    // Sanity-check gas limit
-    assert!(
-        fee.gas_limit > 1_000.into() && fee.gas_limit < 1_000_000.into(),
-        "{fee:?}"
-    );
+    let gas_limit_after_optimized_search = u64::try_from(fee.gas_limit).unwrap();
 
-    // FIXME: check that transaction with this limit doesn't fail & fails with a lower one
+    if acceptable_overestimation == 1 {
+        assert_eq!(
+            gas_limit_after_full_search,
+            gas_limit_after_optimized_search
+        );
+    } else {
+        let diff = gas_limit_after_full_search.abs_diff(gas_limit_after_optimized_search);
+        assert!(
+            diff <= acceptable_overestimation,
+            "full={gas_limit_after_full_search}, optimized={gas_limit_after_optimized_search}"
+        );
+    }
 }

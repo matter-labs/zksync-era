@@ -30,6 +30,7 @@ use zksync_web3_decl::{
 };
 
 use crate::{
+    tx_sender::BinarySearchKind,
     utils::open_readonly_transaction,
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
 };
@@ -113,6 +114,7 @@ impl ZksNamespace {
                 scale_factor,
                 acceptable_overestimation as u64,
                 state_override,
+                BinarySearchKind::Full,
             )
             .await?)
     }
