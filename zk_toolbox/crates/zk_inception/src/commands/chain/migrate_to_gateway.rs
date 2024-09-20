@@ -340,8 +340,12 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let mut general_config = chain_config.get_general_config().unwrap();
 
-    let eth_config = general_config.eth.as_mut().expect("eth");
-    let api_config = general_config.api_config.as_mut().expect("api config");
+    let eth_config = general_config.eth.as_mut().context("eth")?;
+    let api_config = general_config.api_config.as_mut().context("api config")?;
+    let state_keeper = general_config
+        .state_keeper_config
+        .as_mut()
+        .context("state_keeper")?;
 
     eth_config
         .gas_adjuster
@@ -366,8 +370,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .expect("sender")
         .max_aggregated_tx_gas = 4294967295;
     api_config.web3_json_rpc.settlement_layer_url = Some(gateway_url);
-    general_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    // we need to ensure that this value is lower than in blob
+    state_keeper.max_pubdata_per_batch = 120_000;
 
+    general_config.save_with_base_path(shell, chain_config.configs.clone())?;
     let mut chain_genesis_config = chain_config.get_genesis_config().unwrap();
     chain_genesis_config.sl_chain_id = Some(gateway_chain_id.into());
     chain_genesis_config.save_with_base_path(shell, chain_config.configs.clone())?;
