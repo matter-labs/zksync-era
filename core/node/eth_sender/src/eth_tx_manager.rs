@@ -361,7 +361,8 @@ impl EthTxManager {
             // then `tx` is mined and confirmed (either successful or reverted).
             // Only then we will check the history to find the receipt.
             // Otherwise, `tx` is mined but not confirmed, so we skip to the next one.
-            if operator_nonce.finalized <= tx.nonce {
+            // FIXME: WHY THIS CHANGE
+            if operator_nonce.finalized < tx.nonce {
                 continue;
             }
 

@@ -4,8 +4,8 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        da_client::DAClient, eth_sender::PubdataSendingMode, wallets::Wallets, GeneralConfig,
-        Secrets,
+        da_client::DAClient, eth_sender::PubdataSendingMode, gateway::GatewayChainConfig,
+        wallets::Wallets, GeneralConfig, Secrets,
     },
     ContractsConfig, GenesisConfig,
 };
@@ -90,7 +90,7 @@ pub struct MainNodeBuilder {
     wallets: Wallets,
     genesis_config: GenesisConfig,
     contracts_config: ContractsConfig,
-    gateway_contracts_config: Option<ContractsConfig>,
+    gateway_contracts_config: Option<GatewayChainConfig>,
     secrets: Secrets,
 }
 
@@ -100,7 +100,7 @@ impl MainNodeBuilder {
         wallets: Wallets,
         genesis_config: GenesisConfig,
         contracts_config: ContractsConfig,
-        gateway_contracts_config: Option<ContractsConfig>,
+        gateway_contracts_config: Option<GatewayChainConfig>,
         secrets: Secrets,
     ) -> anyhow::Result<Self> {
         Ok(Self {
