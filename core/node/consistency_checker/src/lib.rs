@@ -291,7 +291,24 @@ pub fn detect_da(
         ))),
     };
 
-    // The format of this token (`operatorDAInput`) is:
+    // For `Validium` commitment mode, the format of this token is either
+    // 1 byte: 0x02 - for `Custom` DA source
+    // or
+    // 32 bytes: state diff hash - for `Calldata` or `Blobs` DA source
+
+    if last_reference_token.len() == 1 {
+        return match last_reference_token[0] {
+            PUBDATA_SOURCE_CUSTOM => Ok(PubdataDA::Custom),
+            byte => Err(parse_error(format!(
+                "unexpected byte in the last reference token; expected {PUBDATA_SOURCE_CUSTOM}, got {byte}"
+            ))),
+        };
+    } else if last_reference_token.len() == 32 {
+        // Here it might be blobs as well, but shouldn't matter since pubdata is not posted.
+        return Ok(PubdataDA::Calldata);
+    }
+
+    // For `Rollup` commitment mode, the format of this token (`operatorDAInput`) is:
     // 32 bytes - uncompressed state diff
     // 32 bytes - hash of the full pubdata
     // 1 byte - number of blobs

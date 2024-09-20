@@ -142,8 +142,8 @@ impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
         self.send(last_checked_batch).ok();
     }
 
-    fn report_inconsistent_batch(&mut self, _number: L1BatchNumber, _err: &anyhow::Error) {
-        // Do nothing
+    fn report_inconsistent_batch(&mut self, number: L1BatchNumber, err: &anyhow::Error) {
+        panic!("Error on batch #{number}: {err}");
     }
 }
 
