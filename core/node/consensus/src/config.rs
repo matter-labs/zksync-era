@@ -1,5 +1,5 @@
 //! Configuration utilities for the consensus component.
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use anyhow::Context as _;
 use secrecy::{ExposeSecret as _, Secret};
@@ -44,6 +44,7 @@ pub(super) struct GenesisSpec {
     pub(super) attesters: Option<attester::Committee>,
     pub(super) leader_selection: validator::LeaderSelectionMode,
     pub(super) registry_address: Option<ethabi::Address>,
+    pub(super) seed_peers: BTreeMap<node::PublicKey, net::Host>,
 }
 
 impl GenesisSpec {
@@ -55,6 +56,7 @@ impl GenesisSpec {
             attesters: cfg.genesis.attesters.clone(),
             leader_selection: cfg.genesis.leader_selection.clone(),
             registry_address: cfg.registry_address,
+            seed_peers: cfg.seed_peers.clone(),
         }
     }
 
@@ -98,6 +100,19 @@ impl GenesisSpec {
                 Some(attester::Committee::new(attesters).context("attesters")?)
             },
             registry_address: x.registry_address,
+            seed_peers: x
+                .seed_peers
+                .iter()
+                .map(|(key, addr)| {
+                    anyhow::Ok((
+                        Text::new(&key.0)
+                            .decode::<node::PublicKey>()
+                            .context("key")?,
+                        net::Host(addr.0.clone()),
+                    ))
+                })
+                .collect::<Result<_, _>>()
+                .context("seed_peers")?,
         })
     }
 }
@@ -109,9 +124,18 @@ pub(super) fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<node
 pub(super) fn executor(
     cfg: &ConsensusConfig,
     secrets: &ConsensusSecrets,
+    global_config: &consensus_dal::GlobalConfig,
     build_version: Option<semver::Version>,
 ) -> anyhow::Result<executor::Config> {
-    let mut gossip_static_outbound = HashMap::new();
+    // Always connect to seed peers.
+    // Once we implement dynamic peer discovery,
+    // we won't establish a persistent connection to seed peers
+    // but rather just ask them for more peers.
+    let mut gossip_static_outbound: HashMap<_, _> = global_config
+        .seed_peers
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
     {
         let mut append = |key: &NodePublicKey, addr: &Host| {
             gossip_static_outbound.insert(

@@ -13,7 +13,7 @@ use crate::{models::storage_transaction::StorageTransaction, BigDecimal};
 
 fn default_execute() -> Execute {
     Execute {
-        contract_address: H160::random(),
+        contract_address: Some(H160::random()),
         value: U256::from(10i32),
         calldata: hex::decode(
             "a9059cbb00000000000000000000000058d595f318167d5af45d9e44ade4348dd4e\

@@ -76,12 +76,12 @@ pub async fn run_main_node(
         s.spawn_bg(run_attestation_controller(
             ctx,
             &pool,
-            global_config,
+            global_config.clone(),
             attestation.clone(),
         ));
 
         let executor = executor::Executor {
-            config: config::executor(&cfg, &secrets, None)?,
+            config: config::executor(&cfg, &secrets, &global_config, None)?,
             block_store,
             batch_store,
             validator: Some(executor::Validator {
