@@ -223,9 +223,9 @@ jobs:
 
       - name: Read Custom Token address and set as environment variable
         run: |
-          address=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
-          echo "address=$address"
-          echo "address=$address" >> $GITHUB_ENV
+          CUSTOM_TOKEN_ADDRESS=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
+          echo "CUSTOM_TOKEN_ADDRESS=$CUSTOM_TOKEN_ADDRESS"
+          echo "CUSTOM_TOKEN_ADDRESS=$CUSTOM_TOKEN_ADDRESS" >> $GITHUB_ENV
 
       - name: Create and initialize Validium chain
         run: |
@@ -259,7 +259,7 @@ jobs:
           --prover-mode no-proofs \
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode rollup \
-          --base-token-address ${{ env.address }} \
+          --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
           --base-token-price-nominator 3 \
           --base-token-price-denominator 2 \
           --set-as-default false \
@@ -318,7 +318,7 @@ jobs:
           --prover-mode no-proofs \
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode validium \
-          --base-token-address ${{ env.address }} \
+          --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
           --base-token-price-nominator 3 \
           --base-token-price-denominator 2 \
           --set-as-default false \
