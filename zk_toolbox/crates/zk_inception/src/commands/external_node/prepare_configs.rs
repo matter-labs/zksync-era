@@ -72,6 +72,7 @@ fn prepare_configs(
         )?,
         main_node_rate_limit_rps: None,
         gateway_url: None,
+        sl_client_map: Default::default(), // FIXME
     };
     let mut general_en = general.clone();
     let next_empty_ports_config = ports_config(&general)

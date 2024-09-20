@@ -1,0 +1,6 @@
+[profile.default]
+slow-timeout = { period = "15s", terminate-after = 3 }
+
+[[profile.default.overrides]]
+filter = 'test(/ui_test|ui_pass/)'
+slow-timeout = { period = "120s", terminate-after = 3 }
