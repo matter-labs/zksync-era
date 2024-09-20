@@ -243,17 +243,20 @@ commands related to deployment, you can pass flags for Foundry integration.
 
 ## Non-GPU setup
 
-Circuit Prover requires a GPU (& CUDA bindings) to run. If you still want to be able to build everything locally on non-GPU setup, you'll need to change your rustflags.
+Circuit Prover requires a GPU (& CUDA bindings) to run. If you still want to be able to build everything locally on
+non-GPU setup, you'll need to change your rustflags.
 
 For a single run, it's enough to export it on the shell:
+
 ```
 export RUSTFLAGS='--cfg=no_cuda'
 ```
 
-For persistent runs, you can either echo it in your ~/.<shell>rc file (discouraged), or configure it for your taste in `config.toml`.
+For persistent runs, you can either echo it in your ~/.<shell>rc file (discouraged), or configure it for your taste in
+`config.toml`.
 
-For project level configuration, edit `/path/to/zksync/.cargo/config.toml`. For global cargo setup, `~/.cargo/config.toml`.
-Add the following:
+For project level configuration, edit `/path/to/zksync/.cargo/config.toml`. For global cargo setup,
+`~/.cargo/config.toml`. Add the following:
 
 ```toml
 [build]
