@@ -1,4 +1,4 @@
-pub use zksync_vm2::Tracer;
+pub use zksync_vm2::interface::Tracer;
 
 pub use self::{circuits_tracer::CircuitsTracer, vm::Vm};
 

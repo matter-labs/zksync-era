@@ -18,9 +18,7 @@ COPY . .
 
 RUN cd prover && cargo build --release --bin zksync_witness_vector_generator
 
-FROM debian:bookworm-slim
-
-RUN apt-get update && apt-get install -y curl libpq5 ca-certificates && rm -rf /var/lib/apt/lists/*
+FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
 # copy finalization hints required for witness vector generation
 COPY prover/data/keys/ /prover/data/keys/

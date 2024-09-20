@@ -1,16 +1,16 @@
 use zksync_types::{vm::VmVersion, Transaction};
-use zksync_vm2::Tracer;
+use zksync_vm2::interface::Tracer;
 
 use crate::{
     glue::history_mode::HistoryMode,
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
+        utils::ShadowVm,
         BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
         VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
         VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
-    versions::shadow::ShadowVm,
     vm_latest::HistoryEnabled,
 };
 
@@ -207,8 +207,11 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
 }
 
 /// Fast VM shadowed by the latest legacy VM.
-pub type ShadowedFastVm<S, Tr> =
-    ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, HistoryEnabled>, Tr>;
+pub type ShadowedFastVm<S, Tr = ()> = ShadowVm<
+    S,
+    crate::vm_latest::Vm<StorageView<S>, HistoryEnabled>,
+    crate::vm_fast::Vm<ImmutableStorageView<S>, Tr>,
+>;
 
 /// Fast VM variants.
 #[derive(Debug)]
@@ -301,8 +304,11 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> FastVmInstance<S, Tr> {
         system_env: SystemEnv,
         storage_view: StoragePtr<StorageView<S>>,
     ) -> Self {
-        let storage = ImmutableStorageView::new(storage_view);
-        Self::Fast(crate::vm_fast::Vm::new(l1_batch_env, system_env, storage))
+        Self::Fast(crate::vm_fast::Vm::new(
+            l1_batch_env,
+            system_env,
+            storage_view,
+        ))
     }
 
     /// Creates a shadowed fast VM.
