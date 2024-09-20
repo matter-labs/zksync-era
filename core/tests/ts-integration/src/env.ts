@@ -129,6 +129,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     const maxLogsLimit = parseInt(generalConfig.api.web3_json_rpc.req_entities_limit);
 
     const healthcheckPort = generalConfig.api.healthcheck.port;
+    const l2NodePid = 0;
     return {
         maxLogsLimit,
         pathToHome,
@@ -141,6 +142,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
         network,
         mainWalletPK,
         l2NodeUrl,
+        l2NodePid,
         l1NodeUrl,
         wsL2NodeUrl,
         contractVerificationUrl,
@@ -245,6 +247,7 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     );
 
     const healthcheckPort = process.env.API_HEALTHCHECK_PORT ?? '3071';
+    const l2NodePid = 0;
     return {
         maxLogsLimit,
         pathToHome,
@@ -257,6 +260,7 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
         network,
         mainWalletPK,
         l2NodeUrl,
+        l2NodePid,
         l1NodeUrl,
         wsL2NodeUrl,
         healthcheckPort,

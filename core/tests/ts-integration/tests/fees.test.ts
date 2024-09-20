@@ -22,6 +22,7 @@ import { logsTestPath } from 'utils/build/logs';
 import path from 'path';
 import { NodeSpawner, Node, NodeType } from '../src/utils';
 import { setInternalL1PricingMultiplier, setInternalPubdataPricingMultiplier, setTransactionSlots } from './utils';
+import { killPidWithAllChilds } from 'utils/build/kill';
 
 const UINT32_MAX = 2n ** 32n - 1n;
 const MAX_GAS_PER_PUBDATA = 50_000n;
@@ -75,6 +76,20 @@ testFees('Test fees', function () {
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
+
+        try {
+            await killPidWithAllChilds(testMaster.environment().l2NodePid, 9);
+        } catch (err) {
+            console.log(`ignored error: ${err}`);
+        }
+
+        // TODO: imporove the waiting logic
+        let iter = 0;
+        while (iter < 10) {
+            console.log('Waiting for the server to stop...');
+            await utils.sleep(1);
+            iter += 1;
+        }
 
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new ethers.Contract(tokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());
