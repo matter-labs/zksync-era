@@ -52,19 +52,7 @@ pub trait VmInterface {
     fn finish_batch(&mut self) -> FinishedL1Batch;
 }
 
-/// Owned tracer kind used as a type param in [`VmInterfaceExt`].
-#[derive(Debug)]
-pub struct OwnedTracer(());
-
-/// Borrowed tracer kind used as a type param in [`VmInterfaceExt`].
-#[derive(Debug)]
-pub struct BorrowedTracer(());
-
 /// Extension trait for [`VmInterface`] that provides some additional methods.
-///
-/// The `Kind` type param indicates the tracer kind (owned or borrowed) used by the VM. It allows to
-/// have 2 wildcard implementations that the Rust compiler cannot prove don't intersect (they don't in reality).
-/// You won't need to specify this type param explicitly in 99% of the cases.
 pub trait VmInterfaceExt: VmInterface {
     /// Executes the next VM step (either next transaction or bootloader or the whole batch).
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
