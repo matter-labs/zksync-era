@@ -53,7 +53,7 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
 }
 
 impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
-    type TracerDispatcher<'a> = TracerDispatcher;
+    type TracerDispatcher = TracerDispatcher;
 
     fn push_transaction(&mut self, tx: Transaction) {
         crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
@@ -66,7 +66,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn inspect(
         &mut self,
-        tracer: Self::TracerDispatcher<'_>,
+        tracer: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         if let Some(storage_invocations) = tracer.storage_invocations {
@@ -106,7 +106,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher<'_>,
+        tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {

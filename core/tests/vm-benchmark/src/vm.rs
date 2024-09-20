@@ -5,9 +5,9 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, StorageView},
-        BorrowedTracer, ExecutionResult, L1BatchEnv, L2BlockEnv, OwnedTracer, SystemEnv,
-        TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
-        VmInterfaceExt, VmInterfaceHistoryEnabled,
+        ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
+        VmInterfaceHistoryEnabled,
     },
     vm_fast, vm_latest,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled},
@@ -63,9 +63,8 @@ pub trait BenchmarkingVmFactory {
     /// VM label used to name `criterion` benchmarks.
     const LABEL: VmLabel;
 
-    type TracerKind;
     /// Type of the VM instance created by this factory.
-    type Instance: VmInterfaceHistoryEnabled + VmInterfaceExt<Self::TracerKind>;
+    type Instance: VmInterfaceHistoryEnabled;
 
     /// Creates a VM instance.
     fn create(
@@ -82,7 +81,6 @@ pub struct Fast(());
 impl BenchmarkingVmFactory for Fast {
     const LABEL: VmLabel = VmLabel::Fast;
 
-    type TracerKind = BorrowedTracer;
     type Instance = vm_fast::Vm<&'static InMemoryStorage>;
 
     fn create(
@@ -101,7 +99,6 @@ pub struct Legacy;
 impl BenchmarkingVmFactory for Legacy {
     const LABEL: VmLabel = VmLabel::Legacy;
 
-    type TracerKind = OwnedTracer;
     type Instance = vm_latest::Vm<StorageView<&'static InMemoryStorage>, HistoryEnabled>;
 
     fn create(

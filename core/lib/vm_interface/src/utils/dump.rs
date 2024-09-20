@@ -62,16 +62,16 @@ impl VmDump {
     }
 
     /// Plays back this dump on the specified VM.
-    pub fn play_back<Kind, Vm>(self) -> Vm
+    pub fn play_back<Vm>(self) -> Vm
     where
-        Vm: VmFactory<StorageView<StorageSnapshot>> + VmInterfaceExt<Kind>,
+        Vm: VmFactory<StorageView<StorageSnapshot>>,
     {
         self.play_back_custom(Vm::new)
     }
 
     /// Plays back this dump on a VM created using the provided closure.
     #[doc(hidden)] // too low-level
-    pub fn play_back_custom<Kind, Vm: VmInterfaceExt<Kind>>(
+    pub fn play_back_custom<Vm: VmInterface>(
         self,
         create_vm: impl FnOnce(L1BatchEnv, SystemEnv, StoragePtr<StorageView<StorageSnapshot>>) -> Vm,
     ) -> Vm {
@@ -140,7 +140,7 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> DumpingVm<S, Vm> {
 }
 
 impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
-    type TracerDispatcher<'a> = Vm::TracerDispatcher<'a>;
+    type TracerDispatcher = Vm::TracerDispatcher;
 
     fn push_transaction(&mut self, tx: Transaction) {
         self.record_transaction(tx.clone());
@@ -149,7 +149,7 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
 
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher<'_>,
+        dispatcher: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         self.inner.inspect(dispatcher, execution_mode)
@@ -168,7 +168,7 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher<'_>,
+        tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {

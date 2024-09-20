@@ -39,7 +39,9 @@ fn test_keccak() {
         None,
     );
     vm.vm.push_transaction(tx);
-    let _ = vm.vm.inspect(Default::default(), VmExecutionMode::OneTx);
+    let _ = vm
+        .vm
+        .inspect(&mut Default::default(), VmExecutionMode::OneTx);
 
     let keccak_count = vm
         .vm
@@ -83,7 +85,9 @@ fn test_sha256() {
         None,
     );
     vm.vm.push_transaction(tx);
-    let _ = vm.vm.inspect(Default::default(), VmExecutionMode::OneTx);
+    let _ = vm
+        .vm
+        .inspect(&mut Default::default(), VmExecutionMode::OneTx);
 
     let sha_count = vm
         .vm
@@ -120,7 +124,9 @@ fn test_ecrecover() {
         None,
     );
     vm.vm.push_transaction(tx);
-    let _ = vm.vm.inspect(Default::default(), VmExecutionMode::OneTx);
+    let _ = vm
+        .vm
+        .inspect(&mut Default::default(), VmExecutionMode::OneTx);
 
     let ecrecover_count = vm
         .vm

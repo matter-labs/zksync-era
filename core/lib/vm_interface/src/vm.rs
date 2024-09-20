@@ -20,26 +20,26 @@ use crate::{
 
 pub trait VmInterface {
     /// Lifetime is used to be able to define `Option<&mut _>` as a dispatcher.
-    type TracerDispatcher<'a>;
+    type TracerDispatcher: Default;
 
     /// Push transaction to bootloader memory.
     fn push_transaction(&mut self, tx: Transaction);
 
-    /// Execute next VM step (either next transaction or bootloader or the whole batch)
+    /// Executes the next VM step (either next transaction or bootloader or the whole batch)
     /// with custom tracers.
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher<'_>,
+        dispatcher: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs;
 
     /// Start a new L2 block.
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv);
 
-    /// Execute transaction with optional bytecode compression using custom tracers.
+    /// Executes the provided transaction with optional bytecode compression using custom tracers.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher<'_>,
+        tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs);
@@ -65,53 +65,27 @@ pub struct BorrowedTracer(());
 /// The `Kind` type param indicates the tracer kind (owned or borrowed) used by the VM. It allows to
 /// have 2 wildcard implementations that the Rust compiler cannot prove don't intersect (they don't in reality).
 /// You won't need to specify this type param explicitly in 99% of the cases.
-pub trait VmInterfaceExt<Kind>: VmInterface {
+pub trait VmInterfaceExt: VmInterface {
     /// Executes the next VM step (either next transaction or bootloader or the whole batch).
-    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs;
+    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
+        self.inspect(&mut <Self::TracerDispatcher>::default(), execution_mode)
+    }
 
     /// Executes a transaction with optional bytecode compression.
     fn execute_transaction_with_bytecode_compression(
         &mut self,
         tx: Transaction,
         with_compression: bool,
-    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs);
-}
-
-impl<Tr, T> VmInterfaceExt<OwnedTracer> for T
-where
-    Tr: Default,
-    T: for<'a> VmInterface<TracerDispatcher<'a> = Tr>,
-{
-    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        self.inspect(Tr::default(), execution_mode)
-    }
-
-    fn execute_transaction_with_bytecode_compression(
-        &mut self,
-        tx: Transaction,
-        with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
-        self.inspect_transaction_with_bytecode_compression(Tr::default(), tx, with_compression)
+        self.inspect_transaction_with_bytecode_compression(
+            &mut <Self::TracerDispatcher>::default(),
+            tx,
+            with_compression,
+        )
     }
 }
 
-impl<Tr, T> VmInterfaceExt<BorrowedTracer> for T
-where
-    Tr: Default,
-    T: for<'a> VmInterface<TracerDispatcher<'a> = &'a mut Tr>,
-{
-    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        self.inspect(&mut Tr::default(), execution_mode)
-    }
-
-    fn execute_transaction_with_bytecode_compression(
-        &mut self,
-        tx: Transaction,
-        with_compression: bool,
-    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
-        self.inspect_transaction_with_bytecode_compression(&mut Tr::default(), tx, with_compression)
-    }
-}
+impl<T: VmInterface> VmInterfaceExt for T {}
 
 /// Encapsulates creating VM instance based on the provided environment.
 pub trait VmFactory<S>: VmInterface {

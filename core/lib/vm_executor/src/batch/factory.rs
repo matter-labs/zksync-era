@@ -201,17 +201,17 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         } else {
             vec![]
         };
-        let legacy_tracer = legacy_tracer.into();
+        let mut legacy_tracer = legacy_tracer.into();
 
         let (compression_result, tx_result) = match self {
             Self::Legacy(vm) => vm.inspect_transaction_with_bytecode_compression(
-                legacy_tracer,
+                &mut legacy_tracer,
                 tx,
                 with_compression,
             ),
             Self::Fast(vm) => {
-                let tracer = (legacy_tracer.into(), &mut <Tr::Fast>::default());
-                vm.inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
+                let mut tracer = (legacy_tracer.into(), <Tr::Fast>::default());
+                vm.inspect_transaction_with_bytecode_compression(&mut tracer, tx, with_compression)
             }
         };
 

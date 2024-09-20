@@ -224,14 +224,11 @@ fn test_layered_rollback() {
     vm.vm.make_snapshot();
 
     vm.vm.push_transaction(loadnext_transaction.clone());
-    vm.vm.inspect(
-        MaxRecursionTracer {
-            max_recursion_depth: 15,
-        }
-        .into_tracer_pointer()
-        .into(),
-        VmExecutionMode::OneTx,
-    );
+    let tracer = MaxRecursionTracer {
+        max_recursion_depth: 15,
+    }
+    .into_tracer_pointer();
+    vm.vm.inspect(&mut tracer.into(), VmExecutionMode::OneTx);
 
     let nonce_val2 = vm
         .vm

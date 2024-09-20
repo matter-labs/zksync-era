@@ -1,3 +1,5 @@
+use std::mem;
+
 use zksync_types::{vm::VmVersion, Transaction};
 use zksync_vm2::interface::Tracer;
 
@@ -14,6 +16,13 @@ use crate::{
     vm_latest::HistoryEnabled,
 };
 
+/// Enumeration encompassing all supported legacy VM versions.
+///
+/// # Important
+///
+/// Methods with a tracer arg take the provided tracer, replacing it with the default value. Legacy tracers
+/// are adapted for this workflow (previously, tracers were passed by value), so they provide means to extract state after execution
+/// if necessary (e.g., using `Arc<OnceCell<_>>`).
 #[derive(Debug)]
 pub enum LegacyVmInstance<S: ReadStorage, H: HistoryMode> {
     VmM5(crate::vm_m5::Vm<StorageView<S>, H>),
@@ -44,7 +53,7 @@ macro_rules! dispatch_legacy_vm {
 }
 
 impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
-    type TracerDispatcher<'a> = TracerDispatcher<StorageView<S>, H>;
+    type TracerDispatcher = TracerDispatcher<StorageView<S>, H>;
 
     /// Push tx into memory for the future execution
     fn push_transaction(&mut self, tx: Transaction) {
@@ -54,10 +63,10 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     /// Execute next transaction with custom tracers
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher<'_>,
+        dispatcher: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        dispatch_legacy_vm!(self.inspect(dispatcher.into(), execution_mode))
+        dispatch_legacy_vm!(self.inspect(&mut mem::take(dispatcher).into(), execution_mode))
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
@@ -67,12 +76,12 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     /// Inspect transaction with optional bytecode compression.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        dispatcher: Self::TracerDispatcher<'_>,
+        dispatcher: &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         dispatch_legacy_vm!(self.inspect_transaction_with_bytecode_compression(
-            dispatcher.into(),
+            &mut mem::take(dispatcher).into(),
             tx,
             with_compression
         ))
@@ -232,9 +241,9 @@ macro_rules! dispatch_fast_vm {
 }
 
 impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInstance<S, Tr> {
-    type TracerDispatcher<'a> = (
+    type TracerDispatcher = (
         crate::vm_latest::TracerDispatcher<StorageView<S>, HistoryEnabled>,
-        &'a mut Tr,
+        Tr,
     );
 
     fn push_transaction(&mut self, tx: Transaction) {
@@ -243,11 +252,11 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInsta
 
     fn inspect(
         &mut self,
-        tracer: Self::TracerDispatcher<'_>,
+        tracer: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         match self {
-            Self::Fast(vm) => vm.inspect(tracer.1, execution_mode),
+            Self::Fast(vm) => vm.inspect(&mut tracer.1, execution_mode),
             Self::Shadowed(vm) => vm.inspect(tracer, execution_mode),
         }
     }
@@ -258,14 +267,16 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInsta
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher<'_>,
+        tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         match self {
-            Self::Fast(vm) => {
-                vm.inspect_transaction_with_bytecode_compression(tracer.1, tx, with_compression)
-            }
+            Self::Fast(vm) => vm.inspect_transaction_with_bytecode_compression(
+                &mut tracer.1,
+                tx,
+                with_compression,
+            ),
             Self::Shadowed(vm) => {
                 vm.inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
             }

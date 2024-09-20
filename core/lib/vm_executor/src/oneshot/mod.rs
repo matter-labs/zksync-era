@@ -98,7 +98,7 @@ where
             let mut result = executor.apply(|vm, transaction| {
                 let (compression_result, tx_result) = vm
                     .inspect_transaction_with_bytecode_compression(
-                        tracers.into(),
+                        &mut tracers.into(),
                         transaction,
                         true,
                     );
@@ -152,7 +152,7 @@ where
             );
             let exec_result = executor.apply(|vm, transaction| {
                 vm.push_transaction(transaction);
-                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
+                vm.inspect(&mut tracers.into(), VmExecutionMode::OneTx)
             });
             let validation_result = Arc::make_mut(&mut validation_result)
                 .take()

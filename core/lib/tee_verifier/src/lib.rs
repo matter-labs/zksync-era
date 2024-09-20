@@ -14,7 +14,8 @@ use zksync_merkle_tree::{
 use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, ReadStorage, StorageView},
-        FinishedL1Batch, L2BlockEnv, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        FinishedL1Batch, L2BlockEnv, VmFactory, VmInterface, VmInterfaceExt,
+        VmInterfaceHistoryEnabled,
     },
     vm_latest::HistoryEnabled,
     LegacyVmInstance,
@@ -244,7 +245,7 @@ fn execute_tx<S: ReadStorage>(
     // Attempt to run VM with bytecode compression on.
     vm.make_snapshot();
     if vm
-        .inspect_transaction_with_bytecode_compression(Default::default(), tx.clone(), true)
+        .execute_transaction_with_bytecode_compression(tx.clone(), true)
         .0
         .is_ok()
     {
@@ -255,7 +256,7 @@ fn execute_tx<S: ReadStorage>(
     // If failed with bytecode compression, attempt to run without bytecode compression.
     vm.rollback_to_the_latest_snapshot();
     if vm
-        .inspect_transaction_with_bytecode_compression(Default::default(), tx.clone(), false)
+        .execute_transaction_with_bytecode_compression(tx.clone(), false)
         .0
         .is_err()
     {

@@ -123,7 +123,7 @@ impl Harness {
         vm.start_new_l2_block(self.current_block);
     }
 
-    fn execute_on_vm<Kind>(&mut self, vm: &mut impl VmInterfaceExt<Kind>) {
+    fn execute_on_vm(&mut self, vm: &mut impl VmInterface) {
         let transfer_exec = Execute {
             contract_address: Some(self.bob.address()),
             calldata: vec![],
@@ -200,9 +200,9 @@ impl Harness {
     }
 }
 
-fn sanity_check_vm<Kind, Vm>() -> (Vm, Harness)
+fn sanity_check_vm<Vm>() -> (Vm, Harness)
 where
-    Vm: VmFactory<StorageView<InMemoryStorage>> + VmInterfaceExt<Kind>,
+    Vm: VmFactory<StorageView<InMemoryStorage>>,
 {
     let system_env = default_system_env();
     let l1_batch_env = default_l1_batch(L1BatchNumber(1));
@@ -218,12 +218,12 @@ where
 
 #[test]
 fn sanity_check_harness() {
-    sanity_check_vm::<_, ReferenceVm>();
+    sanity_check_vm::<ReferenceVm>();
 }
 
 #[test]
 fn sanity_check_harness_on_new_vm() {
-    sanity_check_vm::<_, vm_fast::Vm<_>>();
+    sanity_check_vm::<vm_fast::Vm<_>>();
 }
 
 #[test]
@@ -248,15 +248,12 @@ fn sanity_check_shadow_vm() {
 
 #[test]
 fn shadow_vm_basics() {
-    let (vm, harness) = sanity_check_vm::<_, ShadowedFastVm>();
+    let (vm, harness) = sanity_check_vm::<ShadowedFastVm>();
     let mut dump = vm.dump_state();
     Harness::assert_dump(&mut dump);
 
     // Test standard playback functionality.
-    let replayed_dump = dump
-        .clone()
-        .play_back::<_, ShadowedFastVm<_>>()
-        .dump_state();
+    let replayed_dump = dump.clone().play_back::<ShadowedFastVm<_>>().dump_state();
     pretty_assertions::assert_eq!(replayed_dump, dump);
 
     // Check that the VM executes identically when reading from the original storage and one restored from the dump.

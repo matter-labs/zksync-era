@@ -158,9 +158,9 @@ where
     Main: VmTrackingContracts,
     Shadow: VmInterface,
 {
-    type TracerDispatcher<'a> = (
-        <Main as VmInterface>::TracerDispatcher<'a>,
-        <Shadow as VmInterface>::TracerDispatcher<'a>,
+    type TracerDispatcher = (
+        <Main as VmInterface>::TracerDispatcher,
+        <Shadow as VmInterface>::TracerDispatcher,
     );
 
     fn push_transaction(&mut self, tx: Transaction) {
@@ -172,7 +172,7 @@ where
 
     fn inspect(
         &mut self,
-        (main_tracer, shadow_tracer): Self::TracerDispatcher<'_>,
+        (main_tracer, shadow_tracer): &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let main_result = self.main.inspect(main_tracer, execution_mode);
@@ -198,7 +198,7 @@ where
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        (main_tracer, shadow_tracer): Self::TracerDispatcher<'_>,
+        (main_tracer, shadow_tracer): &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
