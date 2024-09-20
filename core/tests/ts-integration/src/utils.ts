@@ -1,4 +1,4 @@
-import { exec as _exec, spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
+import { spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
 import { assert } from 'chai';
 import { FileConfig } from 'utils/build/file-configs';
 import { Tester } from './tester';
