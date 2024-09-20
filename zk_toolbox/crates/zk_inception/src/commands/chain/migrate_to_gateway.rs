@@ -368,7 +368,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .sender
         .as_mut()
         .context("sender")?
-        .wait_confirmations = 0;
+        .wait_confirmations = Some(0);
     // FIXME: do we need to move the following to be u64?
     eth_config
         .sender

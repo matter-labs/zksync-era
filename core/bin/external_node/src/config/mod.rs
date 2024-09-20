@@ -1402,6 +1402,9 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
         Self {
             l1_chain_id: config.required.l1_chain_id,
             l2_chain_id: config.required.l2_chain_id,
+            // TODO: EN not supported yet
+            sl_chain_id: SLChainId(config.required.l1_chain_id.0),
+            settlement_layer_url: None,
             max_tx_size: config.optional.max_tx_size_bytes,
             estimate_gas_scale_factor: config.optional.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: config
