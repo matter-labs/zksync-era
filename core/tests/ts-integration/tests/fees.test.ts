@@ -21,7 +21,7 @@ import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
 import path from 'path';
 import { NodeSpawner, Node, NodeType } from '../src/utils';
-import { setInternalL1PricingMultiplier, setInternalPubdataPricingMultiplier, setTransactionSlots } from './utils';
+import { deleteInternalEnforcedL1GasPrice, deleteInternalEnforcedPubdataPrice, setTransactionSlots } from './utils';
 import { killPidWithAllChilds } from 'utils/build/kill';
 
 const UINT32_MAX = 2n ** 32n - 1n;
@@ -292,8 +292,8 @@ testFees('Test fees', function () {
 
         // Restore defaults
         setTransactionSlots(pathToHome, fileConfig, 8192);
-        setInternalL1PricingMultiplier(pathToHome, fileConfig, 0.8);
-        setInternalPubdataPricingMultiplier(pathToHome, fileConfig, 1.0);
+        deleteInternalEnforcedL1GasPrice(pathToHome, fileConfig);
+        deleteInternalEnforcedPubdataPrice(pathToHome, fileConfig);
 
         await testMaster.deinitialize();
     });

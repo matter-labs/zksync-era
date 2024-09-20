@@ -7,8 +7,10 @@ import * as utils from 'utils';
 import fs from 'node:fs/promises';
 import * as zksync from 'zksync-ethers';
 import {
-    setInternalL1PricingMultiplier,
-    setInternalPubdataPricingMultiplier,
+    deleteInternalEnforcedL1GasPrice,
+    deleteInternalEnforcedPubdataPrice,
+    setInternalEnforcedL1GasPrice,
+    setInternalEnforcedPubdataPrice,
     setTransactionSlots
 } from '../tests/utils';
 
@@ -165,12 +167,18 @@ export class NodeSpawner {
 
         if (fileConfig.loadFromFile) {
             setTransactionSlots(pathToHome, fileConfig, testMode ? 1 : 8192);
-            setInternalL1PricingMultiplier(pathToHome, fileConfig, newL1GasPrice ? parseFloat(newL1GasPrice) : 0.8);
-            setInternalPubdataPricingMultiplier(
-                pathToHome,
-                fileConfig,
-                newPubdataPrice ? parseFloat(newPubdataPrice) : 1.0
-            );
+
+            if (newL1GasPrice) {
+                setInternalEnforcedL1GasPrice(pathToHome, fileConfig, parseFloat(newL1GasPrice));
+            } else {
+                deleteInternalEnforcedL1GasPrice(pathToHome, fileConfig);
+            }
+
+            if (newPubdataPrice) {
+                setInternalEnforcedPubdataPrice(pathToHome, fileConfig, parseFloat(newPubdataPrice));
+            } else {
+                deleteInternalEnforcedPubdataPrice(pathToHome, fileConfig);
+            }
         } else {
             env['DATABASE_MERKLE_TREE_MODE'] = 'full';
 
