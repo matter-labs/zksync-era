@@ -66,6 +66,7 @@ impl ConsensusDal<'_, '_> {
             return Ok(Some(GlobalConfig {
                 genesis,
                 registry_address: None,
+                seed_peers: [].into(),
             }));
         }
         Ok(None)
@@ -184,6 +185,7 @@ impl ConsensusDal<'_, '_> {
             }
             .with_hash(),
             registry_address: old.registry_address,
+            seed_peers: old.seed_peers,
         };
         txn.consensus_dal().try_update_global_config(&new).await?;
         txn.commit().await?;
@@ -681,6 +683,7 @@ mod tests {
             let cfg = GlobalConfig {
                 genesis: genesis.with_hash(),
                 registry_address: Some(rng.gen()),
+                seed_peers: [].into(), // TODO: rng.gen() for Host
             };
             conn.consensus_dal()
                 .try_update_global_config(&cfg)
@@ -715,6 +718,7 @@ mod tests {
         let cfg = GlobalConfig {
             genesis: setup.genesis.clone(),
             registry_address: Some(rng.gen()),
+            seed_peers: [].into(),
         };
         conn.consensus_dal()
             .try_update_global_config(&cfg)
