@@ -51,6 +51,78 @@ impl FriProverDal<'_, '_> {
         drop(latency);
     }
 
+    /// Retrieves the next prover job to be proven. Called by WVGs.
+    ///
+    /// Prover jobs must be thought of as ordered.
+    /// Prover must prioritize proving such jobs that will make the chain move forward the fastest.
+    /// Current ordering:
+    /// - pick the lowest batch
+    /// - within the lowest batch, look at the lowest aggregation level (move up the proof tree)
+    /// - pick the same type of circuit for as long as possible, this maximizes GPU cache reuse
+    ///
+    /// NOTE: Most of this function is a duplicate of `get_next_job()`. Get next job will be deleted together with old prover.
+    pub async fn get_job(
+        &mut self,
+        protocol_version: ProtocolSemanticVersion,
+        picked_by: &str,
+    ) -> Option<FriProverJobMetadata> {
+        sqlx::query!(
+            r#"
+            UPDATE prover_jobs_fri
+            SET
+                status = 'in_progress',
+                attempts = attempts + 1,
+                updated_at = NOW(),
+                processing_started_at = NOW(),
+                picked_by = $3
+            WHERE
+                id = (
+                    SELECT
+                        id
+                    FROM
+                        prover_jobs_fri
+                    WHERE
+                        status = 'queued'
+                        AND protocol_version = $1
+                        AND protocol_version_patch = $2
+                    ORDER BY
+                        l1_batch_number ASC,
+                        aggregation_round ASC,
+                        circuit_id ASC,
+                        id ASC
+                    LIMIT
+                        1
+                    FOR UPDATE
+                        SKIP LOCKED
+                )
+            RETURNING
+                prover_jobs_fri.id,
+                prover_jobs_fri.l1_batch_number,
+                prover_jobs_fri.circuit_id,
+                prover_jobs_fri.aggregation_round,
+                prover_jobs_fri.sequence_number,
+                prover_jobs_fri.depth,
+                prover_jobs_fri.is_node_final_proof
+            "#,
+            protocol_version.minor as i32,
+            protocol_version.patch.0 as i32,
+            picked_by,
+        )
+        .fetch_optional(self.storage.conn())
+        .await
+        .expect("failed to get prover job")
+        .map(|row| FriProverJobMetadata {
+            id: row.id as u32,
+            block_number: L1BatchNumber(row.l1_batch_number as u32),
+            circuit_id: row.circuit_id as u8,
+            aggregation_round: AggregationRound::try_from(i32::from(row.aggregation_round))
+                .unwrap(),
+            sequence_number: row.sequence_number as usize,
+            depth: row.depth as u16,
+            is_node_final_proof: row.is_node_final_proof,
+        })
+    }
+
     pub async fn get_next_job(
         &mut self,
         protocol_version: ProtocolSemanticVersion,
