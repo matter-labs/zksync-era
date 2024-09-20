@@ -70,7 +70,7 @@ testFees('Test fees', function () {
     const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
 
     async function logsPath(name: string): Promise<string> {
-        return await logsTestPath(fileConfig.chain, 'logs/revert/', name);
+        return await logsTestPath(fileConfig.chain, 'logs/server/fees', name);
     }
 
     beforeAll(async () => {
