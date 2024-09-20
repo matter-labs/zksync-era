@@ -57,10 +57,11 @@ pub struct MigrateToGatewayArgs {
 lazy_static! {
     static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function migrateChainToGateway(address chainAdmin,uint256 chainId,bytes32 adminOperationSalt) public",
-            "function setDAValidatorPair(address chainAdmin,uint256 chainId,address l1DAValidator,address l2DAValidator,address chainDiamondProxyOnGateway)",
+            "function migrateChainToGateway(address chainAdmin,address accessControlRestriction,uint256 chainId) public",
+            "function setDAValidatorPair(address chainAdmin,address accessControlRestriction,uint256 chainId,address l1DAValidator,address l2DAValidator,address chainDiamondProxyOnGateway)",
             "function supplyGatewayWallet(address addr, uint256 addr) public",
-            "function enableValidator(address chainAdmin,uint256 chainId,address validatorAddress,address gatewayValidatorTimelock) public"
+            "function enableValidator(address chainAdmin,address accessControlRestriction,uint256 chainId,address validatorAddress,address gatewayValidatorTimelock) public",
+            "function grantWhitelist(address filtererProxy, address[] memory addr) public"
         ])
         .unwrap(),
     );
@@ -110,16 +111,42 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     let whitelist_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
     let preparation_config = GatewayPreparationConfig::new(
         &gateway_chain_config,
+        &gateway_chain_config.get_contracts_config()?,
         &ecosystem_config.get_contracts_config()?,
         &gateway_gateway_config,
     )?;
     preparation_config.save(shell, whitelist_config_path)?;
 
-    let chain_admin_addr = chain_config
+    let chain_contracts_config = chain_config
         .get_contracts_config()
-        .unwrap()
+        .unwrap();
+    let chain_admin_addr = chain_contracts_config
         .l1
         .chain_admin_addr;
+    let chain_access_control_restriction = chain_contracts_config.l1.access_control_restriction_addr;
+
+    println!("Whitelisting the chains' addresseses...");
+    call_script(
+        shell, 
+        args.forge_args.clone(), 
+        &GATEWAY_PREPARATION_INTERFACE
+            .encode(
+                "grantWhitelist",
+                (
+                    gateway_chain_config.get_contracts_config()?.l1.transaction_filterer_addr,
+                    vec![chain_config.get_wallets_config()?.governor.address, chain_config.get_contracts_config()?.l1.chain_admin_addr]
+                ),
+            )
+            .unwrap(), 
+        &ecosystem_config, 
+        gateway_chain_config
+        .get_wallets_config()?
+        .governor_private_key(),
+        l1_url.clone(),
+    )
+    .await?;
+
+    println!("Migrating the chain...");
 
     let hash = call_script(
         shell,
@@ -129,13 +156,15 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 "migrateChainToGateway",
                 (
                     chain_admin_addr,
-                    U256::from(chain_config.chain_id.0),
-                    H256::random(),
+                    chain_access_control_restriction,
+                    U256::from(chain_config.chain_id.0)
                 ),
             )
             .unwrap(),
         &ecosystem_config,
-        &chain_config,
+        chain_config
+            .get_wallets_config()?
+            .governor_private_key(),
         l1_url.clone(),
     )
     .await?;
@@ -186,6 +215,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 "setDAValidatorPair",
                 (
                     chain_admin_addr,
+                    chain_access_control_restriction,
                     U256::from(chain_config.chain_id.0),
                     gateway_gateway_config.relayed_sl_da_validator,
                     chain_contracts_config.l2.l2_da_validator_addr,
@@ -194,7 +224,9 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             )
             .unwrap(),
         &ecosystem_config,
-        &chain_config,
+        chain_config
+        .get_wallets_config()?
+        .governor_private_key(),
         l1_url.clone(),
     )
     .await?;
@@ -214,6 +246,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 "enableValidator",
                 (
                     chain_admin_addr,
+                    chain_access_control_restriction,
                     U256::from(chain_config.chain_id.0),
                     chain_secrets_config.blob_operator.address,
                     gateway_gateway_config.validator_timelock_addr,
@@ -221,7 +254,9 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             )
             .unwrap(),
         &ecosystem_config,
-        &chain_config,
+        chain_config
+        .get_wallets_config()?
+        .governor_private_key(),
         l1_url.clone(),
     )
     .await?;
@@ -243,7 +278,9 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             )
             .unwrap(),
         &ecosystem_config,
-        &chain_config,
+        chain_config
+        .get_wallets_config()?
+        .governor_private_key(),
         l1_url.clone(),
     )
     .await?;
@@ -260,6 +297,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                 "enableValidator",
                 (
                     chain_admin_addr,
+                    chain_access_control_restriction,
                     U256::from(chain_config.chain_id.0),
                     chain_secrets_config.operator.address,
                     gateway_gateway_config.validator_timelock_addr,
@@ -267,7 +305,9 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             )
             .unwrap(),
         &ecosystem_config,
-        &chain_config,
+        chain_config
+        .get_wallets_config()?
+        .governor_private_key(),
         l1_url.clone(),
     )
     .await?;
@@ -286,7 +326,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             )
             .unwrap(),
         &ecosystem_config,
-        &chain_config,
+        chain_config
+        .get_wallets_config()?
+        .governor_private_key(),
+
         l1_url.clone(),
     )
     .await?;
@@ -389,7 +432,7 @@ async fn call_script(
     forge_args: ForgeScriptArgs,
     data: &Bytes,
     config: &EcosystemConfig,
-    chain_config: &ChainConfig,
+    private_key: Option<H256>,
     l1_rpc_url: String,
 ) -> anyhow::Result<H256> {
     let mut forge = Forge::new(&config.path_to_l1_foundry())
@@ -402,17 +445,14 @@ async fn call_script(
     // Governor private key is required for this script
     forge = fill_forge_private_key(
         forge,
-        chain_config
-            .get_wallets_config()
-            .unwrap()
-            .governor_private_key(),
+        private_key
     )?;
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 
     let gateway_preparation_script_output = GatewayPreparationOutput::read(
         shell,
-        GATEWAY_PREPARATION.output(&chain_config.link_to_code),
+        GATEWAY_PREPARATION.output(&config.link_to_code),
     )?;
 
     Ok(gateway_preparation_script_output.governance_l2_tx_hash)

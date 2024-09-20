@@ -88,7 +88,9 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     await waitForServer(l2NodeUrl);
 
     const l2Provider = new zksync.Provider(l2NodeUrl);
+    console.log('a');
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
+    console.log('b');
 
     const l1NodeUrl = secretsConfig.l1.l1_rpc_url;
     const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
@@ -114,6 +116,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
             baseToken = token;
         }
     }
+    console.log('c');
     // `waitForServer` is expected to be executed. Otherwise this call may throw.
 
     const l2TokenAddress = await new zksync.Wallet(
@@ -121,6 +124,8 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
         l2Provider,
         ethers.getDefaultProvider(l1NodeUrl)
     ).l2TokenAddress(token.address);
+
+    console.log('getting l2 token addr');
 
     const baseTokenAddressL2 = L2_BASE_TOKEN_ADDRESS;
     const l2ChainId = BigInt(genesisConfig.l2_chain_id);

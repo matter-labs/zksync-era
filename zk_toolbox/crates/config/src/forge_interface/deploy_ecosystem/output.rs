@@ -29,6 +29,7 @@ pub struct DeployL1DeployedAddressesOutput {
     pub transparent_proxy_admin_addr: Address,
     pub validator_timelock_addr: Address,
     pub chain_admin: Address,
+    pub access_control_restriction_addr: Address,
     pub bridgehub: L1BridgehubOutput,
     pub bridges: L1BridgesOutput,
     pub state_transition: L1StateTransitionOutput,
@@ -41,20 +42,9 @@ impl ZkToolboxConfig for DeployL1Output {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DeployL1ContractsConfigOutput {
-    pub diamond_init_max_l2_gas_per_batch: u64,
-    pub diamond_init_batch_overhead_l1_gas: u64,
-    pub diamond_init_max_pubdata_per_batch: u64,
-    pub diamond_init_minimal_l2_gas_price: u64,
-    pub diamond_init_priority_tx_max_pubdata: u64,
-    pub diamond_init_pubdata_pricing_mode: u64,
-    pub priority_tx_max_gas_limit: u64,
-    pub recursion_circuits_set_vks_hash: H256,
-    pub recursion_leaf_level_vk_hash: H256,
-    pub recursion_node_level_vk_hash: H256,
     pub diamond_cut_data: String,
     pub force_deployments_data: String,
 }
-
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct L1BridgehubOutput {

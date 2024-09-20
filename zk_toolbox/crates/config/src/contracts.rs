@@ -109,6 +109,8 @@ impl ContractsConfig {
         self.l1.diamond_proxy_addr = register_chain_output.diamond_proxy_addr;
         self.l1.governance_addr = register_chain_output.governance_addr;
         self.l1.chain_admin_addr = register_chain_output.chain_admin_addr;
+        self.l1.access_control_restriction_addr = register_chain_output.access_control_restriction_addr;
+        self.l1.chain_proxy_admin_addr = register_chain_output.chain_proxy_admin_addr;
         self.l2.l2_legacy_shared_bridge_addr = register_chain_output.l2_legacy_shared_bridge_addr;
 
         self.user_facing_diamond_proxy = register_chain_output.diamond_proxy_addr;
@@ -123,6 +125,13 @@ impl ContractsConfig {
         self.l2.l2_native_token_vault_proxy_addr = L2_NATIVE_TOKEN_VAULT_ADDRESS;
         self.l2.l2_da_validator_addr = initialize_bridges_output.l2_da_validator_address;
         Ok(())
+    }
+
+    pub fn set_transaction_filterer(
+        &mut self,
+        transaction_filterer_addr: Address,
+    ) {
+        self.l1.transaction_filterer_addr = transaction_filterer_addr;
     }
 
     // pub fn update_after_gateway(
@@ -198,12 +207,15 @@ pub struct L1Contracts {
     pub governance_addr: Address,
     #[serde(default)]
     pub chain_admin_addr: Address,
+    pub access_control_restriction_addr: Address,
+    pub chain_proxy_admin_addr: Address,
     pub multicall3_addr: Address,
     pub verifier_addr: Address,
     pub validator_timelock_addr: Address,
     pub base_token_addr: Address,
     pub rollup_l1_da_validator_addr: Address,
     pub validium_l1_da_validator_addr: Address,
+    pub transaction_filterer_addr: Address,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

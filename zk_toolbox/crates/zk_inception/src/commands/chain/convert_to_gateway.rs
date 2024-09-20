@@ -19,24 +19,24 @@ use ethers::{abi::parse_abi, contract::BaseContract, types::Bytes, utils::hex};
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zksync_basic_types::{Address, H256};
-use zksync_config::configs::GatewayConfig;
+use zksync_config::configs::{chain, GatewayConfig};
 
 use crate::{
-    messages::{
+    commands::ecosystem, messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED,
         MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
         MSG_WALLETS_CONFIG_MUST_BE_PRESENT, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
-    },
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    }, utils::forge::{check_the_balance, fill_forge_private_key}
 };
 
 lazy_static! {
     static ref GATEWAY_PREPARATION_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
             "function governanceRegisterGateway() public",
+            "function deployAndSetGatewayTransactionFilterer() public",
             "function governanceWhitelistGatewayCTM(address gatewaySTMAddress, bytes32 governanoceOperationSalt) public",
             "function governanceSetCTMAssetHandler(bytes32 governanoceOperationSalt)",
-            "function registerAssetIdInBridgehub(address gatewaySTMAddress, bytes32 governanoceOperationSalt)"
+            "function registerAssetIdInBridgehub(address gatewaySTMAddress, bytes32 governanoceOperationSalt)",
         ])
         .unwrap(),
     );
@@ -55,6 +55,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .l1_rpc_url
         .expose_str()
         .to_string();
+    let mut contracts_config = chain_config.get_contracts_config()?;
 
     // FIXME: do we need to build l1 contracts here? they are typically pre-built
 
@@ -72,17 +73,46 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     )
     .await?;
 
+    let gateway_preparation_config_path = GATEWAY_PREPARATION.input(&chain_config.link_to_code);
+    let preparation_config = GatewayPreparationConfig::new(
+        &chain_config,
+        &chain_config.get_contracts_config()?,
+        &ecosystem_config.get_contracts_config()?,
+        &gateway_config,
+    )?;
+    preparation_config.save(shell, gateway_preparation_config_path)?;
+
     gateway_governance_whitelisting(
         shell,
-        args,
+        args.clone(),
         &ecosystem_config,
         &chain_config,
         &genesis_config,
-        &ecosystem_config.get_initial_deployment_config().unwrap(),
         gateway_config,
+        l1_url.clone(),
+    )
+    .await?;
+
+
+    let output = call_script(
+        shell,
+        args,
+        &GATEWAY_PREPARATION_INTERFACE
+            .encode(
+                "deployAndSetGatewayTransactionFilterer",
+                (),
+            )
+            .unwrap(),
+        &ecosystem_config,
+        &chain_config,
+        chain_config.get_wallets_config().unwrap().governor_private_key(),
         l1_url,
     )
     .await?;
+
+    contracts_config.set_transaction_filterer(output.gateway_transaction_filterer_proxy);
+
+    contracts_config.save_with_base_path(shell, chain_config.configs);
 
     Ok(())
 }
@@ -135,20 +165,9 @@ async fn gateway_governance_whitelisting(
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
     genesis_config: &GenesisConfig,
-    initial_deployemnt_config: &InitialDeploymentConfig,
     gateway_config: GatewayConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
-    let whitelist_config_path = GATEWAY_PREPARATION.input(&config.link_to_code);
-    let preparation_config = GatewayPreparationConfig::new(
-        chain_config,
-        &config.get_contracts_config()?,
-        &gateway_config,
-    )?;
-    preparation_config.save(shell, whitelist_config_path)?;
-
-    // 1. Registering gateway as a settlement layer
-
     let hash = call_script(
         shell,
         forge_args.clone(),
@@ -157,9 +176,11 @@ async fn gateway_governance_whitelisting(
             .unwrap(),
         config,
         chain_config,
+        config.get_wallets().unwrap().governor_private_key(),
         l1_rpc_url.clone(),
     )
-    .await?;
+    .await?
+    .governance_l2_tx_hash;
 
     println!(
         "Gateway registered as a settlement layer with L2 hash: {}",
@@ -177,9 +198,11 @@ async fn gateway_governance_whitelisting(
             .unwrap(),
         config,
         chain_config,
+        config.get_wallets().unwrap().governor_private_key(),
         l1_rpc_url.clone(),
     )
-    .await?;
+    .await?
+    .governance_l2_tx_hash;
 
     // Just in case, the L2 tx may or may not fail depending on whether it was executed previously,
     println!(
@@ -195,9 +218,11 @@ async fn gateway_governance_whitelisting(
             .unwrap(),
         config,
         chain_config,
+        config.get_wallets().unwrap().governor_private_key(),
         l1_rpc_url.clone(),
     )
-    .await?;
+    .await?
+    .governance_l2_tx_hash;
 
     // Just in case, the L2 tx may or may not fail depending on whether it was executed previously,
     println!(
@@ -216,9 +241,11 @@ async fn gateway_governance_whitelisting(
             .unwrap(),
         config,
         chain_config,
+        config.get_wallets().unwrap().governor_private_key(),
         l1_rpc_url.clone(),
     )
-    .await?;
+    .await?
+    .governance_l2_tx_hash;
 
     // Just in case, the L2 tx may or may not fail depending on whether it was executed previously,
     println!(
@@ -235,8 +262,9 @@ async fn call_script(
     data: &Bytes,
     config: &EcosystemConfig,
     chain_config: &ChainConfig,
+    private_key: Option<H256>,
     l1_rpc_url: String,
-) -> anyhow::Result<H256> {
+) -> anyhow::Result<GatewayPreparationOutput> {
     let mut forge = Forge::new(&config.path_to_l1_foundry())
         .script(&GATEWAY_PREPARATION.script(), forge_args.clone())
         .with_ffi()
@@ -245,16 +273,14 @@ async fn call_script(
         .with_calldata(data);
 
     // Governor private key is required for this script
-    forge = fill_forge_private_key(forge, config.get_wallets()?.governor_private_key())?;
+    forge = fill_forge_private_key(forge, private_key)?;
     check_the_balance(&forge).await?;
     forge.run(shell)?;
 
-    let gateway_preparation_script_output = GatewayPreparationOutput::read(
+    GatewayPreparationOutput::read(
         shell,
         GATEWAY_PREPARATION.output(&chain_config.link_to_code),
-    )?;
-
-    Ok(gateway_preparation_script_output.governance_l2_tx_hash)
+    )
 }
 
 // pub async fn set_token_multiplier_setter(

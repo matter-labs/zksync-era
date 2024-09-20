@@ -9,6 +9,8 @@ pub struct RegisterChainOutput {
     pub governance_addr: Address,
     pub chain_admin_addr: Address,
     pub l2_legacy_shared_bridge_addr: Address,
+    pub access_control_restriction_addr: Address,
+    pub chain_proxy_admin_addr: Address
 }
 
 impl ZkToolboxConfig for RegisterChainOutput {}
