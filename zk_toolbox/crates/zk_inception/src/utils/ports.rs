@@ -417,6 +417,7 @@ mod tests {
         assert!(!ecosystem_ports.is_port_assigned(3151));
         assert!(!ecosystem_ports.is_port_assigned(8545));
         assert!(!ecosystem_ports.is_port_assigned(5432));
+        assert!(!ecosystem_ports.is_port_assigned(100));
 
         // Check description:
         let port_3050_info = ecosystem_ports.ports.get(&3050).unwrap();
