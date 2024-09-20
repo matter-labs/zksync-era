@@ -125,7 +125,7 @@ impl EN {
             ));
 
             let executor = executor::Executor {
-                config: config::executor(&cfg, &secrets, build_version)?,
+                config: config::executor(&cfg, &secrets, &global_config, build_version)?,
                 block_store,
                 batch_store,
                 validator: config::validator_key(&secrets)
@@ -304,6 +304,7 @@ impl EN {
         Ok(consensus_dal::GlobalConfig {
             genesis: zksync_protobuf::serde::deserialize(&genesis.0).context("deserialize()")?,
             registry_address: None,
+            seed_peers: [].into(),
         })
     }
 
