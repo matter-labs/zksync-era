@@ -31,22 +31,22 @@ const MAX_GAS_PER_PUBDATA = 50_000n;
 // For CI we use only 2 gas prices to not slow it down too much.
 const L1_GAS_PRICES_TO_TEST = process.env.CI
     ? [
-          5_000_000_000n, // 5 gwei
-          10_000_000_000n // 10 gwei
-      ]
+        5_000_000_000n, // 5 gwei
+        10_000_000_000n // 10 gwei
+    ]
     : [
-          1_000_000_000n, // 1 gwei
-          5_000_000_000n, // 5 gwei
-          10_000_000_000n, // 10 gwei
-          25_000_000_000n, // 25 gwei
-          50_000_000_000n, // 50 gwei
-          100_000_000_000n, // 100 gwei
-          200_000_000_000n, // 200 gwei
-          400_000_000_000n, // 400 gwei
-          800_000_000_000n, // 800 gwei
-          1_000_000_000_000n, // 1000 gwei
-          2_000_000_000_000n // 2000 gwei
-      ];
+        1_000_000_000n, // 1 gwei
+        5_000_000_000n, // 5 gwei
+        10_000_000_000n, // 10 gwei
+        25_000_000_000n, // 25 gwei
+        50_000_000_000n, // 50 gwei
+        100_000_000_000n, // 100 gwei
+        200_000_000_000n, // 200 gwei
+        400_000_000_000n, // 400 gwei
+        800_000_000_000n, // 800 gwei
+        1_000_000_000_000n, // 1000 gwei
+        2_000_000_000_000n // 2000 gwei
+    ];
 
 // Unless `RUN_FEE_TEST` is provided, skip the test suit
 const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
@@ -74,6 +74,8 @@ testFees('Test fees', function () {
     }
 
     beforeAll(async () => {
+        testMaster = TestMaster.getInstance(__filename);
+
         try {
             await killPidWithAllChilds(testMaster.environment().l2NodePid, 9);
         } catch (err) {
@@ -90,7 +92,6 @@ testFees('Test fees', function () {
 
         mainNode = await mainNodeSpawner.spawnMainNode();
 
-        testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new ethers.Contract(tokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());
