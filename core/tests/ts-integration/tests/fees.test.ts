@@ -220,9 +220,6 @@ testFees('Test fees', function () {
     });
 
     test('Test gas consumption under large L1 gas price', async () => {
-        await mainNode.killAndWaitForShutdown();
-        mainNode = await mainNodeSpawner.spawnMainNode();
-
         if (testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Validium) {
             // We skip this test for Validium mode, since L1 gas price has little impact on the gasLimit in this mode.
             return;
