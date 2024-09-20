@@ -191,11 +191,8 @@ static EVM_SIMULATOR_HASH: Lazy<H256> = Lazy::new(|| {
             ContractLanguage::Yul,
         ))
     } else {
-        let default_account_code = read_sys_contract_bytecode(
-            "",
-            "DefaultAccount",
-            ContractLanguage::Sol,
-        );
+        let default_account_code =
+            read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
         hash_bytecode(&default_account_code)
     }
 });

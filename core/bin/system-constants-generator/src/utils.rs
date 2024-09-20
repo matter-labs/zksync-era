@@ -75,12 +75,20 @@ pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
     let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
     let hash = hash_bytecode(&bytecode);
 
-    let (evm_simulator_bytecode, evm_simulator_hash) = if use_evm_simulator::UseEvmSimulator::from_env().unwrap().use_evm_simulator {
-        let evm_simulator_bytecode = read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
-        (evm_simulator_bytecode.clone(), hash_bytecode(&evm_simulator_bytecode))
-    } else {
-        (bytecode.clone(), hash)
-    };
+    let (evm_simulator_bytecode, evm_simulator_hash) =
+        if use_evm_simulator::UseEvmSimulator::from_env()
+            .unwrap()
+            .use_evm_simulator
+        {
+            let evm_simulator_bytecode =
+                read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
+            (
+                evm_simulator_bytecode.clone(),
+                hash_bytecode(&evm_simulator_bytecode),
+            )
+        } else {
+            (bytecode.clone(), hash)
+        };
 
     BaseSystemContracts {
         default_aa: SystemContractCode {
