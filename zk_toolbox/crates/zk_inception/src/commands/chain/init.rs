@@ -65,10 +65,15 @@ pub async fn init(
         .allocate_ports_with_offset_from_defaults(&mut general_config, chain_config.id)?;
 
     let ports = ports_config(&general_config).context(MSG_PORTS_CONFIG_ERR)?;
+    let consensus_port = ports.consensus_port;
 
     let consensus_keys = generate_consensus_keys();
-    let consensus_config =
-        get_consensus_config(chain_config, ports, Some(consensus_keys.clone()), None)?;
+    let consensus_config = get_consensus_config(
+        chain_config,
+        consensus_port,
+        Some(consensus_keys.clone()),
+        None,
+    )?;
     general_config.consensus_config = Some(consensus_config);
     general_config.save_with_base_path(shell, &chain_config.configs)?;
 

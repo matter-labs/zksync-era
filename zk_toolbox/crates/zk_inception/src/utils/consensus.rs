@@ -3,7 +3,7 @@ use std::{
     net::SocketAddr,
 };
 
-use config::{ChainConfig, PortsConfig};
+use config::ChainConfig;
 use secrecy::{ExposeSecret, Secret};
 use zksync_config::configs::consensus::{
     AttesterPublicKey, AttesterSecretKey, ConsensusConfig, ConsensusSecrets, GenesisSpec, Host,
@@ -32,15 +32,15 @@ pub struct ConsensusPublicKeys {
 
 pub fn get_consensus_config(
     chain_config: &ChainConfig,
-    ports: PortsConfig,
+    consensus_port: u16,
     consensus_keys: Option<ConsensusSecretKeys>,
     gossip_static_outbound: Option<BTreeMap<NodePublicKey, Host>>,
 ) -> anyhow::Result<ConsensusConfig> {
     let genesis_spec =
         consensus_keys.map(|consensus_keys| get_genesis_specs(chain_config, &consensus_keys));
 
-    let public_addr = SocketAddr::new(CONSENSUS_PUBLIC_ADDRESS_HOST, ports.consensus_port);
-    let server_addr = SocketAddr::new(CONSENSUS_SERVER_ADDRESS_HOST, ports.consensus_port);
+    let public_addr = SocketAddr::new(CONSENSUS_PUBLIC_ADDRESS_HOST, consensus_port);
+    let server_addr = SocketAddr::new(CONSENSUS_SERVER_ADDRESS_HOST, consensus_port);
 
     Ok(ConsensusConfig {
         server_addr,

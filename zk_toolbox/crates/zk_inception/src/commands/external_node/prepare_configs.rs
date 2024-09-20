@@ -78,6 +78,7 @@ fn prepare_configs(
     let mut general_en = general.clone();
     ports.allocate_ports_with_offset_from_defaults(&mut general_en, config.id)?;
     let ports = ports_config(&general_en).context(MSG_PORTS_CONFIG_ERR)?;
+    let consensus_port = ports.consensus_port;
 
     // Set consensus config
     let main_node_consensus_config = general
@@ -96,7 +97,7 @@ fn prepare_configs(
     gossip_static_outbound.insert(main_node_public_key, main_node_consensus_config.public_addr);
 
     let en_consensus_config =
-        get_consensus_config(config, ports, None, Some(gossip_static_outbound))?;
+        get_consensus_config(config, consensus_port, None, Some(gossip_static_outbound))?;
     general_en.consensus_config = Some(en_consensus_config.clone());
     en_consensus_config.save_with_base_path(shell, en_configs_path)?;
 
