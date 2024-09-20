@@ -121,26 +121,6 @@ pub fn get_consensus_port(config: &GeneralConfig) -> u16 {
         .unwrap_or(DEFAULT_CONSENSUS_PORT)
 }
 
-pub fn ports_config(config: &GeneralConfig) -> Option<PortsConfig> {
-    let api = config.api_config.as_ref()?;
-    let contract_verifier = config.contract_verifier.as_ref()?;
-    let consensus_port = if let Some(consensus_config) = config.clone().consensus_config {
-        consensus_config.server_addr.port()
-    } else {
-        DEFAULT_CONSENSUS_PORT
-    };
-
-    Some(PortsConfig {
-        web3_json_rpc_http_port: api.web3_json_rpc.http_port,
-        web3_json_rpc_ws_port: api.web3_json_rpc.ws_port,
-        healthcheck_port: api.healthcheck.port,
-        merkle_tree_port: api.merkle_tree.port,
-        prometheus_listener_port: api.prometheus.listener_port,
-        contract_verifier_port: contract_verifier.port,
-        consensus_port,
-    })
-}
-
 pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> anyhow::Result<()> {
     let chain_config_path = chain.path_to_general_config();
     let override_config = serde_yaml::from_str(&shell.read_file(path)?)?;
@@ -168,41 +148,6 @@ pub fn update_port_in_host(host: &mut Host, port: u16) -> anyhow::Result<()> {
 
 impl FileConfigWithDefaultName for GeneralConfig {
     const FILE_NAME: &'static str = GENERAL_FILE;
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct PortsConfig {
-    pub web3_json_rpc_http_port: u16,
-    pub web3_json_rpc_ws_port: u16,
-    pub healthcheck_port: u16,
-    pub merkle_tree_port: u16,
-    pub prometheus_listener_port: u16,
-    pub contract_verifier_port: u16,
-    pub consensus_port: u16,
-}
-
-impl PortsConfig {
-    pub fn apply_offset(&mut self, offset: u16) {
-        self.web3_json_rpc_http_port += offset;
-        self.web3_json_rpc_ws_port += offset;
-        self.healthcheck_port += offset;
-        self.merkle_tree_port += offset;
-        self.prometheus_listener_port += offset;
-        self.contract_verifier_port += offset;
-        self.consensus_port += offset;
-    }
-
-    pub fn next_empty_ports_config(&self) -> PortsConfig {
-        Self {
-            web3_json_rpc_http_port: self.web3_json_rpc_http_port + 100,
-            web3_json_rpc_ws_port: self.web3_json_rpc_ws_port + 100,
-            healthcheck_port: self.healthcheck_port + 100,
-            merkle_tree_port: self.merkle_tree_port + 100,
-            prometheus_listener_port: self.prometheus_listener_port + 100,
-            contract_verifier_port: self.contract_verifier_port + 100,
-            consensus_port: self.consensus_port + 100,
-        }
-    }
 }
 
 impl SaveConfig for GeneralConfig {
