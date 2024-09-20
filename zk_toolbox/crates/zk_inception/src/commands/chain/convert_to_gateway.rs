@@ -100,9 +100,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
             .unwrap(),
         &ecosystem_config,
         &chain_config,
-        chain_config
-            .get_wallets_config()?
-            .governor_private_key(),
+        chain_config.get_wallets_config()?.governor_private_key(),
         l1_url,
     )
     .await?;

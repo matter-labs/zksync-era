@@ -359,7 +359,7 @@ async fn deploy_ecosystem_inner(
     )
     .await?;
 
-    // Note, that there is no admin in L1 asset router, so we do 
+    // Note, that there is no admin in L1 asset router, so we do
     // need to accept it
 
     accept_owner(
@@ -403,7 +403,6 @@ async fn deploy_ecosystem_inner(
 
     Ok(contracts_config)
 }
-
 
 fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code);
