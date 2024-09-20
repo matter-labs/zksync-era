@@ -113,6 +113,14 @@ pub fn set_file_artifacts(config: &mut GeneralConfig, file_artifacts: FileArtifa
     set_artifact_path!(config.core_object_store, file_artifacts.core_object_store);
 }
 
+pub fn get_consensus_port(config: &GeneralConfig) -> u16 {
+    config
+        .consensus_config
+        .as_ref()
+        .map(|c| c.server_addr.port())
+        .unwrap_or(DEFAULT_CONSENSUS_PORT)
+}
+
 pub fn ports_config(config: &GeneralConfig) -> Option<PortsConfig> {
     let api = config.api_config.as_ref()?;
     let contract_verifier = config.contract_verifier.as_ref()?;

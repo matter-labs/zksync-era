@@ -1,7 +1,7 @@
 use anyhow::Context;
 use common::{config::global_config, git, logger, spinner::Spinner};
 use config::{
-    copy_configs, ports_config, set_l1_rpc_url, traits::SaveConfigWithBasePath,
+    copy_configs, get_consensus_port, set_l1_rpc_url, traits::SaveConfigWithBasePath,
     update_from_chain_config, ChainConfig, EcosystemConfig,
 };
 use types::BaseToken;
@@ -23,8 +23,7 @@ use crate::{
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR,
-        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTS_CONFIG_ERR,
-        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
     utils::{
@@ -64,8 +63,7 @@ pub async fn init(
     ecosystem_ports
         .allocate_ports_with_offset_from_defaults(&mut general_config, chain_config.id)?;
 
-    let ports = ports_config(&general_config).context(MSG_PORTS_CONFIG_ERR)?;
-    let consensus_port = ports.consensus_port;
+    let consensus_port = get_consensus_port(&general_config);
 
     let consensus_keys = generate_consensus_keys();
     let consensus_config = get_consensus_config(

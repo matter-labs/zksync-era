@@ -3,8 +3,8 @@ use std::{collections::BTreeMap, path::Path, str::FromStr};
 use anyhow::Context;
 use common::{config::global_config, logger};
 use config::{
-    external_node::ENConfig, ports_config, set_rocks_db_config, traits::SaveConfigWithBasePath,
-    ChainConfig, EcosystemConfig, SecretsConfig,
+    external_node::ENConfig, get_consensus_port, set_rocks_db_config,
+    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, SecretsConfig,
 };
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
@@ -20,7 +20,7 @@ use crate::{
     messages::{
         msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED,
         MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_CONSENSUS_SECRETS_MISSING_ERR,
-        MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR, MSG_PORTS_CONFIG_ERR, MSG_PREPARING_EN_CONFIGS,
+        MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR, MSG_PREPARING_EN_CONFIGS,
     },
     utils::{
         consensus::{get_consensus_config, node_public_key},
@@ -77,8 +77,7 @@ fn prepare_configs(
     };
     let mut general_en = general.clone();
     ports.allocate_ports_with_offset_from_defaults(&mut general_en, config.id)?;
-    let ports = ports_config(&general_en).context(MSG_PORTS_CONFIG_ERR)?;
-    let consensus_port = ports.consensus_port;
+    let consensus_port = get_consensus_port(&general_en);
 
     // Set consensus config
     let main_node_consensus_config = general

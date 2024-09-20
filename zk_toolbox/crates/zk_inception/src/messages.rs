@@ -328,8 +328,6 @@ pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is m
 pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
 pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
 
-pub(super) const MSG_PORTS_CONFIG_ERR: &str = "Failed to get ports config";
-
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 
 /// Prover related messages
