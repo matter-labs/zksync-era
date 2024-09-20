@@ -22,11 +22,13 @@ use zksync_basic_types::{Address, H256};
 use zksync_config::configs::{chain, GatewayConfig};
 
 use crate::{
-    commands::ecosystem, messages::{
+    commands::ecosystem,
+    messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED,
         MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
         MSG_WALLETS_CONFIG_MUST_BE_PRESENT, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
-    }, utils::forge::{check_the_balance, fill_forge_private_key}
+    },
+    utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
 lazy_static! {
@@ -93,19 +95,18 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     )
     .await?;
 
-
     let output = call_script(
         shell,
         args,
         &GATEWAY_PREPARATION_INTERFACE
-            .encode(
-                "deployAndSetGatewayTransactionFilterer",
-                (),
-            )
+            .encode("deployAndSetGatewayTransactionFilterer", ())
             .unwrap(),
         &ecosystem_config,
         &chain_config,
-        chain_config.get_wallets_config().unwrap().governor_private_key(),
+        chain_config
+            .get_wallets_config()
+            .unwrap()
+            .governor_private_key(),
         l1_url,
     )
     .await?;

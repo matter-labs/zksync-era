@@ -22,7 +22,7 @@ struct Bridgehub {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct Bridges {
     shared_bridge_proxy_addr: Address,
-    l1_nullifier_proxy_addr: Address
+    l1_nullifier_proxy_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

@@ -91,7 +91,11 @@ pub async fn set_token_multiplier_setter(
     let calldata = SET_TOKEN_MULTIPLIER_SETTER
         .encode(
             "chainSetTokenMultiplierSetter",
-            (access_control_restriction_address, diamond_proxy_address, new_setter_address),
+            (
+                access_control_restriction_address,
+                diamond_proxy_address,
+                new_setter_address,
+            ),
         )
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();

@@ -34,13 +34,15 @@ impl GatewayPreparationConfig {
             ctm_deployment_tracker_proxy_addr: contracts
                 .ecosystem_contracts
                 .stm_deployment_tracker_proxy_addr,
-            chain_type_manager_proxy_addr: contracts.ecosystem_contracts.state_transition_proxy_addr,
+            chain_type_manager_proxy_addr: contracts
+                .ecosystem_contracts
+                .state_transition_proxy_addr,
             shared_bridge_proxy_addr: contracts.bridges.shared.l1_address,
             governance: ecosystem_contracts_config.l1.governance_addr,
             gateway_diamond_cut_data: gateway_config.diamond_cut_data.clone(),
             chain_proxy_admin: chain_contracts_config.l1.chain_proxy_admin_addr,
             chain_admin: chain_contracts_config.l1.chain_admin_addr,
-            access_control_restriction: chain_contracts_config.l1.access_control_restriction_addr
+            access_control_restriction: chain_contracts_config.l1.access_control_restriction_addr,
         })
     }
 }
