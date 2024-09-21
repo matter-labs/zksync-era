@@ -1,11 +1,7 @@
-use std::{
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
 use common::{
-    cmd::Cmd,
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     git,
@@ -20,7 +16,7 @@ use config::{
             input::{
                 DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, InitialDeploymentConfig,
             },
-            output::{DeployL1Output, ERC20Tokens},
+            output::ERC20Tokens,
         },
         script_params::{DEPLOY_ECOSYSTEM_SCRIPT_PARAMS, DEPLOY_ERC20_SCRIPT_PARAMS},
     },
@@ -31,11 +27,13 @@ use config::{
     ContractsConfig, EcosystemConfig, GenesisConfig,
 };
 use types::{L1Network, ProverMode};
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
+    common::deploy_l1,
     setup_observability,
+    utils::{build_da_contracts, build_system_contracts, install_yarn_dependencies},
 };
 use crate::{
     accept_ownership::{accept_admin, accept_owner},
@@ -316,16 +314,18 @@ async fn deploy_ecosystem_inner(
     forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
 
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
-    check_the_balance(&forge).await?;
-    forge.run(shell)?;
+    let contracts_config = deploy_l1(
+        shell,
+        &forge_args,
+        config,
+        initial_deployment_config,
+        &l1_rpc_url,
+        None,
+        true,
+    )
+    .await?;
     spinner.finish();
 
-    let script_output = DeployL1Output::read(
-        shell,
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.link_to_code),
-    )?;
-    let mut contracts_config = ContractsConfig::default();
-    contracts_config.update_from_l1_output(&script_output);
     accept_owner(
         shell,
         config,
@@ -402,19 +402,4 @@ async fn deploy_ecosystem_inner(
     .await?;
 
     Ok(contracts_config)
-}
-
-fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code);
-    Ok(Cmd::new(cmd!(shell, "yarn install")).run()?)
-}
-
-fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Ok(Cmd::new(cmd!(shell, "yarn sc build")).run()?)
-}
-
-fn build_da_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Ok(Cmd::new(cmd!(shell, "yarn da build:foundry")).run()?)
 }

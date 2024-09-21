@@ -8,6 +8,7 @@ use crate::{
         deploy_ecosystem::output::DeployL1Output,
         deploy_l2_contracts::output::{
             ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
+            Multicall3Output,
         },
         register_chain::output::RegisterChainOutput,
     },
@@ -147,6 +148,11 @@ impl ContractsConfig {
         self.l2.default_l2_upgrader = default_upgrade_output.l2_default_upgrader;
         Ok(())
     }
+
+    pub fn set_multicall3(&mut self, multicall3_output: &Multicall3Output) -> anyhow::Result<()> {
+        self.l2.multicall3 = Some(multicall3_output.multicall3);
+        Ok(())
+    }
 }
 
 impl FileConfigWithDefaultName for ContractsConfig {
@@ -209,4 +215,5 @@ pub struct L2Contracts {
     pub l2_native_token_vault_proxy_addr: Address,
     pub l2_legacy_shared_bridge_addr: Address,
     pub consensus_registry: Option<Address>,
+    pub multicall3: Option<Address>,
 }

@@ -8,7 +8,7 @@ use zksync_prover_fri_types::{keys::FriCircuitKey, CircuitWrapper, FriProofWrapp
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
-    artifacts::{ArtifactsManager, BlobUrls},
+    artifacts::ArtifactsManager,
     scheduler::{SchedulerArtifacts, SchedulerWitnessGenerator},
 };
 
@@ -17,6 +17,7 @@ impl ArtifactsManager for SchedulerWitnessGenerator {
     type InputMetadata = u32;
     type InputArtifacts = FriProofWrapper;
     type OutputArtifacts = SchedulerArtifacts;
+    type BlobUrls = String;
 
     async fn get_artifacts(
         metadata: &Self::InputMetadata,
@@ -27,11 +28,11 @@ impl ArtifactsManager for SchedulerWitnessGenerator {
         Ok(artifacts)
     }
 
-    async fn save_artifacts(
+    async fn save_to_bucket(
         job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
-    ) -> BlobUrls {
+    ) -> String {
         let key = FriCircuitKey {
             block_number: L1BatchNumber(job_id),
             circuit_id: 1,
@@ -40,29 +41,22 @@ impl ArtifactsManager for SchedulerWitnessGenerator {
             aggregation_round: AggregationRound::Scheduler,
         };
 
-        let blob_url = object_store
+        object_store
             .put(
                 key,
                 &CircuitWrapper::Recursive(artifacts.scheduler_circuit.clone()),
             )
             .await
-            .unwrap();
-
-        BlobUrls::Url(blob_url)
+            .unwrap()
     }
 
-    async fn update_database(
+    async fn save_to_database(
         connection_pool: &ConnectionPool<Prover>,
         job_id: u32,
         started_at: Instant,
-        blob_urls: BlobUrls,
+        blob_urls: String,
         _artifacts: Self::OutputArtifacts,
     ) -> anyhow::Result<()> {
-        let blob_url = match blob_urls {
-            BlobUrls::Url(url) => url,
-            _ => panic!("Unexpected blob urls type"),
-        };
-
         let mut prover_connection = connection_pool.connection().await?;
         let mut transaction = prover_connection.start_transaction().await?;
         let protocol_version_id = transaction
@@ -77,7 +71,7 @@ impl ArtifactsManager for SchedulerWitnessGenerator {
                 0,
                 0,
                 AggregationRound::Scheduler,
-                &blob_url,
+                &blob_urls,
                 false,
                 protocol_version_id,
             )

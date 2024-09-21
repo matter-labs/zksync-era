@@ -1,0 +1,6 @@
+eth:
+  sender:
+    pubdata_sending_mode: CUSTOM
+state_keeper:
+  pubdata_overhead_part: 0
+  compute_overhead_part: 1

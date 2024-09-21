@@ -63,7 +63,10 @@ fn parsing_observability_config() {
 fn using_unset_sentry_url() {
     let env_vars = MockEnvironment::new(&[("MISC_SENTRY_URL", "unset")]);
     let config = ObservabilityENConfig::new(&env_vars).unwrap();
-    config.build_observability().unwrap();
+    if let Err(err) = config.build_observability() {
+        // Global tracer may be installed by another test, but the logic shouldn't fail before that.
+        assert!(format!("{err:?}").contains("global tracer"), "{err:?}");
+    }
 }
 
 #[test]

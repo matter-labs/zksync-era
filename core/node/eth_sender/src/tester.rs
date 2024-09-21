@@ -154,7 +154,7 @@ impl EthSenderTester {
             .into_iter()
             .map(|base_fee_per_gas| BaseFees {
                 base_fee_per_gas,
-                base_fee_per_blob_gas: 0.into(),
+                base_fee_per_blob_gas: 1.into(),
                 l2_pubdata_price: 0.into(),
             })
             .collect();
@@ -162,8 +162,8 @@ impl EthSenderTester {
         let gateway = MockSettlementLayer::builder()
             .with_fee_history(
                 std::iter::repeat_with(|| BaseFees {
-                    base_fee_per_gas: 0,
-                    base_fee_per_blob_gas: 0.into(),
+                    base_fee_per_gas: 1,
+                    base_fee_per_blob_gas: 1.into(),
                     l2_pubdata_price: 0.into(),
                 })
                 .take(Self::WAIT_CONFIRMATIONS as usize)
@@ -182,8 +182,8 @@ impl EthSenderTester {
         let l2_gateway: MockSettlementLayer = MockSettlementLayer::builder()
             .with_fee_history(
                 std::iter::repeat_with(|| BaseFees {
-                    base_fee_per_gas: 0,
-                    base_fee_per_blob_gas: 0.into(),
+                    base_fee_per_gas: 1,
+                    base_fee_per_blob_gas: 1.into(),
                     l2_pubdata_price: 0.into(),
                 })
                 .take(Self::WAIT_CONFIRMATIONS as usize)
@@ -202,8 +202,8 @@ impl EthSenderTester {
         let gateway_blobs = MockSettlementLayer::builder()
             .with_fee_history(
                 std::iter::repeat_with(|| BaseFees {
-                    base_fee_per_gas: 0,
-                    base_fee_per_blob_gas: 0.into(),
+                    base_fee_per_gas: 1,
+                    base_fee_per_blob_gas: 1.into(),
                     l2_pubdata_price: 0.into(),
                 })
                 .take(Self::WAIT_CONFIRMATIONS as usize)

@@ -53,16 +53,16 @@
 //     let output_stop_receiver = stop_receiver.clone();
 //     tokio::task::spawn(async move { task.run(output_stop_receiver).await.unwrap() });
 
-//     let storage = Arc::new(storage);
-//     let batch_executor = MainBatchExecutorFactory::new(false, false);
-//     let vm_runner = VmRunner::new(
-//         connection_pool,
-//         Box::new(io.clone()),
-//         storage,
-//         Box::new(output_factory),
-//         Box::new(batch_executor),
-//     );
-//     tokio::task::spawn(async move { vm_runner.run(&stop_receiver).await.unwrap() });
+// let storage = Arc::new(storage);
+// let batch_executor = MainBatchExecutorFactory::new(false, false);
+// let vm_runner = VmRunner::new(
+//     connection_pool,
+//     io.clone(),
+//     storage,
+//     Arc::new(output_factory),
+//     Box::new(batch_executor),
+// );
+// tokio::task::spawn(async move { vm_runner.run(&stop_receiver).await.unwrap() });
 
 //     wait::for_batch_progressively(io, L1BatchNumber(batch_count), TEST_TIMEOUT).await?;
 //     Ok(())
