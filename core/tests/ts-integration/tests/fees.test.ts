@@ -83,12 +83,8 @@ testFees('Test fees', function () {
         }
 
         // TODO: imporove the waiting logic
-        let iter = 0;
-        while (iter < 10) {
-            console.log('Waiting for the server to stop...');
-            await utils.sleep(1);
-            iter += 1;
-        }
+        console.log('Waiting for the server to stop...');
+        await utils.sleep(10);
 
         if (!fileConfig.loadFromFile) {
             ethClientWeb3Url = process.env.ETH_CLIENT_WEB3_URL!;
