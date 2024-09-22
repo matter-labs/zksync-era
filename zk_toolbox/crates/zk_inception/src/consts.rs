@@ -8,6 +8,7 @@ pub const PROVER_MIGRATIONS: &str = "prover/crates/lib/prover_dal/migrations";
 pub const PROVER_STORE_MAX_RETRIES: u16 = 10;
 pub const DEFAULT_CREDENTIALS_FILE: &str = "~/.config/gcloud/application_default_credentials.json";
 pub const DEFAULT_PROOF_STORE_DIR: &str = "artifacts";
+pub const DEFAULT_UNSIGNED_TRANSACTIONS_DIR: &str = "transactions";
 pub const BELLMAN_CUDA_DIR: &str = "era-bellman-cuda";
 pub const L2_BASE_TOKEN_ADDRESS: &str = "0x000000000000000000000000000000000000800A";
 
@@ -53,3 +54,7 @@ pub const WITNESS_VECTOR_GENERATOR_BINARY_NAME: &str = "zksync_witness_vector_ge
 pub const PROVER_BINARY_NAME: &str = "zksync_prover_fri";
 pub const COMPRESSOR_BINARY_NAME: &str = "zksync_proof_fri_compressor";
 pub const PROVER_JOB_MONITOR_BINARY_NAME: &str = "zksync_prover_job_monitor";
+
+pub const PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG: &str =
+    "etc/env/file_based/overrides/only_real_proofs.yaml";
+pub const PATH_TO_VALIDIUM_OVERRIDE_CONFIG: &str = "etc/env/file_based/overrides/validium.yaml";

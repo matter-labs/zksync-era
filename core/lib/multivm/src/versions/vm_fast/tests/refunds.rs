@@ -3,6 +3,7 @@ use zksync_types::{Address, Execute, U256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    versions::testonly::ContractToDeploy,
     vm_fast::tests::{
         tester::{DeployContractsTx, TxType, VmTesterBuilder},
         utils::{read_expensive_contract, read_test_contract},
@@ -172,16 +173,15 @@ fn negative_pubdata_for_transaction() {
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
-        .with_custom_contracts(vec![(
+        .with_custom_contracts(vec![ContractToDeploy::new(
             expensive_contract_bytecode,
             expensive_contract_address,
-            false,
         )])
         .build();
 
     let expensive_tx = vm.rich_accounts[0].get_l2_tx_for_execute(
         Execute {
-            contract_address: expensive_contract_address,
+            contract_address: Some(expensive_contract_address),
             calldata: expensive_function
                 .encode_input(&[Token::Uint(10.into())])
                 .unwrap(),
@@ -200,7 +200,7 @@ fn negative_pubdata_for_transaction() {
     // This transaction cleans all initial writes in the contract, thus having negative `pubdata` impact.
     let clean_up_tx = vm.rich_accounts[0].get_l2_tx_for_execute(
         Execute {
-            contract_address: expensive_contract_address,
+            contract_address: Some(expensive_contract_address),
             calldata: cleanup_function.encode_input(&[]).unwrap(),
             value: U256::zero(),
             factory_deps: vec![],

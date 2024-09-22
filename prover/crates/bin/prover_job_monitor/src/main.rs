@@ -1,3 +1,5 @@
+use std::{future::IntoFuture, net::SocketAddr};
+
 use anyhow::Context as _;
 use clap::Parser;
 use tokio::{
@@ -12,6 +14,7 @@ use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_gener
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_job_monitor::{
     archiver::{GpuProverArchiver, ProverJobsArchiver},
+    autoscaler_queue_reporter::get_queue_reporter_router,
     job_requeuer::{ProofCompressorJobRequeuer, ProverJobRequeuer, WitnessGeneratorJobRequeuer},
     queue_reporter::{
         ProofCompressorQueueReporter, ProverQueueReporter, WitnessGeneratorQueueReporter,
@@ -85,21 +88,42 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = vec![tokio::spawn(exporter_config.run(stop_receiver.clone()))];
 
     tasks.extend(get_tasks(
-        connection_pool,
-        prover_job_monitor_config,
+        connection_pool.clone(),
+        prover_job_monitor_config.clone(),
         proof_compressor_config,
         prover_config,
         witness_generator_config,
         prover_group_config,
-        stop_receiver,
+        stop_receiver.clone(),
     )?);
     let mut tasks = ManagedTasks::new(tasks);
+
+    let bind_address = SocketAddr::from(([0, 0, 0, 0], prover_job_monitor_config.http_port));
+
+    tracing::info!("Starting PJM server on {bind_address}");
+
+    let listener = tokio::net::TcpListener::bind(bind_address)
+        .await
+        .with_context(|| format!("Failed binding PJM server to {bind_address}"))?;
+
+    let mut receiver = stop_receiver.clone();
+    let app = axum::serve(listener, get_queue_reporter_router(connection_pool))
+        .with_graceful_shutdown(async move {
+            if receiver.changed().await.is_err() {
+                tracing::warn!(
+                    "Stop signal sender for PJM server was dropped without sending a signal"
+                );
+            }
+            tracing::info!("Stop signal received, PJM server is shutting down");
+        })
+        .into_future();
 
     tokio::select! {
         _ = tasks.wait_single() => {},
         _ = stop_signal_receiver => {
             tracing::info!("Stop signal received, shutting down");
         }
+        _ = app => {}
     }
     stop_sender.send(true).ok();
     tasks.complete(graceful_shutdown_timeout).await;

@@ -22,5 +22,6 @@ dirs: [
   "system-contracts",
   "artifacts-zk",
   "cache-zk",
-  "contracts/"
+  "contracts/",
+  "era-observability"
 ]

@@ -2,6 +2,7 @@
 //! This module defines the types used in the API.
 
 use serde::{Deserialize, Serialize};
+use serde_with::{hex::Hex, serde_as};
 use zksync_types::{
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     tee_types::TeeType,
@@ -71,8 +72,11 @@ pub struct VerifyProofRequest(pub Box<L1BatchProofForL1>);
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubmitTeeProofRequest(pub Box<L1BatchTeeProofForL1>);
 
+#[serde_as]
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct RegisterTeeAttestationRequest {
+    #[serde_as(as = "Hex")]
     pub attestation: Vec<u8>,
+    #[serde_as(as = "Hex")]
     pub pubkey: Vec<u8>,
 }

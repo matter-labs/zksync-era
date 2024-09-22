@@ -9,7 +9,7 @@ use common::{
     spinner::Spinner,
 };
 use config::{
-    set_databases, set_file_artifacts, set_rocks_db_config,
+    override_config, set_databases, set_file_artifacts, set_rocks_db_config,
     traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig, FileArtifacts, GeneralConfig, GenesisConfig,
     SecretsConfig, WalletsConfig,
@@ -17,12 +17,14 @@ use config::{
 use types::ProverMode;
 use xshell::Shell;
 use zksync_basic_types::commitment::L1BatchCommitmentMode;
-use zksync_config::configs::eth_sender::{ProofSendingMode, PubdataSendingMode};
 
 use super::args::genesis::GenesisArgsFinal;
 use crate::{
     commands::chain::args::genesis::GenesisArgs,
-    consts::{PROVER_MIGRATIONS, SERVER_MIGRATIONS},
+    consts::{
+        PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG, PATH_TO_VALIDIUM_OVERRIDE_CONFIG,
+        PROVER_MIGRATIONS, SERVER_MIGRATIONS,
+    },
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
         MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_FAILED_TO_RUN_SERVER_ERR,
@@ -55,40 +57,30 @@ pub async fn genesis(
 ) -> anyhow::Result<()> {
     shell.create_dir(&config.rocks_db_path)?;
 
+    let link_to_code = config.link_to_code.clone();
     let rocks_db = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::Main)
         .context(MSG_RECREATE_ROCKS_DB_ERRROR)?;
     let mut general = config.get_general_config()?;
     let file_artifacts = FileArtifacts::new(config.artifacts.clone());
     set_rocks_db_config(&mut general, rocks_db)?;
     set_file_artifacts(&mut general, file_artifacts);
+    general.save_with_base_path(shell, &config.configs)?;
+
     if config.prover_version != ProverMode::NoProofs {
-        general
-            .eth
-            .as_mut()
-            .context("eth")?
-            .sender
-            .as_mut()
-            .context("sender")?
-            .proof_sending_mode = ProofSendingMode::OnlyRealProofs;
+        override_config(
+            shell,
+            link_to_code.join(PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG),
+            config,
+        )?;
     }
 
     if config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium {
-        general
-            .eth
-            .as_mut()
-            .context("eth")?
-            .sender
-            .as_mut()
-            .context("sender")?
-            .pubdata_sending_mode = PubdataSendingMode::Custom;
-        general
-            .state_keeper_config
-            .as_mut()
-            .context("state_keeper_config")?
-            .pubdata_overhead_part = 0.0;
+        override_config(
+            shell,
+            link_to_code.join(PATH_TO_VALIDIUM_OVERRIDE_CONFIG),
+            config,
+        )?;
     }
-
-    general.save_with_base_path(shell, &config.configs)?;
 
     let mut secrets = config.get_secrets_config()?;
     set_databases(&mut secrets, &args.server_db, &args.prover_db)?;

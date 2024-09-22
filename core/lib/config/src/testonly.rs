@@ -782,7 +782,9 @@ impl Distribution<configs::consensus::WeightedAttester> for EncodeDist {
 
 impl Distribution<configs::consensus::GenesisSpec> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::GenesisSpec {
-        use configs::consensus::{GenesisSpec, ProtocolVersion, ValidatorPublicKey};
+        use configs::consensus::{
+            GenesisSpec, Host, NodePublicKey, ProtocolVersion, ValidatorPublicKey,
+        };
         GenesisSpec {
             chain_id: L2ChainId::default(),
             protocol_version: ProtocolVersion(self.sample(rng)),
@@ -790,6 +792,10 @@ impl Distribution<configs::consensus::GenesisSpec> for EncodeDist {
             attesters: self.sample_collect(rng),
             leader: ValidatorPublicKey(self.sample(rng)),
             registry_address: self.sample_opt(|| rng.gen()),
+            seed_peers: self
+                .sample_range(rng)
+                .map(|_| (NodePublicKey(self.sample(rng)), Host(self.sample(rng))))
+                .collect(),
         }
     }
 }
@@ -1123,6 +1129,7 @@ impl Distribution<configs::prover_job_monitor::ProverJobMonitorConfig> for Encod
             prover_queue_reporter_run_interval_ms: self.sample(rng),
             witness_generator_queue_reporter_run_interval_ms: self.sample(rng),
             witness_job_queuer_run_interval_ms: self.sample(rng),
+            http_port: self.sample(rng),
         }
     }
 }
