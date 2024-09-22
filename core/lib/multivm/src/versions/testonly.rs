@@ -67,13 +67,14 @@ impl ContractToDeploy {
         }
     }
 
-    pub fn account(bytecode: Vec<u8>, address: Address) -> Self {
-        Self {
-            bytecode,
-            address,
-            is_account: true,
-        }
-    }
+    // FIXME: restore this method if needed in the main branch
+    // pub fn account(bytecode: Vec<u8>, address: Address) -> Self {
+    //     Self {
+    //         bytecode,
+    //         address,
+    //         is_account: true,
+    //     }
+    // }
 
     pub fn insert(&self, storage: &mut InMemoryStorage) {
         let deployer_code_key = get_code_key(&self.address);
@@ -85,10 +86,11 @@ impl ContractToDeploy {
         storage.store_factory_dep(hash_bytecode(&self.bytecode), self.bytecode.clone());
     }
 
-    /// Inserts the contracts into the test environment, bypassing the deployer system contract.
-    pub fn insert_all(contracts: &[Self], storage: &mut InMemoryStorage) {
-        for contract in contracts {
-            contract.insert(storage);
-        }
-    }
+    // FIXME: restore this method if needed in the main branch
+    // /// Inserts the contracts into the test environment, bypassing the deployer system contract.
+    // pub fn insert_all(contracts: &[Self], storage: &mut InMemoryStorage) {
+    //     for contract in contracts {
+    //         contract.insert(storage);
+    //     }
+    // }
 }

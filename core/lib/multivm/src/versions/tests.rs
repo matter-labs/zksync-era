@@ -16,8 +16,8 @@ use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     interface::{
-        storage::{InMemoryStorage, ReadStorage, StorageView},
-        utils::{ShadowVm, VmDump},
+        storage::{InMemoryStorage, StorageView},
+        utils::ShadowVm,
         ExecutionResult, L1BatchEnv, L2BlockEnv, VmFactory, VmInterface, VmInterfaceExt,
     },
     utils::get_max_gas_per_pubdata_byte,
