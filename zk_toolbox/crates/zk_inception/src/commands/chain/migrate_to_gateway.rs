@@ -444,38 +444,3 @@ async fn call_script(
 
     Ok(gateway_preparation_script_output.governance_l2_tx_hash)
 }
-
-// TODO(EVM-751): we need to set token multiplier setter on L2
-// pub async fn set_token_multiplier_setter(
-//     shell: &Shell,
-//     ecosystem_config: &EcosystemConfig,
-//     governor: Option<H256>,
-//     chain_admin_address: Address,
-//     target_address: Address,
-//     forge_args: &ForgeScriptArgs,
-//     l1_rpc_url: String,
-// ) -> anyhow::Result<()> {
-//     // Resume for accept admin doesn't work properly. Foundry assumes that if signature of the function is the same,
-//     // then it's the same call, but because we are calling this function multiple times during the init process,
-//     // code assumes that doing only once is enough, but actually we need to accept admin multiple times
-//     let mut forge_args = forge_args.clone();
-//     forge_args.resume = false;
-
-//     let calldata = SET_TOKEN_MULTIPLIER_SETTER
-//         .encode(
-//             "chainSetTokenMultiplierSetter",
-//             (chain_admin_address, target_address),
-//         )
-//         .unwrap();
-//     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
-//     let forge = Forge::new(&foundry_contracts_path)
-//         .script(
-//             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
-//             forge_args.clone(),
-//         )
-//         .with_ffi()
-//         .with_rpc_url(l1_rpc_url)
-//         .with_broadcast()
-//         .with_calldata(&calldata);
-//     update_token_multiplier_setter(shell, governor, forge).await
-// }
