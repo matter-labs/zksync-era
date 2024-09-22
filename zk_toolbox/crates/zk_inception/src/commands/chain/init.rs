@@ -4,7 +4,7 @@ use config::{
     copy_configs, ports_config, set_l1_rpc_url, traits::SaveConfigWithBasePath,
     update_from_chain_config, update_ports, ChainConfig, EcosystemConfig, GeneralConfig,
 };
-use types::{BaseToken, L1BatchCommitmentMode, L1Network, WalletCreation};
+use types::{BaseToken, L1BatchCommitmentMode};
 use xshell::Shell;
 
 use super::common::{distribute_eth, mint_base_token, register_chain};
@@ -22,8 +22,7 @@ use crate::{
     },
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_DEPLOYING_PAYMASTER,
-        MSG_DISTRIBUTING_ETH_SPINNER, MSG_GENESIS_DATABASE_ERR, MSG_MINT_BASE_TOKEN_SPINNER,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DA_PAIR_REGISTRATION_SPINNER, MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR,
         MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTS_CONFIG_ERR,
         MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
