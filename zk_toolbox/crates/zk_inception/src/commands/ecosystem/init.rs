@@ -13,20 +13,15 @@ use common::{
 use config::{
     forge_interface::{
         deploy_ecosystem::{
-            input::{
-                DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, InitialDeploymentConfig,
-            },
+            input::{DeployErc20Config, Erc20DeploymentConfig, InitialDeploymentConfig},
             output::ERC20Tokens,
         },
-        script_params::{DEPLOY_ECOSYSTEM_SCRIPT_PARAMS, DEPLOY_ERC20_SCRIPT_PARAMS},
+        script_params::DEPLOY_ERC20_SCRIPT_PARAMS,
     },
-    traits::{
-        FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
-        SaveConfigWithBasePath,
-    },
-    ContractsConfig, EcosystemConfig, GenesisConfig,
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    ContractsConfig, EcosystemConfig,
 };
-use types::{L1Network, ProverMode};
+use types::L1Network;
 use xshell::Shell;
 
 use super::{
@@ -283,36 +278,6 @@ async fn deploy_ecosystem_inner(
     initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
-
-    let default_genesis_config =
-        GenesisConfig::read_with_base_path(shell, config.get_default_configs_path())
-            .context("Context")?;
-
-    let wallets_config = config.get_wallets()?;
-    // For deploying ecosystem we only need genesis batch params
-    let deploy_config = DeployL1Config::new(
-        &default_genesis_config,
-        &wallets_config,
-        initial_deployment_config,
-        config.era_chain_id,
-        config.prover_version == ProverMode::NoProofs,
-    );
-    deploy_config.save(shell, deploy_config_path)?;
-
-    let mut forge = Forge::new(&config.path_to_l1_foundry())
-        .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
-        .with_ffi()
-        .with_rpc_url(l1_rpc_url.clone())
-        .with_broadcast();
-
-    if config.l1_network == L1Network::Localhost {
-        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
-        forge = forge.with_slow();
-    }
-
-    forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
-
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
     let contracts_config = deploy_l1(
         shell,
