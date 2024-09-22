@@ -90,10 +90,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let genesis_config = chain_config.get_genesis_config()?;
 
-    if genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium {
-        panic!("Validium is not supported yet!");
-    }
-
     // Firstly, deploying gateway contracts
 
     let preparation_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
@@ -195,6 +191,17 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
 
+    let is_rollup = matches!(
+        genesis_config.l1_batch_commit_data_generator_mode,
+        L1BatchCommitmentMode::Rollup
+    );
+
+    let gateway_da_validator_address = if is_rollup {
+        gateway_gateway_config.relayed_sl_da_validator
+    } else {
+        gateway_gateway_config.validium_da_validator
+    };
+
     println!("Setting DA validator pair...");
     let hash = call_script(
         shell,
@@ -206,7 +213,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                     chain_admin_addr,
                     chain_access_control_restriction,
                     U256::from(chain_config.chain_id.0),
-                    gateway_gateway_config.relayed_sl_da_validator,
+                    gateway_da_validator_address,
                     chain_contracts_config.l2.l2_da_validator_addr,
                     new_diamond_proxy_address,
                 ),
@@ -352,12 +359,15 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .as_mut()
         .expect("gas_adjuster")
         .settlement_mode = SettlementMode::Gateway;
-    // FIXME: for now only rollups are supported
-    eth_config
-        .sender
-        .as_mut()
-        .expect("sender")
-        .pubdata_sending_mode = PubdataSendingMode::RelayedL2Calldata;
+    if is_rollup {
+        // For rollups, new type of commitment should be used, but
+        // not for validium.
+        eth_config
+            .sender
+            .as_mut()
+            .expect("sender")
+            .pubdata_sending_mode = PubdataSendingMode::RelayedL2Calldata;
+    }
     eth_config
         .sender
         .as_mut()
