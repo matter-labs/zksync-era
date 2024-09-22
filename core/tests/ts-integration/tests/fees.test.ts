@@ -286,6 +286,7 @@ testFees('Test fees', function () {
         // Returning the pubdata price to the default one
         await mainNode.killAndWaitForShutdown();
         mainNode = await mainNodeSpawner.spawnMainNode();
+        mainNode.proc.unref();
 
         // Restore defaults
         setTransactionSlots(pathToHome, fileConfig, 8192);

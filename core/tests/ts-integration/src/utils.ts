@@ -95,7 +95,7 @@ export enum NodeType {
 export class Node<TYPE extends NodeType> {
     constructor(
         public readonly tester: Tester,
-        private readonly proc: ChildProcessWithoutNullStreams,
+        public proc: ChildProcessWithoutNullStreams,
         private readonly type: TYPE
     ) {}
 
@@ -212,7 +212,6 @@ export class NodeSpawner {
             useZkInception: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
-        proc.unref();
 
         // Wait until the main node starts responding.
         const tester = await Tester.init(
