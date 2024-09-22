@@ -3,7 +3,7 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use zksync_types::{l2::L2Tx, Transaction};
+use zksync_types::{ExternalTx, Transaction};
 
 use crate::{
     storage::{ReadStorage, StorageView},
@@ -66,7 +66,7 @@ pub trait TransactionValidator<S: ReadStorage>: OneshotExecutor<S> {
         &self,
         storage: S,
         env: OneshotEnv,
-        tx: L2Tx,
+        tx: ExternalTx,
         validation_params: ValidationParams,
     ) -> anyhow::Result<Result<(), ValidationError>>;
 }

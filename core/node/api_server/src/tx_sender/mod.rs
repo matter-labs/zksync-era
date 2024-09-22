@@ -384,11 +384,11 @@ impl TxSender {
         let mut connection = self.acquire_replica_connection().await?;
         let protocol_version = connection.blocks_dal().pending_protocol_version().await?;
         drop(connection);
-        self.validate_tx(&tx, protocol_version).await?;
+        self.validate_tx(&tx.clone(), protocol_version).await?;
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
-        let setup_args = self.call_args(&tx, None).await?;
+        let setup_args = self.call_args(&tx.clone().into(), None).await?;
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
         let mut connection = self.acquire_replica_connection().await?;
@@ -490,7 +490,7 @@ impl TxSender {
     /// Thus, you shouldn't call it if you're holding a DB connection already.
     async fn call_args(
         &self,
-        tx: &L2Tx,
+        tx: &ExternalTx,
         call_overrides: Option<&CallOverrides>,
     ) -> anyhow::Result<TxSetupArgs> {
         let fee_input = self
@@ -518,7 +518,7 @@ impl TxSender {
             enforced_base_fee: if let Some(overrides) = call_overrides {
                 overrides.enforced_base_fee
             } else {
-                Some(tx.common_data.fee.max_fee_per_gas.as_u64())
+                Some(tx.max_fee_per_gas().as_u64())
             },
         })
     }
@@ -1130,7 +1130,7 @@ impl TxSender {
     ) -> Result<Vec<u8>, SubmitTxError> {
         let vm_permit = self.0.vm_concurrency_limiter.acquire().await;
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
-        let setup_args = self.call_args(&tx, Some(&call_overrides)).await?;
+        let setup_args = self.call_args(&ExternalTx::L2Tx(tx.clone()), Some(&call_overrides)).await?;
 
         let connection = self.acquire_replica_connection().await?;
         let result = self

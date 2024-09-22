@@ -1,5 +1,5 @@
 use zksync_types::{
-    l2::L2Tx, ExecuteTransactionCommon, Nonce, PackedEthSignature, Transaction, U256,
+    l2::L2Tx, ExternalTx, ExecuteTransactionCommon, Nonce, PackedEthSignature, Transaction, U256,
 };
 
 pub use self::{
@@ -47,7 +47,7 @@ pub struct TxExecutionArgs {
 }
 
 impl TxExecutionArgs {
-    pub fn for_validation(tx: L2Tx) -> Self {
+    pub fn for_validation(tx: ExternalTx) -> Self {
         Self {
             enforced_nonce: Some(tx.nonce()),
             added_balance: U256::zero(),

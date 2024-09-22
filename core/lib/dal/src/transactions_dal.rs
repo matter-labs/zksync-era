@@ -12,8 +12,9 @@ use zksync_db_connection::{
 use zksync_types::{
     block::L2BlockExecutionData, l1::L1Tx, l2::L2Tx, protocol_upgrade::ProtocolUpgradeTx,
     xl2::XL2Tx, Address, ExecuteTransactionCommon, ExternalTx, L1BatchNumber, L1BlockNumber,
-    L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE,
-    U256,
+    L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction, H160, H256, INTEROP_TX_TYPE,
+    PROTOCOL_UPGRADE_TX_TYPE, U256,     api::TransactionRequest,
+
 };
 use zksync_utils::u256_to_big_decimal;
 use zksync_vm_interface::{

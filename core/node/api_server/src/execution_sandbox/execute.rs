@@ -9,7 +9,7 @@ use zksync_multivm::interface::{
     Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
     TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
 };
-use zksync_types::{api::state_override::StateOverride, l2::L2Tx};
+use zksync_types::{api::state_override::StateOverride, ExternalTx};
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
 use super::{
@@ -139,7 +139,7 @@ where
         &self,
         storage: S,
         env: OneshotEnv,
-        tx: L2Tx,
+        tx: ExternalTx,
         validation_params: ValidationParams,
     ) -> anyhow::Result<Result<(), ValidationError>> {
         match self {
