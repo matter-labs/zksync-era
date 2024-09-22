@@ -65,6 +65,8 @@ pub struct StorageTransaction {
 
     pub upgrade_id: Option<i32>,
 
+    pub merkle_proof: Option<Vec<u8>>,
+
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 
@@ -330,7 +332,7 @@ impl From<StorageTransaction> for XL2TxCommonData {
             ..
         } = tx;
 
-        XL2TxCommonData::new(
+        let tx2 = XL2TxCommonData::new(
             Address::from_slice(&initiator_address),
             PriorityOpId(nonce.0),
             U256::zero(),
@@ -349,11 +351,14 @@ impl From<StorageTransaction> for XL2TxCommonData {
             )
             .unwrap(),
             Address::from_slice(&tx.l1_tx_refund_recipient.unwrap()),
+            tx.merkle_proof.clone().unwrap_or_default(),
             Some(InputData {
                 hash: H256::from_slice(&hash),
                 data: input.expect("input data is mandatory for xl2 transactions"),
             }),
-        )
+        );
+        println!("kl tx2: {:?}", tx2);
+        tx2
     }
 }
 

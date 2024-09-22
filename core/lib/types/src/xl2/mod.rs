@@ -48,6 +48,7 @@ struct XL2TxCommonDataSerde {
     pub canonical_tx_hash: H256,
     pub to_mint: U256,
     pub refund_recipient: Address,
+    pub merkle_proof: Vec<u8>,
     pub input: Option<InputData>,
     /// DEPRECATED.
     #[serde(default)]
@@ -86,6 +87,8 @@ pub struct XL2TxCommonData {
     /// The recipient of the refund of the transaction
     pub refund_recipient: Address,
 
+    pub merkle_proof: Vec<u8>,
+
     /// This input consists of raw transaction bytes when we receive it from API.    
     /// But we still use this structure for zksync-rs and tests, and we don't have raw tx before
     /// creating the structure. We setup this field manually later for consistency.    
@@ -111,6 +114,7 @@ impl serde::Serialize for XL2TxCommonData {
             canonical_tx_hash: self.canonical_tx_hash,
             to_mint: self.to_mint,
             refund_recipient: self.refund_recipient,
+            merkle_proof: self.merkle_proof.clone(),
             input: self.input.clone(),
             // DEPRECATED.
             deadline_block: 0,
@@ -137,6 +141,7 @@ impl<'de> serde::Deserialize<'de> for XL2TxCommonData {
             canonical_tx_hash: x.canonical_tx_hash,
             to_mint: x.to_mint,
             refund_recipient: x.refund_recipient,
+            merkle_proof: x.merkle_proof,
             input: x.input,
             // DEPRECATED.
             eth_block: x.eth_block,
@@ -159,6 +164,7 @@ impl XL2TxCommonData {
         canonical_tx_hash: H256,
         to_mint: U256,
         refund_recipient: Address,
+        merkle_proof: Vec<u8>,
         input: Option<InputData>,
     ) -> Self {
         Self {
@@ -174,6 +180,7 @@ impl XL2TxCommonData {
             canonical_tx_hash,
             to_mint,
             refund_recipient,
+            merkle_proof,
             input,
             eth_block: 0,
         }
@@ -243,7 +250,7 @@ impl From<XL2Tx> for TransactionRequest {
             access_list: None,
             eip712_meta: None,
             chain_id: Some(270), // todo
-            merkle_proof: None,
+            merkle_proof: Some(tx.common_data.merkle_proof),
             full_fee: Some(tx.common_data.full_fee),
             to_mint: Some(tx.common_data.to_mint),
             refund_recipient: Some(tx.common_data.refund_recipient),
@@ -334,7 +341,7 @@ impl From<XL2Tx> for abi::L2CanonicalTransaction {
             signature: Default::default(),
             factory_deps: Default::default(), // execute.factory_deps, // kl todo
             paymaster_input: Default::default(),
-            reserved_dynamic: Default::default(),
+            reserved_dynamic: common_data.merkle_proof,
         }
     }
 }
@@ -407,6 +414,7 @@ impl XL2Tx {
         initiator_address: Address,
         value: U256,
         factory_deps: Vec<Vec<u8>>,
+        merkle_proof: Vec<u8>,
         // paymaster_params: PaymasterParams,
     ) -> Self {
         // println!("kl todo new xl2 tx");
@@ -431,6 +439,7 @@ impl XL2Tx {
                 canonical_tx_hash: Default::default(),
                 to_mint: Default::default(),
                 refund_recipient: Default::default(),
+                merkle_proof,
                 input: None,
                 eth_block: 0,
             },

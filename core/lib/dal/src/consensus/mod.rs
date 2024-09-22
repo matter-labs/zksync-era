@@ -414,6 +414,9 @@ impl ProtoRepr for proto::Transaction {
                         refund_recipient: required(&common_data.refund_recipient_address)
                             .and_then(|x| parse_h160(x))
                             .context("common_data.refund_recipient_address")?,
+                        merkle_proof: required(&common_data.merkle_proof)
+                            .context("common_data.merkle_proof")?
+                            .clone(),
                         input: {
                             match &common_data.input {
                                 None => None,
@@ -582,6 +585,7 @@ impl ProtoRepr for proto::Transaction {
                     canonical_tx_hash: Some(data.canonical_tx_hash.as_bytes().into()),
                     to_mint: Some(u256_to_h256(data.to_mint).as_bytes().into()),
                     refund_recipient_address: Some(data.refund_recipient.as_bytes().into()),
+                    merkle_proof: Some(data.merkle_proof.clone()),
                     input: data.input.as_ref().map(|input_data| proto::InputData {
                         data: Some(input_data.data.clone()),
                         hash: Some(input_data.hash.as_bytes().into()),

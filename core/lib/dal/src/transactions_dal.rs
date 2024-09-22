@@ -10,11 +10,10 @@ use zksync_db_connection::{
     utils::pg_interval_from_duration,
 };
 use zksync_types::{
-    block::L2BlockExecutionData, l1::L1Tx, l2::L2Tx, protocol_upgrade::ProtocolUpgradeTx,
-    xl2::XL2Tx, Address, ExecuteTransactionCommon, ExternalTx, L1BatchNumber, L1BlockNumber,
-    L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction, H160, H256, INTEROP_TX_TYPE,
-    PROTOCOL_UPGRADE_TX_TYPE, U256,     api::TransactionRequest,
-
+    api::TransactionRequest, block::L2BlockExecutionData, l1::L1Tx, l2::L2Tx,
+    protocol_upgrade::ProtocolUpgradeTx, xl2::XL2Tx, Address, ExecuteTransactionCommon, ExternalTx,
+    L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId, ProtocolVersionId, Transaction,
+    H160, H256, INTEROP_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256,
 };
 use zksync_utils::u256_to_big_decimal;
 use zksync_vm_interface::{
@@ -548,7 +547,7 @@ impl TransactionsDal<'_, '_> {
         if tx_hash.is_zero() {
             let mut transaction_request: TransactionRequest = ExternalTx::XL2Tx(tx.clone()).into();
 
-            transaction_request.chain_id = Some(270 as u64); // kl to do
+            transaction_request.chain_id = Some(270_u64); // kl to do
             tx_hash = transaction_request.get_tx_hash().unwrap();
         }
         let is_duplicate = sqlx::query!(
@@ -1412,7 +1411,7 @@ impl TransactionsDal<'_, '_> {
             xl2_indices_in_block.push(index_in_block as i32);
             xl2_initiators.push(transaction.initiator_account().0);
             xl2_nonces.push(common_data.serial_id.0 as i32);
-            xl2_tx_formats.push(INTEROP_TX_TYPE as i32);
+            xl2_tx_formats.push(i32::from(INTEROP_TX_TYPE));
             xl2_errors.push(Self::map_transaction_error(tx_res));
             let xl2_effective_gas_price = block_base_fee_per_gas;
             xl2_effective_gas_prices.push(u256_to_big_decimal(xl2_effective_gas_price));
@@ -1610,7 +1609,7 @@ impl TransactionsDal<'_, '_> {
             xl2_initiators.push(transaction.initiator_account().0);
             xl2_nonces.push(common_data.serial_id.0 as i32);
             // xl2_signatures.push(&common_data.signature[..]);
-            xl2_tx_formats.push(INTEROP_TX_TYPE as i32);
+            xl2_tx_formats.push(i32::from(INTEROP_TX_TYPE));
             xl2_errors.push(Self::map_transaction_error(tx_res));
             let xl2_effective_gas_price = block_base_fee_per_gas;
             xl2_effective_gas_prices.push(u256_to_big_decimal(xl2_effective_gas_price));

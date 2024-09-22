@@ -259,7 +259,7 @@ pub struct TransactionRequest {
     /// Chain ID
     pub chain_id: Option<u64>,
     /// merkle proof for xl2 transactions
-    pub merkle_proof: Option<Vec<Vec<u8>>>,
+    pub merkle_proof: Option<Vec<u8>>,
     /// full fee paid on sender chain for xl2 transactions
     pub full_fee: Option<U256>,
     /// amount to mint for xl2 tx
@@ -647,7 +647,7 @@ impl TransactionRequest {
                     chain_id: Some(rlp.val_at(10)?),
                     transaction_type: Some(INTEROP_TX_TYPE.into()),
                     from: Some(rlp.val_at(11)?),
-                    merkle_proof: Some(rlp.list_at(16)?),
+                    merkle_proof: Some(rlp.val_at(16)?),
                     full_fee: Some(rlp.val_at(17)?),
                     to_mint: Some(rlp.val_at(18)?),
                     refund_recipient: Some(rlp.val_at(19)?),
@@ -941,6 +941,7 @@ impl XL2Tx {
             value.from.unwrap_or_default(),
             value.value,
             meta.factory_deps,
+            value.merkle_proof.unwrap_or_default(),
             // meta.paymaster_params.unwrap_or_default(),
         );
         tx.common_data.to_mint = value.to_mint.unwrap_or_default();

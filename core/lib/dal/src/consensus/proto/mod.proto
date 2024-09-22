@@ -104,7 +104,8 @@ message XL2TxCommonData {
   optional bytes canonical_tx_hash = 13; // // required; H256
   optional bytes to_mint = 14; // required; U256
   optional bytes refund_recipient_address = 15; // required; H160
-  optional InputData input = 16; // optional
+  optional bytes merkle_proof = 16; // required; bytes
+  optional InputData input = 17; // optional
 
 
   // deprecated.

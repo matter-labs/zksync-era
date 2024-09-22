@@ -159,7 +159,7 @@ impl From<Transaction> for TransactionData {
                     signature: vec![],
                     factory_deps: execute_tx.execute.factory_deps,
                     paymaster_input: vec![],
-                    reserved_dynamic: vec![],
+                    reserved_dynamic: common_data.merkle_proof,
                     raw_bytes: None,
                 }
                 // println!("kl todo tx data into {:?}", data);
@@ -357,6 +357,7 @@ impl TryInto<XL2Tx> for TransactionData {
             priority_queue_type: PriorityQueueType::default(),
             canonical_tx_hash: H256::zero(),
             to_mint: self.reserved[0],
+            merkle_proof: self.reserved_dynamic,
             eth_block: 0,
         };
         let execute = Execute {
