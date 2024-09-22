@@ -212,6 +212,7 @@ export class NodeSpawner {
             useZkInception: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
+        proc.unref();
 
         // Wait until the main node starts responding.
         const tester = await Tester.init(

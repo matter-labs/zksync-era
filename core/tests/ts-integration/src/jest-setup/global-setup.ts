@@ -48,6 +48,8 @@ async function performSetup(_globalConfig: any, _projectConfig: any) {
         chain: fileConfig.chain
     });
 
+    proc.unref();
+
     let testEnvironment = await loadTestEnvironment();
     testEnvironment.l2NodePid = proc.pid!;
     const testContextOwner = new TestContextOwner(testEnvironment);
