@@ -695,7 +695,7 @@ impl EthNamespace {
 
         // We do not support EIP-4844, but per API specification we should return 0 for pre EIP-4844 blocks.
         let base_fee_per_blob_gas = vec![U256::zero(); base_fee_per_gas.len()];
-        let blob_gas_used_ratio = vec![0.0; base_fee_per_gas.len() - 1];
+        let blob_gas_used_ratio = vec![0.0; gas_used_ratio.len()];
 
         Ok(FeeHistory {
             inner: web3::FeeHistory {
