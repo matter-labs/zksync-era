@@ -50,7 +50,7 @@ describe('Debug methods', () => {
             output: '0x',
             revertReason: 'Error function_selector = 0x, data = 0x',
             to: BOOTLOADER_FORMAL_ADDRESS,
-            type: 'Call',
+            type: 'call',
             value: expect.any(String),
             calls: expect.any(Array)
         };
