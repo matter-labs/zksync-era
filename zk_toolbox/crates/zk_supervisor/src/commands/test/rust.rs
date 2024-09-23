@@ -76,7 +76,7 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
     cmd.run()?;
 
     // Run unit tests for zk_toolbox
-    let _dir_guard = shell.push_dir(&link_to_code.join("zk_toolbox"));
+    let _dir_guard = shell.push_dir(link_to_code.join("zk_toolbox"));
     Cmd::new(cmd!(shell, "cargo nextest run --release"))
         .with_force_run()
         .run()?;
