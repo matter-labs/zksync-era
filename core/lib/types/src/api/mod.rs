@@ -739,7 +739,7 @@ pub enum BlockStatus {
 #[serde(untagged)]
 pub enum CallTracerResultWithNestedResult {
     CallTrace(ResultDebugCall),
-    FlattCallTrace(DebugCallFlat),
+    FlattCallTrace(Box<DebugCallFlat>),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

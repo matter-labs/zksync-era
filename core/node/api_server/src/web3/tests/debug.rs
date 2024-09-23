@@ -150,12 +150,22 @@ impl HttpTest for TraceBlockFlatTest {
                     tx_results.len() * (tx_results[0].call_traces.len() + 1)
                 );
 
+                let CallTracerResultWithNestedResult::FlattCallTrace(block_traces_0) =
+                    &block_traces[0]
+                else {
+                    unreachable!()
+                };
+                let CallTracerResultWithNestedResult::FlattCallTrace(block_traces_1) =
+                    &block_traces[1]
+                else {
+                    unreachable!()
+                };
                 // First tx has 2 nested calls, thus 2 sub-traces
-                // assert_eq!(block_traces[0].subtraces, 2);
-                // assert_eq!(block_traces[0].traceaddress, [0]);
-                // // Second flat-call (fist nested call) do not have nested calls
-                // assert_eq!(block_traces[1].subtraces, 0);
-                // assert_eq!(block_traces[1].traceaddress, [0, 0]);
+                assert_eq!(block_traces_0.subtraces, 2);
+                assert_eq!(block_traces_0.traceaddress, [0]);
+                // Second flat-call (fist nested call) do not have nested calls
+                assert_eq!(block_traces_1.subtraces, 0);
+                assert_eq!(block_traces_1.traceaddress, [0, 0]);
 
                 let top_level_call_indexes = [0, 3, 6];
                 let top_level_traces = top_level_call_indexes

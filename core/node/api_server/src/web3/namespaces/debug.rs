@@ -198,6 +198,7 @@ impl DebugNamespace {
                 CallTracerResult::FlattCallTrace(call) => calls.append(
                     &mut call
                         .into_iter()
+                        .map(Box::new)
                         .map(CallTracerResultWithNestedResult::FlattCallTrace)
                         .collect(),
                 ),
