@@ -9855,7 +9855,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.24.0"
+version = "24.26.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -10225,7 +10225,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "hex",
  "rand 0.8.5",
  "secrecy",
  "semver",
@@ -10259,6 +10258,7 @@ dependencies = [
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_executor",
  "zksync_vm_interface",
  "zksync_web3_decl",
 ]
@@ -10966,7 +10966,7 @@ dependencies = [
 [[package]]
 name = "zksync_vm2"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=cd6136c42ec56856e0abcf2a98d1a9e120161482#cd6136c42ec56856e0abcf2a98d1a9e120161482"
+source = "git+https://github.com/matter-labs/vm2.git?rev=74577d9be13b1bff9d1a712389731f669b179e47#74577d9be13b1bff9d1a712389731f669b179e47"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
@@ -10978,7 +10978,7 @@ dependencies = [
 [[package]]
 name = "zksync_vm2_interface"
 version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=cd6136c42ec56856e0abcf2a98d1a9e120161482#cd6136c42ec56856e0abcf2a98d1a9e120161482"
+source = "git+https://github.com/matter-labs/vm2.git?rev=74577d9be13b1bff9d1a712389731f669b179e47#74577d9be13b1bff9d1a712389731f669b179e47"
 dependencies = [
  "primitive-types",
 ]
@@ -11008,6 +11008,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "hex",
+ "pretty_assertions",
  "serde",
  "serde_json",
  "thiserror",
@@ -11030,6 +11031,7 @@ dependencies = [
  "once_cell",
  "rand 0.8.5",
  "serde",
+ "serde_json",
  "tempfile",
  "test-casing",
  "tokio",

@@ -53,7 +53,8 @@ async fn getting_nonce_for_account() {
         .await
         .unwrap();
 
-    let tx_executor = MockOneshotExecutor::default().into();
+    let tx_executor = MockOneshotExecutor::default();
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
 
     let nonce = tx_sender.get_expected_nonce(test_address).await.unwrap();
@@ -103,7 +104,8 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     .await;
 
     let l2_chain_id = L2ChainId::default();
-    let tx_executor = MockOneshotExecutor::default().into();
+    let tx_executor = MockOneshotExecutor::default();
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
 
     storage
@@ -163,7 +165,7 @@ async fn submitting_tx_requires_one_connection() {
         assert_eq!(received_tx.hash(), tx_hash);
         ExecutionResult::Success { output: vec![] }
     });
-    let tx_executor = tx_executor.into();
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
 
     let submission_result = tx_sender.submit_tx(tx).await.unwrap();
@@ -205,7 +207,7 @@ async fn eth_call_requires_single_connection() {
             output: b"success!".to_vec(),
         }
     });
-    let tx_executor = tx_executor.into();
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
     let (tx_sender, _) = create_test_tx_sender(
         pool.clone(),
         genesis_params.config().l2_chain_id,
@@ -231,7 +233,17 @@ async fn create_real_tx_sender() -> TxSender {
         .unwrap();
     drop(storage);
 
-    let tx_executor = TransactionExecutor::real(usize::MAX);
+    let genesis_config = genesis_params.config();
+    let executor_options = SandboxExecutorOptions::new(
+        genesis_config.l2_chain_id,
+        AccountTreeId::new(genesis_config.fee_account),
+        u32::MAX,
+    )
+    .await
+    .unwrap();
+
+    let pg_caches = PostgresStorageCaches::new(1, 1);
+    let tx_executor = SandboxExecutor::real(executor_options, pg_caches, usize::MAX);
     create_test_tx_sender(pool, genesis_params.config().l2_chain_id, tx_executor)
         .await
         .0
@@ -497,21 +509,7 @@ async fn out_of_gas_during_initial_estimate() {
 
 #[tokio::test]
 async fn insufficient_funds_error_for_transfer() {
-    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let mut storage = pool.connection().await.unwrap();
-    let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut storage, &genesis_params)
-        .await
-        .unwrap();
-    drop(storage);
-
-    let tx_executor = TransactionExecutor::real(usize::MAX);
-    let (tx_sender, _) = create_test_tx_sender(
-        pool.clone(),
-        genesis_params.config().l2_chain_id,
-        tx_executor,
-    )
-    .await;
+    let tx_sender = create_real_tx_sender().await;
 
     let alice = K256PrivateKey::random();
     let transfer_value = 1_000_000_000.into();

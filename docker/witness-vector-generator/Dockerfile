@@ -1,6 +1,8 @@
 FROM ghcr.io/matter-labs/zksync-build-base:latest AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
+ARG RUST_FLAGS="--cfg=no_cuda"
+ENV RUSTFLAGS=${RUST_FLAGS}
 
 # set of args for use of sccache
 ARG SCCACHE_GCS_BUCKET=""

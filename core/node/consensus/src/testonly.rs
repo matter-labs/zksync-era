@@ -91,11 +91,8 @@ impl ConfigSet {
     }
 }
 
-pub(super) fn new_configs(
-    rng: &mut impl Rng,
-    setup: &Setup,
-    gossip_peers: usize,
-) -> Vec<ConfigSet> {
+pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) -> Vec<ConfigSet> {
+    let net_cfgs = network::testonly::new_configs(rng, setup, 0);
     let genesis_spec = config::GenesisSpec {
         chain_id: setup.genesis.chain_id.0.try_into().unwrap(),
         protocol_version: config::ProtocolVersion(setup.genesis.protocol_version.0),
@@ -117,8 +114,17 @@ pub(super) fn new_configs(
             .collect(),
         leader: config::ValidatorPublicKey(setup.validator_keys[0].public().encode()),
         registry_address: None,
+        seed_peers: net_cfgs[..seed_peers]
+            .iter()
+            .map(|c| {
+                (
+                    config::NodePublicKey(c.gossip.key.public().encode()),
+                    config::Host(c.public_addr.0.clone()),
+                )
+            })
+            .collect(),
     };
-    network::testonly::new_configs(rng, setup, gossip_peers)
+    net_cfgs
         .into_iter()
         .enumerate()
         .map(|(i, net)| ConfigSet {

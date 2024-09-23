@@ -3,25 +3,21 @@ use std::{ops, time::Instant};
 use anyhow::Context;
 use zksync_dal::CoreDal;
 use zksync_multivm::{
-    interface::{
-        OneshotTracingParams, TransactionExecutionMetrics, TxExecutionArgs, TxExecutionMode,
-        VmExecutionResultAndLogs,
-    },
+    interface::{TransactionExecutionMetrics, VmExecutionResultAndLogs},
     utils::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_max_batch_gas_limit,
     },
-    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
     zk_evm_latest::ethereum_types::H256,
 };
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
     api::state_override::StateOverride, fee::Fee, fee_model::BatchFeeInput, get_code_key,
-    AccountTreeId, ExecuteTransactionCommon, PackedEthSignature, ProtocolVersionId, Transaction,
+    ExecuteTransactionCommon, PackedEthSignature, ProtocolVersionId, Transaction,
 };
 
 use super::{result::ApiCallResult, SubmitTxError, TxSender};
-use crate::execution_sandbox::{BlockArgs, TxSetupArgs, VmPermit, SANDBOX_METRICS};
+use crate::execution_sandbox::{BlockArgs, SandboxAction, VmPermit, SANDBOX_METRICS};
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum BinarySearchKind {
@@ -33,22 +29,6 @@ pub(crate) enum BinarySearchKind {
 }
 
 impl TxSender {
-    async fn args_for_gas_estimate(&self, fee_input: BatchFeeInput, base_fee: u64) -> TxSetupArgs {
-        let config = &self.0.sender_config;
-        TxSetupArgs {
-            execution_mode: TxExecutionMode::EstimateFee,
-            operator_account: AccountTreeId::new(config.fee_account_addr),
-            fee_input,
-            // We want to bypass the computation gas limit check for gas estimation
-            validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-            base_system_contracts: self.0.api_contracts.estimate_gas.clone(),
-            caches: self.storage_caches(),
-            chain_id: config.chain_id,
-            whitelisted_tokens_for_aa: self.read_whitelisted_tokens_for_aa_cache().await,
-            enforced_base_fee: Some(base_fee),
-        }
-    }
-
     #[tracing::instrument(level = "debug", skip_all, fields(
         initiator = ?tx.initiator_account(),
         nonce = ?tx.nonce(),
@@ -448,22 +428,20 @@ impl<'a> GasEstimator<'a> {
             }
         }
 
-        let setup_args = self
-            .sender
-            .args_for_gas_estimate(self.fee_input, self.base_fee)
-            .await;
-        let execution_args = TxExecutionArgs::for_gas_estimate(tx);
+        let action = SandboxAction::GasEstimation {
+            tx,
+            fee_input: self.fee_input,
+            base_fee: self.base_fee,
+        };
         let connection = self.sender.acquire_replica_connection().await?;
         let executor = &self.sender.0.executor;
         let execution_output = executor
-            .execute_tx_in_sandbox(
+            .execute_in_sandbox(
                 self.vm_permit.clone(),
-                setup_args,
-                execution_args,
                 connection,
-                self.block_args,
+                action,
+                &self.block_args,
                 self.state_override.clone(),
-                OneshotTracingParams::default(),
             )
             .await?;
         Ok((execution_output.vm, execution_output.metrics))
