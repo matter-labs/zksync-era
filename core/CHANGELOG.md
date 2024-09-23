@@ -1,5 +1,22 @@
 # Changelog
 
+## [24.26.0](https://github.com/matter-labs/zksync-era/compare/core-v24.25.0...core-v24.26.0) (2024-09-23)
+
+
+### Features
+
+* added seed_peers to consensus global config ([#2920](https://github.com/matter-labs/zksync-era/issues/2920)) ([e9d1d90](https://github.com/matter-labs/zksync-era/commit/e9d1d905f1ce86f9de2cf39d79be4b5aada4a81d))
+* **circuit_prover:** Add circuit prover ([#2908](https://github.com/matter-labs/zksync-era/issues/2908)) ([48317e6](https://github.com/matter-labs/zksync-era/commit/48317e640a00b016bf7bf782cc94fccaf077ed6d))
+* **prover:** Add endpoint to PJM to get queue reports ([#2918](https://github.com/matter-labs/zksync-era/issues/2918)) ([2cec83f](https://github.com/matter-labs/zksync-era/commit/2cec83f26e0b9309387135ca43718af4fcd6f6b1))
+* **vm:** Do not panic on VM divergence ([#2705](https://github.com/matter-labs/zksync-era/issues/2705)) ([7aa5721](https://github.com/matter-labs/zksync-era/commit/7aa5721d22e253d05d369a60d5bcacbf52021c48))
+* **vm:** Extract oneshot VM executor – environment types ([#2885](https://github.com/matter-labs/zksync-era/issues/2885)) ([a2d4126](https://github.com/matter-labs/zksync-era/commit/a2d4126f9e0c9dc46f49a861549d076fdbcf66d3))
+
+
+### Bug Fixes
+
+* **api_server:** fix blob_gas length ([#2673](https://github.com/matter-labs/zksync-era/issues/2673)) ([44a8f79](https://github.com/matter-labs/zksync-era/commit/44a8f79739704e1216a7b34a0580ad7ba1cce3bd))
+* **eth-sender:** print better error message in case of missing blob prices ([#2927](https://github.com/matter-labs/zksync-era/issues/2927)) ([38fc824](https://github.com/matter-labs/zksync-era/commit/38fc824f75e8b0e84f10348d1502fc8a26d12015))
+
 ## [24.25.0](https://github.com/matter-labs/zksync-era/compare/core-v24.24.0...core-v24.25.0) (2024-09-19)
 
 
