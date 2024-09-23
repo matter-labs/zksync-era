@@ -108,10 +108,10 @@ jobs:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  build-gar-prover-fri-gpu:
+  build-gar-prover-fri-gpu-and-circuit-prover-gpu-gar:
     name: Build GAR prover FRI GPU
     needs: [ setup, build-push-prover-images ]
-    uses: ./.github/workflows/build-prover-fri-gpu-gar.yml
+    uses: ./.github/workflows/build-prover-fri-gpu-gar-and-circuit-prover-gpu-gar.yml
     if: contains(github.ref_name, 'prover')
     with:
       setup_keys_id: ${{ needs.setup.outputs.prover_fri_gpu_key_id }}
