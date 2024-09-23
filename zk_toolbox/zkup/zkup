@@ -85,8 +85,8 @@ parse_args() {
       shift
       ZKUP_VERSION=$1
       ;;
-    --supervisor) ZKUP_INSTALL_SUPERVISOR=1 ;;
     --inception) ZKUP_INSTALL_INCEPTION=1 ;;
+    --supervisor) ZKUP_INSTALL_SUPERVISOR=1 ;;
     -a | --alias) ZKUP_ALIAS=1 ;;
     -h | --help)
       usage
