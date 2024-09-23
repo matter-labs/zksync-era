@@ -3,21 +3,25 @@
 use std::{collections::HashMap, time::Duration};
 
 use assert_matches::assert_matches;
-use test_casing::test_casing;
+use test_casing::{test_casing, Product, TestCases};
+use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
 use zksync_multivm::interface::ExecutionResult;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
 use zksync_types::{
-    api, api::state_override::OverrideAccount, get_nonce_key, K256PrivateKey, L1BatchNumber,
-    L2BlockNumber, StorageLog,
+    api,
+    api::state_override::{Bytecode, OverrideAccount, OverrideState},
+    get_nonce_key, K256PrivateKey, L1BatchNumber, L2BlockNumber, StorageLog,
 };
 use zksync_utils::u256_to_h256;
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
 use super::{gas_estimation::GasEstimator, *};
 use crate::{
-    execution_sandbox::BlockStartInfo, testonly::TestAccount, web3::testonly::create_test_tx_sender,
+    execution_sandbox::BlockStartInfo,
+    testonly::{TestAccount, LOAD_TEST_ADDRESS},
+    web3::testonly::create_test_tx_sender,
 };
 
 #[tokio::test]
@@ -262,11 +266,83 @@ async fn initial_gas_estimation_is_somewhat_accurate() {
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
 }
 
-// FIXME: also test far call recursion
+const LOAD_TEST_CASES: TestCases<LoadnextContractExecutionParams> = test_casing::cases! {[
+    LoadnextContractExecutionParams::default(),
+    // No storage modification
+    LoadnextContractExecutionParams {
+        writes: 0,
+        events: 0,
+        ..LoadnextContractExecutionParams::default()
+    },
+    // Deep recursion
+    LoadnextContractExecutionParams {
+        recursive_calls: 10,
+        ..LoadnextContractExecutionParams::default()
+    },
+    // No deploys
+    LoadnextContractExecutionParams {
+        deploys: 0,
+        ..LoadnextContractExecutionParams::default()
+    },
+    // Lots of deploys
+    LoadnextContractExecutionParams {
+        deploys: 10,
+        ..LoadnextContractExecutionParams::default()
+    },
+]};
 
-#[test_casing(3, [1, 100, 1_000])]
+#[test_casing(5, LOAD_TEST_CASES)]
 #[tokio::test]
-async fn estimating_gas_for_transfer(acceptable_overestimation: u64) {
+async fn estimating_load_test_transaction(tx_params: LoadnextContractExecutionParams) {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut storage = pool.connection().await.unwrap();
+    let genesis_params = GenesisParams::mock();
+    insert_genesis_batch(&mut storage, &genesis_params)
+        .await
+        .unwrap();
+    drop(storage);
+
+    let tx_executor = TransactionExecutor::real(usize::MAX);
+    let (tx_sender, _) = create_test_tx_sender(
+        pool.clone(),
+        genesis_params.config().l2_chain_id,
+        tx_executor,
+    )
+    .await;
+
+    let alice = K256PrivateKey::random();
+    // Set the array length in the load test contract to 100, so that reads don't fail.
+    let load_test_state = HashMap::from([(H256::zero(), H256::from_low_u64_be(100))]);
+    let load_test_overrides = OverrideAccount {
+        code: Some(Bytecode::new(get_loadnext_contract().bytecode).unwrap()),
+        state: Some(OverrideState::State(load_test_state)),
+        ..OverrideAccount::default()
+    };
+    let state_override =
+        StateOverride::new(HashMap::from([(LOAD_TEST_ADDRESS, load_test_overrides)]));
+    let tx = alice.create_load_test_tx(tx_params);
+
+    let mut estimator = GasEstimator::new(&tx_sender, tx.into(), Some(state_override))
+        .await
+        .unwrap();
+    estimator.adjust_transaction_fee();
+    let initial_estimate = estimator.initialize().await.unwrap();
+    dbg!(&initial_estimate);
+
+    let lower_bound = initial_estimate.lower_gas_bound_without_overhead().unwrap()
+        + initial_estimate.operator_overhead;
+    dbg!(lower_bound);
+    let (vm_result, _) = estimator.unadjusted_step(lower_bound).await.unwrap();
+    assert!(vm_result.result.is_failed(), "{:?}", vm_result.result);
+
+    // A slightly larger limit should work.
+    let initial_pivot = initial_estimate.total_gas_charged.unwrap() * 64 / 63;
+    let (vm_result, _) = estimator.unadjusted_step(initial_pivot).await.unwrap();
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+}
+
+#[tokio::test]
+async fn insufficient_funds_error_for_transfer() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
@@ -293,19 +369,37 @@ async fn estimating_gas_for_transfer(acceptable_overestimation: u64) {
         .get_txs_fee_in_wei(
             tx.clone().into(),
             fee_scale_factor,
-            acceptable_overestimation,
+            1_000,
             None,
             BinarySearchKind::Full,
         )
         .await
         .unwrap_err();
     assert_matches!(err, SubmitTxError::InsufficientFundsForTransfer);
+}
 
-    let account_overrides = OverrideAccount {
-        balance: Some(transfer_value * 2),
-        ..OverrideAccount::default()
-    };
-    let state_override = StateOverride::new(HashMap::from([(alice.address(), account_overrides)]));
+async fn test_estimating_gas(
+    state_override: StateOverride,
+    tx: L2Tx,
+    acceptable_overestimation: u64,
+) {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut storage = pool.connection().await.unwrap();
+    let genesis_params = GenesisParams::mock();
+    insert_genesis_batch(&mut storage, &genesis_params)
+        .await
+        .unwrap();
+    drop(storage);
+
+    let tx_executor = TransactionExecutor::real(usize::MAX);
+    let (tx_sender, _) = create_test_tx_sender(
+        pool.clone(),
+        genesis_params.config().l2_chain_id,
+        tx_executor,
+    )
+    .await;
+
+    let fee_scale_factor = 1.0;
     let fee = tx_sender
         .get_txs_fee_in_wei(
             tx.clone().into(),
@@ -319,7 +413,7 @@ async fn estimating_gas_for_transfer(acceptable_overestimation: u64) {
     // Sanity-check gas limit
     let gas_limit_after_full_search = u64::try_from(fee.gas_limit).unwrap();
     assert!(
-        (10_000..1_000_000).contains(&gas_limit_after_full_search),
+        (10_000..10_000_000).contains(&gas_limit_after_full_search),
         "{fee:?}"
     );
 
@@ -335,16 +429,48 @@ async fn estimating_gas_for_transfer(acceptable_overestimation: u64) {
         .unwrap();
     let gas_limit_after_optimized_search = u64::try_from(fee.gas_limit).unwrap();
 
-    if acceptable_overestimation == 1 {
-        assert_eq!(
-            gas_limit_after_full_search,
-            gas_limit_after_optimized_search
-        );
-    } else {
-        let diff = gas_limit_after_full_search.abs_diff(gas_limit_after_optimized_search);
-        assert!(
-            diff <= acceptable_overestimation,
-            "full={gas_limit_after_full_search}, optimized={gas_limit_after_optimized_search}"
-        );
-    }
+    let diff = gas_limit_after_full_search.abs_diff(gas_limit_after_optimized_search);
+    assert!(
+        diff <= acceptable_overestimation,
+        "full={gas_limit_after_full_search}, optimized={gas_limit_after_optimized_search}"
+    );
 }
+
+#[test_casing(3, [0, 100, 1_000])]
+#[tokio::test]
+async fn estimating_gas_for_transfer(acceptable_overestimation: u64) {
+    let alice = K256PrivateKey::random();
+    let transfer_value = 1_000_000_000.into();
+    let account_overrides = OverrideAccount {
+        balance: Some(transfer_value * 2),
+        ..OverrideAccount::default()
+    };
+    let state_override = StateOverride::new(HashMap::from([(alice.address(), account_overrides)]));
+    // fee params don't matter; they should be overwritten by the estimation logic
+    let tx = alice.create_transfer(transfer_value, 55, 555);
+
+    test_estimating_gas(state_override, tx, acceptable_overestimation).await;
+}
+
+#[test_casing(10, Product((LOAD_TEST_CASES, [0, 100])))]
+#[tokio::test]
+async fn estimating_gas_for_load_test_tx(
+    tx_params: LoadnextContractExecutionParams,
+    acceptable_overestimation: u64,
+) {
+    let alice = K256PrivateKey::random();
+    // Set the array length in the load test contract to 100, so that reads don't fail.
+    let load_test_state = HashMap::from([(H256::zero(), H256::from_low_u64_be(100))]);
+    let load_test_overrides = OverrideAccount {
+        code: Some(Bytecode::new(get_loadnext_contract().bytecode).unwrap()),
+        state: Some(OverrideState::State(load_test_state)),
+        ..OverrideAccount::default()
+    };
+    let state_override =
+        StateOverride::new(HashMap::from([(LOAD_TEST_ADDRESS, load_test_overrides)]));
+    let tx = alice.create_load_test_tx(tx_params);
+
+    test_estimating_gas(state_override, tx, acceptable_overestimation).await;
+}
+
+// FIXME: more test contracts: expensive, precompiles -> code oracle, failures (counter, infinite)
