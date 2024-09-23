@@ -28,8 +28,8 @@ pub struct InitArgs {
     pub deploy_paymaster: Option<bool>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
-    #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP, default_missing_value = "true", num_args = 0..=1)]
-    pub no_port_reallocation: Option<bool>,
+    #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP, default_value = "false", default_missing_value = "true", num_args = 0..=1)]
+    pub no_port_reallocation: bool,
 }
 
 impl InitArgs {
@@ -54,14 +54,12 @@ impl InitArgs {
                 .ask()
         });
 
-        let no_port_reallocation = self.no_port_reallocation.unwrap_or(false);
-
         InitArgsFinal {
             forge_args: self.forge_args,
             genesis_args: self.genesis_args.fill_values_with_prompt(config),
             deploy_paymaster,
             l1_rpc_url,
-            no_port_reallocation,
+            no_port_reallocation: self.no_port_reallocation,
         }
     }
 }

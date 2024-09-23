@@ -93,8 +93,8 @@ pub struct EcosystemInitArgs {
     pub dev: bool,
     #[clap(long, short = 'o', help = MSG_OBSERVABILITY_HELP, default_missing_value = "true", num_args = 0..=1)]
     pub observability: Option<bool>,
-    #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP, default_missing_value = "true", num_args = 0..=1)]
-    pub no_port_reallocation: Option<bool>,
+    #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP, default_value = "false", default_missing_value = "true", num_args = 0..=1)]
+    pub no_port_reallocation: bool,
 }
 
 impl EcosystemInitArgs {
@@ -124,7 +124,6 @@ impl EcosystemInitArgs {
                     .ask()
             })
         };
-        let no_port_reallocation = self.no_port_reallocation.unwrap_or(false);
 
         EcosystemInitArgsFinal {
             deploy_paymaster,
@@ -133,7 +132,7 @@ impl EcosystemInitArgs {
             forge_args: self.forge_args.clone(),
             dev: self.dev,
             observability,
-            no_port_reallocation,
+            no_port_reallocation: self.no_port_reallocation,
         }
     }
 }
