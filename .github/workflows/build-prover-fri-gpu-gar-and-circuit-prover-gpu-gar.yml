@@ -17,7 +17,7 @@ on:
         type: string
 
 jobs:
-  build-gar-prover-fri-gpu:
+  build:
     name: Build prover FRI GPU GAR
     runs-on: [matterlabs-ci-runner-high-performance]
     steps:
@@ -39,7 +39,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
 
-      - name: Build and push
+      - name: Login to Asia GAR
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://asia-docker.pkg.dev
+
+      - name: Login to Europe GAR
+        run: |
+          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://europe-docker.pkg.dev
+
+      - name: Build and push prover-gpu-fri-gar
         uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
         with:
           context: docker/prover-gpu-fri-gar
@@ -49,49 +57,19 @@ jobs:
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
-      - name: Login to Asia GAR
-        run: |
-          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://asia-docker.pkg.dev
-
-      - name: Build and push to Asia GAR
+      - name: Build and push prover-gpu-fri-gar to Asia GAR
         run: |
           docker buildx imagetools create \
             --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
-      - name: Login to Europe GAR
-        run: |
-          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://europe-docker.pkg.dev
-
-      - name: Build and push to Europe GAR
+      - name: Build and push prover-gpu-fri-gar to Europe GAR
         run: |
           docker buildx imagetools create \
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
-  build-gar-circuit-prover-gpu:
-    name: Build circuit prover GPU GAR
-    runs-on: [matterlabs-ci-runner-high-performance]
-    steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
-        with:
-          submodules: "recursive"
-
-      - name: Download Setup data
-        run: |
-          gsutil -m rsync -r gs://matterlabs-setup-data-us/${{ inputs.setup_keys_id }} docker/circuit-prover-gpu-gar
-
-      - name: Login to us-central1 GAR
-        run: |
-          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
-
-      - name: Build and push
+      - name: Build and push circuit-prover-gpu-gar
         uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
         with:
           context: docker/circuit-prover-gpu-gar
@@ -101,21 +79,13 @@ jobs:
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/circuit-prover-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
-      - name: Login to Asia GAR
-        run: |
-          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://asia-docker.pkg.dev
-
-      - name: Build and push to Asia GAR
+      - name: Build and push circuit-prover-gpu-gar to Asia GAR
         run: |
           docker buildx imagetools create \
             --tag asia-docker.pkg.dev/matterlabs-infra/matterlabs-docker/circuit-prover-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/circuit-prover-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
-      - name: Login to Europe GAR
-        run: |
-          gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://europe-docker.pkg.dev
-
-      - name: Build and push to Europe GAR
+      - name: Build and push circuit-prover-gpu-gar to Europe GAR
         run: |
           docker buildx imagetools create \
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/circuit-prover-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
