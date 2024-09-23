@@ -1,14 +1,22 @@
 //! Tests for the VM-instantiating methods (e.g., `eth_call`).
 
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{
+    atomic::{AtomicU32, Ordering},
+    Mutex,
+};
 
 use api::state_override::{OverrideAccount, StateOverride};
 use zksync_multivm::interface::{
     ExecutionResult, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
 };
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
-    api::ApiStorageLog, get_intrinsic_constants, transaction_request::CallRequest, K256PrivateKey,
-    L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue, U256,
+    api::ApiStorageLog,
+    fee_model::{BatchFeeInput, FeeParams},
+    get_intrinsic_constants,
+    transaction_request::CallRequest,
+    K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue,
+    U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
@@ -16,8 +24,47 @@ use zksync_web3_decl::namespaces::DebugNamespaceClient;
 
 use super::*;
 
-#[derive(Debug)]
-struct CallTest;
+#[derive(Debug, Clone)]
+struct ExpectedFeeInput(Arc<Mutex<BatchFeeInput>>);
+
+impl Default for ExpectedFeeInput {
+    fn default() -> Self {
+        let this = Self(Arc::default());
+        this.expect_default(1.0); // works for transaction execution and calls
+        this
+    }
+}
+
+impl ExpectedFeeInput {
+    fn expect_for_block(&self, number: api::BlockNumber, scale: f64) {
+        *self.0.lock().unwrap() = match number {
+            api::BlockNumber::Number(number) => create_l2_block(number.as_u32()).batch_fee_input,
+            _ => <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
+                FeeParams::sensible_v1_default(),
+                scale,
+                scale,
+            ),
+        };
+    }
+
+    fn expect_default(&self, scale: f64) {
+        self.expect_for_block(api::BlockNumber::Pending, scale);
+    }
+
+    fn assert_eq(&self, actual: BatchFeeInput) {
+        let expected = *self.0.lock().unwrap();
+        // We do relaxed comparisons to deal with the fact that the fee input provider may convert inputs to pubdata independent form.
+        assert_eq!(
+            actual.into_pubdata_independent(),
+            expected.into_pubdata_independent()
+        );
+    }
+}
+
+#[derive(Debug, Default)]
+struct CallTest {
+    fee_input: ExpectedFeeInput,
+}
 
 impl CallTest {
     fn call_request(data: &[u8]) -> CallRequest {
@@ -31,9 +78,14 @@ impl CallTest {
         }
     }
 
-    fn create_executor(latest_block: L2BlockNumber) -> MockOneshotExecutor {
+    fn create_executor(
+        latest_block: L2BlockNumber,
+        expected_fee_input: ExpectedFeeInput,
+    ) -> MockOneshotExecutor {
         let mut tx_executor = MockOneshotExecutor::default();
         tx_executor.set_call_responses(move |tx, env| {
+            expected_fee_input.assert_eq(env.l1_batch.fee_input);
+
             let expected_block_number = match tx.execute.calldata() {
                 b"pending" => latest_block + 1,
                 b"latest" => latest_block,
@@ -52,7 +104,7 @@ impl CallTest {
 #[async_trait]
 impl HttpTest for CallTest {
     fn transaction_executor(&self) -> MockOneshotExecutor {
-        Self::create_executor(L2BlockNumber(1))
+        Self::create_executor(L2BlockNumber(1), self.fee_input.clone())
     }
 
     async fn test(
@@ -73,9 +125,10 @@ impl HttpTest for CallTest {
         let valid_block_numbers_and_calldata = [
             (api::BlockNumber::Pending, b"pending" as &[_]),
             (api::BlockNumber::Latest, b"latest"),
-            (0.into(), b"latest"),
+            (1.into(), b"latest"),
         ];
         for (number, calldata) in valid_block_numbers_and_calldata {
+            self.fee_input.expect_for_block(number, 1.0);
             let number = api::BlockIdVariant::BlockNumber(number);
             let call_result = client
                 .call(Self::call_request(calldata), Some(number), None)
@@ -101,11 +154,13 @@ impl HttpTest for CallTest {
 
 #[tokio::test]
 async fn call_method_basics() {
-    test_http_server(CallTest).await;
+    test_http_server(CallTest::default()).await;
 }
 
-#[derive(Debug)]
-struct CallTestAfterSnapshotRecovery;
+#[derive(Debug, Default)]
+struct CallTestAfterSnapshotRecovery {
+    fee_input: ExpectedFeeInput,
+}
 
 #[async_trait]
 impl HttpTest for CallTestAfterSnapshotRecovery {
@@ -115,7 +170,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
 
     fn transaction_executor(&self) -> MockOneshotExecutor {
         let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        CallTest::create_executor(first_local_l2_block)
+        CallTest::create_executor(first_local_l2_block, self.fee_input.clone())
     }
 
     async fn test(
@@ -150,6 +205,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
 
         let first_l2_block_numbers = [api::BlockNumber::Latest, first_local_l2_block.0.into()];
         for number in first_l2_block_numbers {
+            self.fee_input.expect_for_block(number, 1.0);
             let number = api::BlockIdVariant::BlockNumber(number);
             let call_result = client
                 .call(CallTest::call_request(b"latest"), Some(number), None)
@@ -162,7 +218,7 @@ impl HttpTest for CallTestAfterSnapshotRecovery {
 
 #[tokio::test]
 async fn call_method_after_snapshot_recovery() {
-    test_http_server(CallTestAfterSnapshotRecovery).await;
+    test_http_server(CallTestAfterSnapshotRecovery::default()).await;
 }
 
 #[derive(Debug)]
@@ -390,10 +446,14 @@ async fn send_raw_transaction_with_detailed_output() {
     test_http_server(SendTransactionWithDetailedOutputTest).await;
 }
 
-#[derive(Debug)]
-struct TraceCallTest;
+#[derive(Debug, Default)]
+struct TraceCallTest {
+    fee_input: ExpectedFeeInput,
+}
 
 impl TraceCallTest {
+    const FEE_SCALE: f64 = 1.2; // set in the tx sender config
+
     fn assert_debug_call(call_request: &CallRequest, call_result: &api::DebugCall) {
         assert_eq!(call_result.from, Address::zero());
         assert_eq!(call_result.gas, call_request.gas.unwrap());
@@ -413,7 +473,7 @@ impl TraceCallTest {
 #[async_trait]
 impl HttpTest for TraceCallTest {
     fn transaction_executor(&self) -> MockOneshotExecutor {
-        CallTest::create_executor(L2BlockNumber(1))
+        CallTest::create_executor(L2BlockNumber(1), self.fee_input.clone())
     }
 
     async fn test(
@@ -426,6 +486,7 @@ impl HttpTest for TraceCallTest {
         store_l2_block(&mut connection, L2BlockNumber(1), &[]).await?;
         drop(connection);
 
+        self.fee_input.expect_default(Self::FEE_SCALE);
         let call_request = CallTest::call_request(b"pending");
         let call_result = client.trace_call(call_request.clone(), None, None).await?;
         Self::assert_debug_call(&call_request, &call_result);
@@ -438,6 +499,7 @@ impl HttpTest for TraceCallTest {
         let latest_block_numbers = [api::BlockNumber::Latest, 1.into()];
         let call_request = CallTest::call_request(b"latest");
         for number in latest_block_numbers {
+            self.fee_input.expect_for_block(number, Self::FEE_SCALE);
             let call_result = client
                 .trace_call(
                     call_request.clone(),
@@ -469,11 +531,13 @@ impl HttpTest for TraceCallTest {
 
 #[tokio::test]
 async fn trace_call_basics() {
-    test_http_server(TraceCallTest).await;
+    test_http_server(TraceCallTest::default()).await;
 }
 
-#[derive(Debug)]
-struct TraceCallTestAfterSnapshotRecovery;
+#[derive(Debug, Default)]
+struct TraceCallTestAfterSnapshotRecovery {
+    fee_input: ExpectedFeeInput,
+}
 
 #[async_trait]
 impl HttpTest for TraceCallTestAfterSnapshotRecovery {
@@ -483,7 +547,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
 
     fn transaction_executor(&self) -> MockOneshotExecutor {
         let number = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
-        CallTest::create_executor(number)
+        CallTest::create_executor(number, self.fee_input.clone())
     }
 
     async fn test(
@@ -491,6 +555,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         client: &DynClient<L2>,
         _pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
+        self.fee_input.expect_default(TraceCallTest::FEE_SCALE);
         let call_request = CallTest::call_request(b"pending");
         let call_result = client.trace_call(call_request.clone(), None, None).await?;
         TraceCallTest::assert_debug_call(&call_request, &call_result);
@@ -514,6 +579,8 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         let call_request = CallTest::call_request(b"latest");
         let first_l2_block_numbers = [api::BlockNumber::Latest, first_local_l2_block.0.into()];
         for number in first_l2_block_numbers {
+            self.fee_input
+                .expect_for_block(number, TraceCallTest::FEE_SCALE);
             let number = api::BlockId::Number(number);
             let call_result = client
                 .trace_call(call_request.clone(), Some(number), None)
@@ -526,7 +593,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
 
 #[tokio::test]
 async fn trace_call_after_snapshot_recovery() {
-    test_http_server(TraceCallTestAfterSnapshotRecovery).await;
+    test_http_server(TraceCallTestAfterSnapshotRecovery::default()).await;
 }
 
 #[derive(Debug)]

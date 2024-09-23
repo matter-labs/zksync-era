@@ -12,7 +12,7 @@ use zksync_config::{
 use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
-    tx_sender::{ApiContracts, TxSenderConfig},
+    tx_sender::TxSenderConfig,
     web3::{state::InternalApiConfig, Namespace},
 };
 use zksync_node_framework::{
@@ -322,7 +322,6 @@ impl MainNodeBuilder {
             ),
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),
-            ApiContracts::load_from_disk_blocking(), // TODO (BFT-138): Allow to dynamically reload API contracts
         ));
         Ok(self)
     }
