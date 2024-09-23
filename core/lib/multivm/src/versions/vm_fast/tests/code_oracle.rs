@@ -6,6 +6,7 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    versions::testonly::ContractToDeploy,
     vm_fast::{
         circuits_tracer::CircuitsTracer,
         tests::{
@@ -41,10 +42,9 @@ fn test_code_oracle() {
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
-        .with_custom_contracts(vec![(
+        .with_custom_contracts(vec![ContractToDeploy::new(
             precompile_contract_bytecode,
             precompiles_contract_address,
-            false,
         )])
         .with_storage(storage)
         .build();
@@ -134,10 +134,9 @@ fn test_code_oracle_big_bytecode() {
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
-        .with_custom_contracts(vec![(
+        .with_custom_contracts(vec![ContractToDeploy::new(
             precompile_contract_bytecode,
             precompiles_contract_address,
-            false,
         )])
         .with_storage(storage)
         .build();
@@ -198,10 +197,9 @@ fn refunds_in_code_oracle() {
         let mut vm = VmTesterBuilder::new()
             .with_execution_mode(TxExecutionMode::VerifyExecute)
             .with_random_rich_accounts(1)
-            .with_custom_contracts(vec![(
+            .with_custom_contracts(vec![ContractToDeploy::new(
                 precompile_contract_bytecode.clone(),
                 precompiles_contract_address,
-                false,
             )])
             .with_storage(storage.clone())
             .build();

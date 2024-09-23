@@ -27,6 +27,8 @@ once_cell.workspace = true
 md5.workspace = true
 sha3.workspace = true
 hex.workspace = true
+tokio.workspace = true
+futures = { workspace = true, features = ["compat"] }
 
 [features]
 default = []

@@ -95,6 +95,7 @@ pub fn get_genesis_specs(
         attesters: vec![attester],
         leader,
         registry_address: None,
+        seed_peers: [].into(),
     }
 }
 
