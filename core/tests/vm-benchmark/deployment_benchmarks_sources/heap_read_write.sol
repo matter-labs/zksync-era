@@ -11,11 +11,15 @@ contract HeapBenchmark {
             mstore(add(array, sub(n, 1)), 4242)
 
             let j := 0
-            for {} lt(j, n) {} {
+            for {
+
+            } lt(j, n) {
+
+            } {
                 v1 := mload(add(array, mod(mul(j, j), n)))
                 v2 := mload(add(array, j))
                 mstore(add(array, j), add(add(v1, v2), 42))
-                j := add(j, 1) 
+                j := add(j, 1)
                 if gt(j, sub(n, 1)) {
                     j := 0
                 }

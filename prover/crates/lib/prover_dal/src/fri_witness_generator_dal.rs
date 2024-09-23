@@ -248,7 +248,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn requeue_stuck_jobs(
+    pub async fn requeue_stuck_basic_jobs(
         &mut self,
         processing_timeout: Duration,
         max_attempts: u32,
@@ -268,18 +268,15 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     AND attempts < $2
                 )
                 OR (
-                    status = 'in_gpu_proof'
-                    AND processing_started_at <= NOW() - $1::INTERVAL
-                    AND attempts < $2
-                )
-                OR (
                     status = 'failed'
                     AND attempts < $2
                 )
             RETURNING
                 l1_batch_number,
                 status,
-                attempts
+                attempts,
+                error,
+                picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -293,6 +290,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             status: row.status,
             attempts: row.attempts as u64,
             circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
         })
         .collect()
     }
@@ -936,7 +935,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .collect()
     }
 
-    pub async fn requeue_stuck_leaf_aggregations_jobs(
+    pub async fn requeue_stuck_leaf_jobs(
         &mut self,
         processing_timeout: Duration,
         max_attempts: u32,
@@ -963,7 +962,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 id,
                 status,
                 attempts,
-                circuit_id
+                circuit_id,
+                error,
+                picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -977,11 +978,13 @@ impl FriWitnessGeneratorDal<'_, '_> {
             status: row.status,
             attempts: row.attempts as u64,
             circuit_id: Some(row.circuit_id as u32),
+            error: row.error,
+            picked_by: row.picked_by,
         })
         .collect()
     }
 
-    pub async fn requeue_stuck_node_aggregations_jobs(
+    pub async fn requeue_stuck_node_jobs(
         &mut self,
         processing_timeout: Duration,
         max_attempts: u32,
@@ -1008,7 +1011,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 id,
                 status,
                 attempts,
-                circuit_id
+                circuit_id,
+                error,
+                picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1022,6 +1027,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             status: row.status,
             attempts: row.attempts as u64,
             circuit_id: Some(row.circuit_id as u32),
+            error: row.error,
+            picked_by: row.picked_by,
         })
         .collect()
     }
@@ -1052,7 +1059,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 l1_batch_number,
                 status,
-                attempts
+                attempts,
+                error,
+                picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1066,6 +1075,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             status: row.status,
             attempts: row.attempts as u64,
             circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
         })
         .collect()
     }
@@ -1164,7 +1175,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 l1_batch_number,
                 status,
-                attempts
+                attempts,
+                error,
+                picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1178,6 +1191,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
             status: row.status,
             attempts: row.attempts as u64,
             circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
         })
         .collect()
     }
@@ -1363,7 +1378,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn get_witness_jobs_stats(
         &mut self,
         aggregation_round: AggregationRound,
-    ) -> HashMap<(AggregationRound, ProtocolSemanticVersion), JobCountStatistics> {
+    ) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {
         let table_name = Self::input_table_name_for(aggregation_round);
         let sql = format!(
             r#"
@@ -1392,7 +1407,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         .unwrap(),
                     VersionPatch(row.get::<i32, &str>("protocol_version_patch") as u32),
                 );
-                let key = (aggregation_round, protocol_semantic_version);
+                let key = protocol_semantic_version;
                 let value = JobCountStatistics {
                     queued: row.get::<i64, &str>("queued") as usize,
                     in_progress: row.get::<i64, &str>("in_progress") as usize,
@@ -1694,7 +1709,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
-        let query = format!(
+        sqlx::query!(
             r#"
             UPDATE witness_inputs_fri
             SET
@@ -1702,29 +1717,32 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
-                l1_batch_number = {}
-                AND attempts >= {}
+                l1_batch_number = $1
+                AND attempts >= $2
                 AND (status = 'in_progress' OR status = 'failed')
             RETURNING
                 l1_batch_number,
                 status,
-                attempts
+                attempts,
+                error,
+                picked_by
             "#,
             i64::from(block_number.0),
-            max_attempts
-        );
-        sqlx::query(&query)
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| StuckJobs {
-                id: row.get::<i64, &str>("l1_batch_number") as u64,
-                status: row.get("status"),
-                attempts: row.get::<i16, &str>("attempts") as u64,
-                circuit_id: None,
-            })
-            .collect()
+            max_attempts as i64
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| StuckJobs {
+            id: row.l1_batch_number as u64,
+            status: row.status,
+            attempts: row.attempts as u64,
+            circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
+        })
+        .collect()
     }
 
     pub async fn requeue_stuck_leaf_aggregation_jobs_for_batch(
@@ -1758,7 +1776,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
-        let query = format!(
+        sqlx::query!(
             r#"
             UPDATE recursion_tip_witness_jobs_fri
             SET
@@ -1766,29 +1784,32 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
-                l1_batch_number = {}
-                AND attempts >= {}
+                l1_batch_number = $1
+                AND attempts >= $2
                 AND (status = 'in_progress' OR status = 'failed')
             RETURNING
                 l1_batch_number,
                 status,
-                attempts
+                attempts,
+                error,
+                picked_by
             "#,
             i64::from(block_number.0),
-            max_attempts
-        );
-        sqlx::query(&query)
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| StuckJobs {
-                id: row.get::<i64, &str>("l1_batch_number") as u64,
-                status: row.get("status"),
-                attempts: row.get::<i16, &str>("attempts") as u64,
-                circuit_id: None,
-            })
-            .collect()
+            max_attempts as i64
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| StuckJobs {
+            id: row.l1_batch_number as u64,
+            status: row.status,
+            attempts: row.attempts as u64,
+            circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
+        })
+        .collect()
     }
 
     pub async fn requeue_stuck_scheduler_jobs_for_batch(
@@ -1796,7 +1817,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
-        let query = format!(
+        sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
             SET
@@ -1804,29 +1825,32 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
-                l1_batch_number = {}
-                AND attempts >= {}
+                l1_batch_number = $1
+                AND attempts >= $2
                 AND (status = 'in_progress' OR status = 'failed')
             RETURNING
                 l1_batch_number,
                 status,
-                attempts
+                attempts,
+                error,
+                picked_by
             "#,
             i64::from(block_number.0),
-            max_attempts
-        );
-        sqlx::query(&query)
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| StuckJobs {
-                id: row.get::<i64, &str>("l1_batch_number") as u64,
-                status: row.get("status"),
-                attempts: row.get::<i16, &str>("attempts") as u64,
-                circuit_id: None,
-            })
-            .collect()
+            max_attempts as i64
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| StuckJobs {
+            id: row.l1_batch_number as u64,
+            status: row.status,
+            attempts: row.attempts as u64,
+            circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
+        })
+        .collect()
     }
 
     async fn requeue_stuck_jobs_for_batch_in_aggregation_round(
@@ -1852,7 +1876,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 {},
                 status,
                 attempts,
-                circuit_id
+                circuit_id,
+                error,
+                picked_by
             "#,
             table_name,
             i64::from(block_number.0),
@@ -1869,6 +1895,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 status: row.get("status"),
                 attempts: row.get::<i16, &str>("attempts") as u64,
                 circuit_id: Some(row.get::<i16, &str>("circuit_id") as u32),
+                error: row.get("error"),
+                picked_by: row.get("picked_by"),
             })
             .collect()
     }

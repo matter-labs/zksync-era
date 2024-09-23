@@ -5,6 +5,7 @@ pub use self::{
     commitment_generator::CommitmentGeneratorConfig,
     contract_verifier::ContractVerifierConfig,
     contracts::{ContractsConfig, EcosystemContracts},
+    da_client::{avail::AvailConfig, DAClientConfig},
     da_dispatcher::DADispatcherConfig,
     database::{DBConfig, PostgresConfig},
     eth_sender::{EthConfig, GasAdjusterConfig},
@@ -22,6 +23,7 @@ pub use self::{
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
     proof_data_handler::ProofDataHandlerConfig,
+    prover_job_monitor::ProverJobMonitorConfig,
     pruning::PruningConfig,
     secrets::{DatabaseSecrets, L1Secrets, Secrets},
     snapshot_recovery::SnapshotRecoveryConfig,
@@ -37,6 +39,7 @@ mod commitment_generator;
 pub mod consensus;
 pub mod contract_verifier;
 pub mod contracts;
+pub mod da_client;
 pub mod da_dispatcher;
 pub mod database;
 pub mod en_config;
@@ -57,6 +60,7 @@ pub mod house_keeper;
 pub mod object_store;
 pub mod observability;
 pub mod proof_data_handler;
+pub mod prover_job_monitor;
 pub mod pruning;
 pub mod secrets;
 pub mod snapshot_recovery;

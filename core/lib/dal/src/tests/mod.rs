@@ -13,10 +13,11 @@ use zksync_types::{
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     snapshots::SnapshotRecoveryStatus,
     Address, Execute, K256PrivateKey, L1BatchNumber, L1BlockNumber, L1TxCommonData, L2BlockNumber,
-    L2ChainId, PriorityOpId, ProtocolVersion, ProtocolVersionId, VmEvent, H160, H256, U256,
+    L2ChainId, PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, U256,
 };
 use zksync_vm_interface::{
-    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmExecutionMetrics,
+    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
+    VmExecutionMetrics,
 };
 
 use crate::{
@@ -73,7 +74,7 @@ pub(crate) fn mock_l2_transaction() -> L2Tx {
         gas_per_pubdata_limit: U256::from(DEFAULT_GAS_PER_PUBDATA),
     };
     let mut l2_tx = L2Tx::new_signed(
-        Address::random(),
+        Some(Address::random()),
         vec![],
         zksync_types::Nonce(0),
         fee,
@@ -109,7 +110,7 @@ pub(crate) fn mock_l1_execute() -> L1Tx {
     };
 
     let execute = Execute {
-        contract_address: H160::random(),
+        contract_address: Some(H160::random()),
         value: Default::default(),
         calldata: vec![],
         factory_deps: vec![],
@@ -137,7 +138,7 @@ pub(crate) fn mock_protocol_upgrade_transaction() -> ProtocolUpgradeTx {
     };
 
     let execute = Execute {
-        contract_address: H160::random(),
+        contract_address: Some(H160::random()),
         value: Default::default(),
         calldata: vec![],
         factory_deps: vec![],

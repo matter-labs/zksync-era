@@ -288,6 +288,7 @@ impl FriProofCompressorDal<'_, '_> {
                 proof_compression_jobs_fri
             WHERE
                 status <> 'successful'
+                AND status <> 'sent_to_server'
             ORDER BY
                 l1_batch_number ASC
             LIMIT
@@ -329,7 +330,9 @@ impl FriProofCompressorDal<'_, '_> {
                 RETURNING
                     l1_batch_number,
                     status,
-                    attempts
+                    attempts,
+                    error,
+                    picked_by
                 "#,
                 &processing_timeout,
                 max_attempts as i32,
@@ -343,6 +346,8 @@ impl FriProofCompressorDal<'_, '_> {
                 status: row.status,
                 attempts: row.attempts as u64,
                 circuit_id: None,
+                error: row.error,
+                picked_by: row.picked_by,
             })
             .collect()
         }
@@ -431,7 +436,9 @@ impl FriProofCompressorDal<'_, '_> {
                     )
                 RETURNING
                     status,
-                    attempts
+                    attempts,
+                    error,
+                    picked_by
                 "#,
                 i64::from(block_number.0),
                 max_attempts as i32,
@@ -445,6 +452,8 @@ impl FriProofCompressorDal<'_, '_> {
                 status: row.status,
                 attempts: row.attempts as u64,
                 circuit_id: None,
+                error: row.error,
+                picked_by: row.picked_by,
             })
             .collect()
         }

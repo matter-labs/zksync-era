@@ -18,7 +18,7 @@ use zksync_prover_fri_types::{
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 
 #[derive(ClapArgs)]
-pub(crate) struct Args {
+pub struct Args {
     #[clap(short, long)]
     file_path: String,
 }

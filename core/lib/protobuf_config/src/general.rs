@@ -22,12 +22,13 @@ impl ProtoRepr for proto::GeneralConfig {
             prover_group_config: read_optional_repr(&self.prover_group),
             prometheus_config: read_optional_repr(&self.prometheus),
             proof_data_handler_config: read_optional_repr(&self.data_handler),
-            witness_generator: read_optional_repr(&self.witness_generator),
+            witness_generator_config: read_optional_repr(&self.witness_generator),
             api_config: read_optional_repr(&self.api),
             db_config: read_optional_repr(&self.db),
             eth: read_optional_repr(&self.eth),
             snapshot_creator: read_optional_repr(&self.snapshot_creator),
             observability: read_optional_repr(&self.observability),
+            da_client_config: read_optional_repr(&self.da_client),
             da_dispatcher_config: read_optional_repr(&self.da_dispatcher),
             protective_reads_writer_config: read_optional_repr(&self.protective_reads_writer),
             basic_witness_input_producer_config: read_optional_repr(
@@ -44,6 +45,7 @@ impl ProtoRepr for proto::GeneralConfig {
                 &self.external_proof_integration_api,
             ),
             experimental_vm_config: read_optional_repr(&self.experimental_vm),
+            prover_job_monitor_config: read_optional_repr(&self.prover_job_monitor),
         })
     }
 
@@ -62,7 +64,7 @@ impl ProtoRepr for proto::GeneralConfig {
             proof_compressor: this.proof_compressor_config.as_ref().map(ProtoRepr::build),
             prover: this.prover_config.as_ref().map(ProtoRepr::build),
             prover_group: this.prover_group_config.as_ref().map(ProtoRepr::build),
-            witness_generator: this.witness_generator.as_ref().map(ProtoRepr::build),
+            witness_generator: this.witness_generator_config.as_ref().map(ProtoRepr::build),
             prover_gateway: this.prover_gateway.as_ref().map(ProtoRepr::build),
             witness_vector_generator: this.witness_vector_generator.as_ref().map(ProtoRepr::build),
             prometheus: this.prometheus_config.as_ref().map(ProtoRepr::build),
@@ -75,6 +77,7 @@ impl ProtoRepr for proto::GeneralConfig {
             eth: this.eth.as_ref().map(ProtoRepr::build),
             snapshot_creator: this.snapshot_creator.as_ref().map(ProtoRepr::build),
             observability: this.observability.as_ref().map(ProtoRepr::build),
+            da_client: this.da_client_config.as_ref().map(ProtoRepr::build),
             da_dispatcher: this.da_dispatcher_config.as_ref().map(ProtoRepr::build),
             protective_reads_writer: this
                 .protective_reads_writer_config
@@ -99,6 +102,10 @@ impl ProtoRepr for proto::GeneralConfig {
                 .as_ref()
                 .map(ProtoRepr::build),
             experimental_vm: this.experimental_vm_config.as_ref().map(ProtoRepr::build),
+            prover_job_monitor: this
+                .prover_job_monitor_config
+                .as_ref()
+                .map(ProtoRepr::build),
         }
     }
 }

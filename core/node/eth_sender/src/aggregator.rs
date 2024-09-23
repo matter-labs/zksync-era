@@ -333,16 +333,13 @@ impl Aggregator {
         // keys that correspond to one on L1.
         let allowed_patch_versions = storage
             .protocol_versions_dal()
-            .get_patch_versions_for_vk(
-                minor_version,
-                l1_verifier_config.recursion_scheduler_level_vk_hash,
-            )
+            .get_patch_versions_for_vk(minor_version, l1_verifier_config.snark_wrapper_vk_hash)
             .await
             .unwrap();
         if allowed_patch_versions.is_empty() {
             tracing::warn!(
                 "No patch version corresponds to the verification key on L1: {:?}",
-                l1_verifier_config.recursion_scheduler_level_vk_hash
+                l1_verifier_config.snark_wrapper_vk_hash
             );
             return None;
         };

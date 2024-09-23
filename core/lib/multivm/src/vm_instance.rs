@@ -4,16 +4,19 @@ use crate::{
     glue::history_mode::HistoryMode,
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
-        BootloaderMemory, BytecodeCompressionError, CompressedBytecodeInfo, CurrentExecutionState,
-        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics,
+        utils::ShadowVm,
+        BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
+        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
-    versions::shadow::ShadowVm,
 };
 
-pub type ShadowedFastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, H>>;
+pub(crate) type ShadowedVmFast<S, H> = ShadowVm<
+    S,
+    crate::vm_latest::Vm<StorageView<S>, H>,
+    crate::vm_fast::Vm<ImmutableStorageView<S>>,
+>;
 
 #[derive(Debug)]
 pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
@@ -27,7 +30,7 @@ pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
     Vm1_4_2(crate::vm_1_4_2::Vm<StorageView<S>, H>),
     Vm1_5_0(crate::vm_latest::Vm<StorageView<S>, H>),
     VmFast(crate::vm_fast::Vm<ImmutableStorageView<S>>),
-    ShadowedVmFast(ShadowedFastVm<S, H>),
+    ShadowedVmFast(ShadowedVmFast<S, H>),
 }
 
 macro_rules! dispatch_vm {
@@ -56,12 +59,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for VmInstance<S, H> {
         dispatch_vm!(self.push_transaction(tx))
     }
 
-    /// Execute the batch without stops after each tx.
-    /// This method allows to execute the part  of the VM cycle after executing all txs.
-    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        dispatch_vm!(self.execute(execution_mode))
-    }
-
     /// Execute next transaction with custom tracers
     fn inspect(
         &mut self,
@@ -71,33 +68,8 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for VmInstance<S, H> {
         dispatch_vm!(self.inspect(dispatcher.into(), execution_mode))
     }
 
-    fn get_bootloader_memory(&self) -> BootloaderMemory {
-        dispatch_vm!(self.get_bootloader_memory())
-    }
-
-    /// Get compressed bytecodes of the last executed transaction
-    fn get_last_tx_compressed_bytecodes(&self) -> Vec<CompressedBytecodeInfo> {
-        dispatch_vm!(self.get_last_tx_compressed_bytecodes())
-    }
-
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         dispatch_vm!(self.start_new_l2_block(l2_block_env))
-    }
-
-    fn get_current_execution_state(&self) -> CurrentExecutionState {
-        dispatch_vm!(self.get_current_execution_state())
-    }
-
-    /// Execute transaction with optional bytecode compression.
-    fn execute_transaction_with_bytecode_compression(
-        &mut self,
-        tx: zksync_types::Transaction,
-        with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
-        dispatch_vm!(self.execute_transaction_with_bytecode_compression(tx, with_compression))
     }
 
     /// Inspect transaction with optional bytecode compression.
@@ -106,10 +78,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for VmInstance<S, H> {
         dispatcher: Self::TracerDispatcher,
         tx: zksync_types::Transaction,
         with_compression: bool,
-    ) -> (
-        Result<(), BytecodeCompressionError>,
-        VmExecutionResultAndLogs,
-    ) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         dispatch_vm!(self.inspect_transaction_with_bytecode_compression(
             dispatcher.into(),
             tx,
@@ -119,10 +88,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for VmInstance<S, H> {
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
         dispatch_vm!(self.record_vm_memory_metrics())
-    }
-
-    fn gas_remaining(&self) -> u32 {
-        dispatch_vm!(self.gas_remaining())
     }
 
     /// Return the results of execution of all batch
@@ -261,10 +226,15 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 FastVmMode::Old => Self::new(l1_batch_env, system_env, storage_view),
                 FastVmMode::New => {
                     let storage = ImmutableStorageView::new(storage_view);
-                    Self::VmFast(crate::vm_fast::Vm::new(l1_batch_env, system_env, storage))
+                    Self::VmFast(crate::vm_fast::Vm::custom(
+                        l1_batch_env,
+                        system_env,
+                        storage,
+                    ))
                 }
                 FastVmMode::Shadow => {
-                    Self::ShadowedVmFast(ShadowVm::new(l1_batch_env, system_env, storage_view))
+                    let vm = ShadowVm::new(l1_batch_env, system_env, storage_view);
+                    Self::ShadowedVmFast(vm)
                 }
             },
             _ => Self::new(l1_batch_env, system_env, storage_view),

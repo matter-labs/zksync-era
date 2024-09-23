@@ -108,8 +108,8 @@ impl CallRequestBuilder {
     }
 
     /// Set to address (None allowed for eth_estimateGas)
-    pub fn to(mut self, to: Address) -> Self {
-        self.call_request.to = Some(to);
+    pub fn to(mut self, to: Option<Address>) -> Self {
+        self.call_request.to = to;
         self
     }
 
@@ -817,10 +817,13 @@ impl L2Tx {
         let meta = value.eip712_meta.take().unwrap_or_default();
         validate_factory_deps(&meta.factory_deps)?;
 
+        // TODO: Remove this check when evm equivalence gets enabled
+        if value.to.is_none() {
+            return Err(SerializationTransactionError::ToAddressIsNull);
+        }
+
         let mut tx = L2Tx::new(
-            value
-                .to
-                .ok_or(SerializationTransactionError::ToAddressIsNull)?,
+            value.to,
             value.input.0.clone(),
             nonce,
             fee,
@@ -980,6 +983,7 @@ pub fn validate_factory_deps(
 
 #[cfg(test)]
 mod tests {
+    use assert_matches::assert_matches;
     use zksync_crypto_primitives::K256PrivateKey;
 
     use super::*;
@@ -1427,10 +1431,10 @@ mod tests {
         tx.s = Some(U256::from_big_endian(signature.s()));
         let request =
             TransactionRequest::from_bytes(data.as_slice(), L2ChainId::from(270)).unwrap();
-        assert!(matches!(
+        assert_matches!(
             L2Tx::from_request(request.0, random_tx_max_size),
             Err(SerializationTransactionError::OversizedData(_, _))
-        ))
+        )
     }
 
     #[test]
@@ -1456,10 +1460,10 @@ mod tests {
         let try_to_l2_tx: Result<L2Tx, SerializationTransactionError> =
             L2Tx::from_request(call_request.into(), random_tx_max_size);
 
-        assert!(matches!(
+        assert_matches!(
             try_to_l2_tx,
             Err(SerializationTransactionError::OversizedData(_, _))
-        ));
+        );
     }
 
     #[test]

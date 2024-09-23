@@ -7,18 +7,14 @@ use zk_evm_1_4_0::{
     vm_state::VmLocalState,
 };
 use zksync_system_constants::{PUBLISH_BYTECODE_OVERHEAD, SYSTEM_CONTEXT_ADDRESS};
-use zksync_types::{
-    event::{extract_long_l2_to_l1_messages, extract_published_bytecodes},
-    l2_to_l1_log::L2ToL1Log,
-    L1BatchNumber, U256,
-};
+use zksync_types::{l2_to_l1_log::L2ToL1Log, L1BatchNumber, U256};
 use zksync_utils::{bytecode::bytecode_len_in_bytes, ceil_div_u256, u256_to_h256};
 
 use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         tracer::TracerExecutionStatus,
-        L1BatchEnv, Refunds,
+        L1BatchEnv, Refunds, VmEvent,
     },
     tracers::dynamic::vm_1_4_0::DynTracer,
     vm_boojum_integration::{
@@ -336,12 +332,12 @@ pub(crate) fn pubdata_published<S: WriteStorage, H: HistoryMode>(
         .filter(|log| log.sender != SYSTEM_CONTEXT_ADDRESS)
         .count() as u32)
         * zk_evm_1_4_0::zkevm_opcode_defs::system_params::L1_MESSAGE_PUBDATA_BYTES;
-    let l2_l1_long_messages_bytes: u32 = extract_long_l2_to_l1_messages(&events)
+    let l2_l1_long_messages_bytes: u32 = VmEvent::extract_long_l2_to_l1_messages(&events)
         .iter()
         .map(|event| event.len() as u32)
         .sum();
 
-    let published_bytecode_bytes: u32 = extract_published_bytecodes(&events)
+    let published_bytecode_bytes: u32 = VmEvent::extract_published_bytecodes(&events)
         .iter()
         .map(|bytecodehash| bytecode_len_in_bytes(*bytecodehash) as u32 + PUBLISH_BYTECODE_OVERHEAD)
         .sum();

@@ -8,8 +8,9 @@ use ethers::{
     providers::Middleware,
     types::{Address, TransactionRequest, H256},
 };
+use types::TokenInfo;
 
-use crate::{logger, wallets::Wallet};
+use crate::wallets::Wallet;
 
 pub fn create_ethers_client(
     private_key: H256,
@@ -58,9 +59,27 @@ pub async fn distribute_eth(
 abigen!(
     TokenContract,
     r"[
+    function name() external view returns (string)
+    function symbol() external view returns (string)
+    function decimals() external view returns (uint8)
     function mint(address to, uint256 amount)
     ]"
 );
+
+pub async fn get_token_info(token_address: Address, rpc_url: String) -> anyhow::Result<TokenInfo> {
+    let provider = Provider::<Http>::try_from(rpc_url)?;
+    let contract = TokenContract::new(token_address, Arc::new(provider));
+
+    let name = contract.name().call().await?;
+    let symbol = contract.symbol().call().await?;
+    let decimals = contract.decimals().call().await?;
+
+    Ok(TokenInfo {
+        name,
+        symbol,
+        decimals,
+    })
+}
 
 pub async fn mint_token(
     main_wallet: Wallet,
@@ -70,35 +89,30 @@ pub async fn mint_token(
     chain_id: u64,
     amount: u128,
 ) -> anyhow::Result<()> {
-    let client = Arc::new(create_ethers_client(
-        main_wallet.private_key.unwrap(),
-        l1_rpc,
-        Some(chain_id),
-    )?);
+    let client = Arc::new(
+        create_ethers_client(main_wallet.private_key.unwrap(), l1_rpc, Some(chain_id))?
+            .nonce_manager(main_wallet.address),
+    );
 
     let contract = TokenContract::new(token_address, client);
-    // contract
+
+    let mut pending_calls = vec![];
     for address in addresses {
-        if let Err(err) = mint(&contract, address, amount).await {
-            logger::warn(format!("Failed to mint {err}"))
-        }
+        pending_calls.push(contract.mint(address, amount.into()));
     }
 
-    Ok(())
-}
+    let mut pending_txs = vec![];
+    for call in &pending_calls {
+        pending_txs.push(
+            call.send()
+                .await?
+                // It's safe to set such low number of confirmations and low interval for localhost
+                .confirmations(3)
+                .interval(Duration::from_millis(30)),
+        );
+    }
 
-async fn mint<T: Middleware + 'static>(
-    contract: &TokenContract<T>,
-    address: Address,
-    amount: u128,
-) -> anyhow::Result<()> {
-    contract
-        .mint(address, amount.into())
-        .send()
-        .await?
-        // It's safe to set such low number of confirmations and low interval for localhost
-        .confirmations(1)
-        .interval(Duration::from_millis(30))
-        .await?;
+    futures::future::join_all(pending_txs).await;
+
     Ok(())
 }

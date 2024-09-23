@@ -3,7 +3,10 @@ use zksync_contracts::{load_contract, read_bytecode};
 use zksync_types::{Address, Execute, U256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled},
+    interface::{
+        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
+    },
+    versions::testonly::ContractToDeploy,
     vm_fast::tests::tester::VmTesterBuilder,
 };
 
@@ -21,14 +24,14 @@ fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()
         .with_random_rich_accounts(1)
-        .with_custom_contracts(vec![(bytecode, test_contract_address, false)])
+        .with_custom_contracts(vec![ContractToDeploy::new(bytecode, test_contract_address)])
         .build();
 
     let account = &mut vm.rich_accounts[0];
 
     let tx1 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: test_contract_address,
+            contract_address: Some(test_contract_address),
             calldata: first_tx_calldata,
             value: 0.into(),
             factory_deps: vec![],
@@ -38,7 +41,7 @@ fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 
 
     let tx2 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: test_contract_address,
+            contract_address: Some(test_contract_address),
             calldata: second_tx_calldata,
             value: 0.into(),
             factory_deps: vec![],

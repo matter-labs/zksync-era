@@ -57,6 +57,14 @@ impl LogsBloomBackfill {
             return Ok(()); // Stop signal received
         }
 
+        let genesis_block_has_bloom = connection
+            .blocks_dal()
+            .has_l2_block_bloom(L2BlockNumber(0))
+            .await?;
+        if genesis_block_has_bloom {
+            return Ok(()); // Migration has already been completed.
+        }
+
         let max_block_without_bloom = connection
             .blocks_dal()
             .get_max_l2_block_without_bloom()
@@ -124,8 +132,9 @@ impl LogsBloomBackfill {
 #[cfg(test)]
 mod tests {
     use zksync_types::{
-        block::L2BlockHeader, tx::IncludedTxLocation, Address, L1BatchNumber, VmEvent, H256,
+        block::L2BlockHeader, tx::IncludedTxLocation, Address, L1BatchNumber, H256,
     };
+    use zksync_vm_interface::VmEvent;
 
     use super::*;
 

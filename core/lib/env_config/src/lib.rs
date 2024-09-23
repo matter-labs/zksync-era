@@ -26,10 +26,13 @@ mod da_dispatcher;
 mod external_price_api_client;
 mod external_proof_integration_api;
 mod genesis;
+mod prover_job_monitor;
 #[cfg(test)]
 mod test_utils;
 mod vm_runner;
 mod wallets;
+
+mod da_client;
 
 pub trait FromEnv: Sized {
     fn from_env() -> anyhow::Result<Self>;

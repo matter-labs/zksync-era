@@ -11,12 +11,12 @@ use zk_evm_1_3_1::{
 };
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    L1BatchNumber, VmEvent, U256,
+    L1BatchNumber, U256,
 };
 
 use crate::{
     glue::GlueInto,
-    interface::{TxExecutionStatus, VmExecutionLogs},
+    interface::{TxExecutionStatus, VmEvent, VmExecutionLogs},
     versions::shared::VmExecutionTrace,
     vm_m5::{
         bootloader_state::BootloaderState,
@@ -157,6 +157,7 @@ pub struct VmPartialExecutionResult {
     pub revert_reason: Option<TxRevertReason>,
     pub contracts_used: usize,
     pub cycles_used: u32,
+    pub gas_remaining: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -682,6 +683,7 @@ impl<S: Storage> VmInstance<S> {
                                 .get_decommitted_bytes_after_timestamp(timestamp_initial),
                             cycles_used: self.state.local_state.monotonic_cycle_counter
                                 - cycles_initial,
+                            gas_remaining: self.gas_remaining(),
                         },
                     })
                 } else {
@@ -743,6 +745,7 @@ impl<S: Storage> VmInstance<S> {
                         .decommittment_processor
                         .get_decommitted_bytes_after_timestamp(timestamp_initial),
                     cycles_used: self.state.local_state.monotonic_cycle_counter - cycles_initial,
+                    gas_remaining: self.gas_remaining(),
                 };
 
                 // Collecting `block_tip_result` needs logs with timestamp, so we drain events for the `full_result`
@@ -799,6 +802,7 @@ impl<S: Storage> VmInstance<S> {
                 .decommittment_processor
                 .get_decommitted_bytes_after_timestamp(timestamp_initial),
             cycles_used: self.state.local_state.monotonic_cycle_counter - cycles_initial,
+            gas_remaining: self.gas_remaining(),
         }
     }
 

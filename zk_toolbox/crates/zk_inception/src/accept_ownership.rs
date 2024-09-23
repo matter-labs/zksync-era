@@ -19,8 +19,9 @@ use crate::{
 lazy_static! {
     static ref ACCEPT_ADMIN: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function acceptOwner(address governor, address target) public",
-            "function acceptAdmin(address admin, address target) public"
+            "function governanceAcceptOwner(address governor, address target) public",
+            "function chainAdminAcceptAdmin(address admin, address target) public",
+            "function chainSetTokenMultiplierSetter(address chainAdmin, address target) public"
         ])
         .unwrap(),
     );
@@ -42,7 +43,7 @@ pub async fn accept_admin(
     forge_args.resume = false;
 
     let calldata = ACCEPT_ADMIN
-        .encode("acceptAdmin", (admin, target_address))
+        .encode("chainAdminAcceptAdmin", (admin, target_address))
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_foundry();
     let forge = Forge::new(&foundry_contracts_path)
@@ -71,7 +72,7 @@ pub async fn accept_owner(
     forge_args.resume = false;
 
     let calldata = ACCEPT_ADMIN
-        .encode("acceptOwner", (governor_contract, target_address))
+        .encode("governanceAcceptOwner", (governor_contract, target_address))
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_foundry();
     let forge = Forge::new(&foundry_contracts_path)

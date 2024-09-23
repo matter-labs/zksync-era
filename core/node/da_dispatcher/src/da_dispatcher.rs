@@ -5,7 +5,10 @@ use chrono::Utc;
 use rand::Rng;
 use tokio::sync::watch::Receiver;
 use zksync_config::DADispatcherConfig;
-use zksync_da_client::{types::DAError, DataAvailabilityClient};
+use zksync_da_client::{
+    types::{DAError, InclusionData},
+    DataAvailabilityClient,
+};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L1BatchNumber;
 
@@ -133,16 +136,21 @@ impl DataAvailabilityDispatcher {
             return Ok(());
         };
 
-        let inclusion_data = self
-            .client
-            .get_inclusion_data(blob_info.blob_id.as_str())
-            .await
-            .with_context(|| {
-                format!(
-                    "failed to get inclusion data for blob_id: {}, batch_number: {}",
-                    blob_info.blob_id, blob_info.l1_batch_number
-                )
-            })?;
+        let inclusion_data = if self.config.use_dummy_inclusion_data() {
+            self.client
+                .get_inclusion_data(blob_info.blob_id.as_str())
+                .await
+                .with_context(|| {
+                    format!(
+                        "failed to get inclusion data for blob_id: {}, batch_number: {}",
+                        blob_info.blob_id, blob_info.l1_batch_number
+                    )
+                })?
+        } else {
+            // if the inclusion verification is disabled, we don't need to wait for the inclusion
+            // data before committing the batch, so simply return an empty vector
+            Some(InclusionData { data: vec![] })
+        };
 
         let Some(inclusion_data) = inclusion_data else {
             return Ok(());

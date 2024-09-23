@@ -9,7 +9,7 @@ use crate::{
         base_token_ratio_provider::BaseTokenRatioProviderResource,
         fee_input::{ApiFeeInputResource, SequencerFeeInputResource},
         gas_adjuster::GasAdjusterResource,
-        l1_tx_params::L1TxParamsResource,
+        l1_tx_params::TxParamsResource,
         pools::{PoolResource, ReplicaPool},
     },
     wiring_layer::{WiringError, WiringLayer},
@@ -38,7 +38,7 @@ pub struct Input {
 pub struct Output {
     pub sequencer_fee_input: SequencerFeeInputResource,
     pub api_fee_input: ApiFeeInputResource,
-    pub l1_tx_params: L1TxParamsResource,
+    pub l1_tx_params: TxParamsResource,
 }
 
 impl L1GasLayer {

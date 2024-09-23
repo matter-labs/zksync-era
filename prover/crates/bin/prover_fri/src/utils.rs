@@ -143,9 +143,19 @@ pub fn verify_proof(
 pub fn setup_metadata_to_setup_data_key(
     setup_metadata: &CircuitIdRoundTuple,
 ) -> ProverServiceDataKey {
-    ProverServiceDataKey {
-        circuit_id: setup_metadata.circuit_id,
-        round: setup_metadata.aggregation_round.into(),
+    let round = setup_metadata.aggregation_round.into();
+    match round {
+        AggregationRound::NodeAggregation => {
+            // For node aggregation only one key exist for all circuit types
+            ProverServiceDataKey {
+                circuit_id: ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
+                round,
+            }
+        }
+        _ => ProverServiceDataKey {
+            circuit_id: setup_metadata.circuit_id,
+            round,
+        },
     }
 }
 

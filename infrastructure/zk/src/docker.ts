@@ -12,6 +12,7 @@ const IMAGES = [
     'prover-gpu-fri',
     'witness-vector-generator',
     'prover-fri-gateway',
+    'prover-job-monitor',
     'proof-fri-gpu-compressor',
     'snapshots-creator',
     'verified-sources-fetcher'
@@ -73,6 +74,7 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
         'external-node',
         'contract-verifier',
         'prover-fri-gateway',
+        'prover-job-monitor',
         'snapshots-creator'
     ].includes(image)
         ? ['latest', 'latest2.0', `2.0-${imageTagSha}`, `${imageTagSha}`, `2.0-${imageTagShaTS}`, `${imageTagShaTS}`]
@@ -112,11 +114,19 @@ async function _build(image: string, tagList: string[], dockerOrg: string, platf
     if (platform != '') {
         buildArgs += `--platform=${platform} `;
     }
-    if (image === 'prover-gpu-fri') {
+    if (image === 'prover-gpu-fri' || image == 'proof-fri-gpu-compressor') {
         const cudaArch = process.env.CUDA_ARCH;
         buildArgs += `--build-arg CUDA_ARCH='${cudaArch}' `;
     }
+    if (image === 'witness-generator') {
+        const rustFlags = process.env.RUST_FLAGS;
+        if (rustFlags) {
+            buildArgs += `--build-arg RUST_FLAGS='${rustFlags}' `;
+        }
+    }
     buildArgs += extraArgs;
+
+    console.log('Build args: ', buildArgs);
 
     const buildCommand =
         `DOCKER_BUILDKIT=1 docker buildx build ${tagsToBuild}` +

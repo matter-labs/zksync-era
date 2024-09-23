@@ -11,15 +11,15 @@ use zksync_config::{
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
         vm_runner::BasicWitnessInputProducerConfig,
-        wallets::{AddressWallet, EthSender, StateKeeper, Wallet, Wallets},
+        wallets::{AddressWallet, EthSender, StateKeeper, TokenMultiplierSetter, Wallet, Wallets},
         CommitmentGeneratorConfig, DatabaseSecrets, ExperimentalVmConfig,
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
         GeneralConfig, ObservabilityConfig, PrometheusConfig, ProofDataHandlerConfig,
-        ProtectiveReadsWriterConfig, PruningConfig, SnapshotRecoveryConfig,
+        ProtectiveReadsWriterConfig, ProverJobMonitorConfig, PruningConfig, SnapshotRecoveryConfig,
     },
-    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DADispatcherConfig, DBConfig,
-    EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
+    ApiConfig, BaseTokenAdjusterConfig, ContractVerifierConfig, DAClientConfig, DADispatcherConfig,
+    DBConfig, EthConfig, EthWatchConfig, ExternalProofIntegrationApiConfig, GasAdjusterConfig,
     ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_env_config::FromEnv;
@@ -68,6 +68,7 @@ pub struct TempConfigStore {
     pub gas_adjuster_config: Option<GasAdjusterConfig>,
     pub observability: Option<ObservabilityConfig>,
     pub snapshot_creator: Option<SnapshotsCreatorConfig>,
+    pub da_client_config: Option<DAClientConfig>,
     pub da_dispatcher_config: Option<DADispatcherConfig>,
     pub protective_reads_writer_config: Option<ProtectiveReadsWriterConfig>,
     pub basic_witness_input_producer_config: Option<BasicWitnessInputProducerConfig>,
@@ -79,6 +80,7 @@ pub struct TempConfigStore {
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
     pub external_proof_integration_api_config: Option<ExternalProofIntegrationApiConfig>,
     pub experimental_vm_config: Option<ExperimentalVmConfig>,
+    pub prover_job_monitor_config: Option<ProverJobMonitorConfig>,
 }
 
 impl TempConfigStore {
@@ -97,13 +99,14 @@ impl TempConfigStore {
             prover_gateway: self.fri_prover_gateway_config.clone(),
             witness_vector_generator: self.fri_witness_vector_generator.clone(),
             prover_group_config: self.fri_prover_group_config.clone(),
-            witness_generator: self.fri_witness_generator_config.clone(),
+            witness_generator_config: self.fri_witness_generator_config.clone(),
             prometheus_config: self.prometheus_config.clone(),
             proof_data_handler_config: self.proof_data_handler_config.clone(),
             db_config: self.db_config.clone(),
             eth: self.eth_sender_config.clone(),
             snapshot_creator: self.snapshot_creator.clone(),
             observability: self.observability.clone(),
+            da_client_config: self.da_client_config.clone(),
             da_dispatcher_config: self.da_dispatcher_config.clone(),
             protective_reads_writer_config: self.protective_reads_writer_config.clone(),
             basic_witness_input_producer_config: self.basic_witness_input_producer_config.clone(),
@@ -118,6 +121,7 @@ impl TempConfigStore {
                 .external_proof_integration_api_config
                 .clone(),
             experimental_vm_config: self.experimental_vm_config.clone(),
+            prover_job_monitor_config: self.prover_job_monitor_config.clone(),
         }
     }
 
@@ -145,9 +149,15 @@ impl TempConfigStore {
                         .expect("Must be presented in env variables"),
                 ),
             });
+        let token_multiplier_setter = self.base_token_adjuster_config.as_ref().and_then(|config| {
+            let pk = config.private_key().ok()??;
+            let wallet = Wallet::new(pk);
+            Some(TokenMultiplierSetter { wallet })
+        });
         Wallets {
             eth_sender,
             state_keeper,
+            token_multiplier_setter,
         }
     }
 }
@@ -180,6 +190,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         gas_adjuster_config: GasAdjusterConfig::from_env().ok(),
         observability: ObservabilityConfig::from_env().ok(),
         snapshot_creator: SnapshotsCreatorConfig::from_env().ok(),
+        da_client_config: DAClientConfig::from_env().ok(),
         da_dispatcher_config: DADispatcherConfig::from_env().ok(),
         protective_reads_writer_config: ProtectiveReadsWriterConfig::from_env().ok(),
         basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),
@@ -191,6 +202,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         external_price_api_client_config: ExternalPriceApiClientConfig::from_env().ok(),
         external_proof_integration_api_config: ExternalProofIntegrationApiConfig::from_env().ok(),
         experimental_vm_config: ExperimentalVmConfig::from_env().ok(),
+        prover_job_monitor_config: ProverJobMonitorConfig::from_env().ok(),
     })
 }
 

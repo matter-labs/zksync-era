@@ -3,14 +3,18 @@ use zksync_config::configs::ExperimentalVmPlaygroundConfig;
 use zksync_node_framework_derive::{FromContext, IntoContext};
 use zksync_types::L2ChainId;
 use zksync_vm_runner::{
-    impls::{VmPlayground, VmPlaygroundIo, VmPlaygroundLoaderTask},
+    impls::{
+        VmPlayground, VmPlaygroundCursorOptions, VmPlaygroundIo, VmPlaygroundLoaderTask,
+        VmPlaygroundStorageOptions,
+    },
     ConcurrentOutputHandlerFactoryTask,
 };
 
 use crate::{
     implementations::resources::{
         healthcheck::AppHealthCheckResource,
-        pools::{MasterPool, PoolResource},
+        object_store::ObjectStoreResource,
+        pools::{PoolResource, ReplicaPool},
     },
     StopReceiver, Task, TaskId, WiringError, WiringLayer,
 };
@@ -33,7 +37,9 @@ impl VmPlaygroundLayer {
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
 pub struct Input {
-    pub master_pool: PoolResource<MasterPool>,
+    // We use a replica pool because VM playground doesn't write anything to the DB by design.
+    pub replica_pool: PoolResource<ReplicaPool>,
+    pub dumps_object_store: Option<ObjectStoreResource>,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
 }
@@ -44,7 +50,7 @@ pub struct Output {
     #[context(task)]
     pub output_handler_factory_task: ConcurrentOutputHandlerFactoryTask<VmPlaygroundIo>,
     #[context(task)]
-    pub loader_task: VmPlaygroundLoaderTask,
+    pub loader_task: Option<VmPlaygroundLoaderTask>,
     #[context(task)]
     pub playground: VmPlayground,
 }
@@ -60,7 +66,8 @@ impl WiringLayer for VmPlaygroundLayer {
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         let Input {
-            master_pool,
+            replica_pool,
+            dumps_object_store,
             app_health,
         } = input;
 
@@ -68,16 +75,34 @@ impl WiringLayer for VmPlaygroundLayer {
         //   catch up cache.
         // - 1 connection for `ConcurrentOutputHandlerFactoryTask` / `VmRunner` as they need occasional access
         //   to DB for querying last processed batch and last ready to be loaded batch.
-        // - 1 connection for the only running VM instance.
-        let connection_pool = master_pool.get_custom(3).await?;
+        // - `window_size` connections for running VM instances.
+        let connection_pool = replica_pool
+            .build(|builder| {
+                builder
+                    .set_max_size(2 + self.config.window_size.get())
+                    .set_statement_timeout(None);
+                // Unlike virtually all other replica pool uses, VM playground has some long-living operations,
+                // so the default statement timeout would only get in the way.
+            })
+            .await?;
 
+        let cursor = VmPlaygroundCursorOptions {
+            first_processed_batch: self.config.first_processed_batch,
+            window_size: self.config.window_size,
+            reset_state: self.config.reset,
+        };
+        let storage = if let Some(path) = self.config.db_path {
+            VmPlaygroundStorageOptions::Rocksdb(path)
+        } else {
+            VmPlaygroundStorageOptions::Snapshots { shadow: false }
+        };
         let (playground, tasks) = VmPlayground::new(
             connection_pool,
+            dumps_object_store.map(|resource| resource.0),
             self.config.fast_vm_mode,
-            self.config.db_path,
+            storage,
             self.zksync_network_id,
-            self.config.first_processed_batch,
-            self.config.reset,
+            cursor,
         )
         .await?;
 
@@ -112,6 +137,6 @@ impl Task for VmPlayground {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        (*self).run(&stop_receiver.0).await
+        (*self).run(stop_receiver.0).await
     }
 }

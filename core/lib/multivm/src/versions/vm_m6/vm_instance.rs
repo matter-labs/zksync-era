@@ -11,12 +11,12 @@ use zk_evm_1_3_1::{
 };
 use zksync_types::{
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    L1BatchNumber, VmEvent, H256, U256,
+    L1BatchNumber, H256, U256,
 };
 
 use crate::{
     glue::GlueInto,
-    interface::{Call, TxExecutionStatus, VmExecutionLogs},
+    interface::{Call, TxExecutionStatus, VmEvent, VmExecutionLogs},
     versions::shared::{VmExecutionTrace, VmTrace},
     vm_m6::{
         bootloader_state::BootloaderState,
@@ -159,6 +159,7 @@ pub struct VmPartialExecutionResult {
     pub contracts_used: usize,
     pub cycles_used: u32,
     pub computational_gas_used: u32,
+    pub gas_remaining: u32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -673,6 +674,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
                             cycles_used: self.state.local_state.monotonic_cycle_counter
                                 - cycles_initial,
                             computational_gas_used,
+                            gas_remaining: self.gas_remaining(),
                         },
                         call_traces: tx_tracer.call_traces(),
                     })
@@ -775,6 +777,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
                         .get_decommitted_bytecodes_after_timestamp(timestamp_initial),
                     cycles_used: self.state.local_state.monotonic_cycle_counter - cycles_initial,
                     computational_gas_used,
+                    gas_remaining: self.gas_remaining(),
                 };
 
                 // Collecting `block_tip_result` needs logs with timestamp, so we drain events for the `full_result`
@@ -823,6 +826,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
                             contracts_used: 0,
                             cycles_used: 0,
                             computational_gas_used: 0,
+                            gas_remaining: 0,
                         },
                     }
                 } else {
@@ -876,6 +880,7 @@ impl<H: HistoryMode, S: Storage> VmInstance<S, H> {
                 .get_decommitted_bytecodes_after_timestamp(timestamp_initial),
             cycles_used: self.state.local_state.monotonic_cycle_counter - cycles_initial,
             computational_gas_used,
+            gas_remaining: self.gas_remaining(),
         }
     }
 

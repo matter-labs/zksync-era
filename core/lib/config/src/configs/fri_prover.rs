@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::ObjectStoreConfig;
 
-#[derive(Debug, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq)]
 pub enum SetupLoadMode {
     FromDisk,
     FromMemory,

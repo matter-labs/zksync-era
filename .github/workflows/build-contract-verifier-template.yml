@@ -28,7 +28,7 @@ jobs:
     name: Build and Push Docker Images
     env:
       IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-    runs-on: ${{ fromJSON('["matterlabs-ci-runner", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
+    runs-on: ${{ fromJSON('["matterlabs-ci-runner-high-performance", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
     strategy:
       matrix:
         components:
@@ -113,18 +113,15 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run zk || true
-          ci_run yarn zk build
+          ci_run ./bin/zkt || true
+          ci_run ./bin/zk || true
           ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: build contracts
         if: env.BUILD_CONTRACTS == 'true'
         run: |
-          ci_run zk run yarn
           ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zk compiler all
-          ci_run zk contract build
-          ci_run zk f yarn run l2-contracts build
+          ci_run zk_supervisor contracts
 
       - name: Login to Docker registries
         if: ${{ inputs.action == 'push' }}
@@ -149,7 +146,8 @@ jobs:
 
   create_manifest:
     name: Create release manifest
-    runs-on: matterlabs-ci-runner
+    # TODO: After migraton switch to CI
+    runs-on: matterlabs-default-infra-runners
     needs: build-images
     if: ${{ inputs.action == 'push' }}
     strategy:

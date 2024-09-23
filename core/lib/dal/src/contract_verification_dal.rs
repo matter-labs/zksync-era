@@ -12,10 +12,10 @@ use zksync_types::{
         DeployContractCalldata, VerificationIncomingRequest, VerificationInfo, VerificationRequest,
         VerificationRequestStatus,
     },
-    event::DEPLOY_EVENT_SIGNATURE,
     Address, CONTRACT_DEPLOYER_ADDRESS,
 };
 use zksync_utils::address_to_h256;
+use zksync_vm_interface::VmEvent;
 
 use crate::{models::storage_verification_request::StorageVerificationRequest, Core};
 
@@ -291,6 +291,7 @@ impl ContractVerificationDal<'_, '_> {
         address: Address,
     ) -> anyhow::Result<Option<(Vec<u8>, DeployContractCalldata)>> {
         let address_h256 = address_to_h256(&address);
+
         let Some(row) = sqlx::query!(
             r#"
             SELECT
@@ -323,7 +324,7 @@ impl ContractVerificationDal<'_, '_> {
                 )
             "#,
             CONTRACT_DEPLOYER_ADDRESS.as_bytes(),
-            DEPLOY_EVENT_SIGNATURE.as_bytes(),
+            VmEvent::DEPLOY_EVENT_SIGNATURE.as_bytes(),
             address_h256.as_bytes(),
         )
         .fetch_optional(self.storage.conn())

@@ -2,11 +2,19 @@
 
 // TODO (PLA-773): Should be moved to the prover workspace.
 
-use std::{convert::TryFrom, str::FromStr};
+use std::{
+    collections::{hash_map::IntoIter, HashMap},
+    convert::TryFrom,
+    iter::once,
+    str::FromStr,
+};
 
 use serde::{Deserialize, Serialize};
 
-use crate::protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch};
+use crate::{
+    protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    prover_dal::JobCountStatistics,
+};
 
 const BLOB_CHUNK_SIZE: usize = 31;
 const ELEMENTS_PER_4844_BLOCK: usize = 4096;
@@ -127,6 +135,14 @@ impl From<u8> for AggregationRound {
 }
 
 impl AggregationRound {
+    pub const ALL_ROUNDS: [AggregationRound; 5] = [
+        AggregationRound::BasicCircuits,
+        AggregationRound::LeafAggregation,
+        AggregationRound::NodeAggregation,
+        AggregationRound::RecursionTip,
+        AggregationRound::Scheduler,
+    ];
+
     pub fn next(&self) -> Option<AggregationRound> {
         match self {
             AggregationRound::BasicCircuits => Some(AggregationRound::LeafAggregation),
@@ -134,6 +150,29 @@ impl AggregationRound {
             AggregationRound::NodeAggregation => Some(AggregationRound::RecursionTip),
             AggregationRound::RecursionTip => Some(AggregationRound::Scheduler),
             AggregationRound::Scheduler => None,
+        }
+    }
+
+    /// Returns all the circuit IDs that correspond to a particular
+    /// aggregation round.
+    ///
+    /// For example, in aggregation round 0, the circuit ids should be 1 to 15 + 255 (EIP4844).
+    /// In aggregation round 1, the circuit ids should be 3 to 18.
+    /// In aggregation round 2, the circuit ids should be 2.
+    /// In aggregation round 3, the circuit ids should be 255.
+    /// In aggregation round 4, the circuit ids should be 1.
+    pub fn circuit_ids(self) -> Vec<CircuitIdRoundTuple> {
+        match self {
+            AggregationRound::BasicCircuits => (1..=15)
+                .chain(once(255))
+                .map(|circuit_id| CircuitIdRoundTuple::new(circuit_id, self as u8))
+                .collect(),
+            AggregationRound::LeafAggregation => (3..=18)
+                .map(|circuit_id| CircuitIdRoundTuple::new(circuit_id, self as u8))
+                .collect(),
+            AggregationRound::NodeAggregation => vec![CircuitIdRoundTuple::new(2, self as u8)],
+            AggregationRound::RecursionTip => vec![CircuitIdRoundTuple::new(255, self as u8)],
+            AggregationRound::Scheduler => vec![CircuitIdRoundTuple::new(1, self as u8)],
         }
     }
 }
@@ -183,6 +222,140 @@ impl TryFrom<i32> for AggregationRound {
             x if x == AggregationRound::RecursionTip as i32 => Ok(AggregationRound::RecursionTip),
             x if x == AggregationRound::Scheduler as i32 => Ok(AggregationRound::Scheduler),
             _ => Err(()),
+        }
+    }
+}
+
+/// Wrapper for mapping from protocol version to prover circuits job stats
+#[derive(Debug)]
+pub struct ProtocolVersionedCircuitProverStats {
+    protocol_versioned_circuit_stats: HashMap<ProtocolSemanticVersion, CircuitProverStats>,
+}
+
+impl FromIterator<CircuitProverStatsEntry> for ProtocolVersionedCircuitProverStats {
+    fn from_iter<I: IntoIterator<Item = CircuitProverStatsEntry>>(iter: I) -> Self {
+        let mut mapping = HashMap::new();
+        for entry in iter {
+            let protocol_semantic_version = entry.protocol_semantic_version;
+            let circuit_prover_stats: &mut CircuitProverStats =
+                mapping.entry(protocol_semantic_version).or_default();
+            circuit_prover_stats.add(entry.circuit_id_round_tuple, entry.job_count_statistics);
+        }
+        Self {
+            protocol_versioned_circuit_stats: mapping,
+        }
+    }
+}
+
+impl IntoIterator for ProtocolVersionedCircuitProverStats {
+    type Item = (ProtocolSemanticVersion, CircuitProverStats);
+    type IntoIter = IntoIter<ProtocolSemanticVersion, CircuitProverStats>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.protocol_versioned_circuit_stats.into_iter()
+    }
+}
+
+/// Wrapper for mapping between circuit/aggregation round to number of such jobs (queued and in progress)
+#[derive(Debug)]
+pub struct CircuitProverStats {
+    circuits_prover_stats: HashMap<CircuitIdRoundTuple, JobCountStatistics>,
+}
+
+impl IntoIterator for CircuitProverStats {
+    type Item = (CircuitIdRoundTuple, JobCountStatistics);
+    type IntoIter = IntoIter<CircuitIdRoundTuple, JobCountStatistics>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.circuits_prover_stats.into_iter()
+    }
+}
+
+impl CircuitProverStats {
+    fn add(
+        &mut self,
+        circuit_id_round_tuple: CircuitIdRoundTuple,
+        job_count_statistics: JobCountStatistics,
+    ) {
+        let stats = self
+            .circuits_prover_stats
+            .entry(circuit_id_round_tuple)
+            .or_default();
+        stats.queued += job_count_statistics.queued;
+        stats.in_progress += job_count_statistics.in_progress;
+    }
+}
+
+impl Default for CircuitProverStats {
+    fn default() -> Self {
+        let circuits_prover_stats = AggregationRound::ALL_ROUNDS
+            .into_iter()
+            .flat_map(|round| {
+                let circuit_ids = round.circuit_ids();
+                circuit_ids.into_iter().map(|circuit_id_round_tuple| {
+                    (circuit_id_round_tuple, JobCountStatistics::default())
+                })
+            })
+            .collect();
+        Self {
+            circuits_prover_stats,
+        }
+    }
+}
+
+/// DTO for communication between DAL and prover_job_monitor.
+/// Represents an entry -- count (queued & in progress) of jobs (circuit_id, aggregation_round) for a given protocol version.
+#[derive(Debug)]
+pub struct CircuitProverStatsEntry {
+    circuit_id_round_tuple: CircuitIdRoundTuple,
+    protocol_semantic_version: ProtocolSemanticVersion,
+    job_count_statistics: JobCountStatistics,
+}
+
+impl CircuitProverStatsEntry {
+    pub fn new(
+        circuit_id: i16,
+        aggregation_round: i16,
+        protocol_version: i32,
+        protocol_version_patch: i32,
+        status: &str,
+        count: i64,
+    ) -> Self {
+        let mut queued = 0;
+        let mut in_progress = 0;
+        match status {
+            "queued" => queued = count as usize,
+            "in_progress" => in_progress = count as usize,
+            _ => unreachable!("received {:?}, expected only 'queued'/'in_progress' from DB as part of query filter", status),
+        };
+
+        let job_count_statistics = JobCountStatistics {
+            queued,
+            in_progress,
+        };
+        let protocol_semantic_version = ProtocolSemanticVersion::new(
+            ProtocolVersionId::try_from(protocol_version as u16)
+                .expect("received protocol version is broken"),
+            VersionPatch(protocol_version_patch as u32),
+        );
+
+        // BEWARE, HERE BE DRAGONS.
+        // In database, the `circuit_id` stored is the circuit for which the aggregation is done,
+        // not the circuit which is running.
+        // There is a single node level aggregation circuit, which is circuit 2.
+        // This can aggregate multiple leaf nodes (which may belong to different circuits).
+        // This "conversion" is a forced hacky  way to use `circuit_id` 2 for nodes.
+        // A proper fix will be later provided to solve this once new auto-scaler is in place.
+        let circuit_id = if aggregation_round == 2 {
+            2
+        } else {
+            circuit_id as u8
+        };
+        let circuit_id_round_tuple = CircuitIdRoundTuple::new(circuit_id, aggregation_round as u8);
+        CircuitProverStatsEntry {
+            circuit_id_round_tuple,
+            protocol_semantic_version,
+            job_count_statistics,
         }
     }
 }

@@ -10,7 +10,7 @@ use anyhow::Context as _;
 use itertools::Itertools;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
-    interface::{DeduplicatedWritesMetrics, TransactionExecutionResult},
+    interface::{DeduplicatedWritesMetrics, TransactionExecutionResult, VmEvent},
     utils::{
         get_max_batch_gas_limit, get_max_gas_per_pubdata_byte, ModifiedSlot,
         StorageWritesDeduplicator,
@@ -19,13 +19,12 @@ use zksync_multivm::{
 use zksync_shared_metrics::{BlockStage, L2BlockStage, APP_METRICS};
 use zksync_types::{
     block::{build_bloom, L1BatchHeader, L2BlockHeader},
-    event::extract_long_l2_to_l1_messages,
     helpers::unix_timestamp_ms,
     l2_to_l1_log::UserL2ToL1Log,
     tx::IncludedTxLocation,
     utils::display_timestamp,
     Address, BloomInput, ExecuteTransactionCommon, ProtocolVersionId, StorageKey, StorageLog,
-    Transaction, VmEvent, H256,
+    Transaction, H256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -112,7 +111,7 @@ impl UpdatesManager {
 
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::InsertL1BatchHeader);
         let l2_to_l1_messages =
-            extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
+            VmEvent::extract_long_l2_to_l1_messages(&finished_batch.final_execution_state.events);
         let l1_batch = L1BatchHeader {
             number: self.l1_batch.number,
             timestamp: self.batch_timestamp(),

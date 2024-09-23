@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    path::Path,
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 
@@ -20,7 +20,7 @@ use zksync_types::{
     },
     Address,
 };
-use zksync_utils::workspace_dir_or_current_dir;
+use zksync_utils::env::Workspace;
 
 use crate::{
     error::ContractVerifierError,
@@ -38,8 +38,8 @@ lazy_static! {
     static ref DEPLOYER_CONTRACT: Contract = zksync_contracts::deployer_contract();
 }
 
-fn home_path() -> &'static Path {
-    workspace_dir_or_current_dir()
+fn home_path() -> PathBuf {
+    Workspace::locate().core()
 }
 
 #[derive(Debug)]
@@ -271,7 +271,9 @@ impl ContractVerifier {
                 let bytecode_str = artifact["bytecode"]
                     .as_str()
                     .ok_or(ContractVerifierError::InternalError)?;
-                let bytecode = hex::decode(bytecode_str).unwrap();
+                let bytecode_without_prefix =
+                    bytecode_str.strip_prefix("0x").unwrap_or(bytecode_str);
+                let bytecode = hex::decode(bytecode_without_prefix).unwrap();
                 return Ok(CompilationArtifacts {
                     abi: artifact["abi"].clone(),
                     bytecode,

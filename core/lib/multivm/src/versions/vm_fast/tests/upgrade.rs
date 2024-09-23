@@ -12,7 +12,7 @@ use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
     interface::{
-        ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface,
+        ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
     vm_fast::tests::{
@@ -164,7 +164,7 @@ fn test_force_deploy_upgrade() {
     verify_required_storage(
         &expected_slots,
         &mut *vm.storage.borrow_mut(),
-        vm.vm.inner.world_diff.get_storage_state(),
+        vm.vm.inner.world_diff().get_storage_state(),
     );
 }
 
@@ -223,7 +223,7 @@ fn test_complex_upgrader() {
     verify_required_storage(
         &expected_slots,
         &mut *vm.storage.borrow_mut(),
-        vm.vm.inner.world_diff.get_storage_state(),
+        vm.vm.inner.world_diff().get_storage_state(),
     );
 }
 
@@ -265,7 +265,7 @@ fn get_forced_deploy_tx(deployment: &[ForceDeployment]) -> Transaction {
         .expect("failed to encode parameters");
 
     let execute = Execute {
-        contract_address: CONTRACT_DEPLOYER_ADDRESS,
+        contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
         calldata,
         factory_deps: vec![],
         value: U256::zero(),
@@ -315,7 +315,7 @@ fn get_complex_upgrade_tx(
         .unwrap();
 
     let execute = Execute {
-        contract_address: COMPLEX_UPGRADER_ADDRESS,
+        contract_address: Some(COMPLEX_UPGRADER_ADDRESS),
         calldata: complex_upgrader_calldata,
         factory_deps: vec![],
         value: U256::zero(),

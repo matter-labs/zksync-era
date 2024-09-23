@@ -2,13 +2,14 @@
 use std::{net::IpAddr, ops::Add, str::FromStr};
 
 use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
+use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 use crate::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId, L1BatchNumber,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FriProverJobMetadata {
     pub id: u32,
     pub block_number: L1BatchNumber,
@@ -27,7 +28,7 @@ pub struct ExtendedJobCountStatistics {
     pub successful: usize,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct JobCountStatistics {
     pub queued: usize,
     pub in_progress: usize,
@@ -52,6 +53,8 @@ pub struct StuckJobs {
     pub status: String,
     pub attempts: u64,
     pub circuit_id: Option<u32>,
+    pub picked_by: Option<String>,
+    pub error: Option<String>,
 }
 
 // TODO (PLA-774): Redundant structure, should be replaced with `std::net::SocketAddr`.
@@ -260,6 +263,11 @@ pub struct ProverJobFriInfo {
     pub picked_by: Option<String>,
 }
 
+pub trait Stallable {
+    fn get_status(&self) -> WitnessJobStatus;
+    fn get_attempts(&self) -> u32;
+}
+
 #[derive(Debug, Clone)]
 pub struct BasicWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
@@ -273,6 +281,16 @@ pub struct BasicWitnessGeneratorJobInfo {
     pub time_taken: Option<NaiveTime>,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
+}
+
+impl Stallable for BasicWitnessGeneratorJobInfo {
+    fn get_status(&self) -> WitnessJobStatus {
+        self.status.clone()
+    }
+
+    fn get_attempts(&self) -> u32 {
+        self.attempts
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -291,6 +309,16 @@ pub struct LeafWitnessGeneratorJobInfo {
     pub number_of_basic_circuits: Option<i32>,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
+}
+
+impl Stallable for LeafWitnessGeneratorJobInfo {
+    fn get_status(&self) -> WitnessJobStatus {
+        self.status.clone()
+    }
+
+    fn get_attempts(&self) -> u32 {
+        self.attempts
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -312,6 +340,16 @@ pub struct NodeWitnessGeneratorJobInfo {
     pub picked_by: Option<String>,
 }
 
+impl Stallable for NodeWitnessGeneratorJobInfo {
+    fn get_status(&self) -> WitnessJobStatus {
+        self.status.clone()
+    }
+
+    fn get_attempts(&self) -> u32 {
+        self.attempts
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RecursionTipWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
@@ -327,6 +365,16 @@ pub struct RecursionTipWitnessGeneratorJobInfo {
     pub picked_by: Option<String>,
 }
 
+impl Stallable for RecursionTipWitnessGeneratorJobInfo {
+    fn get_status(&self) -> WitnessJobStatus {
+        self.status.clone()
+    }
+
+    fn get_attempts(&self) -> u32 {
+        self.attempts
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SchedulerWitnessGeneratorJobInfo {
     pub l1_batch_number: L1BatchNumber,
@@ -340,6 +388,16 @@ pub struct SchedulerWitnessGeneratorJobInfo {
     pub attempts: u32,
     pub protocol_version: Option<i32>,
     pub picked_by: Option<String>,
+}
+
+impl Stallable for SchedulerWitnessGeneratorJobInfo {
+    fn get_status(&self) -> WitnessJobStatus {
+        self.status.clone()
+    }
+
+    fn get_attempts(&self) -> u32 {
+        self.attempts
+    }
 }
 
 #[derive(Debug, EnumString, Display, Clone)]

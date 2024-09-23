@@ -3,15 +3,12 @@ use std::sync::Arc;
 use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_object_store::ObjectStore;
-use zksync_prover_interface::{
-    api::{
-        RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofResponse,
-        SubmitTeeProofRequest, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
-    },
-    inputs::TeeVerifierInput,
+use zksync_object_store::{ObjectStore, ObjectStoreError};
+use zksync_prover_interface::api::{
+    RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofResponse,
+    SubmitTeeProofRequest, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
 };
-use zksync_types::L1BatchNumber;
+use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
 use crate::errors::RequestProcessorError;
 
@@ -41,32 +38,77 @@ impl TeeRequestProcessor {
     ) -> Result<Json<TeeProofGenerationDataResponse>, RequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        let mut connection = self
-            .pool
-            .connection()
-            .await
-            .map_err(RequestProcessorError::Dal)?;
+        let mut min_batch_number: Option<L1BatchNumber> = None;
+        let mut missing_range: Option<(L1BatchNumber, L1BatchNumber)> = None;
 
-        let l1_batch_number_result = connection
-            .tee_proof_generation_dal()
-            .get_next_batch_to_be_proven(request.tee_type, self.config.proof_generation_timeout())
-            .await
-            .map_err(RequestProcessorError::Dal)?;
+        let result = loop {
+            let l1_batch_number = match self
+                .lock_batch_for_proving(request.tee_type, min_batch_number)
+                .await?
+            {
+                Some(number) => number,
+                None => break Ok(Json(TeeProofGenerationDataResponse(None))),
+            };
 
-        let l1_batch_number = match l1_batch_number_result {
-            Some(number) => number,
-            None => return Ok(Json(TeeProofGenerationDataResponse(None))),
+            match self.blob_store.get(l1_batch_number).await {
+                Ok(input) => break Ok(Json(TeeProofGenerationDataResponse(Some(Box::new(input))))),
+                Err(ObjectStoreError::KeyNotFound(_)) => {
+                    missing_range = match missing_range {
+                        Some((start, _)) => Some((start, l1_batch_number)),
+                        None => Some((l1_batch_number, l1_batch_number)),
+                    };
+                    self.unlock_batch(l1_batch_number, request.tee_type).await?;
+                    min_batch_number = Some(min_batch_number.unwrap_or(l1_batch_number) + 1);
+                }
+                Err(err) => {
+                    self.unlock_batch(l1_batch_number, request.tee_type).await?;
+                    break Err(RequestProcessorError::ObjectStore(err));
+                }
+            }
         };
 
-        let tee_verifier_input: TeeVerifierInput = self
-            .blob_store
-            .get(l1_batch_number)
-            .await
-            .map_err(RequestProcessorError::ObjectStore)?;
+        if let Some((start, end)) = missing_range {
+            tracing::warn!(
+                "Blobs for batch numbers {} to {} not found in the object store. Marked as unpicked.",
+                start,
+                end
+            );
+        }
 
-        let response = TeeProofGenerationDataResponse(Some(Box::new(tee_verifier_input)));
+        result
+    }
 
-        Ok(Json(response))
+    async fn lock_batch_for_proving(
+        &self,
+        tee_type: TeeType,
+        min_batch_number: Option<L1BatchNumber>,
+    ) -> Result<Option<L1BatchNumber>, RequestProcessorError> {
+        let result = self
+            .pool
+            .connection()
+            .await?
+            .tee_proof_generation_dal()
+            .lock_batch_for_proving(
+                tee_type,
+                self.config.proof_generation_timeout(),
+                min_batch_number,
+            )
+            .await?;
+        Ok(result)
+    }
+
+    async fn unlock_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        tee_type: TeeType,
+    ) -> Result<(), RequestProcessorError> {
+        self.pool
+            .connection()
+            .await?
+            .tee_proof_generation_dal()
+            .unlock_batch(l1_batch_number, tee_type)
+            .await?;
+        Ok(())
     }
 
     pub(crate) async fn submit_proof(
@@ -75,11 +117,7 @@ impl TeeRequestProcessor {
         Json(proof): Json<SubmitTeeProofRequest>,
     ) -> Result<Json<SubmitProofResponse>, RequestProcessorError> {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
-        let mut connection = self
-            .pool
-            .connection()
-            .await
-            .map_err(RequestProcessorError::Dal)?;
+        let mut connection = self.pool.connection().await?;
         let mut dal = connection.tee_proof_generation_dal();
 
         tracing::info!(
@@ -94,8 +132,7 @@ impl TeeRequestProcessor {
             &proof.0.signature,
             &proof.0.proof,
         )
-        .await
-        .map_err(RequestProcessorError::Dal)?;
+        .await?;
 
         Ok(Json(SubmitProofResponse::Success))
     }
@@ -106,16 +143,11 @@ impl TeeRequestProcessor {
     ) -> Result<Json<RegisterTeeAttestationResponse>, RequestProcessorError> {
         tracing::info!("Received attestation: {:?}", payload);
 
-        let mut connection = self
-            .pool
-            .connection()
-            .await
-            .map_err(RequestProcessorError::Dal)?;
+        let mut connection = self.pool.connection().await?;
         let mut dal = connection.tee_proof_generation_dal();
 
         dal.save_attestation(&payload.pubkey, &payload.attestation)
-            .await
-            .map_err(RequestProcessorError::Dal)?;
+            .await?;
 
         Ok(Json(RegisterTeeAttestationResponse::Success))
     }
