@@ -13,11 +13,11 @@ use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
     artifacts::ArtifactsManager,
-    recursion_tip::{RecursionTipArtifacts, RecursionTipWitnessGenerator},
+    rounds::recursion_tip::{RecursionTip, RecursionTipArtifacts},
 };
 
 #[async_trait]
-impl ArtifactsManager for RecursionTipWitnessGenerator {
+impl ArtifactsManager for RecursionTip {
     type InputMetadata = Vec<(u8, u32)>;
     type InputArtifacts = Vec<ZkSyncRecursionProof>;
     type OutputArtifacts = RecursionTipArtifacts;

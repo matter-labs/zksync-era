@@ -17,7 +17,7 @@ use zksync_types::{
 use zksync_witness_generator::{
     leaf_aggregation::LeafAggregationWitnessGenerator,
     node_aggregation::NodeAggregationWitnessGenerator, utils::AggregationWrapper,
-    witness_generator::WitnessGenerator,
+    witness_generator::JobManager,
 };
 
 fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {

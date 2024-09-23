@@ -52,7 +52,7 @@ use crate::{
         ClosedFormInputWrapper, KZG_TRUSTED_SETUP_FILE,
     },
     witness::WitnessStorage,
-    witness_generator::WitnessGenerator,
+    witness_generator::JobManager,
 };
 
 mod artifacts;
@@ -115,7 +115,7 @@ impl BasicWitnessGenerator {
 }
 
 #[async_trait]
-impl WitnessGenerator for BasicWitnessGenerator {
+impl JobManager for BasicWitnessGenerator {
     type Job = BasicWitnessGeneratorJob;
     type Metadata = L1BatchNumber;
     type Artifacts = BasicCircuitArtifacts;

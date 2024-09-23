@@ -10,46 +10,52 @@ use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
-    scheduler::{
-        SchedulerArtifacts, SchedulerWitnessGenerator, SchedulerWitnessGeneratorJob,
-        SchedulerWitnessJobMetadata,
+    rounds::{
+        recursion_tip::{
+            RecursionTip, RecursionTipArtifacts, RecursionTipJobMetadata,
+            RecursionTipWitnessGeneratorJob,
+        },
+        JobManager, WitnessGenerator,
     },
-    witness_generator::WitnessGenerator,
 };
 
 #[async_trait]
-impl JobProcessor for SchedulerWitnessGenerator {
-    type Job = SchedulerWitnessGeneratorJob;
+impl JobProcessor for WitnessGenerator<RecursionTip> {
+    type Job = RecursionTipWitnessGeneratorJob;
     type JobId = L1BatchNumber;
-    type JobArtifacts = SchedulerArtifacts;
+    type JobArtifacts = RecursionTipArtifacts;
 
-    const SERVICE_NAME: &'static str = "fri_scheduler_witness_generator";
+    const SERVICE_NAME: &'static str = "recursion_tip_witness_generator";
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut prover_connection = self.prover_connection_pool.connection().await?;
+        let mut prover_connection = self.connection_pool.connection().await?;
         let pod_name = get_current_pod_name();
-        let Some(l1_batch_number) = prover_connection
+        let Some((l1_batch_number, number_of_final_node_jobs)) = prover_connection
             .fri_witness_generator_dal()
-            .get_next_scheduler_witness_job(self.protocol_version, &pod_name)
+            .get_next_recursion_tip_witness_job(self.protocol_version, &pod_name)
             .await
         else {
             return Ok(None);
         };
-        let recursion_tip_job_id = prover_connection
+
+        let final_node_proof_job_ids = prover_connection
             .fri_prover_jobs_dal()
-            .get_recursion_tip_proof_job_id(l1_batch_number)
-            .await
-            .context(format!(
-                "could not find recursion tip proof for l1 batch {}",
-                l1_batch_number
-            ))?;
+            .get_final_node_proof_job_ids_for(l1_batch_number)
+            .await;
+
+        assert_eq!(
+            final_node_proof_job_ids.len(),
+            number_of_final_node_jobs as usize,
+            "recursion tip witness job was scheduled without all final node jobs being completed; expected {}, got {}",
+            number_of_final_node_jobs, final_node_proof_job_ids.len()
+        );
 
         Ok(Some((
             l1_batch_number,
-            <Self as WitnessGenerator>::prepare_job(
-                SchedulerWitnessJobMetadata {
+            <Self as JobManager>::prepare_job(
+                RecursionTipJobMetadata {
                     l1_batch_number,
-                    recursion_tip_job_id,
+                    final_node_proof_job_ids,
                 },
                 &*self.object_store,
                 self.keystore.clone(),
@@ -60,12 +66,12 @@ impl JobProcessor for SchedulerWitnessGenerator {
     }
 
     async fn save_failure(&self, job_id: L1BatchNumber, _started_at: Instant, error: String) -> () {
-        self.prover_connection_pool
+        self.connection_pool
             .connection()
             .await
             .unwrap()
             .fri_witness_generator_dal()
-            .mark_scheduler_job_failed(&error, job_id)
+            .mark_recursion_tip_job_failed(&error, job_id)
             .await;
     }
 
@@ -73,12 +79,12 @@ impl JobProcessor for SchedulerWitnessGenerator {
     async fn process_job(
         &self,
         _job_id: &Self::JobId,
-        job: SchedulerWitnessGeneratorJob,
+        job: RecursionTipWitnessGeneratorJob,
         started_at: Instant,
-    ) -> tokio::task::JoinHandle<anyhow::Result<SchedulerArtifacts>> {
+    ) -> tokio::task::JoinHandle<anyhow::Result<RecursionTipArtifacts>> {
         let object_store = self.object_store.clone();
         tokio::spawn(async move {
-            <Self as WitnessGenerator>::process_job(job, object_store, None, started_at).await
+            <Self as JobManager>::process_job(job, object_store, None, started_at).await
         })
     }
 
@@ -90,18 +96,18 @@ impl JobProcessor for SchedulerWitnessGenerator {
         &self,
         job_id: L1BatchNumber,
         started_at: Instant,
-        artifacts: SchedulerArtifacts,
+        artifacts: RecursionTipArtifacts,
     ) -> anyhow::Result<()> {
         let blob_save_started_at = Instant::now();
 
         let blob_urls =
             Self::save_to_bucket(job_id.0, artifacts.clone(), &*self.object_store).await;
 
-        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::Scheduler.into()]
+        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::RecursionTip.into()]
             .observe(blob_save_started_at.elapsed());
 
         Self::save_to_database(
-            &self.prover_connection_pool,
+            &self.connection_pool,
             job_id.0,
             started_at,
             blob_urls,
@@ -118,15 +124,15 @@ impl JobProcessor for SchedulerWitnessGenerator {
 
     async fn get_job_attempts(&self, job_id: &L1BatchNumber) -> anyhow::Result<u32> {
         let mut prover_storage = self
-            .prover_connection_pool
+            .connection_pool
             .connection()
             .await
-            .context("failed to acquire DB connection for SchedulerWitnessGenerator")?;
+            .context("failed to acquire DB connection for RecursionTipWitnessGenerator")?;
         prover_storage
             .fri_witness_generator_dal()
-            .get_scheduler_witness_job_attempts(*job_id)
+            .get_recursion_tip_witness_job_attempts(*job_id)
             .await
             .map(|attempts| attempts.unwrap_or(0))
-            .context("failed to get job attempts for SchedulerWitnessGenerator")
+            .context("failed to get job attempts for RecursionTipWitnessGenerator")
     }
 }

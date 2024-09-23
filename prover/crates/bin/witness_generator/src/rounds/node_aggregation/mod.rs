@@ -9,7 +9,7 @@ use zkevm_test_harness::witness::recursive_aggregation::{
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
@@ -30,10 +30,9 @@ use zksync_types::{
 use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
+    rounds::{JobManager, WitnessGenerator},
     utils::{load_proofs_for_job_ids, save_recursive_layer_prover_input_artifacts},
-    witness_generator::WitnessGenerator,
 };
-
 mod artifacts;
 mod job_processor;
 
@@ -58,38 +57,15 @@ pub struct NodeAggregationWitnessGeneratorJob {
     all_leafs_layer_params: Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>,
 }
 
-#[derive(Debug)]
-pub struct NodeAggregationWitnessGenerator {
-    config: FriWitnessGeneratorConfig,
-    object_store: Arc<dyn ObjectStore>,
-    prover_connection_pool: ConnectionPool<Prover>,
-    protocol_version: ProtocolSemanticVersion,
-    keystore: Keystore,
-}
-
-impl NodeAggregationWitnessGenerator {
-    pub fn new(
-        config: FriWitnessGeneratorConfig,
-        object_store: Arc<dyn ObjectStore>,
-        prover_connection_pool: ConnectionPool<Prover>,
-        protocol_version: ProtocolSemanticVersion,
-        keystore: Keystore,
-    ) -> Self {
-        Self {
-            config,
-            object_store,
-            prover_connection_pool,
-            protocol_version,
-            keystore,
-        }
-    }
-}
+pub struct NodeAggregation;
 
 #[async_trait]
-impl WitnessGenerator for NodeAggregationWitnessGenerator {
+impl JobManager for NodeAggregation {
     type Job = NodeAggregationWitnessGeneratorJob;
     type Metadata = NodeAggregationJobMetadata;
     type Artifacts = NodeAggregationArtifacts;
+
+    const ROUND: &'static str = "node_aggregation";
 
     #[tracing::instrument(
         skip_all,
@@ -98,7 +74,7 @@ impl WitnessGenerator for NodeAggregationWitnessGenerator {
     async fn process_job(
         job: NodeAggregationWitnessGeneratorJob,
         object_store: Arc<dyn ObjectStore>,
-        max_circuits_in_flight: Option<usize>,
+        max_circuits_in_flight: usize,
         started_at: Instant,
     ) -> anyhow::Result<NodeAggregationArtifacts> {
         let node_vk_commitment = compute_node_vk_commitment(job.node_vk.clone());
@@ -126,7 +102,7 @@ impl WitnessGenerator for NodeAggregationWitnessGenerator {
             proofs_ids.len()
         );
 
-        let semaphore = Arc::new(Semaphore::new(max_circuits_in_flight.unwrap()));
+        let semaphore = Arc::new(Semaphore::new(max_circuits_in_flight));
 
         let mut handles = vec![];
         for (circuit_idx, (chunk, proofs_ids_for_chunk)) in job
@@ -233,8 +209,7 @@ impl WitnessGenerator for NodeAggregationWitnessGenerator {
         keystore: Keystore,
     ) -> anyhow::Result<NodeAggregationWitnessGeneratorJob> {
         let started_at = Instant::now();
-        let artifacts =
-            NodeAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await?;
+        let artifacts = Self::get_artifacts(&metadata, object_store).await?;
 
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
             .observe(started_at.elapsed());
@@ -263,5 +238,36 @@ impl WitnessGenerator for NodeAggregationWitnessGenerator {
             all_leafs_layer_params: get_leaf_vk_params(&keystore)
                 .context("get_leaf_vk_params()")?,
         })
+    }
+
+    async fn get_job_attempts(
+        connection_pool: ConnectionPool<Prover>,
+        job_id: u32,
+    ) -> anyhow::Result<u32> {
+        let mut prover_storage = connection_pool
+            .connection()
+            .await
+            .context("failed to acquire DB connection for NodeAggregationWitnessGenerator")?;
+        prover_storage
+            .fri_witness_generator_dal()
+            .get_node_aggregation_job_attempts(*job_id)
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for NodeAggregationWitnessGenerator")
+    }
+
+    async fn save_failure(
+        connection_pool: ConnectionPool<Prover>,
+        job_id: u32,
+        error: String,
+    ) -> anyhow::Result<()> {
+        connection_pool
+            .connection()
+            .await
+            .unwrap()
+            .fri_witness_generator_dal()
+            .mark_node_aggregation_job_failed(&error, job_id)
+            .await;
+        Ok(())
     }
 }

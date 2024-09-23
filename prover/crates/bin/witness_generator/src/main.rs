@@ -20,9 +20,13 @@ use zksync_types::{basic_fri_types::AggregationRound, protocol_version::Protocol
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_witness_generator::{
-    basic_circuits::BasicWitnessGenerator, leaf_aggregation::LeafAggregationWitnessGenerator,
-    metrics::SERVER_METRICS, node_aggregation::NodeAggregationWitnessGenerator,
-    recursion_tip::RecursionTipWitnessGenerator, scheduler::SchedulerWitnessGenerator,
+    basic_circuits::BasicWitnessGenerator,
+    leaf_aggregation::LeafAggregationWitnessGenerator,
+    metrics::SERVER_METRICS,
+    node_aggregation::NodeAggregationWitnessGenerator,
+    recursion_tip::RecursionTipWitnessGenerator,
+    rounds::{LeafAggregation, NodeAggregation, RecursionTip, Scheduler, WitnessGenerator},
+    scheduler::SchedulerWitnessGenerator,
 };
 
 #[cfg(not(target_env = "msvc"))]
@@ -132,15 +136,14 @@ async fn main() -> anyhow::Result<()> {
             .listener_port
     };
 
-    let prover_connection_pool =
-        ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
-            .build()
-            .await
-            .context("failed to build a prover_connection_pool")?;
+    let connection_pool = ConnectionPool::<Prover>::singleton(database_secrets.prover_url()?)
+        .build()
+        .await
+        .context("failed to build a prover_connection_pool")?;
     let (stop_sender, stop_receiver) = watch::channel(false);
 
     let protocol_version = PROVER_PROTOCOL_SEMANTIC_VERSION;
-    ensure_protocol_alignment(&prover_connection_pool, protocol_version, &keystore)
+    ensure_protocol_alignment(&connection_pool, protocol_version, &keystore)
         .await
         .unwrap_or_else(|err| panic!("Protocol alignment check failed: {:?}", err));
 
@@ -210,46 +213,46 @@ async fn main() -> anyhow::Result<()> {
                     config.clone(),
                     store_factory.create_store().await?,
                     public_blob_store,
-                    prover_connection_pool.clone(),
+                    connection_pool.clone(),
                     protocol_version,
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::LeafAggregation => {
-                let generator = LeafAggregationWitnessGenerator::new(
+                let generator = WitnessGenerator::<LeafAggregation>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    prover_connection_pool.clone(),
+                    connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::NodeAggregation => {
-                let generator = NodeAggregationWitnessGenerator::new(
+                let generator = WitnessGenerator::<NodeAggregation>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    prover_connection_pool.clone(),
+                    connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::RecursionTip => {
-                let generator = RecursionTipWitnessGenerator::new(
+                let generator = WitnessGenerator::<RecursionTip>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    prover_connection_pool.clone(),
+                    connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
             AggregationRound::Scheduler => {
-                let generator = SchedulerWitnessGenerator::new(
+                let generator = WitnessGenerator::<Scheduler>::new(
                     config.clone(),
                     store_factory.create_store().await?,
-                    prover_connection_pool.clone(),
+                    connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
                 );

@@ -12,7 +12,7 @@ use crate::{
     artifacts::ArtifactsManager,
     basic_circuits::{BasicCircuitArtifacts, BasicWitnessGenerator, BasicWitnessGeneratorJob},
     metrics::WITNESS_GENERATOR_METRICS,
-    witness_generator::WitnessGenerator,
+    witness_generator::JobManager,
 };
 
 #[async_trait]
@@ -39,7 +39,7 @@ impl JobProcessor for BasicWitnessGenerator {
         {
             Some(block_number) => Ok(Some((
                 block_number,
-                <Self as WitnessGenerator>::prepare_job(
+                <Self as JobManager>::prepare_job(
                     block_number,
                     &*self.object_store,
                     Keystore::locate(), // todo: this should be removed
@@ -71,7 +71,7 @@ impl JobProcessor for BasicWitnessGenerator {
         let max_circuits_in_flight = self.config.max_circuits_in_flight;
         tokio::spawn(async move {
             let block_number = job.block_number;
-            <Self as WitnessGenerator>::process_job(
+            <Self as JobManager>::process_job(
                 job,
                 object_store,
                 Some(max_circuits_in_flight),

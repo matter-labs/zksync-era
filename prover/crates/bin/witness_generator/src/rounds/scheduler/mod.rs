@@ -7,7 +7,7 @@ use zkevm_test_harness::zkevm_circuits::recursion::{
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::{
@@ -25,12 +25,13 @@ use zksync_prover_fri_types::{
 };
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
+    abi::Transaction::L1, basic_fri_types::AggregationRound,
+    protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
 use crate::{
-    artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS,
-    utils::SchedulerPartialInputWrapper, witness_generator::WitnessGenerator,
+    artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS, rounds::JobManager,
+    utils::SchedulerPartialInputWrapper,
 };
 
 mod artifacts;
@@ -60,38 +61,15 @@ pub struct SchedulerWitnessJobMetadata {
     pub recursion_tip_job_id: u32,
 }
 
-#[derive(Debug)]
-pub struct SchedulerWitnessGenerator {
-    config: FriWitnessGeneratorConfig,
-    object_store: Arc<dyn ObjectStore>,
-    prover_connection_pool: ConnectionPool<Prover>,
-    protocol_version: ProtocolSemanticVersion,
-    keystore: Keystore,
-}
-
-impl SchedulerWitnessGenerator {
-    pub fn new(
-        config: FriWitnessGeneratorConfig,
-        object_store: Arc<dyn ObjectStore>,
-        prover_connection_pool: ConnectionPool<Prover>,
-        protocol_version: ProtocolSemanticVersion,
-        keystore: Keystore,
-    ) -> Self {
-        Self {
-            config,
-            object_store,
-            prover_connection_pool,
-            protocol_version,
-            keystore,
-        }
-    }
-}
+pub struct Scheduler;
 
 #[async_trait]
-impl WitnessGenerator for SchedulerWitnessGenerator {
+impl JobManager for Scheduler {
     type Job = SchedulerWitnessGeneratorJob;
     type Metadata = SchedulerWitnessJobMetadata;
     type Artifacts = SchedulerArtifacts;
+
+    const ROUND: &'static str = "scheduler";
 
     #[tracing::instrument(
         skip_all,
@@ -100,7 +78,7 @@ impl WitnessGenerator for SchedulerWitnessGenerator {
     async fn process_job(
         job: SchedulerWitnessGeneratorJob,
         _object_store: Arc<dyn ObjectStore>,
-        _max_circuits_in_flight: Option<usize>,
+        _max_circuits_in_flight: usize,
         started_at: Instant,
     ) -> anyhow::Result<SchedulerArtifacts> {
         tracing::info!(
@@ -148,9 +126,7 @@ impl WitnessGenerator for SchedulerWitnessGenerator {
         keystore: Keystore,
     ) -> anyhow::Result<Self::Job> {
         let started_at = Instant::now();
-        let wrapper =
-            SchedulerWitnessGenerator::get_artifacts(&metadata.recursion_tip_job_id, object_store)
-                .await?;
+        let wrapper = Self::get_artifacts(&metadata.recursion_tip_job_id, object_store).await?;
         let recursion_tip_proof = match wrapper {
             FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
                 "Expected only recursive proofs for scheduler l1 batch {}, got Base",
@@ -195,5 +171,36 @@ impl WitnessGenerator for SchedulerWitnessGenerator {
             leaf_layer_parameters,
             recursion_tip_vk,
         })
+    }
+
+    async fn get_job_attempts(
+        connection_pool: ConnectionPool<Prover>,
+        job_id: u32,
+    ) -> anyhow::Result<u32> {
+        let mut prover_storage = connection_pool
+            .connection()
+            .await
+            .context("failed to acquire DB connection for SchedulerWitnessGenerator")?;
+        prover_storage
+            .fri_witness_generator_dal()
+            .get_scheduler_witness_job_attempts(L1BatchNumber(job_id))
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for SchedulerWitnessGenerator")
+    }
+
+    async fn save_failure(
+        connection_pool: ConnectionPool<Prover>,
+        job_id: u32,
+        error: String,
+    ) -> anyhow::Result<()> {
+        connection_pool
+            .connection()
+            .await
+            .unwrap()
+            .fri_witness_generator_dal()
+            .mark_scheduler_job_failed(&error, L1BatchNumber(job_id))
+            .await;
+        Ok(())
     }
 }

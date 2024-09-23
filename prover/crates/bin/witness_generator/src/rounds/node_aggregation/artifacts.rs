@@ -9,12 +9,12 @@ use zksync_types::{basic_fri_types::AggregationRound, prover_dal::NodeAggregatio
 use crate::{
     artifacts::{AggregationBlobUrls, ArtifactsManager},
     metrics::WITNESS_GENERATOR_METRICS,
-    node_aggregation::{NodeAggregationArtifacts, NodeAggregationWitnessGenerator},
+    rounds::node_aggregation::{NodeAggregation, NodeAggregationArtifacts},
     utils::AggregationWrapper,
 };
 
 #[async_trait]
-impl ArtifactsManager for NodeAggregationWitnessGenerator {
+impl ArtifactsManager for NodeAggregation {
     type InputMetadata = NodeAggregationJobMetadata;
     type InputArtifacts = AggregationWrapper;
     type OutputArtifacts = NodeAggregationArtifacts;

@@ -9,13 +9,13 @@ use zksync_types::{basic_fri_types::AggregationRound, prover_dal::LeafAggregatio
 
 use crate::{
     artifacts::{AggregationBlobUrls, ArtifactsManager},
-    leaf_aggregation::{LeafAggregationArtifacts, LeafAggregationWitnessGenerator},
     metrics::WITNESS_GENERATOR_METRICS,
+    rounds::leaf_aggregation::{LeafAggregation, LeafAggregationArtifacts},
     utils::{AggregationWrapper, ClosedFormInputWrapper},
 };
 
 #[async_trait]
-impl ArtifactsManager for LeafAggregationWitnessGenerator {
+impl ArtifactsManager for LeafAggregation {
     type InputMetadata = LeafAggregationJobMetadata;
     type InputArtifacts = ClosedFormInputWrapper;
     type OutputArtifacts = LeafAggregationArtifacts;

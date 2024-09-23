@@ -37,7 +37,7 @@ use zkevm_test_harness::{
 };
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::keys::ClosedFormInputKey;
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_types::{
@@ -45,8 +45,8 @@ use zksync_types::{
 };
 
 use crate::{
-    artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS, utils::ClosedFormInputWrapper,
-    witness_generator::WitnessGenerator,
+    artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS, rounds::JobManager,
+    utils::ClosedFormInputWrapper,
 };
 
 mod artifacts;
@@ -73,38 +73,15 @@ pub struct RecursionTipJobMetadata {
     pub final_node_proof_job_ids: Vec<(u8, u32)>,
 }
 
-#[derive(Debug)]
-pub struct RecursionTipWitnessGenerator {
-    config: FriWitnessGeneratorConfig,
-    object_store: Arc<dyn ObjectStore>,
-    prover_connection_pool: ConnectionPool<Prover>,
-    protocol_version: ProtocolSemanticVersion,
-    keystore: Keystore,
-}
-
-impl RecursionTipWitnessGenerator {
-    pub fn new(
-        config: FriWitnessGeneratorConfig,
-        object_store: Arc<dyn ObjectStore>,
-        prover_connection_pool: ConnectionPool<Prover>,
-        protocol_version: ProtocolSemanticVersion,
-        keystore: Keystore,
-    ) -> Self {
-        Self {
-            config,
-            object_store,
-            prover_connection_pool,
-            protocol_version,
-            keystore,
-        }
-    }
-}
+pub struct RecursionTip;
 
 #[async_trait]
-impl WitnessGenerator for RecursionTipWitnessGenerator {
+impl JobManager for RecursionTip {
     type Job = RecursionTipWitnessGeneratorJob;
     type Metadata = RecursionTipJobMetadata;
     type Artifacts = RecursionTipArtifacts;
+
+    const ROUND: &'static str = "recursion_tip";
 
     #[tracing::instrument(
         skip_all,
@@ -113,7 +90,7 @@ impl WitnessGenerator for RecursionTipWitnessGenerator {
     async fn process_job(
         job: Self::Job,
         _object_store: Arc<dyn ObjectStore>,
-        _max_circuits_in_flight: Option<usize>,
+        _max_circuits_in_flight: usize,
         started_at: Instant,
     ) -> anyhow::Result<RecursionTipArtifacts> {
         tracing::info!(
@@ -160,11 +137,8 @@ impl WitnessGenerator for RecursionTipWitnessGenerator {
         keystore: Keystore,
     ) -> anyhow::Result<RecursionTipWitnessGeneratorJob> {
         let started_at = Instant::now();
-        let recursion_tip_proofs = RecursionTipWitnessGenerator::get_artifacts(
-            &metadata.final_node_proof_job_ids,
-            object_store,
-        )
-        .await?;
+        let recursion_tip_proofs =
+            Self::get_artifacts(&metadata.final_node_proof_job_ids, object_store).await?;
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::RecursionTip.into()]
             .observe(started_at.elapsed());
 
@@ -240,5 +214,36 @@ impl WitnessGenerator for RecursionTipWitnessGenerator {
             recursion_tip_witness,
             node_vk,
         })
+    }
+
+    async fn get_job_attempts(
+        connection_pool: ConnectionPool<Prover>,
+        job_id: u32,
+    ) -> anyhow::Result<u32> {
+        let mut prover_storage = connection_pool
+            .connection()
+            .await
+            .context("failed to acquire DB connection for RecursionTipWitnessGenerator")?;
+        prover_storage
+            .fri_witness_generator_dal()
+            .get_recursion_tip_witness_job_attempts(L1BatchNumber(job_id))
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context("failed to get job attempts for RecursionTipWitnessGenerator")
+    }
+
+    async fn save_failure(
+        connection_pool: ConnectionPool<Prover>,
+        job_id: u32,
+        error: String,
+    ) -> anyhow::Result<()> {
+        connection_pool
+            .connection()
+            .await
+            .unwrap()
+            .fri_witness_generator_dal()
+            .mark_recursion_tip_job_failed(&error, L1BatchNumber(job_id))
+            .await;
+        Ok(())
     }
 }

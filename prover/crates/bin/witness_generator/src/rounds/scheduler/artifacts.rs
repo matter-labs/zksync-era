@@ -9,11 +9,11 @@ use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
     artifacts::ArtifactsManager,
-    scheduler::{SchedulerArtifacts, SchedulerWitnessGenerator},
+    rounds::scheduler::{Scheduler, SchedulerArtifacts},
 };
 
 #[async_trait]
-impl ArtifactsManager for SchedulerWitnessGenerator {
+impl ArtifactsManager for Scheduler {
     type InputMetadata = u32;
     type InputArtifacts = FriProofWrapper;
     type OutputArtifacts = SchedulerArtifacts;
