@@ -87,6 +87,7 @@ impl UpdatesManager {
         &self,
         l2_shared_bridge_addr: Address,
         l2_native_token_vault_proxy_addr: Address,
+        l2_legacy_shared_bridge_addr: Address,
         pre_insert_txs: bool,
     ) -> L2BlockSealCommand {
         L2BlockSealCommand {
@@ -101,6 +102,7 @@ impl UpdatesManager {
             protocol_version: Some(self.protocol_version),
             l2_shared_bridge_addr,
             l2_native_token_vault_proxy_addr,
+            l2_legacy_shared_bridge_addr,
             pre_insert_txs,
         }
     }
@@ -213,6 +215,7 @@ pub struct L2BlockSealCommand {
     pub protocol_version: Option<ProtocolVersionId>,
     pub l2_shared_bridge_addr: Address,
     pub l2_native_token_vault_proxy_addr: Address,
+    pub l2_legacy_shared_bridge_addr: Address,
     pub pubdata_params: PubdataParams,
     /// Whether transactions should be pre-inserted to DB.
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB

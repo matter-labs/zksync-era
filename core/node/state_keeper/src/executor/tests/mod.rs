@@ -70,7 +70,7 @@ async fn execute_l2_tx(storage_type: StorageType, vm_mode: FastVmMode) {
 
     let message_root_init_txn = alice.get_l2_tx_for_execute(
         Execute {
-            contract_address: L2_MESSAGE_ROOT_ADDRESS,
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
             calldata: encoded_data,
             value: U256::zero(),
             factory_deps: vec![],
@@ -135,7 +135,7 @@ async fn execute_l2_tx_after_snapshot_recovery(
 
     let message_root_init_txn = alice.get_l2_tx_for_execute(
         Execute {
-            contract_address: L2_MESSAGE_ROOT_ADDRESS,
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
             calldata: encoded_data,
             value: U256::zero(),
             factory_deps: vec![],
@@ -186,7 +186,7 @@ async fn execute_l1_tx(vm_mode: FastVmMode) {
 
     let message_root_init_txn = alice.get_l2_tx_for_execute(
         Execute {
-            contract_address: L2_MESSAGE_ROOT_ADDRESS,
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
             calldata: encoded_data,
             value: U256::zero(),
             factory_deps: vec![],
@@ -229,7 +229,7 @@ async fn execute_l2_and_l1_txs(vm_mode: FastVmMode) {
 
     let message_root_init_txn = alice.get_l2_tx_for_execute(
         Execute {
-            contract_address: L2_MESSAGE_ROOT_ADDRESS,
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
             calldata: encoded_data,
             value: U256::zero(),
             factory_deps: vec![],
@@ -277,7 +277,7 @@ async fn rollback(vm_mode: FastVmMode) {
 
     let message_root_init_txn = alice.get_l2_tx_for_execute(
         Execute {
-            contract_address: L2_MESSAGE_ROOT_ADDRESS,
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
             calldata: encoded_data,
             value: U256::zero(),
             factory_deps: vec![],
@@ -352,7 +352,7 @@ async fn too_big_gas_limit(vm_mode: FastVmMode) {
 
     let message_root_init_txn = alice.get_l2_tx_for_execute(
         Execute {
-            contract_address: L2_MESSAGE_ROOT_ADDRESS,
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
             calldata: encoded_data,
             value: U256::zero(),
             factory_deps: vec![],
@@ -417,7 +417,7 @@ async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
 
     let message_root_init_txn = alice.get_l2_tx_for_execute(
         Execute {
-            contract_address: L2_MESSAGE_ROOT_ADDRESS,
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
             calldata: encoded_data,
             value: U256::zero(),
             factory_deps: vec![],
@@ -492,7 +492,7 @@ async fn execute_reverted_tx(vm_mode: FastVmMode) {
 
     let message_root_init_txn = bob.get_l2_tx_for_execute(
         Execute {
-            contract_address: L2_MESSAGE_ROOT_ADDRESS,
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
             calldata: encoded_data,
             value: U256::zero(),
             factory_deps: vec![],
@@ -546,7 +546,7 @@ async fn execute_realistic_scenario(vm_mode: FastVmMode) {
 
     let message_root_init_txn = alice.get_l2_tx_for_execute(
         Execute {
-            contract_address: L2_MESSAGE_ROOT_ADDRESS,
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
             calldata: encoded_data,
             value: U256::zero(),
             factory_deps: vec![],
@@ -706,7 +706,7 @@ async fn catchup_rocksdb_cache() {
 
     let message_root_init_txn = alice.get_l2_tx_for_execute(
         Execute {
-            contract_address: L2_MESSAGE_ROOT_ADDRESS,
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
             calldata: encoded_data,
             value: U256::zero(),
             factory_deps: vec![],

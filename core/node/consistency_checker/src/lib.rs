@@ -11,14 +11,17 @@ use zksync_eth_client::{
 };
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
 use zksync_l1_contract_interface::{
-    i_executor::{commit::kzg::ZK_SYNC_BYTES_PER_BLOB, structures::CommitBatchInfo},
+    i_executor::{
+        commit::kzg::ZK_SYNC_BYTES_PER_BLOB,
+        structures::{CommitBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
+    },
     Tokenizable,
 };
 use zksync_shared_metrics::{CheckerComponent, EN_METRICS};
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     ethabi,
-    ethabi::Token,
+    ethabi::{ParamType, Token},
     pubdata_da::PubdataDA,
     Address, L1BatchNumber, ProtocolVersionId, H256, U256,
 };
@@ -211,6 +214,13 @@ impl LocalL1BatchCommitData {
             .header
             .protocol_version
             .map_or(true, |version| version.is_pre_shared_bridge())
+    }
+
+    fn is_pre_gateway(&self) -> bool {
+        self.l1_batch
+            .header
+            .protocol_version
+            .map_or(true, |version| version.is_pre_gateway())
     }
 
     /// All returned errors are validation errors.
@@ -497,12 +507,16 @@ impl ConsistencyChecker {
                 .map_err(CheckError::Internal)?
         };
 
-        let commitment =
-            Self::extract_commit_data(&commit_tx.input.0, commit_function, batch_number)
-                .with_context(|| {
-                    format!("failed extracting commit data for transaction {commit_tx_hash:?}")
-                })
-                .map_err(CheckError::Validation)?;
+        let commitment = Self::extract_commit_data(
+            &commit_tx.input.0,
+            commit_function,
+            batch_number,
+            local.is_pre_gateway(),
+        )
+        .with_context(|| {
+            format!("failed extracting commit data for transaction {commit_tx_hash:?}")
+        })
+        .map_err(CheckError::Validation)?;
         local
             .verify_commitment(&commitment)
             .map_err(CheckError::Validation)
@@ -513,6 +527,7 @@ impl ConsistencyChecker {
         commit_tx_input_data: &[u8],
         commit_function: &ethabi::Function,
         batch_number: L1BatchNumber,
+        pre_gateway: bool,
     ) -> anyhow::Result<ethabi::Token> {
         let expected_solidity_selector = commit_function.short_signature();
         let actual_solidity_selector = &commit_tx_input_data[..4];
@@ -524,11 +539,40 @@ impl ConsistencyChecker {
         let mut commit_input_tokens = commit_function
             .decode_input(&commit_tx_input_data[4..])
             .context("Failed decoding calldata for L1 commit function")?;
-        let mut commitments = commit_input_tokens
-            .pop()
-            .context("Unexpected signature for L1 commit function")?
-            .into_array()
-            .context("Unexpected signature for L1 commit function")?;
+        let mut commitments: Vec<Token>;
+        if pre_gateway {
+            commitments = commit_input_tokens
+                .pop()
+                .context("Unexpected signature for L1 commit function")?
+                .into_array()
+                .context("Unexpected signature for L1 commit function")?;
+        } else {
+            let commitments_popped = commit_input_tokens
+                .pop()
+                .context("Unexpected signature for L1 commit function 1")?;
+            let commitment_bytes = match commitments_popped {
+                Token::Bytes(arr) => arr,
+                _ => anyhow::bail!("Unexpected signature for L1 commit function 2"),
+            };
+            let (version, encoded_data) = commitment_bytes.split_at(1);
+            assert_eq!(version[0], SUPPORTED_ENCODING_VERSION);
+            let decoded_data = ethabi::decode(
+                &[
+                    StoredBatchInfo::schema(),
+                    ParamType::Array(Box::new(CommitBatchInfo::schema())),
+                ], // types expected (e.g., Token::Array)
+                encoded_data,
+            )
+            .expect("Decoding failed");
+            // let mut commitments;
+            if let [_, Token::Array(batch_commitments)] = &decoded_data[..] {
+                // Now you have access to `stored_batch_info` and `l1_batches_to_commit`
+                // Process them as needed
+                commitments = batch_commitments.clone();
+            } else {
+                panic!("Unexpected data format");
+            }
+        }
 
         // Commit transactions usually publish multiple commitments at once, so we need to find
         // the one that corresponds to the batch we're checking.
@@ -536,14 +580,15 @@ impl ConsistencyChecker {
             .first()
             .context("L1 batch commitment is empty")?;
         let ethabi::Token::Tuple(first_batch_commitment) = first_batch_commitment else {
-            anyhow::bail!("Unexpected signature for L1 commit function");
+            anyhow::bail!("Unexpected signature for L1 commit function 3");
         };
         let first_batch_number = first_batch_commitment
             .first()
-            .context("Unexpected signature for L1 commit function")?
+            .context("Unexpected signature for L1 commit function 4")?;
+        let first_batch_number = first_batch_number
             .clone()
             .into_uint()
-            .context("Unexpected signature for L1 commit function")?;
+            .context("Unexpected signature for L1 commit function  5")?;
         let first_batch_number = usize::try_from(first_batch_number)
             .map_err(|_| anyhow::anyhow!("Integer overflow for L1 batch number"))?;
         // ^ `TryFrom` has `&str` error here, so we can't use `.context()`.

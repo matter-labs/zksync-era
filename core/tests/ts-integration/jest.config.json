@@ -14,6 +14,7 @@
   "testTimeout": 605000,
   "globalSetup": "<rootDir>/src/jest-setup/global-setup.ts",
   "globalTeardown": "<rootDir>/src/jest-setup/global-teardown.ts",
+  "testEnvironment": "<rootDir>/src/jest-setup/env.ts",
   "setupFilesAfterEnv": [
     "<rootDir>/src/jest-setup/add-matchers.ts"
   ],

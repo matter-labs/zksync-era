@@ -4,8 +4,8 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        da_client::DAClient, eth_sender::PubdataSendingMode, wallets::Wallets, GeneralConfig,
-        Secrets,
+        da_client::DAClient, eth_sender::PubdataSendingMode, gateway::GatewayChainConfig,
+        wallets::Wallets, GeneralConfig, Secrets,
     },
     ContractsConfig, GenesisConfig,
 };
@@ -90,7 +90,7 @@ pub struct MainNodeBuilder {
     wallets: Wallets,
     genesis_config: GenesisConfig,
     contracts_config: ContractsConfig,
-    gateway_contracts_config: Option<ContractsConfig>,
+    gateway_contracts_config: Option<GatewayChainConfig>,
     secrets: Secrets,
 }
 
@@ -100,7 +100,7 @@ impl MainNodeBuilder {
         wallets: Wallets,
         genesis_config: GenesisConfig,
         contracts_config: ContractsConfig,
-        gateway_contracts_config: Option<ContractsConfig>,
+        gateway_contracts_config: Option<GatewayChainConfig>,
         secrets: Secrets,
     ) -> anyhow::Result<Self> {
         Ok(Self {
@@ -246,6 +246,9 @@ impl MainNodeBuilder {
             self.contracts_config
                 .l2_native_token_vault_proxy_addr
                 .context("L2 native token vault proxy address")?,
+            self.contracts_config
+                .l2_legacy_shared_bridge_addr
+                .context("L2 legacy shared bridge address")?,
             sk_config.l2_block_seal_queue_capacity,
         )
         .with_protective_reads_persistence_enabled(sk_config.protective_reads_persistence_enabled);

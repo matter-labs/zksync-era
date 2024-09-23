@@ -20,8 +20,8 @@ use crate::{
     },
 };
 
-pub(crate) const L2_DA_VALIDATOR_OUTPUT_HASH_KEY: usize = 7;
-pub(crate) const USED_L2_DA_VALIDATOR_ADDRESS_KEY: usize = 8;
+pub(crate) const L2_DA_VALIDATOR_OUTPUT_HASH_KEY: usize = 5;
+pub(crate) const USED_L2_DA_VALIDATOR_ADDRESS_KEY: usize = 6;
 
 pub(crate) fn encoded_uncompressed_state_diffs(input: &PubdataInput) -> Vec<u8> {
     let mut result = vec![];
@@ -99,7 +99,7 @@ fn test_publish_and_clear_state() {
 
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: L1_MESSENGER_ADDRESS,
+            contract_address: Some(L1_MESSENGER_ADDRESS),
             calldata: encoded_data,
             value: U256::zero(),
             factory_deps: vec![],

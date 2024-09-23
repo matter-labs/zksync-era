@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_config::{
-    configs::{wallets, ContractsConfig},
+    configs::{gateway::GatewayChainConfig, wallets, ContractsConfig},
     EthConfig,
 };
 use zksync_eth_client::clients::PKSigningClient;
@@ -20,7 +20,7 @@ use crate::{
 pub struct PKSigningEthClientLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
-    gateway_contracts_config: Option<ContractsConfig>,
+    gateway_contracts_config: Option<GatewayChainConfig>,
     sl_chain_id: SLChainId,
     wallets: wallets::EthSender,
 }
@@ -45,7 +45,7 @@ impl PKSigningEthClientLayer {
     pub fn new(
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
-        gateway_contracts_config: Option<ContractsConfig>,
+        gateway_contracts_config: Option<GatewayChainConfig>,
         sl_chain_id: SLChainId,
         wallets: wallets::EthSender,
     ) -> Self {
@@ -98,18 +98,18 @@ impl WiringLayer for PKSigningEthClientLayer {
             BoundEthInterfaceForBlobsResource(Box::new(signing_client_for_blobs))
         });
         let signing_client_for_gateway = if input.gateway_client.is_some() {
-            self.wallets.gateway.map(|gateway_operator| {
-                let private_key = gateway_operator.private_key();
-                let GatewayEthInterfaceResource(gateway_client) = input.gateway_client.unwrap();
-                let signing_client_for_blobs = PKSigningClient::new_raw(
-                    private_key.clone(),
-                    self.gateway_contracts_config.unwrap().diamond_proxy_addr,
-                    gas_adjuster_config.default_priority_fee_per_gas,
-                    self.sl_chain_id,
-                    gateway_client,
-                );
-                BoundEthInterfaceForL2Resource(Box::new(signing_client_for_blobs))
-            })
+            let private_key = self.wallets.operator.private_key();
+            let GatewayEthInterfaceResource(gateway_client) = input.gateway_client.unwrap();
+            let signing_client_for_blobs = PKSigningClient::new_raw(
+                private_key.clone(),
+                self.gateway_contracts_config.unwrap().diamond_proxy_addr,
+                gas_adjuster_config.default_priority_fee_per_gas,
+                self.sl_chain_id,
+                gateway_client,
+            );
+            Some(BoundEthInterfaceForL2Resource(Box::new(
+                signing_client_for_blobs,
+            )))
         } else {
             None
         };

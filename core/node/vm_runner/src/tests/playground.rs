@@ -74,6 +74,7 @@ async fn run_playground(
 
     let (playground, playground_tasks) = VmPlayground::new(
         pool.clone(),
+        None,
         FastVmMode::Shadow,
         storage,
         genesis_params.config().l2_chain_id,
@@ -255,6 +256,7 @@ async fn using_larger_window_size(window_size: u32) {
     };
     let (playground, playground_tasks) = VmPlayground::new(
         pool.clone(),
+        None,
         FastVmMode::Shadow,
         VmPlaygroundStorageOptions::from(&rocksdb_dir),
         genesis_params.config().l2_chain_id,

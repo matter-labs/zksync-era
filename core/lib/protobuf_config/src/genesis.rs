@@ -7,6 +7,7 @@ use zksync_basic_types::{
 };
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
+use zksync_types::SLChainId;
 
 use crate::{parse_h160, parse_h256, proto::genesis as proto};
 
@@ -78,7 +79,7 @@ impl ProtoRepr for proto::Genesis {
             l1_chain_id: required(&self.l1_chain_id)
                 .map(|x| L1ChainId(*x))
                 .context("l1_chain_id")?,
-            sl_chain_id: None,
+            sl_chain_id: self.sl_chain_id.map(SLChainId),
             l2_chain_id: required(&self.l2_chain_id)
                 .and_then(|x| L2ChainId::try_from(*x).map_err(|a| anyhow::anyhow!(a)))
                 .context("l2_chain_id")?,
@@ -108,6 +109,7 @@ impl ProtoRepr for proto::Genesis {
             fee_account: Some(format!("{:?}", this.fee_account)),
             l1_chain_id: Some(this.l1_chain_id.0),
             l2_chain_id: Some(this.l2_chain_id.as_u64()),
+            sl_chain_id: this.sl_chain_id.map(|x| x.0),
             prover: Some(proto::Prover {
                 recursion_scheduler_level_vk_hash: None, // Deprecated field.
                 dummy_verifier: Some(this.dummy_verifier),

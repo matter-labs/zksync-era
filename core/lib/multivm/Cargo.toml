@@ -35,7 +35,6 @@ anyhow.workspace = true
 hex.workspace = true
 itertools.workspace = true
 once_cell.workspace = true
-pretty_assertions.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 vise.workspace = true

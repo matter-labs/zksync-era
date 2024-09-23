@@ -36,11 +36,11 @@ const FORGE_PATH_PREFIX: &str = "contracts/l1-contracts/out";
 const BRIDGEHUB_CONTRACT_FILE: (&str, &str) = ("bridgehub", "IBridgehub.sol/IBridgehub.json");
 const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
-    "IStateTransitionManager.sol/IStateTransitionManager.json",
+    "IChainTypeManager.sol/IChainTypeManager.json",
 );
 const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
-    "IZkSyncHyperchain.sol/IZkSyncHyperchain.json",
+    "IZKChain.sol/IZKChain.json",
 );
 const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
@@ -237,7 +237,7 @@ pub fn known_codes_contract() -> Contract {
 }
 
 /// Reads bytecode from a given path.
-fn read_bytecode_from_path(artifact_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
+pub fn read_bytecode_from_path(artifact_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
     let artifact = read_file_to_json_value(&artifact_path);
 
     let bytecode = artifact["bytecode"]

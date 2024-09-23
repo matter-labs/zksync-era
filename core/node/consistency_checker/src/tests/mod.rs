@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 use zksync_config::GenesisConfig;
 use zksync_dal::Connection;
 use zksync_eth_client::{clients::MockSettlementLayer, Options};
-use zksync_l1_contract_interface::{i_executor::methods::CommitBatches, Tokenizable, Tokenize};
+use zksync_l1_contract_interface::{i_executor::methods::CommitBatches, Tokenizable};
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, l1_batch_metadata_to_commitment_artifacts,
@@ -67,7 +67,7 @@ pub(crate) fn build_commit_tx_input_data(
         pubdata_da: PubdataDA::Calldata,
         mode,
     }
-    .into_tokens();
+    .into_tokens(protocol_version.is_pre_gateway());
 
     if protocol_version.is_pre_boojum() {
         PRE_BOOJUM_COMMIT_FUNCTION.encode_input(&tokens).unwrap()
@@ -164,6 +164,7 @@ fn build_commit_tx_input_data_is_correct(commitment_mode: L1BatchCommitmentMode)
             &commit_tx_input_data,
             commit_function,
             batch.header.number,
+            false,
         )
         .unwrap();
         assert_eq!(
@@ -248,6 +249,7 @@ fn extracting_commit_data_for_pre_boojum_batch() {
         commit_tx_input_data,
         &PRE_BOOJUM_COMMIT_FUNCTION,
         L1BatchNumber(200_000),
+        true,
     )
     .unwrap();
 

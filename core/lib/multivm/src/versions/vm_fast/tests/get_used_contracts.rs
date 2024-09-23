@@ -14,6 +14,7 @@ use crate::{
         storage::ReadStorage, ExecutionResult, TxExecutionMode, VmExecutionMode,
         VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
     },
+    versions::testonly::ContractToDeploy,
     vm_fast::{
         tests::{
             tester::{TxType, VmTester, VmTesterBuilder},
@@ -65,7 +66,7 @@ fn test_get_used_contracts() {
     let account2 = Account::random();
     let tx2 = account2.get_l1_tx(
         Execute {
-            contract_address: CONTRACT_DEPLOYER_ADDRESS,
+            contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
             calldata: big_calldata,
             value: Default::default(),
             factory_deps: vec![vec![1; 32]],
@@ -123,7 +124,10 @@ fn execute_proxy_counter(gas: u32) -> (VmTester, ProxyCounterData, VmExecutionRe
 
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
-        .with_custom_contracts(vec![(counter_bytecode, counter_address, false)])
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            counter_bytecode,
+            counter_address,
+        )])
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
         .build();
@@ -150,7 +154,7 @@ fn execute_proxy_counter(gas: u32) -> (VmTester, ProxyCounterData, VmExecutionRe
     let increment = proxy_counter_abi.function("increment").unwrap();
     let increment_tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: deploy_tx.address,
+            contract_address: Some(deploy_tx.address),
             calldata: increment
                 .encode_input(&[Token::Uint(1.into()), Token::Uint(gas.into())])
                 .unwrap(),
@@ -197,7 +201,7 @@ fn get_used_contracts_with_out_of_gas_far_call() {
     let increment = proxy_counter_abi.function("increment").unwrap();
     let increment_tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: data.proxy_counter_address,
+            contract_address: Some(data.proxy_counter_address),
             calldata: increment
                 .encode_input(&[Token::Uint(1.into()), Token::Uint(u64::MAX.into())])
                 .unwrap(),

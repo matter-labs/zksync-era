@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use circuit_definitions::circuit_definitions::recursion_layer::base_circuit_type_into_recursive_leaf_circuit_type;
 use tokio::sync::Semaphore;
 use zkevm_test_harness::{
@@ -36,6 +37,7 @@ use crate::{
         load_proofs_for_job_ids, save_recursive_layer_prover_input_artifacts,
         ClosedFormInputWrapper,
     },
+    witness_generator::WitnessGenerator,
 };
 
 mod artifacts;
@@ -85,69 +87,6 @@ impl LeafAggregationWitnessGenerator {
             keystore,
         }
     }
-
-    #[tracing::instrument(
-        skip_all,
-        fields(l1_batch = %leaf_job.block_number, circuit_id = %leaf_job.circuit_id)
-    )]
-    pub async fn process_job_impl(
-        leaf_job: LeafAggregationWitnessGeneratorJob,
-        started_at: Instant,
-        object_store: Arc<dyn ObjectStore>,
-        max_circuits_in_flight: usize,
-    ) -> LeafAggregationArtifacts {
-        tracing::info!(
-            "Starting witness generation of type {:?} for block {} with circuit {}",
-            AggregationRound::LeafAggregation,
-            leaf_job.block_number.0,
-            leaf_job.circuit_id,
-        );
-        process_leaf_aggregation_job(started_at, leaf_job, object_store, max_circuits_in_flight)
-            .await
-    }
-}
-
-#[tracing::instrument(
-    skip_all,
-    fields(l1_batch = %metadata.block_number, circuit_id = %metadata.circuit_id)
-)]
-pub async fn prepare_leaf_aggregation_job(
-    metadata: LeafAggregationJobMetadata,
-    object_store: &dyn ObjectStore,
-    keystore: Keystore,
-) -> anyhow::Result<LeafAggregationWitnessGeneratorJob> {
-    let started_at = Instant::now();
-    let closed_form_input =
-        LeafAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await?;
-
-    WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::LeafAggregation.into()]
-        .observe(started_at.elapsed());
-
-    let started_at = Instant::now();
-    let base_vk = keystore
-        .load_base_layer_verification_key(metadata.circuit_id)
-        .context("get_base_layer_vk_for_circuit_type()")?;
-
-    let leaf_circuit_id = base_circuit_type_into_recursive_leaf_circuit_type(
-        BaseLayerCircuitType::from_numeric_value(metadata.circuit_id),
-    ) as u8;
-
-    let leaf_vk = keystore
-        .load_recursive_layer_verification_key(leaf_circuit_id)
-        .context("get_recursive_layer_vk_for_circuit_type()")?;
-    let leaf_params = compute_leaf_params(metadata.circuit_id, base_vk.clone(), leaf_vk);
-
-    WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::LeafAggregation.into()]
-        .observe(started_at.elapsed());
-
-    Ok(LeafAggregationWitnessGeneratorJob {
-        circuit_id: metadata.circuit_id,
-        block_number: metadata.block_number,
-        closed_form_inputs: closed_form_input,
-        proofs_ids: metadata.prover_job_ids_for_proofs,
-        base_vk,
-        leaf_params,
-    })
 }
 
 #[tracing::instrument(
@@ -259,5 +198,80 @@ pub async fn process_leaf_aggregation_job(
         aggregations,
         circuit_ids_and_urls,
         closed_form_inputs: job.closed_form_inputs.0,
+    }
+}
+
+#[async_trait]
+impl WitnessGenerator for LeafAggregationWitnessGenerator {
+    type Job = LeafAggregationWitnessGeneratorJob;
+    type Metadata = LeafAggregationJobMetadata;
+    type Artifacts = LeafAggregationArtifacts;
+
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %job.block_number, circuit_id = %job.circuit_id)
+    )]
+    async fn process_job(
+        job: LeafAggregationWitnessGeneratorJob,
+        object_store: Arc<dyn ObjectStore>,
+        max_circuits_in_flight: Option<usize>,
+        started_at: Instant,
+    ) -> anyhow::Result<LeafAggregationArtifacts> {
+        tracing::info!(
+            "Starting witness generation of type {:?} for block {} with circuit {}",
+            AggregationRound::LeafAggregation,
+            job.block_number.0,
+            job.circuit_id,
+        );
+        Ok(process_leaf_aggregation_job(
+            started_at,
+            job,
+            object_store,
+            max_circuits_in_flight.unwrap(),
+        )
+        .await)
+    }
+
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %metadata.block_number, circuit_id = %metadata.circuit_id)
+    )]
+    async fn prepare_job(
+        metadata: LeafAggregationJobMetadata,
+        object_store: &dyn ObjectStore,
+        keystore: Keystore,
+    ) -> anyhow::Result<LeafAggregationWitnessGeneratorJob> {
+        let started_at = Instant::now();
+        let closed_form_input =
+            LeafAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await?;
+
+        WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::LeafAggregation.into()]
+            .observe(started_at.elapsed());
+
+        let started_at = Instant::now();
+        let base_vk = keystore
+            .load_base_layer_verification_key(metadata.circuit_id)
+            .context("get_base_layer_vk_for_circuit_type()")?;
+
+        let leaf_circuit_id = base_circuit_type_into_recursive_leaf_circuit_type(
+            BaseLayerCircuitType::from_numeric_value(metadata.circuit_id),
+        ) as u8;
+
+        let leaf_vk = keystore
+            .load_recursive_layer_verification_key(leaf_circuit_id)
+            .context("get_recursive_layer_vk_for_circuit_type()")?;
+        let leaf_params = compute_leaf_params(metadata.circuit_id, base_vk.clone(), leaf_vk);
+
+        WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::LeafAggregation.into()]
+            .observe(started_at.elapsed());
+
+        Ok(LeafAggregationWitnessGeneratorJob {
+            circuit_id: metadata.circuit_id,
+            block_number: metadata.block_number,
+            closed_form_inputs: closed_form_input,
+            proofs_ids: metadata.prover_job_ids_for_proofs,
+            base_vk,
+            leaf_params,
+        })
     }
 }
