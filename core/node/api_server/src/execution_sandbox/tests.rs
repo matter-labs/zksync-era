@@ -269,10 +269,14 @@ async fn validating_transaction(set_balance: bool) {
     setup_args.enforced_base_fee = Some(base_fee);
     let transaction = create_transfer(base_fee, gas_per_pubdata);
 
-    let validation_params =
-        validate::get_validation_params(&mut connection, &transaction, u32::MAX, &[])
-            .await
-            .unwrap();
+    let validation_params = validate::get_validation_params(
+        &mut connection,
+        &zksync_types::ExternalTx::L2Tx(transaction.clone()),
+        u32::MAX,
+        &[],
+    )
+    .await
+    .unwrap();
     let (env, storage) = apply::prepare_env_and_storage(connection, setup_args, &block_args)
         .await
         .unwrap();
@@ -291,7 +295,12 @@ async fn validating_transaction(set_balance: bool) {
     let storage = StorageWithOverrides::new(storage, &state_override);
 
     let validation_result = MainOneshotExecutor::new(usize::MAX)
-        .validate_transaction(storage, env, transaction, validation_params)
+        .validate_transaction(
+            storage,
+            env,
+            zksync_types::ExternalTx::L2Tx(transaction.clone()),
+            validation_params,
+        )
         .await
         .unwrap();
     if set_balance {
