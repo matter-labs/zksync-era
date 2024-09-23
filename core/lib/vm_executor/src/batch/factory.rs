@@ -23,12 +23,12 @@ use super::{
     executor::{Command, MainBatchExecutor},
     metrics::{TxExecutionStage, BATCH_TIP_METRICS, EXECUTOR_METRICS, KEEPER_METRICS},
 };
-use crate::shared::{InteractionType, STORAGE_METRICS};
+use crate::shared::{InteractionType, Sealed, STORAGE_METRICS};
 
 /// Encapsulates a tracer used during batch processing. Currently supported tracers are `()` (no-op) and [`TraceCalls`].
 ///
 /// All members of this trait are implementation details.
-pub trait BatchTracer: fmt::Debug + 'static + Send {
+pub trait BatchTracer: fmt::Debug + 'static + Send + Sealed {
     /// True if call tracing is enabled. Used by legacy VMs which enable / disable call tracing dynamically.
     #[doc(hidden)]
     const TRACE_CALLS: bool;
@@ -36,6 +36,8 @@ pub trait BatchTracer: fmt::Debug + 'static + Send {
     #[doc(hidden)]
     type Fast: vm_fast::Tracer + Default + 'static;
 }
+
+impl Sealed for () {}
 
 /// No-op implementation that doesn't trace anything.
 impl BatchTracer for () {
@@ -46,6 +48,8 @@ impl BatchTracer for () {
 /// [`BatchTracer`] implementation tracing calls (returned in [`BatchTransactionExecutionResult`]s).
 #[derive(Debug)]
 pub struct TraceCalls(());
+
+impl Sealed for TraceCalls {}
 
 impl BatchTracer for TraceCalls {
     const TRACE_CALLS: bool = true;
