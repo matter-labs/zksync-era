@@ -576,7 +576,9 @@ impl TransactionsDal<'_, '_> {
         }
         let tx_cast = Transaction::from(tx.clone());
         let initiator_address = tx.common_data.sender;
-        let contract_address = tx.execute.contract_address.as_bytes();
+        let contract_address_as_address =
+            tx.execute.contract_address.expect("Contract address is mandatory");
+        let contract_address = contract_address_as_address.as_bytes();
         let json_data = serde_json::to_value(&tx.execute)
             .unwrap_or_else(|_| panic!("cannot serialize tx {:?} to json", tx.hash()));
         let gas_limit = u256_to_big_decimal(tx_cast.gas_limit());
@@ -1411,7 +1413,11 @@ impl TransactionsDal<'_, '_> {
             })?;
 
             xl2_values.push(u256_to_big_decimal(transaction.execute.value));
-            xl2_contract_addresses.push(transaction.execute.contract_address.as_bytes());
+            
+            let contract_address_as_address =
+                transaction.execute.contract_address.unwrap().clone();
+            let contract_address = contract_address_as_address.as_bytes().to_vec();
+            xl2_contract_addresses.push(contract_address.clone());
             xl2_paymaster_input.push(&paymaster_input[..]);
             xl2_paymaster.push(paymaster.as_bytes());
             xl2_hashes.push(tx_res.hash.as_bytes());
@@ -1521,7 +1527,7 @@ impl TransactionsDal<'_, '_> {
             &xl2_inputs as &[&[u8]],
             &xl2_datas,
             &xl2_tx_formats,
-            &xl2_contract_addresses as &[&[u8]],
+            &xl2_contract_addresses,
             &xl2_values,
             &xl2_paymaster as &[&[u8]],
             &xl2_paymaster_input as &[&[u8]],
@@ -1608,7 +1614,12 @@ impl TransactionsDal<'_, '_> {
             })?;
 
             xl2_values.push(u256_to_big_decimal(transaction.execute.value));
-            xl2_contract_addresses.push(transaction.execute.contract_address.as_bytes());
+            // xl2_contract_addresses.push(transaction.execute.contract_address.clone().unwrap().as_bytes());
+
+            let contract_address_as_address =
+                transaction.execute.contract_address.clone().unwrap();
+            let contract_address = contract_address_as_address.as_bytes().to_vec();
+            xl2_contract_addresses.push(contract_address);
             xl2_paymaster_input.push(&paymaster_input[..]);
             xl2_paymaster.push(paymaster.as_bytes());
             xl2_hashes.push(tx_res.hash.as_bytes());
@@ -1712,7 +1723,7 @@ impl TransactionsDal<'_, '_> {
             &xl2_datas,
             &xl2_refunded_gas,
             &xl2_values,
-            &xl2_contract_addresses as &[&[u8]],
+            &xl2_contract_addresses,
             &xl2_paymaster as &[&[u8]],
             &xl2_paymaster_input as &[&[u8]],
             l2_block_number.0 as i32,

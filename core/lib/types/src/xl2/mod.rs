@@ -236,7 +236,7 @@ impl From<XL2Tx> for TransactionRequest {
         let mut base_tx_req = TransactionRequest {
             nonce: U256::from(tx.common_data.serial_id.0),
             from: Some(tx.common_data.sender),
-            to: Some(tx.execute.contract_address),
+            to: tx.execute.contract_address,
             value: tx.execute.value,
             gas_price: tx.common_data.max_fee_per_gas,
             max_priority_fee_per_gas: Some(U256::from(0)),
@@ -297,7 +297,7 @@ impl From<XL2Tx> for api::Transaction {
             chain_id: U256::from(270), // todo
             nonce: U256::from(0),
             from: Some(tx.common_data.sender),
-            to: Some(tx.execute.contract_address),
+            to: tx.execute.contract_address,
             value: tx.execute.value,
             gas_price: Some(tx.common_data.max_fee_per_gas),
             max_priority_fee_per_gas: Some(U256::from(0)), // Some(tx.common_data.max_priority_fee_per_gas),
@@ -323,7 +323,7 @@ impl From<XL2Tx> for abi::L2CanonicalTransaction {
         Self {
             tx_type: INTEROP_TX_TYPE.into(),
             from: address_to_u256(&common_data.sender),
-            to: address_to_u256(&execute.contract_address),
+            to: address_to_u256(&execute.contract_address.unwrap()),
             gas_limit: common_data.gas_limit,
             gas_per_pubdata_byte_limit: common_data.gas_per_pubdata_limit,
             max_fee_per_gas: common_data.max_fee_per_gas,
@@ -420,7 +420,7 @@ impl XL2Tx {
         // println!("kl todo new xl2 tx");
         Self {
             execute: Execute {
-                contract_address,
+                contract_address: Some(contract_address),
                 calldata,
                 value,
                 factory_deps,
