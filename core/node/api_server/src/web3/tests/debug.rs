@@ -2,7 +2,10 @@
 
 use zksync_multivm::interface::{Call, TransactionExecutionResult};
 use zksync_types::{
-    api::{CallTracerConfig, CallTracerOption, CallTracerResult, SupportedTracers, TracerConfig},
+    api::{
+        CallTracerConfig, CallTracerOption, CallTracerResult, ResultDebugCall, SupportedTracers,
+        TracerConfig,
+    },
     BOOTLOADER_ADDRESS,
 };
 use zksync_web3_decl::{
@@ -65,7 +68,7 @@ impl HttpTest for TraceBlockTest {
 
             assert_eq!(block_traces.len(), tx_results.len()); // equals to the number of transactions in the block
             for (trace, tx_result) in block_traces.iter().zip(&tx_results) {
-                let CallTracerOption::CallTrace(result) = trace else {
+                let CallTracerResult::CallTrace(ResultDebugCall { result }) = trace else {
                     unreachable!()
                 };
                 assert_eq!(result.from, Address::zero());
@@ -159,9 +162,10 @@ impl HttpTest for TraceBlockFlatTest {
                     .map(|&i| block_traces[i].clone());
 
                 for (top_level_trace, tx_result) in top_level_traces.zip(&tx_results) {
-                    let CallTracerOption::FlattCallTrace(top_level_trace) = top_level_trace else {
+                    let CallTracerResult::FlattCallTrace(top_level_trace) = top_level_trace else {
                         unreachable!()
                     };
+                    let top_level_trace = top_level_trace.first().unwrap();
                     assert_eq!(top_level_trace.action.from, Address::zero());
                     assert_eq!(top_level_trace.action.to, BOOTLOADER_ADDRESS);
                     assert_eq!(
@@ -227,7 +231,7 @@ impl HttpTest for TraceTransactionTest {
             .map(|call| DebugNamespace::map_default_call(call.clone(), false))
             .collect();
 
-        let CallTracerResult::CallTrace(result) = client
+        let CallTracerOption::CallTrace(result) = client
             .trace_transaction(tx_results[0].hash, None)
             .await?
             .context("no transaction traces")?

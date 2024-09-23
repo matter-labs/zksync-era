@@ -600,7 +600,7 @@ pub struct GetLogsFilter {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ResultDebugCall {
-    pub result: CallTracerResult,
+    pub result: DebugCall,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
@@ -734,18 +734,18 @@ pub enum BlockStatus {
 
 /// FlatTracer is always more than one trace, so when we have to trace one transaction it also appeared as many traces
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase", untagged)]
+#[serde(untagged)]
 pub enum CallTracerResult {
-    CallTrace(DebugCall),
-    FlattCallTrace(Box<Vec<DebugCallFlat>>),
+    CallTrace(ResultDebugCall),
+    FlattCallTrace(Vec<DebugCallFlat>),
 }
 
 /// For tracing blocks we need to have all traces being combined all together without separation.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase", untagged)]
+#[serde(untagged)]
 pub enum CallTracerOption {
     CallTrace(DebugCall),
-    FlattCallTrace(Box<DebugCallFlat>),
+    FlattCallTrace(Vec<DebugCallFlat>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

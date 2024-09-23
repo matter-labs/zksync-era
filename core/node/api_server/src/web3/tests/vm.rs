@@ -7,7 +7,7 @@ use zksync_multivm::interface::{
     ExecutionResult, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
 };
 use zksync_types::{
-    api::{ApiStorageLog, CallTracerResult},
+    api::{ApiStorageLog, CallTracerOption},
     get_intrinsic_constants,
     transaction_request::CallRequest,
     K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue,
@@ -430,14 +430,14 @@ impl HttpTest for TraceCallTest {
         drop(connection);
 
         let call_request = CallTest::call_request(b"pending");
-        let CallTracerResult::CallTrace(call_result) =
+        let CallTracerOption::CallTrace(call_result) =
             client.trace_call(call_request.clone(), None, None).await?
         else {
             unreachable!()
         };
         Self::assert_debug_call(&call_request, &call_result);
         let pending_block_number = api::BlockId::Number(api::BlockNumber::Pending);
-        let CallTracerResult::CallTrace(call_result) = client
+        let CallTracerOption::CallTrace(call_result) = client
             .trace_call(call_request.clone(), Some(pending_block_number), None)
             .await?
         else {
@@ -448,7 +448,7 @@ impl HttpTest for TraceCallTest {
         let latest_block_numbers = [api::BlockNumber::Latest, 1.into()];
         let call_request = CallTest::call_request(b"latest");
         for number in latest_block_numbers {
-            let CallTracerResult::CallTrace(call_result) = client
+            let CallTracerOption::CallTrace(call_result) = client
                 .trace_call(
                     call_request.clone(),
                     Some(api::BlockId::Number(number)),
@@ -505,14 +505,14 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         _pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
         let call_request = CallTest::call_request(b"pending");
-        let CallTracerResult::CallTrace(call_result) =
+        let CallTracerOption::CallTrace(call_result) =
             client.trace_call(call_request.clone(), None, None).await?
         else {
             unreachable!()
         };
         TraceCallTest::assert_debug_call(&call_request, &call_result);
         let pending_block_number = api::BlockId::Number(api::BlockNumber::Pending);
-        let CallTracerResult::CallTrace(call_result) = client
+        let CallTracerOption::CallTrace(call_result) = client
             .trace_call(call_request.clone(), Some(pending_block_number), None)
             .await?
         else {
@@ -535,7 +535,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         let first_l2_block_numbers = [api::BlockNumber::Latest, first_local_l2_block.0.into()];
         for number in first_l2_block_numbers {
             let number = api::BlockId::Number(number);
-            let CallTracerResult::CallTrace(call_result) = client
+            let CallTracerOption::CallTrace(call_result) = client
                 .trace_call(call_request.clone(), Some(number), None)
                 .await?
             else {

@@ -25,14 +25,14 @@ pub trait DebugNamespace {
         &self,
         block: BlockNumber,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Vec<CallTracerOption>>;
+    ) -> RpcResult<Vec<CallTracerResult>>;
 
     #[method(name = "traceBlockByHash")]
     async fn trace_block_by_hash(
         &self,
         hash: H256,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Vec<CallTracerOption>>;
+    ) -> RpcResult<Vec<CallTracerResult>>;
 
     #[method(name = "traceCall")]
     async fn trace_call(
@@ -40,12 +40,12 @@ pub trait DebugNamespace {
         request: CallRequest,
         block: Option<BlockId>,
         options: Option<TracerConfig>,
-    ) -> RpcResult<CallTracerResult>;
+    ) -> RpcResult<CallTracerOption>;
 
     #[method(name = "traceTransaction")]
     async fn trace_transaction(
         &self,
         tx_hash: H256,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Option<CallTracerResult>>;
+    ) -> RpcResult<Option<CallTracerOption>>;
 }
