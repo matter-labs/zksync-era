@@ -285,9 +285,9 @@ function extractRefundForL1ToL2(receipt: zksync.types.TransactionReceipt, refund
  * @returns Token balance
  */
 async function getBalance(
-    l1: boolean, 
-    wallet: zksync.Wallet, 
-    address: string, 
+    l1: boolean,
+    wallet: zksync.Wallet,
+    address: string,
     token: string,
     ignoreUndeployedToken?: boolean
 ): Promise<bigint> {
@@ -295,7 +295,7 @@ async function getBalance(
     if (zksync.utils.isETH(token)) {
         return await provider.getBalance(address);
     } else {
-        if (ignoreUndeployedToken && await provider.getCode(token) === '0x') {
+        if (ignoreUndeployedToken && (await provider.getCode(token)) === '0x') {
             return 0n;
         }
 
