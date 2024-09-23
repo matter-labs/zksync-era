@@ -98,7 +98,6 @@ impl TxSender {
         let unscaled_gas_limit =
             Self::binary_search(&estimator, bounds, initial_pivot, acceptable_overestimation)
                 .await?;
-
         let suggested_gas_limit = (unscaled_gas_limit as f64 * estimated_fee_scale_factor) as u64;
         estimator
             .finalize(suggested_gas_limit, estimated_fee_scale_factor)
@@ -248,8 +247,10 @@ impl InitialGasEstimate {
         let gas_charged_without_overhead = self
             .total_gas_charged?
             .checked_sub(self.operator_overhead)?;
-        // FIXME: use a tighter multiplier?
-        Some(gas_charged_without_overhead * 6 / 5)
+        // 21/20 is an empirical multiplier. It is higher than what empirically suffices for some common transactions;
+        // one can argue that using 64/63 multiplier would be more accurate due to the 63/64 rule for far calls
+        // (however, far calls are not the only source of gas overhead in Era).
+        Some(gas_charged_without_overhead * 21 / 20)
     }
 }
 
@@ -368,7 +369,6 @@ impl<'a> GasEstimator<'a> {
                 .unadjusted_step(self.max_gas_limit)
                 .await
                 .context("estimate_gas step failed")?;
-            assert!(!result.result.is_failed(), "{:?}", result.result); // FIXME: remove
 
             // It is assumed that there is no overflow here
             let gas_charged_for_pubdata =
