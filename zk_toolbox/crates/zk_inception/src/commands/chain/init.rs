@@ -60,8 +60,10 @@ pub async fn init(
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
     let mut general_config = chain_config.get_general_config()?;
-    ecosystem_ports
-        .allocate_ports_with_offset_from_defaults(&mut general_config, chain_config.id)?;
+    if !init_args.no_port_reallocation {
+        ecosystem_ports
+            .allocate_ports_with_offset_from_defaults(&mut general_config, chain_config.id)?;
+    }
 
     let consensus_port = get_consensus_port(&general_config);
 

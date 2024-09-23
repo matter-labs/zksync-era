@@ -101,8 +101,7 @@ pub struct EcosystemPortsScanner {}
 
 impl EcosystemPortsScanner {
     /// Scans the ecosystem directory for YAML files and extracts port information.
-    /// Specifically, it looks for keys ending with "port" and collects their values.
-    /// Note: Port information from Docker Compose files will not be picked up by this method.
+    /// Specifically, it looks for keys ending with "port" or "ports" and collects their values.
     pub fn scan(shell: &Shell) -> Result<EcosystemPorts> {
         let ecosystem_config = EcosystemConfig::from_file(shell)?;
 

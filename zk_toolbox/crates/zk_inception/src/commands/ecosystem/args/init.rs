@@ -12,7 +12,8 @@ use crate::{
     messages::{
         MSG_DEPLOY_ECOSYSTEM_PROMPT, MSG_DEPLOY_ERC20_PROMPT, MSG_DEPLOY_PAYMASTER_PROMPT,
         MSG_DEV_ARG_HELP, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
-        MSG_L1_RPC_URL_PROMPT, MSG_OBSERVABILITY_HELP, MSG_OBSERVABILITY_PROMPT,
+        MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP, MSG_OBSERVABILITY_HELP,
+        MSG_OBSERVABILITY_PROMPT,
     },
 };
 
@@ -92,6 +93,8 @@ pub struct EcosystemInitArgs {
     pub dev: bool,
     #[clap(long, short = 'o', help = MSG_OBSERVABILITY_HELP, default_missing_value = "true", num_args = 0..=1)]
     pub observability: Option<bool>,
+    #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP, default_missing_value = "true", num_args = 0..=1)]
+    pub no_port_reallocation: Option<bool>,
 }
 
 impl EcosystemInitArgs {
@@ -121,6 +124,7 @@ impl EcosystemInitArgs {
                     .ask()
             })
         };
+        let no_port_reallocation = self.no_port_reallocation.unwrap_or(false);
 
         EcosystemInitArgsFinal {
             deploy_paymaster,
@@ -129,6 +133,7 @@ impl EcosystemInitArgs {
             forge_args: self.forge_args.clone(),
             dev: self.dev,
             observability,
+            no_port_reallocation,
         }
     }
 }
@@ -141,4 +146,5 @@ pub struct EcosystemInitArgsFinal {
     pub forge_args: ForgeScriptArgs,
     pub dev: bool,
     pub observability: bool,
+    pub no_port_reallocation: bool,
 }

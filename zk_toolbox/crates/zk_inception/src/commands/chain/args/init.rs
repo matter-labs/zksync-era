@@ -11,7 +11,7 @@ use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_PAYMASTER_PROMPT, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP,
-        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT,
+        MSG_L1_RPC_URL_INVALID_ERR, MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP,
     },
 };
 
@@ -28,6 +28,8 @@ pub struct InitArgs {
     pub deploy_paymaster: Option<bool>,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
+    #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP, default_missing_value = "true", num_args = 0..=1)]
+    pub no_port_reallocation: Option<bool>,
 }
 
 impl InitArgs {
@@ -52,11 +54,14 @@ impl InitArgs {
                 .ask()
         });
 
+        let no_port_reallocation = self.no_port_reallocation.unwrap_or(false);
+
         InitArgsFinal {
             forge_args: self.forge_args,
             genesis_args: self.genesis_args.fill_values_with_prompt(config),
             deploy_paymaster,
             l1_rpc_url,
+            no_port_reallocation,
         }
     }
 }
@@ -67,4 +72,5 @@ pub struct InitArgsFinal {
     pub genesis_args: GenesisArgsFinal,
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
+    pub no_port_reallocation: bool,
 }
