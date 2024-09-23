@@ -368,6 +368,7 @@ impl<'a> GasEstimator<'a> {
                 .unadjusted_step(self.max_gas_limit)
                 .await
                 .context("estimate_gas step failed")?;
+            assert!(!result.result.is_failed(), "{:?}", result.result); // FIXME: remove
 
             // It is assumed that there is no overflow here
             let gas_charged_for_pubdata =
