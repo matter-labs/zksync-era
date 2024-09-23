@@ -190,17 +190,18 @@ impl DebugNamespace {
             .map_err(DalError::generalize)?;
 
         let mut calls = vec![];
-        let mut flat_calls = vec![];
         for (call_trace, hash, index) in call_traces {
             match Self::map_call(call_trace, index, hash, options) {
                 CallTracerResult::CallTrace(call) => calls.push(
                     CallTracerResultWithNestedResult::CallTrace(ResultDebugCall { result: call }),
                 ),
-                CallTracerResult::FlattCallTrace(mut call) => flat_calls.append(&mut call),
+                CallTracerResult::FlattCallTrace(call) => calls.append(
+                    &mut call
+                        .into_iter()
+                        .map(CallTracerResultWithNestedResult::FlattCallTrace)
+                        .collect(),
+                ),
             }
-        }
-        if calls.is_empty() && !flat_calls.is_empty() {
-            calls.push(CallTracerResultWithNestedResult::FlattCallTrace(flat_calls))
         }
 
         Ok(calls)

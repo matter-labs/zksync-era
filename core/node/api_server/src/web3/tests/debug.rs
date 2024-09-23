@@ -168,7 +168,6 @@ impl HttpTest for TraceBlockFlatTest {
                     else {
                         unreachable!()
                     };
-                    let top_level_trace = top_level_trace.first().unwrap();
                     assert_eq!(top_level_trace.action.from, Address::zero());
                     assert_eq!(top_level_trace.action.to, BOOTLOADER_ADDRESS);
                     assert_eq!(
