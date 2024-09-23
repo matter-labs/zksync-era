@@ -21,7 +21,7 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 #[tokio::test]
 #[tracing::instrument] // Add args to the test logs
 async fn external_node_basics(components_str: &'static str) {
-    let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
+    let _guard = zksync_vlog::ObservabilityBuilder::new().try_build().ok(); // Enable logging to simplify debugging
 
     let (env, env_handles) = utils::TestEnvironment::with_genesis_block(components_str).await;
 
@@ -92,7 +92,7 @@ async fn external_node_basics(components_str: &'static str) {
 
 #[tokio::test]
 async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
-    let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
+    let _guard = zksync_vlog::ObservabilityBuilder::new().try_build().ok(); // Enable logging to simplify debugging
     let (env, env_handles) = utils::TestEnvironment::with_genesis_block("core").await;
 
     let l2_client = utils::mock_l2_client_hanging();
@@ -128,7 +128,7 @@ async fn node_reacts_to_stop_signal_during_initial_reorg_detection() {
 
 #[tokio::test]
 async fn running_tree_without_core_is_not_allowed() {
-    let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
+    let _guard = zksync_vlog::ObservabilityBuilder::new().try_build().ok(); // Enable logging to simplify debugging
     let (env, _env_handles) = utils::TestEnvironment::with_genesis_block("tree").await;
 
     let l2_client = utils::mock_l2_client(&env);
@@ -165,7 +165,7 @@ async fn running_tree_without_core_is_not_allowed() {
 
 #[tokio::test]
 async fn running_tree_api_without_tree_is_not_allowed() {
-    let _guard = zksync_vlog::ObservabilityBuilder::new().build(); // Enable logging to simplify debugging
+    let _guard = zksync_vlog::ObservabilityBuilder::new().try_build().ok(); // Enable logging to simplify debugging
     let (env, _env_handles) = utils::TestEnvironment::with_genesis_block("core,tree_api").await;
 
     let l2_client = utils::mock_l2_client(&env);

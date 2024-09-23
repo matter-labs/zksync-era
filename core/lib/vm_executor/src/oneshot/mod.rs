@@ -283,7 +283,7 @@ impl<S: ReadStorage> VmSandbox<S> {
             &tx_id,
             &memory_metrics,
             vm_execution_took,
-            self.storage_view.as_ref().borrow_mut().metrics(),
+            &self.storage_view.borrow().stats(),
         );
         result
     }

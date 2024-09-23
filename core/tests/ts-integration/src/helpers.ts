@@ -98,6 +98,38 @@ export async function waitUntilBlockFinalized(wallet: zksync.Wallet, blockNumber
     }
 }
 
+async function getL1BatchFinalizationStatus(provider: zksync.Provider, number: number) {
+    const result = await provider.send('zks_getL1ProcessingDetails', [number]);
+
+    if (result == null) {
+        return null;
+    }
+    if (result.executedAt != null) {
+        return {
+            finalizedHash: result.executeTxHash,
+            finalizedAt: result.executedAt
+        };
+    }
+    return null;
+}
+
+export async function waitForBlockToBeFinalizedOnL1(wallet: zksync.Wallet, blockNumber: number) {
+    // Waiting for the block to be finalized on the immediate settlement layer.
+    await waitUntilBlockFinalized(wallet, blockNumber);
+
+    const provider = wallet.provider;
+
+    const batchNumber = (await provider.getBlockDetails(blockNumber)).l1BatchNumber;
+
+    let result = await getL1BatchFinalizationStatus(provider, batchNumber);
+
+    while (result == null) {
+        await zksync.utils.sleep(provider.pollingInterval);
+
+        result = await getL1BatchFinalizationStatus(provider, batchNumber);
+    }
+}
+
 /**
  * Returns an increased gas price to decrease chances of L1 transactions being stuck
  *

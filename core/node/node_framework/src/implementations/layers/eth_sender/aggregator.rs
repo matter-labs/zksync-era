@@ -1,6 +1,6 @@
 use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
-use zksync_config::configs::{eth_sender::EthConfig, ContractsConfig};
+use zksync_config::configs::{eth_sender::EthConfig, gateway::GatewayChainConfig, ContractsConfig};
 use zksync_eth_client::BoundEthInterface;
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
 use zksync_types::{commitment::L1BatchCommitmentMode, settlement::SettlementMode, L2ChainId};
@@ -44,7 +44,7 @@ use crate::{
 pub struct EthTxAggregatorLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
-    gateway_contracts_config: Option<ContractsConfig>,
+    gateway_contracts_config: Option<GatewayChainConfig>,
     zksync_network_id: L2ChainId,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     settlement_mode: SettlementMode,
@@ -75,7 +75,7 @@ impl EthTxAggregatorLayer {
     pub fn new(
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
-        gateway_contracts_config: Option<ContractsConfig>,
+        gateway_contracts_config: Option<GatewayChainConfig>,
         zksync_network_id: L2ChainId,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
         settlement_mode: SettlementMode,
@@ -109,11 +109,31 @@ impl WiringLayer for EthTxAggregatorLayer {
         tracing::info!("Contracts: {:?}", self.contracts_config);
         tracing::info!("Gateway contracts: {:?}", self.gateway_contracts_config);
         // Get resources.
-        let contracts_config = if self.settlement_mode.is_gateway() {
-            self.gateway_contracts_config.unwrap()
-        } else {
-            self.contracts_config
-        };
+
+        let (validator_timelock_addr, multicall3_addr, diamond_proxy_addr) =
+            if self.settlement_mode.is_gateway() {
+                (
+                    self.gateway_contracts_config
+                        .clone()
+                        .unwrap()
+                        .validator_timelock_addr,
+                    self.gateway_contracts_config
+                        .clone()
+                        .unwrap()
+                        .multicall3_addr,
+                    self.gateway_contracts_config
+                        .clone()
+                        .unwrap()
+                        .diamond_proxy_addr,
+                )
+            } else {
+                (
+                    self.contracts_config.validator_timelock_addr,
+                    self.contracts_config.l1_multicall3_addr,
+                    self.contracts_config.diamond_proxy_addr,
+                )
+            };
+
         let eth_client = if self.settlement_mode.is_gateway() {
             input.eth_client_gateway.unwrap().0
         } else {
@@ -145,9 +165,9 @@ impl WiringLayer for EthTxAggregatorLayer {
             config.clone(),
             aggregator,
             eth_client,
-            contracts_config.validator_timelock_addr,
-            contracts_config.l1_multicall3_addr,
-            contracts_config.diamond_proxy_addr,
+            validator_timelock_addr,
+            multicall3_addr,
+            diamond_proxy_addr,
             self.zksync_network_id,
             eth_client_blobs_addr,
             self.settlement_mode,

@@ -102,7 +102,7 @@ export class Reporter {
             // Timestamps only make sense to include in tests.
             const timestampString = testName === undefined ? '' : timestamp(`${new Date().toISOString()} `);
             const testString = testName ? info(` [${testName}]`) : '';
-            console.log(this.indent(`${timestampString}DEBUG${testString}: ${message}`), ...args);
+            rawWriteToConsole(this.indent(`${timestampString}DEBUG${testString}: ${message}`), ...args);
         }
     }
 

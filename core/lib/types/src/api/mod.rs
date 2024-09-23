@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
+use serde_with::{hex::Hex, serde_as};
 use strum::Display;
 use zksync_basic_types::{
     tee_types::TeeType,
@@ -832,6 +833,17 @@ pub struct L1BatchDetails {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct L1ProcessingDetails {
+    pub commit_tx_hash: Option<H256>,
+    pub committed_at: Option<DateTime<Utc>>,
+    pub prove_tx_hash: Option<H256>,
+    pub proven_at: Option<DateTime<Utc>>,
+    pub execute_tx_hash: Option<H256>,
+    pub executed_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StorageProof {
     pub key: H256,
     pub proof: Vec<H256>,
@@ -846,15 +858,20 @@ pub struct Proof {
     pub storage_proof: Vec<StorageProof>,
 }
 
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TeeProof {
     pub l1_batch_number: L1BatchNumber,
     pub tee_type: Option<TeeType>,
+    #[serde_as(as = "Option<Hex>")]
     pub pubkey: Option<Vec<u8>>,
+    #[serde_as(as = "Option<Hex>")]
     pub signature: Option<Vec<u8>>,
+    #[serde_as(as = "Option<Hex>")]
     pub proof: Option<Vec<u8>>,
     pub proved_at: DateTime<Utc>,
+    #[serde_as(as = "Option<Hex>")]
     pub attestation: Option<Vec<u8>>,
 }
 

@@ -1,39 +1,34 @@
-use std::{
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
 use common::{
-    cmd::Cmd,
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
-    git, logger,
+    git,
+    hardhat::{build_l1_contracts, build_l2_contracts},
+    logger,
     spinner::Spinner,
     Prompt,
 };
 use config::{
     forge_interface::{
         deploy_ecosystem::{
-            input::{
-                DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, InitialDeploymentConfig,
-            },
-            output::{DeployL1Output, ERC20Tokens},
+            input::{DeployErc20Config, Erc20DeploymentConfig, InitialDeploymentConfig},
+            output::ERC20Tokens,
         },
-        script_params::{DEPLOY_ECOSYSTEM_SCRIPT_PARAMS, DEPLOY_ERC20_SCRIPT_PARAMS},
+        script_params::DEPLOY_ERC20_SCRIPT_PARAMS,
     },
-    traits::{
-        FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
-        SaveConfigWithBasePath,
-    },
-    ContractsConfig, EcosystemConfig, GenesisConfig,
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    ContractsConfig, EcosystemConfig,
 };
-use types::{L1Network, ProverMode};
-use xshell::{cmd, Shell};
+use types::L1Network;
+use xshell::Shell;
 
 use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
+    common::deploy_l1,
     setup_observability,
+    utils::{build_da_contracts, build_system_contracts, install_yarn_dependencies},
 };
 use crate::{
     accept_ownership::{accept_admin, accept_owner},
@@ -144,7 +139,10 @@ async fn init(
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
+    build_da_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l1_contracts(shell, &ecosystem_config.link_to_code)?;
     build_system_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
 
     let contracts = deploy_ecosystem(
@@ -180,7 +178,7 @@ async fn deploy_erc20(
     )
     .save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&ecosystem_config.path_to_foundry())
+    let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
         .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
@@ -280,47 +278,19 @@ async fn deploy_ecosystem_inner(
     initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
-
-    let default_genesis_config =
-        GenesisConfig::read_with_base_path(shell, config.get_default_configs_path())
-            .context("Context")?;
-
-    let wallets_config = config.get_wallets()?;
-    // For deploying ecosystem we only need genesis batch params
-    let deploy_config = DeployL1Config::new(
-        &default_genesis_config,
-        &wallets_config,
-        initial_deployment_config,
-        config.era_chain_id,
-        config.prover_version == ProverMode::NoProofs,
-    );
-    deploy_config.save(shell, deploy_config_path)?;
-
-    let mut forge = Forge::new(&config.path_to_foundry())
-        .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
-        .with_ffi()
-        .with_rpc_url(l1_rpc_url.clone())
-        .with_broadcast();
-
-    if config.l1_network == L1Network::Localhost {
-        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
-        forge = forge.with_slow();
-    }
-
-    forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
-
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
-    check_the_balance(&forge).await?;
-    forge.run(shell)?;
+    let contracts_config = deploy_l1(
+        shell,
+        &forge_args,
+        config,
+        initial_deployment_config,
+        &l1_rpc_url,
+        None,
+        true,
+    )
+    .await?;
     spinner.finish();
 
-    let script_output = DeployL1Output::read(
-        shell,
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.link_to_code),
-    )?;
-    let mut contracts_config = ContractsConfig::default();
-    contracts_config.update_from_l1_output(&script_output);
     accept_owner(
         shell,
         config,
@@ -354,16 +324,8 @@ async fn deploy_ecosystem_inner(
     )
     .await?;
 
-    accept_admin(
-        shell,
-        config,
-        contracts_config.l1.chain_admin_addr,
-        config.get_wallets()?.governor_private_key(),
-        contracts_config.bridges.shared.l1_address,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
+    // Note, that there is no admin in L1 asset router, so we do
+    // need to accept it
 
     accept_owner(
         shell,
@@ -386,20 +348,23 @@ async fn deploy_ecosystem_inner(
         contracts_config
             .ecosystem_contracts
             .state_transition_proxy_addr,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+
+    accept_owner(
+        shell,
+        config,
+        contracts_config.l1.governance_addr,
+        config.get_wallets()?.governor_private_key(),
+        contracts_config
+            .ecosystem_contracts
+            .stm_deployment_tracker_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
     )
     .await?;
 
     Ok(contracts_config)
-}
-
-fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code);
-    Ok(Cmd::new(cmd!(shell, "yarn install")).run()?)
-}
-
-fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Ok(Cmd::new(cmd!(shell, "yarn sc build")).run()?)
 }
