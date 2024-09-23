@@ -105,6 +105,7 @@ pub(crate) fn create_mock_checker(
         l1_client: Box::new(client.into_client()),
         event_handler: Box::new(health_updater),
         l1_data_mismatch_behavior: L1DataMismatchBehavior::Bail,
+        client_map: Default::default(),
         pool,
         commitment_mode,
         health_check,
@@ -141,8 +142,8 @@ impl HandleConsistencyCheckerEvent for mpsc::UnboundedSender<L1BatchNumber> {
         self.send(last_checked_batch).ok();
     }
 
-    fn report_inconsistent_batch(&mut self, _number: L1BatchNumber, _err: &anyhow::Error) {
-        // Do nothing
+    fn report_inconsistent_batch(&mut self, number: L1BatchNumber, err: &anyhow::Error) {
+        panic!("Error on batch #{number}: {err}");
     }
 }
 
@@ -303,6 +304,7 @@ impl SaveAction<'_> {
                         AggregatedActionType::Commit,
                         commit_tx_hash,
                         chrono::Utc::now(),
+                        None,
                     )
                     .await
                     .unwrap();

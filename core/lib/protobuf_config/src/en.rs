@@ -1,7 +1,7 @@
 use std::{num::NonZeroUsize, str::FromStr};
 
 use anyhow::Context;
-use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId};
+use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId};
 use zksync_config::configs::en_config::ENConfig;
 use zksync_protobuf::{required, ProtoRepr};
 
@@ -36,6 +36,22 @@ impl ProtoRepr for proto::ExternalNode {
                 .as_ref()
                 .map(|a| a.parse().context("gateway_url"))
                 .transpose()?,
+            sl_client_map: self
+                .sl_client_map
+                .iter()
+                .filter_map(|client| {
+                    client
+                        .chain_id
+                        .zip(client.rpc_url.as_ref())
+                        .zip(client.diamond_proxy_address.as_ref())
+                        .map(|((chain_id, rpc_url), address)| {
+                            Ok((
+                                SLChainId(chain_id),
+                                (rpc_url.parse().context("")?, address.parse().context("")?),
+                            ))
+                        })
+                })
+                .collect::<Result<_, anyhow::Error>>()?,
         })
     }
 
@@ -55,6 +71,18 @@ impl ProtoRepr for proto::ExternalNode {
                 .gateway_url
                 .as_ref()
                 .map(|a| a.expose_str().to_string()),
+            sl_client_map: this
+                .sl_client_map
+                .iter()
+                .map(|(k, v)| {
+                    let (rpc_url, diamond_proxy_address) = v;
+                    proto::SlClient {
+                        chain_id: Some(k.0),
+                        rpc_url: Some(rpc_url.expose_str().to_string()),
+                        diamond_proxy_address: Some(diamond_proxy_address.to_string()),
+                    }
+                })
+                .collect(),
         }
     }
 }

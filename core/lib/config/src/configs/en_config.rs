@@ -1,8 +1,8 @@
-use std::num::NonZeroUsize;
+use std::{collections::HashMap, num::NonZeroUsize};
 
 use serde::Deserialize;
 use zksync_basic_types::{
-    commitment::L1BatchCommitmentMode, url::SensitiveUrl, L1ChainId, L2ChainId, SLChainId,
+    commitment::L1BatchCommitmentMode, url::SensitiveUrl, Address, L1ChainId, L2ChainId, SLChainId,
 };
 
 /// Temporary config for initializing external node, will be completely replaced by consensus config later
@@ -18,5 +18,7 @@ pub struct ENConfig {
     pub main_node_url: SensitiveUrl,
     pub main_node_rate_limit_rps: Option<NonZeroUsize>,
 
+    // Gateway configuration
     pub gateway_url: Option<SensitiveUrl>,
+    pub sl_client_map: HashMap<SLChainId, (SensitiveUrl, Address)>,
 }

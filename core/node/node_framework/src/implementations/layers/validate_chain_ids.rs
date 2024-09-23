@@ -1,3 +1,4 @@
+use zksync_eth_client::clients::ClientMap;
 use zksync_node_sync::validate_chain_ids_task::ValidateChainIdsTask;
 use zksync_types::{L2ChainId, SLChainId};
 
@@ -26,6 +27,7 @@ use crate::{
 pub struct ValidateChainIdsLayer {
     sl_chain_id: SLChainId,
     l2_chain_id: L2ChainId,
+    sl_client_map: ClientMap,
 }
 
 #[derive(Debug, FromContext)]
@@ -43,10 +45,11 @@ pub struct Output {
 }
 
 impl ValidateChainIdsLayer {
-    pub fn new(sl_chain_id: SLChainId, l2_chain_id: L2ChainId) -> Self {
+    pub fn new(sl_chain_id: SLChainId, l2_chain_id: L2ChainId, sl_client_map: ClientMap) -> Self {
         Self {
             sl_chain_id,
             l2_chain_id,
+            sl_client_map,
         }
     }
 }
@@ -69,6 +72,7 @@ impl WiringLayer for ValidateChainIdsLayer {
             self.l2_chain_id,
             query_client,
             main_node_client,
+            self.sl_client_map,
         );
 
         Ok(Output { task })

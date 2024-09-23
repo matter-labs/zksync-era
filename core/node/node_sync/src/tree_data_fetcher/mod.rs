@@ -14,7 +14,7 @@ use zksync_types::{
     Address, L1BatchNumber,
 };
 use zksync_web3_decl::{
-    client::{DynClient, L1, L2},
+    client::{ClientMap, DynClient, L1, L2},
     error::EnrichedClientError,
 };
 
@@ -143,6 +143,24 @@ impl TreeDataFetcher {
         )?;
         self.data_provider.set_l1(l1_provider);
         self.diamond_proxy_address = Some(diamond_proxy_address);
+        Ok(self)
+    }
+
+    pub fn with_client_map(mut self, client_map: ClientMap) -> anyhow::Result<Self> {
+        anyhow::ensure!(
+            self.data_provider.l1.is_some(),
+            "L1 data provider is not set up"
+        );
+        anyhow::ensure!(
+            self.data_provider
+                .l1
+                .as_ref()
+                .map(|l1| &l1.settlement_layer_picker)
+                .is_none(),
+            "Client map is already set up"
+        );
+        self.data_provider
+            .set_client_map(client_map, self.pool.clone());
         Ok(self)
     }
 

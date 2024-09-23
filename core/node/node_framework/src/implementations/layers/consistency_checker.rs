@@ -1,4 +1,5 @@
 use zksync_consistency_checker::ConsistencyChecker;
+use zksync_eth_client::clients::ClientMap;
 use zksync_types::{commitment::L1BatchCommitmentMode, Address};
 
 use crate::{
@@ -19,6 +20,7 @@ pub struct ConsistencyCheckerLayer {
     diamond_proxy_addr: Address,
     max_batches_to_recheck: u32,
     commitment_mode: L1BatchCommitmentMode,
+    client_map: ClientMap,
 }
 
 #[derive(Debug, FromContext)]
@@ -42,11 +44,13 @@ impl ConsistencyCheckerLayer {
         diamond_proxy_addr: Address,
         max_batches_to_recheck: u32,
         commitment_mode: L1BatchCommitmentMode,
+        client_map: ClientMap,
     ) -> ConsistencyCheckerLayer {
         Self {
             diamond_proxy_addr,
             max_batches_to_recheck,
             commitment_mode,
+            client_map,
         }
     }
 }
@@ -71,6 +75,7 @@ impl WiringLayer for ConsistencyCheckerLayer {
             self.max_batches_to_recheck,
             singleton_pool,
             self.commitment_mode,
+            self.client_map,
         )
         .map_err(WiringError::Internal)?
         .with_diamond_proxy_addr(self.diamond_proxy_addr);

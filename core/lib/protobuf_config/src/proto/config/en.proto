@@ -3,6 +3,12 @@ import "zksync/config/genesis.proto";
 
 package zksync.config.en;
 
+message SLClient {
+  optional string rpc_url = 1; // required
+  optional string diamond_proxy_address = 2; // required
+  optional uint64 chain_id = 3; // required
+}
+
 message ExternalNode {
   optional string main_node_url = 1; // required
   optional uint64 l2_chain_id = 2; // required
@@ -10,4 +16,5 @@ message ExternalNode {
   optional uint64 main_node_rate_limit_rps = 6; // optional
   optional config.genesis.L1BatchCommitDataGeneratorMode l1_batch_commit_data_generator_mode = 7; // optional, default to rollup
   optional string gateway_url = 8; // optional
+  repeated SLClient sl_client_map = 9; // optional
 }

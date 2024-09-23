@@ -518,8 +518,6 @@ async fn execute_reverted_tx(vm_mode: FastVmMode) {
         .await
         .unwrap();
 
-    dbg!(&txn);
-
     assert_reverted(txn);
     executor.finish_batch().await.unwrap();
 }

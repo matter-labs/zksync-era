@@ -1,3 +1,4 @@
+use zksync_eth_client::clients::ClientMap;
 use zksync_node_sync::tree_data_fetcher::TreeDataFetcher;
 use zksync_types::Address;
 
@@ -18,6 +19,7 @@ use crate::{
 #[derive(Debug)]
 pub struct TreeDataFetcherLayer {
     diamond_proxy_addr: Address,
+    client_map: ClientMap,
 }
 
 #[derive(Debug, FromContext)]
@@ -38,8 +40,11 @@ pub struct Output {
 }
 
 impl TreeDataFetcherLayer {
-    pub fn new(diamond_proxy_addr: Address) -> Self {
-        Self { diamond_proxy_addr }
+    pub fn new(diamond_proxy_addr: Address, client_map: ClientMap) -> Self {
+        Self {
+            diamond_proxy_addr,
+            client_map,
+        }
     }
 }
 
@@ -61,17 +66,18 @@ impl WiringLayer for TreeDataFetcherLayer {
             "Running tree data fetcher (allows a node to operate w/o a Merkle tree or w/o waiting the tree to catch up). \
              This is an experimental feature; do not use unless you know what you're doing"
         );
-        let task =
-            TreeDataFetcher::new(client, pool).with_l1_data(eth_client, self.diamond_proxy_addr)?;
+        let fetcher = TreeDataFetcher::new(client, pool)
+            .with_l1_data(eth_client, self.diamond_proxy_addr)?
+            .with_client_map(self.client_map)?;
 
         // Insert healthcheck
         input
             .app_health
             .0
-            .insert_component(task.health_check())
+            .insert_component(fetcher.health_check())
             .map_err(WiringError::internal)?;
 
-        Ok(Output { task })
+        Ok(Output { task: fetcher })
     }
 }
 

@@ -232,6 +232,7 @@ impl Task for WhitelistedTokensForAaUpdateTask {
         "whitelisted_tokens_for_aa_update_task".into()
     }
 
+    // FIXME: this method keeps logging panic backtraces (but still works after that) if the main node is temporarily unavailable.
     async fn run(mut self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
         while !*stop_receiver.0.borrow_and_update() {
             match self.main_node_client.whitelisted_tokens_for_aa().await {

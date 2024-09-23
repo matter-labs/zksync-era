@@ -93,6 +93,21 @@ async function registerSyncLayer() {
     await utils.spawn(`CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn l1-contracts sync-layer register-sync-layer`);
 }
 
+export async function computeMigratedChainAddress(chainId: number, gatewayEnv?: string) {
+    gatewayEnv ??= 'dev';
+    const thisEnv = process.env.ZKSYNC_ENV!;
+    env.set(gatewayEnv);
+    const output = await utils.exec(
+        `CONTRACTS_BASE_NETWORK_ZKSYNC=true yarn -s l1-contracts sync-layer compute-migrated-chain-address --chain-id ${chainId} | tail -1`
+    );
+    env.set(thisEnv);
+    const address = output.stdout.trim();
+    if (!address.match(/^0x[0-9A-Fa-f]{40}$/)) {
+        throw new Error(`Could not compute migrated address:\n${output.stderr}`);
+    }
+    return address;
+}
+
 async function migrateToSyncLayer() {
     await utils.confirmAction();
 
@@ -505,6 +520,16 @@ command
     .command('register-sync-layer-counterpart')
     .description('prepare the network to server as a synclayer')
     .action(registerSyncLayer);
+
+command
+    .command('compute-migrated-chain-address')
+    .description('compute the diamond proxy address of a chain on sync layer via CREATE2')
+    .requiredOption('--chain-id <chainId>', 'the chain id to compute the address for')
+    .option('--gateway-env <gatewayEnv>', 'the gateway environment to use')
+    .action(async (cmd) => {
+        const address = await computeMigratedChainAddress(cmd.chainId, cmd.gatewayEnv);
+        console.log(address);
+    });
 
 // zk contract migrate-to-sync-layer --sync-layer-chain-id 270 --sync-layer-url http://127.0.0.1:3050 --sync-layer-stm 0x0040D8c968E3d5C95B9b0C3A4F098A3Ce82929C9
 command

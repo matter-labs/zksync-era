@@ -271,7 +271,8 @@ impl ExternalNodeBuilder {
 
     fn add_l1_batch_commitment_mode_validation_layer(mut self) -> anyhow::Result<Self> {
         let layer = L1BatchCommitmentModeValidationLayer::new(
-            self.config.remote.user_facing_diamond_proxy,
+            // TODO: we don't really need to pass this separately?
+            self.config.remote.settlement_layer_diamond_proxy,
             self.config.optional.l1_batch_commit_data_generator_mode,
         );
         self.node.add_layer(layer);
@@ -282,6 +283,7 @@ impl ExternalNodeBuilder {
         let layer = ValidateChainIdsLayer::new(
             self.config.required.settlement_layer_id(),
             self.config.required.l2_chain_id,
+            self.config.optional.sl_client_map.clone(),
         );
         self.node.add_layer(layer);
         Ok(self)
@@ -290,10 +292,13 @@ impl ExternalNodeBuilder {
     fn add_consistency_checker_layer(mut self) -> anyhow::Result<Self> {
         let max_batches_to_recheck = 10; // TODO (BFT-97): Make it a part of a proper EN config
         let layer = ConsistencyCheckerLayer::new(
-            self.config.remote.user_facing_diamond_proxy,
+            // TODO: we don't really need to pass this separately.
+            self.config.remote.settlement_layer_diamond_proxy,
             max_batches_to_recheck,
             self.config.optional.l1_batch_commit_data_generator_mode,
+            self.config.optional.sl_client_map.clone(),
         );
+
         self.node.add_layer(layer);
         Ok(self)
     }
@@ -317,7 +322,12 @@ impl ExternalNodeBuilder {
     }
 
     fn add_tree_data_fetcher_layer(mut self) -> anyhow::Result<Self> {
-        let layer = TreeDataFetcherLayer::new(self.config.remote.user_facing_diamond_proxy);
+        let layer = TreeDataFetcherLayer::new(
+            // TODO: we don't really need to pass this separately.
+            self.config.remote.settlement_layer_diamond_proxy,
+            self.config.optional.sl_client_map.clone(),
+        );
+
         self.node.add_layer(layer);
         Ok(self)
     }

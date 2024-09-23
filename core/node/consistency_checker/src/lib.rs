@@ -6,7 +6,7 @@ use tokio::sync::watch;
 use zksync_contracts::PRE_BOOJUM_COMMIT_FUNCTION;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{
-    clients::{DynClient, L1},
+    clients::{ClientMap, DynClient, L1},
     CallFunctionArgs, ContractCallError, EnrichedClientError, EthInterface,
 };
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
@@ -36,10 +36,10 @@ enum CheckError {
     #[error("error calling L1 contract")]
     ContractCall(#[from] ContractCallError),
     /// Error that is caused by the main node providing incorrect information etc.
-    #[error("failed validating commit transaction")]
+    #[error("failed validating commit transaction: {0}")]
     Validation(anyhow::Error),
     /// Error that is caused by violating invariants internal to *this* node (e.g., not having expected data in Postgres).
-    #[error("internal error")]
+    #[error("internal error: {0}")]
     Internal(anyhow::Error),
 }
 
@@ -300,7 +300,40 @@ pub fn detect_da(
             "last reference token has unexpected shape; expected bytes, got {last_reference_token:?}"
         ))),
     };
-    match last_reference_token.first() {
+
+    // For `Validium` commitment mode, the format of this token is either
+    // 1 byte: 0x02 - for `Custom` DA source
+    // or
+    // 32 bytes: state diff hash - for `Calldata` or `Blobs` DA source
+
+    if last_reference_token.len() == 1 {
+        return match last_reference_token[0] {
+            PUBDATA_SOURCE_CUSTOM => Ok(PubdataDA::Custom),
+            byte => Err(parse_error(format!(
+                "unexpected byte in the last reference token; expected {PUBDATA_SOURCE_CUSTOM}, got {byte}"
+            ))),
+        };
+    } else if last_reference_token.len() == 32 {
+        // Here it might be blobs as well, but shouldn't matter since pubdata is not posted.
+        return Ok(PubdataDA::Calldata);
+    }
+
+    // For `Rollup` commitment mode, the format of this token (`operatorDAInput`) is:
+    // 32 bytes - uncompressed state diff
+    // 32 bytes - hash of the full pubdata
+    // 1 byte - number of blobs
+    // 32 bytes for each blob - hashes of blobs
+    // 1 byte - pubdata source
+    // X bytes - blob/pubdata commitments
+
+    let number_of_blobs = last_reference_token.get(64).copied().ok_or_else(|| {
+        parse_error(format!(
+            "last reference token is too short; expected at least 65 bytes, got {}",
+            last_reference_token.len()
+        ))
+    })? as usize;
+
+    match last_reference_token.get(65 + 32 * number_of_blobs) {
         Some(&byte) if byte == PUBDATA_SOURCE_CALLDATA => Ok(PubdataDA::Calldata),
         Some(&byte) if byte == PUBDATA_SOURCE_BLOBS => Ok(PubdataDA::Blobs),
         Some(&byte) if byte == PUBDATA_SOURCE_CUSTOM => Ok(PubdataDA::Custom),
@@ -322,11 +355,19 @@ pub struct ConsistencyChecker {
     max_batches_to_recheck: u32,
     sleep_interval: Duration,
     l1_client: Box<DynClient<L1>>,
+    client_map: ClientMap,
     event_handler: Box<dyn HandleConsistencyCheckerEvent>,
     l1_data_mismatch_behavior: L1DataMismatchBehavior,
     pool: ConnectionPool<Core>,
     health_check: ReactiveHealthCheck,
     commitment_mode: L1BatchCommitmentMode,
+}
+
+#[derive(Debug)]
+pub struct MigrationSetup {
+    pub client: Box<DynClient<L1>>,
+    pub diamond_proxy_address: Option<Address>,
+    pub first_batch_migrated: L1BatchNumber,
 }
 
 impl ConsistencyChecker {
@@ -337,6 +378,7 @@ impl ConsistencyChecker {
         max_batches_to_recheck: u32,
         pool: ConnectionPool<Core>,
         commitment_mode: L1BatchCommitmentMode,
+        client_map: ClientMap,
     ) -> anyhow::Result<Self> {
         let (health_check, health_updater) = ConsistencyCheckerHealthUpdater::new();
         Ok(Self {
@@ -345,6 +387,7 @@ impl ConsistencyChecker {
             max_batches_to_recheck,
             sleep_interval: Self::DEFAULT_SLEEP_INTERVAL,
             l1_client: l1_client.for_component("consistency_checker"),
+            client_map,
             event_handler: Box::new(health_updater),
             l1_data_mismatch_behavior: L1DataMismatchBehavior::Log,
             pool,
@@ -371,8 +414,29 @@ impl ConsistencyChecker {
         let commit_tx_hash = local.commit_tx_hash;
         tracing::info!("Checking commit tx {commit_tx_hash} for L1 batch #{batch_number}");
 
-        let commit_tx_status = self
-            .l1_client
+        let sl_chain_id = self
+            .pool
+            .connection_tagged("consistency_checker")
+            .await
+            .map_err(|err| CheckError::Internal(err.into()))?
+            .eth_sender_dal()
+            .get_batch_commit_chain_id(batch_number)
+            .await
+            .map_err(CheckError::Internal)?;
+
+        let (client, diamond_proxy) = match sl_chain_id {
+            Some(chain_id) => {
+                let (client, address) = self
+                    .client_map
+                    .get_boxed(chain_id)
+                    .ok_or_else(|| anyhow::anyhow!("no client found for chain id {}", chain_id))
+                    .map_err(CheckError::Internal)?;
+                (client.for_component("consistency_checker"), Some(address))
+            }
+            None => (self.l1_client.clone(), self.diamond_proxy_addr),
+        };
+
+        let commit_tx_status = client
             .get_tx_status(commit_tx_hash)
             .await?
             .with_context(|| format!("receipt for tx {commit_tx_hash:?} not found on L1"))
@@ -383,14 +447,13 @@ impl ConsistencyChecker {
         }
 
         // We can't get tx calldata from the DB because it can be fake.
-        let commit_tx = self
-            .l1_client
+        let commit_tx = client
             .get_tx(commit_tx_hash)
             .await?
             .with_context(|| format!("commit transaction {commit_tx_hash:?} not found on L1"))
             .map_err(CheckError::Internal)?; // we've got a transaction receipt previously, thus an internal error
 
-        if let Some(diamond_proxy_addr) = self.diamond_proxy_addr {
+        if let Some(diamond_proxy_addr) = diamond_proxy {
             let event = self
                 .contract
                 .event("BlockCommit")
@@ -555,16 +618,33 @@ impl ConsistencyChecker {
     }
 
     async fn sanity_check_diamond_proxy_addr(&self) -> Result<(), CheckError> {
-        let Some(address) = self.diamond_proxy_addr else {
-            return Ok(());
-        };
-        tracing::debug!("Performing sanity checks for diamond proxy contract {address:?}");
+        let regular = self
+            .diamond_proxy_addr
+            .map(|addr| (addr, self.l1_client.clone()));
+        // let migration = self.migration_setup.as_ref().and_then(|setup| {
+        //     setup
+        //         .diamond_proxy_address
+        //         .map(|addr| (addr, setup.client.clone()))
+        // });
 
-        let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
-            .for_contract(address, &self.contract)
-            .call(&self.l1_client)
-            .await?;
-        tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
+        let log_version = |address, client| async move {
+            tracing::debug!("Performing sanity checks for diamond proxy contract {address:?}");
+            let version: U256 = CallFunctionArgs::new("getProtocolVersion", ())
+                .for_contract(address, &self.contract)
+                .call(&client)
+                .await?;
+            tracing::info!("Checked diamond proxy {address:?} (protocol version: {version})");
+            Ok::<_, CheckError>(())
+        };
+
+        if let Some((address, client)) = regular {
+            log_version(address, client).await?;
+        }
+        // if let Some((address, client)) = migration {
+        //     log_version(address, client).await?;
+        // }
+        // TODO check client map?
+
         Ok(())
     }
 

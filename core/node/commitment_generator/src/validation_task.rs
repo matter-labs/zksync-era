@@ -18,6 +18,7 @@ pub struct L1BatchCommitmentModeValidationTask {
     exit_on_success: bool,
 }
 
+// TODO use client map here
 impl L1BatchCommitmentModeValidationTask {
     const DEFAULT_RETRY_INTERVAL: Duration = Duration::from_secs(5);
 

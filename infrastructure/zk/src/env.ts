@@ -60,16 +60,18 @@ export function set(environment: string, print: boolean = false) {
         // No .env file found - we should compile it!
         config.compileConfig(environment);
     }
-    reload();
+    reload(get(), false);
     get(print);
 }
 
 // we have to manually override the environment
 // because dotenv won't override variables that are already set
-export function reload(environment?: string) {
-    environment = environment ?? get();
-    config.compileConfig();
+export function reload(environment?: string, recompile = true) {
+    environment ??= get();
     const envFile = (process.env.ENV_FILE = `etc/env/target/${environment}.env`);
+    if (!fs.existsSync(envFile) || recompile) {
+        config.compileConfig();
+    }
     const env = dotenv.parse(fs.readFileSync(envFile));
     for (const envVar in env) {
         process.env[envVar] = env[envVar];

@@ -8,10 +8,10 @@ database_pool_size = 50
 zksync_action = "dont_ask"
 
 [en]
-http_port = 3060
-ws_port = 3061
-prometheus_port = 3322
-healthcheck_port = 3081
+http_port = 4060
+ws_port = 4061
+prometheus_port = 4322
+healthcheck_port = 4081
 threads_per_server = 128
 l2_chain_id = 270
 l1_chain_id = 9

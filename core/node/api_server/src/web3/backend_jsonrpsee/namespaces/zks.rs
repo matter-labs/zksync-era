@@ -50,6 +50,10 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.get_main_contract_impl())
     }
 
+    async fn get_settlement_layer_main_contract(&self) -> RpcResult<Address> {
+        Ok(self.get_settlement_layer_main_contract_impl())
+    }
+
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>> {
         Ok(self.get_testnet_paymaster_impl())
     }

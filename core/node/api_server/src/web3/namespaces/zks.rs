@@ -143,6 +143,10 @@ impl ZksNamespace {
         self.state.api_config.user_facing_diamond_proxy_addr
     }
 
+    pub fn get_settlement_layer_main_contract_impl(&self) -> Address {
+        self.state.api_config.sl_diamond_proxy_addr
+    }
+
     pub fn get_testnet_paymaster_impl(&self) -> Option<Address> {
         self.state.api_config.l2_testnet_paymaster_addr
     }
@@ -359,6 +363,7 @@ impl ZksNamespace {
 
         println!("\n\nTrying to get the final proof! {}\n\n", l1_batch_number);
 
+        // TODO
         // FIXME Definitely refactor all of it
         const EXPECTED_SYNC_LAYER_CHAIN_ID: u64 = 505;
 

@@ -49,6 +49,9 @@ pub trait ZksNamespace {
     #[method(name = "getMainContract")]
     async fn get_main_contract(&self) -> RpcResult<Address>;
 
+    #[method(name = "getSettlementLayerMainContract")]
+    async fn get_settlement_layer_main_contract(&self) -> RpcResult<Address>;
+
     #[method(name = "getTestnetPaymaster")]
     async fn get_testnet_paymaster(&self) -> RpcResult<Option<Address>>;
 

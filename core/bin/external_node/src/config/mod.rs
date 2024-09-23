@@ -34,7 +34,7 @@ use zksync_types::{
     L1BatchNumber, L1ChainId, L2ChainId, SLChainId, ETHEREUM_ADDRESS,
 };
 use zksync_web3_decl::{
-    client::{DynClient, L2},
+    client::{ClientMap, DynClient, L2},
     error::ClientRpcContext,
     jsonrpsee::{core::ClientError, types::error::ErrorCode},
     namespaces::{EnNamespaceClient, ZksNamespaceClient},
@@ -106,6 +106,7 @@ pub(crate) struct RemoteENConfig {
     pub transparent_proxy_admin_addr: Option<Address>,
     /// Should not be accessed directly. Use [`ExternalNodeConfig::diamond_proxy_address`] instead.
     pub user_facing_diamond_proxy: Address,
+    pub settlement_layer_diamond_proxy: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
     // a different name, with names adapted only for consistency.
@@ -152,6 +153,10 @@ impl RemoteENConfig {
         let user_facing_diamond_proxy = client
             .get_main_contract()
             .rpc_context("get_main_contract")
+            .await?;
+        let settlement_layer_diamond_proxy = client
+            .get_settlement_layer_main_contract()
+            .rpc_context("get_settlement_layer_main_contract")
             .await?;
 
         let user_facing_bridgehub = client
@@ -202,6 +207,7 @@ impl RemoteENConfig {
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
             user_facing_diamond_proxy,
+            settlement_layer_diamond_proxy,
             user_facing_bridgehub,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
@@ -244,6 +250,7 @@ impl RemoteENConfig {
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             dummy_verifier: true,
             l2_native_token_vault_proxy_addr: Some(Address::repeat_byte(7)),
+            settlement_layer_diamond_proxy: Address::repeat_byte(8),
         }
     }
 }
@@ -465,6 +472,10 @@ pub(crate) struct OptionalENConfig {
     /// Gateway RPC URL, needed for operating during migration.
     #[allow(dead_code)]
     pub gateway_url: Option<SensitiveUrl>,
+
+    /// Map of settlement layer chain IDs to their respective RPC URLs and diamond proxy addresses.
+    #[serde(default)]
+    pub sl_client_map: ClientMap,
 }
 
 impl OptionalENConfig {
@@ -690,6 +701,7 @@ impl OptionalENConfig {
             api_namespaces,
             contracts_diamond_proxy_addr: None,
             gateway_url: enconfig.gateway_url.clone(),
+            sl_client_map: enconfig.sl_client_map.clone().into(),
         })
     }
 
@@ -930,7 +942,7 @@ pub(crate) struct RequiredENConfig {
     pub l1_chain_id: L1ChainId,
     /// The chain ID of the settlement layer (e.g., 1 for Ethereum mainnet). This ID will be checked against the `eth_client_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual settlement layer network.
-    pub sl_chain_id: Option<SLChainId>,
+    pub sl_chain_id: Option<SLChainId>, // TODO
     /// L2 chain ID (e.g., 270 for ZKsync Era mainnet). This ID will be checked against the `main_node_url` RPC provider on initialization
     /// to ensure that there's no mismatch between the expected and actual L2 network.
     pub l2_chain_id: L2ChainId,
@@ -1431,6 +1443,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
             l2_native_token_vault_proxy_addr: config.remote.l2_native_token_vault_proxy_addr,
+            sl_diamond_proxy_addr: config.remote.settlement_layer_diamond_proxy,
             l2_legacy_shared_bridge_addr: config.remote.l2_legacy_shared_bridge_addr,
         }
     }
