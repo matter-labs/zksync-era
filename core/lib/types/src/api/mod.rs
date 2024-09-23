@@ -733,18 +733,18 @@ pub enum BlockStatus {
     Verified,
 }
 
-/// FlatTracer is always more than one trace, so when we have to trace one transaction it also appeared as many traces
+/// Result tracers need to have a nested result field for compatibility. So we have two different
+/// structs 1 for blocks tracing and one for txs and call tracing
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
-pub enum CallTracerResult {
+pub enum CallTracerResultWithNestedResult {
     CallTrace(ResultDebugCall),
     FlattCallTrace(Vec<DebugCallFlat>),
 }
 
-/// For tracing blocks we need to have all traces being combined all together without separation.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
-pub enum CallTracerOption {
+pub enum CallTracerResult {
     CallTrace(DebugCall),
     FlattCallTrace(Vec<DebugCallFlat>),
 }

@@ -3,8 +3,8 @@
 use zksync_multivm::interface::{Call, TransactionExecutionResult};
 use zksync_types::{
     api::{
-        CallTracerConfig, CallTracerOption, CallTracerResult, ResultDebugCall, SupportedTracers,
-        TracerConfig,
+        CallTracerConfig, CallTracerResult, CallTracerResultWithNestedResult, ResultDebugCall,
+        SupportedTracers, TracerConfig,
     },
     BOOTLOADER_ADDRESS,
 };
@@ -68,7 +68,8 @@ impl HttpTest for TraceBlockTest {
 
             assert_eq!(block_traces.len(), tx_results.len()); // equals to the number of transactions in the block
             for (trace, tx_result) in block_traces.iter().zip(&tx_results) {
-                let CallTracerResult::CallTrace(ResultDebugCall { result }) = trace else {
+                let CallTracerResultWithNestedResult::CallTrace(ResultDebugCall { result }) = trace
+                else {
                     unreachable!()
                 };
                 assert_eq!(result.from, Address::zero());
@@ -162,7 +163,9 @@ impl HttpTest for TraceBlockFlatTest {
                     .map(|&i| block_traces[i].clone());
 
                 for (top_level_trace, tx_result) in top_level_traces.zip(&tx_results) {
-                    let CallTracerResult::FlattCallTrace(top_level_trace) = top_level_trace else {
+                    let CallTracerResultWithNestedResult::FlattCallTrace(top_level_trace) =
+                        top_level_trace
+                    else {
                         unreachable!()
                     };
                     let top_level_trace = top_level_trace.first().unwrap();
@@ -231,7 +234,7 @@ impl HttpTest for TraceTransactionTest {
             .map(|call| DebugNamespace::map_default_call(call.clone(), false))
             .collect();
 
-        let CallTracerOption::CallTrace(result) = client
+        let CallTracerResult::CallTrace(result) = client
             .trace_transaction(tx_results[0].hash, None)
             .await?
             .context("no transaction traces")?

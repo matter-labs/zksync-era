@@ -4,8 +4,8 @@ use zksync_multivm::interface::{Call, CallType, ExecutionResult, OneshotTracingP
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{
-        BlockId, BlockNumber, CallTracerOption, CallTracerResult, DebugCall, DebugCallType,
-        ResultDebugCall, SupportedTracers, TracerConfig,
+        BlockId, BlockNumber, CallTracerResult, CallTracerResultWithNestedResult, DebugCall,
+        DebugCallType, ResultDebugCall, SupportedTracers, TracerConfig,
     },
     debug_flat_call::{Action, CallResult, DebugCallFlat},
     fee_model::BatchFeeInput,
@@ -50,7 +50,7 @@ impl DebugNamespace {
         index: usize,
         transaction_hash: H256,
         tracer_option: Option<TracerConfig>,
-    ) -> CallTracerOption {
+    ) -> CallTracerResult {
         let (only_top_call, flatten) = tracer_option
             .map(|options| {
                 (
@@ -70,9 +70,9 @@ impl DebugNamespace {
                 index,
                 transaction_hash,
             );
-            CallTracerOption::FlattCallTrace(calls)
+            CallTracerResult::FlattCallTrace(calls)
         } else {
-            CallTracerOption::CallTrace(Self::map_default_call(call, only_top_call))
+            CallTracerResult::CallTrace(Self::map_default_call(call, only_top_call))
         }
     }
     pub(crate) fn map_default_call(call: Call, only_top_call: bool) -> DebugCall {
@@ -171,7 +171,7 @@ impl DebugNamespace {
         &self,
         block_id: BlockId,
         options: Option<TracerConfig>,
-    ) -> Result<Vec<CallTracerResult>, Web3Error> {
+    ) -> Result<Vec<CallTracerResultWithNestedResult>, Web3Error> {
         self.current_method().set_block_id(block_id);
         if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
             // See `EthNamespace::get_block_impl()` for an explanation why this check is needed.
@@ -193,16 +193,14 @@ impl DebugNamespace {
         let mut flat_calls = vec![];
         for (call_trace, hash, index) in call_traces {
             match Self::map_call(call_trace, index, hash, options) {
-                CallTracerOption::CallTrace(call) => {
-                    calls.push(CallTracerResult::CallTrace(ResultDebugCall {
-                        result: call,
-                    }))
-                }
-                CallTracerOption::FlattCallTrace(mut call) => flat_calls.append(&mut call),
+                CallTracerResult::CallTrace(call) => calls.push(
+                    CallTracerResultWithNestedResult::CallTrace(ResultDebugCall { result: call }),
+                ),
+                CallTracerResult::FlattCallTrace(mut call) => flat_calls.append(&mut call),
             }
         }
         if calls.is_empty() && !flat_calls.is_empty() {
-            calls.push(CallTracerResult::FlattCallTrace(flat_calls))
+            calls.push(CallTracerResultWithNestedResult::FlattCallTrace(flat_calls))
         }
 
         Ok(calls)
@@ -212,7 +210,7 @@ impl DebugNamespace {
         &self,
         tx_hash: H256,
         options: Option<TracerConfig>,
-    ) -> Result<Option<CallTracerOption>, Web3Error> {
+    ) -> Result<Option<CallTracerResult>, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
         let call_trace = connection
             .transactions_dal()
@@ -228,7 +226,7 @@ impl DebugNamespace {
         mut request: CallRequest,
         block_id: Option<BlockId>,
         options: Option<TracerConfig>,
-    ) -> Result<CallTracerOption, Web3Error> {
+    ) -> Result<CallTracerResult, Web3Error> {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
 

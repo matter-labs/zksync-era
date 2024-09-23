@@ -1,5 +1,5 @@
 use zksync_types::{
-    api::{BlockId, BlockNumber, CallTracerOption, CallTracerResult, TracerConfig},
+    api::{BlockId, BlockNumber, CallTracerResult, CallTracerResultWithNestedResult, TracerConfig},
     transaction_request::CallRequest,
     H256,
 };
@@ -16,7 +16,7 @@ impl DebugNamespaceServer for DebugNamespace {
         &self,
         block: BlockNumber,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Vec<CallTracerResult>> {
+    ) -> RpcResult<Vec<CallTracerResultWithNestedResult>> {
         self.debug_trace_block_impl(BlockId::Number(block), options)
             .await
             .map_err(|err| self.current_method().map_err(err))
@@ -26,7 +26,7 @@ impl DebugNamespaceServer for DebugNamespace {
         &self,
         hash: H256,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Vec<CallTracerResult>> {
+    ) -> RpcResult<Vec<CallTracerResultWithNestedResult>> {
         self.debug_trace_block_impl(BlockId::Hash(hash), options)
             .await
             .map_err(|err| self.current_method().map_err(err))
@@ -37,7 +37,7 @@ impl DebugNamespaceServer for DebugNamespace {
         request: CallRequest,
         block: Option<BlockId>,
         options: Option<TracerConfig>,
-    ) -> RpcResult<CallTracerOption> {
+    ) -> RpcResult<CallTracerResult> {
         self.debug_trace_call_impl(request, block, options)
             .await
             .map_err(|err| self.current_method().map_err(err))
@@ -47,7 +47,7 @@ impl DebugNamespaceServer for DebugNamespace {
         &self,
         tx_hash: H256,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Option<CallTracerOption>> {
+    ) -> RpcResult<Option<CallTracerResult>> {
         self.debug_trace_transaction_impl(tx_hash, options)
             .await
             .map_err(|err| self.current_method().map_err(err))

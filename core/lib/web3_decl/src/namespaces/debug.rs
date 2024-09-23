@@ -2,7 +2,7 @@
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
-    api::{BlockId, BlockNumber, CallTracerOption, CallTracerResult, TracerConfig},
+    api::{BlockId, BlockNumber, CallTracerResult, CallTracerResultWithNestedResult, TracerConfig},
     transaction_request::CallRequest,
 };
 
@@ -25,14 +25,14 @@ pub trait DebugNamespace {
         &self,
         block: BlockNumber,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Vec<CallTracerResult>>;
+    ) -> RpcResult<Vec<CallTracerResultWithNestedResult>>;
 
     #[method(name = "traceBlockByHash")]
     async fn trace_block_by_hash(
         &self,
         hash: H256,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Vec<CallTracerResult>>;
+    ) -> RpcResult<Vec<CallTracerResultWithNestedResult>>;
 
     #[method(name = "traceCall")]
     async fn trace_call(
@@ -40,12 +40,12 @@ pub trait DebugNamespace {
         request: CallRequest,
         block: Option<BlockId>,
         options: Option<TracerConfig>,
-    ) -> RpcResult<CallTracerOption>;
+    ) -> RpcResult<CallTracerResult>;
 
     #[method(name = "traceTransaction")]
     async fn trace_transaction(
         &self,
         tx_hash: H256,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Option<CallTracerOption>>;
+    ) -> RpcResult<Option<CallTracerResult>>;
 }
