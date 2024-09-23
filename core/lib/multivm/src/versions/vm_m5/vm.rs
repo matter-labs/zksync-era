@@ -93,14 +93,14 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
         _tracer: Self::TracerDispatcher,
         tx: Transaction,
         _with_compression: bool,
-    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
             &mut self.vm,
             &tx,
             self.system_env.execution_mode.glue_into(),
         );
         // Bytecode compression isn't supported
-        (Ok(vec![]), self.inspect((), VmExecutionMode::OneTx))
+        (Ok(vec![].into()), self.inspect((), VmExecutionMode::OneTx))
     }
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {

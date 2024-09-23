@@ -11,7 +11,7 @@
 //! Generally speaking, in most cases, the tracer dispatcher is a wrapper around `Vec<Box<dyn VmTracer>>`,
 //! where `VmTracer` is a trait implemented for a specific VM version.
 
-use zksync_types::Transaction;
+use zksync_types::{Transaction, H256};
 
 use crate::{
     storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
@@ -41,7 +41,7 @@ pub trait VmInterface {
         tracer: Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
-    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs);
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs);
 
     /// Record VM memory metrics.
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics;
@@ -63,7 +63,7 @@ pub trait VmInterfaceExt: VmInterface {
         &mut self,
         tx: Transaction,
         with_compression: bool,
-    ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.inspect_transaction_with_bytecode_compression(
             Self::TracerDispatcher::default(),
             tx,
@@ -102,4 +102,10 @@ pub trait VmInterfaceHistoryEnabled: VmInterface {
     /// Pop the latest snapshot from memory and destroy it. If there are no snapshots, this should be a no-op
     /// (i.e., the VM must not panic in this case).
     fn pop_snapshot_no_rollback(&mut self);
+}
+
+/// VM that tracks decommitment of bytecodes during execution. This is required to create a [`VmDump`].
+pub trait VmTrackingContracts: VmInterface {
+    /// Returns hashes of all decommitted bytecodes.
+    fn used_contract_hashes(&self) -> Vec<H256>;
 }

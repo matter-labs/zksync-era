@@ -1,0 +1,7 @@
+db:
+  merkle_tree:
+    mode: LIGHTWEIGHT
+experimental_vm:
+  state_keeper_fast_vm_mode: NEW
+mempool:
+  delay_interval: 50

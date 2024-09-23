@@ -78,7 +78,7 @@ pub(crate) async fn run() -> anyhow::Result<()> {
         .await?;
 
     let node_l1_verifier_config = L1VerifierConfig {
-        recursion_scheduler_level_vk_hash: node_verification_key_hash,
+        snark_wrapper_vk_hash: node_verification_key_hash,
     };
 
     let prover_connection_pool = ConnectionPool::<Prover>::builder(
@@ -149,7 +149,7 @@ fn pretty_print_l1_verifier_config(
 ) {
     print_hash_comparison(
         "Verifier key",
-        node_l1_verifier_config.recursion_scheduler_level_vk_hash,
-        db_l1_verifier_config.recursion_scheduler_level_vk_hash,
+        node_l1_verifier_config.snark_wrapper_vk_hash,
+        db_l1_verifier_config.snark_wrapper_vk_hash,
     );
 }

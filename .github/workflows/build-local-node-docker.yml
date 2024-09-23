@@ -16,7 +16,7 @@ on:
 jobs:
   build-images:
     name: Local Node - Build and Push Docker Image
-    runs-on: [matterlabs-ci-runner-high-performance]
+    runs-on: [ matterlabs-ci-runner-high-performance ]
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
@@ -61,9 +61,9 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
+          ci_run zkt
           ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zk compiler all
-          ci_run zk contract build
+          ci_run zk_supervisor contracts 
 
       - name: update-image
         run: |

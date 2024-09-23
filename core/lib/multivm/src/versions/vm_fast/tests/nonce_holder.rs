@@ -5,6 +5,7 @@ use crate::{
         ExecutionResult, Halt, TxExecutionMode, TxRevertReason, VmExecutionMode, VmInterfaceExt,
         VmRevertReason,
     },
+    versions::testonly::ContractToDeploy,
     vm_fast::tests::{
         tester::{Account, VmTesterBuilder},
         utils::read_nonce_holder_tester,
@@ -41,10 +42,9 @@ fn test_nonce_holder() {
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()
-        .with_custom_contracts(vec![(
+        .with_custom_contracts(vec![ContractToDeploy::account(
             read_nonce_holder_tester().to_vec(),
             account.address,
-            true,
         )])
         .with_rich_accounts(vec![account.clone()])
         .build();
@@ -59,7 +59,7 @@ fn test_nonce_holder() {
         vm.reset_state(true);
         let mut transaction = account.get_l2_tx_for_execute_with_nonce(
             Execute {
-                contract_address: account.address,
+                contract_address: Some(account.address),
                 calldata: vec![12],
                 value: Default::default(),
                 factory_deps: vec![],

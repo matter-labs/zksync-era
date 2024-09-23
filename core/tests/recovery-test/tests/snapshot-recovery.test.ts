@@ -23,6 +23,7 @@ import {
     setTreeRecoveryParallelPersistenceBuffer
 } from './utils';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import { logsTestPath } from 'utils/build/logs';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -57,6 +58,10 @@ interface StorageLog {
 interface TokenInfo {
     readonly l1_address: string;
     readonly l2_address: string;
+}
+
+async function logsPath(name: string): Promise<string> {
+    return await logsTestPath(fileConfig.chain, 'logs/recovery/snapshot/', name);
 }
 
 /**
@@ -240,7 +245,7 @@ describe('snapshot recovery', () => {
     step('initialize external node', async () => {
         externalNodeProcess = await NodeProcess.spawn(
             externalNodeEnv,
-            'snapshot-recovery.log',
+            await logsPath('external_node.log'),
             pathToHome,
             NodeComponents.STANDARD,
             fileConfig.loadFromFile,

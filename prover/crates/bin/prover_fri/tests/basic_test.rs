@@ -9,10 +9,10 @@ use zksync_prover_fri::prover_job_processor::Prover;
 use zksync_prover_fri_types::{
     keys::FriCircuitKey, CircuitWrapper, ProverJob, ProverServiceDataKey,
 };
-use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
-use zksync_vk_setup_data_server_fri::{
+use zksync_prover_keystore::{
     keystore::Keystore, setup_data_generator::generate_setup_data_common,
 };
+use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
     let serialized_expected = bincode::serialize(expected).unwrap();
@@ -57,7 +57,7 @@ async fn prover_and_assert_base_layer(
         CircuitWrapper::Base(base) => base.clone(),
         _ => anyhow::bail!("Expected base layer circuit"),
     };
-    let keystore = Keystore::default();
+    let keystore = Keystore::locate();
     let circuit_setup_data = generate_setup_data_common(
         &keystore,
         ProverServiceDataKey::new_basic(circuit.numeric_circuit_type()),

@@ -9,7 +9,6 @@ use std::{
 use tokio::sync::Mutex;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_db_connection::connection_pool::ConnectionPoolBuilder;
-use zksync_prover_dal::Prover;
 use zksync_types::url::SensitiveUrl;
 
 use crate::resource::Resource;
@@ -122,10 +121,6 @@ pub struct MasterPool {}
 #[non_exhaustive]
 pub struct ReplicaPool {}
 
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct ProverPool {}
-
 pub trait PoolKind: Clone + Sync + Send + 'static {
     type DbMarker: zksync_db_connection::connection::DbMarker;
 
@@ -145,13 +140,5 @@ impl PoolKind for ReplicaPool {
 
     fn kind_str() -> &'static str {
         "replica"
-    }
-}
-
-impl PoolKind for ProverPool {
-    type DbMarker = Prover;
-
-    fn kind_str() -> &'static str {
-        "prover"
     }
 }

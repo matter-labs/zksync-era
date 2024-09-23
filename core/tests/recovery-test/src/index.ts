@@ -11,6 +11,7 @@ import * as ethers from 'ethers';
 import path from 'node:path';
 import { expect } from 'chai';
 import { runExternalNodeInBackground } from './utils';
+import { killPidWithAllChilds } from 'utils/build/kill';
 
 export interface Health<T> {
     readonly status: string;
@@ -159,19 +160,7 @@ export class NodeProcess {
             signalNumber = 15;
         }
         try {
-            let childs = [this.childProcess.pid];
-            while (true) {
-                try {
-                    let child = childs.at(-1);
-                    childs.push(+(await promisify(exec)(`pgrep -P ${child}`)).stdout);
-                } catch (e) {
-                    break;
-                }
-            }
-            // We always run the test using additional tools, that means we have to kill not the main process, but the child process
-            for (let i = childs.length - 1; i >= 0; i--) {
-                await promisify(exec)(`kill -${signalNumber} ${childs[i]}`);
-            }
+            await killPidWithAllChilds(this.childProcess.pid!, signalNumber);
         } catch (err) {
             const typedErr = err as ChildProcessError;
             if (typedErr.code === 1) {
@@ -190,7 +179,7 @@ export class NodeProcess {
         useZkInception?: boolean,
         chain?: string
     ) {
-        const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'w') : logsFile;
+        const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'a') : logsFile;
 
         let childProcess = runExternalNodeInBackground({
             components: [components],
@@ -282,7 +271,7 @@ export class FundedWallet {
         await depositTx.waitFinalize();
     }
 
-    /** Generates at least one L1 batch by transfering funds to itself. */
+    /** Generates at least one L1 batch by transferring funds to itself. */
     async generateL1Batch(): Promise<number> {
         const transactionResponse = await this.wallet.transfer({
             to: this.wallet.address,
@@ -290,15 +279,15 @@ export class FundedWallet {
             token: zksync.utils.ETH_ADDRESS
         });
         console.log('Generated a transaction from funded wallet', transactionResponse);
-        const receipt = await transactionResponse.wait();
-        console.log('Got finalized transaction receipt', receipt);
 
-        // Wait until an L1 batch with the transaction is sealed.
-        const pastL1BatchNumber = await this.wallet.provider.getL1BatchNumber();
-        let newL1BatchNumber: number;
-        while ((newL1BatchNumber = await this.wallet.provider.getL1BatchNumber()) <= pastL1BatchNumber) {
+        let receipt: zksync.types.TransactionReceipt;
+        while (!(receipt = await transactionResponse.wait()).l1BatchNumber) {
+            console.log('Transaction is not included in L1 batch; sleeping');
             await sleep(1000);
         }
+
+        console.log('Got finalized transaction receipt', receipt);
+        const newL1BatchNumber = receipt.l1BatchNumber;
         console.log(`Sealed L1 batch #${newL1BatchNumber}`);
         return newL1BatchNumber;
     }

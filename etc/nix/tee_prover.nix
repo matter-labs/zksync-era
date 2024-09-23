@@ -7,4 +7,8 @@ craneLib.buildPackage (commonArgs // {
   version = (builtins.fromTOML (builtins.readFile ../../core/bin/zksync_tee_prover/Cargo.toml)).package.version;
   cargoExtraArgs = "-p zksync_tee_prover --bin zksync_tee_prover";
   inherit cargoArtifacts;
+
+  postInstall = ''
+    strip $out/bin/zksync_tee_prover
+  '';
 })

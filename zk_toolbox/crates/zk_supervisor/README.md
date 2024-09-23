@@ -32,7 +32,9 @@ This document contains the help content for the `zk_supervisor` command-line pro
 - [`zk_supervisor fmt rustfmt`↴](#zk_supervisor-fmt-rustfmt)
 - [`zk_supervisor fmt contract`↴](#zk_supervisor-fmt-contract)
 - [`zk_supervisor fmt prettier`↴](#zk_supervisor-fmt-prettier)
-- [`zk_supervisor prover-version`↴](#zk_supervisor-prover-version)
+- [`zk_supervisor prover info`↴](#zk_supervisor-prover-info)
+- [`zk_supervisor prover insert-version`↴](#zk_supervisor-prover-insert-version)
+- [`zk_supervisor prover insert-batch`↴](#zk_supervisor-prover-insert-batch)
 
 ## `zk_supervisor`
 
@@ -348,11 +350,35 @@ Format code
 
   Possible values: `md`, `sol`, `js`, `ts`, `rs`
 
-## `zk_supervisor prover-version`
+## `zk_supervisor prover info`
 
-Protocol version used by provers
+Prints prover protocol version, snark wrapper and prover database URL
 
-**Usage:** `zk_supervisor prover-version`
+**Usage:** `zk_supervisor prover info`
+
+## `zk_supervisor prover insert-version`
+
+Inserts protocol version into prover database.
+
+**Usage:** `zk_supervisor prover insert-version [OPTIONS]`
+
+###### **Options:**
+
+- `--version <VERSION>` — Protocol version in semantic format(`x.y.z`). Major version should be 0.
+- `--snark-wrapper <SNARK_WRAPPER>` — Snark wrapper hash.
+- `--default` - use default values for protocol version and snark wrapper hash (the ones found in zksync-era).
+
+## `zk_supervisor prover insert-batch`
+
+Inserts batch into prover database.
+
+**Usage:** `zk_supervisor prover insert-batch`
+
+###### **Options:**
+
+- `--number <BATCH_NUMBER>` — Number of the batch to insert.
+- `--version <VERSION>` — Protocol version in semantic format(`x.y.z`). Major version should be 0.
+- `--default` - use default value for protocol version (the one found in zksync-era).
 
 <hr/>
 

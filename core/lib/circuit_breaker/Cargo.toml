@@ -19,6 +19,3 @@ tokio = { workspace = true, features = ["time"] }
 anyhow.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
-
-[dev-dependencies]
-assert_matches.workspace = true

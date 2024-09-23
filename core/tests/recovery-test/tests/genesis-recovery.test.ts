@@ -4,10 +4,17 @@ import { ethers } from 'ethers';
 
 import { NodeProcess, dropNodeData, getExternalNodeHealth, NodeComponents, sleep, FundedWallet } from '../src';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+
 import path from 'path';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
+
+import { logsTestPath } from 'utils/build/logs';
+
+async function logsPath(name: string): Promise<string> {
+    return await logsTestPath(fileConfig.chain, 'logs/recovery/genesis', name);
+}
 
 /**
  * Tests recovery of an external node from scratch.
@@ -111,7 +118,7 @@ describe('genesis recovery', () => {
     step('initialize external node w/o a tree', async () => {
         externalNodeProcess = await NodeProcess.spawn(
             externalNodeEnv,
-            'genesis-recovery.log',
+            await logsPath('external-node.log'),
             pathToHome,
             NodeComponents.WITH_TREE_FETCHER_AND_NO_TREE,
             fileConfig.loadFromFile,

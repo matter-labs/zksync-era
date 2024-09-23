@@ -89,25 +89,29 @@ describe('Upgrade test', function () {
         alice = tester.emptyWallet();
 
         if (fileConfig.loadFromFile) {
-            let walletConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
+            const chainWalletConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'wallets.yaml' });
 
-            adminGovWallet = new ethers.Wallet(walletConfig.governor.private_key, alice._providerL1());
+            adminGovWallet = new ethers.Wallet(chainWalletConfig.governor.private_key, alice._providerL1());
 
-            walletConfig = loadConfig({
+            const ecosystemWalletConfig = loadConfig({
                 pathToHome,
                 chain: fileConfig.chain,
                 configsFolder: '../../configs/',
                 config: 'wallets.yaml'
             });
 
-            ecosystemGovWallet = new ethers.Wallet(walletConfig.governor.private_key, alice._providerL1());
+            if (ecosystemWalletConfig.governor.private_key == chainWalletConfig.governor.private_key) {
+                ecosystemGovWallet = adminGovWallet;
+            } else {
+                ecosystemGovWallet = new ethers.Wallet(ecosystemWalletConfig.governor.private_key, alice._providerL1());
+            }
         } else {
             let govMnemonic = ethers.Mnemonic.fromPhrase(
                 require('../../../../etc/test_config/constant/eth.json').mnemonic
             );
             let govWalletHD = ethers.HDNodeWallet.fromMnemonic(govMnemonic, "m/44'/60'/0'/0/1");
             adminGovWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
-            ecosystemGovWallet = new ethers.Wallet(govWalletHD.privateKey, alice._providerL1());
+            ecosystemGovWallet = adminGovWallet;
         }
 
         logs = fs.createWriteStream('upgrade.log', { flags: 'a' });
@@ -280,9 +284,11 @@ describe('Upgrade test', function () {
         );
         executeOperation = chainUpgradeCalldata;
 
+        console.log('Sending scheduleTransparentOperation');
         await sendGovernanceOperation(stmUpgradeData.scheduleTransparentOperation);
+        console.log('Sending executeOperation');
         await sendGovernanceOperation(stmUpgradeData.executeOperation);
-
+        console.log('Sending chain admin operation');
         await sendChainAdminOperation(setTimestampCalldata);
 
         // Wait for server to process L1 event.
@@ -371,23 +377,25 @@ describe('Upgrade test', function () {
     });
 
     async function sendGovernanceOperation(data: string) {
-        await (
-            await ecosystemGovWallet.sendTransaction({
-                to: await governanceContract.getAddress(),
-                data: data,
-                type: 0
-            })
-        ).wait();
+        const transaction = await ecosystemGovWallet.sendTransaction({
+            to: await governanceContract.getAddress(),
+            data: data,
+            type: 0
+        });
+        console.log(`Sent governance operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
+        await transaction.wait();
+        console.log(`Governance operation succeeded, tx_hash=${transaction.hash}`);
     }
 
     async function sendChainAdminOperation(data: string) {
-        await (
-            await adminGovWallet.sendTransaction({
-                to: await chainAdminContract.getAddress(),
-                data: data,
-                type: 0
-            })
-        ).wait();
+        const transaction = await adminGovWallet.sendTransaction({
+            to: await chainAdminContract.getAddress(),
+            data: data,
+            type: 0
+        });
+        console.log(`Sent chain admin operation, tx_hash=${transaction.hash}, nonce=${transaction.nonce}`);
+        await transaction.wait();
+        console.log(`Chain admin operation succeeded, tx_hash=${transaction.hash}`);
     }
 });
 

@@ -2,6 +2,7 @@ pub use self::vm::Vm;
 
 mod bootloader_state;
 mod bytecode;
+mod circuits_tracer;
 mod events;
 mod glue;
 mod hook;

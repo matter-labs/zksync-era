@@ -32,7 +32,7 @@ mod tests {
 
     fn expected_config() -> FriProverConfig {
         FriProverConfig {
-            setup_data_path: "vk_setup_data_generator_server_fri/data".to_string(),
+            setup_data_path: "prover/data/keys".to_string(),
             prometheus_port: 3315,
             max_attempts: 10,
             generation_timeout_in_secs: 300,
@@ -68,7 +68,7 @@ mod tests {
     fn from_env() {
         let mut lock = MUTEX.lock();
         let config = r#"
-            FRI_PROVER_SETUP_DATA_PATH="vk_setup_data_generator_server_fri/data"
+            FRI_PROVER_SETUP_DATA_PATH="prover/data/keys"
             FRI_PROVER_PROMETHEUS_PORT="3315"
             FRI_PROVER_MAX_ATTEMPTS="10"
             FRI_PROVER_GENERATION_TIMEOUT_IN_SECS="300"
