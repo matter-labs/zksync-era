@@ -1,4 +1,10 @@
 //! Oneshot VM executor.
+//!
+//! # Overview
+//!
+//! The root type of this module is [`MainOneshotExecutor`], a "default" [`OneshotExecutor`] implementation.
+//! In addition to it, the module provides [`OneshotEnvParameters`] and [`BlockInfo`] / [`ResolvedBlockInfo`],
+//! which can be used to prepare environment for `MainOneshotExecutor` (i.e., a [`OneshotEnv`] instance).
 
 use std::{
     sync::Arc,
@@ -32,8 +38,15 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-pub use self::mock::MockOneshotExecutor;
+pub use self::{
+    block::{BlockInfo, ResolvedBlockInfo},
+    env::{CallOrExecute, EstimateGas, OneshotEnvParameters},
+    mock::MockOneshotExecutor,
+};
 
+mod block;
+mod contracts;
+mod env;
 mod metrics;
 mod mock;
 

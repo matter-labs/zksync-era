@@ -8,16 +8,15 @@ use zksync_multivm::interface::{
     tracer::{ValidationError as RawValidationError, ValidationParams},
 };
 use zksync_types::{
-    api::state_override::StateOverride, l2::L2Tx, Address, TRUSTED_ADDRESS_SLOTS,
-    TRUSTED_TOKEN_SLOTS,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Address,
+    TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS,
 };
 
 use super::{
-    apply,
-    execute::TransactionExecutor,
+    execute::{SandboxAction, SandboxExecutor},
     storage::StorageWithOverrides,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
-    BlockArgs, TxSetupArgs, VmPermit,
+    BlockArgs, VmPermit,
 };
 
 /// Validation error used by the sandbox. Besides validation errors returned by VM, it also includes an internal error
@@ -30,29 +29,34 @@ pub(crate) enum ValidationError {
     Internal(#[from] anyhow::Error),
 }
 
-impl TransactionExecutor {
+impl SandboxExecutor {
     #[tracing::instrument(level = "debug", skip_all)]
     pub(crate) async fn validate_tx_in_sandbox(
         &self,
-        mut connection: Connection<'static, Core>,
         vm_permit: VmPermit,
+        mut connection: Connection<'static, Core>,
         tx: L2Tx,
-        setup_args: TxSetupArgs,
         block_args: BlockArgs,
-        computational_gas_limit: u32,
+        fee_input: BatchFeeInput,
+        whitelisted_tokens_for_aa: &[Address],
     ) -> Result<(), ValidationError> {
         let total_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
         let validation_params = get_validation_params(
             &mut connection,
             &tx,
-            computational_gas_limit,
-            &setup_args.whitelisted_tokens_for_aa,
+            self.options.eth_call.validation_computational_gas_limit(),
+            whitelisted_tokens_for_aa,
         )
         .await
         .context("failed getting validation params")?;
 
-        let (env, storage) =
-            apply::prepare_env_and_storage(connection, setup_args, &block_args).await?;
+        let action = SandboxAction::Execution { fee_input, tx };
+        let (env, storage) = self
+            .prepare_env_and_storage(connection, &block_args, &action)
+            .await?;
+        let SandboxAction::Execution { tx, .. } = action else {
+            unreachable!(); // by construction
+        };
         let storage = StorageWithOverrides::new(storage, &StateOverride::default());
 
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
