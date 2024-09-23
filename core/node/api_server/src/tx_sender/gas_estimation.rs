@@ -216,23 +216,40 @@ pub(super) struct InitialGasEstimate {
     pub total_gas_charged: Option<u64>,
     /// Set to `None` if not estimated (e.g., for L1 transactions).
     pub computational_gas_used: Option<u64>,
+    /// Operator-defined overhead for the estimated transaction. For recent VM versions, the overhead only depends
+    /// on the transaction encoding size.
     pub operator_overhead: u64,
     pub gas_charged_for_pubdata: u64,
 }
 
 impl InitialGasEstimate {
+    /// Returns the lower gas limit bound, i.e., gas limit that is guaranteed to be lower than the minimum passing gas limit,
+    /// but is reasonably close to it.
+    ///
+    /// # Background
+    ///
     /// Total gas charged for a transaction consists of:
     ///
-    /// - Operator-set overhead (`operator_overhead`)
+    /// - Operator-set overhead (`self.operator_overhead`)
     /// - Intrinsic bootloader overhead
-    /// - Gas used during validation / execution
-    /// - Gas charged for pubdata at the end of execution (`gas_for_pubdata`)
+    /// - Gas used during validation / execution (`self.computational_gas_used`)
+    /// - Gas charged for pubdata at the end of execution (`self.gas_charged_for_pubdata`)
     ///
     /// We add `operator_overhead` manually to the binary search argument at each `step()` because it depends on the gas limit in the general case,
-    /// so this value corresponds to the other 3 terms.
+    /// so the returned value corresponds to the other 3 terms.
     ///
     /// If the value cannot be computed, it is set to `None`.
     pub fn lower_gas_bound_without_overhead(&self) -> Option<u64> {
+        // The two ways to compute the used gas (by `computational_gas_used` and by the charged gas) don't return the identical values
+        // due to various factors:
+        //
+        // - `computational_gas_used` tracks gas usage for the entire VM execution, while the transaction initiator (or a paymaster) is only charged
+        //   for a part of it.
+        // - The bootloader is somewhat lenient in the case pubdata costs are approximately equal to the amount of gas left
+        //   (i.e., for some transaction types, such as base token transfers, there exists an entire range of gas limit values
+        //   which all lead to a successful execution with 0 refund).
+        //
+        // We use the lesser of these two estimates as the lower bound.
         let mut total_gas_bound = self.computational_gas_used? + self.gas_charged_for_pubdata;
         if let Some(gas_charged) = self.total_gas_charged {
             total_gas_bound = total_gas_bound.min(gas_charged);
@@ -240,18 +257,23 @@ impl InitialGasEstimate {
         total_gas_bound.checked_sub(self.operator_overhead)
     }
 
+    /// Returns heuristically chosen gas limit without operator overhead that should be sufficient for most transactions.
+    /// This value is reasonably close to the lower gas limit bound, so that when used as the initial binary search pivot,
+    /// it will discard most of the search space in the average case.
     pub fn optimistic_gas_limit_without_overhead(&self) -> Option<u64> {
         let gas_charged_without_overhead = self
             .total_gas_charged?
             .checked_sub(self.operator_overhead)?;
         // 21/20 is an empirical multiplier. It is higher than what empirically suffices for some common transactions;
-        // one can argue that using 64/63 multiplier would be more accurate due to the 63/64 rule for far calls
-        // (however, far calls are not the only source of gas overhead in Era).
+        // one can argue that using 64/63 multiplier would be more accurate due to the 63/64 rule for far calls.
+        // However, far calls are not the only source of gas overhead in Era; another one are decommit operations.
         Some(gas_charged_without_overhead * 21 / 20)
     }
 }
 
-// Public for testing purposes
+/// Encapsulates gas estimation process for a specific transaction.
+///
+/// Public for testing purposes.
 #[derive(Debug)]
 pub(super) struct GasEstimator<'a> {
     sender: &'a TxSender,
