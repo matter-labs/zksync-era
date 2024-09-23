@@ -7,8 +7,8 @@ use super::VmTester;
 use crate::{
     interface::{
         storage::ReadStorage, CurrentExecutionState, ExecutionResult, Halt, TxRevertReason,
-        VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceHistoryEnabled,
-        VmRevertReason,
+        VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
+        VmInterfaceHistoryEnabled, VmRevertReason,
     },
     vm_fast::Vm,
 };
@@ -220,7 +220,7 @@ impl VmTester<()> {
         for tx_test_info in txs {
             self.execute_tx_and_verify(tx_test_info.clone());
         }
-        self.vm.inspect(&mut (), VmExecutionMode::Batch);
+        self.vm.execute(VmExecutionMode::Batch);
         let mut state = self.vm.get_current_execution_state();
         state.used_contract_hashes.sort();
         state
@@ -233,7 +233,7 @@ impl VmTester<()> {
         self.vm.make_snapshot();
         let inner_state_before = self.vm.dump_state();
         self.vm.push_transaction(tx_test_info.tx.clone());
-        let result = self.vm.inspect(&mut (), VmExecutionMode::OneTx);
+        let result = self.vm.execute(VmExecutionMode::OneTx);
         tx_test_info.verify_result(&result);
         if tx_test_info.should_rollback() {
             self.vm.rollback_to_the_latest_snapshot();

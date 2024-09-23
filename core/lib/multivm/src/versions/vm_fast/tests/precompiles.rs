@@ -79,9 +79,8 @@ fn test_sha256() {
     let exec_result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
-    let circuit_statistic = exec_result.statistics.circuit_statistic;
-    let sha_count =
-        circuit_statistic.sha256 * get_geometry_config().cycles_per_sha256_circuit as f32;
+    let sha_count = exec_result.statistics.circuit_statistic.sha256
+        * get_geometry_config().cycles_per_sha256_circuit as f32;
     assert!(sha_count >= 1000.0, "{sha_count}");
 }
 
@@ -111,8 +110,7 @@ fn test_ecrecover() {
     let exec_result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
-    let circuit_statistic = exec_result.statistics.circuit_statistic;
-    let ecrecover_count =
-        circuit_statistic.ecrecover * get_geometry_config().cycles_per_ecrecover_circuit as f32;
+    let ecrecover_count = exec_result.statistics.circuit_statistic.ecrecover
+        * get_geometry_config().cycles_per_ecrecover_circuit as f32;
     assert!((ecrecover_count - 1.0).abs() < 1e-4, "{ecrecover_count}");
 }
