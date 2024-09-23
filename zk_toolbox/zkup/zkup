@@ -128,17 +128,17 @@ EOF
 }
 
 set_bins() {
-  if [ $ZKUP_INSTALL_SUPERVISOR -eq 1 ]; then
-    BINS+=(zk_supervisor)
-  fi
-
   if [ $ZKUP_INSTALL_INCEPTION -eq 1 ]; then
     BINS+=(zk_inception)
   fi
 
-  # Set default to include both if no options are provided
+  if [ $ZKUP_INSTALL_SUPERVISOR -eq 1 ]; then
+    BINS+=(zk_supervisor)
+  fi
+
+  # Installs both binaries if not option is provided
   if [ ${#BINS[@]} -eq 0 ]; then
-    BINS=(zk_supervisor zk_inception)
+    BINS=(zk_inception zk_supervisor)
   fi
 }
 
