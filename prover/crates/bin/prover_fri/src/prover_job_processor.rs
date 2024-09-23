@@ -90,7 +90,7 @@ impl Prover {
                 let started_at = Instant::now();
                 let artifact: GoldilocksProverSetupData = self
                     .keystore
-                    .load_cpu_setup_data_for_circuit_type(key.clone())
+                    .load_cpu_setup_data_for_circuit_type(key)
                     .context("get_cpu_setup_data_for_circuit_type()")?;
                 METRICS.gpu_setup_data_load_time[&key.circuit_id.to_string()]
                     .observe(started_at.elapsed());
@@ -226,7 +226,7 @@ impl JobProcessor for Prover {
         _started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         let config = Arc::clone(&self.config);
-        let setup_data = self.get_setup_data(job.setup_data_key.clone());
+        let setup_data = self.get_setup_data(job.setup_data_key);
         tokio::task::spawn_blocking(move || {
             let block_number = job.block_number;
             let _span = tracing::info_span!("cpu_prove", %block_number).entered();
@@ -307,7 +307,7 @@ pub fn load_setup_data_cache(
             for prover_setup_metadata in prover_setup_metadata_list {
                 let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
                 let setup_data = keystore
-                    .load_cpu_setup_data_for_circuit_type(key.clone())
+                    .load_cpu_setup_data_for_circuit_type(key)
                     .context("get_cpu_setup_data_for_circuit_type()")?;
                 cache.insert(key, Arc::new(setup_data));
             }

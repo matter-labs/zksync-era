@@ -14,3 +14,4 @@ mod storage_oracle;
 mod tests;
 pub mod utils;
 mod witness;
+pub mod witness_generator;

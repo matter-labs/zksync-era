@@ -7,6 +7,7 @@ use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
         storage::{ReadStorage, StorageView, StorageViewStats},
+        utils::DivergenceHandler,
         BatchTransactionExecutionResult, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv,
         L2BlockEnv, SystemEnv, VmInterface, VmInterfaceHistoryEnabled,
     },
@@ -36,6 +37,7 @@ pub struct MainBatchExecutorFactory {
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
     observe_storage_metrics: bool,
+    divergence_handler: Option<DivergenceHandler>,
 }
 
 impl MainBatchExecutorFactory {
@@ -45,6 +47,7 @@ impl MainBatchExecutorFactory {
             optional_bytecode_compression,
             fast_vm_mode: FastVmMode::Old,
             observe_storage_metrics: false,
+            divergence_handler: None,
         }
     }
 
@@ -64,6 +67,11 @@ impl MainBatchExecutorFactory {
     pub fn observe_storage_metrics(&mut self) {
         self.observe_storage_metrics = true;
     }
+
+    pub fn set_divergence_handler(&mut self, handler: DivergenceHandler) {
+        tracing::info!("Set VM divergence handler");
+        self.divergence_handler = Some(handler);
+    }
 }
 
 impl<S: ReadStorage + Send + 'static> BatchExecutorFactory<S> for MainBatchExecutorFactory {
@@ -81,6 +89,7 @@ impl<S: ReadStorage + Send + 'static> BatchExecutorFactory<S> for MainBatchExecu
             optional_bytecode_compression: self.optional_bytecode_compression,
             fast_vm_mode: self.fast_vm_mode,
             observe_storage_metrics: self.observe_storage_metrics,
+            divergence_handler: self.divergence_handler.clone(),
             commands: commands_receiver,
             _storage: PhantomData,
         };
@@ -103,6 +112,7 @@ struct CommandReceiver<S> {
     optional_bytecode_compression: bool,
     fast_vm_mode: FastVmMode,
     observe_storage_metrics: bool,
+    divergence_handler: Option<DivergenceHandler>,
     commands: mpsc::Receiver<Command>,
     _storage: PhantomData<S>,
 }
@@ -125,6 +135,12 @@ impl<S: ReadStorage + 'static> CommandReceiver<S> {
         );
         let mut batch_finished = false;
         let mut prev_storage_stats = StorageViewStats::default();
+
+        if let VmInstance::ShadowedVmFast(vm) = &mut vm {
+            if let Some(handler) = self.divergence_handler.take() {
+                vm.set_divergence_handler(handler);
+            }
+        }
 
         while let Some(cmd) = self.commands.blocking_recv() {
             match cmd {

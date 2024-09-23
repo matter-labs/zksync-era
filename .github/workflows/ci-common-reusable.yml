@@ -22,6 +22,7 @@ jobs:
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
+          echo "RUSTFLAGS=--cfg=no_cuda" >> .env
 
       - name: Start services
         run: |

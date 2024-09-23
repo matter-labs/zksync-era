@@ -1,6 +1,6 @@
 use zksync_types::{L1BatchNumber, H256};
 use zksync_utils::h256_to_account_address;
-use zksync_vm2::Event;
+use zksync_vm2::interface::Event;
 
 use crate::interface::VmEvent;
 
@@ -23,18 +23,21 @@ impl EventAccumulator {
     }
 }
 
-pub(crate) fn merge_events(events: &[Event], block_number: L1BatchNumber) -> Vec<VmEvent> {
+pub(crate) fn merge_events(
+    events: impl Iterator<Item = Event>,
+    block_number: L1BatchNumber,
+) -> Vec<VmEvent> {
     let mut result = vec![];
     let mut current: Option<(usize, u32, EventAccumulator)> = None;
 
-    for message in events.iter() {
+    for event in events {
         let Event {
             shard_id,
             is_first,
             tx_number,
             key,
             value,
-        } = message.clone();
+        } = event;
 
         if !is_first {
             if let Some((mut remaining_data_length, mut remaining_topics, mut event)) =

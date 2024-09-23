@@ -287,6 +287,7 @@ prover_job_monitor:
   prover_queue_reporter_run_interval_ms: 10000
   witness_generator_queue_reporter_run_interval_ms: 10000
   witness_job_queuer_run_interval_ms: 10000
+  http_port: 3074
 
 
 base_token_adjuster:

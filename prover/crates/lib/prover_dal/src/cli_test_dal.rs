@@ -20,14 +20,18 @@ impl CliTestDal<'_, '_> {
         batch_number: L1BatchNumber,
         sequence_number: usize,
     ) {
-        sqlx::query(&format!(
-            "UPDATE prover_jobs_fri SET status = '{}' 
-                WHERE l1_batch_number = {} 
-                AND sequence_number = {} 
-                AND aggregation_round = {}
-                AND circuit_id = {}",
-            status, batch_number.0, sequence_number, aggregation_round, circuit_id,
-        ))
+        sqlx::query!(
+            "UPDATE prover_jobs_fri SET status = $1
+                WHERE l1_batch_number = $2
+                AND sequence_number = $3
+                AND aggregation_round = $4
+                AND circuit_id = $5",
+            status.to_string(),
+            batch_number.0 as i64,
+            sequence_number as i64,
+            aggregation_round as i16,
+            circuit_id as i64,
+        )
         .execute(self.storage.conn())
         .await
         .unwrap();
@@ -39,7 +43,7 @@ impl CliTestDal<'_, '_> {
         batch_number: L1BatchNumber,
         circuit_id: u8,
     ) {
-        sqlx::query(&format!(
+        sqlx::query!(
             "
             INSERT INTO
                 leaf_aggregation_witness_jobs_fri (
@@ -51,13 +55,15 @@ impl CliTestDal<'_, '_> {
                     updated_at
                 )
             VALUES
-                ({}, {}, 'waiting_for_proofs', 2, NOW(), NOW())
+                ($1, $2, 'waiting_for_proofs', 2, NOW(), NOW())
             ON CONFLICT (l1_batch_number, circuit_id) DO
             UPDATE
-            SET status = '{}'
+            SET status = $3
             ",
-            batch_number.0, circuit_id, status
-        ))
+            batch_number.0 as i64,
+            circuit_id as i16,
+            status.to_string()
+        )
         .execute(self.storage.conn())
         .await
         .unwrap();
@@ -69,7 +75,7 @@ impl CliTestDal<'_, '_> {
         batch_number: L1BatchNumber,
         circuit_id: u8,
     ) {
-        sqlx::query(&format!(
+        sqlx::query!(
             "
             INSERT INTO
                 node_aggregation_witness_jobs_fri (
@@ -80,20 +86,22 @@ impl CliTestDal<'_, '_> {
                     updated_at
                 )
             VALUES
-                ({}, {}, 'waiting_for_proofs', NOW(), NOW())
+                ($1, $2, 'waiting_for_proofs', NOW(), NOW())
             ON CONFLICT (l1_batch_number, circuit_id, depth) DO
             UPDATE
-            SET status = '{}'
+            SET status = $3
             ",
-            batch_number.0, circuit_id, status,
-        ))
+            batch_number.0 as i64,
+            circuit_id as i16,
+            status.to_string(),
+        )
         .execute(self.storage.conn())
         .await
         .unwrap();
     }
 
     pub async fn insert_rt_job(&mut self, status: WitnessJobStatus, batch_number: L1BatchNumber) {
-        sqlx::query(&format!(
+        sqlx::query!(
             "
             INSERT INTO
                 recursion_tip_witness_jobs_fri (
@@ -104,13 +112,14 @@ impl CliTestDal<'_, '_> {
                     updated_at
                 )
             VALUES
-                ({}, 'waiting_for_proofs',1, NOW(), NOW())
+                ($1, 'waiting_for_proofs',1, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO
             UPDATE
-            SET status = '{}'
+            SET status = $2
             ",
-            batch_number.0, status,
-        ))
+            batch_number.0 as i64,
+            status.to_string(),
+        )
         .execute(self.storage.conn())
         .await
         .unwrap();
@@ -121,7 +130,7 @@ impl CliTestDal<'_, '_> {
         status: WitnessJobStatus,
         batch_number: L1BatchNumber,
     ) {
-        sqlx::query(&format!(
+        sqlx::query!(
             "
             INSERT INTO
                 scheduler_witness_jobs_fri (
@@ -132,13 +141,14 @@ impl CliTestDal<'_, '_> {
                     updated_at
                 )
             VALUES
-                ({}, '', 'waiting_for_proofs', NOW(), NOW())
+                ($1, '', 'waiting_for_proofs', NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO
             UPDATE
-            SET status = '{}'
+            SET status = $2
             ",
-            batch_number.0, status,
-        ))
+            batch_number.0 as i64,
+            status.to_string(),
+        )
         .execute(self.storage.conn())
         .await
         .unwrap();
@@ -149,7 +159,7 @@ impl CliTestDal<'_, '_> {
         status: ProofCompressionJobStatus,
         batch_number: L1BatchNumber,
     ) {
-        sqlx::query(&format!(
+        sqlx::query!(
             "
             INSERT INTO
                 proof_compression_jobs_fri (
@@ -159,13 +169,14 @@ impl CliTestDal<'_, '_> {
                     updated_at
                 )
             VALUES
-                ({}, '{}', NOW(), NOW())
+                ($1, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO
             UPDATE
-            SET status = '{}'
+            SET status = $2
             ",
-            batch_number.0, status, status,
-        ))
+            batch_number.0 as i64,
+            status.to_string(),
+        )
         .execute(self.storage.conn())
         .await
         .unwrap();
@@ -180,15 +191,20 @@ impl CliTestDal<'_, '_> {
         batch_number: L1BatchNumber,
         sequence_number: usize,
     ) {
-        sqlx::query(&format!(
+        sqlx::query!(
             "UPDATE prover_jobs_fri 
-                SET status = '{}', attempts = {} 
-                WHERE l1_batch_number = {} 
-                AND sequence_number = {} 
-                AND aggregation_round = {}
-                AND circuit_id = {}",
-            status, attempts, batch_number.0, sequence_number, aggregation_round, circuit_id,
-        ))
+                SET status = $1, attempts = $2
+                WHERE l1_batch_number = $3
+                AND sequence_number =$4
+                AND aggregation_round = $5
+                AND circuit_id = $6",
+            status.to_string(),
+            attempts as i64,
+            batch_number.0 as i64,
+            sequence_number as i64,
+            aggregation_round as i64,
+            circuit_id as i16,
+        )
         .execute(self.storage.conn())
         .await
         .unwrap();
@@ -201,13 +217,16 @@ impl CliTestDal<'_, '_> {
         circuit_id: u8,
         batch_number: L1BatchNumber,
     ) {
-        sqlx::query(&format!(
+        sqlx::query!(
             "UPDATE leaf_aggregation_witness_jobs_fri 
-                SET status = '{}', attempts = {} 
-                WHERE l1_batch_number = {}
-                AND circuit_id = {}",
-            status, attempts, batch_number.0, circuit_id,
-        ))
+                SET status = $1, attempts = $2
+                WHERE l1_batch_number = $3
+                AND circuit_id = $4",
+            status.to_string(),
+            attempts as i64,
+            batch_number.0 as i64,
+            circuit_id as i16,
+        )
         .execute(self.storage.conn())
         .await
         .unwrap();

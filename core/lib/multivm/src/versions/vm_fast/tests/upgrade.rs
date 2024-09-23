@@ -265,7 +265,7 @@ fn get_forced_deploy_tx(deployment: &[ForceDeployment]) -> Transaction {
         .expect("failed to encode parameters");
 
     let execute = Execute {
-        contract_address: CONTRACT_DEPLOYER_ADDRESS,
+        contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
         calldata,
         factory_deps: vec![],
         value: U256::zero(),
@@ -315,7 +315,7 @@ fn get_complex_upgrade_tx(
         .unwrap();
 
     let execute = Execute {
-        contract_address: COMPLEX_UPGRADER_ADDRESS,
+        contract_address: Some(COMPLEX_UPGRADER_ADDRESS),
         calldata: complex_upgrader_calldata,
         factory_deps: vec![],
         value: U256::zero(),
