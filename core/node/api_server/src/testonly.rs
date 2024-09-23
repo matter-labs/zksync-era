@@ -19,12 +19,20 @@ const PRECOMPILES_CONTRACT_PATH: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json";
 pub(crate) const PRECOMPILES_CONTRACT_ADDRESS: Address = Address::repeat_byte(3);
 
+const COUNTER_CONTRACT_PATH: &str =
+    "etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json";
+pub(crate) const COUNTER_CONTRACT_ADDRESS: Address = Address::repeat_byte(4);
+
 pub(crate) fn read_expensive_contract_bytecode() -> Vec<u8> {
     read_bytecode(EXPENSIVE_CONTRACT_PATH)
 }
 
 pub(crate) fn read_precompiles_contract_bytecode() -> Vec<u8> {
     read_bytecode(PRECOMPILES_CONTRACT_PATH)
+}
+
+pub(crate) fn read_counter_contract_bytecode() -> Vec<u8> {
+    read_bytecode(COUNTER_CONTRACT_PATH)
 }
 
 fn default_fee() -> Fee {
@@ -56,6 +64,8 @@ pub(crate) trait TestAccount {
     fn create_expensive_cleanup_tx(&self) -> L2Tx;
 
     fn create_decommitting_tx(&self, bytecode_hash: H256, expected_keccak_hash: H256) -> L2Tx;
+
+    fn create_reverting_counter_tx(&self) -> L2Tx;
 }
 
 impl TestAccount for K256PrivateKey {
@@ -140,6 +150,26 @@ impl TestAccount for K256PrivateKey {
             .expect("failed encoding `callCodeOracle` input");
         L2Tx::new_signed(
             Some(PRECOMPILES_CONTRACT_ADDRESS),
+            calldata,
+            Nonce(0),
+            default_fee(),
+            0.into(),
+            L2ChainId::default(),
+            self,
+            get_loadnext_contract().factory_deps,
+            PaymasterParams::default(),
+        )
+        .unwrap()
+    }
+
+    fn create_reverting_counter_tx(&self) -> L2Tx {
+        let calldata = load_contract(COUNTER_CONTRACT_PATH)
+            .function("incrementWithRevert")
+            .expect("no `incrementWithRevert` function")
+            .encode_input(&[Token::Uint(1.into()), Token::Bool(true)])
+            .expect("failed encoding `incrementWithRevert` input");
+        L2Tx::new_signed(
+            Some(COUNTER_CONTRACT_ADDRESS),
             calldata,
             Nonce(0),
             default_fee(),

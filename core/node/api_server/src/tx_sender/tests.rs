@@ -24,7 +24,8 @@ use super::{gas_estimation::GasEstimator, *};
 use crate::{
     execution_sandbox::BlockStartInfo,
     testonly::{
-        read_expensive_contract_bytecode, read_precompiles_contract_bytecode, TestAccount,
+        read_counter_contract_bytecode, read_expensive_contract_bytecode,
+        read_precompiles_contract_bytecode, TestAccount, COUNTER_CONTRACT_ADDRESS,
         EXPENSIVE_CONTRACT_ADDRESS, LOAD_TEST_ADDRESS, PRECOMPILES_CONTRACT_ADDRESS,
     },
     web3::testonly::create_test_tx_sender,
@@ -217,8 +218,7 @@ async fn eth_call_requires_single_connection() {
     assert_eq!(output, b"success!");
 }
 
-#[tokio::test]
-async fn initial_gas_estimation_is_somewhat_accurate() {
+async fn create_real_tx_sender() -> TxSender {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut storage = pool.connection().await.unwrap();
     let genesis_params = GenesisParams::mock();
@@ -228,12 +228,14 @@ async fn initial_gas_estimation_is_somewhat_accurate() {
     drop(storage);
 
     let tx_executor = TransactionExecutor::real(usize::MAX);
-    let (tx_sender, _) = create_test_tx_sender(
-        pool.clone(),
-        genesis_params.config().l2_chain_id,
-        tx_executor,
-    )
-    .await;
+    create_test_tx_sender(pool, genesis_params.config().l2_chain_id, tx_executor)
+        .await
+        .0
+}
+
+#[tokio::test]
+async fn initial_gas_estimation_is_somewhat_accurate() {
+    let tx_sender = create_real_tx_sender().await;
 
     let alice = K256PrivateKey::random();
     let transfer_value = U256::from(1_000_000_000);
@@ -321,22 +323,7 @@ async fn test_initial_estimate(
     state_override: StateOverride,
     tx: L2Tx,
 ) -> VmExecutionResultAndLogs {
-    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let mut storage = pool.connection().await.unwrap();
-    let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut storage, &genesis_params)
-        .await
-        .unwrap();
-    drop(storage);
-
-    let tx_executor = TransactionExecutor::real(usize::MAX);
-    let (tx_sender, _) = create_test_tx_sender(
-        pool.clone(),
-        genesis_params.config().l2_chain_id,
-        tx_executor,
-    )
-    .await;
-
+    let tx_sender = create_real_tx_sender().await;
     let mut estimator = GasEstimator::new(&tx_sender, tx.into(), Some(state_override))
         .await
         .unwrap();
@@ -353,6 +340,15 @@ async fn test_initial_estimate(
     let (vm_result, _) = estimator.unadjusted_step(initial_pivot).await.unwrap();
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
     vm_result
+}
+
+async fn test_initial_estimate_error(state_override: StateOverride, tx: L2Tx) -> SubmitTxError {
+    let tx_sender = create_real_tx_sender().await;
+    let mut estimator = GasEstimator::new(&tx_sender, tx.into(), Some(state_override))
+        .await
+        .unwrap();
+    estimator.adjust_transaction_fee();
+    estimator.initialize().await.unwrap_err()
 }
 
 /// Estimates both transactions with initial writes and cleanup.
@@ -452,6 +448,27 @@ async fn initial_estimate_for_code_oracle_tx() {
 }
 
 #[tokio::test]
+async fn revert_during_initial_estimate() {
+    let alice = K256PrivateKey::random();
+    let contract_bytecode = read_counter_contract_bytecode();
+    let contract_overrides = OverrideAccount {
+        code: Some(Bytecode::new(contract_bytecode).unwrap()),
+        ..OverrideAccount::default()
+    };
+    let state_override = StateOverride::new(HashMap::from([(
+        COUNTER_CONTRACT_ADDRESS,
+        contract_overrides,
+    )]));
+
+    let tx = alice.create_reverting_counter_tx();
+    let err = test_initial_estimate_error(state_override, tx).await;
+    let SubmitTxError::ExecutionReverted(err, _) = err else {
+        panic!("Unexpected error: {err:?}");
+    };
+    assert_eq!(err, "This method always reverts");
+}
+
+#[tokio::test]
 async fn insufficient_funds_error_for_transfer() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut storage = pool.connection().await.unwrap();
@@ -493,21 +510,7 @@ async fn test_estimating_gas(
     tx: L2Tx,
     acceptable_overestimation: u64,
 ) {
-    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let mut storage = pool.connection().await.unwrap();
-    let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut storage, &genesis_params)
-        .await
-        .unwrap();
-    drop(storage);
-
-    let tx_executor = TransactionExecutor::real(usize::MAX);
-    let (tx_sender, _) = create_test_tx_sender(
-        pool.clone(),
-        genesis_params.config().l2_chain_id,
-        tx_executor,
-    )
-    .await;
+    let tx_sender = create_real_tx_sender().await;
 
     let fee_scale_factor = 1.0;
     let fee = tx_sender
@@ -630,4 +633,37 @@ async fn estimating_gas_for_code_oracle_tx() {
     test_estimating_gas(state_override, tx, 0).await;
 }
 
-// FIXME: more test contracts: failures (counter, infinite)
+#[tokio::test]
+async fn estimating_gas_for_reverting_tx() {
+    let alice = K256PrivateKey::random();
+    let contract_bytecode = read_counter_contract_bytecode();
+    let contract_overrides = OverrideAccount {
+        code: Some(Bytecode::new(contract_bytecode).unwrap()),
+        ..OverrideAccount::default()
+    };
+    let state_override = StateOverride::new(HashMap::from([(
+        COUNTER_CONTRACT_ADDRESS,
+        contract_overrides,
+    )]));
+
+    let tx = alice.create_reverting_counter_tx();
+    let tx_sender = create_real_tx_sender().await;
+
+    let fee_scale_factor = 1.0;
+    let acceptable_overestimation = 0;
+    for binary_search_kind in [BinarySearchKind::Full, BinarySearchKind::Optimized] {
+        let err = tx_sender
+            .get_txs_fee_in_wei(
+                tx.clone().into(),
+                fee_scale_factor,
+                acceptable_overestimation,
+                Some(state_override.clone()),
+                binary_search_kind,
+            )
+            .await
+            .unwrap_err();
+        assert_matches!(err, SubmitTxError::ExecutionReverted(..));
+    }
+}
+
+// FIXME: more test contracts: failures (infinite)

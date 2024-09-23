@@ -340,7 +340,7 @@ impl<'a> GasEstimator<'a> {
         }
     }
 
-    pub(super) async fn initialize(&self) -> anyhow::Result<InitialGasEstimate> {
+    pub(super) async fn initialize(&self) -> Result<InitialGasEstimate, SubmitTxError> {
         let operator_overhead = self.tx_overhead(self.max_gas_limit);
 
         // When the pubdata cost grows very high, the total gas limit required may become very high as well. If
@@ -362,13 +362,14 @@ impl<'a> GasEstimator<'a> {
             // For L2 transactions, we estimate the amount of gas needed to cover for the pubdata by creating a transaction with infinite gas limit.
             // And getting how much pubdata it used.
 
-            // In theory, if the transaction has failed with such large gas limit, we could have returned an API error here right away,
-            // but doing it later on keeps the code more lean.
-            // FIXME: reconsider the choice above?
             let (result, _) = self
                 .unadjusted_step(self.max_gas_limit)
                 .await
                 .context("estimate_gas step failed")?;
+            // If the transaction has failed with such a large gas limit, we return an API error here right away,
+            // since the inferred gas bounds are be unreliable in this case.
+            // FIXME: double-check that returning early is OK
+            result.check_api_call_result()?;
 
             // It is assumed that there is no overflow here
             let gas_charged_for_pubdata =
