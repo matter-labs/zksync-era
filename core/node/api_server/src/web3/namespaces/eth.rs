@@ -682,8 +682,6 @@ impl EthNamespace {
         effective_pubdata_price_history.reverse();
 
         let oldest_block = newest_l2_block.0 + 1 - base_fee_per_gas.len() as u32;
-        // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
-        base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
         // We do not store gas used ratio for blocks, returns array of zeroes as a placeholder.
         let gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
         // Effective priority gas price is currently 0.
@@ -692,13 +690,16 @@ impl EthNamespace {
             base_fee_per_gas.len()
         ]);
 
+        // `base_fee_per_gas` for next L2 block cannot be calculated, appending last fee as a placeholder.
+        base_fee_per_gas.push(*base_fee_per_gas.last().unwrap());
+
         // We do not support EIP-4844, but per API specification we should return 0 for pre EIP-4844 blocks.
         let base_fee_per_blob_gas = vec![U256::zero(); base_fee_per_gas.len()];
-        let blob_gas_used_ratio = vec![0.0; base_fee_per_gas.len()];
+        let blob_gas_used_ratio = vec![0.0; base_fee_per_gas.len() - 1];
 
         Ok(FeeHistory {
             inner: web3::FeeHistory {
-                oldest_block: zksync_types::web3::BlockNumber::Number(oldest_block.into()),
+                oldest_block: web3::BlockNumber::Number(oldest_block.into()),
                 base_fee_per_gas,
                 gas_used_ratio,
                 reward,
