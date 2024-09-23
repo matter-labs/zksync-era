@@ -301,7 +301,8 @@ impl DebugNamespace {
                 ))
             }
         };
-        let hash = call.hash();
+        // It's a call request, it's safe to keep it zero
+        let hash = H256::zero();
         let call = Call::new_high_level(
             call.common_data.fee.gas_limit.as_u64(),
             result.vm.statistics.gas_used,
