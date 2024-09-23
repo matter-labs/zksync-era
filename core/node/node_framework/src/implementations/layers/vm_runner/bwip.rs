@@ -76,7 +76,7 @@ impl WiringLayer for BasicWitnessInputProducerLayer {
         let connection_pool = master_pool.get_custom(self.config.window_size + 2).await?;
 
         // We don't get the executor from the context because it would contain state keeper-specific settings.
-        let batch_executor = MainBatchExecutorFactory::new(false, false);
+        let batch_executor = MainBatchExecutorFactory::<()>::new(false);
 
         let (basic_witness_input_producer, tasks) = BasicWitnessInputProducer::new(
             connection_pool,

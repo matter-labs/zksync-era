@@ -4,8 +4,10 @@ use zksync_vm_interface::CircuitStatistic;
 
 use crate::vm_latest::tracers::circuits_capacity::*;
 
+/// VM tracer tracking [`CircuitStatistic`]s. Statistics generally depend on the number of time some opcodes were invoked,
+/// and, for precompiles, invocation complexity (e.g., how many hashing cycles `keccak256` required).
 #[derive(Debug, Default, Clone, PartialEq)]
-pub(crate) struct CircuitsTracer {
+pub struct CircuitsTracer {
     main_vm_cycles: u32,
     ram_permutation_cycles: u32,
     storage_application_cycles: u32,
@@ -124,7 +126,8 @@ impl Tracer for CircuitsTracer {
 }
 
 impl CircuitsTracer {
-    pub(crate) fn circuit_statistic(&self) -> CircuitStatistic {
+    /// Obtains the current circuit stats from this tracer.
+    pub fn circuit_statistic(&self) -> CircuitStatistic {
         CircuitStatistic {
             main_vm: self.main_vm_cycles as f32 / GEOMETRY_CONFIG.cycles_per_vm_snapshot as f32,
             ram_permutation: self.ram_permutation_cycles as f32

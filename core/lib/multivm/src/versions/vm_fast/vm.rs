@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt, mem};
 
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
@@ -56,9 +56,16 @@ use crate::{
 
 const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
 
-pub struct Vm<S> {
-    pub(crate) world: World<S, CircuitsTracer>,
-    pub(crate) inner: VirtualMachine<CircuitsTracer, World<S, CircuitsTracer>>,
+type FullTracer<Tr> = (Tr, CircuitsTracer);
+
+/// Fast VM wrapper.
+///
+/// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait, a tracer must have `'static` lifetime
+/// and implement [`Default`] (the latter is necessary to complete batches). [`CircuitsTracer`] is currently always enabled;
+/// you don't need to specify it explicitly.
+pub struct Vm<S, Tr = ()> {
+    pub(crate) world: World<S, FullTracer<Tr>>,
+    pub(crate) inner: VirtualMachine<FullTracer<Tr>, World<S, FullTracer<Tr>>>,
     gas_for_account_validation: u32,
     pub(crate) bootloader_state: BootloaderState,
     pub(crate) batch_env: L1BatchEnv,
@@ -68,7 +75,7 @@ pub struct Vm<S> {
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
-impl<S: ReadStorage> Vm<S> {
+impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
         let default_aa_code_hash = system_env
             .base_system_smart_contracts
@@ -131,7 +138,7 @@ impl<S: ReadStorage> Vm<S> {
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,
-        tracer: &mut CircuitsTracer,
+        tracer: &mut (Tr, CircuitsTracer),
         track_refunds: bool,
     ) -> (ExecutionResult, Refunds) {
         let mut refunds = Refunds {
@@ -485,7 +492,11 @@ impl<S: ReadStorage> Vm<S> {
     }
 }
 
-impl<S: ReadStorage> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>> {
+impl<S, Tr> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
+where
+    S: ReadStorage,
+    Tr: Tracer + Default + 'static,
+{
     fn new(
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
@@ -496,8 +507,8 @@ impl<S: ReadStorage> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>> {
     }
 }
 
-impl<S: ReadStorage> VmInterface for Vm<S> {
-    type TracerDispatcher = ();
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
+    type TracerDispatcher = Tr;
 
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
         self.push_transaction_inner(tx, 0, true);
@@ -505,7 +516,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
     fn inspect(
         &mut self,
-        (): Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut track_refunds = false;
@@ -515,12 +526,14 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             track_refunds = true;
         }
 
-        let mut tracer = CircuitsTracer::default();
         let start = self.inner.world_diff().snapshot();
         let pubdata_before = self.inner.pubdata();
         let gas_before = self.gas_remaining();
 
-        let (result, refunds) = self.run(execution_mode, &mut tracer, track_refunds);
+        let mut full_tracer = (mem::take(tracer), CircuitsTracer::default());
+        let (result, refunds) = self.run(execution_mode, &mut full_tracer, track_refunds);
+        *tracer = full_tracer.0; // place the tracer back
+
         let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
             && matches!(result, ExecutionResult::Halt { .. });
 
@@ -572,7 +585,6 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         };
 
         let pubdata_after = self.inner.pubdata();
-        let circuit_statistic = tracer.circuit_statistic();
         let gas_remaining = self.gas_remaining();
         VmExecutionResultAndLogs {
             result,
@@ -586,7 +598,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                 computational_gas_used: 0,
                 total_log_queries: 0,
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
-                circuit_statistic,
+                circuit_statistic: full_tracer.1.circuit_statistic(),
             },
             refunds,
         }
@@ -594,12 +606,12 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        (): Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.push_transaction_inner(tx, 0, with_compression);
-        let result = self.inspect((), VmExecutionMode::OneTx);
+        let result = self.inspect(tracer, VmExecutionMode::OneTx);
 
         let compression_result = if self.has_unpublished_bytecodes() {
             Err(BytecodeCompressionError::BytecodeCompressionFailed)
@@ -621,7 +633,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.inspect((), VmExecutionMode::Batch);
+        let result = self.inspect(&mut Tr::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {
@@ -650,7 +662,7 @@ struct VmSnapshot {
     gas_for_account_validation: u32,
 }
 
-impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterfaceHistoryEnabled for Vm<S, Tr> {
     fn make_snapshot(&mut self) {
         assert!(
             self.snapshot.is_none(),
@@ -687,7 +699,7 @@ impl<S: ReadStorage> VmTrackingContracts for Vm<S> {
     }
 }
 
-impl<S: fmt::Debug> fmt::Debug for Vm<S> {
+impl<S: fmt::Debug, Tr: fmt::Debug> fmt::Debug for Vm<S, Tr> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vm")
             .field(

@@ -1,8 +1,8 @@
 // FIXME: move storage-agnostic tests to VM executor crate
 
 use assert_matches::assert_matches;
+use rand::{thread_rng, Rng};
 use test_casing::{test_casing, Product};
-use tester::AccountFailedCall;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_multivm::interface::{BatchTransactionExecutionResult, ExecutionResult, Halt};
 use zksync_test_account::Account;
@@ -10,7 +10,9 @@ use zksync_types::{
     get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, PriorityOpId,
 };
 
-use self::tester::{AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester};
+use self::tester::{
+    AccountFailedCall, AccountLoadNextExecutable, StorageSnapshot, TestConfig, Tester,
+};
 
 mod read_storage_factory;
 mod tester;
@@ -425,7 +427,7 @@ async fn bootloader_out_of_gas_for_any_tx(vm_mode: FastVmMode) {
     let mut tester = Tester::with_config(
         connection_pool,
         TestConfig {
-            save_call_traces: false,
+            trace_calls: false,
             vm_gas_limit: Some(10),
             validation_computational_gas_limit: u32::MAX,
             fast_vm_mode: vm_mode,
@@ -470,7 +472,7 @@ async fn bootloader_tip_out_of_gas() {
     // Just a bit below the gas used for the previous batch execution should be fine to execute the tx
     // but not enough to execute the block tip.
     tester.set_config(TestConfig {
-        save_call_traces: false,
+        trace_calls: false,
         vm_gas_limit: Some(
             finished_batch
                 .block_tip_execution_result
@@ -537,4 +539,61 @@ async fn catchup_rocksdb_cache() {
     let mut executor = tester.create_batch_executor(StorageType::Rocksdb).await;
     let res = executor.execute_tx(tx).await.unwrap();
     assert_rejected(&res);
+}
+
+#[test_casing(3, FAST_VM_MODES)]
+#[tokio::test]
+async fn execute_tx_with_large_packable_bytecode(vm_mode: FastVmMode) {
+    // The rough length of the packed bytecode should be 350_000 / 4 = 87500,
+    // which should fit into a batch
+    const BYTECODE_LEN: usize = 350_016 + 32; // +32 to ensure validity of the bytecode
+
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut alice = Account::random();
+    let mut tester = Tester::new(connection_pool, vm_mode);
+    let mut rng = thread_rng();
+
+    tester.genesis().await;
+    tester.fund(&[alice.address()]).await;
+    let mut executor = tester
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .await;
+
+    let mut packable_bytecode = vec![];
+    while packable_bytecode.len() < BYTECODE_LEN {
+        packable_bytecode.extend_from_slice(&if rng.gen() { [0_u8; 8] } else { [0xff_u8; 8] });
+    }
+    let tx = alice.execute_with_factory_deps(vec![packable_bytecode.clone()]);
+
+    let res = executor.execute_tx(tx).await.unwrap();
+    assert_matches!(res.tx_result.result, ExecutionResult::Success { .. });
+    assert_eq!(res.compressed_bytecodes.len(), 1);
+    assert_eq!(res.compressed_bytecodes[0].original, packable_bytecode);
+    assert!(res.compressed_bytecodes[0].compressed.len() < BYTECODE_LEN / 2);
+
+    executor.finish_batch().await.unwrap();
+}
+
+#[test_casing(2, [FastVmMode::Old, FastVmMode::Shadow])] // new VM doesn't support call tracing yet
+#[tokio::test]
+async fn execute_tx_with_call_traces(vm_mode: FastVmMode) {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut alice = Account::random();
+    let mut tester = Tester::with_config(
+        connection_pool,
+        TestConfig {
+            trace_calls: true,
+            ..TestConfig::new(vm_mode)
+        },
+    );
+
+    tester.genesis().await;
+    tester.fund(&[alice.address()]).await;
+    let mut executor = tester
+        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .await;
+    let res = executor.execute_tx(alice.execute()).await.unwrap();
+
+    assert_matches!(res.tx_result.result, ExecutionResult::Success { .. });
+    assert!(!res.call_traces.is_empty());
 }

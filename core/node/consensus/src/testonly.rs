@@ -621,7 +621,7 @@ impl StateKeeperRunner {
             });
 
             s.spawn_bg({
-                let executor_factory = MainBatchExecutorFactory::new(false, false);
+                let executor_factory = MainBatchExecutorFactory::<()>::new(false);
                 let stop_recv = stop_recv.clone();
                 async {
                     ZkSyncStateKeeper::new(
