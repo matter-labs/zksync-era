@@ -160,7 +160,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
         .into_iter()
         .filter(|log| log.rw_flag)
         .filter(|log| log.read_value != log.written_value)
-        .filter(|log| log.address != L1_MESSENGER_ADDRESS || log.key == U256::from(4u32))
+        .filter(|log| log.address != L1_MESSENGER_ADDRESS)
         .map(|log| StateDiffRecord {
             address: log.address,
             key: log.key,
