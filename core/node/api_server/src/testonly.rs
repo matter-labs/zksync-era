@@ -23,6 +23,10 @@ const COUNTER_CONTRACT_PATH: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json";
 pub(crate) const COUNTER_CONTRACT_ADDRESS: Address = Address::repeat_byte(4);
 
+const INFINITE_LOOP_CONTRACT_PATH: &str =
+    "etc/contracts-test-data/artifacts-zk/contracts/infinite/infinite.sol/InfiniteLoop.json";
+pub(crate) const INFINITE_LOOP_CONTRACT_ADDRESS: Address = Address::repeat_byte(5);
+
 pub(crate) fn read_expensive_contract_bytecode() -> Vec<u8> {
     read_bytecode(EXPENSIVE_CONTRACT_PATH)
 }
@@ -33,6 +37,10 @@ pub(crate) fn read_precompiles_contract_bytecode() -> Vec<u8> {
 
 pub(crate) fn read_counter_contract_bytecode() -> Vec<u8> {
     read_bytecode(COUNTER_CONTRACT_PATH)
+}
+
+pub(crate) fn read_infinite_loop_contract_bytecode() -> Vec<u8> {
+    read_bytecode(INFINITE_LOOP_CONTRACT_PATH)
 }
 
 fn default_fee() -> Fee {
@@ -63,9 +71,11 @@ pub(crate) trait TestAccount {
 
     fn create_expensive_cleanup_tx(&self) -> L2Tx;
 
-    fn create_decommitting_tx(&self, bytecode_hash: H256, expected_keccak_hash: H256) -> L2Tx;
+    fn create_code_oracle_tx(&self, bytecode_hash: H256, expected_keccak_hash: H256) -> L2Tx;
 
     fn create_reverting_counter_tx(&self) -> L2Tx;
+
+    fn create_infinite_loop_tx(&self) -> L2Tx;
 }
 
 impl TestAccount for K256PrivateKey {
@@ -113,7 +123,7 @@ impl TestAccount for K256PrivateKey {
             0.into(),
             L2ChainId::default(),
             self,
-            get_loadnext_contract().factory_deps,
+            vec![],
             PaymasterParams::default(),
         )
         .unwrap()
@@ -133,13 +143,13 @@ impl TestAccount for K256PrivateKey {
             0.into(),
             L2ChainId::default(),
             self,
-            get_loadnext_contract().factory_deps,
+            vec![],
             PaymasterParams::default(),
         )
         .unwrap()
     }
 
-    fn create_decommitting_tx(&self, bytecode_hash: H256, expected_keccak_hash: H256) -> L2Tx {
+    fn create_code_oracle_tx(&self, bytecode_hash: H256, expected_keccak_hash: H256) -> L2Tx {
         let calldata = load_contract(PRECOMPILES_CONTRACT_PATH)
             .function("callCodeOracle")
             .expect("no `callCodeOracle` function")
@@ -156,7 +166,7 @@ impl TestAccount for K256PrivateKey {
             0.into(),
             L2ChainId::default(),
             self,
-            get_loadnext_contract().factory_deps,
+            vec![],
             PaymasterParams::default(),
         )
         .unwrap()
@@ -176,7 +186,27 @@ impl TestAccount for K256PrivateKey {
             0.into(),
             L2ChainId::default(),
             self,
-            get_loadnext_contract().factory_deps,
+            vec![],
+            PaymasterParams::default(),
+        )
+        .unwrap()
+    }
+
+    fn create_infinite_loop_tx(&self) -> L2Tx {
+        let calldata = load_contract(INFINITE_LOOP_CONTRACT_PATH)
+            .function("infiniteLoop")
+            .expect("no `infiniteLoop` function")
+            .encode_input(&[])
+            .expect("failed encoding `infiniteLoop` input");
+        L2Tx::new_signed(
+            Some(INFINITE_LOOP_CONTRACT_ADDRESS),
+            calldata,
+            Nonce(0),
+            default_fee(),
+            0.into(),
+            L2ChainId::default(),
+            self,
+            vec![],
             PaymasterParams::default(),
         )
         .unwrap()

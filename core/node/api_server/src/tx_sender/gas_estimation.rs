@@ -359,15 +359,15 @@ impl<'a> GasEstimator<'a> {
                 gas_charged_for_pubdata: 0,
             })
         } else {
-            // For L2 transactions, we estimate the amount of gas needed to cover for the pubdata by creating a transaction with infinite gas limit.
-            // And getting how much pubdata it used.
+            // For L2 transactions, we estimate the amount of gas needed to cover for the pubdata by creating a transaction with infinite gas limit,
+            // and getting how much pubdata it used.
 
             let (result, _) = self
                 .unadjusted_step(self.max_gas_limit)
                 .await
                 .context("estimate_gas step failed")?;
             // If the transaction has failed with such a large gas limit, we return an API error here right away,
-            // since the inferred gas bounds are be unreliable in this case.
+            // since the inferred gas bounds would be unreliable in this case.
             // FIXME: double-check that returning early is OK
             result.check_api_call_result()?;
 
