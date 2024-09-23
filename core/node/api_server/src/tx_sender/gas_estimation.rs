@@ -71,6 +71,11 @@ impl TxSender {
             estimation_started_at.elapsed()
         );
 
+        let optimized_lower_bound = initial_estimate.lower_gas_bound_without_overhead();
+        // Perform an initial search iteration with the pivot slightly greater than `gas_used` to account for 63/64 rule for far calls etc.
+        // If the transaction succeeds, it will discard most of the search space at once.
+        let optimistic_gas_limit = initial_estimate.optimistic_gas_limit_without_overhead();
+
         let (bounds, initial_pivot) = match kind {
             BinarySearchKind::Full => {
                 let lower_bound = initial_estimate.gas_charged_for_pubdata;
@@ -78,26 +83,38 @@ impl TxSender {
                 (lower_bound..=upper_bound, None)
             }
             BinarySearchKind::Optimized => {
-                let lower_bound = initial_estimate
-                    .lower_gas_bound_without_overhead()
-                    .unwrap_or(0);
+                let lower_bound = optimized_lower_bound.unwrap_or(0);
                 let upper_bound = MAX_L2_TX_GAS_LIMIT;
-
-                // Perform an initial search iteration with the pivot slightly greater than `gas_used` to account for 63/64 rule for far calls etc.
-                // If the transaction succeeds, it will discard most of the search space at once.
-                let optimistic_gas_limit = initial_estimate
-                    .optimistic_gas_limit_without_overhead()
-                    .filter(|&gas| {
-                        // If `optimistic_gas_limit` is greater than the ordinary binary search pivot, there's no sense using it.
-                        gas < (lower_bound + upper_bound) / 2
-                    });
-                (lower_bound..=upper_bound, optimistic_gas_limit)
+                let initial_pivot = optimistic_gas_limit.filter(|&gas| {
+                    // If `optimistic_gas_limit` is greater than the ordinary binary search pivot, there's no sense using it.
+                    gas < (lower_bound + upper_bound) / 2
+                });
+                (lower_bound..=upper_bound, initial_pivot)
             }
         };
 
         let unscaled_gas_limit =
             Self::binary_search(&estimator, bounds, initial_pivot, acceptable_overestimation)
                 .await?;
+        // Metrics are intentionally reported regardless of the binary search mode, so that the collected stats can be used to adjust
+        // optimized binary search params (e.g., the initial pivot multiplier).
+        if let Some(lower_bound) = optimized_lower_bound {
+            let tx_overhead = estimator.tx_overhead(unscaled_gas_limit);
+            let diff = (unscaled_gas_limit as f64 - lower_bound as f64)
+                / (unscaled_gas_limit + tx_overhead) as f64;
+            SANDBOX_METRICS
+                .estimate_gas_lower_bound_relative_diff
+                .observe(diff);
+        }
+        if let Some(optimistic_gas_limit) = optimistic_gas_limit {
+            let tx_overhead = estimator.tx_overhead(unscaled_gas_limit);
+            let diff = (optimistic_gas_limit as f64 - unscaled_gas_limit as f64)
+                / (unscaled_gas_limit + tx_overhead) as f64;
+            SANDBOX_METRICS
+                .estimate_gas_optimistic_gas_limit_relative_diff
+                .observe(diff);
+        }
+
         let suggested_gas_limit = (unscaled_gas_limit as f64 * estimated_fee_scale_factor) as u64;
         estimator
             .finalize(suggested_gas_limit, estimated_fee_scale_factor)
