@@ -10,7 +10,6 @@ use zkevm_test_harness::{
     },
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
-use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
@@ -22,7 +21,7 @@ use zksync_prover_fri_types::{
         encodings::recursion_request::RecursionQueueSimulator,
         zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness,
     },
-    FriProofWrapper,
+    get_current_pod_name, FriProofWrapper,
 };
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::{
@@ -33,7 +32,7 @@ use zksync_types::{
 use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
-    rounds::{JobManager, WitnessGenerator},
+    rounds::JobManager,
     utils::{
         load_proofs_for_job_ids, save_recursive_layer_prover_input_artifacts,
         ClosedFormInputWrapper,
@@ -41,7 +40,6 @@ use crate::{
 };
 
 mod artifacts;
-mod job_processor;
 
 pub struct LeafAggregationWitnessGeneratorJob {
     pub(crate) circuit_id: u8,
@@ -68,9 +66,9 @@ pub struct LeafAggregation;
 impl JobManager for LeafAggregation {
     type Job = LeafAggregationWitnessGeneratorJob;
     type Metadata = LeafAggregationJobMetadata;
-    type Artifacts = LeafAggregationArtifacts;
 
     const ROUND: &'static str = "leaf_aggregation";
+    const SERVICE_NAME: &'static str = "fri_leaf_aggregation_witness_generator";
 
     #[tracing::instrument(
         skip_all,
@@ -243,7 +241,7 @@ impl JobManager for LeafAggregation {
             .context("failed to acquire DB connection for LeafAggregationWitnessGenerator")?;
         prover_storage
             .fri_witness_generator_dal()
-            .get_leaf_aggregation_job_attempts(*job_id)
+            .get_leaf_aggregation_job_attempts(job_id)
             .await
             .map(|attempts| attempts.unwrap_or(0))
             .context("failed to get job attempts for LeafAggregationWitnessGenerator")
@@ -256,12 +254,28 @@ impl JobManager for LeafAggregation {
     ) -> anyhow::Result<()> {
         connection_pool
             .connection()
-            .await
-            .unwrap()
+            .await?
             .fri_witness_generator_dal()
             .mark_leaf_aggregation_job_failed(&error, job_id)
             .await;
 
         Ok(())
+    }
+
+    async fn get_metadata(
+        connection_pool: ConnectionPool<Prover>,
+        protocol_version: ProtocolSemanticVersion,
+    ) -> anyhow::Result<Option<(u32, Self::Metadata)>> {
+        let pod_name = get_current_pod_name();
+        let Some(metadata) = connection_pool
+            .connection()
+            .await?
+            .fri_witness_generator_dal()
+            .get_next_leaf_aggregation_job(protocol_version, &pod_name)
+            .await
+        else {
+            return Ok(None);
+        };
+        Ok(Some((metadata.id, metadata)))
     }
 }

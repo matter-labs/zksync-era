@@ -2,7 +2,6 @@
 #![feature(generic_const_exprs)]
 
 pub mod artifacts;
-pub mod basic_circuits;
 pub mod metrics;
 pub mod precalculated_merkle_paths_provider;
 pub mod rounds;

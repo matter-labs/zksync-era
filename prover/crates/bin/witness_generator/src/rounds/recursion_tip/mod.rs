@@ -35,9 +35,9 @@ use zkevm_test_harness::{
         scheduler::aux::BaseLayerCircuitType,
     },
 };
-use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_fri_types::get_current_pod_name;
 use zksync_prover_fri_types::keys::ClosedFormInputKey;
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_types::{
@@ -50,7 +50,6 @@ use crate::{
 };
 
 mod artifacts;
-mod job_processor;
 
 #[derive(Clone)]
 pub struct RecursionTipWitnessGeneratorJob {
@@ -79,9 +78,9 @@ pub struct RecursionTip;
 impl JobManager for RecursionTip {
     type Job = RecursionTipWitnessGeneratorJob;
     type Metadata = RecursionTipJobMetadata;
-    type Artifacts = RecursionTipArtifacts;
 
     const ROUND: &'static str = "recursion_tip";
+    const SERVICE_NAME: &'static str = "recursion_tip_witness_generator";
 
     #[tracing::instrument(
         skip_all,
@@ -239,11 +238,48 @@ impl JobManager for RecursionTip {
     ) -> anyhow::Result<()> {
         connection_pool
             .connection()
-            .await
-            .unwrap()
+            .await?
             .fri_witness_generator_dal()
             .mark_recursion_tip_job_failed(&error, L1BatchNumber(job_id))
             .await;
         Ok(())
+    }
+
+    async fn get_metadata(
+        connection_pool: ConnectionPool<Prover>,
+        protocol_version: ProtocolSemanticVersion,
+    ) -> anyhow::Result<Option<(u32, Self::Metadata)>> {
+        let pod_name = get_current_pod_name();
+        let Some((l1_batch_number, number_of_final_node_jobs)) = connection_pool
+            .connection()
+            .await?
+            .fri_witness_generator_dal()
+            .get_next_recursion_tip_witness_job(protocol_version, &pod_name)
+            .await
+        else {
+            return Ok(None);
+        };
+
+        let final_node_proof_job_ids = connection_pool
+            .connection()
+            .await?
+            .fri_prover_jobs_dal()
+            .get_final_node_proof_job_ids_for(l1_batch_number)
+            .await;
+
+        assert_eq!(
+            final_node_proof_job_ids.len(),
+            number_of_final_node_jobs as usize,
+            "recursion tip witness job was scheduled without all final node jobs being completed; expected {}, got {}",
+            number_of_final_node_jobs, final_node_proof_job_ids.len()
+        );
+
+        Ok(Some((
+            l1_batch_number.0,
+            RecursionTipJobMetadata {
+                l1_batch_number,
+                final_node_proof_job_ids,
+            },
+        )))
     }
 }

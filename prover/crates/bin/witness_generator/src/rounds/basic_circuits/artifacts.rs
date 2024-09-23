@@ -9,7 +9,9 @@ use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
     artifacts::ArtifactsManager,
-    basic_circuits::{BasicCircuitArtifacts, BasicWitnessGenerator, BasicWitnessGeneratorJob},
+    rounds::basic_circuits::{
+        BasicCircuitArtifacts, BasicWitnessGenerator, BasicWitnessGeneratorJob,
+    },
     utils::SchedulerPartialInputWrapper,
 };
 

@@ -5,16 +5,16 @@ use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
 
 #[derive(Debug)]
-pub(crate) struct AggregationBlobUrls {
+pub struct AggregationBlobUrls {
     pub aggregation_urls: String,
     pub circuit_ids_and_urls: Vec<(u8, String)>,
 }
 
 #[async_trait]
-pub(crate) trait ArtifactsManager {
+pub trait ArtifactsManager {
     type InputMetadata;
     type InputArtifacts;
-    type OutputArtifacts;
+    type OutputArtifacts: Send + Clone + 'static;
     type BlobUrls;
 
     async fn get_artifacts(

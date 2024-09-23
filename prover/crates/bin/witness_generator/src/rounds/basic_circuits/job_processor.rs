@@ -1,7 +1,6 @@
 use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
-use tracing::Instrument;
 use zksync_prover_dal::ProverDal;
 use zksync_prover_fri_types::{get_current_pod_name, AuxOutputWitnessWrapper};
 use zksync_prover_keystore::keystore::Keystore;
@@ -10,9 +9,11 @@ use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
     artifacts::ArtifactsManager,
-    basic_circuits::{BasicCircuitArtifacts, BasicWitnessGenerator, BasicWitnessGeneratorJob},
     metrics::WITNESS_GENERATOR_METRICS,
-    witness_generator::JobManager,
+    rounds::basic_circuits::{
+        BasicCircuitArtifacts, BasicWitnessGenerator, BasicWitnessGeneratorJob,
+    },
+    rounds::JobManager,
 };
 
 #[async_trait]
@@ -20,7 +21,7 @@ impl JobProcessor for BasicWitnessGenerator {
     type Job = BasicWitnessGeneratorJob;
     type JobId = L1BatchNumber;
     // The artifact is optional to support skipping blocks when sampling is enabled.
-    type JobArtifacts = Option<BasicCircuitArtifacts>;
+    type JobArtifacts = BasicCircuitArtifacts;
 
     const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
 
@@ -66,20 +67,12 @@ impl JobProcessor for BasicWitnessGenerator {
         _job_id: &Self::JobId,
         job: BasicWitnessGeneratorJob,
         started_at: Instant,
-    ) -> tokio::task::JoinHandle<anyhow::Result<Option<BasicCircuitArtifacts>>> {
+    ) -> tokio::task::JoinHandle<anyhow::Result<BasicCircuitArtifacts>> {
         let object_store = Arc::clone(&self.object_store);
         let max_circuits_in_flight = self.config.max_circuits_in_flight;
         tokio::spawn(async move {
-            let block_number = job.block_number;
-            <Self as JobManager>::process_job(
-                job,
-                object_store,
-                Some(max_circuits_in_flight),
-                started_at,
-            )
-            .instrument(tracing::info_span!("basic_circuit", %block_number))
-            .await
-            .map(Some)
+            <Self as JobManager>::process_job(job, object_store, max_circuits_in_flight, started_at)
+                .await
         })
     }
 
@@ -88,40 +81,35 @@ impl JobProcessor for BasicWitnessGenerator {
         &self,
         job_id: L1BatchNumber,
         started_at: Instant,
-        optional_artifacts: Option<BasicCircuitArtifacts>,
+        optional_artifacts: BasicCircuitArtifacts,
     ) -> anyhow::Result<()> {
-        match optional_artifacts {
-            None => Ok(()),
-            Some(artifacts) => {
-                let blob_started_at = Instant::now();
+        let blob_started_at = Instant::now();
 
-                let aux_output_witness_wrapper =
-                    AuxOutputWitnessWrapper(artifacts.aux_output_witness.clone());
-                if self.config.shall_save_to_public_bucket {
-                    self.public_blob_store.as_deref()
+        let aux_output_witness_wrapper =
+            AuxOutputWitnessWrapper(optional_artifacts.aux_output_witness.clone());
+        if self.config.shall_save_to_public_bucket {
+            self.public_blob_store.as_deref()
                         .expect("public_object_store shall not be empty while running with shall_save_to_public_bucket config")
                         .put(job_id, &aux_output_witness_wrapper)
                         .await
                         .unwrap();
-                }
-
-                let blob_urls =
-                    Self::save_to_bucket(job_id.0, artifacts.clone(), &*self.object_store).await;
-
-                WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
-                    .observe(blob_started_at.elapsed());
-
-                Self::save_to_database(
-                    &self.prover_connection_pool,
-                    job_id.0,
-                    started_at,
-                    blob_urls,
-                    artifacts,
-                )
-                .await?;
-                Ok(())
-            }
         }
+
+        let blob_urls =
+            Self::save_to_bucket(job_id.0, optional_artifacts.clone(), &*self.object_store).await;
+
+        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::BasicCircuits.into()]
+            .observe(blob_started_at.elapsed());
+
+        Self::save_to_database(
+            &self.prover_connection_pool,
+            job_id.0,
+            started_at,
+            blob_urls,
+            optional_artifacts,
+        )
+        .await?;
+        Ok(())
     }
 
     fn max_attempts(&self) -> u32 {
