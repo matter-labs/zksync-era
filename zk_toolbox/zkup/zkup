@@ -9,7 +9,7 @@ ZKUP_INSTALL_SUPERVISOR=0
 ZKUP_INSTALL_INCEPTION=0
 ZKUP_ALIAS=0
 
-BINS=(zk_inception zk_supervisor)
+BINS=()
 
 main() {
   parse_args "$@"
@@ -18,6 +18,8 @@ main() {
 
   check_prerequisites
   mkdir -p "$ZKT_BIN_DIR"
+
+  set_bins
 
   if [ -n "$ZKUP_PATH" ]; then
     install_local
@@ -125,6 +127,21 @@ Examples:
 EOF
 }
 
+set_bins() {
+  if [ $ZKUP_INSTALL_SUPERVISOR -eq 1 ]; then
+    BINS+=(zk_supervisor)
+  fi
+
+  if [ $ZKUP_INSTALL_INCEPTION -eq 1 ]; then
+    BINS+=(zk_inception)
+  fi
+
+  # Set default to include both if no options are provided
+  if [ ${#BINS[@]} -eq 0 ]; then
+    BINS=(zk_supervisor zk_inception)
+  fi
+}
+
 install_local() {
   if [ ! -d "$ZKUP_PATH/zk_toolbox" ]; then
     err "Path $ZKUP_PATH does not contain zk_toolbox"
@@ -137,13 +154,6 @@ install_local() {
 
   say "Installing zk_toolbox from $ZKUP_PATH"
   ensure cd "$ZKUP_PATH"/zk_toolbox
-
-  if [ $ZKUP_INSTALL_SUPERVISOR -eq 1 ]; then
-    BINS=(zk_supervisor)
-  fi
-  if [ $ZKUP_INSTALL_INCEPTION -eq 1 ]; then
-    BINS=(zk_inception)
-  fi
 
   for bin in "${BINS[@]}"; do
     say "Installing $bin"
@@ -159,13 +169,6 @@ install_from_repo() {
   ZKUP_REPO=${ZKUP_REPO:-"matter-labs/zksync-era"}
 
   say "Installing zk_toolbox from $ZKUP_REPO"
-
-  if [ $ZKUP_INSTALL_SUPERVISOR -eq 1 ]; then
-    BINS=(zk_supervisor)
-  fi
-  if [ $ZKUP_INSTALL_INCEPTION -eq 1 ]; then
-    BINS=(zk_inception)
-  fi
 
   if [ -n "$ZKUP_VERSION" ]; then
     if [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_BRANCH" ]; then
@@ -185,12 +188,12 @@ install_from_repo() {
 }
 
 create_alias() {
-  if [[ " ${BINS[@]} " =~ " zk_inception " ]]; then
+  if [[ "${BINS[@]}" =~ "zk_inception" ]]; then
     say "Creating alias 'zki' for zk_inception"
     ensure ln -sf "$ZKT_BIN_DIR/zk_inception" "$ZKT_BIN_DIR/zki"
   fi
 
-  if [[ " ${BINS[@]} " =~ " zk_supervisor " ]]; then
+  if [[ "${BINS[@]}" =~ "zk_supervisor" ]]; then
     say "Creating alias 'zks' for zk_supervisor"
     ensure ln -sf "$ZKT_BIN_DIR/zk_supervisor" "$ZKT_BIN_DIR/zks"
   fi
