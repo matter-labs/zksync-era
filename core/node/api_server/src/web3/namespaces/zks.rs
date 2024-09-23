@@ -517,7 +517,7 @@ impl ZksNamespace {
         let Some(l1_batch_number_with_agg_batch) = l1_batch_number_with_agg_batch else {
             return Ok(None);
         };
-        println!("hee3");
+        println!("\n\nhee3 -- {}\n\n", l1_batch_number_with_agg_batch);
 
         let local_msg_root = storage
             .blocks_dal()
@@ -539,14 +539,23 @@ impl ZksNamespace {
                 l1_batch_number_with_agg_batch,
             )
             .await?;
-        let Some((leaf_proof, batch_added_block_number)) = batch_proof else {
+        let Some(leaf_proof) = batch_proof else {
             return Ok(None);
         };
+        let correct_l2_block_number = storage
+            .blocks_dal()
+            .get_l2_block_range_of_l1_batch(L1BatchNumber(l1_batch_number_with_agg_batch))
+            .await
+            .map_err(DalError::generalize)?;
+        let Some((_, max_l2_block_number)) = correct_l2_block_number else {
+            return Ok(None);
+        };
+
         let chain_proof = self
             .get_chain_inclusion_proof_impl(
                 message_root_addr,
                 searched_chain_id,
-                batch_added_block_number,
+                max_l2_block_number,
                 local_msg_root,
             )
             .await?;
@@ -569,7 +578,7 @@ impl ZksNamespace {
         searched_chain_id: u32,
         latest_sealed_block_number: L2BlockNumber,
         l1_batch_number_with_agg_batch: u32,
-    ) -> Result<Option<(LeafChainProof, L2BlockNumber)>, Web3Error> {
+    ) -> Result<Option<LeafChainProof>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
 
         // FIXME: move as api config
@@ -585,7 +594,8 @@ impl ZksNamespace {
                     addresses: vec![message_root_addr],
                     topics: vec![(1, vec![*MESSAGE_ROOT_ADDED_CHAIN_BATCH_ROOT_EVENT])],
                 },
-                self.state.api_config.req_entities_limit,
+                // FIXME: this is a bit inefficient, better ways need to be created
+                i32::MAX as usize,
             )
             .await
             .map_err(DalError::generalize)?;
@@ -597,7 +607,6 @@ impl ZksNamespace {
         let mut chain_id_merkle_tree =
             MiniMerkleTree::<[u8; 96], KeccakHasher>::new(Vec::<[u8; 96]>::new().into_iter(), None);
         let mut cnt = 0;
-        let mut batch_added_block_number = None;
 
         for add_batch_log in add_batch_logs.iter() {
             let Some(batch_num) = add_batch_log.l1_batch_number else {
@@ -619,8 +628,6 @@ impl ZksNamespace {
             if batch_number.as_u32() == searched_batch_number.0 {
                 println!("relevant batch found! {:#?}", add_batch_log);
                 batch_leaf_proof_mask = Some(cnt);
-                batch_added_block_number =
-                    Some(L2BlockNumber(add_batch_log.block_number.unwrap().as_u32()));
             }
 
             println!("appended log: {:#?}", add_batch_log);
@@ -645,23 +652,17 @@ impl ZksNamespace {
             searched_chain_id, batch_leaf_proof_mask, root
         );
 
-        if batch_added_block_number.is_none() {
-            return Ok(None);
-        }
-        Ok(Some((
-            LeafChainProof {
-                batch_leaf_proof,
-                batch_leaf_proof_mask: batch_leaf_proof_mask.into(),
-            },
-            batch_added_block_number.unwrap(),
-        )))
+        Ok(Some(LeafChainProof {
+            batch_leaf_proof,
+            batch_leaf_proof_mask: batch_leaf_proof_mask.into(),
+        }))
     }
 
     pub async fn get_chain_inclusion_proof_impl(
         &self,
         message_root_addr: Address,
         searched_chain_id: u32,
-        batch_added_block_number: L2BlockNumber,
+        block_number: L2BlockNumber,
         local_msg_root: H256,
     ) -> Result<Option<ChainAggProof>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
@@ -672,7 +673,7 @@ impl ZksNamespace {
         );
         let chain_count = storage
             .storage_web3_dal()
-            .get_historical_value_unchecked(storage_key.hashed_key(), batch_added_block_number)
+            .get_historical_value_unchecked(storage_key.hashed_key(), block_number)
             .await
             .map_err(DalError::generalize)?;
         let chain_count_integer = chain_count.0[31];
@@ -684,11 +685,11 @@ impl ZksNamespace {
 
         for i in 0..chain_count_integer {
             let chain_id = self
-                .get_chain_id_from_index_impl(i.into(), batch_added_block_number)
+                .get_chain_id_from_index_impl(i.into(), block_number)
                 .await
                 .unwrap();
             let chain_root = self
-                .get_chain_root_from_id_impl(chain_id, batch_added_block_number)
+                .get_chain_root_from_id_impl(chain_id, block_number)
                 .await
                 .unwrap();
             full_chain_merkle_tree.push(Self::chain_id_leaf_preimage(chain_root, chain_id));
@@ -785,19 +786,20 @@ impl ZksNamespace {
             .await
             .map_err(DalError::generalize)?;
 
-        let length = length_encoding.0[31] / 2;
-        let chain_root_slot = H256::from_slice(&keccak256(
-            &[
-                u256_to_h256(U256::from(length)).0,
-                chain_sides_slot.to_fixed_bytes(),
-            ]
-            .concat(),
-        ));
+        let length = h256_to_u256(length_encoding);
+        // Here we assume that length is non zero
+        assert!(length > U256::zero(), "Length is zero");
+        let last_elem_pos = length - 1;
+
+        let sides_data_start = H256(keccak256(chain_sides_slot.as_bytes()));
+
+        let chain_root_slot = self
+            .get_message_root_log_key(u256_to_h256(h256_to_u256(sides_data_start) + last_elem_pos));
         println!("kl todo length_encoding = {:#?}", length_encoding);
         println!("kl todo chain_root_slot = {:#?}", chain_root_slot);
         let chain_root = storage
             .storage_web3_dal()
-            .get_historical_value_unchecked(chain_root_slot, block_number)
+            .get_historical_value_unchecked(chain_root_slot.hashed_key(), block_number)
             .await
             .map_err(DalError::generalize)?;
         println!("kl todo chain_root = {:#?}", chain_root);

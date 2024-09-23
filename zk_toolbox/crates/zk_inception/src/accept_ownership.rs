@@ -21,7 +21,6 @@ lazy_static! {
         parse_abi(&[
             "function governanceAcceptOwner(address governor, address target) public",
             "function chainAdminAcceptAdmin(address admin, address target) public",
-            "function chainSetTokenMultiplierSetter(address chainAdmin, address target) public",
             "function setDAValidatorPair(address chainAdmin, address target, address l1DaValidator, address l2DaValidator) public"
         ])
         .unwrap(),
