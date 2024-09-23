@@ -77,6 +77,13 @@ impl GenesisArgs {
             }
         }
     }
+
+    pub fn reset_db_names(&mut self) {
+        self.prover_db_name = None;
+        self.prover_db_url = None;
+        self.server_db_name = None;
+        self.server_db_url = None;
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

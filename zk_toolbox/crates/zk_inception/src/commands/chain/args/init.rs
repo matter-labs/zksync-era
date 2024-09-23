@@ -57,6 +57,9 @@ pub struct InitArgs {
     pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_PORT_OFFSET_HELP)]
     pub port_offset: Option<PortOffset>,
+    /// Only create chain configs
+    #[clap(long, default_value_t = false)]
+    pub configs_only: bool,
 }
 
 impl InitArgs {
@@ -90,6 +93,7 @@ impl InitArgs {
                 .port_offset
                 .unwrap_or(PortOffset::from_chain_id(config.id as u16))
                 .into(),
+            configs_only: self.configs_only,
         }
     }
 }
@@ -101,4 +105,5 @@ pub struct InitArgsFinal {
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
     pub port_offset: u16,
+    pub configs_only: bool,
 }
