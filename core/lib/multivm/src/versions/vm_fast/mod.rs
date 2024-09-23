@@ -5,6 +5,7 @@ pub use self::vm::Vm;
 
 mod bootloader_state;
 mod bytecode;
+mod call_tracer;
 mod circuits_tracer;
 mod events;
 mod evm_deploy_tracer;
