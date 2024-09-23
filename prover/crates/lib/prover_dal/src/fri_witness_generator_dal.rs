@@ -1719,7 +1719,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
                 AND attempts >= $2
-                AND (status = 'in_progress' OR status = 'failed')
+                AND (
+                    status = 'in_progress'
+                    OR status = 'failed'
+                )
             RETURNING
                 l1_batch_number,
                 status,
@@ -1786,7 +1789,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
                 AND attempts >= $2
-                AND (status = 'in_progress' OR status = 'failed')
+                AND (
+                    status = 'in_progress'
+                    OR status = 'failed'
+                )
             RETURNING
                 l1_batch_number,
                 status,
@@ -1827,7 +1833,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
                 AND attempts >= $2
-                AND (status = 'in_progress' OR status = 'failed')
+                AND (
+                    status = 'in_progress'
+                    OR status = 'failed'
+                )
             RETURNING
                 l1_batch_number,
                 status,
