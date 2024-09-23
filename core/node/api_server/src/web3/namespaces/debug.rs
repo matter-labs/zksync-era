@@ -113,23 +113,6 @@ impl DebugNamespace {
         transaction_hash: H256,
     ) {
         let subtraces = call.calls.len();
-        if !only_top_call {
-            call.calls
-                .into_iter()
-                .enumerate()
-                .for_each(|(number, call)| {
-                    trace_address.push(number);
-                    Self::map_flatten_call(
-                        call,
-                        calls,
-                        trace_address,
-                        false,
-                        transaction_position,
-                        transaction_hash,
-                    );
-                    trace_address.pop();
-                });
-        }
         let debug_type = match call.r#type {
             CallType::Call(_) => DebugCallType::Call,
             CallType::Create => DebugCallType::Create,
@@ -160,7 +143,25 @@ impl DebugNamespace {
             transaction_position,
             transaction_hash,
             r#type: DebugCallType::Call,
-        })
+        });
+
+        if !only_top_call {
+            call.calls
+                .into_iter()
+                .enumerate()
+                .for_each(|(number, call)| {
+                    trace_address.push(number);
+                    Self::map_flatten_call(
+                        call,
+                        calls,
+                        trace_address,
+                        false,
+                        transaction_position,
+                        transaction_hash,
+                    );
+                    trace_address.pop();
+                });
+        }
     }
 
     pub(crate) fn current_method(&self) -> &MethodTracer {
