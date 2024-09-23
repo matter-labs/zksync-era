@@ -82,7 +82,6 @@ describe('ETH token checks', () => {
         });
         await expect(depositOp).toBeAccepted([l2ethBalanceChange]);
 
-        console.log('ho8');
         const depositFee = await depositOp
             .then((op) => op.waitL1Commit())
             .then(async (receipt) => {
