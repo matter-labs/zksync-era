@@ -117,8 +117,8 @@ Options:
   -c, --commit <commit>     Git commit hash to use when installing from a repository. Ignored if --branch or --version is provided.
   -v, --version <version>   Git tag to use when installing from a repository. Ignored if --branch or --commit is provided.
   -a, --alias               Create aliases zki and zks for zk_inception and zk_supervisor binaries.
-  --inception               Installs only the zk_inception binary. Default is to install both binaries.
-  --supervisor              Installs only the zk_supervisor binary. Default is to install both binaries.
+  --inception               Installs the zk_inception binary. Default is to install both zk_inception and zk_supervisor binaries.
+  --supervisor              Installs the zk_supervisor binary. Default is to install both zk_inception and zk_supervisor binaries.
   -h, --help                Show this help message and exit.
 
 Examples:

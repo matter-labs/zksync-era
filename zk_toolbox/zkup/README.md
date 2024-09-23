@@ -40,10 +40,10 @@ The `zkup` script provides various options for installing `zk_toolbox`:
   Git tag to use when installing from a repository. Ignored if `--branch` or `--commit` is provided.
 
 - `--inception`  
-  Installs only `zk_inception` from the repository. By default, `zkup` installs the entire `zk_toolbox`.
+  Installs `zk_inception` from the repository. By default, `zkup` installs `zk_inception` and `zk_supervisor`.
 
 - `--supervisor`  
-  Installs only `zk_supervisor` from the repository. By default, `zkup` installs the entire `zk_toolbox`.
+  Installs `zk_supervisor` from the repository.
 
 ### Local Installation
 
