@@ -238,36 +238,6 @@ impl JobManager for NodeAggregation {
         })
     }
 
-    async fn get_job_attempts(
-        connection_pool: ConnectionPool<Prover>,
-        job_id: u32,
-    ) -> anyhow::Result<u32> {
-        let mut prover_storage = connection_pool
-            .connection()
-            .await
-            .context("failed to acquire DB connection for NodeAggregationWitnessGenerator")?;
-        prover_storage
-            .fri_witness_generator_dal()
-            .get_node_aggregation_job_attempts(job_id)
-            .await
-            .map(|attempts| attempts.unwrap_or(0))
-            .context("failed to get job attempts for NodeAggregationWitnessGenerator")
-    }
-
-    async fn save_failure(
-        connection_pool: ConnectionPool<Prover>,
-        job_id: u32,
-        error: String,
-    ) -> anyhow::Result<()> {
-        connection_pool
-            .connection()
-            .await?
-            .fri_witness_generator_dal()
-            .mark_node_aggregation_job_failed(&error, job_id)
-            .await;
-        Ok(())
-    }
-
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,

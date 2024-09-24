@@ -170,36 +170,6 @@ impl JobManager for Scheduler {
         })
     }
 
-    async fn get_job_attempts(
-        connection_pool: ConnectionPool<Prover>,
-        job_id: u32,
-    ) -> anyhow::Result<u32> {
-        let mut prover_storage = connection_pool
-            .connection()
-            .await
-            .context("failed to acquire DB connection for SchedulerWitnessGenerator")?;
-        prover_storage
-            .fri_witness_generator_dal()
-            .get_scheduler_witness_job_attempts(L1BatchNumber(job_id))
-            .await
-            .map(|attempts| attempts.unwrap_or(0))
-            .context("failed to get job attempts for SchedulerWitnessGenerator")
-    }
-
-    async fn save_failure(
-        connection_pool: ConnectionPool<Prover>,
-        job_id: u32,
-        error: String,
-    ) -> anyhow::Result<()> {
-        connection_pool
-            .connection()
-            .await?
-            .fri_witness_generator_dal()
-            .mark_scheduler_job_failed(&error, L1BatchNumber(job_id))
-            .await;
-        Ok(())
-    }
-
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
         protocol_version: ProtocolSemanticVersion,

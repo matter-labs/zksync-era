@@ -19,10 +19,12 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion};
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
-use zksync_witness_generator::rounds::BasicWitnessGenerator;
 use zksync_witness_generator::{
     metrics::SERVER_METRICS,
-    rounds::{LeafAggregation, NodeAggregation, RecursionTip, Scheduler, WitnessGenerator},
+    rounds::{
+        BasicWitnessGenerator, LeafAggregation, NodeAggregation, RecursionTip, Scheduler,
+        WitnessGenerator,
+    },
 };
 
 #[cfg(not(target_env = "msvc"))]

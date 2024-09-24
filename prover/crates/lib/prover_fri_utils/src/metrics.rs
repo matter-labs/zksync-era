@@ -19,19 +19,6 @@ impl From<AggregationRound> for StageLabel {
     }
 }
 
-impl From<&str> for StageLabel {
-    fn from(round: &str) -> Self {
-        match round {
-            "basic_circuits" => Self(AggregationRound::BasicCircuits),
-            "leaf_aggregation" => Self(AggregationRound::LeafAggregation),
-            "node_aggregation" => Self(AggregationRound::NodeAggregation),
-            "recursion_tip" => Self(AggregationRound::RecursionTip),
-            "scheduler" => Self(AggregationRound::Scheduler),
-            _ => panic!("Wrong round detected {round:?}"),
-        }
-    }
-}
-
 impl std::fmt::Display for StageLabel {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(formatter)

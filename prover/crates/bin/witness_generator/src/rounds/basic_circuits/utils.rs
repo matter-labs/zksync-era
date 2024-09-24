@@ -1,35 +1,41 @@
-use crate::precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider;
-use crate::rounds::basic_circuits::Witness;
-use crate::storage_oracle::StorageOracle;
-use crate::utils::{
-    expand_bootloader_contents, save_circuit, save_ram_premutation_queue_witness,
-    ClosedFormInputWrapper, KZG_TRUSTED_SETUP_FILE,
+use std::{
+    collections::HashSet,
+    hash::{DefaultHasher, Hash, Hasher},
+    sync::Arc,
 };
-use crate::witness::WitnessStorage;
-use circuit_definitions::circuit_definitions::base_layer::{
-    ZkSyncBaseLayerCircuit, ZkSyncBaseLayerStorage,
+
+use circuit_definitions::{
+    circuit_definitions::base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerStorage},
+    encodings::recursion_request::RecursionQueueSimulator,
+    zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
 };
-use circuit_definitions::encodings::recursion_request::RecursionQueueSimulator;
-use circuit_definitions::zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness;
-use std::collections::HashSet;
-use std::hash::{DefaultHasher, Hash, Hasher};
-use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tracing::Instrument;
 use zkevm_test_harness::witness::oracle::WitnessGenerationArtifact;
-use zksync_multivm::circuit_sequencer_api_latest::boojum::field::goldilocks::GoldilocksField;
-use zksync_multivm::circuit_sequencer_api_latest::geometry_config::get_geometry_config;
-use zksync_multivm::interface::storage::StorageView;
-use zksync_multivm::vm_latest::constants::MAX_CYCLES_FOR_TX;
-use zksync_multivm::vm_latest::HistoryDisabled;
-use zksync_multivm::vm_latest::StorageOracle as VmStorageOracle;
-use zksync_multivm::zk_evm_latest::ethereum_types::Address;
+use zksync_multivm::{
+    circuit_sequencer_api_latest::{
+        boojum::field::goldilocks::GoldilocksField, geometry_config::get_geometry_config,
+    },
+    interface::storage::StorageView,
+    vm_latest::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle},
+    zk_evm_latest::ethereum_types::Address,
+};
 use zksync_object_store::ObjectStore;
-use zksync_prover_fri_types::keys::ClosedFormInputKey;
-use zksync_prover_fri_types::CircuitAuxData;
+use zksync_prover_fri_types::{keys::ClosedFormInputKey, CircuitAuxData};
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::L1BatchNumber;
+
+use crate::{
+    precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
+    rounds::basic_circuits::Witness,
+    storage_oracle::StorageOracle,
+    utils::{
+        expand_bootloader_contents, save_circuit, save_ram_premutation_queue_witness,
+        ClosedFormInputWrapper, KZG_TRUSTED_SETUP_FILE,
+    },
+    witness::WitnessStorage,
+};
 
 #[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
 pub(super) async fn generate_witness(

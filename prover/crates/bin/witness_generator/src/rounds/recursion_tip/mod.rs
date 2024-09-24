@@ -37,8 +37,7 @@ use zkevm_test_harness::{
 };
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::get_current_pod_name;
-use zksync_prover_fri_types::keys::ClosedFormInputKey;
+use zksync_prover_fri_types::{get_current_pod_name, keys::ClosedFormInputKey};
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
@@ -213,36 +212,6 @@ impl JobManager for RecursionTip {
             recursion_tip_witness,
             node_vk,
         })
-    }
-
-    async fn get_job_attempts(
-        connection_pool: ConnectionPool<Prover>,
-        job_id: u32,
-    ) -> anyhow::Result<u32> {
-        let mut prover_storage = connection_pool
-            .connection()
-            .await
-            .context("failed to acquire DB connection for RecursionTipWitnessGenerator")?;
-        prover_storage
-            .fri_witness_generator_dal()
-            .get_recursion_tip_witness_job_attempts(L1BatchNumber(job_id))
-            .await
-            .map(|attempts| attempts.unwrap_or(0))
-            .context("failed to get job attempts for RecursionTipWitnessGenerator")
-    }
-
-    async fn save_failure(
-        connection_pool: ConnectionPool<Prover>,
-        job_id: u32,
-        error: String,
-    ) -> anyhow::Result<()> {
-        connection_pool
-            .connection()
-            .await?
-            .fri_witness_generator_dal()
-            .mark_recursion_tip_job_failed(&error, L1BatchNumber(job_id))
-            .await;
-        Ok(())
     }
 
     async fn get_metadata(

@@ -17,8 +17,11 @@ use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
-use crate::rounds::basic_circuits::utils::generate_witness;
-use crate::{artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS, rounds::JobManager};
+use crate::{
+    artifacts::ArtifactsManager,
+    metrics::WITNESS_GENERATOR_METRICS,
+    rounds::{basic_circuits::utils::generate_witness, JobManager},
+};
 
 mod artifacts;
 pub mod job_processor;
@@ -136,21 +139,6 @@ impl JobManager for BasicWitnessGenerator {
             .observe(started_at.elapsed());
 
         Ok(job)
-    }
-
-    async fn get_job_attempts(
-        _connection_pool: ConnectionPool<Prover>,
-        _job_id: u32,
-    ) -> anyhow::Result<u32> {
-        todo!()
-    }
-
-    async fn save_failure(
-        _connection_pool: ConnectionPool<Prover>,
-        _job_id: u32,
-        _error: String,
-    ) -> anyhow::Result<()> {
-        todo!()
     }
 
     async fn get_metadata(

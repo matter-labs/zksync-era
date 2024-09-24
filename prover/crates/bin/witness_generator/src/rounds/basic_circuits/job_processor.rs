@@ -10,10 +10,10 @@ use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
-    rounds::basic_circuits::{
-        BasicCircuitArtifacts, BasicWitnessGenerator, BasicWitnessGeneratorJob,
+    rounds::{
+        basic_circuits::{BasicCircuitArtifacts, BasicWitnessGenerator, BasicWitnessGeneratorJob},
+        JobManager,
     },
-    rounds::JobManager,
 };
 
 #[async_trait]
@@ -57,7 +57,7 @@ impl JobProcessor for BasicWitnessGenerator {
             .await
             .unwrap()
             .fri_witness_generator_dal()
-            .mark_witness_job_failed(&error, job_id)
+            .mark_witness_job_failed(&error, job_id.0, AggregationRound::BasicCircuits)
             .await;
     }
 
@@ -124,7 +124,7 @@ impl JobProcessor for BasicWitnessGenerator {
             .context("failed to acquire DB connection for BasicWitnessGenerator")?;
         prover_storage
             .fri_witness_generator_dal()
-            .get_basic_circuit_witness_job_attempts(*job_id)
+            .get_witness_job_attempts(job_id.0, AggregationRound::BasicCircuits)
             .await
             .map(|attempts| attempts.unwrap_or(0))
             .context("failed to get job attempts for BasicWitnessGenerator")

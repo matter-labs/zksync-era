@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use tokio::task::JoinHandle;
 use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::protocol_version::ProtocolSemanticVersion;
@@ -23,7 +23,7 @@ pub use leaf_aggregation::LeafAggregation;
 pub use node_aggregation::NodeAggregation;
 pub use recursion_tip::RecursionTip;
 pub use scheduler::Scheduler;
-use zksync_prover_fri_utils::metrics::StageLabel;
+use zksync_types::basic_fri_types::AggregationRound;
 
 use crate::metrics::WITNESS_GENERATOR_METRICS;
 
@@ -47,17 +47,6 @@ pub trait JobManager: ArtifactsManager {
         object_store: &dyn ObjectStore,
         keystore: Keystore,
     ) -> anyhow::Result<Self::Job>;
-
-    async fn get_job_attempts(
-        connection_pool: ConnectionPool<Prover>,
-        job_id: u32,
-    ) -> anyhow::Result<u32>;
-
-    async fn save_failure(
-        connection_pool: ConnectionPool<Prover>,
-        job_id: u32,
-        error: String,
-    ) -> anyhow::Result<()>;
 
     async fn get_metadata(
         connection_pool: ConnectionPool<Prover>,
@@ -127,9 +116,13 @@ where
     }
 
     async fn save_failure(&self, job_id: Self::JobId, _started_at: Instant, error: String) {
-        R::save_failure(self.connection_pool.clone(), job_id, error)
+        self.connection_pool
+            .connection()
             .await
-            .unwrap();
+            .unwrap()
+            .fri_witness_generator_dal()
+            .mark_witness_job_failed(&error, job_id, AggregationRound::from(R::ROUND))
+            .await;
     }
 
     async fn process_job(
@@ -158,7 +151,7 @@ where
 
         let blob_urls = R::save_to_bucket(job_id, artifacts.clone(), &*self.object_store).await;
 
-        WITNESS_GENERATOR_METRICS.blob_save_time[&StageLabel::from(R::ROUND)]
+        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::from(R::ROUND).into()]
             .observe(blob_save_started_at.elapsed());
 
         tracing::info!("Saved {:?} artifacts for job {:?}", R::ROUND, job_id);
@@ -178,6 +171,16 @@ where
     }
 
     async fn get_job_attempts(&self, job_id: &Self::JobId) -> anyhow::Result<u32> {
-        R::get_job_attempts(self.connection_pool.clone(), *job_id).await
+        let mut prover_storage = self
+            .connection_pool
+            .connection()
+            .await
+            .context(format!("failed to acquire DB connection for {}", R::ROUND))?;
+        prover_storage
+            .fri_witness_generator_dal()
+            .get_witness_job_attempts(*job_id, AggregationRound::from(R::ROUND))
+            .await
+            .map(|attempts| attempts.unwrap_or(0))
+            .context(format!("failed to get job attempts for {}", R::ROUND))
     }
 }
