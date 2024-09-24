@@ -71,15 +71,21 @@ mod tests {
         app_id: u32,
         timeout: usize,
         max_retries: usize,
+        gas_relay_mode: bool,
+        gas_relay_api_url: &str,
+        gas_relay_api_key: &str,
     ) -> DAClientConfig {
         DAClientConfig {
             client: DAClient::Avail(AvailConfig {
-                api_node_url: api_node_url.to_string(),
+                api_node_url: Some(api_node_url.to_string()),
                 bridge_api_url: bridge_api_url.to_string(),
-                seed: seed.to_string(),
-                app_id,
+                seed: Some(seed.to_string()),
+                app_id: Some(app_id),
                 timeout,
                 max_retries,
+                gas_relay_mode,
+                gas_relay_api_url: Some(gas_relay_api_url.to_string()),
+                gas_relay_api_key: Some(gas_relay_api_key.to_string()),
             }),
         }
     }
@@ -95,6 +101,9 @@ mod tests {
             DA_APP_ID="1"
             DA_TIMEOUT="2"
             DA_MAX_RETRIES="3"
+            DA_GAS_RELAY_MODE="true"
+            DA_GAS_RELAY_API_URL="localhost:23456"
+            DA_GAS_RELAY_API_KEY="0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         "#;
 
         lock.set_env(config);
@@ -109,6 +118,9 @@ mod tests {
                 "1".parse::<u32>().unwrap(),
                 "2".parse::<usize>().unwrap(),
                 "3".parse::<usize>().unwrap(),
+                true,
+                "localhost:23456",
+                "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
             )
         );
     }

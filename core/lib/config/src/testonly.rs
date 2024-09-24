@@ -945,6 +945,9 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
                 app_id: self.sample(rng),
                 timeout: self.sample(rng),
                 max_retries: self.sample(rng),
+                gas_relay_mode: self.sample(rng),
+                gas_relay_api_url: self.sample(rng),
+                gas_relay_api_key: self.sample(rng),
             }),
         }
     }

@@ -37,3 +37,6 @@ blake2b_simd.workspace = true
 jsonrpsee = { workspace = true, features = ["ws-client"] }
 parity-scale-codec = { workspace = true, features = ["derive"] }
 subxt-signer = { workspace = true, features = ["sr25519", "native"] }
+reqwest = { workspace = true }
+bytes = { workspace = true }
+alloy = { workspace = true }
