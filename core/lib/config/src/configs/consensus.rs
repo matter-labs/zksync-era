@@ -122,6 +122,9 @@ pub struct ConsensusConfig {
     /// node.
     pub public_addr: Host,
 
+    /// Local socket address to expose the node debug page.
+    pub debug_page_addr: std::net::SocketAddr,
+
     /// Maximal allowed size of the payload in bytes.
     pub max_payload_size: usize,
 

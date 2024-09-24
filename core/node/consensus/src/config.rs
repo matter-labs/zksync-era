@@ -176,8 +176,7 @@ pub(super) fn executor(
             .context("gossip_static_inbound")?,
         gossip_static_outbound,
         rpc,
-        // TODO: Add to configuration
-        debug_page: None,
+        debug_page: cfg.debug_page_addr,
         batch_poll_interval: time::Duration::seconds(1),
     })
 }
