@@ -44,9 +44,10 @@ impl ProofGenerationDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
-            UPDATE proof_generation_details
+            UPDATE
+                proof_generation_details
             SET
-                status = 'picked_by_prover',
+                STATUS = 'picked_by_prover',
                 updated_at = NOW(),
                 prover_taken_at = NOW()
             WHERE
@@ -63,11 +64,11 @@ impl ProofGenerationDal<'_, '_> {
                             AND l1_batches.hash IS NOT NULL
                             AND l1_batches.aux_data_hash IS NOT NULL
                             AND l1_batches.meta_parameters_hash IS NOT NULL
-                            AND status = 'unpicked'
+                            AND STATUS = 'unpicked'
                         )
                         OR (
-                            status = 'picked_by_prover'
-                            AND prover_taken_at < NOW() - $1::INTERVAL
+                            STATUS = 'picked_by_prover'
+                            AND prover_taken_at < NOW() - $1 :: INTERVAL
                         )
                     ORDER BY
                         l1_batch_number ASC
@@ -117,9 +118,10 @@ impl ProofGenerationDal<'_, '_> {
         let batch_number = i64::from(l1_batch_number.0);
         sqlx::query!(
             r#"
-            UPDATE proof_generation_details
+            UPDATE
+                proof_generation_details
             SET
-                status = 'unpicked',
+                STATUS = 'unpicked',
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $1
@@ -142,9 +144,10 @@ impl ProofGenerationDal<'_, '_> {
         let batch_number = i64::from(batch_number.0);
         let query = sqlx::query!(
             r#"
-            UPDATE proof_generation_details
+            UPDATE
+                proof_generation_details
             SET
-                status = 'generated',
+                STATUS = 'generated',
                 proof_blob_url = $1,
                 updated_at = NOW()
             WHERE
@@ -180,7 +183,8 @@ impl ProofGenerationDal<'_, '_> {
         let batch_number = i64::from(batch_number.0);
         let query = sqlx::query!(
             r#"
-            UPDATE proof_generation_details
+            UPDATE
+                proof_generation_details
             SET
                 vm_run_data_blob_url = $1,
                 updated_at = NOW()
@@ -217,7 +221,8 @@ impl ProofGenerationDal<'_, '_> {
         let batch_number = i64::from(batch_number.0);
         let query = sqlx::query!(
             r#"
-            UPDATE proof_generation_details
+            UPDATE
+                proof_generation_details
             SET
                 proof_gen_data_blob_url = $1,
                 updated_at = NOW()
@@ -254,10 +259,9 @@ impl ProofGenerationDal<'_, '_> {
         let result = sqlx::query!(
             r#"
             INSERT INTO
-                proof_generation_details (l1_batch_number, status, created_at, updated_at)
+                proof_generation_details (l1_batch_number, STATUS, created_at, updated_at)
             VALUES
-                ($1, 'unpicked', NOW(), NOW())
-            ON CONFLICT (l1_batch_number) DO NOTHING
+                ($1, 'unpicked', NOW(), NOW()) ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(l1_batch_number.0),
         )
@@ -284,9 +288,10 @@ impl ProofGenerationDal<'_, '_> {
         let l1_batch_number = i64::from(block_number.0);
         let query = sqlx::query!(
             r#"
-            UPDATE proof_generation_details
+            UPDATE
+                proof_generation_details
             SET
-                status = $1,
+                STATUS = $1,
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $2
@@ -321,7 +326,7 @@ impl ProofGenerationDal<'_, '_> {
             FROM
                 proof_generation_details
             WHERE
-                status = 'unpicked'
+                STATUS = 'unpicked'
             ORDER BY
                 l1_batch_number ASC
             LIMIT
@@ -344,7 +349,7 @@ impl ProofGenerationDal<'_, '_> {
             FROM
                 proof_generation_details
             WHERE
-                status NOT IN ('generated', 'skipped')
+                STATUS NOT IN ('generated', 'skipped')
             ORDER BY
                 l1_batch_number ASC
             LIMIT

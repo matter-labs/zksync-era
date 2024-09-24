@@ -24,7 +24,8 @@ impl FriGpuProverQueueDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let result: Option<SocketAddress> = sqlx::query!(
             r#"
-            UPDATE gpu_prover_queue_fri
+            UPDATE
+                gpu_prover_queue_fri
             SET
                 instance_status = 'reserved',
                 updated_at = NOW(),
@@ -44,14 +45,14 @@ impl FriGpuProverQueueDal<'_, '_> {
                             instance_status = 'available'
                             OR (
                                 instance_status = 'reserved'
-                                AND processing_started_at < NOW() - $1::INTERVAL
+                                AND processing_started_at < NOW() - $1 :: INTERVAL
                             )
                         )
                     ORDER BY
                         updated_at ASC
                     LIMIT
-                        1
-                    FOR UPDATE
+                        1 FOR
+                    UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -96,8 +97,17 @@ impl FriGpuProverQueueDal<'_, '_> {
                     protocol_version_patch
                 )
             VALUES
-                (CAST($1::TEXT AS inet), $2, 'available', $3, $4, NOW(), NOW(), $5, $6)
-            ON CONFLICT (instance_host, instance_port, zone) DO
+                (
+                    CAST($1 :: TEXT AS inet),
+                    $2,
+                    'available',
+                    $3,
+                    $4,
+                    NOW(),
+                    NOW(),
+                    $5,
+                    $6
+                ) ON CONFLICT (instance_host, instance_port, zone) DO
             UPDATE
             SET
                 instance_status = 'available',
@@ -127,12 +137,13 @@ impl FriGpuProverQueueDal<'_, '_> {
     ) {
         sqlx::query!(
             r#"
-            UPDATE gpu_prover_queue_fri
+            UPDATE
+                gpu_prover_queue_fri
             SET
                 instance_status = $1,
                 updated_at = NOW()
             WHERE
-                instance_host = $2::TEXT::inet
+                instance_host = $2 :: TEXT :: inet
                 AND instance_port = $3
                 AND zone = $4
             "#,
@@ -153,12 +164,13 @@ impl FriGpuProverQueueDal<'_, '_> {
     ) {
         sqlx::query!(
             r#"
-            UPDATE gpu_prover_queue_fri
+            UPDATE
+                gpu_prover_queue_fri
             SET
                 instance_status = 'available',
                 updated_at = NOW()
             WHERE
-                instance_host = $1::TEXT::inet
+                instance_host = $1 :: TEXT :: inet
                 AND instance_port = $2
                 AND instance_status = 'full'
                 AND zone = $3
@@ -184,7 +196,7 @@ impl FriGpuProverQueueDal<'_, '_> {
             FROM
                 gpu_prover_queue_fri
             WHERE
-                instance_host = $1::TEXT::inet
+                instance_host = $1 :: TEXT :: inet
                 AND instance_port = $2
                 AND zone = $3
             "#,
@@ -240,7 +252,8 @@ impl FriGpuProverQueueDal<'_, '_> {
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
-            DELETE FROM gpu_prover_queue_fri
+            DELETE FROM
+                gpu_prover_queue_fri
             "#
         )
         .execute(self.storage.conn())

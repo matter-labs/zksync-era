@@ -44,41 +44,39 @@ impl PruningDal<'_, '_> {
     pub async fn get_pruning_info(&mut self) -> DalResult<PruningInfo> {
         let pruning_info = sqlx::query!(
             r#"
-            WITH
-                soft AS (
-                    SELECT
-                        pruned_l1_batch,
-                        pruned_miniblock
-                    FROM
-                        pruning_log
-                    WHERE
+            WITH soft AS (
+                SELECT
+                    pruned_l1_batch,
+                    pruned_miniblock
+                FROM
+                    pruning_log
+                WHERE
                     TYPE = 'Soft'
-                    ORDER BY
-                        pruned_l1_batch DESC
-                    LIMIT
-                        1
-                ),
-                hard AS (
-                    SELECT
-                        pruned_l1_batch,
-                        pruned_miniblock
-                    FROM
-                        pruning_log
-                    WHERE
+                ORDER BY
+                    pruned_l1_batch DESC
+                LIMIT
+                    1
+            ), hard AS (
+                SELECT
+                    pruned_l1_batch,
+                    pruned_miniblock
+                FROM
+                    pruning_log
+                WHERE
                     TYPE = 'Hard'
-                    ORDER BY
-                        pruned_l1_batch DESC
-                    LIMIT
-                        1
-                )
+                ORDER BY
+                    pruned_l1_batch DESC
+                LIMIT
+                    1
+            )
             SELECT
                 soft.pruned_l1_batch AS last_soft_pruned_l1_batch,
                 soft.pruned_miniblock AS last_soft_pruned_miniblock,
                 hard.pruned_l1_batch AS last_hard_pruned_l1_batch,
                 hard.pruned_miniblock AS last_hard_pruned_miniblock
             FROM
-                soft
-                FULL JOIN hard ON TRUE
+                soft FULL
+                JOIN hard ON TRUE
             "#
         )
         .map(|row| PruningInfo {
@@ -202,7 +200,8 @@ impl PruningDal<'_, '_> {
     ) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
-            DELETE FROM events
+            DELETE FROM
+                EVENTS
             WHERE
                 miniblock_number BETWEEN $1 AND $2
             "#,
@@ -223,7 +222,8 @@ impl PruningDal<'_, '_> {
     ) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
-            DELETE FROM l2_to_l1_logs
+            DELETE FROM
+                l2_to_l1_logs
             WHERE
                 miniblock_number BETWEEN $1 AND $2
             "#,
@@ -247,7 +247,8 @@ impl PruningDal<'_, '_> {
     ) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
-            DELETE FROM call_traces
+            DELETE FROM
+                call_traces
             WHERE
                 tx_hash IN (
                     SELECT
@@ -283,7 +284,8 @@ impl PruningDal<'_, '_> {
     ) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
-            UPDATE transactions
+            UPDATE
+                transactions
             SET
                 input = NULL,
                 data = '{}',
@@ -318,26 +320,32 @@ impl PruningDal<'_, '_> {
         // Using more sophisticated queries leads to fluctuating performance due to unpredictable indexes being used.
         let execution_result = sqlx::query!(
             r#"
-            WITH
-                new_logs AS MATERIALIZED (
-                    SELECT DISTINCT
-                        ON (hashed_key) hashed_key,
-                        miniblock_number,
-                        operation_number
-                    FROM
-                        storage_logs
-                    WHERE
-                        miniblock_number BETWEEN $1 AND $2
-                    ORDER BY
-                        hashed_key,
-                        miniblock_number DESC,
-                        operation_number DESC
-                )
-            DELETE FROM storage_logs USING new_logs
+            WITH new_logs AS MATERIALIZED (
+                SELECT
+                    DISTINCT ON (hashed_key) hashed_key,
+                    miniblock_number,
+                    operation_number
+                FROM
+                    storage_logs
+                WHERE
+                    miniblock_number BETWEEN $1 AND $2
+                ORDER BY
+                    hashed_key,
+                    miniblock_number DESC,
+                    operation_number DESC
+            )
+            DELETE FROM
+                storage_logs USING new_logs
             WHERE
                 storage_logs.hashed_key = new_logs.hashed_key
                 AND storage_logs.miniblock_number <= $2
-                AND (storage_logs.miniblock_number, storage_logs.operation_number) < (new_logs.miniblock_number, new_logs.operation_number)
+                AND (
+                    storage_logs.miniblock_number,
+                    storage_logs.operation_number
+                ) < (
+                    new_logs.miniblock_number,
+                    new_logs.operation_number
+                )
             "#,
             i64::from(l2_blocks_to_prune.start().0),
             i64::from(l2_blocks_to_prune.end().0)
@@ -353,7 +361,8 @@ impl PruningDal<'_, '_> {
     async fn delete_l1_batches(&mut self, last_l1_batch_to_prune: L1BatchNumber) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
-            DELETE FROM l1_batches
+            DELETE FROM
+                l1_batches
             WHERE
                 number <= $1
             "#,
@@ -370,7 +379,8 @@ impl PruningDal<'_, '_> {
     async fn delete_l2_blocks(&mut self, last_l2_block_to_prune: L2BlockNumber) -> DalResult<u64> {
         let execution_result = sqlx::query!(
             r#"
-            DELETE FROM miniblocks
+            DELETE FROM
+                miniblocks
             WHERE
                 number <= $1
             "#,

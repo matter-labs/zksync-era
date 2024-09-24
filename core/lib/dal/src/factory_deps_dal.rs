@@ -31,7 +31,13 @@ impl FactoryDepsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                factory_deps (bytecode_hash, bytecode, miniblock_number, created_at, updated_at)
+                factory_deps (
+                    bytecode_hash,
+                    bytecode,
+                    miniblock_number,
+                    created_at,
+                    updated_at
+                )
             SELECT
                 u.bytecode_hash,
                 u.bytecode,
@@ -39,8 +45,7 @@ impl FactoryDepsDal<'_, '_> {
                 NOW(),
                 NOW()
             FROM
-                UNNEST($1::bytea[], $2::bytea[]) AS u (bytecode_hash, bytecode)
-            ON CONFLICT (bytecode_hash) DO NOTHING
+                UNNEST($1 :: bytea [], $2 :: bytea []) AS u (bytecode_hash, bytecode) ON CONFLICT (bytecode_hash) DO NOTHING
             "#,
             &bytecode_hashes as &[&[u8]],
             &bytecodes as &[&[u8]],
@@ -183,7 +188,8 @@ impl FactoryDepsDal<'_, '_> {
     pub async fn roll_back_factory_deps(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
-            DELETE FROM factory_deps
+            DELETE FROM
+                factory_deps
             WHERE
                 miniblock_number > $1
             "#,

@@ -67,7 +67,8 @@ impl BlocksDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE consistency_checker_info
+            UPDATE
+                consistency_checker_info
             SET
                 last_processed_l1_batch = $1,
                 updated_at = NOW()
@@ -463,7 +464,8 @@ impl BlocksDal<'_, '_> {
 
                 let query = sqlx::query!(
                     r#"
-                    UPDATE l1_batches
+                    UPDATE
+                        l1_batches
                     SET
                         eth_commit_tx_id = $1,
                         updated_at = NOW()
@@ -494,7 +496,8 @@ impl BlocksDal<'_, '_> {
                     .with_arg("eth_tx_id", &eth_tx_id);
                 let query = sqlx::query!(
                     r#"
-                    UPDATE l1_batches
+                    UPDATE
+                        l1_batches
                     SET
                         eth_prove_tx_id = $1,
                         updated_at = NOW()
@@ -527,7 +530,8 @@ impl BlocksDal<'_, '_> {
 
                 let query = sqlx::query!(
                     r#"
-                    UPDATE l1_batches
+                    UPDATE
+                        l1_batches
                     SET
                         eth_execute_tx_id = $1,
                         updated_at = NOW()
@@ -846,7 +850,8 @@ impl BlocksDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE miniblocks
+            UPDATE
+                miniblocks
             SET
                 l1_batch_number = $1
             WHERE
@@ -868,7 +873,8 @@ impl BlocksDal<'_, '_> {
     ) -> anyhow::Result<()> {
         let update_result = sqlx::query!(
             r#"
-            UPDATE l1_batches
+            UPDATE
+                l1_batches
             SET
                 hash = $1,
                 rollup_last_leaf_index = $2,
@@ -910,7 +916,8 @@ impl BlocksDal<'_, '_> {
 
         let update_result = sqlx::query!(
             r#"
-            UPDATE l1_batches
+            UPDATE
+                l1_batches
             SET
                 commitment = $1,
                 aux_data_hash = $2,
@@ -986,14 +993,20 @@ impl BlocksDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment)
+                commitments (
+                    l1_batch_number,
+                    events_queue_commitment,
+                    bootloader_initial_content_commitment
+                )
             VALUES
-                ($1, $2, $3)
-            ON CONFLICT (l1_batch_number) DO NOTHING
+                ($1, $2, $3) ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(number.0),
-            commitment_artifacts.aux_commitments.map(|a| a.events_queue_commitment.0.to_vec()),
-            commitment_artifacts.aux_commitments
+            commitment_artifacts
+                .aux_commitments
+                .map(|a| a.events_queue_commitment.0.to_vec()),
+            commitment_artifacts
+                .aux_commitments
                 .map(|a| a.bootloader_initial_content_commitment.0.to_vec()),
         )
         .instrument("save_batch_aux_commitments")
@@ -1074,7 +1087,9 @@ impl BlocksDal<'_, '_> {
                 number
             FROM
                 l1_batches
-                LEFT JOIN eth_txs_history AS commit_tx ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id)
+                LEFT JOIN eth_txs_history AS commit_tx ON (
+                    l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
+                )
             WHERE
                 commit_tx.confirmed_at IS NOT NULL
             ORDER BY
@@ -1166,7 +1181,9 @@ impl BlocksDal<'_, '_> {
                 number
             FROM
                 l1_batches
-                LEFT JOIN eth_txs_history AS execute_tx ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id)
+                LEFT JOIN eth_txs_history AS execute_tx ON (
+                    l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
+                )
             WHERE
                 execute_tx.confirmed_at IS NOT NULL
             ORDER BY
@@ -1448,7 +1465,9 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
                 JOIN eth_txs ON (l1_batches.eth_commit_tx_id = eth_txs.id)
-                JOIN eth_txs_history AS commit_tx ON (eth_txs.confirmed_eth_tx_history_id = commit_tx.id)
+                JOIN eth_txs_history AS commit_tx ON (
+                    eth_txs.confirmed_eth_tx_history_id = commit_tx.id
+                )
             WHERE
                 commit_tx.confirmed_at IS NOT NULL
                 AND eth_prove_tx_id IS NOT NULL
@@ -1873,7 +1892,8 @@ impl BlocksDal<'_, '_> {
         let l1_batch_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
-            DELETE FROM initial_writes
+            DELETE FROM
+                initial_writes
             WHERE
                 l1_batch_number > $1
             "#,
@@ -1898,7 +1918,8 @@ impl BlocksDal<'_, '_> {
         let l1_batch_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
-            DELETE FROM l1_batches
+            DELETE FROM
+                l1_batches
             WHERE
                 number > $1
             "#,
@@ -1927,7 +1948,8 @@ impl BlocksDal<'_, '_> {
         let block_number = last_l2_block_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
-            DELETE FROM miniblocks
+            DELETE FROM
+                miniblocks
             WHERE
                 number > $1
             "#,
@@ -1943,7 +1965,8 @@ impl BlocksDal<'_, '_> {
     async fn delete_logs_inner(&mut self) -> DalResult<()> {
         sqlx::query!(
             r#"
-            DELETE FROM storage_logs
+            DELETE FROM
+                storage_logs
             "#,
         )
         .instrument("delete_logs")
@@ -2123,7 +2146,8 @@ impl BlocksDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE miniblocks
+            UPDATE
+                miniblocks
             SET
                 protocol_version = $1
             WHERE
@@ -2194,7 +2218,8 @@ impl BlocksDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE l1_batches
+            UPDATE
+                l1_batches
             SET
                 protocol_version = $1
             WHERE
@@ -2219,7 +2244,8 @@ impl BlocksDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE miniblocks
+            UPDATE
+                miniblocks
             SET
                 protocol_version = $1
             WHERE
@@ -2249,7 +2275,8 @@ impl BlocksDal<'_, '_> {
 
         let query = sqlx::query!(
             r#"
-            UPDATE l1_batches
+            UPDATE
+                l1_batches
             SET
                 tree_writes = $1
             WHERE
@@ -2431,14 +2458,15 @@ impl BlocksDal<'_, '_> {
             .collect::<Vec<_>>();
         sqlx::query!(
             r#"
-            UPDATE miniblocks
+            UPDATE
+                miniblocks
             SET
                 logs_bloom = data.logs_bloom
             FROM
                 (
                     SELECT
-                        UNNEST($1::BIGINT[]) AS number,
-                        UNNEST($2::BYTEA[]) AS logs_bloom
+                        UNNEST($1 :: BIGINT []) AS number,
+                        UNNEST($2 :: BYTEA []) AS logs_bloom
                 ) AS data
             WHERE
                 miniblocks.number = data.number
@@ -2464,7 +2492,8 @@ impl BlocksDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE l1_batches
+            UPDATE
+                l1_batches
             SET
                 hash = $1
             WHERE
@@ -2538,7 +2567,8 @@ impl BlocksDal<'_, '_> {
     pub async fn drop_l2_block_bloom(&mut self, l2_block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE miniblocks
+            UPDATE
+                miniblocks
             SET
                 logs_bloom = NULL
             WHERE

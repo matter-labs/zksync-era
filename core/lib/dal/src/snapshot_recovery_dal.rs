@@ -53,9 +53,10 @@ impl SnapshotRecoveryDal<'_, '_> {
     pub async fn mark_storage_logs_chunk_as_processed(&mut self, chunk_id: u64) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE snapshot_recovery
+            UPDATE
+                snapshot_recovery
             SET
-                storage_logs_chunks_processed[$1] = TRUE,
+                storage_logs_chunks_processed [$1] = TRUE,
                 updated_at = NOW()
             "#,
             chunk_id as i32 + 1

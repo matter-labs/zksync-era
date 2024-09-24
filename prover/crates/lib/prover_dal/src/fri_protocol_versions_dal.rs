@@ -20,15 +20,17 @@ impl FriProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                prover_fri_protocol_versions (id, snark_wrapper_vk_hash, created_at, protocol_version_patch)
+                prover_fri_protocol_versions (
+                    id,
+                    snark_wrapper_vk_hash,
+                    created_at,
+                    protocol_version_patch
+                )
             VALUES
-                ($1, $2, NOW(), $3)
-            ON CONFLICT (id, protocol_version_patch) DO NOTHING
+                ($1, $2, NOW(), $3) ON CONFLICT (id, protocol_version_patch) DO NOTHING
             "#,
             id.minor as i32,
-            l1_verifier_config
-                .snark_wrapper_vk_hash
-                .as_bytes(),
+            l1_verifier_config.snark_wrapper_vk_hash.as_bytes(),
             id.patch.0 as i32
         )
         .execute(self.storage.conn())
@@ -85,7 +87,8 @@ impl FriProtocolVersionsDal<'_, '_> {
     pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
-            DELETE FROM prover_fri_protocol_versions
+            DELETE FROM
+                prover_fri_protocol_versions
             "#
         )
         .execute(self.storage.conn())

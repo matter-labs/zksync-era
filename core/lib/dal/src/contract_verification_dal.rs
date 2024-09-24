@@ -52,7 +52,7 @@ impl ContractVerificationDal<'_, '_> {
             FROM
                 contract_verification_requests
             WHERE
-                status = 'queued'
+                STATUS = 'queued'
             "#
         )
         .fetch_one(self.storage.conn())
@@ -78,12 +78,26 @@ impl ContractVerificationDal<'_, '_> {
                     constructor_arguments,
                     is_system,
                     force_evmla,
-                    status,
+                    STATUS,
                     created_at,
                     updated_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'queued', NOW(), NOW())
+                (
+                    $1,
+                    $2,
+                    $3,
+                    $4,
+                    $5,
+                    $6,
+                    $7,
+                    $8,
+                    $9,
+                    $10,
+                    'queued',
+                    NOW(),
+                    NOW()
+                )
             RETURNING
                 id
             "#,
@@ -120,9 +134,10 @@ impl ContractVerificationDal<'_, '_> {
         let result = sqlx::query_as!(
             StorageVerificationRequest,
             r#"
-            UPDATE contract_verification_requests
+            UPDATE
+                contract_verification_requests
             SET
-                status = 'in_progress',
+                STATUS = 'in_progress',
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW()
@@ -133,16 +148,16 @@ impl ContractVerificationDal<'_, '_> {
                     FROM
                         contract_verification_requests
                     WHERE
-                        status = 'queued'
+                        STATUS = 'queued'
                         OR (
-                            status = 'in_progress'
-                            AND processing_started_at < NOW() - $1::INTERVAL
+                            STATUS = 'in_progress'
+                            AND processing_started_at < NOW() - $1 :: INTERVAL
                         )
                     ORDER BY
                         created_at
                     LIMIT
-                        1
-                    FOR UPDATE
+                        1 FOR
+                    UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -179,9 +194,10 @@ impl ContractVerificationDal<'_, '_> {
 
         sqlx::query!(
             r#"
-            UPDATE contract_verification_requests
+            UPDATE
+                contract_verification_requests
             SET
-                status = 'successful',
+                STATUS = 'successful',
                 updated_at = NOW()
             WHERE
                 id = $1
@@ -200,8 +216,7 @@ impl ContractVerificationDal<'_, '_> {
             INSERT INTO
                 contracts_verification_info (address, verification_info)
             VALUES
-                ($1, $2)
-            ON CONFLICT (address) DO
+                ($1, $2) ON CONFLICT (address) DO
             UPDATE
             SET
                 verification_info = $2
@@ -225,9 +240,10 @@ impl ContractVerificationDal<'_, '_> {
     ) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
-            UPDATE contract_verification_requests
+            UPDATE
+                contract_verification_requests
             SET
-                status = 'failed',
+                STATUS = 'failed',
                 updated_at = NOW(),
                 error = $2,
                 compilation_errors = $3,
@@ -252,7 +268,7 @@ impl ContractVerificationDal<'_, '_> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                status,
+                STATUS,
                 error,
                 compilation_errors
             FROM
@@ -305,7 +321,7 @@ impl ContractVerificationDal<'_, '_> {
                         tx_hash,
                         topic3
                     FROM
-                        events
+                        EVENTS
                     WHERE
                         address = $1
                         AND topic1 = $2
@@ -421,7 +437,8 @@ impl ContractVerificationDal<'_, '_> {
 
         sqlx::query!(
             r#"
-            DELETE FROM compiler_versions
+            DELETE FROM
+                compiler_versions
             WHERE
                 compiler = $1
             "#,
@@ -440,8 +457,7 @@ impl ContractVerificationDal<'_, '_> {
                 NOW(),
                 NOW()
             FROM
-                UNNEST($1::TEXT[]) AS u (VERSION)
-            ON CONFLICT (VERSION, compiler) DO NOTHING
+                UNNEST($1 :: TEXT []) AS u (VERSION) ON CONFLICT (VERSION, compiler) DO NOTHING
             "#,
             &versions,
             &compiler,
@@ -489,7 +505,7 @@ impl ContractVerificationDal<'_, '_> {
             FROM
                 contract_verification_requests
             WHERE
-                status = 'successful'
+                STATUS = 'successful'
             ORDER BY
                 id
             "#,
