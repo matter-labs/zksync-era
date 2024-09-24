@@ -1,14 +1,8 @@
 use iai::black_box;
-use zksync_vm_benchmark_harness::{
-    cut_to_allowed_bytecode_size, get_deploy_tx, BenchmarkingVm, BenchmarkingVmFactory, Fast,
-    Legacy,
-};
+use vm_benchmark::{BenchmarkingVm, BenchmarkingVmFactory, Bytecode, Fast, Legacy};
 
-fn run_bytecode<VM: BenchmarkingVmFactory>(path: &str) {
-    let test_contract = std::fs::read(path).expect("failed to read file");
-    let code = cut_to_allowed_bytecode_size(&test_contract).unwrap();
-    let tx = get_deploy_tx(code);
-
+fn run_bytecode<VM: BenchmarkingVmFactory>(name: &str) {
+    let tx = Bytecode::get(name).deploy_tx();
     black_box(BenchmarkingVm::<VM>::default().run_transaction(&tx));
 }
 
@@ -16,11 +10,11 @@ macro_rules! make_functions_and_main {
     ($($file:ident => $legacy_name:ident,)+) => {
         $(
         fn $file() {
-            run_bytecode::<Fast>(concat!("deployment_benchmarks/", stringify!($file)));
+            run_bytecode::<Fast>(stringify!($file));
         }
 
         fn $legacy_name() {
-            run_bytecode::<Legacy>(concat!("deployment_benchmarks/", stringify!($file)));
+            run_bytecode::<Legacy>(stringify!($file));
         }
         )+
 

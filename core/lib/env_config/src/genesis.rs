@@ -72,7 +72,7 @@ impl FromEnv for GenesisConfig {
             l1_chain_id: L1ChainId(network_config.network.chain_id().0),
             sl_chain_id: Some(network_config.network.chain_id()),
             l2_chain_id: network_config.zksync_network_id,
-            recursion_scheduler_level_vk_hash: contracts_config.snark_wrapper_vk_hash,
+            snark_wrapper_vk_hash: contracts_config.snark_wrapper_vk_hash,
             fee_account: state_keeper
                 .fee_account_addr
                 .context("Fee account required for genesis")?,

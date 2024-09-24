@@ -1,10 +1,12 @@
+use std::mem;
+
 use zk_evm_1_4_0::aux_structures::Timestamp;
 
 use crate::{
     interface::{
         storage::WriteStorage,
         tracer::{TracerExecutionStatus, VmExecutionStopReason},
-        VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        VmExecutionMode, VmExecutionResultAndLogs,
     },
     vm_boojum_integration::{
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
@@ -20,7 +22,7 @@ use crate::{
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn inspect_inner(
         &mut self,
-        dispatcher: TracerDispatcher<S, H::VmBoojumIntegration>,
+        dispatcher: &mut TracerDispatcher<S, H::VmBoojumIntegration>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut enable_refund_tracer = false;
@@ -39,7 +41,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Collect the result from the default tracers.
     fn inspect_and_collect_results(
         &mut self,
-        dispatcher: TracerDispatcher<S, H::VmBoojumIntegration>,
+        dispatcher: &mut TracerDispatcher<S, H::VmBoojumIntegration>,
         execution_mode: VmExecutionMode,
         with_refund_tracer: bool,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
@@ -49,7 +51,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             DefaultExecutionTracer::new(
                 self.system_env.default_validation_computational_gas_limit,
                 execution_mode,
-                dispatcher,
+                mem::take(dispatcher),
                 self.storage.clone(),
                 refund_tracers,
                 Some(PubdataTracer::new(self.batch_env.clone(), execution_mode)),
@@ -84,6 +86,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             circuit_statistic_from_cycles(tx_tracer.circuits_tracer.statistics),
         );
         let result = tx_tracer.result_tracer.into_result();
+        *dispatcher = tx_tracer.dispatcher; // return the dispatcher back
 
         let result = VmExecutionResultAndLogs {
             result,

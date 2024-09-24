@@ -21,7 +21,7 @@ use zksync_queued_job_processor::JobProcessor;
 use zksync_tee_verifier::Verify;
 use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 use zksync_utils::u256_to_h256;
-use zksync_vm_utils::storage::L1BatchParamsProvider;
+use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use self::metrics::METRICS;
 
@@ -77,19 +77,9 @@ impl TeeVerifierInputProducer {
             .with_context(|| format!("header is missing for L1 batch #{l1_batch_number}"))?
             .unwrap();
 
-        let mut l1_batch_params_provider = L1BatchParamsProvider::new();
-        l1_batch_params_provider
-            .initialize(&mut connection)
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection)
             .await
             .context("failed initializing L1 batch params provider")?;
-
-        let first_miniblock_in_batch = l1_batch_params_provider
-            .load_first_l2_block_in_batch(&mut connection, l1_batch_number)
-            .await
-            .with_context(|| {
-                format!("failed loading first miniblock in L1 batch #{l1_batch_number}")
-            })?
-            .with_context(|| format!("no miniblocks persisted for L1 batch #{l1_batch_number}"))?;
 
         // In the state keeper, this value is used to reject execution.
         // All batches have already been executed by State Keeper.
@@ -97,14 +87,14 @@ impl TeeVerifierInputProducer {
         let validation_computational_gas_limit = u32::MAX;
 
         let (system_env, l1_batch_env) = l1_batch_params_provider
-            .load_l1_batch_params(
+            .load_l1_batch_env(
                 &mut connection,
-                &first_miniblock_in_batch,
+                l1_batch_number,
                 validation_computational_gas_limit,
                 l2_chain_id,
             )
-            .await
-            .context("expected miniblock to be executed and sealed")?;
+            .await?
+            .with_context(|| format!("expected L1 batch #{l1_batch_number} to be sealed"))?;
 
         let used_contract_hashes = l1_batch_header
             .used_contract_hashes

@@ -18,7 +18,10 @@ fn test_tx_gas_limit_offset() {
 
     let gas_limit = 9999.into();
     let tx = vm.rich_accounts[0].get_l2_tx_for_execute(
-        Execute::default(),
+        Execute {
+            contract_address: Some(Default::default()),
+            ..Default::default()
+        },
         Some(Fee {
             gas_limit,
             ..Account::default_fee()
@@ -27,7 +30,7 @@ fn test_tx_gas_limit_offset() {
 
     vm.vm.push_transaction(tx);
 
-    assert!(vm.vm.inner.state.previous_frames.is_empty());
+    assert!(!vm.vm.has_previous_far_calls());
     let gas_limit_from_memory = vm
         .vm
         .read_word_from_bootloader_heap(TX_DESCRIPTION_OFFSET + TX_GAS_LIMIT_OFFSET);

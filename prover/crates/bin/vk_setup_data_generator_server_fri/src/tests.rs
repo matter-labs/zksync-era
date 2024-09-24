@@ -6,8 +6,8 @@ use zksync_prover_fri_types::{
     },
     ProverServiceDataKey,
 };
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::basic_fri_types::AggregationRound;
-use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 fn all_possible_prover_service_data_key() -> impl Strategy<Value = ProverServiceDataKey> {
     let mut keys = Vec::with_capacity(30);
@@ -36,21 +36,21 @@ fn all_possible_prover_service_data_key() -> impl Strategy<Value = ProverService
 proptest! {
     #[test]
     fn test_get_base_layer_vk_for_circuit_type(circuit_id in 1u8..13) {
-        let keystore = Keystore::default();
+        let keystore = Keystore::locate();
         let vk = keystore.load_base_layer_verification_key(circuit_id).unwrap();
         assert_eq!(circuit_id, vk.numeric_circuit_type());
     }
 
     #[test]
     fn test_get_recursive_layer_vk_for_circuit_type(circuit_id in 1u8..15) {
-        let keystore = Keystore::default();
+        let keystore = Keystore::locate();
         let vk = keystore.load_recursive_layer_verification_key(circuit_id).unwrap();
         assert_eq!(circuit_id, vk.numeric_circuit_type());
     }
 
     #[test]
     fn test_get_finalization_hints(key in all_possible_prover_service_data_key()) {
-        let keystore = Keystore::default();
+        let keystore = Keystore::locate();
 
         let result = keystore.load_finalization_hints(key).unwrap();
 

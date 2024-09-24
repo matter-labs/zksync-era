@@ -28,6 +28,7 @@ once_cell.workspace = true
 rlp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_with = { workspace = true, features = ["hex"] }
 bigdecimal.workspace = true
 strum = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
@@ -43,6 +44,7 @@ blake2.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros"] }
+assert_matches.workspace = true
 bincode.workspace = true
 
 [build-dependencies]

@@ -5,10 +5,12 @@ pub mod gpu_prover {
     use anyhow::Context as _;
     use shivini::{
         gpu_proof_config::GpuProofConfig, gpu_prove_from_external_witness_data, ProverContext,
+        ProverContextConfig,
     };
     use tokio::task::JoinHandle;
-    use zksync_config::configs::{fri_prover_group::FriProverGroupConfig, FriProverConfig};
-    use zksync_env_config::FromEnv;
+    use zksync_config::configs::{
+        fri_prover::SetupLoadMode as SetupLoadModeConfig, FriProverConfig,
+    };
     use zksync_object_store::ObjectStore;
     use zksync_prover_dal::{ConnectionPool, ProverDal};
     use zksync_prover_fri_types::{
@@ -29,12 +31,12 @@ pub mod gpu_prover {
         CircuitWrapper, FriProofWrapper, ProverServiceDataKey, WitnessVectorArtifacts,
     };
     use zksync_prover_fri_utils::region_fetcher::Zone;
+    use zksync_prover_keystore::{keystore::Keystore, GoldilocksGpuProverSetupData};
     use zksync_queued_job_processor::{async_trait, JobProcessor};
     use zksync_types::{
         basic_fri_types::CircuitIdRoundTuple, protocol_version::ProtocolSemanticVersion,
         prover_dal::SocketAddress,
     };
-    use zksync_vk_setup_data_server_fri::{keystore::Keystore, GoldilocksGpuProverSetupData};
 
     use crate::{
         metrics::METRICS,
@@ -54,6 +56,7 @@ pub mod gpu_prover {
 
     #[allow(dead_code)]
     pub struct Prover {
+        keystore: Keystore,
         blob_store: Arc<dyn ObjectStore>,
         public_blob_store: Option<Arc<dyn ObjectStore>>,
         config: Arc<FriProverConfig>,
@@ -72,6 +75,7 @@ pub mod gpu_prover {
     impl Prover {
         #[allow(dead_code)]
         pub fn new(
+            keystore: Keystore,
             blob_store: Arc<dyn ObjectStore>,
             public_blob_store: Option<Arc<dyn ObjectStore>>,
             config: FriProverConfig,
@@ -82,8 +86,17 @@ pub mod gpu_prover {
             address: SocketAddress,
             zone: Zone,
             protocol_version: ProtocolSemanticVersion,
+            max_allocation: Option<usize>,
         ) -> Self {
+            let prover_context = match max_allocation {
+                Some(max_allocation) => ProverContext::create_with_config(
+                    ProverContextConfig::default().with_maximum_device_allocation(max_allocation),
+                )
+                .expect("failed initializing gpu prover context"),
+                None => ProverContext::create().expect("failed initializing gpu prover context"),
+            };
             Prover {
+                keystore,
                 blob_store,
                 public_blob_store,
                 config: Arc::new(config),
@@ -91,8 +104,7 @@ pub mod gpu_prover {
                 setup_load_mode,
                 circuit_ids_for_round_to_be_proven,
                 witness_vector_queue,
-                prover_context: ProverContext::create()
-                    .expect("failed initializing gpu prover context"),
+                prover_context,
                 address,
                 zone,
                 protocol_version,
@@ -112,9 +124,8 @@ pub mod gpu_prover {
                     .clone(),
                 SetupLoadMode::FromDisk => {
                     let started_at = Instant::now();
-                    let keystore =
-                        Keystore::new_with_setup_data_path(self.config.setup_data_path.clone());
-                    let artifact: GoldilocksGpuProverSetupData = keystore
+                    let artifact: GoldilocksGpuProverSetupData = self
+                        .keystore
                         .load_gpu_setup_data_for_circuit_type(key.clone())
                         .context("load_gpu_setup_data_for_circuit_type()")?;
 
@@ -173,8 +184,11 @@ pub mod gpu_prover {
                 (),
                 &worker,
             )
-            .unwrap_or_else(|_| {
-                panic!("failed generating GPU proof for id: {}", prover_job.job_id)
+            .unwrap_or_else(|err| {
+                panic!(
+                    "failed generating GPU proof for id: {}, error: {:?}",
+                    prover_job.job_id, err
+                )
             });
             tracing::info!(
                 "Successfully generated gpu proof for job {} took: {:?}",
@@ -328,36 +342,84 @@ pub mod gpu_prover {
         }
     }
 
-    pub fn load_setup_data_cache(config: &FriProverConfig) -> anyhow::Result<SetupLoadMode> {
-        Ok(match config.setup_load_mode {
-            zksync_config::configs::fri_prover::SetupLoadMode::FromDisk => SetupLoadMode::FromDisk,
-            zksync_config::configs::fri_prover::SetupLoadMode::FromMemory => {
+    #[tracing::instrument(skip_all, fields(setup_load_mode = ?setup_load_mode, specialized_group_id = %specialized_group_id))]
+    pub async fn load_setup_data_cache(
+        keystore: &Keystore,
+        setup_load_mode: SetupLoadModeConfig,
+        specialized_group_id: u8,
+        circuit_ids: &[CircuitIdRoundTuple],
+    ) -> anyhow::Result<SetupLoadMode> {
+        Ok(match setup_load_mode {
+            SetupLoadModeConfig::FromDisk => SetupLoadMode::FromDisk,
+            SetupLoadModeConfig::FromMemory => {
+                anyhow::ensure!(
+                    !circuit_ids.is_empty(),
+                    "Circuit IDs must be provided when using FromMemory mode"
+                );
                 let mut cache = HashMap::new();
                 tracing::info!(
                     "Loading setup data cache for group {}",
-                    &config.specialized_group_id
+                    &specialized_group_id
                 );
-                let prover_setup_metadata_list = FriProverGroupConfig::from_env()
-                    .context("FriProverGroupConfig::from_env()")?
-                    .get_circuit_ids_for_group_id(config.specialized_group_id)
-                    .context(
-                        "At least one circuit should be configured for group when running in FromMemory mode",
-                    )?;
                 tracing::info!(
                     "for group {} configured setup metadata are {:?}",
-                    &config.specialized_group_id,
-                    prover_setup_metadata_list
+                    &specialized_group_id,
+                    circuit_ids
                 );
-                let keystore = Keystore::new_with_setup_data_path(config.setup_data_path.clone());
-                for prover_setup_metadata in prover_setup_metadata_list {
-                    let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
-                    let setup_data = keystore
-                        .load_gpu_setup_data_for_circuit_type(key.clone())
-                        .context("load_gpu_setup_data_for_circuit_type()")?;
-                    cache.insert(key, Arc::new(setup_data));
+                // Load each file in parallel. Note that FS access is not necessarily parallel, but
+                // deserialization is (and it's not insignificant, as setup keys are large).
+                // Note: `collect` is important, because iterators are lazy and otherwise we won't actually
+                // spawn threads.
+                let handles: Vec<_> = circuit_ids
+                    .into_iter()
+                    .map(|prover_setup_metadata| {
+                        let keystore = keystore.clone();
+                        let prover_setup_metadata = prover_setup_metadata.clone();
+                        tokio::task::spawn_blocking(move || {
+                            let key = setup_metadata_to_setup_data_key(&prover_setup_metadata);
+                            let setup_data = keystore
+                                .load_gpu_setup_data_for_circuit_type(key.clone())
+                                .context("load_gpu_setup_data_for_circuit_type()")?;
+                            anyhow::Ok((key, Arc::new(setup_data)))
+                        })
+                    })
+                    .collect();
+                for handle in futures::future::join_all(handles).await {
+                    let (key, setup_data) = handle.context("Key loading future panicked")??;
+                    cache.insert(key, setup_data);
                 }
                 SetupLoadMode::FromMemory(cache)
             }
         })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use zksync_types::basic_fri_types::AggregationRound;
+
+        use super::*;
+
+        #[tokio::test]
+        async fn test_load_setup_data_cache() {
+            tracing_subscriber::fmt::try_init().ok();
+
+            let keystore = Keystore::locate();
+            let mode = SetupLoadModeConfig::FromMemory;
+            let specialized_group_id = 0;
+            let ids: Vec<_> = AggregationRound::ALL_ROUNDS
+                .into_iter()
+                .flat_map(|r| r.circuit_ids())
+                .collect();
+            if !keystore.is_setup_data_present(&setup_metadata_to_setup_data_key(&ids[0])) {
+                // We don't want this test to fail on envs where setup keys are not present.
+                return;
+            }
+
+            let start = Instant::now();
+            let _cache = load_setup_data_cache(&keystore, mode, specialized_group_id, &ids)
+                .await
+                .expect("Unable to load keys");
+            tracing::info!("Cache load time: {:?}", start.elapsed());
+        }
     }
 }

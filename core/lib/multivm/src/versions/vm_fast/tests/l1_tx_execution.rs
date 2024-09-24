@@ -9,7 +9,7 @@ use zksync_types::{
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     utils::StorageWritesDeduplicator,
     vm_fast::{
         tests::{
@@ -82,7 +82,7 @@ fn test_l1_tx_execution() {
     ] {
         assert_eq!(
             expected_value,
-            vm.vm.inner.world_diff.get_storage_state()[&(
+            vm.vm.inner.world_diff().get_storage_state()[&(
                 *storage_location.address(),
                 h256_to_u256(*storage_location.key())
             )]
@@ -176,7 +176,7 @@ fn test_l1_tx_execution_high_gas_limit() {
 
     let mut tx = account.get_l1_tx(
         Execute {
-            contract_address: L1_MESSENGER_ADDRESS,
+            contract_address: Some(L1_MESSENGER_ADDRESS),
             value: 0.into(),
             factory_deps: vec![],
             calldata,

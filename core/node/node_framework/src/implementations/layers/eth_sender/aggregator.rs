@@ -8,10 +8,7 @@ use zksync_types::{commitment::L1BatchCommitmentMode, settlement::SettlementMode
 use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
-        eth_interface::{
-            BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
-            BoundEthInterfaceResource,
-        },
+        eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
     },
@@ -55,7 +52,6 @@ pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
     pub eth_client: Option<BoundEthInterfaceResource>,
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
-    pub eth_client_l2: Option<BoundEthInterfaceForL2Resource>,
     pub object_store: ObjectStoreResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
@@ -100,11 +96,6 @@ impl WiringLayer for EthTxAggregatorLayer {
         let master_pool = input.master_pool.get().await.unwrap();
         let replica_pool = input.replica_pool.get().await.unwrap();
 
-        let eth_client = if self.settlement_mode.is_gateway() {
-            input.eth_client_l2.context("l2_client must be provided")?.0
-        } else {
-            input.eth_client.context("l1_client must be provided")?.0
-        };
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let object_store = input.object_store.0;
 
@@ -125,7 +116,7 @@ impl WiringLayer for EthTxAggregatorLayer {
             master_pool.clone(),
             config.clone(),
             aggregator,
-            eth_client.clone(),
+            input.eth_client.unwrap().0,
             self.contracts_config.validator_timelock_addr,
             self.contracts_config.l1_multicall3_addr,
             self.contracts_config.diamond_proxy_addr,

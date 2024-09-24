@@ -94,7 +94,7 @@ async fn request_tee_proof_inputs() {
         },
         L1BatchCommitmentMode::Rollup,
     );
-    let req_body = Body::from(serde_json::to_vec(&json!({ "tee_type": "Sgx" })).unwrap());
+    let req_body = Body::from(serde_json::to_vec(&json!({ "tee_type": "sgx" })).unwrap());
     let response = app
         .oneshot(
             Request::builder()
@@ -131,10 +131,10 @@ async fn submit_tee_proof() {
     // send a request to the /tee/submit_proofs endpoint, using a mocked TEE proof
 
     let tee_proof_request_str = r#"{
-        "signature": [ 0, 1, 2, 3, 4 ],
-        "pubkey": [ 5, 6, 7, 8, 9 ],
-        "proof": [ 10, 11, 12, 13, 14 ],
-        "tee_type": "Sgx"
+        "signature": "0001020304",
+        "pubkey": "0506070809",
+        "proof": "0A0B0C0D0E",
+        "tee_type": "sgx"
     }"#;
     let tee_proof_request =
         serde_json::from_str::<SubmitTeeProofRequest>(tee_proof_request_str).unwrap();
@@ -232,7 +232,7 @@ async fn mock_tee_batch_status(
         .await
         .expect("Failed to mark tee_verifier_input_producer_job job as successful");
 
-    // mock SQL table with relevant information about the status of TEE proof generation ('ready_to_be_proven')
+    // mock SQL table with relevant information about the status of TEE proof generation
 
     proof_dal
         .insert_tee_proof_generation_job(batch_number, TeeType::Sgx)

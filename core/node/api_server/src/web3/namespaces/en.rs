@@ -21,18 +21,35 @@ impl EnNamespace {
         Self { state }
     }
 
+    pub async fn consensus_global_config_impl(
+        &self,
+    ) -> Result<Option<en::ConsensusGlobalConfig>, Web3Error> {
+        let mut conn = self.state.acquire_connection().await?;
+        let Some(cfg) = conn
+            .consensus_dal()
+            .global_config()
+            .await
+            .context("global_config()")?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(en::ConsensusGlobalConfig(
+            zksync_protobuf::serde::serialize(&cfg, serde_json::value::Serializer).unwrap(),
+        )))
+    }
+
     pub async fn consensus_genesis_impl(&self) -> Result<Option<en::ConsensusGenesis>, Web3Error> {
         let mut conn = self.state.acquire_connection().await?;
-        let Some(genesis) = conn
+        let Some(cfg) = conn
             .consensus_dal()
-            .genesis()
+            .global_config()
             .await
-            .map_err(DalError::generalize)?
+            .context("global_config()")?
         else {
             return Ok(None);
         };
         Ok(Some(en::ConsensusGenesis(
-            zksync_protobuf::serde::serialize(&genesis, serde_json::value::Serializer).unwrap(),
+            zksync_protobuf::serde::serialize(&cfg.genesis, serde_json::value::Serializer).unwrap(),
         )))
     }
 
@@ -40,7 +57,7 @@ impl EnNamespace {
     pub async fn attestation_status_impl(
         &self,
     ) -> Result<Option<en::AttestationStatus>, Web3Error> {
-        let status = self
+        let Some(status) = self
             .state
             .acquire_connection()
             .await?
@@ -54,13 +71,13 @@ impl EnNamespace {
             .context("TransactionBuilder::build()")?
             .consensus_dal()
             .attestation_status()
-            .await?;
-
-        Ok(status.map(|s| {
-            en::AttestationStatus(
-                zksync_protobuf::serde::serialize(&s, serde_json::value::Serializer).unwrap(),
-            )
-        }))
+            .await?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(en::AttestationStatus(
+            zksync_protobuf::serde::serialize(&status, serde_json::value::Serializer).unwrap(),
+        )))
     }
 
     pub(crate) fn current_method(&self) -> &MethodTracer {
@@ -157,7 +174,7 @@ impl EnNamespace {
             l1_chain_id: self.state.api_config.l1_chain_id,
             sl_chain_id: Some(self.state.api_config.l1_chain_id.into()),
             l2_chain_id: self.state.api_config.l2_chain_id,
-            recursion_scheduler_level_vk_hash: verifier_config.recursion_scheduler_level_vk_hash,
+            snark_wrapper_vk_hash: verifier_config.snark_wrapper_vk_hash,
             fee_account,
             dummy_verifier: self.state.api_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: self

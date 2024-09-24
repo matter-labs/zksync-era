@@ -20,7 +20,7 @@ use zksync_types::{
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::bytes_to_be_words;
-use zksync_vm_utils::storage::L1BatchParamsProvider;
+use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use super::{
     client::MainNodeClient,
@@ -49,7 +49,7 @@ impl ExternalIO {
         main_node_client: Box<dyn MainNodeClient>,
         chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
-        let l1_batch_params_provider = L1BatchParamsProvider::new();
+        let l1_batch_params_provider = L1BatchParamsProvider::uninitialized();
         Ok(Self {
             pool,
             l1_batch_params_provider,

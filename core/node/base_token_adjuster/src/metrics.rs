@@ -15,7 +15,7 @@ pub(crate) struct OperationResultLabels {
 }
 
 #[derive(Debug, Metrics)]
-#[metrics(prefix = "snapshots_creator")]
+#[metrics(prefix = "base_token_adjuster")]
 pub(crate) struct BaseTokenAdjusterMetrics {
     pub l1_gas_used: Gauge<u64>,
     #[metrics(buckets = Buckets::LATENCIES)]

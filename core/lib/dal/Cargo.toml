@@ -19,6 +19,7 @@ zksync_utils.workspace = true
 zksync_system_constants.workspace = true
 zksync_contracts.workspace = true
 zksync_types.workspace = true
+zksync_concurrency.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_consensus_storage.workspace = true
 zksync_protobuf.workspace = true

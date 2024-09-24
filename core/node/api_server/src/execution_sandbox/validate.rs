@@ -1,23 +1,22 @@
 use std::collections::HashSet;
 
 use anyhow::Context as _;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_multivm::{
-    interface::{ExecutionResult, VmExecutionMode, VmInterface},
-    tracers::{
-        StorageInvocations, ValidationError as RawValidationError, ValidationTracer,
-        ValidationTracerParams,
-    },
-    vm_latest::HistoryDisabled,
-    MultiVMTracer,
+use tracing::Instrument;
+use zksync_dal::{Connection, Core, CoreDal};
+use zksync_multivm::interface::{
+    executor::TransactionValidator,
+    tracer::{ValidationError as RawValidationError, ValidationParams},
 };
-use zksync_types::{l2::L2Tx, Address, Transaction, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS};
+use zksync_types::{
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Address,
+    TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS,
+};
 
 use super::{
-    apply,
-    execute::TransactionExecutor,
+    execute::{SandboxAction, SandboxExecutor},
+    storage::StorageWithOverrides,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
-    BlockArgs, TxExecutionArgs, TxSharedArgs, VmPermit,
+    BlockArgs, VmPermit,
 };
 
 /// Validation error used by the sandbox. Besides validation errors returned by VM, it also includes an internal error
@@ -30,89 +29,45 @@ pub(crate) enum ValidationError {
     Internal(#[from] anyhow::Error),
 }
 
-impl TransactionExecutor {
+impl SandboxExecutor {
+    #[tracing::instrument(level = "debug", skip_all)]
     pub(crate) async fn validate_tx_in_sandbox(
         &self,
-        connection_pool: ConnectionPool<Core>,
         vm_permit: VmPermit,
+        mut connection: Connection<'static, Core>,
         tx: L2Tx,
-        shared_args: TxSharedArgs,
         block_args: BlockArgs,
-        computational_gas_limit: u32,
+        fee_input: BatchFeeInput,
+        whitelisted_tokens_for_aa: &[Address],
     ) -> Result<(), ValidationError> {
-        if let Self::Mock(mock) = self {
-            return mock.validate_tx(tx, &block_args);
-        }
-
-        let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
-        let mut connection = connection_pool
-            .connection_tagged("api")
-            .await
-            .context("failed acquiring DB connection")?;
+        let total_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
         let validation_params = get_validation_params(
             &mut connection,
             &tx,
-            computational_gas_limit,
-            &shared_args.whitelisted_tokens_for_aa,
+            self.options.eth_call.validation_computational_gas_limit(),
+            whitelisted_tokens_for_aa,
         )
         .await
         .context("failed getting validation params")?;
-        drop(connection);
 
-        let execution_args = TxExecutionArgs::for_validation(&tx);
-        let tx: Transaction = tx.into();
+        let action = SandboxAction::Execution { fee_input, tx };
+        let (env, storage) = self
+            .prepare_env_and_storage(connection, &block_args, &action)
+            .await?;
+        let SandboxAction::Execution { tx, .. } = action else {
+            unreachable!(); // by construction
+        };
+        let storage = StorageWithOverrides::new(storage, &StateOverride::default());
 
-        let validation_result = tokio::task::spawn_blocking(move || {
-            let span = tracing::debug_span!("validate_in_sandbox").entered();
-            let result = apply::apply_vm_in_sandbox(
-                vm_permit,
-                shared_args,
-                true,
-                &execution_args,
-                &connection_pool,
-                tx,
-                block_args,
-                None,
-                |vm, tx, protocol_version| {
-                    let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
-                    let span = tracing::debug_span!("validation").entered();
-                    vm.push_transaction(tx);
-
-                    let (tracer, validation_result) = ValidationTracer::<HistoryDisabled>::new(
-                        validation_params,
-                        protocol_version.into(),
-                    );
-
-                    let result = vm.inspect(
-                        vec![
-                            tracer.into_tracer_pointer(),
-                            StorageInvocations::new(execution_args.missed_storage_invocation_limit)
-                                .into_tracer_pointer(),
-                        ]
-                        .into(),
-                        VmExecutionMode::OneTx,
-                    );
-
-                    let result = match (result.result, validation_result.get()) {
-                        (_, Some(err)) => Err(RawValidationError::ViolatedRule(err.clone())),
-                        (ExecutionResult::Halt { reason }, _) => {
-                            Err(RawValidationError::FailedTx(reason))
-                        }
-                        (_, None) => Ok(()),
-                    };
-
-                    stage_latency.observe();
-                    span.exit();
-                    result
-                },
-            );
-            span.exit();
-            result
-        })
-        .await
-        .context("transaction validation panicked")??;
-
+        let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
+        let validation_result = self
+            .validate_transaction(storage, env, tx, validation_params)
+            .instrument(tracing::debug_span!("validation"))
+            .await?;
+        drop(vm_permit);
         stage_latency.observe();
+
+        total_latency.observe();
         validation_result.map_err(ValidationError::Vm)
     }
 }
@@ -120,12 +75,12 @@ impl TransactionExecutor {
 /// Some slots can be marked as "trusted". That is needed for slots which can not be
 /// trusted to change between validation and execution in general case, but
 /// sometimes we can safely rely on them to not change often.
-async fn get_validation_params(
+pub(super) async fn get_validation_params(
     connection: &mut Connection<'_, Core>,
     tx: &L2Tx,
     computational_gas_limit: u32,
     whitelisted_tokens_for_aa: &[Address],
-) -> anyhow::Result<ValidationTracerParams> {
+) -> anyhow::Result<ValidationParams> {
     let method_latency = EXECUTION_METRICS.get_validation_params.start();
     let user_address = tx.common_data.initiator_address;
     let paymaster_address = tx.common_data.paymaster_params.paymaster;
@@ -164,7 +119,7 @@ async fn get_validation_params(
     span.exit();
 
     method_latency.observe();
-    Ok(ValidationTracerParams {
+    Ok(ValidationParams {
         user_address,
         paymaster_address,
         trusted_slots,
