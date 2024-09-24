@@ -242,8 +242,8 @@ commands related to deployment, you can pass flags for Foundry integration.
 
 ## Non-GPU setup
 
-Circuit Prover requires a CUDA bindings to run. If you still want to be able to build everything locally on
-non-CUDA setup, you'll need use CUDA stubs.
+Circuit Prover requires a CUDA bindings to run. If you still want to be able to build everything locally on non-CUDA
+setup, you'll need use CUDA stubs.
 
 For a single run, it's enough to export it on the shell:
 
@@ -251,13 +251,15 @@ For a single run, it's enough to export it on the shell:
 export ZKSYNC_USE_CUDA_STUBS=true
 ```
 
-For persistent runs, you can echo it in your ~/.<shell>rc file 
+For persistent runs, you can echo it in your ~/.<shell>rc file
 
 ```
 echo "export ZKSYNC_USE_CUDA_STUBS=true" >> ~/.<SHELL>rc
 ```
 
-Note that the same can be achieved with RUSTFLAGS (discouraged). The flag is `--cfg=no_cuda`. You can either set RUSTFLAGS as env var, or pass it in `config.toml` (either project level or global). The config would need the following:
+Note that the same can be achieved with RUSTFLAGS (discouraged). The flag is `--cfg=no_cuda`. You can either set
+RUSTFLAGS as env var, or pass it in `config.toml` (either project level or global). The config would need the following:
+
 ```toml
 [build]
 rustflags = ["--cfg=no_cuda"]
