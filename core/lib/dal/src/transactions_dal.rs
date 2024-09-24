@@ -2113,11 +2113,12 @@ impl TransactionsDal<'_, '_> {
         Ok(data)
     }
 
-    pub async fn get_call_trace(&mut self, tx_hash: H256) -> DalResult<Option<Call>> {
+    pub async fn get_call_trace(&mut self, tx_hash: H256) -> DalResult<Option<(Call, usize)>> {
         let row = sqlx::query!(
             r#"
             SELECT
-                protocol_version
+                protocol_version,
+                index_in_block
             FROM
                 transactions
                 INNER JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
@@ -2155,7 +2156,12 @@ impl TransactionsDal<'_, '_> {
         .with_arg("tx_hash", &tx_hash)
         .fetch_optional(self.storage)
         .await?
-        .map(|call_trace| parse_call_trace(&call_trace.call_trace, protocol_version)))
+        .map(|call_trace| {
+            (
+                parse_call_trace(&call_trace.call_trace, protocol_version),
+                row.index_in_block.unwrap_or_default() as usize,
+            )
+        }))
     }
 
     pub(crate) async fn get_tx_by_hash(&mut self, hash: H256) -> DalResult<Option<Transaction>> {
@@ -2227,7 +2233,7 @@ mod tests {
             .await
             .unwrap();
 
-        let call_trace = conn
+        let (call_trace, _) = conn
             .transactions_dal()
             .get_call_trace(tx_hash)
             .await

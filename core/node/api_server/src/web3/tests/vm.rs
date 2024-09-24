@@ -11,7 +11,7 @@ use zksync_multivm::interface::{
 };
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
-    api::{ApiStorageLog, CallTracerResult},
+    api::ApiStorageLog,
     fee_model::{BatchFeeInput, FeeParams},
     get_intrinsic_constants,
     transaction_request::CallRequest,
@@ -488,35 +488,30 @@ impl HttpTest for TraceCallTest {
 
         self.fee_input.expect_default(Self::FEE_SCALE);
         let call_request = CallTest::call_request(b"pending");
-        let CallTracerResult::CallTrace(call_result) =
-            client.trace_call(call_request.clone(), None, None).await?
-        else {
-            unreachable!()
-        };
+        let call_result = client
+            .trace_call(call_request.clone(), None, None)
+            .await?
+            .unwrap_default();
         Self::assert_debug_call(&call_request, &call_result);
         let pending_block_number = api::BlockId::Number(api::BlockNumber::Pending);
-        let CallTracerResult::CallTrace(call_result) = client
+        let call_result = client
             .trace_call(call_request.clone(), Some(pending_block_number), None)
             .await?
-        else {
-            unreachable!()
-        };
+            .unwrap_default();
         Self::assert_debug_call(&call_request, &call_result);
 
         let latest_block_numbers = [api::BlockNumber::Latest, 1.into()];
         let call_request = CallTest::call_request(b"latest");
         for number in latest_block_numbers {
             self.fee_input.expect_for_block(number, Self::FEE_SCALE);
-            let CallTracerResult::CallTrace(call_result) = client
+            let call_result = client
                 .trace_call(
                     call_request.clone(),
                     Some(api::BlockId::Number(number)),
                     None,
                 )
                 .await?
-            else {
-                unreachable!()
-            };
+                .unwrap_default();
             Self::assert_debug_call(&call_request, &call_result);
         }
 
@@ -567,19 +562,16 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
     ) -> anyhow::Result<()> {
         self.fee_input.expect_default(TraceCallTest::FEE_SCALE);
         let call_request = CallTest::call_request(b"pending");
-        let CallTracerResult::CallTrace(call_result) =
-            client.trace_call(call_request.clone(), None, None).await?
-        else {
-            unreachable!()
-        };
+        let call_result = client
+            .trace_call(call_request.clone(), None, None)
+            .await?
+            .unwrap_default();
         TraceCallTest::assert_debug_call(&call_request, &call_result);
         let pending_block_number = api::BlockId::Number(api::BlockNumber::Pending);
-        let CallTracerResult::CallTrace(call_result) = client
+        let call_result = client
             .trace_call(call_request.clone(), Some(pending_block_number), None)
             .await?
-        else {
-            unreachable!()
-        };
+            .unwrap_default();
         TraceCallTest::assert_debug_call(&call_request, &call_result);
 
         let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
@@ -599,12 +591,10 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
             self.fee_input
                 .expect_for_block(number, TraceCallTest::FEE_SCALE);
             let number = api::BlockId::Number(number);
-            let CallTracerResult::CallTrace(call_result) = client
+            let call_result = client
                 .trace_call(call_request.clone(), Some(number), None)
                 .await?
-            else {
-                unreachable!()
-            };
+                .unwrap_default();
             TraceCallTest::assert_debug_call(&call_request, &call_result);
         }
         Ok(())

@@ -726,6 +726,17 @@ pub struct TracerConfig {
     pub tracer_config: CallTracerConfig,
 }
 
+impl Default for TracerConfig {
+    fn default() -> Self {
+        TracerConfig {
+            tracer: SupportedTracers::CallTracer,
+            tracer_config: CallTracerConfig {
+                only_top_call: false,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum BlockStatus {
@@ -741,12 +752,51 @@ pub enum CallTracerBlockResult {
     CallTrace(Vec<ResultDebugCall>),
     FlatCallTrace(Vec<DebugCallFlat>),
 }
+impl CallTracerBlockResult {
+    pub fn unwrap_flatten(self) -> Vec<DebugCallFlat> {
+        match self {
+            Self::CallTrace(_) => {
+                unreachable!()
+            }
+            Self::FlatCallTrace(a) => a,
+        }
+    }
+
+    pub fn unwrap_default(self) -> Vec<ResultDebugCall> {
+        match self {
+            Self::CallTrace(a) => a,
+            Self::FlatCallTrace(_) => {
+                unreachable!()
+            }
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum CallTracerResult {
     CallTrace(DebugCall),
-    FlattCallTrace(Vec<DebugCallFlat>),
+    FlatCallTrace(Vec<DebugCallFlat>),
+}
+
+impl CallTracerResult {
+    pub fn unwrap_flatten(self) -> Vec<DebugCallFlat> {
+        match self {
+            Self::CallTrace(_) => {
+                unreachable!()
+            }
+            Self::FlatCallTrace(a) => a,
+        }
+    }
+
+    pub fn unwrap_default(self) -> DebugCall {
+        match self {
+            Self::CallTrace(a) => a,
+            Self::FlatCallTrace(_) => {
+                unreachable!()
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

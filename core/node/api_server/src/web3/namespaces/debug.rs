@@ -49,30 +49,26 @@ impl DebugNamespace {
         call: Call,
         index: usize,
         transaction_hash: H256,
-        tracer_option: Option<TracerConfig>,
+        tracer_option: TracerConfig,
     ) -> CallTracerResult {
-        let (only_top_call, flatten) = tracer_option
-            .map(|options| {
-                (
-                    options.tracer_config.only_top_call,
-                    matches!(options.tracer, SupportedTracers::FlatCallTracer),
-                )
-            })
-            .unwrap_or((false, false));
-        if flatten {
-            let mut calls = vec![];
-            let mut traces = vec![index];
-            Self::map_flatten_call(
+        match tracer_option.tracer {
+            SupportedTracers::CallTracer => CallTracerResult::CallTrace(Self::map_default_call(
                 call,
-                &mut calls,
-                &mut traces,
-                only_top_call,
-                index,
-                transaction_hash,
-            );
-            CallTracerResult::FlattCallTrace(calls)
-        } else {
-            CallTracerResult::CallTrace(Self::map_default_call(call, only_top_call))
+                tracer_option.tracer_config.only_top_call,
+            )),
+            SupportedTracers::FlatCallTracer => {
+                let mut calls = vec![];
+                let mut traces = vec![index];
+                Self::flatten_call(
+                    call,
+                    &mut calls,
+                    &mut traces,
+                    tracer_option.tracer_config.only_top_call,
+                    index,
+                    transaction_hash,
+                );
+                CallTracerResult::FlatCallTrace(calls)
+            }
         }
     }
     pub(crate) fn map_default_call(call: Call, only_top_call: bool) -> DebugCall {
@@ -104,7 +100,7 @@ impl DebugNamespace {
         }
     }
 
-    fn map_flatten_call(
+    fn flatten_call(
         call: Call,
         calls: &mut Vec<DebugCallFlat>,
         trace_address: &mut Vec<usize>,
@@ -139,7 +135,7 @@ impl DebugNamespace {
             },
             result,
             subtraces,
-            traceaddress: trace_address.clone(), // Clone the current trace address
+            trace_address: trace_address.clone(), // Clone the current trace address
             transaction_position,
             transaction_hash,
             r#type: DebugCallType::Call,
@@ -148,7 +144,7 @@ impl DebugNamespace {
         if !only_top_call {
             for (number, call) in call.calls.into_iter().enumerate() {
                 trace_address.push(number);
-                Self::map_flatten_call(
+                Self::flatten_call(
                     call,
                     calls,
                     trace_address,
@@ -187,20 +183,33 @@ impl DebugNamespace {
             .await
             .map_err(DalError::generalize)?;
 
-        let mut calls = vec![];
-        let mut flat_calls = vec![];
-        for (call_trace, hash, index) in call_traces {
-            match Self::map_call(call_trace, index, hash, options) {
-                CallTracerResult::CallTrace(call) => calls.push(ResultDebugCall { result: call }),
-                CallTracerResult::FlattCallTrace(mut call) => flat_calls.append(&mut call),
+        let options = options.unwrap_or_default();
+        let result = match options.tracer {
+            SupportedTracers::CallTracer => CallTracerBlockResult::CallTrace(
+                call_traces
+                    .into_iter()
+                    .map(|(call, _, _)| ResultDebugCall {
+                        result: Self::map_default_call(call, options.tracer_config.only_top_call),
+                    })
+                    .collect(),
+            ),
+            SupportedTracers::FlatCallTracer => {
+                let mut flat_calls = vec![];
+                for (call, tx_hash, tx_index) in call_traces {
+                    let mut traces = vec![tx_index];
+                    Self::flatten_call(
+                        call,
+                        &mut flat_calls,
+                        &mut traces,
+                        options.tracer_config.only_top_call,
+                        tx_index,
+                        tx_hash,
+                    );
+                }
+                CallTracerBlockResult::FlatCallTrace(flat_calls)
             }
-        }
-
-        if calls.is_empty() && !flat_calls.is_empty() {
-            Ok(CallTracerBlockResult::FlatCallTrace(flat_calls))
-        } else {
-            Ok(CallTracerBlockResult::CallTrace(calls))
-        }
+        };
+        Ok(result)
     }
 
     pub async fn debug_trace_transaction_impl(
@@ -214,7 +223,14 @@ impl DebugNamespace {
             .get_call_trace(tx_hash)
             .await
             .map_err(DalError::generalize)?;
-        Ok(call_trace.map(|call_trace| Self::map_call(call_trace, 0, tx_hash, options)))
+        Ok(call_trace.map(|(call_trace, index_in_block)| {
+            Self::map_call(
+                call_trace,
+                index_in_block,
+                tx_hash,
+                options.unwrap_or_default(),
+            )
+        }))
     }
 
     pub async fn debug_trace_call_impl(
@@ -226,10 +242,7 @@ impl DebugNamespace {
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
 
-        let only_top_call = options
-            .as_ref()
-            .map(|options| options.tracer_config.only_top_call)
-            .unwrap_or(false);
+        let options = options.unwrap_or_default();
 
         let mut connection = self.state.acquire_connection().await?;
         let block_args = self
@@ -264,7 +277,7 @@ impl DebugNamespace {
 
         // We don't need properly trace if we only need top call
         let tracing_params = OneshotTracingParams {
-            trace_calls: !only_top_call,
+            trace_calls: !options.tracer_config.only_top_call,
         };
 
         let connection = self.state.acquire_connection().await?;

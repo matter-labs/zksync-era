@@ -2,9 +2,7 @@
 
 use zksync_multivm::interface::{Call, TransactionExecutionResult};
 use zksync_types::{
-    api::{
-        CallTracerBlockResult, CallTracerConfig, CallTracerResult, SupportedTracers, TracerConfig,
-    },
+    api::{CallTracerConfig, SupportedTracers, TracerConfig},
     BOOTLOADER_ADDRESS,
 };
 use zksync_web3_decl::{
@@ -63,11 +61,9 @@ impl HttpTest for TraceBlockTest {
             let block_traces = match block_id {
                 api::BlockId::Number(number) => client.trace_block_by_number(number, None).await?,
                 api::BlockId::Hash(hash) => client.trace_block_by_hash(hash, None).await?,
-            };
+            }
+            .unwrap_default();
 
-            let CallTracerBlockResult::CallTrace(block_traces) = block_traces else {
-                unreachable!()
-            };
             assert_eq!(block_traces.len(), tx_results.len()); // equals to the number of transactions in the block
             for (trace, tx_result) in block_traces.iter().zip(&tx_results) {
                 let result = &trace.result;
@@ -140,11 +136,8 @@ impl HttpTest for TraceBlockFlatTest {
                             },
                         }),
                     )
-                    .await?;
-
-                let CallTracerBlockResult::FlatCallTrace(block_traces) = &block_traces else {
-                    unreachable!()
-                };
+                    .await?
+                    .unwrap_flatten();
 
                 // A transaction with 2 nested calls will convert into 3 Flattened calls.
                 // Also in this test, all tx have the same # of nested calls
@@ -155,10 +148,10 @@ impl HttpTest for TraceBlockFlatTest {
 
                 // First tx has 2 nested calls, thus 2 sub-traces
                 assert_eq!(block_traces[0].subtraces, 2);
-                assert_eq!(block_traces[0].traceaddress, [0]);
+                assert_eq!(block_traces[0].trace_address, [0]);
                 // Second flat-call (fist nested call) do not have nested calls
                 assert_eq!(block_traces[1].subtraces, 0);
-                assert_eq!(block_traces[1].traceaddress, [0, 0]);
+                assert_eq!(block_traces[1].trace_address, [0, 0]);
 
                 let top_level_call_indexes = [0, 3, 6];
                 let top_level_traces = top_level_call_indexes
@@ -231,13 +224,11 @@ impl HttpTest for TraceTransactionTest {
             .map(|call| DebugNamespace::map_default_call(call.clone(), false))
             .collect();
 
-        let CallTracerResult::CallTrace(result) = client
+        let result = client
             .trace_transaction(tx_results[0].hash, None)
             .await?
             .context("no transaction traces")?
-        else {
-            unreachable!()
-        };
+            .unwrap_default();
         assert_eq!(result.from, Address::zero());
         assert_eq!(result.to, BOOTLOADER_ADDRESS);
         assert_eq!(result.gas, tx_results[0].transaction.gas_limit());

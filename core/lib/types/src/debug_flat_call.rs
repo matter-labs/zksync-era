@@ -9,7 +9,7 @@ pub struct DebugCallFlat {
     pub action: Action,
     pub result: Option<CallResult>,
     pub subtraces: usize,
-    pub traceaddress: Vec<usize>,
+    pub trace_address: Vec<usize>,
     pub transaction_position: usize,
     pub transaction_hash: H256,
     pub r#type: DebugCallType,
