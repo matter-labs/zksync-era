@@ -3,7 +3,7 @@ import { bigIntReplacer } from '../helpers';
 import { TestContextOwner, loadTestEnvironment } from '../index';
 import path from 'path';
 import { runServerInBackground } from '../utils';
-import utils from 'utils';
+import { exec } from 'utils';
 
 declare global {
     var __ZKSYNC_TEST_CONTEXT_OWNER__: TestContextOwner;
@@ -30,9 +30,9 @@ async function performSetup(_globalConfig: any, _projectConfig: any) {
 
     if (autoKill) {
         try {
-            await utils.exec(`killall -KILL zksync_server`);
+            await exec(`killall -KILL zksync_server`);
         } catch (err) {
-            console.log(`ignored error: ${err}`);
+            console.log(`ignored error: ${ err }`);
         }
     }
 

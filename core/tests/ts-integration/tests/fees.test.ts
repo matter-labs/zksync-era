@@ -31,22 +31,22 @@ const MAX_GAS_PER_PUBDATA = 50_000n;
 // For CI we use only 2 gas prices to not slow it down too much.
 const L1_GAS_PRICES_TO_TEST = process.env.CI
     ? [
-          5_000_000_000n, // 5 gwei
-          10_000_000_000n // 10 gwei
-      ]
+        5_000_000_000n, // 5 gwei
+        10_000_000_000n // 10 gwei
+    ]
     : [
-          1_000_000_000n, // 1 gwei
-          5_000_000_000n, // 5 gwei
-          10_000_000_000n, // 10 gwei
-          25_000_000_000n, // 25 gwei
-          50_000_000_000n, // 50 gwei
-          100_000_000_000n, // 100 gwei
-          200_000_000_000n, // 200 gwei
-          400_000_000_000n, // 400 gwei
-          800_000_000_000n, // 800 gwei
-          1_000_000_000_000n, // 1000 gwei
-          2_000_000_000_000n // 2000 gwei
-      ];
+        1_000_000_000n, // 1 gwei
+        5_000_000_000n, // 5 gwei
+        10_000_000_000n, // 10 gwei
+        25_000_000_000n, // 25 gwei
+        50_000_000_000n, // 50 gwei
+        100_000_000_000n, // 100 gwei
+        200_000_000_000n, // 200 gwei
+        400_000_000_000n, // 400 gwei
+        800_000_000_000n, // 800 gwei
+        1_000_000_000_000n, // 1000 gwei
+        2_000_000_000_000n // 2000 gwei
+    ];
 
 // Unless `RUN_FEE_TEST` is provided, skip the test suit
 const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
@@ -79,7 +79,7 @@ testFees('Test fees', function () {
         try {
             await killPidWithAllChilds(testMaster.environment().l2NodePid, 9);
         } catch (err) {
-            console.log(`ignored error: ${err}`);
+            console.log(`ignored error: ${ err }`);
         }
 
         // TODO: imporove the waiting logic
@@ -114,7 +114,7 @@ testFees('Test fees', function () {
 
         const pathToMainLogs = await logsPath('server.log');
         mainLogs = await fs.open(pathToMainLogs, 'a');
-        console.log(`Writing server logs to ${pathToMainLogs}`);
+        console.log(`Writing server logs to ${ pathToMainLogs }`);
 
         mainNodeSpawner = new NodeSpawner(pathToHome, mainLogs, fileConfig, {
             enableConsensus,
@@ -212,7 +212,7 @@ testFees('Test fees', function () {
             );
         }
 
-        console.log(`Full report: \n\n${reports.join('\n\n')}`);
+        console.log(`Full report: \n\n${ reports.join('\n\n') }`);
     });
 
     test('Test gas consumption under large L1 gas price', async () => {
@@ -245,7 +245,7 @@ testFees('Test fees', function () {
 
         // Firstly, let's test a successful transaction.
         const largeData = ethers.randomBytes(90_000);
-        const tx = await l1Messenger.sendToL1(largeData, { type: 0 });
+        const tx = await l1Messenger.sendToL1(largeData, {type: 0});
         expect(tx.gasLimit > UINT32_MAX).toBeTruthy();
         const receipt = await tx.wait();
         expect(receipt.gasUsed > UINT32_MAX).toBeTruthy();
@@ -256,7 +256,7 @@ testFees('Test fees', function () {
         const systemContextGasPerPubdataByte = await systemContext.gasPerPubdataByte();
         expect(systemContextGasPerPubdataByte).toEqual(MAX_GAS_PER_PUBDATA);
 
-        const dataHash = await l1Messenger.sendToL1.staticCall(largeData, { type: 0 });
+        const dataHash = await l1Messenger.sendToL1.staticCall(largeData, {type: 0});
         expect(dataHash).toEqual(ethers.keccak256(largeData));
 
         // Secondly, let's test an unsuccessful transaction with large refund.
@@ -332,7 +332,7 @@ async function updateReport(
 
     const balanceBefore = await sender.getBalance();
     const transaction = await sender.sendTransaction(transactionRequest);
-    console.log(`Sending transaction: ${transaction.hash}`);
+    console.log(`Sending transaction: ${ transaction.hash }`);
     await transaction.wait();
     const balanceAfter = await sender.getBalance();
     const balanceDiff = balanceBefore - balanceAfter;
@@ -340,12 +340,12 @@ async function updateReport(
     const l2PriceAsNumber = +ethers.formatEther(balanceDiff);
     const l2EstimatedPriceAsNumber = +ethers.formatEther(estimatedPrice);
 
-    const gasReport = `Gas price ${newL1GasPrice / 1000000000n} gwei:
-    L1 cost ${expectedL1Price},
-    L2 estimated cost: ${l2EstimatedPriceAsNumber}
-    Estimated Gain: ${expectedL1Price / l2EstimatedPriceAsNumber}
-    L2 cost: ${l2PriceAsNumber},
-    Gain: ${expectedL1Price / l2PriceAsNumber}\n`;
+    const gasReport = `Gas price ${ newL1GasPrice / 1000000000n } gwei:
+    L1 cost ${ expectedL1Price },
+    L2 estimated cost: ${ l2EstimatedPriceAsNumber }
+    Estimated Gain: ${ expectedL1Price / l2EstimatedPriceAsNumber }
+    L2 cost: ${ l2PriceAsNumber },
+    Gain: ${ expectedL1Price / l2PriceAsNumber }\n`;
     console.log(gasReport);
 
     return oldReport + gasReport;
