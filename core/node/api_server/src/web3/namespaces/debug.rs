@@ -4,8 +4,8 @@ use zksync_multivm::interface::{Call, CallType, ExecutionResult, OneshotTracingP
 use zksync_system_constants::MAX_ENCODED_TX_SIZE;
 use zksync_types::{
     api::{
-        BlockId, BlockNumber, CallTracerResult, CallTracerResultWithNestedResult, DebugCall,
-        DebugCallType, ResultDebugCall, SupportedTracers, TracerConfig,
+        BlockId, BlockNumber, CallTracerBlockResult, CallTracerResult, DebugCall, DebugCallType,
+        ResultDebugCall, SupportedTracers, TracerConfig,
     },
     debug_flat_call::{Action, CallResult, DebugCallFlat},
     fee_model::BatchFeeInput,
@@ -146,21 +146,18 @@ impl DebugNamespace {
         });
 
         if !only_top_call {
-            call.calls
-                .into_iter()
-                .enumerate()
-                .for_each(|(number, call)| {
-                    trace_address.push(number);
-                    Self::map_flatten_call(
-                        call,
-                        calls,
-                        trace_address,
-                        false,
-                        transaction_position,
-                        transaction_hash,
-                    );
-                    trace_address.pop();
-                });
+            for (number, call) in call.calls.into_iter().enumerate() {
+                trace_address.push(number);
+                Self::map_flatten_call(
+                    call,
+                    calls,
+                    trace_address,
+                    false,
+                    transaction_position,
+                    transaction_hash,
+                );
+                trace_address.pop();
+            }
         }
     }
 
@@ -172,11 +169,11 @@ impl DebugNamespace {
         &self,
         block_id: BlockId,
         options: Option<TracerConfig>,
-    ) -> Result<Vec<CallTracerResultWithNestedResult>, Web3Error> {
+    ) -> Result<CallTracerBlockResult, Web3Error> {
         self.current_method().set_block_id(block_id);
         if matches!(block_id, BlockId::Number(BlockNumber::Pending)) {
             // See `EthNamespace::get_block_impl()` for an explanation why this check is needed.
-            return Ok(vec![]);
+            return Ok(CallTracerBlockResult::CallTrace(vec![]));
         }
 
         let mut connection = self.state.acquire_connection().await?;
@@ -191,22 +188,19 @@ impl DebugNamespace {
             .map_err(DalError::generalize)?;
 
         let mut calls = vec![];
+        let mut flat_calls = vec![];
         for (call_trace, hash, index) in call_traces {
             match Self::map_call(call_trace, index, hash, options) {
-                CallTracerResult::CallTrace(call) => calls.push(
-                    CallTracerResultWithNestedResult::CallTrace(ResultDebugCall { result: call }),
-                ),
-                CallTracerResult::FlattCallTrace(call) => calls.append(
-                    &mut call
-                        .into_iter()
-                        .map(Box::new)
-                        .map(CallTracerResultWithNestedResult::FlatCallTrace)
-                        .collect(),
-                ),
+                CallTracerResult::CallTrace(call) => calls.push(ResultDebugCall { result: call }),
+                CallTracerResult::FlattCallTrace(mut call) => flat_calls.append(&mut call),
             }
         }
 
-        Ok(calls)
+        if calls.is_empty() && !flat_calls.is_empty() {
+            Ok(CallTracerBlockResult::FlatCallTrace(flat_calls))
+        } else {
+            Ok(CallTracerBlockResult::CallTrace(calls))
+        }
     }
 
     pub async fn debug_trace_transaction_impl(

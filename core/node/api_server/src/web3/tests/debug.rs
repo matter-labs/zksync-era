@@ -3,8 +3,7 @@
 use zksync_multivm::interface::{Call, TransactionExecutionResult};
 use zksync_types::{
     api::{
-        CallTracerConfig, CallTracerResult, CallTracerResultWithNestedResult, ResultDebugCall,
-        SupportedTracers, TracerConfig,
+        CallTracerBlockResult, CallTracerConfig, CallTracerResult, SupportedTracers, TracerConfig,
     },
     BOOTLOADER_ADDRESS,
 };
@@ -66,12 +65,12 @@ impl HttpTest for TraceBlockTest {
                 api::BlockId::Hash(hash) => client.trace_block_by_hash(hash, None).await?,
             };
 
+            let CallTracerBlockResult::CallTrace(block_traces) = block_traces else {
+                unreachable!()
+            };
             assert_eq!(block_traces.len(), tx_results.len()); // equals to the number of transactions in the block
             for (trace, tx_result) in block_traces.iter().zip(&tx_results) {
-                let CallTracerResultWithNestedResult::CallTrace(ResultDebugCall { result }) = trace
-                else {
-                    unreachable!()
-                };
+                let result = &trace.result;
                 assert_eq!(result.from, Address::zero());
                 assert_eq!(result.to, BOOTLOADER_ADDRESS);
                 assert_eq!(result.gas, tx_result.transaction.gas_limit());
@@ -143,6 +142,10 @@ impl HttpTest for TraceBlockFlatTest {
                     )
                     .await?;
 
+                let CallTracerBlockResult::FlatCallTrace(block_traces) = &block_traces else {
+                    unreachable!()
+                };
+
                 // A transaction with 2 nested calls will convert into 3 Flattened calls.
                 // Also in this test, all tx have the same # of nested calls
                 assert_eq!(
@@ -150,22 +153,12 @@ impl HttpTest for TraceBlockFlatTest {
                     tx_results.len() * (tx_results[0].call_traces.len() + 1)
                 );
 
-                let CallTracerResultWithNestedResult::FlatCallTrace(block_traces_0) =
-                    &block_traces[0]
-                else {
-                    unreachable!()
-                };
-                let CallTracerResultWithNestedResult::FlatCallTrace(block_traces_1) =
-                    &block_traces[1]
-                else {
-                    unreachable!()
-                };
                 // First tx has 2 nested calls, thus 2 sub-traces
-                assert_eq!(block_traces_0.subtraces, 2);
-                assert_eq!(block_traces_0.traceaddress, [0]);
+                assert_eq!(block_traces[0].subtraces, 2);
+                assert_eq!(block_traces[0].traceaddress, [0]);
                 // Second flat-call (fist nested call) do not have nested calls
-                assert_eq!(block_traces_1.subtraces, 0);
-                assert_eq!(block_traces_1.traceaddress, [0, 0]);
+                assert_eq!(block_traces[1].subtraces, 0);
+                assert_eq!(block_traces[1].traceaddress, [0, 0]);
 
                 let top_level_call_indexes = [0, 3, 6];
                 let top_level_traces = top_level_call_indexes
@@ -173,11 +166,6 @@ impl HttpTest for TraceBlockFlatTest {
                     .map(|&i| block_traces[i].clone());
 
                 for (top_level_trace, tx_result) in top_level_traces.zip(&tx_results) {
-                    let CallTracerResultWithNestedResult::FlatCallTrace(top_level_trace) =
-                        top_level_trace
-                    else {
-                        unreachable!()
-                    };
                     assert_eq!(top_level_trace.action.from, Address::zero());
                     assert_eq!(top_level_trace.action.to, BOOTLOADER_ADDRESS);
                     assert_eq!(

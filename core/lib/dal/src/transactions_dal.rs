@@ -19,9 +19,10 @@ use zksync_vm_interface::{
     Call, TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus,
 };
 
-use crate::models::storage_transaction::parse_call_trace;
 use crate::{
-    models::storage_transaction::{serialize_call_into_bytes, CallTrace, StorageTransaction},
+    models::storage_transaction::{
+        parse_call_trace, serialize_call_into_bytes, StorageTransaction,
+    },
     Core, CoreDal,
 };
 

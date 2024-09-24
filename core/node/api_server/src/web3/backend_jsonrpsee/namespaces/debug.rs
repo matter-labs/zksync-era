@@ -1,5 +1,5 @@
 use zksync_types::{
-    api::{BlockId, BlockNumber, CallTracerResult, CallTracerResultWithNestedResult, TracerConfig},
+    api::{BlockId, BlockNumber, CallTracerBlockResult, CallTracerResult, TracerConfig},
     transaction_request::CallRequest,
     H256,
 };
@@ -16,7 +16,7 @@ impl DebugNamespaceServer for DebugNamespace {
         &self,
         block: BlockNumber,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Vec<CallTracerResultWithNestedResult>> {
+    ) -> RpcResult<CallTracerBlockResult> {
         self.debug_trace_block_impl(BlockId::Number(block), options)
             .await
             .map_err(|err| self.current_method().map_err(err))
@@ -26,7 +26,7 @@ impl DebugNamespaceServer for DebugNamespace {
         &self,
         hash: H256,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Vec<CallTracerResultWithNestedResult>> {
+    ) -> RpcResult<CallTracerBlockResult> {
         self.debug_trace_block_impl(BlockId::Hash(hash), options)
             .await
             .map_err(|err| self.current_method().map_err(err))

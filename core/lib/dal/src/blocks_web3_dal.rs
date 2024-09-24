@@ -554,8 +554,8 @@ impl BlocksWeb3Dal<'_, '_> {
             CallTrace,
             r#"
             SELECT
-                transactions.hash as tx_hash,
-                transactions.index_in_block as tx_index_in_block,
+                transactions.hash AS tx_hash,
+                transactions.index_in_block AS tx_index_in_block,
                 call_trace
             FROM
                 call_traces

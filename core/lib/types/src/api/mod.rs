@@ -737,9 +737,9 @@ pub enum BlockStatus {
 /// structs 1 for blocks tracing and one for txs and call tracing
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
-pub enum CallTracerResultWithNestedResult {
-    CallTrace(ResultDebugCall),
-    FlatCallTrace(Box<DebugCallFlat>),
+pub enum CallTracerBlockResult {
+    CallTrace(Vec<ResultDebugCall>),
+    FlatCallTrace(Vec<DebugCallFlat>),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
