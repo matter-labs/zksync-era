@@ -708,7 +708,6 @@ impl BlocksDal<'_, '_> {
                     gas_per_pubdata_limit,
                     bootloader_code_hash,
                     default_aa_code_hash,
-                    evm_simulator_code_hash,
                     protocol_version,
                     virtual_blocks,
                     fair_pubdata_price,
@@ -736,7 +735,6 @@ impl BlocksDal<'_, '_> {
                     $15,
                     $16,
                     $17,
-                    $18,
                     NOW(),
                     NOW()
                 )
@@ -759,10 +757,6 @@ impl BlocksDal<'_, '_> {
                 .base_system_contracts_hashes
                 .default_aa
                 .as_bytes(),
-            l2_block_header
-                .base_system_contracts_hashes
-                .evm_simulator
-                .as_bytes(),
             l2_block_header.protocol_version.map(|v| v as i32),
             i64::from(l2_block_header.virtual_blocks),
             l2_block_header.batch_fee_input.fair_pubdata_price() as i64,
@@ -779,26 +773,27 @@ impl BlocksDal<'_, '_> {
             StorageL2BlockHeader,
             r#"
             SELECT
-                number,
-                timestamp,
-                hash,
-                l1_tx_count,
-                l2_tx_count,
+                miniblocks.number,
+                miniblocks.timestamp,
+                miniblocks.hash,
+                miniblocks.l1_tx_count,
+                miniblocks.l2_tx_count,
                 fee_account_address AS "fee_account_address!",
-                base_fee_per_gas,
-                l1_gas_price,
-                l2_fair_gas_price,
-                gas_per_pubdata_limit,
-                bootloader_code_hash,
-                default_aa_code_hash,
-                evm_simulator_code_hash,
-                protocol_version,
-                virtual_blocks,
-                fair_pubdata_price,
-                gas_limit,
-                logs_bloom
+                miniblocks.base_fee_per_gas,
+                miniblocks.l1_gas_price,
+                miniblocks.l2_fair_gas_price,
+                miniblocks.gas_per_pubdata_limit,
+                miniblocks.bootloader_code_hash,
+                miniblocks.default_aa_code_hash,
+                l1_batches.evm_simulator_code_hash,
+                miniblocks.protocol_version,
+                miniblocks.virtual_blocks,
+                miniblocks.fair_pubdata_price,
+                miniblocks.gas_limit,
+                miniblocks.logs_bloom
             FROM
                 miniblocks
+                INNER JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
             ORDER BY
                 number DESC
             LIMIT
@@ -820,28 +815,29 @@ impl BlocksDal<'_, '_> {
             StorageL2BlockHeader,
             r#"
             SELECT
-                number,
-                timestamp,
-                hash,
-                l1_tx_count,
-                l2_tx_count,
+                miniblocks.number,
+                miniblocks.timestamp,
+                miniblocks.hash,
+                miniblocks.l1_tx_count,
+                miniblocks.l2_tx_count,
                 fee_account_address AS "fee_account_address!",
-                base_fee_per_gas,
-                l1_gas_price,
-                l2_fair_gas_price,
-                gas_per_pubdata_limit,
-                bootloader_code_hash,
-                default_aa_code_hash,
-                evm_simulator_code_hash,
-                protocol_version,
-                virtual_blocks,
-                fair_pubdata_price,
-                gas_limit,
-                logs_bloom
+                miniblocks.base_fee_per_gas,
+                miniblocks.l1_gas_price,
+                miniblocks.l2_fair_gas_price,
+                miniblocks.gas_per_pubdata_limit,
+                miniblocks.bootloader_code_hash,
+                miniblocks.default_aa_code_hash,
+                l1_batches.evm_simulator_code_hash,
+                miniblocks.protocol_version,
+                miniblocks.virtual_blocks,
+                miniblocks.fair_pubdata_price,
+                miniblocks.gas_limit,
+                miniblocks.logs_bloom
             FROM
                 miniblocks
+                INNER JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
             WHERE
-                number = $1
+                miniblocks.number = $1
             "#,
             i64::from(l2_block_number.0),
         )

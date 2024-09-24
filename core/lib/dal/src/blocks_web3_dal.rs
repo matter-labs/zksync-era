@@ -663,7 +663,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 miniblocks.fair_pubdata_price,
                 miniblocks.bootloader_code_hash,
                 miniblocks.default_aa_code_hash,
-                miniblocks.evm_simulator_code_hash,
+                l1_batches.evm_simulator_code_hash,
                 miniblocks.protocol_version,
                 miniblocks.fee_account_address
             FROM
