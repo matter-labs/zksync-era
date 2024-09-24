@@ -179,7 +179,7 @@ fn fmt_file(shell: &Shell, file_path: &str, check: bool) -> Result<()> {
                 is_inside_query = false;
                 let ended_with_comma = built_query.trim_end().ends_with(',');
                 modified_file
-                    .push_str(&format_rust_string_query(&built_query, is_raw_string)?.trim_end());
+                    .push_str(format_rust_string_query(&built_query, is_raw_string)?.trim_end());
                 if ended_with_comma {
                     modified_file.push(',');
                 }
