@@ -13,6 +13,8 @@ use crate::{
     },
 };
 
+use super::sql_fmt::format_sql;
+
 async fn prettier(shell: Shell, target: Target, check: bool) -> anyhow::Result<()> {
     let spinner = Spinner::new(&msg_running_fmt_for_extension_spinner(target));
     let files = get_unignored_files(&shell, &target)?;
@@ -59,6 +61,7 @@ async fn run_all_rust_formatters(
     check: bool,
     link_to_code: PathBuf,
 ) -> anyhow::Result<()> {
+    format_sql(shell.clone(), check).await?;
     rustfmt(shell.clone(), check, link_to_code).await?;
     Ok(())
 }
