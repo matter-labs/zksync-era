@@ -29,3 +29,4 @@ futures.workspace = true
 types.workspace = true
 serde_yaml.workspace = true
 zksync_basic_types.workspace = true
+sqlformat = "0.2.6"
