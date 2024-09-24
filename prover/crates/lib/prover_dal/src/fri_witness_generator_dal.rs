@@ -76,7 +76,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
     /// The blobs arrive from core via prover gateway, as pubdata, this method loads the blobs.
     pub async fn get_next_basic_circuit_witness_job(
         &mut self,
-        last_l1_batch_to_process: u32,
         protocol_version: ProtocolSemanticVersion,
         picked_by: &str,
     ) -> Option<L1BatchNumber> {
@@ -88,7 +87,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW(),
-                picked_by = $3
+                picked_by = $2
             WHERE
                 l1_batch_number = (
                     SELECT
@@ -96,10 +95,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     FROM
                         witness_inputs_fri
                     WHERE
-                        l1_batch_number <= $1
-                        AND status = 'queued'
-                        AND protocol_version = $2
-                        AND protocol_version_patch = $4
+                        status = 'queued'
+                        AND protocol_version = $1
+                        AND protocol_version_patch = $3
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -110,7 +108,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
             RETURNING
                 witness_inputs_fri.l1_batch_number
             "#,
-            i64::from(last_l1_batch_to_process),
             protocol_version.minor as i32,
             picked_by,
             protocol_version.patch.0 as i32,

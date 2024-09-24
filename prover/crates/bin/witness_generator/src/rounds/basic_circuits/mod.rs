@@ -4,13 +4,13 @@ use async_trait::async_trait;
 use circuit_definitions::zkevm_circuits::scheduler::{
     block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
 };
-use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_multivm::circuit_sequencer_api_latest::boojum::{
     field::goldilocks::{GoldilocksExt2, GoldilocksField},
     gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
 };
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_fri_types::get_current_pod_name;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_types::{
@@ -24,7 +24,6 @@ use crate::{
 };
 
 mod artifacts;
-pub mod job_processor;
 mod utils;
 
 #[derive(Clone)]
@@ -45,15 +44,6 @@ pub struct BasicWitnessGeneratorJob {
     pub(super) data: WitnessInputData,
 }
 
-#[derive(Debug)]
-pub struct BasicWitnessGenerator {
-    config: Arc<FriWitnessGeneratorConfig>,
-    object_store: Arc<dyn ObjectStore>,
-    public_blob_store: Option<Arc<dyn ObjectStore>>,
-    prover_connection_pool: ConnectionPool<Prover>,
-    protocol_version: ProtocolSemanticVersion,
-}
-
 type Witness = (
     Vec<(u8, String)>,
     Vec<(u8, String, usize)>,
@@ -65,26 +55,10 @@ type Witness = (
     BlockAuxilaryOutputWitness<GoldilocksField>,
 );
 
-impl BasicWitnessGenerator {
-    pub fn new(
-        config: FriWitnessGeneratorConfig,
-        object_store: Arc<dyn ObjectStore>,
-        public_blob_store: Option<Arc<dyn ObjectStore>>,
-        prover_connection_pool: ConnectionPool<Prover>,
-        protocol_version: ProtocolSemanticVersion,
-    ) -> Self {
-        Self {
-            config: Arc::new(config),
-            object_store,
-            public_blob_store,
-            prover_connection_pool,
-            protocol_version,
-        }
-    }
-}
+pub struct BasicCircuits;
 
 #[async_trait]
-impl JobManager for BasicWitnessGenerator {
+impl JobManager for BasicCircuits {
     type Job = BasicWitnessGeneratorJob;
     type Metadata = L1BatchNumber;
 
@@ -142,9 +116,21 @@ impl JobManager for BasicWitnessGenerator {
     }
 
     async fn get_metadata(
-        _connection_pool: ConnectionPool<Prover>,
-        _protocol_version: ProtocolSemanticVersion,
+        connection_pool: ConnectionPool<Prover>,
+        protocol_version: ProtocolSemanticVersion,
     ) -> anyhow::Result<Option<(u32, Self::Metadata)>> {
-        todo!()
+        let pod_name = get_current_pod_name();
+        if let Some(l1_batch_number) = connection_pool
+            .connection()
+            .await
+            .unwrap()
+            .fri_witness_generator_dal()
+            .get_next_basic_circuit_witness_job(protocol_version, &pod_name)
+            .await
+        {
+            Ok(Some((l1_batch_number.0, l1_batch_number)))
+        } else {
+            Ok(None)
+        }
     }
 }

@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
@@ -26,6 +26,8 @@ pub trait ArtifactsManager {
         job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
+        shall_save_to_public_bucket: bool,
+        public_blob_store: Option<Arc<dyn ObjectStore>>,
     ) -> Self::BlobUrls;
 
     async fn save_to_database(

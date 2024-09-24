@@ -22,8 +22,7 @@ use zksync_vlog::prometheus::PrometheusExporterConfig;
 use zksync_witness_generator::{
     metrics::SERVER_METRICS,
     rounds::{
-        BasicWitnessGenerator, LeafAggregation, NodeAggregation, RecursionTip, Scheduler,
-        WitnessGenerator,
+        BasicCircuits, LeafAggregation, NodeAggregation, RecursionTip, Scheduler, WitnessGenerator,
     },
 };
 
@@ -192,27 +191,29 @@ async fn main() -> anyhow::Result<()> {
             &protocol_version
         );
 
+        let public_blob_store = match config.shall_save_to_public_bucket {
+            false => None,
+            true => Some(
+                ObjectStoreFactory::new(
+                    prover_config
+                        .public_object_store
+                        .clone()
+                        .expect("public_object_store"),
+                )
+                .create_store()
+                .await?,
+            ),
+        };
+
         let witness_generator_task = match round {
             AggregationRound::BasicCircuits => {
-                let public_blob_store = match config.shall_save_to_public_bucket {
-                    false => None,
-                    true => Some(
-                        ObjectStoreFactory::new(
-                            prover_config
-                                .public_object_store
-                                .clone()
-                                .expect("public_object_store"),
-                        )
-                        .create_store()
-                        .await?,
-                    ),
-                };
-                let generator = BasicWitnessGenerator::new(
+                let generator = WitnessGenerator::<BasicCircuits>::new(
                     config.clone(),
                     store_factory.create_store().await?,
                     public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
+                    keystore.clone(),
                 );
                 generator.run(stop_receiver.clone(), opt.batch_size)
             }
@@ -220,6 +221,7 @@ async fn main() -> anyhow::Result<()> {
                 let generator = WitnessGenerator::<LeafAggregation>::new(
                     config.clone(),
                     store_factory.create_store().await?,
+                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
@@ -230,6 +232,7 @@ async fn main() -> anyhow::Result<()> {
                 let generator = WitnessGenerator::<NodeAggregation>::new(
                     config.clone(),
                     store_factory.create_store().await?,
+                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
@@ -240,6 +243,7 @@ async fn main() -> anyhow::Result<()> {
                 let generator = WitnessGenerator::<RecursionTip>::new(
                     config.clone(),
                     store_factory.create_store().await?,
+                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),
@@ -250,6 +254,7 @@ async fn main() -> anyhow::Result<()> {
                 let generator = WitnessGenerator::<Scheduler>::new(
                     config.clone(),
                     store_factory.create_store().await?,
+                    public_blob_store,
                     connection_pool.clone(),
                     protocol_version,
                     keystore.clone(),

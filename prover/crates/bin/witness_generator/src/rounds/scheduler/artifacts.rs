@@ -32,6 +32,8 @@ impl ArtifactsManager for Scheduler {
         job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
+        _shall_save_to_public_bucket: bool,
+        _public_blob_store: Option<std::sync::Arc<dyn ObjectStore>>,
     ) -> String {
         let key = FriCircuitKey {
             block_number: L1BatchNumber(job_id),
