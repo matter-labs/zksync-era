@@ -148,11 +148,7 @@ where
         started_at: Instant,
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
-        tracing::info!(
-            "Saving {:?} artifacts for job {:?}",
-            R::ROUND.to_string(),
-            job_id
-        );
+        tracing::info!("Saving {:?} artifacts for job {:?}", R::ROUND, job_id);
 
         let blob_save_started_at = Instant::now();
 
@@ -168,11 +164,7 @@ where
         WITNESS_GENERATOR_METRICS.blob_save_time[&R::ROUND.into()]
             .observe(blob_save_started_at.elapsed());
 
-        tracing::info!(
-            "Saved {:?} artifacts for job {:?}",
-            R::ROUND.to_string(),
-            job_id
-        );
+        tracing::info!("Saved {:?} artifacts for job {:?}", R::ROUND, job_id);
         R::save_to_database(
             &self.connection_pool,
             job_id,
