@@ -65,7 +65,7 @@ impl JobManager for Scheduler {
     type Job = SchedulerWitnessGeneratorJob;
     type Metadata = SchedulerWitnessJobMetadata;
 
-    const ROUND: &'static str = "scheduler";
+    const ROUND: AggregationRound = AggregationRound::Scheduler;
     const SERVICE_NAME: &'static str = "fri_scheduler_witness_generator";
 
     #[tracing::instrument(

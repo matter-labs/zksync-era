@@ -62,7 +62,7 @@ impl JobManager for NodeAggregation {
     type Job = NodeAggregationWitnessGeneratorJob;
     type Metadata = NodeAggregationJobMetadata;
 
-    const ROUND: &'static str = "node_aggregation";
+    const ROUND: AggregationRound = AggregationRound::NodeAggregation;
     const SERVICE_NAME: &'static str = "fri_node_aggregation_witness_generator";
 
     #[tracing::instrument(

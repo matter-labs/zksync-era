@@ -32,7 +32,7 @@ pub trait JobManager: ArtifactsManager {
     type Job: Send + 'static;
     type Metadata: Send + 'static;
 
-    const ROUND: &'static str;
+    const ROUND: AggregationRound;
     const SERVICE_NAME: &'static str;
 
     async fn process_job(
@@ -121,7 +121,7 @@ where
             .await
             .unwrap()
             .fri_witness_generator_dal()
-            .mark_witness_job_failed(&error, job_id, AggregationRound::from(R::ROUND))
+            .mark_witness_job_failed(&error, job_id, R::ROUND)
             .await;
     }
 
@@ -145,16 +145,24 @@ where
         started_at: Instant,
         artifacts: Self::JobArtifacts,
     ) -> anyhow::Result<()> {
-        tracing::info!("Saving {:?} artifacts for job {:?}", R::ROUND, job_id);
+        tracing::info!(
+            "Saving {:?} artifacts for job {:?}",
+            R::ROUND.to_string(),
+            job_id
+        );
 
         let blob_save_started_at = Instant::now();
 
         let blob_urls = R::save_to_bucket(job_id, artifacts.clone(), &*self.object_store).await;
 
-        WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::from(R::ROUND).into()]
+        WITNESS_GENERATOR_METRICS.blob_save_time[&R::ROUND.into()]
             .observe(blob_save_started_at.elapsed());
 
-        tracing::info!("Saved {:?} artifacts for job {:?}", R::ROUND, job_id);
+        tracing::info!(
+            "Saved {:?} artifacts for job {:?}",
+            R::ROUND.to_string(),
+            job_id
+        );
         R::save_to_database(
             &self.connection_pool,
             job_id,
@@ -171,16 +179,18 @@ where
     }
 
     async fn get_job_attempts(&self, job_id: &Self::JobId) -> anyhow::Result<u32> {
-        let mut prover_storage = self
-            .connection_pool
-            .connection()
-            .await
-            .context(format!("failed to acquire DB connection for {}", R::ROUND))?;
+        let mut prover_storage = self.connection_pool.connection().await.context(format!(
+            "failed to acquire DB connection for {}",
+            R::ROUND.to_string()
+        ))?;
         prover_storage
             .fri_witness_generator_dal()
-            .get_witness_job_attempts(*job_id, AggregationRound::from(R::ROUND))
+            .get_witness_job_attempts(*job_id, R::ROUND)
             .await
             .map(|attempts| attempts.unwrap_or(0))
-            .context(format!("failed to get job attempts for {}", R::ROUND))
+            .context(format!(
+                "failed to get job attempts for {}",
+                R::ROUND.to_string()
+            ))
     }
 }

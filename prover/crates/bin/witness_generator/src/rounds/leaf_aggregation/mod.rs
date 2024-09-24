@@ -67,7 +67,7 @@ impl JobManager for LeafAggregation {
     type Job = LeafAggregationWitnessGeneratorJob;
     type Metadata = LeafAggregationJobMetadata;
 
-    const ROUND: &'static str = "leaf_aggregation";
+    const ROUND: AggregationRound = AggregationRound::LeafAggregation;
     const SERVICE_NAME: &'static str = "fri_leaf_aggregation_witness_generator";
 
     #[tracing::instrument(

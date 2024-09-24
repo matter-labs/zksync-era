@@ -88,7 +88,7 @@ impl JobManager for BasicWitnessGenerator {
     type Job = BasicWitnessGeneratorJob;
     type Metadata = L1BatchNumber;
 
-    const ROUND: &'static str = "basic_circuits";
+    const ROUND: AggregationRound = AggregationRound::BasicCircuits;
     const SERVICE_NAME: &'static str = "fri_basic_circuit_witness_generator";
 
     async fn process_job(

@@ -78,7 +78,7 @@ impl JobManager for RecursionTip {
     type Job = RecursionTipWitnessGeneratorJob;
     type Metadata = RecursionTipJobMetadata;
 
-    const ROUND: &'static str = "recursion_tip";
+    const ROUND: AggregationRound = AggregationRound::RecursionTip;
     const SERVICE_NAME: &'static str = "recursion_tip_witness_generator";
 
     #[tracing::instrument(

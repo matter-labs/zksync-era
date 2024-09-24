@@ -134,19 +134,6 @@ impl From<u8> for AggregationRound {
     }
 }
 
-impl From<&str> for AggregationRound {
-    fn from(round: &str) -> Self {
-        match round {
-            "basic_circuits" => AggregationRound::BasicCircuits,
-            "leaf_aggregation" => AggregationRound::LeafAggregation,
-            "node_aggregation" => AggregationRound::NodeAggregation,
-            "recursion_tip" => AggregationRound::RecursionTip,
-            "scheduler" => AggregationRound::Scheduler,
-            _ => panic!("Wrong round detected {round:?}"),
-        }
-    }
-}
-
 impl AggregationRound {
     pub const ALL_ROUNDS: [AggregationRound; 5] = [
         AggregationRound::BasicCircuits,
