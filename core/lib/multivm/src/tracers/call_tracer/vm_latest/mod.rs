@@ -193,7 +193,6 @@ impl CallTracer {
             .farcall
             .parent_gas
             .saturating_sub(state.vm_local_state.callstack.current.ergs_remaining as u64);
-
         self.save_output_latest(state, memory, ret_opcode, &mut current_call.farcall);
 
         // If there is a parent call, push the current call to it
