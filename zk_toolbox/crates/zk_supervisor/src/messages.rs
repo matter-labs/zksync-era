@@ -197,6 +197,17 @@ pub(super) const MSG_LINT_CONFIG_PATH_ERR: &str = "Lint config path error";
 pub(super) const MSG_RUNNING_CONTRACTS_LINTER_SPINNER: &str = "Running contracts linter..";
 pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for contracts..";
 
+pub(super) const MSG_RUNNING_SQL_FMT_SPINNER: &str = "Running SQL formatter..";
+pub(super) const MSG_FAILED_TO_FIND_END_OF_REGULAR_STRING_QUERY: &str =
+    "Failed to find the end of the regular string query";
+pub(super) const MSG_FAILED_TO_FIND_START_OF_REGULAR_STRING_QUERY: &str =
+    "Failed to find the start of the regular string query";
+pub(super) const MSG_FAILED_TO_DETERMINE_BASE_INDENT: &str = "Failed to determine base indent";
+
+pub(super) fn msg_file_is_not_formatted(file: &str) -> String {
+    format!("File {} is not formatted", file)
+}
+
 // Test wallets related messages
 pub(super) const MSG_TEST_WALLETS_INFO: &str = "Print test wallets information";
 pub(super) const MSG_DESERIALIZE_TEST_WALLETS_ERR: &str = "Impossible to deserialize test wallets";

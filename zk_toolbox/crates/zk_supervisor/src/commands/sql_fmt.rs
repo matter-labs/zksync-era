@@ -3,6 +3,12 @@ use common::spinner::Spinner;
 use regex::Regex;
 use xshell::Shell;
 
+use crate::messages::{
+    msg_file_is_not_formatted, MSG_FAILED_TO_DETERMINE_BASE_INDENT,
+    MSG_FAILED_TO_FIND_END_OF_REGULAR_STRING_QUERY,
+    MSG_FAILED_TO_FIND_START_OF_REGULAR_STRING_QUERY, MSG_RUNNING_SQL_FMT_SPINNER,
+};
+
 use super::lint_utils::{get_unignored_files, IgnoredData, Target};
 
 fn format_query(query: &str) -> anyhow::Result<String> {
@@ -54,9 +60,9 @@ fn extract_query_from_rust_string(query: &str, is_raw: bool) -> String {
     }
     // Removing quotes
     if !is_raw {
-        query = query[1..query.len() - 1].to_string(); // normal string
+        query = query[1..query.len() - 1].to_string();
     } else {
-        query = query[3..query.len() - 2].to_string(); // raw string
+        query = query[3..query.len() - 2].to_string();
     }
 
     // Remove all escape characters
@@ -91,29 +97,28 @@ fn format_one_line_query(line: &str) -> anyhow::Result<String> {
     let is_raw_string = line.contains("sqlx::query!(r");
 
     let query_start = if is_raw_string {
-        line.find(r#"r#""#).context(format!(
-            "Failed to find the start of the raw string query: {line}"
-        ))?
+        line.find(r#"r#""#)
+            .context(MSG_FAILED_TO_FIND_START_OF_REGULAR_STRING_QUERY)?
     } else {
         line.find('"')
-            .context("Failed to find the start of the regular string query")?
+            .context(MSG_FAILED_TO_FIND_START_OF_REGULAR_STRING_QUERY)?
     };
 
     let base_indent = line
         .find(|c: char| !c.is_whitespace())
-        .context("Failed to determine base indent")?
+        .context(MSG_FAILED_TO_DETERMINE_BASE_INDENT)?
         + 4;
 
     let prefix = &line[..query_start];
 
     let query_end = if is_raw_string {
         line.find(r#""#)
-            .context("Failed to find the end of the raw string query")?
+            .context(MSG_FAILED_TO_FIND_END_OF_REGULAR_STRING_QUERY)?
             + 2
     } else {
         line[1..]
             .find('"')
-            .context("Failed to find the end of the regular string query")?
+            .context(MSG_FAILED_TO_FIND_END_OF_REGULAR_STRING_QUERY)?
             + 3
     };
 
@@ -193,7 +198,7 @@ fn fmt_file(shell: &Shell, file_path: &str, check: bool) -> Result<()> {
 
     if content != modified_file {
         if check {
-            bail!("File {} is not formatted", file_path);
+            bail!(msg_file_is_not_formatted(file_path));
         } else {
             shell.write_file(file_path, &modified_file)?;
         }
@@ -203,7 +208,7 @@ fn fmt_file(shell: &Shell, file_path: &str, check: bool) -> Result<()> {
 }
 
 pub async fn format_sql(shell: Shell, check: bool) -> anyhow::Result<()> {
-    let spinner = Spinner::new("Running SQL formatter");
+    let spinner = Spinner::new(MSG_RUNNING_SQL_FMT_SPINNER);
     let ignored_data = Some(IgnoredData {
         files: vec![],
         dirs: vec!["zk_toolbox".to_string()],
