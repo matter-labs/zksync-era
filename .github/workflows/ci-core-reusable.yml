@@ -60,6 +60,10 @@ jobs:
           ci_run ./bin/zkt
           ci_run zk_supervisor contracts
 
+      # FIXME: enable contract tests once tehy are stable
+      #- name: Contracts unit tests
+      #  run: ci_run yarn l1-contracts test
+
       - name: Rust unit tests
         run: |
           ci_run zk_supervisor test rust
