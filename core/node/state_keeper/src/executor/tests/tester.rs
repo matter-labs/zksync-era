@@ -35,7 +35,7 @@ use zksync_types::{
     StorageLog, Transaction, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
-use zksync_vm_executor::batch::MainBatchExecutorFactory;
+use zksync_vm_executor::batch::{MainBatchExecutorFactory, TraceCalls};
 
 use super::{read_storage_factory::RocksdbStorageFactory, StorageType};
 use crate::{
@@ -49,7 +49,7 @@ use crate::{
 /// Has sensible defaults for most tests, each of which can be overridden.
 #[derive(Debug)]
 pub(super) struct TestConfig {
-    pub(super) save_call_traces: bool,
+    pub(super) trace_calls: bool,
     pub(super) vm_gas_limit: Option<u32>,
     pub(super) validation_computational_gas_limit: u32,
     pub(super) fast_vm_mode: FastVmMode,
@@ -60,8 +60,8 @@ impl TestConfig {
         let config = StateKeeperConfig::for_tests();
 
         Self {
+            trace_calls: false,
             vm_gas_limit: None,
-            save_call_traces: false,
             validation_computational_gas_limit: config.validation_computational_gas_limit,
             fast_vm_mode,
         }
@@ -149,16 +149,21 @@ impl Tester {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
     ) -> Box<dyn BatchExecutor<OwnedStorage>> {
-        let mut batch_executor = MainBatchExecutorFactory::new(self.config.save_call_traces, false);
-        batch_executor.set_fast_vm_mode(self.config.fast_vm_mode);
-
         let (_stop_sender, stop_receiver) = watch::channel(false);
         let storage = storage_factory
             .access_storage(&stop_receiver, l1_batch_env.number - 1)
             .await
             .expect("failed creating VM storage")
             .unwrap();
-        batch_executor.init_batch(storage, l1_batch_env, system_env)
+        if self.config.trace_calls {
+            let mut executor = MainBatchExecutorFactory::<TraceCalls>::new(false);
+            executor.set_fast_vm_mode(self.config.fast_vm_mode);
+            executor.init_batch(storage, l1_batch_env, system_env)
+        } else {
+            let mut executor = MainBatchExecutorFactory::<()>::new(false);
+            executor.set_fast_vm_mode(self.config.fast_vm_mode);
+            executor.init_batch(storage, l1_batch_env, system_env)
+        }
     }
 
     pub(super) async fn recover_batch_executor(
@@ -319,6 +324,9 @@ pub trait AccountLoadNextExecutable {
     /// Returns a valid `execute` transaction.
     /// Automatically increments nonce of the account.
     fn execute(&mut self) -> Transaction;
+    /// Returns an `execute` transaction with custom factory deps (which aren't used in a transaction,
+    /// so they are mostly useful to test bytecode compression).
+    fn execute_with_factory_deps(&mut self, factory_deps: Vec<Vec<u8>>) -> Transaction;
     fn loadnext_custom_writes_call(
         &mut self,
         address: Address,
@@ -375,6 +383,18 @@ impl AccountLoadNextExecutable for Account {
     /// Automatically increments nonce of the account.
     fn execute(&mut self) -> Transaction {
         self.execute_with_gas_limit(1_000_000)
+    }
+
+    fn execute_with_factory_deps(&mut self, factory_deps: Vec<Vec<u8>>) -> Transaction {
+        self.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Some(Address::random()),
+                calldata: vec![],
+                value: Default::default(),
+                factory_deps,
+            },
+            Some(testonly::fee(30_000_000)),
+        )
     }
 
     /// Returns a transaction to the loadnext contract with custom amount of write requests.

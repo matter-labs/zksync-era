@@ -45,7 +45,9 @@ fn test_max_depth() {
     let result = Arc::new(OnceCell::new());
     let call_tracer = CallTracer::new(result.clone()).into_tracer_pointer();
     vm.vm.push_transaction(tx);
-    let res = vm.vm.inspect(call_tracer.into(), VmExecutionMode::OneTx);
+    let res = vm
+        .vm
+        .inspect(&mut call_tracer.into(), VmExecutionMode::OneTx);
     assert!(result.get().is_some());
     assert!(res.result.is_failed());
 }
@@ -80,7 +82,9 @@ fn test_basic_behavior() {
     let result = Arc::new(OnceCell::new());
     let call_tracer = CallTracer::new(result.clone()).into_tracer_pointer();
     vm.vm.push_transaction(tx);
-    let res = vm.vm.inspect(call_tracer.into(), VmExecutionMode::OneTx);
+    let res = vm
+        .vm
+        .inspect(&mut call_tracer.into(), VmExecutionMode::OneTx);
 
     let call_tracer_result = result.get().unwrap();
 
