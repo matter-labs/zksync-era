@@ -182,17 +182,14 @@ where
 
     async fn get_job_attempts(&self, job_id: &Self::JobId) -> anyhow::Result<u32> {
         let mut prover_storage = self.connection_pool.connection().await.context(format!(
-            "failed to acquire DB connection for {}",
-            R::ROUND.to_string()
+            "failed to acquire DB connection for {:?}",
+            R::ROUND
         ))?;
         prover_storage
             .fri_witness_generator_dal()
             .get_witness_job_attempts(*job_id, R::ROUND)
             .await
             .map(|attempts| attempts.unwrap_or(0))
-            .context(format!(
-                "failed to get job attempts for {}",
-                R::ROUND.to_string()
-            ))
+            .context(format!("failed to get job attempts for {:?}", R::ROUND))
     }
 }
