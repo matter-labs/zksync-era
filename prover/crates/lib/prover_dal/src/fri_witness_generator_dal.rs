@@ -1145,7 +1145,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         let attempts = sqlx::query(&query)
             .fetch_optional(self.storage.conn())
             .await?
-            .map(|row| row.get::<i64, _>("attempts") as u32);
+            .map(|row| row.get::<i16, &str>("attempts") as u32);
 
         Ok(attempts)
     }
