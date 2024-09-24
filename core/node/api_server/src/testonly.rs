@@ -1,5 +1,8 @@
 //! Test utils shared among multiple modules.
 
+use std::iter;
+
+use zk_evm_1_5_0::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
 use zksync_contracts::{
     get_loadnext_contract, load_contract, read_bytecode,
     test_contracts::LoadnextContractExecutionParams,
@@ -41,6 +44,15 @@ pub(crate) fn read_counter_contract_bytecode() -> Vec<u8> {
 
 pub(crate) fn read_infinite_loop_contract_bytecode() -> Vec<u8> {
     read_bytecode(INFINITE_LOOP_CONTRACT_PATH)
+}
+
+/// Inflates the provided bytecode by appending the specified amount of NOP instructions at the end.
+pub(crate) fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {
+    bytecode.extend(
+        iter::repeat(EncodingModeProduction::nop_encoding().to_be_bytes())
+            .take(nop_count)
+            .flatten(),
+    );
 }
 
 fn default_fee() -> Fee {
@@ -103,7 +115,11 @@ impl TestAccount for K256PrivateKey {
             0.into(),
             L2ChainId::default(),
             self,
-            get_loadnext_contract().factory_deps,
+            if params.deploys > 0 {
+                get_loadnext_contract().factory_deps
+            } else {
+                vec![]
+            },
             PaymasterParams::default(),
         )
         .unwrap()

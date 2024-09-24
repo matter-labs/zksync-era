@@ -24,7 +24,7 @@ use super::{gas_estimation::GasEstimator, *};
 use crate::{
     execution_sandbox::BlockStartInfo,
     testonly::{
-        read_counter_contract_bytecode, read_expensive_contract_bytecode,
+        inflate_bytecode, read_counter_contract_bytecode, read_expensive_contract_bytecode,
         read_infinite_loop_contract_bytecode, read_precompiles_contract_bytecode, TestAccount,
         COUNTER_CONTRACT_ADDRESS, EXPENSIVE_CONTRACT_ADDRESS, INFINITE_LOOP_CONTRACT_ADDRESS,
         LOAD_TEST_ADDRESS, PRECOMPILES_CONTRACT_ADDRESS,
@@ -298,7 +298,7 @@ const LOAD_TEST_CASES: TestCases<LoadnextContractExecutionParams> = test_casing:
         events: 0,
         ..LoadnextContractExecutionParams::default()
     },
-    // Deep recursion
+    // Moderately deep recursion (very deep recursion is tested separately)
     LoadnextContractExecutionParams {
         recursive_calls: 10,
         ..LoadnextContractExecutionParams::default()
@@ -331,6 +331,66 @@ async fn initial_estimate_for_load_test_transaction(tx_params: LoadnextContractE
     let tx = alice.create_load_test_tx(tx_params);
 
     test_initial_estimate(state_override, tx, DEFAULT_MULTIPLIER).await;
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn initial_estimate_for_deep_recursion(with_reads: bool) {
+    let alice = K256PrivateKey::random();
+    let load_test_state = HashMap::from([(H256::zero(), H256::from_low_u64_be(100))]);
+    let load_test_overrides = OverrideAccount {
+        code: Some(Bytecode::new(get_loadnext_contract().bytecode).unwrap()),
+        state: Some(OverrideState::State(load_test_state)),
+        ..OverrideAccount::default()
+    };
+    let state_override =
+        StateOverride::new(HashMap::from([(LOAD_TEST_ADDRESS, load_test_overrides)]));
+
+    // Reads are chosen because they represent the worst case. Reads don't influence the amount of pubdata;
+    // i.e., they don't make it easier to execute a transaction because of additional gas reserved for pubdata.
+    // OTOH, reads still increase the amount of computational gas used on each nested call.
+    //
+    // Initial pivot multipliers below are the smallest ones with 0.1 precision. `DEFAULT_MULTIPLIER` works for smaller
+    // recursion depths because the transaction emits enough pubdata to cover gas deductions due to the 63/64 rule.
+    let depths_and_multipliers: &[_] = if with_reads {
+        &[(25, DEFAULT_MULTIPLIER), (50, 1.2), (75, 1.4), (100, 1.7)]
+    } else {
+        &[
+            (50, DEFAULT_MULTIPLIER),
+            (75, 1.2),
+            (100, 1.4),
+            (125, 1.7),
+            (150, 2.1),
+        ]
+    };
+    for &(recursion_depth, multiplier) in depths_and_multipliers {
+        println!("Testing recursion depth {recursion_depth}");
+        let tx = alice.create_load_test_tx(LoadnextContractExecutionParams {
+            recursive_calls: recursion_depth,
+            reads: if with_reads { 10 } else { 0 },
+            ..LoadnextContractExecutionParams::empty()
+        });
+        test_initial_estimate(state_override.clone(), tx, multiplier).await;
+    }
+}
+
+#[tokio::test]
+async fn initial_estimate_for_deep_recursion_with_large_bytecode() {
+    let alice = K256PrivateKey::random();
+    let mut contract_bytecode = get_loadnext_contract().bytecode;
+    inflate_bytecode(&mut contract_bytecode, 50_000);
+    let load_test_overrides = OverrideAccount {
+        code: Some(Bytecode::new(contract_bytecode).unwrap()),
+        ..OverrideAccount::default()
+    };
+    let state_override =
+        StateOverride::new(HashMap::from([(LOAD_TEST_ADDRESS, load_test_overrides)]));
+    let tx = alice.create_load_test_tx(LoadnextContractExecutionParams {
+        recursive_calls: 100,
+        ..LoadnextContractExecutionParams::empty()
+    });
+
+    test_initial_estimate(state_override, tx, 1.35).await;
 }
 
 /// Tests the lower bound and initial pivot extracted from the initial estimate (one with effectively infinite gas amount).
@@ -465,6 +525,27 @@ async fn initial_estimate_for_code_oracle_tx() {
         new_decomitter_stats > decomitter_stats * 1.5,
         "old={decomitter_stats}, new={new_decomitter_stats}"
     );
+}
+
+#[tokio::test]
+async fn initial_estimate_with_large_free_bytecode() {
+    let alice = K256PrivateKey::random();
+    let mut contract_bytecode = read_precompiles_contract_bytecode();
+    inflate_bytecode(&mut contract_bytecode, 50_000);
+    let contract_bytecode_hash = hash_bytecode(&contract_bytecode);
+    let contract_keccak_hash = H256(keccak256(&contract_bytecode));
+    let contract_overrides = OverrideAccount {
+        code: Some(Bytecode::new(contract_bytecode).unwrap()),
+        ..OverrideAccount::default()
+    };
+
+    let state_override = StateOverride::new(HashMap::from([(
+        PRECOMPILES_CONTRACT_ADDRESS,
+        contract_overrides,
+    )]));
+    // Ask the test contract to decommit itself. This should refund the decommit costs, but it will be charged at first.
+    let tx = alice.create_code_oracle_tx(contract_bytecode_hash, contract_keccak_hash);
+    test_initial_estimate(state_override, tx, 1.05).await;
 }
 
 #[tokio::test]
