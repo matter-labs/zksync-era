@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE\n                protocol_versions\n            SET\n                upgrade_tx_hash = $1\n            WHERE\n                id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "137702c69220666ec5c1c4dc0fd0f58093cdfe21871592876b9a2a73ec8c1b10"
+}

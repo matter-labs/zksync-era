@@ -55,7 +55,7 @@ impl TeeVerifierInputProducerDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                tee_verifier_input_producer_jobs (l1_batch_number, STATUS, created_at, updated_at)
+                tee_verifier_input_producer_jobs (l1_batch_number, status, created_at, updated_at)
             VALUES
                 ($1, $2, NOW(), NOW()) ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
@@ -79,7 +79,7 @@ impl TeeVerifierInputProducerDal<'_, '_> {
             UPDATE
                 tee_verifier_input_producer_jobs
             SET
-                STATUS = $1,
+                status = $1,
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW()
@@ -90,13 +90,13 @@ impl TeeVerifierInputProducerDal<'_, '_> {
                     FROM
                         tee_verifier_input_producer_jobs
                     WHERE
-                        STATUS = $2
+                        status = $2
                         OR (
-                            STATUS = $1
+                            status = $1
                             AND processing_started_at < NOW() - $4 :: INTERVAL
                         )
                         OR (
-                            STATUS = $3
+                            status = $3
                             AND attempts < $5
                         )
                     ORDER BY
@@ -159,7 +159,7 @@ impl TeeVerifierInputProducerDal<'_, '_> {
             UPDATE
                 tee_verifier_input_producer_jobs
             SET
-                STATUS = $1,
+                status = $1,
                 updated_at = NOW(),
                 time_taken = $3,
                 input_blob_url = $4
@@ -191,13 +191,13 @@ impl TeeVerifierInputProducerDal<'_, '_> {
             UPDATE
                 tee_verifier_input_producer_jobs
             SET
-                STATUS = $1,
+                status = $1,
                 updated_at = NOW(),
                 time_taken = $3,
                 error = $4
             WHERE
                 l1_batch_number = $2
-                AND STATUS != $5
+                AND status != $5
             RETURNING
                 tee_verifier_input_producer_jobs.attempts
             "#,

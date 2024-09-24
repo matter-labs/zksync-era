@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE\n                miniblocks\n            SET\n                protocol_version = $1\n            WHERE\n                number BETWEEN $2 AND $3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4c80d74f23341a08320f50f2e923fb92c099f0b71ecfabd33325cfd107f2fecf"
+}

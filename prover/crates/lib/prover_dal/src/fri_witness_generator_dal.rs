@@ -53,7 +53,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     l1_batch_number,
                     witness_inputs_blob_url,
                     protocol_version,
-                    STATUS,
+                    status,
                     created_at,
                     updated_at,
                     protocol_version_patch
@@ -84,7 +84,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 witness_inputs_fri
             SET
-                STATUS = 'in_progress',
+                status = 'in_progress',
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW(),
@@ -97,7 +97,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         witness_inputs_fri
                     WHERE
                         l1_batch_number <= $1
-                        AND STATUS = 'queued'
+                        AND status = 'queued'
                         AND protocol_version = $2
                         AND protocol_version_patch = $4
                     ORDER BY
@@ -153,11 +153,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 witness_inputs_fri
             SET
-                STATUS = $1,
+                status = $1,
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $2
-                AND STATUS != 'successful'
+                AND status != 'successful'
             "#,
             status.to_string(),
             i64::from(block_number.0)
@@ -177,7 +177,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 witness_inputs_fri
             SET
-                STATUS = 'successful',
+                status = 'successful',
                 updated_at = NOW(),
                 time_taken = $1
             WHERE
@@ -197,12 +197,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 witness_inputs_fri
             SET
-                STATUS = 'failed',
+                status = 'failed',
                 error = $1,
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $2
-                AND STATUS != 'successful'
+                AND status != 'successful'
             "#,
             error,
             i64::from(block_number.0)
@@ -218,12 +218,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 leaf_aggregation_witness_jobs_fri
             SET
-                STATUS = 'failed',
+                status = 'failed',
                 error = $1,
                 updated_at = NOW()
             WHERE
                 id = $2
-                AND STATUS != 'successful'
+                AND status != 'successful'
             "#,
             error,
             i64::from(id)
@@ -239,7 +239,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 leaf_aggregation_witness_jobs_fri
             SET
-                STATUS = 'successful',
+                status = 'successful',
                 updated_at = NOW(),
                 time_taken = $1
             WHERE
@@ -264,22 +264,22 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 witness_inputs_fri
             SET
-                STATUS = 'queued',
+                status = 'queued',
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
                 (
-                    STATUS = 'in_progress'
+                    status = 'in_progress'
                     AND processing_started_at <= NOW() - $1 :: INTERVAL
                     AND attempts < $2
                 )
                 OR (
-                    STATUS = 'failed'
+                    status = 'failed'
                     AND attempts < $2
                 )
             RETURNING
                 l1_batch_number,
-                STATUS,
+                status,
                 attempts,
                 error,
                 picked_by
@@ -333,7 +333,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                             closed_form_inputs_blob_url,
                             number_of_basic_circuits,
                             protocol_version,
-                            STATUS,
+                            status,
                             created_at,
                             updated_at,
                             protocol_version_patch
@@ -381,7 +381,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 INSERT INTO
                     recursion_tip_witness_jobs_fri (
                         l1_batch_number,
-                        STATUS,
+                        status,
                         number_of_final_node_jobs,
                         protocol_version,
                         created_at,
@@ -418,7 +418,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         l1_batch_number,
                         scheduler_partial_input_blob_url,
                         protocol_version,
-                        STATUS,
+                        status,
                         created_at,
                         updated_at,
                         protocol_version_patch
@@ -460,7 +460,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 leaf_aggregation_witness_jobs_fri
             SET
-                STATUS = 'in_progress',
+                status = 'in_progress',
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW(),
@@ -472,7 +472,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     FROM
                         leaf_aggregation_witness_jobs_fri
                     WHERE
-                        STATUS = 'queued'
+                        status = 'queued'
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
@@ -552,7 +552,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 AND circuit_id = $2
                 AND aggregation_round = $3
                 AND depth = $4
-                AND STATUS = 'successful'
+                AND status = 'successful'
             ORDER BY
                 sequence_number ASC;
             "#,
@@ -575,7 +575,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 leaf_aggregation_witness_jobs_fri
             SET
-                STATUS = 'queued'
+                status = 'queued'
             WHERE
                 (l1_batch_number, circuit_id) IN (
                     SELECT
@@ -651,7 +651,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 node_aggregation_witness_jobs_fri
             SET
-                STATUS = 'in_progress',
+                status = 'in_progress',
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW(),
@@ -663,7 +663,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     FROM
                         node_aggregation_witness_jobs_fri
                     WHERE
-                        STATUS = 'queued'
+                        status = 'queued'
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
@@ -736,12 +736,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 node_aggregation_witness_jobs_fri
             SET
-                STATUS = 'failed',
+                status = 'failed',
                 error = $1,
                 updated_at = NOW()
             WHERE
                 id = $2
-                AND STATUS != 'successful'
+                AND status != 'successful'
             "#,
             error,
             i64::from(id)
@@ -757,7 +757,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 node_aggregation_witness_jobs_fri
             SET
-                STATUS = 'successful',
+                status = 'successful',
                 updated_at = NOW(),
                 time_taken = $1
             WHERE
@@ -790,7 +790,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     aggregations_url,
                     number_of_dependent_jobs,
                     protocol_version,
-                    STATUS,
+                    status,
                     created_at,
                     updated_at,
                     protocol_version_patch
@@ -831,7 +831,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 node_aggregation_witness_jobs_fri
             SET
-                STATUS = 'queued'
+                status = 'queued'
             WHERE
                 (l1_batch_number, circuit_id, depth) IN (
                     SELECT
@@ -876,7 +876,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 node_aggregation_witness_jobs_fri
             SET
-                STATUS = 'queued'
+                status = 'queued'
             WHERE
                 (l1_batch_number, circuit_id, depth) IN (
                     SELECT
@@ -920,7 +920,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 recursion_tip_witness_jobs_fri
             SET
-                STATUS = 'queued'
+                status = 'queued'
             WHERE
                 l1_batch_number IN (
                     SELECT
@@ -958,7 +958,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 scheduler_witness_jobs_fri
             SET
-                STATUS = 'queued'
+                status = 'queued'
             WHERE
                 l1_batch_number IN (
                     SELECT
@@ -995,22 +995,22 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 leaf_aggregation_witness_jobs_fri
             SET
-                STATUS = 'queued',
+                status = 'queued',
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
                 (
-                    STATUS = 'in_progress'
+                    status = 'in_progress'
                     AND processing_started_at <= NOW() - $1 :: INTERVAL
                     AND attempts < $2
                 )
                 OR (
-                    STATUS = 'failed'
+                    status = 'failed'
                     AND attempts < $2
                 )
             RETURNING
                 id,
-                STATUS,
+                status,
                 attempts,
                 circuit_id,
                 error,
@@ -1045,22 +1045,22 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 node_aggregation_witness_jobs_fri
             SET
-                STATUS = 'queued',
+                status = 'queued',
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
                 (
-                    STATUS = 'in_progress'
+                    status = 'in_progress'
                     AND processing_started_at <= NOW() - $1 :: INTERVAL
                     AND attempts < $2
                 )
                 OR (
-                    STATUS = 'failed'
+                    status = 'failed'
                     AND attempts < $2
                 )
             RETURNING
                 id,
-                STATUS,
+                status,
                 attempts,
                 circuit_id,
                 error,
@@ -1095,22 +1095,22 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 recursion_tip_witness_jobs_fri
             SET
-                STATUS = 'queued',
+                status = 'queued',
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
                 (
-                    STATUS = 'in_progress'
+                    status = 'in_progress'
                     AND processing_started_at <= NOW() - $1 :: INTERVAL
                     AND attempts < $2
                 )
                 OR (
-                    STATUS = 'failed'
+                    status = 'failed'
                     AND attempts < $2
                 )
             RETURNING
                 l1_batch_number,
-                STATUS,
+                status,
                 attempts,
                 error,
                 picked_by
@@ -1143,7 +1143,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 recursion_tip_witness_jobs_fri
             SET
-                STATUS = 'in_progress',
+                status = 'in_progress',
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW(),
@@ -1155,7 +1155,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     FROM
                         recursion_tip_witness_jobs_fri
                     WHERE
-                        STATUS = 'queued'
+                        status = 'queued'
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
@@ -1190,11 +1190,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 scheduler_witness_jobs_fri
             SET
-                STATUS = 'queued'
+                status = 'queued'
             WHERE
                 l1_batch_number = $1
-                AND STATUS != 'successful'
-                AND STATUS != 'in_progress'
+                AND status != 'successful'
+                AND status != 'in_progress'
             "#,
             l1_batch_number
         )
@@ -1214,22 +1214,22 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 scheduler_witness_jobs_fri
             SET
-                STATUS = 'queued',
+                status = 'queued',
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
                 (
-                    STATUS = 'in_progress'
+                    status = 'in_progress'
                     AND processing_started_at <= NOW() - $1 :: INTERVAL
                     AND attempts < $2
                 )
                 OR (
-                    STATUS = 'failed'
+                    status = 'failed'
                     AND attempts < $2
                 )
             RETURNING
                 l1_batch_number,
-                STATUS,
+                status,
                 attempts,
                 error,
                 picked_by
@@ -1262,7 +1262,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 scheduler_witness_jobs_fri
             SET
-                STATUS = 'in_progress',
+                status = 'in_progress',
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW(),
@@ -1274,7 +1274,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     FROM
                         scheduler_witness_jobs_fri
                     WHERE
-                        STATUS = 'queued'
+                        status = 'queued'
                         AND protocol_version = $1
                         AND protocol_version_patch = $3
                     ORDER BY
@@ -1351,7 +1351,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 recursion_tip_witness_jobs_fri
             SET
-                STATUS = 'successful',
+                status = 'successful',
                 updated_at = NOW(),
                 time_taken = $1
             WHERE
@@ -1375,7 +1375,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 scheduler_witness_jobs_fri
             SET
-                STATUS = 'successful',
+                status = 'successful',
                 updated_at = NOW(),
                 time_taken = $1
             WHERE
@@ -1399,12 +1399,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 recursion_tip_witness_jobs_fri
             SET
-                STATUS = 'failed',
+                status = 'failed',
                 error = $1,
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $2
-                AND STATUS != 'successful'
+                AND status != 'successful'
             "#,
             error,
             l1_batch_number.0 as i64
@@ -1420,12 +1420,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 scheduler_witness_jobs_fri
             SET
-                STATUS = 'failed',
+                status = 'failed',
                 error = $1,
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $2
-                AND STATUS != 'successful'
+                AND status != 'successful'
             "#,
             error,
             i64::from(block_number.0)
@@ -1774,19 +1774,19 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 witness_inputs_fri
             SET
-                STATUS = 'queued',
+                status = 'queued',
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
                 l1_batch_number = $1
                 AND attempts >= $2
                 AND (
-                    STATUS = 'in_progress'
-                    OR STATUS = 'failed'
+                    status = 'in_progress'
+                    OR status = 'failed'
                 )
             RETURNING
                 l1_batch_number,
-                STATUS,
+                status,
                 attempts,
                 error,
                 picked_by
@@ -1845,19 +1845,19 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 recursion_tip_witness_jobs_fri
             SET
-                STATUS = 'queued',
+                status = 'queued',
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
                 l1_batch_number = $1
                 AND attempts >= $2
                 AND (
-                    STATUS = 'in_progress'
-                    OR STATUS = 'failed'
+                    status = 'in_progress'
+                    OR status = 'failed'
                 )
             RETURNING
                 l1_batch_number,
-                STATUS,
+                status,
                 attempts,
                 error,
                 picked_by
@@ -1890,19 +1890,19 @@ impl FriWitnessGeneratorDal<'_, '_> {
             UPDATE
                 scheduler_witness_jobs_fri
             SET
-                STATUS = 'queued',
+                status = 'queued',
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
                 l1_batch_number = $1
                 AND attempts >= $2
                 AND (
-                    STATUS = 'in_progress'
-                    OR STATUS = 'failed'
+                    status = 'in_progress'
+                    OR status = 'failed'
                 )
             RETURNING
                 l1_batch_number,
-                STATUS,
+                status,
                 attempts,
                 error,
                 picked_by

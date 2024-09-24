@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM\n                gpu_prover_queue_fri\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "ca219864909a8b41ea5d4438235d24b3f001a2d4ea0da817e69f3816d43ce73b"
+}

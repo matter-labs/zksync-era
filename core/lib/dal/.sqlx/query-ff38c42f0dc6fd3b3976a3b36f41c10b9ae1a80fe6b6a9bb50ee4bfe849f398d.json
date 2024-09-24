@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                contract_verification_requests (\n                    contract_address,\n                    source_code,\n                    contract_name,\n                    zk_compiler_version,\n                    compiler_version,\n                    optimization_used,\n                    optimizer_mode,\n                    constructor_arguments,\n                    is_system,\n                    force_evmla,\n                    status,\n                    created_at,\n                    updated_at\n                )\n            VALUES\n                (\n                    $1,\n                    $2,\n                    $3,\n                    $4,\n                    $5,\n                    $6,\n                    $7,\n                    $8,\n                    $9,\n                    $10,\n                    'queued',\n                    NOW(),\n                    NOW()\n                )\n            RETURNING\n                id\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Bytea",
+        "Bool",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ff38c42f0dc6fd3b3976a3b36f41c10b9ae1a80fe6b6a9bb50ee4bfe849f398d"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                proof_compression_jobs_fri (\n                    l1_batch_number,\n                    status,\n                    created_at,\n                    updated_at\n                )\n            VALUES\n                ($1, $2, NOW(), NOW()) ON CONFLICT (l1_batch_number) DO\n            UPDATE\n            SET\n                status = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "34dfb800784c52812cdeb5ecbf08bea9465ef0f5732df44d1d50f792d5a4aef5"
+}

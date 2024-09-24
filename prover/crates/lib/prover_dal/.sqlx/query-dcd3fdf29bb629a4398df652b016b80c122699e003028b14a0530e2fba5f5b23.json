@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                prover_fri_protocol_versions (\n                    id,\n                    snark_wrapper_vk_hash,\n                    created_at,\n                    protocol_version_patch\n                )\n            VALUES\n                ($1, $2, NOW(), $3) ON CONFLICT (id, protocol_version_patch) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Bytea",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "dcd3fdf29bb629a4398df652b016b80c122699e003028b14a0530e2fba5f5b23"
+}

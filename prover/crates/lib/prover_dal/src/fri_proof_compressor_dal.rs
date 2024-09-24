@@ -30,7 +30,7 @@ impl FriProofCompressorDal<'_, '_> {
                 proof_compression_jobs_fri (
                     l1_batch_number,
                     fri_proof_blob_url,
-                    STATUS,
+                    status,
                     created_at,
                     updated_at,
                     protocol_version,
@@ -60,7 +60,7 @@ impl FriProofCompressorDal<'_, '_> {
             UPDATE
                 proof_compression_jobs_fri
             SET
-                STATUS = $1,
+                status = $1,
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW(),
@@ -72,7 +72,7 @@ impl FriProofCompressorDal<'_, '_> {
                     FROM
                         proof_compression_jobs_fri
                     WHERE
-                        STATUS = $2
+                        status = $2
                         AND protocol_version = $4
                         AND protocol_version_patch = $5
                     ORDER BY
@@ -130,7 +130,7 @@ impl FriProofCompressorDal<'_, '_> {
             UPDATE
                 proof_compression_jobs_fri
             SET
-                STATUS = $1,
+                status = $1,
                 updated_at = NOW(),
                 time_taken = $2,
                 l1_proof_blob_url = $3
@@ -157,13 +157,13 @@ impl FriProofCompressorDal<'_, '_> {
             UPDATE
                 proof_compression_jobs_fri
             SET
-                STATUS = $1,
+                status = $1,
                 error = $2,
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $3
-                AND STATUS != $4
-                AND STATUS != $5
+                AND status != $4
+                AND status != $5
             "#,
             ProofCompressionJobStatus::Failed.to_string(),
             error,
@@ -187,7 +187,7 @@ impl FriProofCompressorDal<'_, '_> {
             r#"
             SELECT
                 l1_batch_number,
-                STATUS,
+                status,
                 protocol_version,
                 protocol_version_patch
             FROM
@@ -199,8 +199,8 @@ impl FriProofCompressorDal<'_, '_> {
                     FROM
                         proof_compression_jobs_fri
                     WHERE
-                        STATUS = $1
-                        OR STATUS = $2
+                        status = $1
+                        OR status = $2
                 )
             "#,
             ProofCompressionJobStatus::Successful.to_string(),
@@ -228,7 +228,7 @@ impl FriProofCompressorDal<'_, '_> {
             UPDATE
                 proof_compression_jobs_fri
             SET
-                STATUS = $1,
+                status = $1,
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $2
@@ -249,11 +249,11 @@ impl FriProofCompressorDal<'_, '_> {
                 protocol_version_patch,
                 COUNT(*) FILTER (
                     WHERE
-                        STATUS = 'queued'
+                        status = 'queued'
                 ) AS queued,
                 COUNT(*) FILTER (
                     WHERE
-                        STATUS = 'in_progress'
+                        status = 'in_progress'
                 ) AS in_progress
             FROM
                 proof_compression_jobs_fri
@@ -290,8 +290,8 @@ impl FriProofCompressorDal<'_, '_> {
             FROM
                 proof_compression_jobs_fri
             WHERE
-                STATUS <> 'successful'
-                AND STATUS <> 'sent_to_server'
+                status <> 'successful'
+                AND status <> 'sent_to_server'
             ORDER BY
                 l1_batch_number ASC
             LIMIT
@@ -318,22 +318,22 @@ impl FriProofCompressorDal<'_, '_> {
                 UPDATE
                     proof_compression_jobs_fri
                 SET
-                    STATUS = 'queued',
+                    status = 'queued',
                     updated_at = NOW(),
                     processing_started_at = NOW()
                 WHERE
                     (
-                        STATUS = 'in_progress'
+                        status = 'in_progress'
                         AND processing_started_at <= NOW() - $1 :: INTERVAL
                         AND attempts < $2
                     )
                     OR (
-                        STATUS = 'failed'
+                        status = 'failed'
                         AND attempts < $2
                     )
                 RETURNING
                     l1_batch_number,
-                    STATUS,
+                    status,
                     attempts,
                     error,
                     picked_by
@@ -429,7 +429,7 @@ impl FriProofCompressorDal<'_, '_> {
                 UPDATE
                     proof_compression_jobs_fri
                 SET
-                    STATUS = 'queued',
+                    status = 'queued',
                     error = 'Manually requeued',
                     attempts = 2,
                     updated_at = NOW(),
@@ -438,11 +438,11 @@ impl FriProofCompressorDal<'_, '_> {
                     l1_batch_number = $1
                     AND attempts >= $2
                     AND (
-                        STATUS = 'in_progress'
-                        OR STATUS = 'failed'
+                        status = 'in_progress'
+                        OR status = 'failed'
                     )
                 RETURNING
-                    STATUS,
+                    status,
                     attempts,
                     error,
                     picked_by

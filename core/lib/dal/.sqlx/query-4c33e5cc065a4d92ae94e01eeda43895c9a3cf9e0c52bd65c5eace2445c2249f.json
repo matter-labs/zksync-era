@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE\n                transactions\n            SET\n                error = $1,\n                updated_at = NOW()\n            WHERE\n                hash = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Bytea"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4c33e5cc065a4d92ae94e01eeda43895c9a3cf9e0c52bd65c5eace2445c2249f"
+}

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                DISTINCT hashed_key\n            FROM\n                storage_logs\n            WHERE\n                miniblock_number BETWEEN $1 AND $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hashed_key",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3d19e75e0e224679c3f30e67a2a53ff4b3462b42ca731963eca0e46997527ae3"
+}

@@ -64,7 +64,9 @@ impl SnapshotsCreatorDal<'_, '_> {
                 (
                     SELECT
                         hashed_key,
-                        MAX(ARRAY [miniblock_number, operation_number] :: INT []) AS op
+                        MAX(
+                            ARRAY [miniblock_number, operation_number] :: INT []
+                        ) AS op
                     FROM
                         storage_logs
                     WHERE
@@ -130,7 +132,9 @@ impl SnapshotsCreatorDal<'_, '_> {
                 (
                     SELECT
                         hashed_key,
-                        MAX(ARRAY [miniblock_number, operation_number] :: INT []) AS op
+                        MAX(
+                            ARRAY [miniblock_number, operation_number] :: INT []
+                        ) AS op
                     FROM
                         storage_logs
                     WHERE

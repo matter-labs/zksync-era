@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE\n                contract_verification_requests\n            SET\n                status = 'successful',\n                updated_at = NOW()\n            WHERE\n                id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4694e5534f7d2a3b9a49d097ec659d96738d6bccaa175362cc554eddb3b26262"
+}

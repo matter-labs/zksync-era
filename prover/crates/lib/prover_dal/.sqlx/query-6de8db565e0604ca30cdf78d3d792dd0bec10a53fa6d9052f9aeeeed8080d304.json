@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM\n                proof_compression_jobs_fri\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "6de8db565e0604ca30cdf78d3d792dd0bec10a53fa6d9052f9aeeeed8080d304"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                l1_batches_consensus (\n                    l1_batch_number,\n                    certificate,\n                    updated_at,\n                    created_at\n                )\n            VALUES\n                ($1, $2, NOW(), NOW())\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3099a2329d130d003bc781f5dcd2db755007951ab826147a7d5d001f12b991c6"
+}

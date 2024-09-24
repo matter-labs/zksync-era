@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                SELECT\n                    MIN(l1_batch_number) AS \"l1_batch_number!\",\n                    circuit_id,\n                    aggregation_round\n                FROM\n                    prover_jobs_fri\n                WHERE\n                    status IN (\n                        'queued',\n                        'in_gpu_proof',\n                        'in_progress',\n                        'failed'\n                    )\n                GROUP BY\n                    circuit_id,\n                    aggregation_round\n                ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number!",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "circuit_id",
+        "type_info": "Int2"
+      },
+      {
+        "ordinal": 2,
+        "name": "aggregation_round",
+        "type_info": "Int2"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      false,
+      false
+    ]
+  },
+  "hash": "8abfb4b84de35e8e336d59389ca978649e228eecbbbf959a1e3b87c08faa60de"
+}

@@ -52,7 +52,7 @@ impl ContractVerificationDal<'_, '_> {
             FROM
                 contract_verification_requests
             WHERE
-                STATUS = 'queued'
+                status = 'queued'
             "#
         )
         .fetch_one(self.storage.conn())
@@ -78,7 +78,7 @@ impl ContractVerificationDal<'_, '_> {
                     constructor_arguments,
                     is_system,
                     force_evmla,
-                    STATUS,
+                    status,
                     created_at,
                     updated_at
                 )
@@ -137,7 +137,7 @@ impl ContractVerificationDal<'_, '_> {
             UPDATE
                 contract_verification_requests
             SET
-                STATUS = 'in_progress',
+                status = 'in_progress',
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW()
@@ -148,9 +148,9 @@ impl ContractVerificationDal<'_, '_> {
                     FROM
                         contract_verification_requests
                     WHERE
-                        STATUS = 'queued'
+                        status = 'queued'
                         OR (
-                            STATUS = 'in_progress'
+                            status = 'in_progress'
                             AND processing_started_at < NOW() - $1 :: INTERVAL
                         )
                     ORDER BY
@@ -197,7 +197,7 @@ impl ContractVerificationDal<'_, '_> {
             UPDATE
                 contract_verification_requests
             SET
-                STATUS = 'successful',
+                status = 'successful',
                 updated_at = NOW()
             WHERE
                 id = $1
@@ -243,7 +243,7 @@ impl ContractVerificationDal<'_, '_> {
             UPDATE
                 contract_verification_requests
             SET
-                STATUS = 'failed',
+                status = 'failed',
                 updated_at = NOW(),
                 error = $2,
                 compilation_errors = $3,
@@ -268,7 +268,7 @@ impl ContractVerificationDal<'_, '_> {
         let Some(row) = sqlx::query!(
             r#"
             SELECT
-                STATUS,
+                status,
                 error,
                 compilation_errors
             FROM
@@ -505,7 +505,7 @@ impl ContractVerificationDal<'_, '_> {
             FROM
                 contract_verification_requests
             WHERE
-                STATUS = 'successful'
+                status = 'successful'
             ORDER BY
                 id
             "#,

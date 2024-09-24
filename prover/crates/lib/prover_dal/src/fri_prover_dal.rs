@@ -71,7 +71,7 @@ impl FriProverDal<'_, '_> {
             UPDATE
                 prover_jobs_fri
             SET
-                STATUS = 'in_progress',
+                status = 'in_progress',
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW(),
@@ -83,7 +83,7 @@ impl FriProverDal<'_, '_> {
                     FROM
                         prover_jobs_fri
                     WHERE
-                        STATUS = 'queued'
+                        status = 'queued'
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
@@ -134,7 +134,7 @@ impl FriProverDal<'_, '_> {
             UPDATE
                 prover_jobs_fri
             SET
-                STATUS = 'in_progress',
+                status = 'in_progress',
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW(),
@@ -146,7 +146,7 @@ impl FriProverDal<'_, '_> {
                     FROM
                         prover_jobs_fri
                     WHERE
-                        STATUS = 'queued'
+                        status = 'queued'
                         AND protocol_version = $1
                         AND protocol_version_patch = $2
                     ORDER BY
@@ -205,7 +205,7 @@ impl FriProverDal<'_, '_> {
             UPDATE
                 prover_jobs_fri
             SET
-                STATUS = 'in_progress',
+                status = 'in_progress',
                 attempts = attempts + 1,
                 processing_started_at = NOW(),
                 updated_at = NOW(),
@@ -284,12 +284,12 @@ impl FriProverDal<'_, '_> {
                 UPDATE
                     prover_jobs_fri
                 SET
-                    STATUS = 'failed',
+                    status = 'failed',
                     error = $1,
                     updated_at = NOW()
                 WHERE
                     id = $2
-                    AND STATUS != 'successful'
+                    AND status != 'successful'
                 "#,
                 error,
                 i64::from(id)
@@ -330,7 +330,7 @@ impl FriProverDal<'_, '_> {
             UPDATE
                 prover_jobs_fri
             SET
-                STATUS = 'successful',
+                status = 'successful',
                 updated_at = NOW(),
                 time_taken = $1,
                 proof_blob_url = $2
@@ -380,7 +380,7 @@ impl FriProverDal<'_, '_> {
                 UPDATE
                     prover_jobs_fri
                 SET
-                    STATUS = 'queued',
+                    status = 'queued',
                     updated_at = NOW(),
                     processing_started_at = NOW()
                 WHERE
@@ -391,12 +391,12 @@ impl FriProverDal<'_, '_> {
                             prover_jobs_fri
                         WHERE
                             (
-                                STATUS IN ('in_progress', 'in_gpu_proof')
+                                status IN ('in_progress', 'in_gpu_proof')
                                 AND processing_started_at <= NOW() - $1 :: INTERVAL
                                 AND attempts < $2
                             )
                             OR (
-                                STATUS = 'failed'
+                                status = 'failed'
                                 AND attempts < $2
                             ) FOR
                         UPDATE
@@ -404,7 +404,7 @@ impl FriProverDal<'_, '_> {
                     )
                 RETURNING
                     id,
-                    STATUS,
+                    status,
                     attempts,
                     circuit_id,
                     error,
@@ -453,7 +453,7 @@ impl FriProverDal<'_, '_> {
                     depth,
                     is_node_final_proof,
                     protocol_version,
-                    STATUS,
+                    status,
                     created_at,
                     updated_at,
                     protocol_version_patch
@@ -506,21 +506,21 @@ impl FriProverDal<'_, '_> {
                     COUNT(*) AS "count!",
                     circuit_id AS "circuit_id!",
                     aggregation_round AS "aggregation_round!",
-                    STATUS AS "status!",
+                    status AS "status!",
                     protocol_version AS "protocol_version!",
                     protocol_version_patch AS "protocol_version_patch!"
                 FROM
                     prover_jobs_fri
                 WHERE
                     (
-                        STATUS = 'queued'
-                        OR STATUS = 'in_progress'
+                        status = 'queued'
+                        OR status = 'in_progress'
                     )
                     AND protocol_version IS NOT NULL
                 GROUP BY
                     circuit_id,
                     aggregation_round,
-                    STATUS,
+                    status,
                     protocol_version,
                     protocol_version_patch
                 "#
@@ -554,16 +554,16 @@ impl FriProverDal<'_, '_> {
                     protocol_version_patch AS "protocol_version_patch!",
                     COUNT(*) FILTER (
                         WHERE
-                            STATUS = 'queued'
+                            status = 'queued'
                     ) AS queued,
                     COUNT(*) FILTER (
                         WHERE
-                            STATUS = 'in_progress'
+                            status = 'in_progress'
                     ) AS in_progress
                 FROM
                     prover_jobs_fri
                 WHERE
-                    STATUS IN ('queued', 'in_progress')
+                    status IN ('queued', 'in_progress')
                     AND protocol_version IS NOT NULL
                 GROUP BY
                     protocol_version,
@@ -601,7 +601,7 @@ impl FriProverDal<'_, '_> {
                 FROM
                     prover_jobs_fri
                 WHERE
-                    STATUS IN (
+                    status IN (
                         'queued',
                         'in_gpu_proof',
                         'in_progress',
@@ -632,11 +632,11 @@ impl FriProverDal<'_, '_> {
             UPDATE
                 prover_jobs_fri
             SET
-                STATUS = $1,
+                status = $1,
                 updated_at = NOW()
             WHERE
                 id = $2
-                AND STATUS != 'successful'
+                AND status != 'successful'
             "#,
             status,
             i64::from(id)
@@ -658,7 +658,7 @@ impl FriProverDal<'_, '_> {
                 prover_jobs_fri
             WHERE
                 l1_batch_number = $1
-                AND STATUS = 'successful'
+                AND status = 'successful'
                 AND aggregation_round = $2
             "#,
             i64::from(l1_batch_number.0),
@@ -682,7 +682,7 @@ impl FriProverDal<'_, '_> {
                 prover_jobs_fri
             WHERE
                 l1_batch_number = $1
-                AND STATUS = 'successful'
+                AND status = 'successful'
                 AND aggregation_round = $2
             "#,
             l1_batch_number.0 as i64,
@@ -736,7 +736,7 @@ impl FriProverDal<'_, '_> {
             WHERE
                 l1_batch_number = $1
                 AND is_node_final_proof = TRUE
-                AND STATUS = 'successful'
+                AND status = 'successful'
             ORDER BY
                 circuit_id ASC
             "#,
@@ -848,7 +848,7 @@ impl FriProverDal<'_, '_> {
                 UPDATE
                     prover_jobs_fri
                 SET
-                    STATUS = 'queued',
+                    status = 'queued',
                     error = 'Manually requeued',
                     attempts = 2,
                     updated_at = NOW(),
@@ -857,12 +857,12 @@ impl FriProverDal<'_, '_> {
                     l1_batch_number = $1
                     AND attempts >= $2
                     AND (
-                        STATUS = 'in_progress'
-                        OR STATUS = 'failed'
+                        status = 'in_progress'
+                        OR status = 'failed'
                     )
                 RETURNING
                     id,
-                    STATUS,
+                    status,
                     attempts,
                     circuit_id,
                     error,

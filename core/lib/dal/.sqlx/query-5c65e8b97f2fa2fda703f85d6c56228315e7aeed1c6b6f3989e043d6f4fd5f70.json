@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE\n                l1_batches\n            SET\n                protocol_version = $1\n            WHERE\n                number BETWEEN $2 AND $3\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5c65e8b97f2fa2fda703f85d6c56228315e7aeed1c6b6f3989e043d6f4fd5f70"
+}

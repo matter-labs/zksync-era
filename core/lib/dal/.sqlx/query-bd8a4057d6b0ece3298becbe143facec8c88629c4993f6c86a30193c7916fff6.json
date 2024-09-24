@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM\n                l1_batches_consensus\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "bd8a4057d6b0ece3298becbe143facec8c88629c4993f6c86a30193c7916fff6"
+}

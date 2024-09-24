@@ -44,7 +44,7 @@ impl TeeProofGenerationDal<'_, '_> {
             UPDATE
                 tee_proof_generation_details
             SET
-                STATUS = $1,
+                status = $1,
                 updated_at = NOW(),
                 prover_taken_at = NOW()
             WHERE
@@ -106,7 +106,7 @@ impl TeeProofGenerationDal<'_, '_> {
             UPDATE
                 tee_proof_generation_details
             SET
-                STATUS = $1,
+                status = $1,
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $2
@@ -140,7 +140,7 @@ impl TeeProofGenerationDal<'_, '_> {
                 tee_proof_generation_details
             SET
                 tee_type = $1,
-                STATUS = $2,
+                status = $2,
                 pubkey = $3,
                 signature = $4,
                 proof = $5,
@@ -189,7 +189,7 @@ impl TeeProofGenerationDal<'_, '_> {
                 tee_proof_generation_details (
                     l1_batch_number,
                     tee_type,
-                    STATUS,
+                    status,
                     created_at,
                     updated_at
                 )

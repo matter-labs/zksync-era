@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                proof_compression_jobs_fri (\n                    l1_batch_number,\n                    fri_proof_blob_url,\n                    status,\n                    created_at,\n                    updated_at,\n                    protocol_version,\n                    protocol_version_patch\n                )\n            VALUES\n                ($1, $2, $3, NOW(), NOW(), $4, $5) ON CONFLICT (l1_batch_number) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text",
+        "Text",
+        "Int4",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9cf70c7776934252d45cb23eec5c023375273c2211dab39e1f28d51724b7d8ad"
+}

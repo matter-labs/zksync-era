@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE\n                snapshot_recovery\n            SET\n                storage_logs_chunks_processed [$1] = TRUE,\n                updated_at = NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "14cd4cad9c69985b59cb924339297d1fef3dc39e95d98dbdfe49c9121e58ecf2"
+}

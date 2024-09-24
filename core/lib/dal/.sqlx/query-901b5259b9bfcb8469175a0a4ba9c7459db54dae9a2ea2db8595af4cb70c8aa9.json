@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM\n                transactions\n            WHERE\n                miniblock_number IS NULL\n                AND received_at < NOW() - $1 :: INTERVAL\n                AND is_priority = FALSE\n                AND error IS NULL\n            RETURNING\n                hash\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Interval"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "901b5259b9bfcb8469175a0a4ba9c7459db54dae9a2ea2db8595af4cb70c8aa9"
+}

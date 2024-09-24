@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n                proof_generation_details (l1_batch_number, status, created_at, updated_at)\n            VALUES\n                ($1, 'unpicked', NOW(), NOW()) ON CONFLICT (l1_batch_number) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "90e69db5fce86f7735b550d0f60b0116e8dc7ad2cff1a746a4f3191ceadef0f5"
+}

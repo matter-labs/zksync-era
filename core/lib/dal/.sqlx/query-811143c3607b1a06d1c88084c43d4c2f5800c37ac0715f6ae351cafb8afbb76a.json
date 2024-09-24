@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM\n                tee_verifier_input_producer_jobs\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "811143c3607b1a06d1c88084c43d4c2f5800c37ac0715f6ae351cafb8afbb76a"
+}

@@ -24,6 +24,7 @@ fn format_query(query: &str) -> anyhow::Result<String> {
         "VALUE",
         "DEPTH",
         "KEY",
+        "STATUS",
     ];
     for keyword in keywords {
         let regex = Regex::new(&format!(r"\b{}\b", keyword))?;

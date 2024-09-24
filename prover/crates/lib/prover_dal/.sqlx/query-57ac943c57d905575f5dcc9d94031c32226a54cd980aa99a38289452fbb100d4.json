@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM\n                prover_jobs_fri\n            WHERE\n                l1_batch_number = $1;\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "57ac943c57d905575f5dcc9d94031c32226a54cd980aa99a38289452fbb100d4"
+}

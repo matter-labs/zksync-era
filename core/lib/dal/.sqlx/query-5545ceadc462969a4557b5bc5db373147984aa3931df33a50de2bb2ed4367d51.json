@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM\n                compiler_versions\n            WHERE\n                compiler = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5545ceadc462969a4557b5bc5db373147984aa3931df33a50de2bb2ed4367d51"
+}

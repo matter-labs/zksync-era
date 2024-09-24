@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM\n                miniblocks\n            WHERE\n                number > $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0e9727e6537ef08e65b8868e7a22b3266e5e0140e6d04819be4a5997d193d1de"
+}
