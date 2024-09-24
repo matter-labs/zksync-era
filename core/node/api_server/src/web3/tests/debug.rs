@@ -150,12 +150,12 @@ impl HttpTest for TraceBlockFlatTest {
                     tx_results.len() * (tx_results[0].call_traces.len() + 1)
                 );
 
-                let CallTracerResultWithNestedResult::FlattCallTrace(block_traces_0) =
+                let CallTracerResultWithNestedResult::FlatCallTrace(block_traces_0) =
                     &block_traces[0]
                 else {
                     unreachable!()
                 };
-                let CallTracerResultWithNestedResult::FlattCallTrace(block_traces_1) =
+                let CallTracerResultWithNestedResult::FlatCallTrace(block_traces_1) =
                     &block_traces[1]
                 else {
                     unreachable!()
@@ -173,7 +173,7 @@ impl HttpTest for TraceBlockFlatTest {
                     .map(|&i| block_traces[i].clone());
 
                 for (top_level_trace, tx_result) in top_level_traces.zip(&tx_results) {
-                    let CallTracerResultWithNestedResult::FlattCallTrace(top_level_trace) =
+                    let CallTracerResultWithNestedResult::FlatCallTrace(top_level_trace) =
                         top_level_trace
                     else {
                         unreachable!()

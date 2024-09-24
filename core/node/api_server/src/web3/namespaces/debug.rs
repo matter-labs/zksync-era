@@ -200,7 +200,7 @@ impl DebugNamespace {
                     &mut call
                         .into_iter()
                         .map(Box::new)
-                        .map(CallTracerResultWithNestedResult::FlattCallTrace)
+                        .map(CallTracerResultWithNestedResult::FlatCallTrace)
                         .collect(),
                 ),
             }
@@ -220,8 +220,7 @@ impl DebugNamespace {
             .get_call_trace(tx_hash)
             .await
             .map_err(DalError::generalize)?;
-        Ok(call_trace
-            .map(|(call_trace, hash, index)| Self::map_call(call_trace, index, hash, options)))
+        Ok(call_trace.map(|call_trace| Self::map_call(call_trace, 0, tx_hash, options)))
     }
 
     pub async fn debug_trace_call_impl(

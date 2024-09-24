@@ -554,8 +554,8 @@ impl BlocksWeb3Dal<'_, '_> {
             CallTrace,
             r#"
             SELECT
-                transactions.hash,
-                transactions.index_in_block,
+                transactions.hash as tx_hash,
+                transactions.index_in_block as tx_index_in_block,
                 call_trace
             FROM
                 call_traces
@@ -573,8 +573,8 @@ impl BlocksWeb3Dal<'_, '_> {
         .await?
         .into_iter()
         .map(|call_trace| {
-            let hash = H256::from_slice(&call_trace.hash);
-            let index = call_trace.index_in_block.unwrap_or_default() as usize;
+            let hash = H256::from_slice(&call_trace.tx_hash);
+            let index = call_trace.tx_index_in_block.unwrap_or_default() as usize;
             (call_trace.into_call(protocol_version), hash, index)
         })
         .collect())
