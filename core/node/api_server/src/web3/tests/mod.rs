@@ -303,6 +303,17 @@ async fn store_l2_block(
     number: L2BlockNumber,
     transaction_results: &[TransactionExecutionResult],
 ) -> anyhow::Result<L2BlockHeader> {
+    let header = create_l2_block(number.0);
+    store_custom_l2_block(storage, &header, transaction_results).await?;
+    Ok(header)
+}
+
+async fn store_custom_l2_block(
+    storage: &mut Connection<'_, Core>,
+    header: &L2BlockHeader,
+    transaction_results: &[TransactionExecutionResult],
+) -> anyhow::Result<()> {
+    let number = header.number;
     for result in transaction_results {
         let l2_tx = result.transaction.clone().try_into().unwrap();
         let tx_submission_result = storage
@@ -325,19 +336,18 @@ async fn store_l2_block(
         .append_storage_logs(number, &[l2_block_log])
         .await?;
 
-    let new_l2_block = create_l2_block(number.0);
-    storage.blocks_dal().insert_l2_block(&new_l2_block).await?;
+    storage.blocks_dal().insert_l2_block(header).await?;
     storage
         .transactions_dal()
         .mark_txs_as_executed_in_l2_block(
-            new_l2_block.number,
+            number,
             transaction_results,
             1.into(),
             ProtocolVersionId::latest(),
             false,
         )
         .await?;
-    Ok(new_l2_block)
+    Ok(())
 }
 
 async fn seal_l1_batch(
