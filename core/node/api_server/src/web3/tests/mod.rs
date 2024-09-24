@@ -58,7 +58,7 @@ use zksync_web3_decl::{
 };
 
 use super::*;
-use crate::web3::testonly::{spawn_http_server, spawn_ws_server};
+use crate::web3::testonly::TestServerBuilder;
 
 mod debug;
 mod filters;
@@ -245,14 +245,11 @@ async fn test_http_server(test: impl HttpTest) {
     let genesis = GenesisConfig::for_tests();
     let mut api_config = InternalApiConfig::new(&web3_config, &contracts_config, &genesis);
     api_config.filters_disabled = test.filters_disabled();
-    let mut server_handles = spawn_http_server(
-        api_config,
-        pool.clone(),
-        test.transaction_executor(),
-        test.method_tracer(),
-        stop_receiver,
-    )
-    .await;
+    let mut server_handles = TestServerBuilder::new(pool.clone(), api_config)
+        .with_tx_executor(test.transaction_executor())
+        .with_method_tracer(test.method_tracer())
+        .build_http(stop_receiver)
+        .await;
 
     let local_addr = server_handles.wait_until_ready().await;
     let client = Client::http(format!("http://{local_addr}/").parse().unwrap())
