@@ -16,6 +16,7 @@ use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::{
+    client::{DynClient, L2},
     jsonrpsee::{
         server::{
             middleware::rpc::either::Either, BatchRequestConfig, RpcServiceBuilder, ServerBuilder,
@@ -47,6 +48,7 @@ use self::{
 use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
+    web3::state::BridgeAddressesHandle,
 };
 
 pub mod backend_jsonrpsee;
@@ -136,6 +138,7 @@ struct OptionalApiParams {
     mempool_cache: Option<MempoolCache>,
     extended_tracing: bool,
     pub_sub_events_sender: Option<mpsc::UnboundedSender<PubSubEvent>>,
+    main_node_client: Option<Box<DynClient<L2>>>,
 }
 
 /// Structure capable of spawning a configured Web3 API server along with all the required
@@ -150,6 +153,7 @@ pub struct ApiServer {
     tx_sender: TxSender,
     polling_interval: Duration,
     pruning_info_refresh_interval: Duration,
+    bridge_addresses_refresh_interval: Duration,
     namespaces: Vec<Namespace>,
     method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
@@ -162,6 +166,7 @@ pub struct ApiBuilder {
     config: InternalApiConfig,
     polling_interval: Duration,
     pruning_info_refresh_interval: Duration,
+    bridge_addresses_refresh_interval: Duration,
     // Mandatory params that must be set using builder methods.
     transport: Option<ApiTransport>,
     tx_sender: Option<TxSender>,
@@ -175,6 +180,7 @@ pub struct ApiBuilder {
 impl ApiBuilder {
     const DEFAULT_POLLING_INTERVAL: Duration = Duration::from_millis(200);
     const DEFAULT_PRUNING_INFO_REFRESH_INTERVAL: Duration = Duration::from_secs(10);
+    const DEFAULT_BRIDGE_ADDRESSES_REFRESH_INTERVAL: Duration = Duration::from_secs(30);
 
     pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool<Core>) -> Self {
         Self {
@@ -183,6 +189,7 @@ impl ApiBuilder {
             config,
             polling_interval: Self::DEFAULT_POLLING_INTERVAL,
             pruning_info_refresh_interval: Self::DEFAULT_PRUNING_INFO_REFRESH_INTERVAL,
+            bridge_addresses_refresh_interval: Self::DEFAULT_BRIDGE_ADDRESSES_REFRESH_INTERVAL,
             transport: None,
             tx_sender: None,
             namespaces: None,
@@ -264,6 +271,11 @@ impl ApiBuilder {
         self
     }
 
+    pub fn with_bridge_addresses_refresh_interval(mut self, interval: Duration) -> Self {
+        self.bridge_addresses_refresh_interval = interval;
+        self
+    }
+
     pub fn enable_api_namespaces(mut self, namespaces: Vec<Namespace>) -> Self {
         self.namespaces = Some(namespaces);
         self
@@ -282,6 +294,11 @@ impl ApiBuilder {
 
     pub fn with_extended_tracing(mut self, extended_tracing: bool) -> Self {
         self.optional.extended_tracing = extended_tracing;
+        self
+    }
+
+    pub fn with_main_node_client(mut self, main_node_client: Box<DynClient<L2>>) -> Self {
+        self.optional.main_node_client = Some(main_node_client);
         self
     }
 
@@ -318,6 +335,7 @@ impl ApiBuilder {
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
             polling_interval: self.polling_interval,
             pruning_info_refresh_interval: self.pruning_info_refresh_interval,
+            bridge_addresses_refresh_interval: self.bridge_addresses_refresh_interval,
             namespaces: self.namespaces.unwrap_or_else(|| {
                 tracing::warn!(
                     "debug_ and snapshots_ API namespace will be disabled by default in ApiBuilder"
@@ -338,6 +356,7 @@ impl ApiServer {
     async fn build_rpc_state(
         self,
         last_sealed_l2_block: SealedL2BlockNumber,
+        bridge_addresses_handle: BridgeAddressesHandle,
     ) -> anyhow::Result<RpcState> {
         let mut storage = self.updaters_pool.connection_tagged("api").await?;
         let start_info =
@@ -364,6 +383,7 @@ impl ApiServer {
             start_info,
             mempool_cache: self.optional.mempool_cache,
             last_sealed_l2_block,
+            bridge_addresses_handle,
             tree_api: self.optional.tree_api,
         })
     }
@@ -372,10 +392,13 @@ impl ApiServer {
         self,
         pub_sub: Option<EthSubscribe>,
         last_sealed_l2_block: SealedL2BlockNumber,
+        bridge_addresses_handle: BridgeAddressesHandle,
     ) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
-        let rpc_state = self.build_rpc_state(last_sealed_l2_block).await?;
+        let rpc_state = self
+            .build_rpc_state(last_sealed_l2_block, bridge_addresses_handle)
+            .await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
@@ -470,7 +493,7 @@ impl ApiServer {
     }
 
     async fn build_jsonrpsee(
-        self,
+        mut self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
         // Chosen to be significantly smaller than the interval between L2 blocks, but larger than
@@ -486,8 +509,22 @@ impl ApiServer {
             SEALED_L2_BLOCK_UPDATE_INTERVAL,
             stop_receiver.clone(),
         );
-
         let mut tasks = vec![tokio::spawn(sealed_l2_block_update_task)];
+
+        let bridge_addresses_handle =
+            if let Some(main_node_client) = self.optional.main_node_client.take() {
+                let (handle, task) = BridgeAddressesHandle::new_with_updater(
+                    main_node_client,
+                    self.config.bridge_addresses.clone(),
+                    self.bridge_addresses_refresh_interval,
+                    stop_receiver.clone(),
+                );
+                tasks.push(tokio::spawn(task));
+                handle
+            } else {
+                BridgeAddressesHandle::new(self.config.bridge_addresses.clone())
+            };
+
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
@@ -514,6 +551,7 @@ impl ApiServer {
             stop_receiver,
             pub_sub,
             last_sealed_l2_block,
+            bridge_addresses_handle,
             local_addr_sender,
         ));
 
@@ -585,6 +623,7 @@ impl ApiServer {
         mut stop_receiver: watch::Receiver<bool>,
         pub_sub: Option<EthSubscribe>,
         last_sealed_l2_block: SealedL2BlockNumber,
+        bridge_addresses_handle: BridgeAddressesHandle,
         local_addr_sender: oneshot::Sender<SocketAddr>,
     ) -> anyhow::Result<()> {
         let transport = self.transport;
@@ -640,7 +679,9 @@ impl ApiServer {
             tracing::info!("Enabled extended call tracing for {transport_str} API server; this might negatively affect performance");
         }
 
-        let rpc = self.build_rpc_module(pub_sub, last_sealed_l2_block).await?;
+        let rpc = self
+            .build_rpc_module(pub_sub, last_sealed_l2_block, bridge_addresses_handle)
+            .await?;
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
         tracing::debug!(
             "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}",

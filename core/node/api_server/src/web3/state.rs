@@ -10,7 +10,7 @@ use std::{
 use anyhow::Context as _;
 use futures::TryFutureExt;
 use lru::LruCache;
-use tokio::sync::{watch, Mutex};
+use tokio::sync::{watch, Mutex, RwLock};
 use vise::GaugeGuard;
 use zksync_config::{
     configs::{api::Web3JsonRpcConfig, ContractsConfig},
@@ -20,10 +20,16 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
 use zksync_types::{
-    api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
-    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
+    api, api::BridgeAddresses, commitment::L1BatchCommitmentMode, l2::L2Tx,
+    transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
+    H256, U256, U64,
 };
-use zksync_web3_decl::{error::Web3Error, types::Filter};
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    error::Web3Error,
+    namespaces::ZksNamespaceClient,
+    types::Filter,
+};
 
 use super::{
     backend_jsonrpsee::MethodTracer,
@@ -241,6 +247,51 @@ impl SealedL2BlockNumber {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct BridgeAddressesHandle(Arc<RwLock<BridgeAddresses>>);
+
+impl BridgeAddressesHandle {
+    pub fn new(bridge_addresses: BridgeAddresses) -> Self {
+        Self(Arc::new(RwLock::new(bridge_addresses)))
+    }
+
+    /// Creates a handle to the bridge addresses together with a task that will update them on a schedule.
+    pub fn new_with_updater(
+        main_node_client: Box<DynClient<L2>>,
+        initial_value: BridgeAddresses,
+        update_interval: Duration,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> (Self, impl Future<Output = anyhow::Result<()>>) {
+        let this = Self(Arc::new(RwLock::new(initial_value)));
+        let updater = this.clone();
+
+        let update_task = async move {
+            loop {
+                if *stop_receiver.borrow() {
+                    tracing::debug!("Stopping bridge addresses updates");
+                    return Ok(());
+                }
+
+                match main_node_client.get_bridge_contracts().await {
+                    Ok(bridge_addresses) => {
+                        *updater.0.write().await = bridge_addresses;
+                    }
+                    Err(err) => {
+                        tracing::error!("Failed to query `get_bridge_contracts`, error: {err:?}");
+                    }
+                }
+                tokio::time::sleep(update_interval).await;
+            }
+        };
+
+        (this, update_task)
+    }
+
+    pub async fn read(&self) -> BridgeAddresses {
+        self.0.read().await.clone()
+    }
+}
+
 /// Holder for the data required for the API to be functional.
 #[derive(Debug, Clone)]
 pub(crate) struct RpcState {
@@ -256,6 +307,7 @@ pub(crate) struct RpcState {
     pub(super) start_info: BlockStartInfo,
     pub(super) mempool_cache: Option<MempoolCache>,
     pub(super) last_sealed_l2_block: SealedL2BlockNumber,
+    pub(super) bridge_addresses_handle: BridgeAddressesHandle,
 }
 
 impl RpcState {

@@ -9,6 +9,7 @@ use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
         healthcheck::AppHealthCheckResource,
+        main_node_client::MainNodeClientResource,
         pools::{PoolResource, ReplicaPool},
         sync_state::SyncStateResource,
         web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
@@ -33,6 +34,8 @@ pub struct Web3ServerOptionalConfig {
     pub replication_lag_limit: Option<Duration>,
     // Used by the external node.
     pub pruning_info_refresh_interval: Option<Duration>,
+    // Used by the external node.
+    pub bridge_addresses_refresh_interval: Option<Duration>,
     pub polling_interval: Option<Duration>,
 }
 
@@ -60,6 +63,14 @@ impl Web3ServerOptionalConfig {
         }
         if let Some(polling_interval) = self.polling_interval {
             api_builder = api_builder.with_polling_interval(polling_interval);
+        }
+        if let Some(pruning_info_refresh_interval) = self.pruning_info_refresh_interval {
+            api_builder =
+                api_builder.with_pruning_info_refresh_interval(pruning_info_refresh_interval);
+        }
+        if let Some(bridge_addresses_refresh_interval) = self.bridge_addresses_refresh_interval {
+            api_builder = api_builder
+                .with_bridge_addresses_refresh_interval(bridge_addresses_refresh_interval);
         }
         api_builder = api_builder.with_extended_tracing(self.with_extended_tracing);
         api_builder
@@ -109,6 +120,7 @@ pub struct Input {
     pub circuit_breakers: CircuitBreakersResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
+    pub main_node_client: Option<MainNodeClientResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -190,12 +202,6 @@ impl WiringLayer for Web3ServerLayer {
         }
         if let Some(sync_state) = sync_state {
             api_builder = api_builder.with_sync_state(sync_state);
-        }
-        if let Some(pruning_info_refresh_interval) =
-            self.optional_config.pruning_info_refresh_interval
-        {
-            api_builder =
-                api_builder.with_pruning_info_refresh_interval(pruning_info_refresh_interval);
         }
         let replication_lag_limit = self.optional_config.replication_lag_limit;
         api_builder = self.optional_config.apply(api_builder);
