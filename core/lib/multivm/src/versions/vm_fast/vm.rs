@@ -601,7 +601,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
                 circuit_statistic: full_tracer.1.circuit_statistic(),
             },
             refunds,
-            new_known_factory_deps: Default::default(),
+            new_known_factory_deps: None,
         }
     }
 

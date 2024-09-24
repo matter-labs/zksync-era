@@ -129,12 +129,7 @@ impl L2BlockUpdates {
             .map(|bytecode| (hash_bytecode(bytecode), bytecode.clone()))
             .collect();
 
-        new_known_factory_deps
-            .into_iter()
-            .for_each(|(hash, bytecode)| {
-                tx_factory_deps.insert(hash, bytecode);
-            });
-
+        tx_factory_deps.extend(new_known_factory_deps.clone());
         // Save all bytecodes that were marked as known on the bootloader
         let known_bytecodes = saved_factory_deps.into_iter().map(|bytecode_hash| {
             let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {

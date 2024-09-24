@@ -811,6 +811,7 @@ impl TransactionRequest {
 impl L2Tx {
     pub(crate) fn from_request_unverified(
         mut value: TransactionRequest,
+        use_evm_simulator: bool,
     ) -> Result<Self, SerializationTransactionError> {
         let fee = value.get_fee_data_checked()?;
         let nonce = value.get_nonce_checked()?;
@@ -818,10 +819,6 @@ impl L2Tx {
         let raw_signature = value.get_signature().unwrap_or_default();
         let meta = value.eip712_meta.take().unwrap_or_default();
         validate_factory_deps(&meta.factory_deps)?;
-
-        let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env()
-            .unwrap()
-            .use_evm_simulator;
 
         // TODO: Remove this check when evm equivalence gets enabled
         if value.to.is_none() && !use_evm_simulator {
@@ -858,7 +855,8 @@ impl L2Tx {
         value: TransactionRequest,
         max_tx_size: usize,
     ) -> Result<Self, SerializationTransactionError> {
-        let tx = Self::from_request_unverified(value)?;
+        let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env().unwrap().use_evm_simulator;
+        let tx = Self::from_request_unverified(value, use_evm_simulator)?;
         tx.check_encoded_size(max_tx_size)?;
         Ok(tx)
     }

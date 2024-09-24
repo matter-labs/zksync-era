@@ -47,7 +47,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult> for crate::interface::Fi
                     circuit_statistic: Default::default(),
                 },
                 refunds: Refunds::default(),
-                new_known_factory_deps: Default::default(),
+                new_known_factory_deps: None,
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
@@ -104,7 +104,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult> for crate::interface::Fi
                     circuit_statistic: Default::default(),
                 },
                 refunds: Refunds::default(),
-                new_known_factory_deps: Default::default(),
+                new_known_factory_deps: None,
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
@@ -160,7 +160,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult> for crate::interface:
                     circuit_statistic: Default::default(),
                 },
                 refunds: Refunds::default(),
-                new_known_factory_deps: Default::default(),
+                new_known_factory_deps: None,
             },
             final_execution_state: CurrentExecutionState {
                 events: value.full_result.events,
@@ -230,7 +230,7 @@ impl GlueFrom<crate::vm_1_3_2::vm_instance::VmBlockResult>
                 circuit_statistic: Default::default(),
             },
             refunds: Refunds::default(),
-            new_known_factory_deps: Default::default(),
+            new_known_factory_deps: None,
         }
     }
 }
@@ -263,7 +263,7 @@ impl GlueFrom<crate::vm_m5::vm_instance::VmBlockResult>
                 circuit_statistic: Default::default(),
             },
             refunds: Refunds::default(),
-            new_known_factory_deps: Default::default(),
+            new_known_factory_deps: None,
         }
     }
 }
@@ -312,7 +312,7 @@ impl GlueFrom<crate::vm_m6::vm_instance::VmBlockResult>
                 circuit_statistic: Default::default(),
             },
             refunds: Refunds::default(),
-            new_known_factory_deps: Default::default(),
+            new_known_factory_deps: None,
         }
     }
 }
