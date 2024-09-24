@@ -1,3 +1,5 @@
+use std::mem;
+
 use circuit_sequencer_api_1_4_2::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
@@ -90,10 +92,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     /// Execute VM with custom tracers.
     fn inspect(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        self.inspect_inner(tracer, execution_mode, None)
+        self.inspect_inner(mem::take(tracer), execution_mode, None)
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
@@ -102,12 +104,12 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.push_transaction_with_compression(tx, with_compression);
-        let result = self.inspect_inner(tracer, VmExecutionMode::OneTx, None);
+        let result = self.inspect_inner(mem::take(tracer), VmExecutionMode::OneTx, None);
         if self.has_unpublished_bytecodes() {
             (
                 Err(BytecodeCompressionError::BytecodeCompressionFailed),
@@ -129,7 +131,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.inspect(TracerDispatcher::default(), VmExecutionMode::Batch);
+        let result = self.inspect(&mut TracerDispatcher::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {

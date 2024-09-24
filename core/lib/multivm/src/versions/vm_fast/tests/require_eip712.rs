@@ -12,13 +12,14 @@ use crate::{
     interface::{
         storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
     },
+    versions::testonly::ContractToDeploy,
     vm_fast::tests::{
         tester::{Account, VmTester, VmTesterBuilder},
         utils::read_many_owners_custom_account_contract,
     },
 };
 
-impl VmTester {
+impl VmTester<()> {
     pub(crate) fn get_eth_balance(&mut self, address: Address) -> U256 {
         let key = storage_key_for_standard_token_balance(
             AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
@@ -50,7 +51,10 @@ async fn test_require_eip712() {
     let (bytecode, contract) = read_many_owners_custom_account_contract();
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
-        .with_custom_contracts(vec![(bytecode, account_abstraction.address, true)])
+        .with_custom_contracts(vec![ContractToDeploy::account(
+            bytecode,
+            account_abstraction.address,
+        )])
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(vec![account_abstraction.clone(), private_account.clone()])
         .build();

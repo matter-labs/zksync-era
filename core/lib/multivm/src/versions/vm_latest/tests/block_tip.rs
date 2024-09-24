@@ -196,7 +196,7 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
     );
 
     let result = vm.vm.inspect_inner(
-        TracerDispatcher::default(),
+        &mut TracerDispatcher::default(),
         VmExecutionMode::Batch,
         Some(pubdata_tracer),
     );

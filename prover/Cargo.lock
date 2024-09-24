@@ -7569,6 +7569,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_circuit_prover"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bincode",
+ "clap 4.5.4",
+ "shivini",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "vise",
+ "zkevm_test_harness",
+ "zksync_config",
+ "zksync_core_leftovers",
+ "zksync_env_config",
+ "zksync_object_store",
+ "zksync_prover_dal",
+ "zksync_prover_fri_types",
+ "zksync_prover_fri_utils",
+ "zksync_prover_keystore",
+ "zksync_queued_job_processor",
+ "zksync_types",
+ "zksync_utils",
+]
+
+[[package]]
 name = "zksync_concurrency"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7759,6 +7786,7 @@ dependencies = [
  "tokio",
  "tracing",
  "vise",
+ "zksync_concurrency",
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_contracts",
@@ -7893,7 +7921,6 @@ dependencies = [
  "hex",
  "itertools 0.10.5",
  "once_cell",
- "pretty_assertions",
  "thiserror",
  "tracing",
  "vise",
@@ -8181,6 +8208,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "circuit_definitions",
+ "futures 0.3.30",
  "hex",
  "md5",
  "once_cell",
@@ -8188,6 +8216,7 @@ dependencies = [
  "serde_json",
  "sha3 0.10.8",
  "shivini",
+ "tokio",
  "tracing",
  "zkevm_test_harness",
  "zksync_basic_types",
@@ -8389,6 +8418,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "hex",
+ "pretty_assertions",
  "serde",
  "thiserror",
  "tracing",

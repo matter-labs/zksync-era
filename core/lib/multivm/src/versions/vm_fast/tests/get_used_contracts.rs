@@ -14,6 +14,7 @@ use crate::{
         storage::ReadStorage, ExecutionResult, TxExecutionMode, VmExecutionMode,
         VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
     },
+    versions::testonly::ContractToDeploy,
     vm_fast::{
         tests::{
             tester::{TxType, VmTester, VmTesterBuilder},
@@ -119,14 +120,17 @@ struct ProxyCounterData {
     counter_bytecode_hash: U256,
 }
 
-fn execute_proxy_counter(gas: u32) -> (VmTester, ProxyCounterData, VmExecutionResultAndLogs) {
+fn execute_proxy_counter(gas: u32) -> (VmTester<()>, ProxyCounterData, VmExecutionResultAndLogs) {
     let counter_bytecode = inflated_counter_bytecode();
     let counter_bytecode_hash = h256_to_u256(hash_bytecode(&counter_bytecode));
     let counter_address = Address::repeat_byte(0x23);
 
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
-        .with_custom_contracts(vec![(counter_bytecode, counter_address, false)])
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            counter_bytecode,
+            counter_address,
+        )])
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
         .build();

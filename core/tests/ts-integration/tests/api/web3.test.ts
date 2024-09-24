@@ -843,6 +843,10 @@ describe('web3 API compatibility tests', () => {
         expect(parseInt(response.oldestBlock)).toEqual(receipt.blockNumber - 1);
 
         expect(response.baseFeePerGas).toHaveLength(3);
+        expect(response.baseFeePerBlobGas).toHaveLength(3);
+        expect(response.gasUsedRatio).toHaveLength(2);
+        expect(response.blobGasUsedRatio).toHaveLength(2);
+        expect(response.l2PubdataPrice).toHaveLength(2);
         for (let i = 0; i < 2; i += 1) {
             const expectedBaseFee = (await alice.provider.getBlock(receipt.blockNumber - 1 + i)).baseFeePerGas;
             expect(BigInt(response.baseFeePerGas[i])).toEqual(expectedBaseFee);

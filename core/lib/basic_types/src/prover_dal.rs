@@ -9,7 +9,7 @@ use crate::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId, L1BatchNumber,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FriProverJobMetadata {
     pub id: u32,
     pub block_number: L1BatchNumber,
