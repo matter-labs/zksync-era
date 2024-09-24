@@ -130,7 +130,6 @@ impl HttpTest for CallTest {
         // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
         let mut connection = pool.connection().await?;
         store_l2_block(&mut connection, L2BlockNumber(1), &[]).await?;
-        drop(connection);
 
         let call_result = client
             .call(Self::call_request(b"pending"), None, None)
@@ -162,6 +161,22 @@ impl HttpTest for CallTest {
         } else {
             panic!("Unexpected error: {error:?}");
         }
+
+        // Check that the method handler fetches fee inputs for recent blocks. To do that, we create a new block
+        // with a large fee input; it should be loaded by `ApiFeeInputProvider` and override the input provided by the wrapped mock provider.
+        let mut block_header = create_l2_block(2);
+        block_header.batch_fee_input =
+            <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
+                FeeParams::sensible_v1_default(),
+                2.5,
+                2.5,
+            );
+        store_custom_l2_block(&mut connection, &block_header, &[]).await?;
+        // Fee input is not scaled further as per `ApiFeeInputProvider` implementation
+        self.fee_input.expect_custom(block_header.batch_fee_input);
+        let call_request = CallTest::call_request(b"block=3");
+        let call_result = client.call(call_request.clone(), None, None).await?;
+        assert_eq!(call_result.0, b"output");
 
         Ok(())
     }
