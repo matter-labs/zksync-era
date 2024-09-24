@@ -119,21 +119,21 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
     fn build(this: &Self::Type) -> Self {
         let secrets = match &this {
             DataAvailabilitySecrets::Avail(config) => {
-                if config.seed_phrase.is_some() {
-                    Some(DaSecrets::Avail(AvailSecret {
-                        seed_phrase: Some(
-                            config
-                                .clone()
-                                .seed_phrase
-                                .unwrap()
-                                .0
-                                .expose_secret()
-                                .to_string(),
-                        ),
-                    }))
+                let seed_phrase = if config.seed_phrase.is_some() {
+                    Some(
+                        config
+                            .clone()
+                            .seed_phrase
+                            .unwrap()
+                            .0
+                            .expose_secret()
+                            .to_string(),
+                    )
                 } else {
                     None
-                }
+                };
+
+                Some(DaSecrets::Avail(AvailSecret { seed_phrase }))
             }
         };
 
