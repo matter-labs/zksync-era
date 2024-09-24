@@ -9855,7 +9855,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.25.0"
+version = "24.26.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -10225,7 +10225,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "hex",
  "rand 0.8.5",
  "secrecy",
  "semver",
@@ -10259,6 +10258,7 @@ dependencies = [
  "zksync_test_account",
  "zksync_types",
  "zksync_utils",
+ "zksync_vm_executor",
  "zksync_vm_interface",
  "zksync_web3_decl",
 ]
@@ -10752,6 +10752,7 @@ dependencies = [
  "hex",
  "itertools 0.10.5",
  "once_cell",
+ "rand 0.8.5",
  "tempfile",
  "test-casing",
  "thiserror",

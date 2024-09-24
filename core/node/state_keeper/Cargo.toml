@@ -44,6 +44,7 @@ hex.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
+rand.workspace = true
 tempfile.workspace = true
 test-casing.workspace = true
 futures.workspace = true

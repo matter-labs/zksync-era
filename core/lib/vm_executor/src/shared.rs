@@ -5,6 +5,9 @@ use std::time::Duration;
 use vise::{Buckets, EncodeLabelSet, EncodeLabelValue, Family, Histogram, Metrics};
 use zksync_multivm::interface::storage::StorageViewStats;
 
+/// Marker for sealed traits. Intentionally not exported from the crate.
+pub trait Sealed {}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EncodeLabelValue, EncodeLabelSet)]
 #[metrics(label = "interaction", rename_all = "snake_case")]
 pub(crate) enum InteractionType {

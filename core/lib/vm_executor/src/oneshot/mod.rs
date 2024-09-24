@@ -1,4 +1,10 @@
 //! Oneshot VM executor.
+//!
+//! # Overview
+//!
+//! The root type of this module is [`MainOneshotExecutor`], a "default" [`OneshotExecutor`] implementation.
+//! In addition to it, the module provides [`OneshotEnvParameters`] and [`BlockInfo`] / [`ResolvedBlockInfo`],
+//! which can be used to prepare environment for `MainOneshotExecutor` (i.e., a [`OneshotEnv`] instance).
 
 use std::{
     sync::Arc,
@@ -20,7 +26,7 @@ use zksync_multivm::{
     utils::adjust_pubdata_price_for_tx,
     vm_latest::HistoryDisabled,
     zk_evm_latest::ethereum_types::U256,
-    MultiVMTracer, VmInstance,
+    LegacyVmInstance, MultiVMTracer,
 };
 use zksync_types::{
     block::pack_block_info,
@@ -32,8 +38,15 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-pub use self::mock::MockOneshotExecutor;
+pub use self::{
+    block::{BlockInfo, ResolvedBlockInfo},
+    env::{CallOrExecute, EstimateGas, OneshotEnvParameters},
+    mock::MockOneshotExecutor,
+};
 
+mod block;
+mod contracts;
+mod env;
 mod metrics;
 mod mock;
 
@@ -98,7 +111,7 @@ where
             let mut result = executor.apply(|vm, transaction| {
                 let (compression_result, tx_result) = vm
                     .inspect_transaction_with_bytecode_compression(
-                        tracers.into(),
+                        &mut tracers.into(),
                         transaction,
                         true,
                     );
@@ -152,7 +165,7 @@ where
             );
             let exec_result = executor.apply(|vm, transaction| {
                 vm.push_transaction(transaction);
-                vm.inspect(tracers.into(), VmExecutionMode::OneTx)
+                vm.inspect(&mut tracers.into(), VmExecutionMode::OneTx)
             });
             let validation_result = Arc::make_mut(&mut validation_result)
                 .take()
@@ -171,7 +184,7 @@ where
 
 #[derive(Debug)]
 struct VmSandbox<S: ReadStorage> {
-    vm: Box<VmInstance<S, HistoryDisabled>>,
+    vm: Box<LegacyVmInstance<S, HistoryDisabled>>,
     storage_view: StoragePtr<StorageView<S>>,
     transaction: Transaction,
     execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
@@ -199,7 +212,7 @@ impl<S: ReadStorage> VmSandbox<S> {
         };
 
         let storage_view = storage_view.to_rc_ptr();
-        let vm = Box::new(VmInstance::new_with_specific_version(
+        let vm = Box::new(LegacyVmInstance::new_with_specific_version(
             env.l1_batch,
             env.system,
             storage_view.clone(),
@@ -264,7 +277,7 @@ impl<S: ReadStorage> VmSandbox<S> {
 
     pub(super) fn apply<T, F>(mut self, apply_fn: F) -> T
     where
-        F: FnOnce(&mut VmInstance<S, HistoryDisabled>, Transaction) -> T,
+        F: FnOnce(&mut LegacyVmInstance<S, HistoryDisabled>, Transaction) -> T,
     {
         let tx_id = format!(
             "{:?}-{}",

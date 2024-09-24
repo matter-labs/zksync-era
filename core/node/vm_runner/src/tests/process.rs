@@ -54,7 +54,7 @@ async fn process_batches((batch_count, window): (u32, u32)) -> anyhow::Result<()
     tokio::task::spawn(async move { task.run(output_stop_receiver).await.unwrap() });
 
     let storage = Arc::new(storage);
-    let batch_executor = MainBatchExecutorFactory::new(false, false);
+    let batch_executor = MainBatchExecutorFactory::<()>::new(false);
     let vm_runner = VmRunner::new(
         connection_pool,
         io.clone(),
