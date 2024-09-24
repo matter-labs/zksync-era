@@ -112,12 +112,13 @@ pub async fn init(
 
     if chain_config.base_token != BaseToken::eth() {
         let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
+        let chain_contracts = chain_config.get_contracts_config()?;
         set_token_multiplier_setter(
             shell,
             ecosystem_config,
             chain_config.get_wallets_config()?.governor_private_key(),
-            contracts_config.l1.chain_admin_addr,
-            contracts_config.l1.access_control_restriction_addr,
+            chain_contracts.l1.access_control_restriction_addr,
+            chain_contracts.l1.diamond_proxy_addr,
             chain_config
                 .get_wallets_config()
                 .unwrap()
