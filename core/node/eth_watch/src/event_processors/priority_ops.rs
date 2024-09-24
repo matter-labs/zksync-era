@@ -85,11 +85,12 @@ impl EventProcessor for PriorityOpsEventProcessor {
         APP_METRICS.processed_txs[&TxStage::added_to_mempool()].inc();
         APP_METRICS.processed_l1_txs[&TxStage::added_to_mempool()].inc();
         let processed_priority_transactions = sl_client.get_total_priority_txs().await?;
-        let mut ops_to_insert = new_ops
+        let ops_to_insert: Vec<&L1Tx> = new_ops
             .iter()
-            .take_while(|op| processed_priority_transactions <= op.serial_id().0);
+            .take_while(|op| processed_priority_transactions <= op.serial_id().0)
+            .collect();
 
-        for new_op in ops_to_insert.by_ref() {
+        for new_op in &ops_to_insert {
             storage
                 .transactions_dal()
                 .insert_transaction_l1(new_op, new_op.eth_block())
@@ -97,11 +98,11 @@ impl EventProcessor for PriorityOpsEventProcessor {
                 .map_err(DalError::generalize)?;
         }
         stage_latency.observe();
-        if let Some(last_op) = ops_to_insert.by_ref().last() {
+        if let Some(last_op) = ops_to_insert.last() {
             self.next_expected_priority_id = last_op.serial_id().next();
         }
 
-        Ok(skipped_ops + ops_to_insert.count())
+        Ok(skipped_ops + ops_to_insert.len())
     }
 
     fn relevant_topic(&self) -> H256 {
