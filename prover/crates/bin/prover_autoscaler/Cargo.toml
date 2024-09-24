@@ -15,6 +15,7 @@ zksync_vlog.workspace = true
 zksync_utils.workspace = true
 zksync_types.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
+zksync_prover_job_monitor.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
@@ -37,3 +38,6 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tracing.workspace = true
 vise.workspace = true
 url = "2.5.2"
+regex.workspace = true
+strum.workspace = true
+debug-map-sorted = "0.1.1"

@@ -1,11 +1,15 @@
-use vise::{Counter, EncodeLabelSet, EncodeLabelValue, Family, Gauge, LabeledFamily, Metrics};
-use zksync_types::protocol_version::ProtocolSemanticVersion;
+use vise::{Counter, Gauge, LabeledFamily, Metrics};
+//use zksync_types::protocol_version::ProtocolSemanticVersion;
+
+use crate::cluster_types::GPU;
 
 #[derive(Debug, Metrics)]
 #[metrics(prefix = "autoscaler")]
 pub(crate) struct AutoscalerMetrics {
     pub protocol_version: Gauge<u64>,
     pub calls: Counter<u64>,
+    #[metrics(labels = ["target_cluster", "target_namespace", "gpu"])]
+    pub provers: LabeledFamily<(String, String, GPU), Gauge<u64>, 3>,
 }
 
 #[vise::register]
