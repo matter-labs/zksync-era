@@ -10,6 +10,7 @@ use zksync_config::{
 };
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_executor as executor;
+use zksync_consensus_network as network;
 use zksync_consensus_roles::{attester, node, validator};
 use zksync_dal::consensus_dal;
 use zksync_types::ethabi;
@@ -176,7 +177,11 @@ pub(super) fn executor(
             .context("gossip_static_inbound")?,
         gossip_static_outbound,
         rpc,
-        debug_page: cfg.debug_page_addr,
+        debug_page: Some(network::debug_page::Config {
+            addr: cfg.debug_page_addr,
+            credentials: None,
+            tls: None,
+        }),
         batch_poll_interval: time::Duration::seconds(1),
     })
 }
