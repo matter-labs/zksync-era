@@ -87,7 +87,7 @@ impl EventProcessor for PriorityOpsEventProcessor {
         let processed_priority_transactions = sl_client.get_total_priority_txs().await?;
         let ops_to_insert: Vec<&L1Tx> = new_ops
             .iter()
-            .take_while(|op| processed_priority_transactions <= op.serial_id().0)
+            .take_while(|op| processed_priority_transactions > op.serial_id().0)
             .collect();
 
         for new_op in &ops_to_insert {
