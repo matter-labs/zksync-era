@@ -44,7 +44,6 @@ pub struct EthWatch {
 }
 
 impl EthWatch {
-    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         chain_admin_contract: &Contract,
         l1_client: Box<dyn EthClient>,
@@ -164,7 +163,7 @@ impl EthWatch {
                 .await?;
 
             let next_block_to_process = if processed_events_count == processor_events.len() {
-                finalized_block
+                finalized_block + 1
             } else if processed_events_count == 0 {
                 //nothing was processed
                 from_block

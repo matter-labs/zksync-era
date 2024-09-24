@@ -3,7 +3,7 @@ use zksync_types::SLChainId;
 
 use crate::Core;
 
-pub struct ProcessedEventsDal<'a, 'c> {
+pub struct EthWatcherDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
@@ -14,7 +14,9 @@ pub enum EventType {
     PriorityTransactions,
 }
 
-impl ProcessedEventsDal<'_, '_> {
+impl EthWatcherDal<'_, '_> {
+    // Returns last set value of next_block_to_process for given event_type and chain_id.
+    // If the value was missing, initializes it with provided next_block_to_process value
     pub async fn get_or_set_next_block_to_process(
         &mut self,
         event_type: EventType,

@@ -36,7 +36,7 @@ impl EventProcessor for PriorityOpsEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
-        client: &dyn EthClient,
+        sl_client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<usize, EventProcessorError> {
         let mut priority_ops = Vec::new();
@@ -71,6 +71,7 @@ impl EventProcessor for PriorityOpsEventProcessor {
             .into_iter()
             .skip_while(|tx| tx.serial_id() < self.next_expected_priority_id)
             .collect();
+        let skipped_ops = events_count - new_ops.len();
         let Some(first_new) = new_ops.first() else {
             return Ok(events_count);
         };
@@ -79,29 +80,28 @@ impl EventProcessor for PriorityOpsEventProcessor {
             self.next_expected_priority_id,
             "priority transaction serial id mismatch"
         );
-        let mut next_expected_priority_id = self.next_expected_priority_id;
 
         let stage_latency = METRICS.poll_eth_node[&PollStage::PersistL1Txs].start();
         APP_METRICS.processed_txs[&TxStage::added_to_mempool()].inc();
         APP_METRICS.processed_l1_txs[&TxStage::added_to_mempool()].inc();
-        let processed_priority_transactions = client.get_total_priority_txs().await?;
-        let mut processed_events_count = 0;
-        for new_op in new_ops {
-            if processed_priority_transactions <= new_op.serial_id().0 {
-                break;
-            }
-            let eth_block = new_op.eth_block();
+        let processed_priority_transactions = sl_client.get_total_priority_txs().await?;
+        let mut ops_to_insert = new_ops
+            .iter()
+            .take_while(|op| processed_priority_transactions <= op.serial_id().0);
+
+        for new_op in ops_to_insert.by_ref() {
             storage
                 .transactions_dal()
-                .insert_transaction_l1(&new_op, eth_block)
+                .insert_transaction_l1(new_op, new_op.eth_block())
                 .await
                 .map_err(DalError::generalize)?;
-            processed_events_count += 1;
-            next_expected_priority_id = new_op.serial_id().next();
         }
         stage_latency.observe();
-        self.next_expected_priority_id = next_expected_priority_id;
-        Ok(processed_events_count)
+        if let Some(last_op) = ops_to_insert.by_ref().last() {
+            self.next_expected_priority_id = last_op.serial_id().next();
+        }
+
+        Ok(skipped_ops + ops_to_insert.count())
     }
 
     fn relevant_topic(&self) -> H256 {

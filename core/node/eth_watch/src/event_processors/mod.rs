@@ -51,6 +51,7 @@ impl EventProcessorError {
 #[async_trait::async_trait]
 pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
     /// Processes given events. All events are guaranteed to match [`Self::relevant_topic()`].
+    /// Returns number of processed events, this result is used to update last processed block.
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
