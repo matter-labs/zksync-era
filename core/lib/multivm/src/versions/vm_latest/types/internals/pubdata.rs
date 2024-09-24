@@ -137,11 +137,12 @@ impl PubdataBuilder for ValidiumPubdataBuilder {
             l2_to_l1_messages,
             published_bytecodes,
             state_diffs,
+            l2_to_l1_logs_tree_size,
         } = input;
 
         if l2_version {
             let chained_log_hash = build_chained_log_hash(user_logs.clone());
-            let log_root_hash = build_logs_root(user_logs.clone());
+            let log_root_hash = build_logs_root(user_logs.clone(), l2_to_l1_logs_tree_size);
             let chained_msg_hash = build_chained_message_hash(l2_to_l1_messages.clone());
             let chained_bytecodes_hash = build_chained_bytecode_hash(published_bytecodes.clone());
 
