@@ -156,7 +156,10 @@ fn make_config(
     config::ConsensusConfig {
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
-        debug_page_addr: std::net::SocketAddr::V4(()),
+        debug_page_addr: std::net::SocketAddr::new(
+            std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
+            8080,
+        ),
         max_payload_size: usize::MAX,
         max_batch_size: usize::MAX,
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
