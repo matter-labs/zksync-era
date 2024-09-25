@@ -154,10 +154,24 @@ impl ConsensusConfig {
     pub fn rpc(&self) -> RpcConfig {
         self.rpc.clone().unwrap_or_default()
     }
+
+    pub fn mock() -> Self {
+        Self {
+            server_addr: "127.0.0.1:8080".parse().unwrap(),
+            public_addr: Host("127.0.0.1:8080".to_string()),
+            max_payload_size: 1024,
+            max_batch_size: 1024,
+            gossip_dynamic_inbound_limit: 10,
+            gossip_static_inbound: BTreeSet::new(),
+            gossip_static_outbound: BTreeMap::new(),
+            genesis_spec: None,
+            rpc: None,
+        }
+    }
 }
 
 /// Secrets needed for consensus.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct ConsensusSecrets {
     pub validator_key: Option<ValidatorSecretKey>,
     pub attester_key: Option<AttesterSecretKey>,

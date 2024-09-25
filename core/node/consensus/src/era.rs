@@ -36,11 +36,10 @@ pub async fn run_main_node(
 }
 
 /// Runs the consensus node for the external node.
-/// If `cfg` is `None`, it will just fetch blocks from the main node
-/// using JSON RPC, without starting the consensus node.
 pub async fn run_external_node(
     ctx: &ctx::Ctx,
-    cfg: Option<(ConsensusConfig, ConsensusSecrets)>,
+    cfg: ConsensusConfig,
+    secrets: ConsensusSecrets,
     pool: zksync_dal::ConnectionPool<Core>,
     sync_state: SyncState,
     main_node_client: Box<DynClient<L2>>,
@@ -52,21 +51,11 @@ pub async fn run_external_node(
         sync_state: sync_state.clone(),
         client: main_node_client.for_component("block_fetcher"),
     };
-    let res = match cfg {
-        Some((cfg, secrets)) => {
-            tracing::info!(
-                is_attester = secrets.attester_key.is_some(),
-                is_validator = secrets.validator_key.is_some(),
-                "running external node"
-            );
-            en.run(ctx, actions, cfg, secrets, Some(build_version))
-                .await
-        }
-        None => {
-            tracing::info!("running fetcher");
-            en.run_fetcher(ctx, actions).await
-        }
-    };
+
+    let res = en
+        .run(ctx, actions, cfg, secrets, Some(build_version))
+        .await;
+
     tracing::info!("Consensus actor stopped");
     res
 }

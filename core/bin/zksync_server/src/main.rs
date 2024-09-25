@@ -93,8 +93,7 @@ fn main() -> anyhow::Result<()> {
     let configs = match opt.config_path {
         None => {
             let mut configs = tmp_config.general();
-            configs.consensus_config =
-                config::read_consensus_config().context("read_consensus_config()")?;
+            configs.consensus_config = config::read_consensus_config().ok();
             configs
         }
         Some(path) => {
@@ -123,7 +122,7 @@ fn main() -> anyhow::Result<()> {
                 .context("failed decoding secrets YAML config")?
         }
         None => Secrets {
-            consensus: config::read_consensus_secrets().context("read_consensus_secrets()")?,
+            consensus: config::read_consensus_secrets().ok(),
             database: DatabaseSecrets::from_env().ok(),
             l1: L1Secrets::from_env().ok(),
         },

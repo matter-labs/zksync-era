@@ -149,36 +149,6 @@ impl EN {
         }
     }
 
-    /// Task fetching L2 blocks using JSON-RPC endpoint of the main node.
-    pub async fn run_fetcher(
-        self,
-        ctx: &ctx::Ctx,
-        actions: ActionQueueSender,
-    ) -> anyhow::Result<()> {
-        tracing::warn!("\
-            WARNING: this node is using ZKsync API synchronization, which will be deprecated soon. \
-            Please follow this instruction to switch to p2p synchronization: \
-            https://github.com/matter-labs/zksync-era/blob/main/docs/guides/external-node/09_decentralization.md");
-        let res: ctx::Result<()> = scope::run!(ctx, |ctx, s| async {
-            // Update sync state in the background.
-            s.spawn_bg(self.fetch_state_loop(ctx));
-            let mut payload_queue = self
-                .pool
-                .connection(ctx)
-                .await
-                .wrap("connection()")?
-                .new_payload_queue(ctx, actions, self.sync_state.clone())
-                .await
-                .wrap("new_fetcher_cursor()")?;
-            self.fetch_blocks(ctx, &mut payload_queue, None).await
-        })
-        .await;
-        match res {
-            Ok(()) | Err(ctx::Error::Canceled(_)) => Ok(()),
-            Err(ctx::Error::Internal(err)) => Err(err),
-        }
-    }
-
     /// Monitors the `AttestationStatus` on the main node,
     /// and updates the attestation config accordingly.
     async fn run_attestation_controller(

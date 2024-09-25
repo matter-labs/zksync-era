@@ -28,11 +28,6 @@ struct Cli {
     #[command(subcommand)]
     command: Option<Command>,
 
-    /// Enables consensus-based syncing instead of JSON-RPC based one. This is an experimental and incomplete feature;
-    /// do not use unless you know what you're doing.
-    #[arg(long)]
-    enable_consensus: bool,
-
     /// Comma-separated list of components to launch.
     #[arg(long, default_value = "all")]
     components: ComponentsToRun,
@@ -128,28 +123,21 @@ fn main() -> anyhow::Result<()> {
         return Ok(());
     }
 
-    let mut config = if let Some(config_path) = opt.config_path.clone() {
+    let config = if let Some(config_path) = opt.config_path.clone() {
         let secrets_path = opt.secrets_path.clone().unwrap();
         let external_node_config_path = opt.external_node_config_path.clone().unwrap();
-        if opt.enable_consensus {
-            anyhow::ensure!(
-                opt.consensus_path.is_some(),
-                "if --config-path and --enable-consensus are specified, then --consensus-path should be used to specify the location of the consensus config"
-            );
-        }
+        let consensus_config_path = opt.consensus_path.clone().unwrap();
+
         ExternalNodeConfig::from_files(
             config_path,
             external_node_config_path,
             secrets_path,
-            opt.consensus_path.clone(),
+            consensus_config_path,
         )?
     } else {
         ExternalNodeConfig::new().context("Failed to load node configuration")?
     };
 
-    if !opt.enable_consensus {
-        config.consensus = None;
-    }
     let guard = {
         // Observability stack implicitly spawns several tokio tasks, so we need to call this method
         // from within tokio context.
