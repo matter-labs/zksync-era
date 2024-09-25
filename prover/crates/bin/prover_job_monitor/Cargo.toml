@@ -16,6 +16,7 @@ zksync_prover_dal.workspace = true
 zksync_utils.workspace = true
 zksync_types.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
+zksync_db_connection.workspace = true
 
 vise.workspace = true
 
@@ -25,3 +26,5 @@ clap = { workspace = true, features = ["derive"] }
 ctrlc = { workspace = true, features = ["termination"] }
 tracing.workspace = true
 async-trait.workspace = true
+serde.workspace = true
+axum.workspace = true

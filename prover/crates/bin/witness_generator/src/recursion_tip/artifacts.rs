@@ -12,7 +12,7 @@ use zksync_prover_fri_types::{keys::FriCircuitKey, CircuitWrapper, FriProofWrapp
 use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
-    artifacts::{ArtifactsManager, BlobUrls},
+    artifacts::ArtifactsManager,
     recursion_tip::{RecursionTipArtifacts, RecursionTipWitnessGenerator},
 };
 
@@ -21,6 +21,7 @@ impl ArtifactsManager for RecursionTipWitnessGenerator {
     type InputMetadata = Vec<(u8, u32)>;
     type InputArtifacts = Vec<ZkSyncRecursionProof>;
     type OutputArtifacts = RecursionTipArtifacts;
+    type BlobUrls = String;
 
     /// Loads all proofs for a given recursion tip's job ids.
     /// Note that recursion tip may not have proofs for some specific circuits (because the batch didn't contain them).
@@ -73,11 +74,11 @@ impl ArtifactsManager for RecursionTipWitnessGenerator {
         Ok(proofs)
     }
 
-    async fn save_artifacts(
+    async fn save_to_bucket(
         job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
-    ) -> BlobUrls {
+    ) -> String {
         let key = FriCircuitKey {
             block_number: L1BatchNumber(job_id),
             circuit_id: 255,
@@ -86,29 +87,22 @@ impl ArtifactsManager for RecursionTipWitnessGenerator {
             aggregation_round: AggregationRound::RecursionTip,
         };
 
-        let blob_url = object_store
+        object_store
             .put(
                 key,
                 &CircuitWrapper::Recursive(artifacts.recursion_tip_circuit.clone()),
             )
             .await
-            .unwrap();
-
-        BlobUrls::Url(blob_url)
+            .unwrap()
     }
 
-    async fn update_database(
+    async fn save_to_database(
         connection_pool: &ConnectionPool<Prover>,
         job_id: u32,
         started_at: Instant,
-        blob_urls: BlobUrls,
+        blob_urls: String,
         _artifacts: Self::OutputArtifacts,
     ) -> anyhow::Result<()> {
-        let blob_url = match blob_urls {
-            BlobUrls::Url(url) => url,
-            _ => panic!("Unexpected blob urls type"),
-        };
-
         let mut prover_connection = connection_pool.connection().await?;
         let mut transaction = prover_connection.start_transaction().await?;
         let protocol_version_id = transaction
@@ -123,7 +117,7 @@ impl ArtifactsManager for RecursionTipWitnessGenerator {
                 0,
                 0,
                 AggregationRound::RecursionTip,
-                &blob_url,
+                &blob_urls,
                 false,
                 protocol_version_id,
             )

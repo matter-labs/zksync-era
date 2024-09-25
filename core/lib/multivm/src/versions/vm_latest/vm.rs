@@ -2,8 +2,9 @@ use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_querie
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     vm::VmVersion,
-    Transaction,
+    Transaction, H256,
 };
+use zksync_utils::u256_to_h256;
 
 use crate::{
     glue::GlueInto,
@@ -12,7 +13,7 @@ use crate::{
         BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
         FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics,
+        VmMemoryMetrics, VmTrackingContracts,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_latest::{
@@ -233,5 +234,14 @@ impl<S: WriteStorage> VmInterfaceHistoryEnabled for Vm<S, HistoryEnabled> {
 
     fn pop_snapshot_no_rollback(&mut self) {
         self.snapshots.pop();
+    }
+}
+
+impl<S: WriteStorage, H: HistoryMode> VmTrackingContracts for Vm<S, H> {
+    fn used_contract_hashes(&self) -> Vec<H256> {
+        self.get_used_contracts()
+            .into_iter()
+            .map(u256_to_h256)
+            .collect()
     }
 }

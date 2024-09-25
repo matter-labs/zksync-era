@@ -47,6 +47,7 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
             &consensus_dal::GlobalConfig {
                 genesis: setup.genesis.clone(),
                 registry_address: None,
+                seed_peers: [].into(),
             },
         )
         .await

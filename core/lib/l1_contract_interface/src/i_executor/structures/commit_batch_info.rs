@@ -19,7 +19,6 @@ use crate::{
 /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
 const PUBDATA_SOURCE_CALLDATA: u8 = 0;
 const PUBDATA_SOURCE_BLOBS: u8 = 1;
-const PUBDATA_SOURCE_CUSTOM: u8 = 2;
 
 /// Encoding for `CommitBatchInfo` from `IExecutor.sol` for a contract running in rollup mode.
 #[derive(Debug)]
@@ -239,7 +238,13 @@ impl Tokenizable for CommitBatchInfo<'_> {
                     panic!("Custom pubdata DA is incompatible with Rollup mode")
                 }
                 (L1BatchCommitmentMode::Validium, PubdataDA::Custom) => {
-                    let mut operator_da_input = vec![PUBDATA_SOURCE_CUSTOM];
+                    let mut operator_da_input: Vec<u8> = self
+                        .l1_batch_with_metadata
+                        .metadata
+                        .state_diff_hash
+                        .0
+                        .into();
+
                     operator_da_input.extend(
                         &self
                             .l1_batch_with_metadata
@@ -251,7 +256,6 @@ impl Tokenizable for CommitBatchInfo<'_> {
 
                     operator_da_input
                 }
-
                 (
                     L1BatchCommitmentMode::Rollup,
                     PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,

@@ -8,9 +8,8 @@ import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/b
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice, waitUntilBlockFinalized } from '../src/helpers';
+import { scaledGasPrice, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
-import { sleep } from 'zksync-ethers/build/utils';
 
 describe('ERC20 contract checks', () => {
     let testMaster: TestMaster;
@@ -176,8 +175,7 @@ describe('ERC20 contract checks', () => {
         await expect(withdrawalPromise).toBeAccepted([l2BalanceChange, feeCheck]);
         const withdrawalTx = await withdrawalPromise;
         const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
-        await waitUntilBlockFinalized(alice, l2TxReceipt!.blockNumber);
-        // await withdrawalTx.waitFinalize();
+        await waitForBlockToBeFinalizedOnL1(alice, l2TxReceipt!.blockNumber);
 
         // Note: For L1 we should use L1 token address.
         const l1BalanceChange = await shouldChangeTokenBalances(
@@ -187,7 +185,6 @@ describe('ERC20 contract checks', () => {
                 l1: true
             }
         );
-        await sleep(60000);
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
@@ -219,8 +216,7 @@ describe('ERC20 contract checks', () => {
         // It throws once it gets status == 0 in the receipt and doesn't wait for the finalization.
         const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
         const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
-        await waitUntilBlockFinalized(alice, l2TxReceipt!.blockNumber);
-        await sleep(35000);
+        await waitForBlockToBeFinalizedOnL1(alice, l2TxReceipt!.blockNumber);
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance);

@@ -1,6 +1,7 @@
 use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use circuit_definitions::circuit_definitions::recursion_layer::RECURSION_ARITY;
 use tokio::sync::Semaphore;
 use zkevm_test_harness::witness::recursive_aggregation::{
@@ -30,6 +31,7 @@ use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
     utils::{load_proofs_for_job_ids, save_recursive_layer_prover_input_artifacts},
+    witness_generator::WitnessGenerator,
 };
 
 mod artifacts;
@@ -81,17 +83,24 @@ impl NodeAggregationWitnessGenerator {
             keystore,
         }
     }
+}
+
+#[async_trait]
+impl WitnessGenerator for NodeAggregationWitnessGenerator {
+    type Job = NodeAggregationWitnessGeneratorJob;
+    type Metadata = NodeAggregationJobMetadata;
+    type Artifacts = NodeAggregationArtifacts;
 
     #[tracing::instrument(
         skip_all,
         fields(l1_batch = % job.block_number, circuit_id = % job.circuit_id)
     )]
-    pub async fn process_job_impl(
+    async fn process_job(
         job: NodeAggregationWitnessGeneratorJob,
-        started_at: Instant,
         object_store: Arc<dyn ObjectStore>,
-        max_circuits_in_flight: usize,
-    ) -> NodeAggregationArtifacts {
+        max_circuits_in_flight: Option<usize>,
+        started_at: Instant,
+    ) -> anyhow::Result<NodeAggregationArtifacts> {
         let node_vk_commitment = compute_node_vk_commitment(job.node_vk.clone());
         tracing::info!(
             "Starting witness generation of type {:?} for block {} circuit id {} depth {}",
@@ -117,7 +126,7 @@ impl NodeAggregationWitnessGenerator {
             proofs_ids.len()
         );
 
-        let semaphore = Arc::new(Semaphore::new(max_circuits_in_flight));
+        let semaphore = Arc::new(Semaphore::new(max_circuits_in_flight.unwrap()));
 
         let mut handles = vec![];
         for (circuit_idx, (chunk, proofs_ids_for_chunk)) in job
@@ -205,52 +214,54 @@ impl NodeAggregationWitnessGenerator {
             started_at.elapsed(),
         );
 
-        NodeAggregationArtifacts {
+        Ok(NodeAggregationArtifacts {
             circuit_id: job.circuit_id,
             block_number: job.block_number,
             depth: job.depth + 1,
             next_aggregations,
             recursive_circuit_ids_and_urls,
-        }
+        })
     }
-}
 
-#[tracing::instrument(
-    skip_all,
-    fields(l1_batch = % metadata.block_number, circuit_id = % metadata.circuit_id)
-)]
-pub async fn prepare_job(
-    metadata: NodeAggregationJobMetadata,
-    object_store: &dyn ObjectStore,
-    keystore: Keystore,
-) -> anyhow::Result<NodeAggregationWitnessGeneratorJob> {
-    let started_at = Instant::now();
-    let artifacts = NodeAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await?;
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = % metadata.block_number, circuit_id = % metadata.circuit_id)
+    )]
+    async fn prepare_job(
+        metadata: Self::Metadata,
+        object_store: &dyn ObjectStore,
+        keystore: Keystore,
+    ) -> anyhow::Result<NodeAggregationWitnessGeneratorJob> {
+        let started_at = Instant::now();
+        let artifacts =
+            NodeAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await?;
 
-    WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
-        .observe(started_at.elapsed());
+        WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
+            .observe(started_at.elapsed());
 
-    let started_at = Instant::now();
-    let leaf_vk = keystore
-        .load_recursive_layer_verification_key(metadata.circuit_id)
-        .context("get_recursive_layer_vk_for_circuit_type")?;
-    let node_vk = keystore
-        .load_recursive_layer_verification_key(
-            ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-        )
-        .context("get_recursive_layer_vk_for_circuit_type()")?;
+        let started_at = Instant::now();
+        let leaf_vk = keystore
+            .load_recursive_layer_verification_key(metadata.circuit_id)
+            .context("get_recursive_layer_vk_for_circuit_type")?;
+        let node_vk = keystore
+            .load_recursive_layer_verification_key(
+                ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
+            )
+            .context("get_recursive_layer_vk_for_circuit_type()")?;
 
-    WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::NodeAggregation.into()]
-        .observe(started_at.elapsed());
+        WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::NodeAggregation.into()]
+            .observe(started_at.elapsed());
 
-    Ok(NodeAggregationWitnessGeneratorJob {
-        circuit_id: metadata.circuit_id,
-        block_number: metadata.block_number,
-        depth: metadata.depth,
-        aggregations: artifacts.0,
-        proofs_ids: metadata.prover_job_ids_for_proofs,
-        leaf_vk,
-        node_vk,
-        all_leafs_layer_params: get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?,
-    })
+        Ok(NodeAggregationWitnessGeneratorJob {
+            circuit_id: metadata.circuit_id,
+            block_number: metadata.block_number,
+            depth: metadata.depth,
+            aggregations: artifacts.0,
+            proofs_ids: metadata.prover_job_ids_for_proofs,
+            leaf_vk,
+            node_vk,
+            all_leafs_layer_params: get_leaf_vk_params(&keystore)
+                .context("get_leaf_vk_params()")?,
+        })
+    }
 }
