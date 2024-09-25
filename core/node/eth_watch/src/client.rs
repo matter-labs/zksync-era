@@ -1,7 +1,9 @@
 use std::fmt;
 
 use anyhow::Context;
-use zksync_contracts::{getters_contract, state_transition_manager_contract, verifier_contract};
+use zksync_contracts::{
+    getters_facet_contract, state_transition_manager_contract, verifier_contract,
+};
 use zksync_eth_client::{
     clients::{DynClient, L1},
     CallFunctionArgs, ClientError, ContractCallError, EnrichedClientError, EnrichedClientResult,
@@ -57,7 +59,7 @@ pub struct EthHttpQueryClient {
     state_transition_manager_address: Option<Address>,
     chain_admin_address: Option<Address>,
     verifier_contract_abi: Contract,
-    getters_contract_abi: Contract,
+    getters_facet_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
 }
 
@@ -87,7 +89,7 @@ impl EthHttpQueryClient {
                 .unwrap()
                 .signature(),
             verifier_contract_abi: verifier_contract(),
-            getters_contract_abi: getters_contract(),
+            getters_facet_contract_abi: getters_facet_contract(),
             confirmations_for_eth_event,
         }
     }
@@ -291,7 +293,7 @@ impl EthClient for EthHttpQueryClient {
 
     async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
         CallFunctionArgs::new("getTotalPriorityTxs", ())
-            .for_contract(self.diamond_proxy_addr, &self.getters_contract_abi)
+            .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
             .call(&self.client)
             .await
             .map(|x: U256| x.try_into().unwrap())
