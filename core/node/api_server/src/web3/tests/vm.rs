@@ -393,6 +393,7 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
                 logs: vm_execution_logs.clone(),
                 statistics: Default::default(),
                 refunds: Default::default(),
+                new_known_factory_deps: None,
             }
         });
         tx_executor

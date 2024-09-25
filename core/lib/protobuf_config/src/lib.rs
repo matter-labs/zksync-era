@@ -28,6 +28,7 @@ mod prover;
 mod pruning;
 mod secrets;
 mod snapshots_creator;
+mod use_evm_simulator;
 
 mod da_client;
 mod external_price_api_client;

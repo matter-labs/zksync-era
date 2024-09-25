@@ -1,0 +1,7 @@
+syntax = "proto3";
+
+package zksync.config.use_evm_simulator;
+
+message UseEvmSimulator {
+  optional bool use_evm_simulator = 1;
+}

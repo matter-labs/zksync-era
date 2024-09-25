@@ -1,44 +1,20 @@
 use std::collections::HashMap;
 
-use once_cell::sync::Lazy;
 use zksync_multivm::{
     interface::{
         Call, CompressedBytecodeInfo, ExecutionResult, L2BlockEnv, TransactionExecutionResult,
         TxExecutionStatus, VmEvent, VmExecutionMetrics, VmExecutionResultAndLogs,
     },
-    vm_latest::TransactionVmExt,
+    vm_latest::{utils::extract_bytecodes_marked_as_known, TransactionVmExt},
 };
-use zksync_system_constants::KNOWN_CODES_STORAGE_ADDRESS;
 use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
-    ethabi,
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     L2BlockNumber, ProtocolVersionId, StorageLogWithPreviousValue, Transaction, H256,
 };
 use zksync_utils::bytecode::hash_bytecode;
 
 use crate::metrics::KEEPER_METRICS;
-
-/// Extracts all bytecodes marked as known on the system contracts.
-fn extract_bytecodes_marked_as_known(all_generated_events: &[VmEvent]) -> Vec<H256> {
-    static PUBLISHED_BYTECODE_SIGNATURE: Lazy<H256> = Lazy::new(|| {
-        ethabi::long_signature(
-            "MarkedAsKnown",
-            &[ethabi::ParamType::FixedBytes(32), ethabi::ParamType::Bool],
-        )
-    });
-
-    all_generated_events
-        .iter()
-        .filter(|event| {
-            // Filter events from the deployer contract that match the expected signature.
-            event.address == KNOWN_CODES_STORAGE_ADDRESS
-                && event.indexed_topics.len() == 3
-                && event.indexed_topics[0] == *PUBLISHED_BYTECODE_SIGNATURE
-        })
-        .map(|event| event.indexed_topics[1])
-        .collect()
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct L2BlockUpdates {
@@ -104,6 +80,7 @@ impl L2BlockUpdates {
         self.block_execution_metrics += execution_metrics;
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn extend_from_executed_transaction(
         &mut self,
         tx: Transaction,
@@ -111,10 +88,12 @@ impl L2BlockUpdates {
         tx_l1_gas_this_tx: BlockGasCount,
         execution_metrics: VmExecutionMetrics,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+        new_known_factory_deps: Vec<(H256, Vec<u8>)>,
         call_traces: Vec<Call>,
     ) {
         let saved_factory_deps =
             extract_bytecodes_marked_as_known(&tx_execution_result.logs.events);
+        self.new_factory_deps.extend(new_known_factory_deps.clone());
         self.events.extend(tx_execution_result.logs.events);
         self.user_l2_to_l1_logs
             .extend(tx_execution_result.logs.user_l2_to_l1_logs);
@@ -145,11 +124,12 @@ impl L2BlockUpdates {
 
         // Get transaction factory deps
         let factory_deps = &tx.execute.factory_deps;
-        let tx_factory_deps: HashMap<_, _> = factory_deps
+        let mut tx_factory_deps: HashMap<_, _> = factory_deps
             .iter()
-            .map(|bytecode| (hash_bytecode(bytecode), bytecode))
+            .map(|bytecode| (hash_bytecode(bytecode), bytecode.clone()))
             .collect();
 
+        tx_factory_deps.extend(new_known_factory_deps.clone());
         // Save all bytecodes that were marked as known on the bootloader
         let known_bytecodes = saved_factory_deps.into_iter().map(|bytecode_hash| {
             let bytecode = tx_factory_deps.get(&bytecode_hash).unwrap_or_else(|| {
@@ -229,6 +209,7 @@ mod tests {
             create_execution_result([]),
             BlockGasCount::default(),
             VmExecutionMetrics::default(),
+            vec![],
             vec![],
             vec![],
         );

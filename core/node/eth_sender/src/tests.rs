@@ -41,8 +41,9 @@ pub(crate) fn mock_multicall_response() -> Token {
     Token::Array(vec![
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
         Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 96])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 96])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![5u8; 32])]),
         Token::Tuple(vec![
             Token::Bool(true),
             Token::Bytes(
@@ -74,6 +75,7 @@ pub(crate) fn default_l1_batch_metadata() -> L1BatchMetadata {
             zkporter_is_available: false,
             bootloader_code_hash: H256::default(),
             default_aa_code_hash: H256::default(),
+            evm_simulator_code_hash: H256::default(),
             protocol_version: Some(ProtocolVersionId::default()),
         },
         aux_data_hash: H256::default(),

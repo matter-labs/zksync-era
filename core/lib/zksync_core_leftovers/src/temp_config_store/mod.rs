@@ -10,6 +10,7 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        use_evm_simulator::UseEvmSimulator,
         vm_runner::BasicWitnessInputProducerConfig,
         wallets::{AddressWallet, EthSender, StateKeeper, TokenMultiplierSetter, Wallet, Wallets},
         CommitmentGeneratorConfig, DatabaseSecrets, ExperimentalVmConfig,
@@ -75,6 +76,7 @@ pub struct TempConfigStore {
     pub core_object_store: Option<ObjectStoreConfig>,
     pub base_token_adjuster_config: Option<BaseTokenAdjusterConfig>,
     pub commitment_generator: Option<CommitmentGeneratorConfig>,
+    pub use_evm_simulator: Option<UseEvmSimulator>,
     pub pruning: Option<PruningConfig>,
     pub snapshot_recovery: Option<SnapshotRecoveryConfig>,
     pub external_price_api_client_config: Option<ExternalPriceApiClientConfig>,
@@ -117,6 +119,7 @@ impl TempConfigStore {
             pruning: self.pruning.clone(),
             external_price_api_client_config: self.external_price_api_client_config.clone(),
             consensus_config: None,
+            use_evm_simulator: self.use_evm_simulator.clone(),
             external_proof_integration_api_config: self
                 .external_proof_integration_api_config
                 .clone(),
@@ -196,6 +199,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
         basic_witness_input_producer_config: BasicWitnessInputProducerConfig::from_env().ok(),
         core_object_store: ObjectStoreConfig::from_env().ok(),
         base_token_adjuster_config: BaseTokenAdjusterConfig::from_env().ok(),
+        use_evm_simulator: UseEvmSimulator::from_env().ok(),
         commitment_generator: None,
         pruning: None,
         snapshot_recovery: None,

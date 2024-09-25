@@ -4,7 +4,9 @@ use anyhow::Context as _;
 use num_enum::TryFromPrimitive;
 use rlp::Rlp;
 use serde::{Deserialize, Serialize};
+use zksync_config::configs::use_evm_simulator;
 use zksync_crypto_primitives::K256PrivateKey;
+use zksync_env_config::FromEnv;
 
 use self::error::SignError;
 use crate::{
@@ -216,7 +218,11 @@ impl L2Tx {
         let raw = req.get_signed_bytes(&sig).context("get_signed_bytes")?;
         let (req, hash) =
             TransactionRequest::from_bytes_unverified(&raw).context("from_bytes_unverified()")?;
-        let mut tx = L2Tx::from_request_unverified(req).context("from_request_unverified()")?;
+        let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env()
+            .unwrap()
+            .use_evm_simulator;
+        let mut tx = L2Tx::from_request_unverified(req, use_evm_simulator)
+            .context("from_request_unverified()")?;
         tx.set_input(raw, hash);
         Ok(tx)
     }

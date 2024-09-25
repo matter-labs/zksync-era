@@ -45,17 +45,19 @@ impl ProtocolVersionsDal<'_, '_> {
                     timestamp,
                     bootloader_code_hash,
                     default_account_code_hash,
+                    evm_simulator_code_hash,
                     upgrade_tx_hash,
                     created_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW())
+                ($1, $2, $3, $4, $5, $6, NOW())
             ON CONFLICT DO NOTHING
             "#,
             version.minor as i32,
             timestamp as i64,
             base_system_contracts_hashes.bootloader.as_bytes(),
             base_system_contracts_hashes.default_aa.as_bytes(),
+            base_system_contracts_hashes.evm_simulator.as_bytes(),
             tx_hash.as_ref().map(H256::as_bytes),
         )
         .instrument("save_protocol_version#minor")
@@ -193,7 +195,8 @@ impl ProtocolVersionsDal<'_, '_> {
             r#"
             SELECT
                 bootloader_code_hash,
-                default_account_code_hash
+                default_account_code_hash,
+                evm_simulator_code_hash
             FROM
                 protocol_versions
             WHERE
@@ -212,6 +215,10 @@ impl ProtocolVersionsDal<'_, '_> {
                 .get_base_system_contracts(
                     H256::from_slice(&row.bootloader_code_hash),
                     H256::from_slice(&row.default_account_code_hash),
+                    H256::from_slice(
+                        &row.evm_simulator_code_hash
+                            .unwrap_or(H256::zero().as_bytes().to_vec()),
+                    ),
                 )
                 .await?;
             Some(contracts)
@@ -232,6 +239,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_versions.timestamp,
                 protocol_versions.bootloader_code_hash,
                 protocol_versions.default_account_code_hash,
+                protocol_versions.evm_simulator_code_hash,
                 protocol_patches.patch,
                 protocol_patches.snark_wrapper_vk_hash
             FROM

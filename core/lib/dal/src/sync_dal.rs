@@ -50,12 +50,14 @@ impl SyncDal<'_, '_> {
                 miniblocks.fair_pubdata_price,
                 miniblocks.bootloader_code_hash,
                 miniblocks.default_aa_code_hash,
+                l1_batches.evm_simulator_code_hash,
                 miniblocks.virtual_blocks,
                 miniblocks.hash,
                 miniblocks.protocol_version AS "protocol_version!",
                 miniblocks.fee_account_address AS "fee_account_address!"
             FROM
                 miniblocks
+                INNER JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
             WHERE
                 miniblocks.number BETWEEN $1 AND $2
             "#,

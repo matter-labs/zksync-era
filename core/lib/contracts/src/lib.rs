@@ -16,6 +16,8 @@ use ethabi::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use zksync_config::configs::use_evm_simulator::{self};
+use zksync_env_config::FromEnv;
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, env::Workspace};
 
 pub mod test_contracts;
@@ -193,6 +195,10 @@ pub fn deployer_contract() -> Contract {
     load_sys_contract("ContractDeployer")
 }
 
+pub fn known_code_storage_contract() -> Contract {
+    load_sys_contract("KnownCodesStorage")
+}
+
 pub fn l1_messenger_contract() -> Contract {
     load_sys_contract("L1Messenger")
 }
@@ -303,18 +309,21 @@ pub struct SystemContractCode {
 pub struct BaseSystemContracts {
     pub bootloader: SystemContractCode,
     pub default_aa: SystemContractCode,
+    pub evm_simulator: SystemContractCode,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 pub struct BaseSystemContractsHashes {
     pub bootloader: H256,
     pub default_aa: H256,
+    pub evm_simulator: H256,
 }
 
 impl PartialEq for BaseSystemContracts {
     fn eq(&self, other: &Self) -> bool {
         self.bootloader.hash == other.bootloader.hash
             && self.default_aa.hash == other.default_aa.hash
+            && self.evm_simulator.hash == other.evm_simulator.hash
     }
 }
 
@@ -331,13 +340,35 @@ impl BaseSystemContracts {
         let hash = hash_bytecode(&bytecode);
 
         let default_aa = SystemContractCode {
-            code: bytes_to_be_words(bytecode),
+            code: bytes_to_be_words(bytecode.clone()),
             hash,
+        };
+
+        // If evm simulator is not enabled, use the default account bytecode and hash.
+        let (evm_simulator_bytecode, evm_simulator_hash) =
+            if use_evm_simulator::UseEvmSimulator::from_env()
+                .unwrap()
+                .use_evm_simulator
+            {
+                let evm_simulator_bytecode =
+                    read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
+                (
+                    evm_simulator_bytecode.clone(),
+                    hash_bytecode(&evm_simulator_bytecode),
+                )
+            } else {
+                (bytecode.clone(), hash)
+            };
+
+        let evm_simulator = SystemContractCode {
+            code: bytes_to_be_words(evm_simulator_bytecode),
+            hash: evm_simulator_hash,
         };
 
         BaseSystemContracts {
             bootloader,
             default_aa,
+            evm_simulator,
         }
     }
     // BaseSystemContracts with proved bootloader - for handling transactions.
@@ -474,6 +505,7 @@ impl BaseSystemContracts {
         BaseSystemContractsHashes {
             bootloader: self.bootloader.hash,
             default_aa: self.default_aa.hash,
+            evm_simulator: self.evm_simulator.hash,
         }
     }
 }

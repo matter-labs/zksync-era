@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                protocol_version,\n                system_logs,\n                pubdata_input\n            FROM\n                l1_batches\n            WHERE\n                number = $1\n            ",
+  "query": "\n            SELECT\n                number,\n                l1_tx_count,\n                l2_tx_count,\n                timestamp,\n                l2_to_l1_messages,\n                bloom,\n                priority_ops_onchain_data,\n                used_contract_hashes,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_simulator_code_hash,\n                protocol_version,\n                system_logs,\n                pubdata_input\n            FROM\n                l1_batches\n            WHERE\n                number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -55,16 +55,21 @@
       },
       {
         "ordinal": 10,
+        "name": "evm_simulator_code_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 11,
         "name": "protocol_version",
         "type_info": "Int4"
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "system_logs",
         "type_info": "ByteaArray"
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "pubdata_input",
         "type_info": "Bytea"
       }
@@ -86,9 +91,10 @@
       true,
       true,
       true,
+      true,
       false,
       true
     ]
   },
-  "hash": "454e16ddb5e85285d0c4b9013bcce5d464ecc55c80b54bc16040226df7e297bd"
+  "hash": "42ae258b55532b0f814af4e5d39e87dde392c0efa13ecd42becfd0e5db79f059"
 }

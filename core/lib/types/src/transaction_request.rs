@@ -4,6 +4,8 @@ use rlp::{DecoderError, Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zksync_basic_types::H256;
+use zksync_config::configs::use_evm_simulator;
+use zksync_env_config::FromEnv;
 use zksync_system_constants::{DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, MAX_ENCODED_TX_SIZE};
 use zksync_utils::{
     bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError},
@@ -809,6 +811,7 @@ impl TransactionRequest {
 impl L2Tx {
     pub(crate) fn from_request_unverified(
         mut value: TransactionRequest,
+        use_evm_simulator: bool,
     ) -> Result<Self, SerializationTransactionError> {
         let fee = value.get_fee_data_checked()?;
         let nonce = value.get_nonce_checked()?;
@@ -818,7 +821,7 @@ impl L2Tx {
         validate_factory_deps(&meta.factory_deps)?;
 
         // TODO: Remove this check when evm equivalence gets enabled
-        if value.to.is_none() {
+        if value.to.is_none() && !use_evm_simulator {
             return Err(SerializationTransactionError::ToAddressIsNull);
         }
 
@@ -852,7 +855,10 @@ impl L2Tx {
         value: TransactionRequest,
         max_tx_size: usize,
     ) -> Result<Self, SerializationTransactionError> {
-        let tx = Self::from_request_unverified(value)?;
+        let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env()
+            .unwrap()
+            .use_evm_simulator;
+        let tx = Self::from_request_unverified(value, use_evm_simulator)?;
         tx.check_encoded_size(max_tx_size)?;
         Ok(tx)
     }

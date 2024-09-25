@@ -8,6 +8,7 @@ export async function callSystemContractDeployer(
     nonce: string,
     bootloader: boolean,
     defaultAA: boolean,
+    evmSimulator: boolean,
     systemContracts: boolean,
     file: string
 ) {
@@ -19,6 +20,9 @@ export async function callSystemContractDeployer(
     }
     if (defaultAA) {
         argsString += ' --default-aa';
+    }
+    if (evmSimulator) {
+        argsString += '--evm-simulator';
     }
     if (systemContracts) {
         argsString += ' --system-contracts';

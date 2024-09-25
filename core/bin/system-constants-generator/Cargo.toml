@@ -15,6 +15,8 @@ zksync_types.workspace = true
 zksync_utils.workspace = true
 zksync_contracts.workspace = true
 zksync_multivm.workspace = true
+zksync_config.workspace = true
+zksync_env_config.workspace = true
 
 codegen.workspace = true
 serde.workspace = true

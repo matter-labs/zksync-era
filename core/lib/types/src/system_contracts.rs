@@ -1,12 +1,16 @@
 use std::path::PathBuf;
 
 use once_cell::sync::Lazy;
-use zksync_basic_types::{AccountTreeId, Address, U256};
+use zksync_basic_types::{AccountTreeId, Address, H256, U256};
+use zksync_config::configs::use_evm_simulator;
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
+use zksync_env_config::FromEnv;
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
-    EVENT_WRITER_ADDRESS, P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS,
+    EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, P256VERIFY_PRECOMPILE_ADDRESS,
+    PUBDATA_CHUNK_PUBLISHER_ADDRESS,
 };
+use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
@@ -25,7 +29,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 25] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
     (
         "",
         "AccountCodeStorage",
@@ -147,6 +151,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 25] = [
         COMPLEX_UPGRADER_ADDRESS,
         ContractLanguage::Sol,
     ),
+    (
+        "",
+        "EvmGasManager",
+        EVM_GAS_MANAGER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
     // For now, only zero address and the bootloader address have empty bytecode at the init
     // In the future, we might want to set all of the system contracts this way.
     ("", "EmptyContract", Address::zero(), ContractLanguage::Sol),
@@ -170,12 +180,42 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 25] = [
     ),
 ];
 
+static EVM_SIMULATOR_HASH: Lazy<H256> = Lazy::new(|| {
+    if use_evm_simulator::UseEvmSimulator::from_env()
+        .unwrap()
+        .use_evm_simulator
+    {
+        hash_bytecode(&read_sys_contract_bytecode(
+            "",
+            "EvmInterpreter",
+            ContractLanguage::Yul,
+        ))
+    } else {
+        let default_account_code =
+            read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
+        hash_bytecode(&default_account_code)
+    }
+});
+
+pub fn get_evm_simulator_hash() -> H256 {
+    *EVM_SIMULATOR_HASH
+}
+
 static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
+    let evm_simulator_is_used = use_evm_simulator::UseEvmSimulator::from_env()
+        .unwrap()
+        .use_evm_simulator;
     SYSTEM_CONTRACT_LIST
         .iter()
-        .map(|(path, name, address, contract_lang)| DeployedContract {
-            account_id: AccountTreeId::new(*address),
-            bytecode: read_sys_contract_bytecode(path, name, contract_lang.clone()),
+        .filter_map(|(path, name, address, contract_lang)| {
+            if *name == "EvmGasManager" && !evm_simulator_is_used {
+                None
+            } else {
+                Some(DeployedContract {
+                    account_id: AccountTreeId::new(*address),
+                    bytecode: read_sys_contract_bytecode(path, name, contract_lang.clone()),
+                })
+            }
         })
         .collect::<Vec<_>>()
 });
@@ -187,12 +227,21 @@ pub fn get_system_smart_contracts() -> Vec<DeployedContract> {
 
 /// Loads system contracts from a given directory.
 pub fn get_system_smart_contracts_from_dir(path: PathBuf) -> Vec<DeployedContract> {
+    let evm_simulator_is_used = use_evm_simulator::UseEvmSimulator::from_env()
+        .unwrap()
+        .use_evm_simulator;
     let repo = SystemContractsRepo { root: path };
     SYSTEM_CONTRACT_LIST
         .iter()
-        .map(|(path, name, address, contract_lang)| DeployedContract {
-            account_id: AccountTreeId::new(*address),
-            bytecode: repo.read_sys_contract_bytecode(path, name, contract_lang.clone()),
+        .filter_map(|(path, name, address, contract_lang)| {
+            if *name == "EvmGasManager" && !evm_simulator_is_used {
+                None
+            } else {
+                Some(DeployedContract {
+                    account_id: AccountTreeId::new(*address),
+                    bytecode: repo.read_sys_contract_bytecode(path, name, contract_lang.clone()),
+                })
+            }
         })
         .collect::<Vec<_>>()
 }

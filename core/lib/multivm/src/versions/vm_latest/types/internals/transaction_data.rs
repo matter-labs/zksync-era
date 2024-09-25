@@ -62,6 +62,12 @@ impl From<Transaction> for TransactionData {
                     U256::zero()
                 };
 
+                let should_deploy_contract = if execute_tx.execute.contract_address.is_none() {
+                    U256([1, 0, 0, 0])
+                } else {
+                    U256::zero()
+                };
+
                 // Ethereum transactions do not sign gas per pubdata limit, and so for them we need to use
                 // some default value. We use the maximum possible value that is allowed by the bootloader
                 // (i.e. we can not use u64::MAX, because the bootloader requires gas per pubdata for such
@@ -85,7 +91,7 @@ impl From<Transaction> for TransactionData {
                     value: execute_tx.execute.value,
                     reserved: [
                         should_check_chain_id,
-                        U256::zero(),
+                        should_deploy_contract,
                         U256::zero(),
                         U256::zero(),
                     ],

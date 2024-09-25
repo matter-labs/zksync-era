@@ -97,10 +97,13 @@ mod tests {
             validation_computational_gas_limit: 10_000_000,
             save_call_traces: false,
             bootloader_hash: Some(hash(
-                "0x010007ede999d096c84553fb514d3d6ca76fbf39789dda76bfeda9f3ae06236e",
+                "0x010008bbde6fc402ea3a3d6cb15cb97e70245d3d4e48fb74362d4961b74c16b1",
             )),
             default_aa_hash: Some(hash(
-                "0x0100055b041eb28aff6e3a6e0f37c31fd053fc9ef142683b05e5f0aee6934066",
+                "0x0100058d9eee51f4b9e9a9ecb7fd7e8301e90bef018c2bd913ed36e583fec8c2",
+            )),
+            evm_simulator_hash: Some(hash(
+                "0x01000e53aa35d9d19fa99341c2e2901cf93b3668f01569dd5c6ca409c7696b91",
             )),
             l1_batch_commit_data_generator_mode,
             max_circuits_per_batch: 24100,
@@ -135,8 +138,8 @@ mod tests {
             CHAIN_STATE_KEEPER_FEE_MODEL_VERSION="V2"
             CHAIN_STATE_KEEPER_VALIDATION_COMPUTATIONAL_GAS_LIMIT="10000000"
             CHAIN_STATE_KEEPER_SAVE_CALL_TRACES="false"
-            CHAIN_STATE_KEEPER_BOOTLOADER_HASH=0x010007ede999d096c84553fb514d3d6ca76fbf39789dda76bfeda9f3ae06236e
-            CHAIN_STATE_KEEPER_DEFAULT_AA_HASH=0x0100055b041eb28aff6e3a6e0f37c31fd053fc9ef142683b05e5f0aee6934066
+            CHAIN_STATE_KEEPER_BOOTLOADER_HASH=0x010008bbde6fc402ea3a3d6cb15cb97e70245d3d4e48fb74362d4961b74c16b1
+            CHAIN_STATE_KEEPER_DEFAULT_AA_HASH=0x0100058d9eee51f4b9e9a9ecb7fd7e8301e90bef018c2bd913ed36e583fec8c2
             CHAIN_STATE_KEEPER_PROTECTIVE_READS_PERSISTENCE_ENABLED=true
             CHAIN_STATE_KEEPER_L1_BATCH_COMMIT_DATA_GENERATOR_MODE="{l1_batch_commit_data_generator_mode}"
         "#

@@ -146,6 +146,7 @@ impl DeployL1Config {
                     .diamond_init_minimal_l2_gas_price,
                 bootloader_hash: genesis_config.bootloader_hash.unwrap(),
                 default_aa_hash: genesis_config.default_aa_hash.unwrap(),
+                evm_simulator_hash: genesis_config.evm_simulator_hash.unwrap(),
                 diamond_init_priority_tx_max_pubdata: initial_deployment_config
                     .diamond_init_priority_tx_max_pubdata,
                 diamond_init_pubdata_pricing_mode: initial_deployment_config
@@ -194,6 +195,7 @@ pub struct ContractsDeployL1Config {
     pub diamond_init_minimal_l2_gas_price: u64,
     pub bootloader_hash: H256,
     pub default_aa_hash: H256,
+    pub evm_simulator_hash: H256,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

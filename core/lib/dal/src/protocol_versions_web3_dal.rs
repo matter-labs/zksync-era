@@ -21,6 +21,7 @@ impl ProtocolVersionsWeb3Dal<'_, '_> {
                 timestamp,
                 bootloader_code_hash,
                 default_account_code_hash,
+                evm_simulator_code_hash,
                 upgrade_tx_hash
             FROM
                 protocol_versions

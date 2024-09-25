@@ -287,6 +287,7 @@ mod tests {
             tx,
             create_execution_result([]),
             vec![],
+            vec![],
             BlockGasCount::default(),
             VmExecutionMetrics::default(),
             vec![],

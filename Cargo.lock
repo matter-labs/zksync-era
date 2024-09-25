@@ -7494,7 +7494,9 @@ dependencies = [
  "once_cell",
  "serde",
  "serde_json",
+ "zksync_config",
  "zksync_contracts",
+ "zksync_env_config",
  "zksync_multivm",
  "zksync_types",
  "zksync_utils",
@@ -9606,6 +9608,8 @@ dependencies = [
  "once_cell",
  "serde",
  "serde_json",
+ "zksync_config",
+ "zksync_env_config",
  "zksync_utils",
 ]
 
@@ -9811,6 +9815,7 @@ dependencies = [
  "zksync_config",
  "zksync_contracts",
  "zksync_dal",
+ "zksync_env_config",
  "zksync_eth_client",
  "zksync_l1_contract_interface",
  "zksync_node_fee_model",
@@ -10157,8 +10162,11 @@ dependencies = [
  "zk_evm 0.140.0",
  "zk_evm 0.141.0",
  "zk_evm 0.150.5",
+ "zksync_config",
  "zksync_contracts",
+ "zksync_env_config",
  "zksync_eth_signer",
+ "zksync_state",
  "zksync_system_constants",
  "zksync_test_account",
  "zksync_types",
@@ -10908,6 +10916,7 @@ dependencies = [
  "zksync_config",
  "zksync_contracts",
  "zksync_crypto_primitives",
+ "zksync_env_config",
  "zksync_mini_merkle_tree",
  "zksync_protobuf",
  "zksync_protobuf_build",
@@ -11017,6 +11026,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_system_constants",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]
