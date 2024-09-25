@@ -1,8 +1,9 @@
-use zksync_types::zk_evm_types::FarCallOpcode;
+use zksync_types::{zk_evm_types::FarCallOpcode, U256};
 use zksync_vm2::interface::{
-    CallframeInterface, Opcode, OpcodeType, ShouldStop, StateInterface, Tracer,
+    CallframeInterface, Opcode, OpcodeType, ReturnType, ShouldStop, StateInterface, Tracer,
 };
-use zksync_vm_interface::Call;
+use zksync_vm2::FatPointer;
+use zksync_vm_interface::{Call, VmRevertReason};
 
 #[derive(Debug, Clone, Default)]
 pub struct CallTracer {
@@ -40,6 +41,9 @@ impl Tracer for CallTracer {
                 let current_gas = state.current_frame().gas() as u64;
                 let from = state.current_frame().caller();
                 let to = state.current_frame().address();
+                let input = read_fat_pointer(state, state.read_register(1).0);
+                let value = U256::from(state.current_frame().context_u128());
+
                 self.stack.push(FarcallAndNearCallCount {
                     farcall: Call {
                         r#type: match tipe {
@@ -58,6 +62,8 @@ impl Tracer for CallTracer {
                         // The previous frame always exists directly after a far call
                         parent_gas: current_gas + state.callframe(1).gas() as u64,
                         gas: current_gas,
+                        input,
+                        value,
                         ..Default::default()
                     },
                     near_calls_after: 0,
@@ -72,7 +78,7 @@ impl Tracer for CallTracer {
                     self.max_near_calls = self.max_near_calls.max(frame.near_calls_after);
                 }
             }
-            Opcode::Ret(_) => {
+            Opcode::Ret(variant) => {
                 self.current_stack_depth -= 1;
 
                 let Some(mut current_call) = self.stack.pop() else {
@@ -86,7 +92,20 @@ impl Tracer for CallTracer {
                         .parent_gas
                         .saturating_sub(state.current_frame().gas() as u64);
 
-                    // TODO save return value
+                    let output = read_fat_pointer(state, state.read_register(1).0);
+
+                    match variant {
+                        ReturnType::Normal => {
+                            current_call.farcall.output = output;
+                        }
+                        ReturnType::Revert => {
+                            current_call.farcall.revert_reason =
+                                Some(VmRevertReason::from(output.as_slice()).to_string());
+                        }
+                        ReturnType::Panic => {
+                            current_call.farcall.error = Some("Panic".to_string());
+                        }
+                    }
 
                     // If there is a parent call, push the current call to it
                     // Otherwise, put the current call back on the stack, because it's the top level call
@@ -105,4 +124,15 @@ impl Tracer for CallTracer {
 
         ShouldStop::Continue
     }
+}
+
+fn read_fat_pointer<S: StateInterface>(state: &S, raw: U256) -> Vec<u8> {
+    let pointer = FatPointer::from(raw);
+    let length = pointer.length - pointer.offset;
+    let start = pointer.start + pointer.offset;
+    let mut calldata = vec![0; length as usize];
+    for i in 0..length {
+        calldata[i as usize] = state.read_heap_byte(pointer.memory_page, start + i);
+    }
+    calldata
 }
