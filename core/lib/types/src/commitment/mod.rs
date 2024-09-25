@@ -15,14 +15,18 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_crypto_primitives::hasher::{keccak::KeccakHasher, Hasher};
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_system_constants::{
-    KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, ZKPORTER_IS_AVAILABLE,
+    KNOWN_CODES_STORAGE_ADDRESS, L2_TO_L1_LOGS_TREE_ROOT_KEY, STATE_DIFF_HASH_KEY_PRE_GATEWAY,
+    ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::u256_to_h256;
 
 use crate::{
     blob::num_blobs_required,
     block::{L1BatchHeader, L1BatchTreeData},
-    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
+    l2_to_l1_log::{
+        l2_to_l1_logs_tree_size, parse_system_logs_for_blob_hashes, L2ToL1Log, SystemL2ToL1Log,
+        UserL2ToL1Log,
+    },
     web3::keccak256,
     writes::{
         compress_state_diffs, InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord,
@@ -381,7 +385,11 @@ impl L1BatchAuxiliaryOutput {
                 )
                 .merkle_root();
 
-                let l2_l1_logs_merkle_root = KeccakHasher.compress(&local_root, &aggregated_root);
+                let l2_l1_logs_merkle_root = if common_input.protocol_version.is_pre_gateway() {
+                    local_root
+                } else {
+                    KeccakHasher.compress(&local_root, &aggregated_root)
+                };
 
                 let common_output = L1BatchAuxiliaryCommonOutput {
                     l2_l1_logs_merkle_root,
@@ -397,18 +405,28 @@ impl L1BatchAuxiliaryOutput {
 
                 // Sanity checks. System logs are empty for the genesis batch, so we can't do checks for it.
                 if !system_logs.is_empty() {
-                    // FIXME: maybe track for older versions
-                    // let state_diff_hash_from_logs = system_logs
-                    //     .iter()
-                    //     .find_map(|log| {
-                    //         (log.0.key == u256_to_h256(STATE_DIFF_HASH_KEY.into()))
-                    //             .then_some(log.0.value)
-                    //     })
-                    //     .expect("Failed to find state diff hash in system logs");
-                    // assert_eq!(
-                    //     state_diffs_hash, state_diff_hash_from_logs,
-                    //     "State diff hash mismatch"
-                    // );
+                    if common_input.protocol_version.is_pre_gateway() {
+                        let state_diff_hash_from_logs = system_logs
+                            .iter()
+                            .find_map(|log| {
+                                (log.0.key == u256_to_h256(STATE_DIFF_HASH_KEY_PRE_GATEWAY.into()))
+                                    .then_some(log.0.value)
+                            })
+                            .expect("Failed to find state diff hash in system logs");
+                        assert_eq!(
+                            state_diffs_hash, state_diff_hash_from_logs,
+                            "State diff hash mismatch"
+                        );
+
+                        let blob_linear_hashes_from_logs = parse_system_logs_for_blob_hashes(
+                            &common_input.protocol_version,
+                            &system_logs,
+                        );
+                        assert_eq!(
+                            blob_linear_hashes, blob_linear_hashes_from_logs,
+                            "State diff hash mismatch"
+                        );
+                    }
 
                     let l2_to_l1_logs_tree_root_from_logs = system_logs
                         .iter()
@@ -446,8 +464,7 @@ impl L1BatchAuxiliaryOutput {
 
     pub fn get_local_root(&self) -> H256 {
         match self {
-            // FIXME for pre boojum this is incorrect
-            Self::PreBoojum { .. } => H256::zero(),
+            Self::PreBoojum { common, .. } => common.l2_l1_logs_merkle_root,
             Self::PostBoojum { local_root, .. } => *local_root,
         }
     }
@@ -735,7 +752,6 @@ pub enum CommitmentInput {
         state_diffs: Vec<StateDiffRecord>,
         aux_commitments: AuxCommitments,
         blob_commitments: Vec<H256>,
-        // FIXME: figure out whether it will work for the old server
         blob_linear_hashes: Vec<H256>,
         aggregated_root: H256,
     },

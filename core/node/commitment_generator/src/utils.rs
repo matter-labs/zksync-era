@@ -2,6 +2,7 @@
 
 use std::fmt;
 
+use anyhow::Context;
 use itertools::Itertools;
 use zk_evm_1_3_3::{
     aux_structures::Timestamp as Timestamp_1_3_3,
@@ -15,13 +16,17 @@ use zk_evm_1_5_0::{
     aux_structures::Timestamp as Timestamp_1_5_0,
     zk_evm_abstractions::queries::LogQuery as LogQuery_1_5_0,
 };
+use zksync_dal::{Connection, Core, CoreDal};
+use zksync_l1_contract_interface::i_executor::commit::kzg::ZK_SYNC_BYTES_PER_BLOB;
 use zksync_multivm::{interface::VmEvent, utils::get_used_bootloader_memory_bytes};
 use zksync_types::{
     vm::VmVersion,
+    web3::keccak256,
     zk_evm_types::{LogQuery, Timestamp},
-    ProtocolVersionId, EVENT_WRITER_ADDRESS, H256, U256,
+    AccountTreeId, L1BatchNumber, ProtocolVersionId, StorageKey, EVENT_WRITER_ADDRESS, H256,
+    L2_MESSAGE_ROOT_ADDRESS, U256,
 };
-use zksync_utils::{address_to_u256, expand_memory_contents, h256_to_u256};
+use zksync_utils::{address_to_u256, expand_memory_contents, h256_to_u256, u256_to_h256};
 
 /// Encapsulates computations of commitment components.
 ///
@@ -235,4 +240,80 @@ pub(crate) fn convert_vm_events_to_log_queries(events: &[VmEvent]) -> Vec<LogQue
                 .collect::<Vec<_>>()
         })
         .collect()
+}
+
+pub(crate) fn pubdata_to_blob_linear_hashes(
+    blobs_required: usize,
+    mut pubdata_input: Vec<u8>,
+) -> Vec<H256> {
+    // Now, we need to calculate the linear hashes of the blobs.
+    // Firstly, let's pad the pubdata to the size of the blob.
+    if pubdata_input.len() % ZK_SYNC_BYTES_PER_BLOB != 0 {
+        let padding =
+            vec![0u8; ZK_SYNC_BYTES_PER_BLOB - pubdata_input.len() % ZK_SYNC_BYTES_PER_BLOB];
+        pubdata_input.extend(padding);
+    }
+
+    let mut result = vec![H256::zero(); blobs_required];
+
+    pubdata_input
+        .chunks(ZK_SYNC_BYTES_PER_BLOB)
+        .enumerate()
+        .for_each(|(i, chunk)| {
+            result[i] = H256(keccak256(chunk));
+        });
+
+    result
+}
+
+pub(crate) async fn read_aggregation_root(
+    connection: &mut Connection<'_, Core>,
+    l1_batch_number: L1BatchNumber,
+) -> anyhow::Result<H256> {
+    // Position of `FullTree::_height` in `MessageRoot`'s storage layout.
+    const AGG_TREE_HEIGHT_KEY: usize = 3;
+
+    // Position of `FullTree::nodes` in `MessageRoot`'s storage layout.
+    const AGG_TREE_NODES_KEY: usize = 5;
+
+    let (_, last_l2_block) = connection
+        .blocks_dal()
+        .get_l2_block_range_of_l1_batch(l1_batch_number)
+        .await?
+        .context("No range for batch")?;
+
+    let agg_tree_height_slot = StorageKey::new(
+        AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS),
+        u256_to_h256(AGG_TREE_HEIGHT_KEY.into()),
+    );
+
+    let agg_tree_height = connection
+        .storage_web3_dal()
+        .get_historical_value_unchecked(agg_tree_height_slot.hashed_key(), last_l2_block)
+        .await?;
+    let agg_tree_height = h256_to_u256(agg_tree_height);
+
+    // `nodes[height][0]`
+    let agg_tree_root_hash_key =
+        n_dim_array_key_in_layout(AGG_TREE_NODES_KEY, &[agg_tree_height, U256::zero()]);
+    let agg_tree_root_hash_slot = StorageKey::new(
+        AccountTreeId::new(L2_MESSAGE_ROOT_ADDRESS),
+        agg_tree_root_hash_key,
+    );
+
+    Ok(connection
+        .storage_web3_dal()
+        .get_historical_value_unchecked(agg_tree_root_hash_slot.hashed_key(), last_l2_block)
+        .await?)
+}
+
+fn n_dim_array_key_in_layout(array_key: usize, indices: &[U256]) -> H256 {
+    let mut key: H256 = u256_to_h256(array_key.into());
+
+    for index in indices {
+        key = H256(keccak256(key.as_bytes()));
+        key = u256_to_h256(h256_to_u256(key).overflowing_add(*index).0);
+    }
+
+    key
 }
