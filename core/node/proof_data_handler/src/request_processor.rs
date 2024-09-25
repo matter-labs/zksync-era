@@ -229,7 +229,7 @@ impl RequestProcessor {
                 let protocol_version = l1_batch
                     .header
                     .protocol_version
-                    .unwrap_or_else(|| ProtocolVersionId::last_potentially_undefined());
+                    .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
                 let events_queue_state = l1_batch
                     .metadata

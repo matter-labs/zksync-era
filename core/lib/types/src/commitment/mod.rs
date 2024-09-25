@@ -91,9 +91,13 @@ pub struct L1BatchMetadata {
     /// commitment to the transactions in the batch.
     pub bootloader_initial_content_commitment: Option<H256>,
     pub state_diffs_compressed: Vec<u8>,
-
+    /// Hash of packed state diffs. It's present only for post-gateway batches.
     pub state_diff_hash: Option<H256>,
+    /// Root hash of the local logs tree. Tree contains logs that were produced on this chain.
+    /// It's present only for post-gateway batches.
     pub local_root: Option<H256>,
+    /// Root hash of the aggregated logs tree. Tree aggregates `local_root`s of chains that settle on this chain.
+    /// It's present only for post-gateway batches.
     pub aggregation_root: Option<H256>,
 }
 
