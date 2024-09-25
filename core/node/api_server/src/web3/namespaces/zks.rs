@@ -352,14 +352,14 @@ impl ZksNamespace {
         let (root, mut proof) = MiniMerkleTree::new(merkle_tree_leaves, Some(tree_size))
             .merkle_root_and_path(l1_log_index);
 
+        // FIXME Definitely refactor all of it
         // For now it is always 0
-        let aggregated_root = batch_meta.metadata.aggregation_root;
+        let aggregated_root = batch_meta.metadata.aggregation_root.unwrap();
         let final_root = KeccakHasher.compress(&root, &aggregated_root);
         proof.push(aggregated_root);
 
         println!("\n\nTrying to get the final proof! {}\n\n", l1_batch_number);
 
-        // FIXME Definitely refactor all of it
         const EXPECTED_SYNC_LAYER_CHAIN_ID: u64 = 505;
 
         let mut log_leaf_proof = LogLeafProof::new(proof);
@@ -524,7 +524,7 @@ impl ZksNamespace {
             .get_l1_batch_metadata(L1BatchNumber(l1_batch_number_with_agg_batch))
             .await
             .map_err(DalError::generalize)?
-            .map(|metadata| metadata.metadata.local_root);
+            .and_then(|metadata| metadata.metadata.local_root);
 
         let Some(local_msg_root) = local_msg_root else {
             return Ok(None);
