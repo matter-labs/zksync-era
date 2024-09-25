@@ -17,7 +17,7 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
-    ExecutionEnd, FatPointer, Program, Settings, VirtualMachine,
+    ExecutionEnd, FatPointer, Program, Settings, StorageSlot, VirtualMachine,
 };
 
 use super::{
@@ -430,24 +430,27 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
         }
 
         let storage = &mut self.world.storage;
-        let diffs = self.inner.world_diff().get_storage_changes().map(
-            move |((address, key), (initial_value, final_value))| {
-                let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(key));
-                StateDiffRecord {
-                    address,
-                    key,
-                    derived_key:
-                        zk_evm_1_5_0::aux_structures::LogQuery::derive_final_address_for_params(
-                            &address, &key,
-                        ),
-                    enumeration_index: storage
-                        .get_enumeration_index(&storage_key)
-                        .unwrap_or_default(),
-                    initial_value: initial_value.unwrap_or_default(),
-                    final_value,
-                }
-            },
-        );
+        let diffs =
+            self.inner
+                .world_diff()
+                .get_storage_changes()
+                .map(move |((address, key), change)| {
+                    let storage_key =
+                        StorageKey::new(AccountTreeId::new(address), u256_to_h256(key));
+                    StateDiffRecord {
+                        address,
+                        key,
+                        derived_key:
+                            zk_evm_1_5_0::aux_structures::LogQuery::derive_final_address_for_params(
+                                &address, &key,
+                            ),
+                        enumeration_index: storage
+                            .get_enumeration_index(&storage_key)
+                            .unwrap_or_default(),
+                        initial_value: change.before,
+                        final_value: change.after,
+                    }
+                });
         diffs
             .filter(|diff| diff.address != L1_MESSENGER_ADDRESS)
             .collect()
@@ -477,9 +480,9 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
             events,
             deduplicated_storage_logs: world_diff
                 .get_storage_changes()
-                .map(|((address, key), (_, value))| StorageLog {
+                .map(|((address, key), change)| StorageLog {
                     key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
-                    value: u256_to_h256(value),
+                    value: u256_to_h256(change.after),
                     kind: StorageLogKind::RepeatedWrite, // Initialness doesn't matter here
                 })
                 .collect(),
@@ -556,7 +559,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
                             StorageLogKind::RepeatedWrite
                         },
                     },
-                    previous_value: u256_to_h256(change.before.unwrap_or_default()),
+                    previous_value: u256_to_h256(change.before),
                 })
                 .collect();
             let events = merge_events(
@@ -744,20 +747,23 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
 }
 
 impl<S: ReadStorage, T: Tracer> zksync_vm2::StorageInterface for World<S, T> {
-    fn read_storage(&mut self, contract: H160, key: U256) -> Option<U256> {
+    fn read_storage(&mut self, contract: H160, key: U256) -> StorageSlot {
         let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
-        if self.storage.is_write_initial(key) {
-            None
-        } else {
-            Some(self.storage.read_value(key).as_bytes().into())
+        let value = U256::from_big_endian(self.storage.read_value(key).as_bytes());
+        let is_write_initial = self.storage.is_write_initial(key);
+        StorageSlot {
+            value,
+            is_write_initial,
         }
     }
 
-    fn cost_of_writing_storage(&mut self, initial_value: Option<U256>, new_value: U256) -> u32 {
-        let is_initial = initial_value.is_none();
-        let initial_value = initial_value.unwrap_or_default();
+    fn read_storage_value(&mut self, contract: H160, key: U256) -> U256 {
+        let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
+        U256::from_big_endian(self.storage.read_value(key).as_bytes())
+    }
 
-        if initial_value == new_value {
+    fn cost_of_writing_storage(&mut self, initial_slot: StorageSlot, new_value: U256) -> u32 {
+        if initial_slot.value == new_value {
             return 0;
         }
 
@@ -772,9 +778,9 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::StorageInterface for World<S, T> {
         // previous state to the new state, and the compressed value. The maximum for this is 33 bytes.
         // Total bytes for initial writes then becomes 65 bytes and repeated writes becomes 38 bytes.
         let compressed_value_size =
-            compress_with_best_strategy(initial_value, new_value).len() as u32;
+            compress_with_best_strategy(initial_slot.value, new_value).len() as u32;
 
-        if is_initial {
+        if initial_slot.is_write_initial {
             (BYTES_PER_DERIVED_KEY as u32) + compressed_value_size
         } else {
             (BYTES_PER_ENUMERATION_INDEX as u32) + compressed_value_size
