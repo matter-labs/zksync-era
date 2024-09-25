@@ -1,3 +1,5 @@
+import { Node, NodeType } from './utils';
+
 export enum NodeMode {
     Main,
     External
@@ -58,7 +60,7 @@ export interface TestEnvironment {
     /*
      * L2 node PID
      */
-    l2NodePid: number;
+    l2Node: Node<NodeType.MAIN> | undefined;
     /**
      * Plaintext name of the L1 network name (i.e. `localhost` or `goerli`).
      */

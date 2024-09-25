@@ -31,22 +31,22 @@ const MAX_GAS_PER_PUBDATA = 50_000n;
 // For CI we use only 2 gas prices to not slow it down too much.
 const L1_GAS_PRICES_TO_TEST = process.env.CI
     ? [
-        5_000_000_000n, // 5 gwei
-        10_000_000_000n // 10 gwei
-    ]
+          5_000_000_000n, // 5 gwei
+          10_000_000_000n // 10 gwei
+      ]
     : [
-        1_000_000_000n, // 1 gwei
-        5_000_000_000n, // 5 gwei
-        10_000_000_000n, // 10 gwei
-        25_000_000_000n, // 25 gwei
-        50_000_000_000n, // 50 gwei
-        100_000_000_000n, // 100 gwei
-        200_000_000_000n, // 200 gwei
-        400_000_000_000n, // 400 gwei
-        800_000_000_000n, // 800 gwei
-        1_000_000_000_000n, // 1000 gwei
-        2_000_000_000_000n // 2000 gwei
-    ];
+          1_000_000_000n, // 1 gwei
+          5_000_000_000n, // 5 gwei
+          10_000_000_000n, // 10 gwei
+          25_000_000_000n, // 25 gwei
+          50_000_000_000n, // 50 gwei
+          100_000_000_000n, // 100 gwei
+          200_000_000_000n, // 200 gwei
+          400_000_000_000n, // 400 gwei
+          800_000_000_000n, // 800 gwei
+          1_000_000_000_000n, // 1000 gwei
+          2_000_000_000_000n // 2000 gwei
+      ];
 
 // Unless `RUN_FEE_TEST` is provided, skip the test suit
 const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
@@ -75,16 +75,10 @@ testFees('Test fees', function () {
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
-
-        // try {
-        //     await killPidWithAllChilds(testMaster.environment().l2NodePid, 9);
-        // } catch (err) {
-        //     console.log(`ignored error: ${ err }`);
-        // }
-
-        // TODO: imporove the waiting logic
-        // console.log('Waiting for the server to stop...');
-        // await utils.sleep(10);
+        let l2Node = testMaster.environment().l2Node;
+        if (l2Node !== undefined) {
+            await killPidWithAllChilds(l2Node.proc.pid!, 9);
+        }
 
         if (!fileConfig.loadFromFile) {
             ethClientWeb3Url = process.env.ETH_CLIENT_WEB3_URL!;
@@ -114,7 +108,7 @@ testFees('Test fees', function () {
 
         const pathToMainLogs = await logsPath('server.log');
         mainLogs = await fs.open(pathToMainLogs, 'a');
-        console.log(`Writing server logs to ${ pathToMainLogs }`);
+        console.log(`Writing server logs to ${pathToMainLogs}`);
 
         mainNodeSpawner = new NodeSpawner(pathToHome, mainLogs, fileConfig, {
             enableConsensus,
@@ -131,165 +125,163 @@ testFees('Test fees', function () {
     });
 
     test('Test all fees', async () => {
-        // const receiver = ethers.Wallet.createRandom().address;
-        //
-        // // Getting ETH price in gas.
-        // const feeTestL1Receipt = await (
-        //     await alice.ethWallet().sendTransaction({
-        //         to: receiver,
-        //         value: 1n
-        //     })
-        // ).wait();
-        //
-        // if (feeTestL1Receipt === null) {
-        //     throw new Error('Failed to send ETH transaction');
-        // }
-        //
-        // const feeTestL1ReceiptERC20 = await (
-        //     await alice.ethWallet().sendTransaction({
-        //         to: aliceErc20.getAddress(),
-        //         data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n])
-        //     })
-        // ).wait();
-        //
-        // if (feeTestL1ReceiptERC20 === null) {
-        //     throw new Error('Failed to send ERC20 transaction');
-        // }
-        //
-        // // Warming up slots for the receiver
-        // await (
-        //     await alice.sendTransaction({
-        //         to: receiver,
-        //         value: BigInt(1)
-        //     })
-        // ).wait();
-        //
-        // await (
-        //     await alice.sendTransaction({
-        //         data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
-        //         to: tokenDetails.l2Address
-        //     })
-        // ).wait();
-        //
-        // let reports = [
-        //     'ETH transfer (to new):\n\n',
-        //     'ETH transfer (to old):\n\n',
-        //     'ERC20 transfer (to new):\n\n',
-        //     'ERC20 transfer (to old):\n\n'
-        // ];
-        // for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
-        //     // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
-        //     await mainNode.killAndWaitForShutdown();
-        //     mainNode = await mainNodeSpawner.spawnMainNode(gasPrice.toString(), gasPrice.toString());
-        //
-        //     reports = await appendResults(
-        //         alice,
-        //         [feeTestL1Receipt, feeTestL1Receipt, feeTestL1ReceiptERC20, feeTestL1ReceiptERC20],
-        //         // We always regenerate new addresses for transaction requests in order to estimate the cost for a new account
-        //         [
-        //             {
-        //                 to: ethers.Wallet.createRandom().address,
-        //                 value: 1n
-        //             },
-        //             {
-        //                 to: receiver,
-        //                 value: 1n
-        //             },
-        //             {
-        //                 data: aliceErc20.interface.encodeFunctionData('transfer', [
-        //                     ethers.Wallet.createRandom().address,
-        //                     1n
-        //                 ]),
-        //                 to: tokenDetails.l2Address
-        //             },
-        //             {
-        //                 data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
-        //                 to: tokenDetails.l2Address
-        //             }
-        //         ],
-        //         gasPrice,
-        //         reports
-        //     );
-        // }
-        //
-        // console.log(`Full report: \n\n${ reports.join('\n\n') }`);
+        const receiver = ethers.Wallet.createRandom().address;
+
+        // Getting ETH price in gas.
+        const feeTestL1Receipt = await (
+            await alice.ethWallet().sendTransaction({
+                to: receiver,
+                value: 1n
+            })
+        ).wait();
+
+        if (feeTestL1Receipt === null) {
+            throw new Error('Failed to send ETH transaction');
+        }
+
+        const feeTestL1ReceiptERC20 = await (
+            await alice.ethWallet().sendTransaction({
+                to: aliceErc20.getAddress(),
+                data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n])
+            })
+        ).wait();
+
+        if (feeTestL1ReceiptERC20 === null) {
+            throw new Error('Failed to send ERC20 transaction');
+        }
+
+        // Warming up slots for the receiver
+        await (
+            await alice.sendTransaction({
+                to: receiver,
+                value: BigInt(1)
+            })
+        ).wait();
+
+        await (
+            await alice.sendTransaction({
+                data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
+                to: tokenDetails.l2Address
+            })
+        ).wait();
+
+        let reports = [
+            'ETH transfer (to new):\n\n',
+            'ETH transfer (to old):\n\n',
+            'ERC20 transfer (to new):\n\n',
+            'ERC20 transfer (to old):\n\n'
+        ];
+        for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
+            // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
+            await mainNode.killAndWaitForShutdown();
+            mainNode = await mainNodeSpawner.spawnMainNode(gasPrice.toString(), gasPrice.toString());
+
+            reports = await appendResults(
+                alice,
+                [feeTestL1Receipt, feeTestL1Receipt, feeTestL1ReceiptERC20, feeTestL1ReceiptERC20],
+                // We always regenerate new addresses for transaction requests in order to estimate the cost for a new account
+                [
+                    {
+                        to: ethers.Wallet.createRandom().address,
+                        value: 1n
+                    },
+                    {
+                        to: receiver,
+                        value: 1n
+                    },
+                    {
+                        data: aliceErc20.interface.encodeFunctionData('transfer', [
+                            ethers.Wallet.createRandom().address,
+                            1n
+                        ]),
+                        to: tokenDetails.l2Address
+                    },
+                    {
+                        data: aliceErc20.interface.encodeFunctionData('transfer', [receiver, 1n]),
+                        to: tokenDetails.l2Address
+                    }
+                ],
+                gasPrice,
+                reports
+            );
+        }
+
+        console.log(`Full report: \n\n${reports.join('\n\n')}`);
     });
 
     test('Test gas consumption under large L1 gas price', async () => {
-        // if (testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Validium) {
-        //     // We skip this test for Validium mode, since L1 gas price has little impact on the gasLimit in this mode.
-        //     return;
-        // }
+        if (testMaster.environment().l1BatchCommitDataGeneratorMode === DataAvailabityMode.Validium) {
+            // We skip this test for Validium mode, since L1 gas price has little impact on the gasLimit in this mode.
+            return;
+        }
+
+        // In this test we check that the server works fine when the required gasLimit is over u32::MAX.
+        // Under normal server behavior, the maximal gas spent on pubdata is around 120kb * 2^20 gas/byte = ~120 * 10^9 gas.
+
+        // In this test we will set gas per pubdata byte to its maximum value, while publishing a large L1->L2 message.
+
+        const minimalL2GasPrice = testMaster.environment().minimalL2GasPrice;
+
+        // We want the total gas limit to be over u32::MAX, so we need the gas per pubdata to be 50k.
         //
-        // // In this test we check that the server works fine when the required gasLimit is over u32::MAX.
-        // // Under normal server behavior, the maximal gas spent on pubdata is around 120kb * 2^20 gas/byte = ~120 * 10^9 gas.
-        //
-        // // In this test we will set gas per pubdata byte to its maximum value, while publishing a large L1->L2 message.
-        //
-        // const minimalL2GasPrice = testMaster.environment().minimalL2GasPrice;
-        //
-        // // We want the total gas limit to be over u32::MAX, so we need the gas per pubdata to be 50k.
-        // //
-        // // Note, that in case, any sort of overhead is present in the l2 fair gas price calculation, the final
-        // // gas per pubdata may be lower than 50_000. Here we assume that it is not the case, but we'll double check
-        // // that the gasLimit is indeed over u32::MAX, which is the most important tested property.
-        // const requiredPubdataPrice = minimalL2GasPrice * 100_000n;
-        //
-        // await mainNode.killAndWaitForShutdown();
-        // mainNode = await mainNodeSpawner.spawnMainNode(
-        //     requiredPubdataPrice.toString(),
-        //     requiredPubdataPrice.toString()
-        // );
-        //
-        // const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
-        //
-        // // Firstly, let's test a successful transaction.
-        // const largeData = ethers.randomBytes(90_000);
-        // const tx = await l1Messenger.sendToL1(largeData, {type: 0});
-        // expect(tx.gasLimit > UINT32_MAX).toBeTruthy();
-        // const receipt = await tx.wait();
-        // expect(receipt.gasUsed > UINT32_MAX).toBeTruthy();
-        //
-        // // Let's also check that the same transaction would work as eth_call
-        // const systemContextArtifact = getTestContract('ISystemContext');
-        // const systemContext = new ethers.Contract(SYSTEM_CONTEXT_ADDRESS, systemContextArtifact.abi, alice.provider);
-        // const systemContextGasPerPubdataByte = await systemContext.gasPerPubdataByte();
-        // expect(systemContextGasPerPubdataByte).toEqual(MAX_GAS_PER_PUBDATA);
-        //
-        // const dataHash = await l1Messenger.sendToL1.staticCall(largeData, {type: 0});
-        // expect(dataHash).toEqual(ethers.keccak256(largeData));
-        //
-        // // Secondly, let's test an unsuccessful transaction with large refund.
-        //
-        // // The size of the data has increased, so the previous gas limit is not enough.
-        // const largerData = ethers.randomBytes(91_000);
-        // const gasToPass = receipt.gasUsed;
-        // const unsuccessfulTx = await l1Messenger.sendToL1(largerData, {
-        //     gasLimit: gasToPass,
-        //     type: 0
-        // });
-        //
-        // try {
-        //     await unsuccessfulTx.wait();
-        //     throw new Error('The transaction should have reverted');
-        // } catch {
-        //     const receipt = await alice.provider.getTransactionReceipt(unsuccessfulTx.hash);
-        //     expect(gasToPass - receipt!.gasUsed > UINT32_MAX).toBeTruthy();
-        // }
+        // Note, that in case, any sort of overhead is present in the l2 fair gas price calculation, the final
+        // gas per pubdata may be lower than 50_000. Here we assume that it is not the case, but we'll double check
+        // that the gasLimit is indeed over u32::MAX, which is the most important tested property.
+        const requiredPubdataPrice = minimalL2GasPrice * 100_000n;
+
+        await mainNode.killAndWaitForShutdown();
+        mainNode = await mainNodeSpawner.spawnMainNode(
+            requiredPubdataPrice.toString(),
+            requiredPubdataPrice.toString()
+        );
+
+        const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
+
+        // Firstly, let's test a successful transaction.
+        const largeData = ethers.randomBytes(90_000);
+        const tx = await l1Messenger.sendToL1(largeData, { type: 0 });
+        expect(tx.gasLimit > UINT32_MAX).toBeTruthy();
+        const receipt = await tx.wait();
+        expect(receipt.gasUsed > UINT32_MAX).toBeTruthy();
+
+        // Let's also check that the same transaction would work as eth_call
+        const systemContextArtifact = getTestContract('ISystemContext');
+        const systemContext = new ethers.Contract(SYSTEM_CONTEXT_ADDRESS, systemContextArtifact.abi, alice.provider);
+        const systemContextGasPerPubdataByte = await systemContext.gasPerPubdataByte();
+        expect(systemContextGasPerPubdataByte).toEqual(MAX_GAS_PER_PUBDATA);
+
+        const dataHash = await l1Messenger.sendToL1.staticCall(largeData, { type: 0 });
+        expect(dataHash).toEqual(ethers.keccak256(largeData));
+
+        // Secondly, let's test an unsuccessful transaction with large refund.
+
+        // The size of the data has increased, so the previous gas limit is not enough.
+        const largerData = ethers.randomBytes(91_000);
+        const gasToPass = receipt.gasUsed;
+        const unsuccessfulTx = await l1Messenger.sendToL1(largerData, {
+            gasLimit: gasToPass,
+            type: 0
+        });
+
+        try {
+            await unsuccessfulTx.wait();
+            throw new Error('The transaction should have reverted');
+        } catch {
+            const receipt = await alice.provider.getTransactionReceipt(unsuccessfulTx.hash);
+            expect(gasToPass - receipt!.gasUsed > UINT32_MAX).toBeTruthy();
+        }
     });
 
     afterAll(async () => {
-        // Returning the pubdata price to the default one
+        await testMaster.deinitialize();
         await mainNode.killAndWaitForShutdown();
-        mainNode = await mainNodeSpawner.spawnMainNode();
-        mainNode.proc.unref();
+        // Returning the pubdata price to the default one
 
         // Restore defaults
         setTransactionSlots(pathToHome, fileConfig, 8192);
         deleteInternalEnforcedL1GasPrice(pathToHome, fileConfig);
         deleteInternalEnforcedPubdataPrice(pathToHome, fileConfig);
-
-        await testMaster.deinitialize();
+        mainNode = await mainNodeSpawner.spawnMainNode();
     });
 });
 
@@ -332,7 +324,7 @@ async function updateReport(
 
     const balanceBefore = await sender.getBalance();
     const transaction = await sender.sendTransaction(transactionRequest);
-    console.log(`Sending transaction: ${ transaction.hash }`);
+    console.log(`Sending transaction: ${transaction.hash}`);
     await transaction.wait();
     const balanceAfter = await sender.getBalance();
     const balanceDiff = balanceBefore - balanceAfter;
@@ -340,12 +332,12 @@ async function updateReport(
     const l2PriceAsNumber = +ethers.formatEther(balanceDiff);
     const l2EstimatedPriceAsNumber = +ethers.formatEther(estimatedPrice);
 
-    const gasReport = `Gas price ${ newL1GasPrice / 1000000000n } gwei:
-    L1 cost ${ expectedL1Price },
-    L2 estimated cost: ${ l2EstimatedPriceAsNumber }
-    Estimated Gain: ${ expectedL1Price / l2EstimatedPriceAsNumber }
-    L2 cost: ${ l2PriceAsNumber },
-    Gain: ${ expectedL1Price / l2PriceAsNumber }\n`;
+    const gasReport = `Gas price ${newL1GasPrice / 1000000000n} gwei:
+    L1 cost ${expectedL1Price},
+    L2 estimated cost: ${l2EstimatedPriceAsNumber}
+    Estimated Gain: ${expectedL1Price / l2EstimatedPriceAsNumber}
+    L2 cost: ${l2PriceAsNumber},
+    Gain: ${expectedL1Price / l2PriceAsNumber}\n`;
     console.log(gasReport);
 
     return oldReport + gasReport;

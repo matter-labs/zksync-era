@@ -30,8 +30,8 @@ function setPropertyInGeneralConfig(pathToHome: string, fileConfig: any, propert
     });
     const generalConfig = fs.readFileSync(generalConfigPath, 'utf8');
 
-    const regex = new RegExp(`${ property }:\\s*\\d+(\\.\\d+)?`, 'g');
-    const newGeneralConfig = generalConfig.replace(regex, `${ property }: ${ value }`);
+    const regex = new RegExp(`${property}:\\s*\\d+(\\.\\d+)?`, 'g');
+    const newGeneralConfig = generalConfig.replace(regex, `${property}: ${value}`);
 
     fs.writeFileSync(generalConfigPath, newGeneralConfig, 'utf8');
 }
@@ -46,17 +46,17 @@ function setGasAdjusterProperty(pathToHome: string, fileConfig: any, property: s
     const generalConfig = fs.readFileSync(generalConfigPath, 'utf8');
 
     // Define the regex pattern to check if the property already exists
-    const propertyRegex = new RegExp(`(^\\s*${ property }:\\s*\\d+(\\.\\d+)?$)`, 'm');
+    const propertyRegex = new RegExp(`(^\\s*${property}:\\s*\\d+(\\.\\d+)?$)`, 'm');
     const gasAdjusterRegex = new RegExp('(^\\s*gas_adjuster:.*$)', 'gm');
 
     let newGeneralConfig;
 
     if (propertyRegex.test(generalConfig)) {
         // If the property exists, modify its value
-        newGeneralConfig = generalConfig.replace(propertyRegex, `    ${ property }: ${ value }`);
+        newGeneralConfig = generalConfig.replace(propertyRegex, `    ${property}: ${value}`);
     } else {
         // If the property does not exist, add it under the gas_adjuster section
-        newGeneralConfig = generalConfig.replace(gasAdjusterRegex, `$1\n    ${ property }: ${ value }`);
+        newGeneralConfig = generalConfig.replace(gasAdjusterRegex, `$1\n    ${property}: ${value}`);
     }
 
     fs.writeFileSync(generalConfigPath, newGeneralConfig, 'utf8');
@@ -72,7 +72,7 @@ function deleteProperty(pathToHome: string, fileConfig: any, property: string) {
     const generalConfig = fs.readFileSync(generalConfigPath, 'utf8');
 
     // Define the regex pattern to find the property line and remove it completely
-    const propertyRegex = new RegExp(`^\\s*${ property }:.*\\n?`, 'm');
+    const propertyRegex = new RegExp(`^\\s*${property}:.*\\n?`, 'm');
 
     // Remove the line if the property exists
     const newGeneralConfig = generalConfig.replace(propertyRegex, '');

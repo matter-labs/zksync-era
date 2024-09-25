@@ -1,7 +1,6 @@
 import { spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
 import { assert } from 'chai';
 import { FileConfig } from 'utils/build/file-configs';
-import { Tester } from './tester';
 import { killPidWithAllChilds } from 'utils/build/kill';
 import * as utils from 'utils';
 import fs from 'node:fs/promises';
@@ -17,28 +16,28 @@ import {
 // executes a command in background and returns a child process handle
 // by default pipes data to parent's stdio but this can be overridden
 export function background({
-                               command,
-                               stdio = 'inherit',
-                               cwd,
-                               env
-                           }: {
+    command,
+    stdio = 'inherit',
+    cwd,
+    env
+}: {
     command: string;
     stdio: any;
     cwd?: ProcessEnvOptions['cwd'];
     env?: ProcessEnvOptions['env'];
 }): ChildProcessWithoutNullStreams {
     command = command.replace(/\n/g, ' ');
-    console.log(`Run command ${ command }`);
-    return _spawn(command, {stdio: stdio, shell: true, detached: true, cwd, env});
+    console.log(`Run command ${command}`);
+    return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd, env });
 }
 
 export function runInBackground({
-                                    command,
-                                    components,
-                                    stdio,
-                                    cwd,
-                                    env
-                                }: {
+    command,
+    components,
+    stdio,
+    cwd,
+    env
+}: {
     command: string;
     components?: string[];
     stdio: any;
@@ -46,19 +45,19 @@ export function runInBackground({
     env?: Parameters<typeof background>[0]['env'];
 }): ChildProcessWithoutNullStreams {
     if (components && components.length > 0) {
-        command += ` --components=${ components.join(',') }`;
+        command += ` --components=${components.join(',')}`;
     }
-    return background({command, stdio, cwd, env});
+    return background({ command, stdio, cwd, env });
 }
 
 export function runServerInBackground({
-                                          components,
-                                          stdio,
-                                          cwd,
-                                          env,
-                                          useZkInception,
-                                          chain
-                                      }: {
+    components,
+    stdio,
+    cwd,
+    env,
+    useZkInception,
+    chain
+}: {
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
@@ -72,12 +71,12 @@ export function runServerInBackground({
     if (useZkInception) {
         command = 'zk_inception server';
         if (chain) {
-            command += ` --chain ${ chain }`;
+            command += ` --chain ${chain}`;
         }
     } else {
         command = 'zk server';
     }
-    return runInBackground({command, components, stdio, cwd, env});
+    return runInBackground({ command, components, stdio, cwd, env });
 }
 
 export interface MainNodeSpawnOptions {
@@ -93,18 +92,13 @@ export enum NodeType {
 }
 
 export class Node<TYPE extends NodeType> {
-    constructor(
-        public readonly tester: Tester,
-        public proc: ChildProcessWithoutNullStreams,
-        private readonly type: TYPE
-    ) {
-    }
+    constructor(public proc: ChildProcessWithoutNullStreams, public l2NodeUrl: string, private readonly type: TYPE) {}
 
     public async terminate() {
         try {
             await killPidWithAllChilds(this.proc.pid!, 9);
         } catch (err) {
-            console.log(`ignored error: ${ err }`);
+            console.log(`ignored error: ${err}`);
         }
     }
 
@@ -115,9 +109,9 @@ export class Node<TYPE extends NodeType> {
      */
     public static async killAll(type: NodeType) {
         try {
-            await utils.exec(`killall -KILL ${ type }`);
+            await utils.exec(`killall -KILL ${type}`);
         } catch (err) {
-            console.log(`ignored error: ${ err }`);
+            console.log(`ignored error: ${err}`);
         }
     }
 
@@ -135,7 +129,8 @@ export class Node<TYPE extends NodeType> {
         let iter = 0;
         while (iter < 30) {
             try {
-                await this.tester.syncWallet.provider.getBlockNumber();
+                let provider = new zksync.Provider(this.l2NodeUrl);
+                await provider.getBlockNumber();
                 await utils.sleep(2);
                 iter += 1;
             } catch (_) {
@@ -144,7 +139,7 @@ export class Node<TYPE extends NodeType> {
             }
         }
         // It's going to panic anyway, since the server is a singleton entity, so better to exit early.
-        throw new Error(`${ this.type } didn't stop after a kill request`);
+        throw new Error(`${this.type} didn't stop after a kill request`);
     }
 }
 
@@ -155,12 +150,11 @@ export class NodeSpawner {
         private readonly fileConfig: FileConfig,
         private readonly options: MainNodeSpawnOptions,
         private readonly env?: ProcessEnvOptions['env']
-    ) {
-    }
+    ) {}
 
     public async spawnMainNode(newL1GasPrice?: string, newPubdataPrice?: string): Promise<Node<NodeType.MAIN>> {
         const env = this.env ?? process.env;
-        const {fileConfig, pathToHome, options, logs} = this;
+        const { fileConfig, pathToHome, options, logs } = this;
 
         const testMode = newPubdataPrice || newL1GasPrice;
 
@@ -216,27 +210,25 @@ export class NodeSpawner {
         });
 
         // Wait until the main node starts responding.
-        const tester = await Tester.init(
-            options.ethClientWeb3Url,
-            options.apiWeb3JsonRpcHttpUrl,
-            options.baseTokenAddress
-        );
-        await waitForNodeToStart(tester, proc, options.apiWeb3JsonRpcHttpUrl);
-        return new Node(tester, proc, NodeType.MAIN);
+        await waitForNodeToStart(proc, options.apiWeb3JsonRpcHttpUrl);
+        return new Node(proc, options.apiWeb3JsonRpcHttpUrl, NodeType.MAIN);
     }
 }
 
-async function waitForNodeToStart(tester: Tester, proc: ChildProcessWithoutNullStreams, l2Url: string) {
+async function waitForNodeToStart(proc: ChildProcessWithoutNullStreams, l2Url: string) {
     while (true) {
         try {
-            const blockNumber = await tester.syncWallet.provider.getBlockNumber();
-            console.log(`Initialized node API on ${ l2Url }; latest block: ${ blockNumber }`);
-            break;
+            const l2Provider = new zksync.Provider(l2Url);
+            const blockNumber = await l2Provider.getBlockNumber();
+            if (blockNumber != 0) {
+                console.log(`Initialized node API on ${l2Url}; latest block: ${blockNumber}`);
+                break;
+            }
         } catch (err) {
             if (proc.exitCode != null) {
-                assert.fail(`server failed to start, exitCode = ${ proc.exitCode }`);
+                assert.fail(`server failed to start, exitCode = ${proc.exitCode}`);
             }
-            console.log(`Node waiting for API on ${ l2Url }`);
+            console.log(`Node waiting for API on ${l2Url}`);
             await utils.sleep(1);
         }
     }
