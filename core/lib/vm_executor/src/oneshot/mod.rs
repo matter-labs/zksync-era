@@ -17,7 +17,7 @@ use once_cell::sync::OnceCell;
 use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
-        storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
+        storage::{ReadStorage, StoragePtr, StorageView, StorageWithOverrides},
         tracer::{ValidationError, ValidationParams},
         Call, ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
         StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode, VmInterface,
@@ -90,13 +90,13 @@ impl MainOneshotExecutor {
 }
 
 #[async_trait]
-impl<S> OneshotExecutor<S> for MainOneshotExecutor
+impl<S> OneshotExecutor<StorageWithOverrides<S>> for MainOneshotExecutor
 where
     S: ReadStorage + Send + 'static,
 {
     async fn inspect_transaction_with_bytecode_compression(
         &self,
-        storage: S,
+        storage: StorageWithOverrides<S>,
         env: OneshotEnv,
         args: TxExecutionArgs,
         params: OneshotTracingParams,
@@ -138,13 +138,13 @@ where
 }
 
 #[async_trait]
-impl<S> TransactionValidator<S> for MainOneshotExecutor
+impl<S> TransactionValidator<StorageWithOverrides<S>> for MainOneshotExecutor
 where
     S: ReadStorage + Send + 'static,
 {
     async fn validate_transaction(
         &self,
-        storage: S,
+        storage: StorageWithOverrides<S>,
         env: OneshotEnv,
         tx: L2Tx,
         validation_params: ValidationParams,
@@ -257,8 +257,8 @@ impl<S: ReadStorage> Vm<S> {
 
 #[derive(Debug)]
 struct VmSandbox<S: ReadStorage> {
-    vm: Vm<S>,
-    storage_view: StoragePtr<StorageView<S>>,
+    vm: Vm<StorageWithOverrides<S>>,
+    storage_view: StoragePtr<StorageView<StorageWithOverrides<S>>>,
     transaction: Transaction,
     execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
 }
@@ -267,13 +267,12 @@ impl<S: ReadStorage> VmSandbox<S> {
     /// This method is blocking.
     fn new(
         fast_vm_mode: FastVmMode,
-        storage: S,
+        mut storage: StorageWithOverrides<S>,
         mut env: OneshotEnv,
         execution_args: TxExecutionArgs,
         execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
     ) -> Self {
-        let mut storage_view = StorageView::new(storage);
-        Self::setup_storage_view(&mut storage_view, &execution_args, env.current_block);
+        Self::setup_storage(&mut storage, &execution_args, env.current_block);
 
         let protocol_version = env.system.version;
         if execution_args.adjust_pubdata_price {
@@ -285,7 +284,7 @@ impl<S: ReadStorage> VmSandbox<S> {
             );
         };
 
-        let storage_view = storage_view.to_rc_ptr();
+        let storage_view = StorageView::new(storage).to_rc_ptr();
         let vm = match fast_vm_mode {
             FastVmMode::Old => Vm::Legacy(LegacyVmInstance::new_with_specific_version(
                 env.l1_batch,
@@ -313,25 +312,25 @@ impl<S: ReadStorage> VmSandbox<S> {
     }
 
     /// This method is blocking.
-    fn setup_storage_view(
-        storage_view: &mut StorageView<S>,
+    fn setup_storage(
+        storage: &mut StorageWithOverrides<S>,
         execution_args: &TxExecutionArgs,
         current_block: Option<StoredL2BlockEnv>,
     ) {
         let storage_view_setup_started_at = Instant::now();
         if let Some(nonce) = execution_args.enforced_nonce {
             let nonce_key = get_nonce_key(&execution_args.transaction.initiator_account());
-            let full_nonce = storage_view.read_value(&nonce_key);
+            let full_nonce = storage.read_value(&nonce_key);
             let (_, deployment_nonce) = decompose_full_nonce(h256_to_u256(full_nonce));
             let enforced_full_nonce = nonces_to_full_nonce(U256::from(nonce.0), deployment_nonce);
-            storage_view.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
+            storage.set_value(nonce_key, u256_to_h256(enforced_full_nonce));
         }
 
         let payer = execution_args.transaction.payer();
         let balance_key = storage_key_for_eth_balance(&payer);
-        let mut current_balance = h256_to_u256(storage_view.read_value(&balance_key));
+        let mut current_balance = h256_to_u256(storage.read_value(&balance_key));
         current_balance += execution_args.added_balance;
-        storage_view.set_value(balance_key, u256_to_h256(current_balance));
+        storage.set_value(balance_key, u256_to_h256(current_balance));
 
         // Reset L2 block info if necessary.
         if let Some(current_block) = current_block {
@@ -341,13 +340,13 @@ impl<S: ReadStorage> VmSandbox<S> {
             );
             let l2_block_info =
                 pack_block_info(current_block.number.into(), current_block.timestamp);
-            storage_view.set_value(l2_block_info_key, u256_to_h256(l2_block_info));
+            storage.set_value(l2_block_info_key, u256_to_h256(l2_block_info));
 
             let l2_block_txs_rolling_hash_key = StorageKey::new(
                 AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
                 SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
             );
-            storage_view.set_value(
+            storage.set_value(
                 l2_block_txs_rolling_hash_key,
                 current_block.txs_rolling_hash,
             );
@@ -362,7 +361,7 @@ impl<S: ReadStorage> VmSandbox<S> {
 
     pub(super) fn apply<T, F>(mut self, apply_fn: F) -> T
     where
-        F: FnOnce(&mut Vm<S>, Transaction) -> T,
+        F: FnOnce(&mut Vm<StorageWithOverrides<S>>, Transaction) -> T,
     {
         let tx_id = format!(
             "{:?}-{}",
