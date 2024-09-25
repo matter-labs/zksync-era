@@ -97,5 +97,3 @@ Recovery logic also exports some metrics, the main of which are as follows:
 | Metric name                                             | Type      | Labels       | Description                                                           |
 | ------------------------------------------------------- | --------- | ------------ | --------------------------------------------------------------------- |
 | `snapshots_applier_storage_logs_chunks_left_to_process` | Gauge     | -            | Number of storage log chunks left to process during Postgres recovery |
-| `db_pruner_pruning_chunk_duration_seconds`              | Histogram | `prune_type` | Latency of a single pruning iteration                                 |
-| `merkle_tree_pruning_deleted_stale_key_versions`        | Gauge     | `bound`      | Versions (= L1 batches) pruned from the Merkle tree                   |
