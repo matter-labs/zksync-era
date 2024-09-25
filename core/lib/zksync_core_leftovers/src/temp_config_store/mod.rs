@@ -119,6 +119,7 @@ impl TempConfigStore {
             pruning: self.pruning.clone(),
             external_price_api_client_config: self.external_price_api_client_config.clone(),
             consensus_config: None,
+            use_evm_simulator: self.use_evm_simulator.clone(),
             external_proof_integration_api_config: self
                 .external_proof_integration_api_config
                 .clone(),

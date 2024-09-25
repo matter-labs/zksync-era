@@ -40,6 +40,14 @@ impl Sample for Network {
     }
 }
 
+impl Distribution<configs::use_evm_simulator::UseEvmSimulator> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::use_evm_simulator::UseEvmSimulator {
+        configs::use_evm_simulator::UseEvmSimulator {
+            use_evm_simulator: rng.gen(),
+        }
+    }
+}
+
 impl Distribution<configs::chain::FeeModelVersion> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::chain::FeeModelVersion {
         type T = configs::chain::FeeModelVersion;
@@ -1154,6 +1162,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             protective_reads_writer_config: self.sample(rng),
             basic_witness_input_producer_config: self.sample(rng),
             commitment_generator: self.sample(rng),
+            use_evm_simulator: self.sample(rng),
             snapshot_recovery: self.sample(rng),
             pruning: self.sample(rng),
             core_object_store: self.sample(rng),
