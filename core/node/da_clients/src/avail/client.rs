@@ -3,13 +3,13 @@ use std::{fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use jsonrpsee::ws_client::WsClientBuilder;
 use subxt_signer::ExposeSecret;
-use zksync_config::configs::da_client::avail::{AvailConfig, AvailSecrets};
+use zksync_config::configs::da_client::avail::AvailConfig;
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 
-use crate::avail::sdk::RawAvailClient;
+use crate::{avail::sdk::RawAvailClient, utils::to_non_retriable_da_error};
 
 /// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.
 #[derive(Debug, Clone)]
@@ -19,14 +19,16 @@ pub struct AvailClient {
 }
 
 impl AvailClient {
-    pub async fn new(config: AvailConfig, secrets: AvailSecrets) -> anyhow::Result<Self> {
-        let seed_phrase = secrets
-            .seed_phrase
-            .ok_or_else(|| anyhow::anyhow!("seed phrase"))?;
-        let sdk_client = RawAvailClient::new(config.app_id, seed_phrase.0.expose_secret()).await?;
+    pub async fn new(config: AvailConfig) -> anyhow::Result<Self> {
+        let Some(secrets) = config.clone().secrets else {
+            return Err(anyhow::anyhow!("Avail secrets are empty"));
+        };
+
+        let sdk_client =
+            RawAvailClient::new(config.app_id, secrets.seed_phrase.0.expose_secret()).await?;
 
         Ok(Self {
-            config,
+            config: config.clone(),
             sdk_client: Arc::new(sdk_client),
         })
     }
@@ -78,12 +80,5 @@ impl DataAvailabilityClient for AvailClient {
 
     fn blob_size_limit(&self) -> Option<usize> {
         Some(RawAvailClient::MAX_BLOB_SIZE)
-    }
-}
-
-pub fn to_non_retriable_da_error(error: impl Into<anyhow::Error>) -> DAError {
-    DAError {
-        error: error.into(),
-        is_retriable: false,
     }
 }

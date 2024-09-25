@@ -1,14 +1,17 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        da_client::DAClientConfig::{Avail, ObjectStore},
+        da_client::DAClientConfig::{Avail, Celestia, ObjectStore},
         {self},
     },
-    AvailConfig,
+    AvailConfig, CelestiaConfig,
 };
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::proto::{da_client as proto, object_store as object_store_proto};
+use crate::{
+    proto::{da_client as proto, object_store as object_store_proto},
+    read_optional_repr,
+};
 
 impl ProtoRepr for proto::DataAvailabilityClient {
     type Type = configs::DAClientConfig;
@@ -27,6 +30,13 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 app_id: *required(&conf.app_id).context("app_id")?,
                 timeout: *required(&conf.timeout).context("timeout")? as usize,
                 max_retries: *required(&conf.max_retries).context("max_retries")? as usize,
+
+                secrets: read_optional_repr(&conf.secrets),
+            }),
+            proto::data_availability_client::Config::Celestia(conf) => Celestia(CelestiaConfig {
+                api_node_url: required(&conf.api_node_url).context("namespace")?.clone(),
+                namespace: required(&conf.namespace).context("namespace")?.clone(),
+                secrets: read_optional_repr(&conf.secrets),
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
@@ -37,23 +47,36 @@ impl ProtoRepr for proto::DataAvailabilityClient {
     }
 
     fn build(this: &Self::Type) -> Self {
-        match &this {
-            Avail(config) => Self {
-                config: Some(proto::data_availability_client::Config::Avail(
-                    proto::AvailConfig {
-                        api_node_url: Some(config.api_node_url.clone()),
-                        bridge_api_url: Some(config.bridge_api_url.clone()),
-                        app_id: Some(config.app_id),
-                        timeout: Some(config.timeout as u64),
-                        max_retries: Some(config.max_retries as u64),
-                    },
-                )),
-            },
-            ObjectStore(config) => Self {
-                config: Some(proto::data_availability_client::Config::ObjectStore(
-                    object_store_proto::ObjectStore::build(config),
-                )),
-            },
+        let config = match &this {
+            Avail(config) => proto::data_availability_client::Config::Avail(proto::AvailConfig {
+                api_node_url: Some(config.api_node_url.clone()),
+                bridge_api_url: Some(config.bridge_api_url.clone()),
+                app_id: Some(config.app_id),
+                timeout: Some(config.timeout as u64),
+                max_retries: Some(config.max_retries as u64),
+                secrets: config
+                    .secrets
+                    .as_ref()
+                    .map(|s| proto::AvailSecrets::build(s)),
+            }),
+
+            Celestia(config) => {
+                proto::data_availability_client::Config::Celestia(proto::CelestiaConfig {
+                    api_node_url: Some(config.api_node_url.clone()),
+                    namespace: Some(config.namespace.clone()),
+                    secrets: config
+                        .secrets
+                        .as_ref()
+                        .map(|s| proto::CelestiaSecrets::build(s)),
+                })
+            }
+            ObjectStore(config) => proto::data_availability_client::Config::ObjectStore(
+                object_store_proto::ObjectStore::build(config),
+            ),
+        };
+
+        Self {
+            config: Some(config),
         }
     }
 }

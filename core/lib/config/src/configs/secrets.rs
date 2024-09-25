@@ -1,7 +1,7 @@
 use anyhow::Context;
 use zksync_basic_types::url::SensitiveUrl;
 
-use crate::configs::{consensus::ConsensusSecrets, da_client::avail::AvailSecrets};
+use crate::configs::consensus::ConsensusSecrets;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct DatabaseSecrets {
@@ -16,16 +16,10 @@ pub struct L1Secrets {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum DataAvailabilitySecrets {
-    Avail(AvailSecrets),
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub struct Secrets {
     pub consensus: Option<ConsensusSecrets>,
     pub database: Option<DatabaseSecrets>,
     pub l1: Option<L1Secrets>,
-    pub data_availability: Option<DataAvailabilitySecrets>,
 }
 
 impl DatabaseSecrets {

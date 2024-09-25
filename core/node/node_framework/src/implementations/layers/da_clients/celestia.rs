@@ -1,6 +1,6 @@
-use zksync_config::AvailConfig;
+use zksync_config::CelestiaConfig;
 use zksync_da_client::DataAvailabilityClient;
-use zksync_da_clients::avail::AvailClient;
+use zksync_da_clients::celestia::CelestiaClient;
 
 use crate::{
     implementations::resources::da_client::DAClientResource,
@@ -9,12 +9,12 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub struct AvailWiringLayer {
-    config: AvailConfig,
+pub struct CelestiaWiringLayer {
+    config: CelestiaConfig,
 }
 
-impl AvailWiringLayer {
-    pub fn new(config: AvailConfig) -> Self {
+impl CelestiaWiringLayer {
+    pub fn new(config: CelestiaConfig) -> Self {
         Self { config }
     }
 }
@@ -26,17 +26,17 @@ pub struct Output {
 }
 
 #[async_trait::async_trait]
-impl WiringLayer for AvailWiringLayer {
+impl WiringLayer for CelestiaWiringLayer {
     type Input = ();
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        "avail_client_layer"
+        "celestia_client_layer"
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
         let client: Box<dyn DataAvailabilityClient> =
-            Box::new(AvailClient::new(self.config).await?);
+            Box::new(CelestiaClient::new(self.config).await?);
 
         Ok(Self::Output {
             client: DAClientResource(client),

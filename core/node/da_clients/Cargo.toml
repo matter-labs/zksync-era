@@ -33,7 +33,11 @@ base58.workspace = true
 serde_json.workspace = true
 hex.workspace = true
 blake2b_simd.workspace = true
-
-jsonrpsee = { workspace = true, features = ["ws-client"] }
 parity-scale-codec = { workspace = true, features = ["derive"] }
 subxt-signer = { workspace = true, features = ["sr25519", "native"] }
+jsonrpsee = { workspace = true, features = ["ws-client"] }
+
+# Celestia dependencies
+celestia-rpc.workspace = true
+celestia-types.workspace = true
+bincode.workspace = true

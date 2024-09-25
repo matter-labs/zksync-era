@@ -4,8 +4,8 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        da_client::DAClientConfig, eth_sender::PubdataSendingMode,
-        secrets::DataAvailabilitySecrets, wallets::Wallets, GeneralConfig, Secrets,
+        da_client::DAClientConfig, eth_sender::PubdataSendingMode, wallets::Wallets, GeneralConfig,
+        Secrets,
     },
     ContractsConfig, GenesisConfig,
 };
@@ -28,7 +28,7 @@ use zksync_node_framework::{
         consensus::MainNodeConsensusLayer,
         contract_verification_api::ContractVerificationApiLayer,
         da_clients::{
-            avail::AvailWiringLayer, no_da::NoDAClientWiringLayer,
+            avail::AvailWiringLayer, celestia::CelestiaWiringLayer, no_da::NoDAClientWiringLayer,
             object_store::ObjectStorageClientWiringLayer,
         },
         da_dispatcher::DataAvailabilityDispatcherLayer,
@@ -509,14 +509,16 @@ impl MainNodeBuilder {
             return Ok(self);
         };
 
-        let secrets = try_load_config!(self.secrets.data_availability);
-
-        match (da_client_config, secrets) {
-            (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
-                self.node.add_layer(AvailWiringLayer::new(config, secret));
+        match da_client_config {
+            DAClientConfig::Avail(config) => {
+                self.node.add_layer(AvailWiringLayer::new(config));
             }
 
-            (DAClientConfig::ObjectStore(config), _) => {
+            DAClientConfig::Celestia(config) => {
+                self.node.add_layer(CelestiaWiringLayer::new(config));
+            }
+
+            DAClientConfig::ObjectStore(config) => {
                 self.node
                     .add_layer(ObjectStorageClientWiringLayer::new(config));
             }
