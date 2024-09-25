@@ -5,6 +5,7 @@ use std::{
 };
 
 use futures::{channel::mpsc, SinkExt};
+use rand::Rng;
 use tokio::sync::RwLock;
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
 use zksync_types::{api::TransactionReceipt, Address, Nonce, H256, U256, U64};
@@ -75,6 +76,8 @@ pub struct AccountLifespan {
     inflight_txs: VecDeque<InflightTx>,
     /// Current account nonce, it is None at the beginning and will be set after the first transaction
     current_nonce: Option<Nonce>,
+    /// Randomly assigned polling interval.
+    polling_interval: Duration,
 }
 
 impl AccountLifespan {
@@ -82,11 +85,12 @@ impl AccountLifespan {
         config: &LoadtestConfig,
         contract_execution_params: LoadnextContractExecutionParams,
         addresses: AddressPool,
-        test_account: TestWallet,
+        mut test_account: TestWallet,
         report_sink: mpsc::Sender<Report>,
         main_l2_token: Address,
         paymaster_address: Address,
     ) -> Self {
+        let polling_interval = test_account.rng.gen_range(POLLING_INTERVAL);
         Self {
             wallet: test_account,
             config: config.clone(),
@@ -99,6 +103,7 @@ impl AccountLifespan {
             report_sink,
             inflight_txs: Default::default(),
             current_nonce: None,
+            polling_interval,
         }
     }
 
@@ -132,7 +137,7 @@ impl AccountLifespan {
         self.execute_command(deploy_command.clone()).await?;
         self.wait_for_all_inflight_tx().await?;
 
-        let mut timer = tokio::time::interval(POLLING_INTERVAL);
+        let mut timer = tokio::time::interval(self.polling_interval);
         let mut l1_tx_count = 0;
         loop {
             let command = self.generate_command();
@@ -157,7 +162,7 @@ impl AccountLifespan {
     }
 
     async fn wait_for_all_inflight_tx(&mut self) -> Result<(), Aborted> {
-        let mut timer = tokio::time::interval(POLLING_INTERVAL);
+        let mut timer = tokio::time::interval(self.polling_interval);
         while !self.inflight_txs.is_empty() {
             timer.tick().await;
             self.check_inflight_txs().await?;

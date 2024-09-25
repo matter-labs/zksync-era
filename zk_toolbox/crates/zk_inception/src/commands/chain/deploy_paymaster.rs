@@ -2,7 +2,6 @@ use anyhow::Context;
 use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
-    spinner::Spinner,
 };
 use config::{
     forge_interface::{
@@ -15,9 +14,7 @@ use config::{
 use xshell::Shell;
 
 use crate::{
-    messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_DEPLOYING_PAYMASTER, MSG_L1_SECRETS_MUST_BE_PRESENTED,
-    },
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
@@ -28,7 +25,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let mut contracts = chain_config.get_contracts_config()?;
-    deploy_paymaster(shell, &chain_config, &mut contracts, args).await?;
+    deploy_paymaster(shell, &chain_config, &mut contracts, args, None, true).await?;
     contracts.save_with_base_path(shell, chain_config.configs)
 }
 
@@ -37,6 +34,8 @@ pub async fn deploy_paymaster(
     chain_config: &ChainConfig,
     contracts_config: &mut ContractsConfig,
     forge_args: ForgeScriptArgs,
+    sender: Option<String>,
+    broadcast: bool,
 ) -> anyhow::Result<()> {
     let input = DeployPaymasterInput::new(chain_config)?;
     let foundry_contracts_path = chain_config.path_to_foundry();
@@ -56,18 +55,23 @@ pub async fn deploy_paymaster(
                 .l1_rpc_url
                 .expose_str()
                 .to_string(),
-        )
-        .with_broadcast();
+        );
 
-    forge = fill_forge_private_key(
-        forge,
-        chain_config.get_wallets_config()?.governor_private_key(),
-    )?;
+    if let Some(address) = sender {
+        forge = forge.with_sender(address);
+    } else {
+        forge = fill_forge_private_key(
+            forge,
+            chain_config.get_wallets_config()?.governor_private_key(),
+        )?;
+    }
 
-    let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
-    check_the_balance(&forge).await?;
+    if broadcast {
+        forge = forge.with_broadcast();
+        check_the_balance(&forge).await?;
+    }
+
     forge.run(shell)?;
-    spinner.finish();
 
     let output = DeployPaymasterOutput::read(
         shell,

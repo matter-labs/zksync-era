@@ -1,6 +1,7 @@
+use axum::http::StatusCode;
 use tokio::time::Instant;
 
-use crate::metrics::{CallOutcome, Method, METRICS};
+use crate::metrics::{Method, METRICS};
 
 #[derive(Debug)]
 pub(crate) struct MetricsMiddleware {
@@ -16,7 +17,8 @@ impl MetricsMiddleware {
         }
     }
 
-    pub fn observe(&self, outcome: CallOutcome) {
-        METRICS.call_latency[&(self.method, outcome)].observe(self.started_at.elapsed());
+    pub fn observe(&self, status_code: StatusCode) {
+        METRICS.call_latency[&(self.method, status_code.as_u16())]
+            .observe(self.started_at.elapsed());
     }
 }

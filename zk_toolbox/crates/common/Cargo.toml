@@ -29,3 +29,4 @@ url.workspace = true
 xshell.workspace = true
 thiserror.workspace = true
 strum.workspace = true
+git_version_macro.workspace = true

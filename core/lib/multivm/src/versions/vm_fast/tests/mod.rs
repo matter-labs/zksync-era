@@ -1,9 +1,9 @@
+mod block_tip;
 mod bootloader;
-mod default_aa;
-//mod block_tip; FIXME: requires vm metrics
 mod bytecode_publishing;
+mod default_aa;
 // mod call_tracer; FIXME: requires tracers
-// mod circuits; FIXME: requires tracers / circuit stats
+mod circuits;
 mod code_oracle;
 mod gas_limit;
 mod get_used_contracts;
@@ -11,7 +11,7 @@ mod is_write_initial;
 mod l1_tx_execution;
 mod l2_blocks;
 mod nonce_holder;
-// mod precompiles; FIXME: requires tracers / circuit stats
+mod precompiles;
 // mod prestate_tracer; FIXME: is pre-state tracer still relevant?
 mod refunds;
 mod require_eip712;

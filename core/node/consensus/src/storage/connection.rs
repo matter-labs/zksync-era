@@ -1,13 +1,16 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_crypto::keccak256::Keccak256;
-use zksync_consensus_roles::{attester, validator};
+use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
 use zksync_consensus_storage::{self as storage, BatchStoreState};
 use zksync_dal::{consensus_dal, consensus_dal::Payload, Core, CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
-use zksync_types::{commitment::L1BatchWithMetadata, L1BatchNumber};
+use zksync_types::{
+    commitment::L1BatchWithMetadata, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber,
+};
+use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
 use super::{InsertCertificateError, PayloadQueue};
 use crate::config;
@@ -18,7 +21,7 @@ pub(crate) struct ConnectionPool(pub(crate) zksync_dal::ConnectionPool<Core>);
 
 impl ConnectionPool {
     /// Wrapper for `connection_tagged()`.
-    pub(crate) async fn connection<'a>(&'a self, ctx: &ctx::Ctx) -> ctx::Result<Connection<'a>> {
+    pub(crate) async fn connection(&self, ctx: &ctx::Ctx) -> ctx::Result<Connection<'static>> {
         Ok(Connection(
             ctx.wait(self.0.connection_tagged("consensus"))
                 .await?
@@ -164,6 +167,22 @@ impl<'a> Connection<'a> {
             .map_err(E::Other)?)
     }
 
+    /// Wrapper for `consensus_dal().upsert_attester_committee()`.
+    pub async fn upsert_attester_committee(
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: BatchNumber,
+        committee: &attester::Committee,
+    ) -> ctx::Result<()> {
+        ctx.wait(
+            self.0
+                .consensus_dal()
+                .upsert_attester_committee(number, committee),
+        )
+        .await??;
+        Ok(())
+    }
+
     /// Wrapper for `consensus_dal().replica_state()`.
     pub async fn replica_state(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::ReplicaState> {
         Ok(ctx
@@ -229,22 +248,22 @@ impl<'a> Connection<'a> {
         })
     }
 
-    /// Wrapper for `consensus_dal().genesis()`.
-    pub async fn genesis(&mut self, ctx: &ctx::Ctx) -> ctx::Result<Option<validator::Genesis>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().genesis())
-            .await?
-            .map_err(DalError::generalize)?)
-    }
-
-    /// Wrapper for `consensus_dal().try_update_genesis()`.
-    pub async fn try_update_genesis(
+    /// Wrapper for `consensus_dal().global_config()`.
+    pub async fn global_config(
         &mut self,
         ctx: &ctx::Ctx,
-        genesis: &validator::Genesis,
+    ) -> ctx::Result<Option<consensus_dal::GlobalConfig>> {
+        Ok(ctx.wait(self.0.consensus_dal().global_config()).await??)
+    }
+
+    /// Wrapper for `consensus_dal().try_update_global_config()`.
+    pub async fn try_update_global_config(
+        &mut self,
+        ctx: &ctx::Ctx,
+        cfg: &consensus_dal::GlobalConfig,
     ) -> ctx::Result<()> {
         Ok(ctx
-            .wait(self.0.consensus_dal().try_update_genesis(genesis))
+            .wait(self.0.consensus_dal().try_update_global_config(cfg))
             .await??)
     }
 
@@ -267,7 +286,7 @@ impl<'a> Connection<'a> {
 
     /// (Re)initializes consensus genesis to start at the last L2 block in storage.
     /// Noop if `spec` matches the current genesis.
-    pub(crate) async fn adjust_genesis(
+    pub(crate) async fn adjust_global_config(
         &mut self,
         ctx: &ctx::Ctx,
         spec: &config::GenesisSpec,
@@ -277,31 +296,35 @@ impl<'a> Connection<'a> {
             .await
             .wrap("start_transaction()")?;
 
-        let old = txn.genesis(ctx).await.wrap("genesis()")?;
+        let old = txn.global_config(ctx).await.wrap("genesis()")?;
         if let Some(old) = &old {
-            if &config::GenesisSpec::from_genesis(old) == spec {
+            if &config::GenesisSpec::from_global_config(old) == spec {
                 // Hard fork is not needed.
                 return Ok(());
             }
         }
 
         tracing::info!("Performing a hard fork of consensus.");
-        let genesis = validator::GenesisRaw {
-            chain_id: spec.chain_id,
-            fork_number: old
-                .as_ref()
-                .map_or(validator::ForkNumber(0), |old| old.fork_number.next()),
-            first_block: txn.next_block(ctx).await.context("next_block()")?,
-            protocol_version: spec.protocol_version,
-            validators: spec.validators.clone(),
-            attesters: spec.attesters.clone(),
-            leader_selection: spec.leader_selection.clone(),
-        }
-        .with_hash();
+        let new = consensus_dal::GlobalConfig {
+            genesis: validator::GenesisRaw {
+                chain_id: spec.chain_id,
+                fork_number: old.as_ref().map_or(validator::ForkNumber(0), |old| {
+                    old.genesis.fork_number.next()
+                }),
+                first_block: txn.next_block(ctx).await.context("next_block()")?,
+                protocol_version: spec.protocol_version,
+                validators: spec.validators.clone(),
+                attesters: spec.attesters.clone(),
+                leader_selection: spec.leader_selection.clone(),
+            }
+            .with_hash(),
+            registry_address: spec.registry_address,
+            seed_peers: spec.seed_peers.clone(),
+        };
 
-        txn.try_update_genesis(ctx, &genesis)
+        txn.try_update_global_config(ctx, &new)
             .await
-            .wrap("try_update_genesis()")?;
+            .wrap("try_update_global_config()")?;
         txn.commit(ctx).await.wrap("commit()")?;
         Ok(())
     }
@@ -446,5 +469,33 @@ impl<'a> Connection<'a> {
             .wait(self.0.consensus_dal().attestation_status())
             .await?
             .context("attestation_status()")?)
+    }
+
+    /// Constructs `BlockArgs` for the last block of the batch.
+    pub async fn vm_block_info(
+        &mut self,
+        ctx: &ctx::Ctx,
+        batch: attester::BatchNumber,
+    ) -> ctx::Result<(ResolvedBlockInfo, BatchFeeInput)> {
+        let (_, block) = self
+            .get_l2_block_range_of_l1_batch(ctx, batch)
+            .await
+            .wrap("get_l2_block_range_of_l1_batch()")?
+            .context("batch not sealed")?;
+        // `unwrap()` is safe: the block range is returned as `L2BlockNumber`s
+        let block = L2BlockNumber(u32::try_from(block.0).unwrap());
+        let block_info = ctx
+            .wait(BlockInfo::for_existing_block(&mut self.0, block))
+            .await?
+            .context("BlockInfo")?;
+        let resolved_block_info = ctx
+            .wait(block_info.resolve(&mut self.0))
+            .await?
+            .context("resolve()")?;
+        let fee_input = ctx
+            .wait(block_info.historical_fee_input(&mut self.0))
+            .await?
+            .context("historical_fee_input()")?;
+        Ok((resolved_block_info, fee_input))
     }
 }

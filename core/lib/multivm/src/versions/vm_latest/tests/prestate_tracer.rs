@@ -40,7 +40,8 @@ fn test_prestate_tracer() {
     let prestate_tracer_result = Arc::new(OnceCell::default());
     let prestate_tracer = PrestateTracer::new(false, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
-    vm.vm.inspect(tracer_ptr.into(), VmExecutionMode::Batch);
+    vm.vm
+        .inspect(&mut tracer_ptr.into(), VmExecutionMode::Batch);
 
     let prestate_result = Arc::try_unwrap(prestate_tracer_result)
         .unwrap()
@@ -88,7 +89,7 @@ fn test_prestate_tracer_diff_mode() {
 
     //enter ether to contract to see difference in the balance post execution
     let tx0 = Execute {
-        contract_address: vm.test_contract.unwrap(),
+        contract_address: Some(vm.test_contract.unwrap()),
         calldata: Default::default(),
         value: U256::from(100000),
         factory_deps: vec![],
@@ -98,7 +99,7 @@ fn test_prestate_tracer_diff_mode() {
         .push_transaction(account.get_l2_tx_for_execute(tx0.clone(), None));
 
     let tx1 = Execute {
-        contract_address: deployed_address2,
+        contract_address: Some(deployed_address2),
         calldata: Default::default(),
         value: U256::from(200000),
         factory_deps: vec![],
@@ -110,7 +111,7 @@ fn test_prestate_tracer_diff_mode() {
     let prestate_tracer = PrestateTracer::new(true, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
     vm.vm
-        .inspect(tracer_ptr.into(), VmExecutionMode::Bootloader);
+        .inspect(&mut tracer_ptr.into(), VmExecutionMode::Bootloader);
 
     let prestate_result = Arc::try_unwrap(prestate_tracer_result)
         .unwrap()

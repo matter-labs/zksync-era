@@ -12,8 +12,12 @@ use zksync_basic_types::{
 use zksync_consensus_utils::EncodeDist;
 use zksync_crypto_primitives::K256PrivateKey;
 
-use crate::configs::{
-    self, eth_sender::PubdataSendingMode, external_price_api_client::ForcedPriceClientConfig,
+use crate::{
+    configs::{
+        self, da_client::DAClient::Avail, eth_sender::PubdataSendingMode,
+        external_price_api_client::ForcedPriceClientConfig,
+    },
+    AvailConfig,
 };
 
 trait Sample {
@@ -243,17 +247,17 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             default_upgrade_addr: rng.gen(),
             diamond_proxy_addr: rng.gen(),
             validator_timelock_addr: rng.gen(),
-            l1_erc20_bridge_proxy_addr: rng.gen(),
-            l2_erc20_bridge_addr: rng.gen(),
-            l1_shared_bridge_proxy_addr: rng.gen(),
-            l2_shared_bridge_addr: rng.gen(),
-            l1_weth_bridge_proxy_addr: rng.gen(),
-            l2_weth_bridge_addr: rng.gen(),
-            l2_testnet_paymaster_addr: rng.gen(),
+            l1_erc20_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
+            l2_erc20_bridge_addr: self.sample_opt(|| rng.gen()),
+            l1_shared_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
+            l2_shared_bridge_addr: self.sample_opt(|| rng.gen()),
+            l1_weth_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
+            l2_weth_bridge_addr: self.sample_opt(|| rng.gen()),
+            l2_testnet_paymaster_addr: self.sample_opt(|| rng.gen()),
             l1_multicall3_addr: rng.gen(),
-            base_token_addr: rng.gen(),
-            chain_admin_addr: rng.gen(),
             ecosystem_contracts: self.sample(rng),
+            base_token_addr: self.sample_opt(|| rng.gen()),
+            chain_admin_addr: self.sample_opt(|| rng.gen()),
         }
     }
 }
@@ -630,19 +634,6 @@ impl Distribution<configs::house_keeper::HouseKeeperConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::house_keeper::HouseKeeperConfig {
         configs::house_keeper::HouseKeeperConfig {
             l1_batch_metrics_reporting_interval_ms: self.sample(rng),
-            gpu_prover_queue_reporting_interval_ms: self.sample(rng),
-            prover_job_retrying_interval_ms: self.sample(rng),
-            prover_stats_reporting_interval_ms: self.sample(rng),
-            witness_job_moving_interval_ms: self.sample(rng),
-            witness_generator_stats_reporting_interval_ms: self.sample(rng),
-            prover_db_pool_size: self.sample(rng),
-            witness_generator_job_retrying_interval_ms: self.sample(rng),
-            proof_compressor_job_retrying_interval_ms: self.sample(rng),
-            proof_compressor_stats_reporting_interval_ms: self.sample(rng),
-            prover_job_archiver_archiving_interval_ms: self.sample(rng),
-            prover_job_archiver_archive_after_secs: self.sample(rng),
-            fri_gpu_prover_archiver_archiving_interval_ms: self.sample(rng),
-            fri_gpu_prover_archiver_archive_after_secs: self.sample(rng),
         }
     }
 }
@@ -741,7 +732,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             l1_chain_id: L1ChainId(self.sample(rng)),
             sl_chain_id: None,
             l2_chain_id: L2ChainId::default(),
-            recursion_scheduler_level_vk_hash: rng.gen(),
+            snark_wrapper_vk_hash: rng.gen(),
             dummy_verifier: rng.gen(),
             l1_batch_commit_data_generator_mode: match rng.gen_range(0..2) {
                 0 => L1BatchCommitmentMode::Rollup,
@@ -783,13 +774,20 @@ impl Distribution<configs::consensus::WeightedAttester> for EncodeDist {
 
 impl Distribution<configs::consensus::GenesisSpec> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::GenesisSpec {
-        use configs::consensus::{GenesisSpec, ProtocolVersion, ValidatorPublicKey};
+        use configs::consensus::{
+            GenesisSpec, Host, NodePublicKey, ProtocolVersion, ValidatorPublicKey,
+        };
         GenesisSpec {
             chain_id: L2ChainId::default(),
             protocol_version: ProtocolVersion(self.sample(rng)),
             validators: self.sample_collect(rng),
             attesters: self.sample_collect(rng),
             leader: ValidatorPublicKey(self.sample(rng)),
+            registry_address: self.sample_opt(|| rng.gen()),
+            seed_peers: self
+                .sample_range(rng)
+                .map(|_| (NodePublicKey(self.sample(rng)), Host(self.sample(rng))))
+                .collect(),
         }
     }
 }
@@ -930,6 +928,21 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
             gateway_url: self
                 .sample_opt(|| format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+        }
+    }
+}
+
+impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_client::DAClientConfig {
+        configs::da_client::DAClientConfig {
+            client: Avail(AvailConfig {
+                api_node_url: self.sample(rng),
+                bridge_api_url: self.sample(rng),
+                seed: self.sample(rng),
+                app_id: self.sample(rng),
+                timeout: self.sample(rng),
+                max_retries: self.sample(rng),
+            }),
         }
     }
 }
@@ -1106,6 +1119,7 @@ impl Distribution<configs::prover_job_monitor::ProverJobMonitorConfig> for Encod
             prover_queue_reporter_run_interval_ms: self.sample(rng),
             witness_generator_queue_reporter_run_interval_ms: self.sample(rng),
             witness_job_queuer_run_interval_ms: self.sample(rng),
+            http_port: self.sample(rng),
         }
     }
 }
@@ -1133,6 +1147,7 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             eth: self.sample(rng),
             snapshot_creator: self.sample(rng),
             observability: self.sample(rng),
+            da_client_config: self.sample(rng),
             da_dispatcher_config: self.sample(rng),
             protective_reads_writer_config: self.sample(rng),
             basic_witness_input_producer_config: self.sample(rng),

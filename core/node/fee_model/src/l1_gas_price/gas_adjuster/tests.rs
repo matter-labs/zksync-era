@@ -152,7 +152,7 @@ async fn kept_updated_l2(commitment_mode: L1BatchCommitmentMode) {
         .zip(TEST_PUBDATA_PRICES)
         .map(|(block, pubdata)| BaseFees {
             base_fee_per_gas: block,
-            base_fee_per_blob_gas: 0.into(),
+            base_fee_per_blob_gas: 1.into(),
             l2_pubdata_price: pubdata.into(),
         })
         .collect();

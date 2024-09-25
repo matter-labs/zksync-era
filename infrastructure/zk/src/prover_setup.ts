@@ -30,7 +30,8 @@ export async function setupProver(proverType: ProverType) {
         } else {
             env.modify(
                 'FRI_PROVER_SETUP_DATA_PATH',
-                `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${proverType === ProverType.GPU ? 'gpu' : 'cpu'
+                `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${
+                    proverType === ProverType.GPU ? 'gpu' : 'cpu'
                 }/`,
                 process.env.ENV_FILE!
             );
@@ -97,7 +98,8 @@ async function setupProverKeys(proverType: ProverType) {
 
     env.modify(
         'FRI_PROVER_SETUP_DATA_PATH',
-        `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${proverType === ProverType.GPU ? 'gpu' : 'cpu'
+        `${process.env.ZKSYNC_HOME}/etc/hyperchains/prover-keys/${process.env.ZKSYNC_ENV}/${
+            proverType === ProverType.GPU ? 'gpu' : 'cpu'
         }/`,
         process.env.ENV_FILE!
     );

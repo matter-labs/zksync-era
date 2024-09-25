@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 
 use ethabi::Contract;
 use once_cell::sync::Lazy;
-use vm2::{instruction_handlers::HeapInterface, HeapId, State};
 use zksync_contracts::{
     load_contract, read_bytecode, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
 };
@@ -11,15 +10,19 @@ use zksync_types::{
     U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_vm2::interface::{HeapId, StateInterface};
 
 use crate::interface::storage::ReadStorage;
 
 pub(crate) static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
 
-pub(crate) fn verify_required_memory(state: &State, required_values: Vec<(U256, HeapId, u32)>) {
+pub(crate) fn verify_required_memory(
+    state: &impl StateInterface,
+    required_values: Vec<(U256, HeapId, u32)>,
+) {
     for (required_value, memory_page, cell) in required_values {
-        let current_value = state.heaps[memory_page].read_u256(cell * 32);
+        let current_value = state.read_heap_u256(memory_page, cell * 32);
         assert_eq!(current_value, required_value);
     }
 }

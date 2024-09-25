@@ -4,13 +4,11 @@ use async_trait::async_trait;
 use rand::{prelude::SliceRandom, Rng};
 use tokio::sync::RwLock;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_node_genesis::GenesisParams;
 use zksync_node_test_utils::{
     create_l1_batch_metadata, create_l2_block, execute_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts,
 };
-use zksync_state_keeper::{StateKeeperOutputHandler, UpdatesManager};
 use zksync_test_account::Account;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHasher},
@@ -22,8 +20,9 @@ use zksync_types::{
     StorageLog, StorageLogKind, StorageValue, H160, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
+use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TransactionExecutionMetrics};
 
-use super::{OutputHandlerFactory, VmRunnerIo};
+use super::*;
 
 mod output_handler;
 mod playground;
@@ -40,7 +39,7 @@ struct IoMock {
 }
 
 #[async_trait]
-impl VmRunnerIo for Arc<RwLock<IoMock>> {
+impl VmRunnerIo for RwLock<IoMock> {
     fn name(&self) -> &'static str {
         "io_mock"
     }
@@ -154,26 +153,28 @@ struct TestOutputFactory {
 #[async_trait]
 impl OutputHandlerFactory for TestOutputFactory {
     async fn create_handler(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> anyhow::Result<Box<dyn StateKeeperOutputHandler>> {
+        &self,
+        _system_env: SystemEnv,
+        l1_batch_env: L1BatchEnv,
+    ) -> anyhow::Result<Box<dyn OutputHandler>> {
         #[derive(Debug)]
         struct TestOutputHandler {
             delay: Option<Duration>,
         }
 
         #[async_trait]
-        impl StateKeeperOutputHandler for TestOutputHandler {
+        impl OutputHandler for TestOutputHandler {
             async fn handle_l2_block(
                 &mut self,
-                _updates_manager: &UpdatesManager,
+                _env: L2BlockEnv,
+                _output: &L2BlockOutput,
             ) -> anyhow::Result<()> {
                 Ok(())
             }
 
             async fn handle_l1_batch(
-                &mut self,
-                _updates_manager: Arc<UpdatesManager>,
+                self: Box<Self>,
+                _output: Arc<L1BatchOutput>,
             ) -> anyhow::Result<()> {
                 if let Some(delay) = self.delay {
                     tokio::time::sleep(delay).await
@@ -182,7 +183,7 @@ impl OutputHandlerFactory for TestOutputFactory {
             }
         }
 
-        let delay = self.delays.get(&l1_batch_number).copied();
+        let delay = self.delays.get(&l1_batch_env.number).copied();
         Ok(Box::new(TestOutputHandler { delay }))
     }
 }
@@ -201,7 +202,7 @@ pub fn create_l2_transaction(
     };
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: Address::random(),
+            contract_address: Some(Address::random()),
             calldata: vec![],
             value: Default::default(),
             factory_deps: vec![],

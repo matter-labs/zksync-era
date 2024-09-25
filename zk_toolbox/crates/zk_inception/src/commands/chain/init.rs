@@ -1,24 +1,13 @@
 use anyhow::{bail, Context};
-use common::{
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-    git, logger,
-    spinner::Spinner,
-};
+use common::{config::global_config, git, logger, spinner::Spinner};
 use config::{
-    copy_configs,
-    forge_interface::{
-        register_chain::{input::RegisterChainL1Config, output::RegisterChainOutput},
-        script_params::REGISTER_CHAIN_SCRIPT_PARAMS,
-    },
-    ports_config, set_l1_rpc_url,
-    traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
-    update_from_chain_config, update_ports, ChainConfig, ContractsConfig, EcosystemConfig,
-    GeneralConfig,
+    copy_configs, ports_config, set_l1_rpc_url, traits::SaveConfigWithBasePath,
+    update_from_chain_config, update_ports, ChainConfig, EcosystemConfig, GeneralConfig,
 };
-use types::{BaseToken, L1Network, WalletCreation};
+use types::BaseToken;
 use xshell::Shell;
 
+use super::common::{distribute_eth, mint_base_token, register_chain};
 use crate::{
     accept_ownership::accept_admin,
     commands::{
@@ -27,18 +16,18 @@ use crate::{
             deploy_l2_contracts, deploy_paymaster,
             genesis::genesis,
             set_token_multiplier_setter::set_token_multiplier_setter,
+            setup_legacy_bridge::setup_legacy_bridge,
         },
-        portal::create_and_save_portal_config,
+        portal::update_portal_config,
     },
-    consts::AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_DISTRIBUTING_ETH_SPINNER, MSG_GENESIS_DATABASE_ERR,
-        MSG_MINT_BASE_TOKEN_SPINNER, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR,
+        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTS_CONFIG_ERR,
         MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
-        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
+        MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    utils::consensus::{generate_consensus_keys, get_consensus_config, get_consensus_secrets},
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -69,6 +58,12 @@ pub async fn init(
 
     let mut general_config = chain_config.get_general_config()?;
     apply_port_offset(init_args.port_offset, &mut general_config)?;
+    let ports = ports_config(&general_config).context(MSG_PORTS_CONFIG_ERR)?;
+
+    let consensus_keys = generate_consensus_keys();
+    let consensus_config =
+        get_consensus_config(chain_config, ports, Some(consensus_keys.clone()), None)?;
+    general_config.consensus_config = Some(consensus_config);
     general_config.save_with_base_path(shell, &chain_config.configs)?;
 
     let mut genesis_config = chain_config.get_genesis_config()?;
@@ -85,6 +80,7 @@ pub async fn init(
 
     let mut secrets = chain_config.get_secrets_config()?;
     set_l1_rpc_url(&mut secrets, init_args.l1_rpc_url.clone())?;
+    secrets.consensus = Some(get_consensus_secrets(&consensus_keys));
     secrets.save_with_base_path(shell, &chain_config.configs)?;
 
     let spinner = Spinner::new(MSG_REGISTERING_CHAIN_SPINNER);
@@ -95,6 +91,8 @@ pub async fn init(
         chain_config,
         &mut contracts_config,
         init_args.l1_rpc_url.clone(),
+        None,
+        true,
     )
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
@@ -112,22 +110,25 @@ pub async fn init(
     .await?;
     spinner.finish();
 
-    let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
-    set_token_multiplier_setter(
-        shell,
-        ecosystem_config,
-        chain_config.get_wallets_config()?.governor_private_key(),
-        contracts_config.l1.chain_admin_addr,
-        ecosystem_config
-            .get_wallets()
-            .unwrap()
-            .token_multiplier_setter
-            .address,
-        &init_args.forge_args.clone(),
-        init_args.l1_rpc_url.clone(),
-    )
-    .await?;
-    spinner.finish();
+    if chain_config.base_token != BaseToken::eth() {
+        let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);
+        set_token_multiplier_setter(
+            shell,
+            ecosystem_config,
+            chain_config.get_wallets_config()?.governor_private_key(),
+            contracts_config.l1.chain_admin_addr,
+            chain_config
+                .get_wallets_config()
+                .unwrap()
+                .token_multiplier_setter
+                .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
+                .address,
+            &init_args.forge_args.clone(),
+            init_args.l1_rpc_url.clone(),
+        )
+        .await?;
+        spinner.finish();
+    }
 
     deploy_l2_contracts::deploy_l2_contracts(
         shell,
@@ -139,119 +140,40 @@ pub async fn init(
     .await?;
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
+    if let Some(true) = chain_config.legacy_bridge {
+        setup_legacy_bridge(
+            shell,
+            chain_config,
+            ecosystem_config,
+            &contracts_config,
+            init_args.forge_args.clone(),
+        )
+        .await?;
+    }
+
     if init_args.deploy_paymaster {
+        let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
         deploy_paymaster::deploy_paymaster(
             shell,
             chain_config,
             &mut contracts_config,
             init_args.forge_args.clone(),
+            None,
+            true,
         )
         .await?;
         contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+        spinner.finish();
     }
 
     genesis(init_args.genesis_args.clone(), shell, chain_config)
         .await
         .context(MSG_GENESIS_DATABASE_ERR)?;
 
-    create_and_save_portal_config(ecosystem_config, shell)
+    update_portal_config(shell, chain_config)
         .await
         .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?;
 
-    Ok(())
-}
-
-async fn register_chain(
-    shell: &Shell,
-    forge_args: ForgeScriptArgs,
-    config: &EcosystemConfig,
-    chain_config: &ChainConfig,
-    contracts: &mut ContractsConfig,
-    l1_rpc_url: String,
-) -> anyhow::Result<()> {
-    let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
-
-    let deploy_config = RegisterChainL1Config::new(chain_config, contracts)?;
-    deploy_config.save(shell, deploy_config_path)?;
-
-    let mut forge = Forge::new(&config.path_to_foundry())
-        .script(&REGISTER_CHAIN_SCRIPT_PARAMS.script(), forge_args.clone())
-        .with_ffi()
-        .with_rpc_url(l1_rpc_url)
-        .with_broadcast();
-
-    forge = fill_forge_private_key(forge, config.get_wallets()?.governor_private_key())?;
-    check_the_balance(&forge).await?;
-    forge.run(shell)?;
-
-    let register_chain_output = RegisterChainOutput::read(
-        shell,
-        REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
-    )?;
-    contracts.set_chain_contracts(&register_chain_output);
-    Ok(())
-}
-
-// Distribute eth to the chain wallets for localhost environment
-pub async fn distribute_eth(
-    ecosystem_config: &EcosystemConfig,
-    chain_config: &ChainConfig,
-    l1_rpc_url: String,
-) -> anyhow::Result<()> {
-    if chain_config.wallet_creation == WalletCreation::Localhost
-        && ecosystem_config.l1_network == L1Network::Localhost
-    {
-        let spinner = Spinner::new(MSG_DISTRIBUTING_ETH_SPINNER);
-        let wallets = ecosystem_config.get_wallets()?;
-        let chain_wallets = chain_config.get_wallets_config()?;
-        let mut addresses = vec![
-            chain_wallets.operator.address,
-            chain_wallets.blob_operator.address,
-            chain_wallets.governor.address,
-        ];
-        if let Some(deployer) = chain_wallets.deployer {
-            addresses.push(deployer.address)
-        }
-        common::ethereum::distribute_eth(
-            wallets.operator,
-            addresses,
-            l1_rpc_url,
-            ecosystem_config.l1_network.chain_id(),
-            AMOUNT_FOR_DISTRIBUTION_TO_WALLETS,
-        )
-        .await?;
-        spinner.finish();
-    }
-    Ok(())
-}
-
-pub async fn mint_base_token(
-    ecosystem_config: &EcosystemConfig,
-    chain_config: &ChainConfig,
-    l1_rpc_url: String,
-) -> anyhow::Result<()> {
-    if chain_config.wallet_creation == WalletCreation::Localhost
-        && ecosystem_config.l1_network == L1Network::Localhost
-        && chain_config.base_token != BaseToken::eth()
-    {
-        let spinner = Spinner::new(MSG_MINT_BASE_TOKEN_SPINNER);
-        let wallets = ecosystem_config.get_wallets()?;
-        let chain_wallets = chain_config.get_wallets_config()?;
-        let base_token = &chain_config.base_token;
-        let addresses = vec![wallets.governor.address, chain_wallets.governor.address];
-        let amount = AMOUNT_FOR_DISTRIBUTION_TO_WALLETS * base_token.nominator as u128
-            / base_token.denominator as u128;
-        common::ethereum::mint_token(
-            wallets.operator,
-            base_token.address,
-            addresses,
-            l1_rpc_url,
-            ecosystem_config.l1_network.chain_id(),
-            amount,
-        )
-        .await?;
-        spinner.finish();
-    }
     Ok(())
 }
 
