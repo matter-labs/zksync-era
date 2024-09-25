@@ -752,11 +752,12 @@ pub enum CallTracerBlockResult {
     CallTrace(Vec<ResultDebugCall>),
     FlatCallTrace(Vec<DebugCallFlat>),
 }
+
 impl CallTracerBlockResult {
     pub fn unwrap_flatten(self) -> Vec<DebugCallFlat> {
         match self {
             Self::CallTrace(_) => {
-                unreachable!()
+                panic!("Result is a FlatCallTrace")
             }
             Self::FlatCallTrace(a) => a,
         }
@@ -766,7 +767,7 @@ impl CallTracerBlockResult {
         match self {
             Self::CallTrace(a) => a,
             Self::FlatCallTrace(_) => {
-                unreachable!()
+                panic!("Result is a CallTrace")
             }
         }
     }
@@ -780,10 +781,10 @@ pub enum CallTracerResult {
 }
 
 impl CallTracerResult {
-    pub fn unwrap_flatten(self) -> Vec<DebugCallFlat> {
+    pub fn unwrap_flat(self) -> Vec<DebugCallFlat> {
         match self {
             Self::CallTrace(_) => {
-                unreachable!()
+                panic!("Result is a FlatCallTrace")
             }
             Self::FlatCallTrace(a) => a,
         }
@@ -793,7 +794,7 @@ impl CallTracerResult {
         match self {
             Self::CallTrace(a) => a,
             Self::FlatCallTrace(_) => {
-                unreachable!()
+                panic!("Result is a CallTrace")
             }
         }
     }
