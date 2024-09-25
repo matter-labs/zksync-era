@@ -8,10 +8,8 @@ use std::{
 use anyhow::{bail, Context, Result};
 use config::{
     explorer_compose::ExplorerBackendPorts, update_port_in_host, update_port_in_url,
-    EcosystemConfig, GeneralConfig, DEFAULT_CONSENSUS_PORT, DEFAULT_CONTRACT_VERIFIER_PORT,
-    DEFAULT_EXPLORER_API_PORT, DEFAULT_EXPLORER_DATA_FETCHER_PORT, DEFAULT_EXPLORER_WORKER_PORT,
-    DEFAULT_HEALTHCHECK_PORT, DEFAULT_MERKLE_TREE_PORT, DEFAULT_PROMETHEUS_PORT,
-    DEFAULT_WEB3_JSON_RPC_PORT, DEFAULT_WEB3_WS_RPC_PORT,
+    EcosystemConfig, GeneralConfig, DEFAULT_CONSENSUS_PORT, DEFAULT_EXPLORER_API_PORT,
+    DEFAULT_EXPLORER_DATA_FETCHER_PORT, DEFAULT_EXPLORER_WORKER_PORT,
 };
 use serde_yaml::Value;
 use xshell::Shell;
@@ -57,7 +55,7 @@ impl EcosystemPorts {
         let port_range = (PORT_RANGE_START + offset)..PORT_RANGE_END;
 
         let mut new_ports = HashMap::new();
-        for (desc, port) in T::get_default_ports() {
+        for (desc, port) in config.get_default_ports()? {
             let mut new_port = port + offset;
             if self.is_port_assigned(new_port) {
                 new_port = self.allocate_port(port_range.clone(), desc.clone())?;
@@ -257,24 +255,24 @@ impl EcosystemPortsScanner {
 }
 
 pub trait ConfigWithChainPorts {
-    fn get_default_ports() -> HashMap<String, u16>;
+    fn get_default_ports(&self) -> anyhow::Result<HashMap<String, u16>>;
     fn set_ports(&mut self, ports: HashMap<String, u16>) -> Result<()>;
 }
 
 impl ConfigWithChainPorts for ExplorerBackendPorts {
-    fn get_default_ports() -> HashMap<String, u16> {
-        HashMap::from([
+    fn get_default_ports(&self) -> anyhow::Result<HashMap<String, u16>> {
+        Ok(HashMap::from([
             ("api_http_port".to_string(), DEFAULT_EXPLORER_API_PORT),
             (
                 "data_fetcher_http_port".to_string(),
                 DEFAULT_EXPLORER_DATA_FETCHER_PORT,
             ),
             ("worker_http_port".to_string(), DEFAULT_EXPLORER_WORKER_PORT),
-        ])
+        ]))
     }
 
     fn set_ports(&mut self, ports: HashMap<String, u16>) -> anyhow::Result<()> {
-        if ports.len() != Self::get_default_ports().len() {
+        if ports.len() != self.get_default_ports()?.len() {
             bail!("Incorrect number of ports provided");
         }
         for (desc, port) in ports {
@@ -290,32 +288,48 @@ impl ConfigWithChainPorts for ExplorerBackendPorts {
 }
 
 impl ConfigWithChainPorts for GeneralConfig {
-    fn get_default_ports() -> HashMap<String, u16> {
-        HashMap::from([
+    fn get_default_ports(&self) -> anyhow::Result<HashMap<String, u16>> {
+        let api = self
+            .api_config
+            .clone()
+            .context("Api config is not presented")?;
+        let contract_verifier = self
+            .contract_verifier
+            .clone()
+            .context("Contract Verifier config is not presented")?;
+        let prometheus = self
+            .prometheus_config
+            .clone()
+            .context("Prometheus config is not presented")?;
+
+        let consensus_port = if let Some(consensus) = self.consensus_config.clone() {
+            consensus.server_addr.port()
+        } else {
+            DEFAULT_CONSENSUS_PORT
+        };
+
+        Ok(HashMap::from([
             (
                 "web3_json_rpc_http_port".to_string(),
-                DEFAULT_WEB3_JSON_RPC_PORT,
+                api.web3_json_rpc.http_port,
             ),
             (
                 "web3_json_rpc_ws_port".to_string(),
-                DEFAULT_WEB3_WS_RPC_PORT,
+                api.web3_json_rpc.ws_port,
             ),
-            ("healthcheck_port".to_string(), DEFAULT_HEALTHCHECK_PORT),
-            ("merkle_tree_port".to_string(), DEFAULT_MERKLE_TREE_PORT),
+            ("healthcheck_port".to_string(), api.healthcheck.port),
+            ("merkle_tree_port".to_string(), api.merkle_tree.port),
             (
                 "prometheus_listener_port".to_string(),
-                DEFAULT_PROMETHEUS_PORT,
+                prometheus.listener_port,
             ),
-            (
-                "contract_verifier_port".to_string(),
-                DEFAULT_CONTRACT_VERIFIER_PORT,
-            ),
-            ("consensus_port".to_string(), DEFAULT_CONSENSUS_PORT),
-        ])
+            ("contract_verifier_port".to_string(), contract_verifier.port),
+            ("consensus_port".to_string(), consensus_port),
+        ]))
     }
 
     fn set_ports(&mut self, ports: HashMap<String, u16>) -> anyhow::Result<()> {
-        if ports.len() != Self::get_default_ports().len() {
+        if ports.len() != self.get_default_ports()?.len() {
             bail!("Incorrect number of ports provided");
         }
 

@@ -64,18 +64,6 @@ pub const DEFAULT_EXPLORER_API_PORT: u16 = 3002;
 pub const DEFAULT_EXPLORER_DATA_FETCHER_PORT: u16 = 3040;
 /// Default port for consensus service
 pub const DEFAULT_CONSENSUS_PORT: u16 = 3054;
-/// Default port for the web3 json rpc service
-pub const DEFAULT_WEB3_JSON_RPC_PORT: u16 = 3050;
-/// Default port for the web3 ws rpc service
-pub const DEFAULT_WEB3_WS_RPC_PORT: u16 = 3051;
-/// Default port for the healthcheck service
-pub const DEFAULT_HEALTHCHECK_PORT: u16 = 3071;
-/// Default port for the merkle tree
-pub const DEFAULT_MERKLE_TREE_PORT: u16 = 3072;
-/// Default port for the prometheus service
-pub const DEFAULT_PROMETHEUS_PORT: u16 = 3314;
-/// Default port for the contract verifier service
-pub const DEFAULT_CONTRACT_VERIFIER_PORT: u16 = 3070;
 
 pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api";
 pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-data-fetcher";
