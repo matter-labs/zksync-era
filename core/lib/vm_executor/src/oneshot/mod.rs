@@ -19,20 +19,21 @@ use zksync_multivm::{
         executor::{OneshotExecutor, TransactionValidator},
         storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
         tracer::{ValidationError, ValidationParams},
-        ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
+        Call, ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
         StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode, VmInterface,
     },
-    tracers::{CallTracer, StorageInvocations, ValidationTracer},
+    tracers::{CallTracer, StorageInvocations, TracerDispatcher, ValidationTracer},
     utils::adjust_pubdata_price_for_tx,
-    vm_latest::HistoryDisabled,
+    vm_latest::{HistoryDisabled, HistoryEnabled},
     zk_evm_latest::ethereum_types::U256,
-    LegacyVmInstance, MultiVMTracer,
+    FastVmInstance, HistoryMode, LegacyVmInstance, MultiVMTracer,
 };
 use zksync_types::{
     block::pack_block_info,
     get_nonce_key,
     l2::L2Tx,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
+    vm::FastVmMode,
     AccountTreeId, Nonce, StorageKey, Transaction, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
 };
@@ -53,6 +54,7 @@ mod mock;
 /// Main [`OneshotExecutor`] implementation used by the API server.
 #[derive(Debug, Default)]
 pub struct MainOneshotExecutor {
+    fast_vm_mode: FastVmMode,
     missed_storage_invocation_limit: usize,
     execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
 }
@@ -62,9 +64,20 @@ impl MainOneshotExecutor {
     /// The limit is applied for calls and gas estimations, but not during transaction validation.
     pub fn new(missed_storage_invocation_limit: usize) -> Self {
         Self {
+            fast_vm_mode: FastVmMode::Old,
             missed_storage_invocation_limit,
             execution_latency_histogram: None,
         }
+    }
+
+    /// Sets the fast VM mode used by this executor.
+    pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
+        if !matches!(fast_vm_mode, FastVmMode::Old) {
+            tracing::warn!(
+                "Running new VM with mode {fast_vm_mode:?}; this can lead to incorrect node behavior"
+            );
+        }
+        self.fast_vm_mode = fast_vm_mode;
     }
 
     /// Sets a histogram for measuring VM execution latency.
@@ -96,34 +109,28 @@ where
             }
         };
         let execution_latency_histogram = self.execution_latency_histogram;
+        let fast_vm_mode = if params.trace_calls {
+            FastVmMode::Old // the fast VM doesn't support call tracing
+        } else {
+            self.fast_vm_mode
+        };
 
         tokio::task::spawn_blocking(move || {
-            let mut tracers = vec![];
-            let mut calls_result = Arc::<OnceCell<_>>::default();
-            if params.trace_calls {
-                tracers.push(CallTracer::new(calls_result.clone()).into_tracer_pointer());
-            }
-            tracers.push(
-                StorageInvocations::new(missed_storage_invocation_limit).into_tracer_pointer(),
+            let executor = VmSandbox::new(
+                fast_vm_mode,
+                storage,
+                env,
+                args,
+                execution_latency_histogram,
             );
-
-            let executor = VmSandbox::new(storage, env, args, execution_latency_histogram);
-            let mut result = executor.apply(|vm, transaction| {
-                let (compression_result, tx_result) = vm
-                    .inspect_transaction_with_bytecode_compression(
-                        &mut tracers.into(),
-                        transaction,
-                        true,
-                    );
-                OneshotTransactionExecutionResult {
-                    tx_result: Box::new(tx_result),
-                    compression_result: compression_result.map(drop),
-                    call_traces: vec![],
-                }
-            });
-
-            result.call_traces = Arc::make_mut(&mut calls_result).take().unwrap_or_default();
-            result
+            executor.apply(|vm, transaction| {
+                vm.inspect_transaction_with_bytecode_compression(
+                    missed_storage_invocation_limit,
+                    params,
+                    transaction,
+                    true,
+                )
+            })
         })
         .await
         .context("VM execution panicked")
@@ -158,12 +165,16 @@ where
             let tracers = vec![validation_tracer.into_tracer_pointer()];
 
             let executor = VmSandbox::new(
+                FastVmMode::Old,
                 storage,
                 env,
                 TxExecutionArgs::for_validation(tx),
                 execution_latency_histogram,
             );
             let exec_result = executor.apply(|vm, transaction| {
+                let Vm::Legacy(vm) = vm else {
+                    unreachable!("Fast VM is never used for validation yet");
+                };
                 vm.push_transaction(transaction);
                 vm.inspect(&mut tracers.into(), VmExecutionMode::OneTx)
             });
@@ -183,8 +194,70 @@ where
 }
 
 #[derive(Debug)]
+enum Vm<S: ReadStorage> {
+    Legacy(LegacyVmInstance<S, HistoryDisabled>),
+    Fast(FastVmInstance<S, ()>),
+}
+
+impl<S: ReadStorage> Vm<S> {
+    fn inspect_transaction_with_bytecode_compression(
+        &mut self,
+        missed_storage_invocation_limit: usize,
+        params: OneshotTracingParams,
+        tx: Transaction,
+        with_compression: bool,
+    ) -> OneshotTransactionExecutionResult {
+        let mut calls_result = Arc::<OnceCell<_>>::default();
+        let (compression_result, tx_result) = match self {
+            Self::Legacy(vm) => {
+                let mut tracers = Self::create_legacy_tracers(
+                    missed_storage_invocation_limit,
+                    params.trace_calls.then(|| calls_result.clone()),
+                );
+                vm.inspect_transaction_with_bytecode_compression(&mut tracers, tx, with_compression)
+            }
+            Self::Fast(vm) => {
+                assert!(
+                    !params.trace_calls,
+                    "Call tracing is not supported by fast VM yet"
+                );
+                let legacy_tracers = Self::create_legacy_tracers::<HistoryEnabled>(
+                    missed_storage_invocation_limit,
+                    None,
+                );
+                let mut full_tracer = (legacy_tracers.into(), ());
+                vm.inspect_transaction_with_bytecode_compression(
+                    &mut full_tracer,
+                    tx,
+                    with_compression,
+                )
+            }
+        };
+
+        OneshotTransactionExecutionResult {
+            tx_result: Box::new(tx_result),
+            compression_result: compression_result.map(drop),
+            call_traces: Arc::make_mut(&mut calls_result).take().unwrap_or_default(),
+        }
+    }
+
+    fn create_legacy_tracers<H: HistoryMode>(
+        missed_storage_invocation_limit: usize,
+        calls_result: Option<Arc<OnceCell<Vec<Call>>>>,
+    ) -> TracerDispatcher<StorageView<S>, H> {
+        let mut tracers = vec![];
+        if let Some(calls_result) = calls_result {
+            tracers.push(CallTracer::new(calls_result).into_tracer_pointer());
+        }
+        tracers
+            .push(StorageInvocations::new(missed_storage_invocation_limit).into_tracer_pointer());
+        tracers.into()
+    }
+}
+
+#[derive(Debug)]
 struct VmSandbox<S: ReadStorage> {
-    vm: Box<LegacyVmInstance<S, HistoryDisabled>>,
+    vm: Vm<S>,
     storage_view: StoragePtr<StorageView<S>>,
     transaction: Transaction,
     execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
@@ -193,6 +266,7 @@ struct VmSandbox<S: ReadStorage> {
 impl<S: ReadStorage> VmSandbox<S> {
     /// This method is blocking.
     fn new(
+        fast_vm_mode: FastVmMode,
         storage: S,
         mut env: OneshotEnv,
         execution_args: TxExecutionArgs,
@@ -212,13 +286,24 @@ impl<S: ReadStorage> VmSandbox<S> {
         };
 
         let storage_view = storage_view.to_rc_ptr();
-        let vm = Box::new(LegacyVmInstance::new_with_specific_version(
-            env.l1_batch,
-            env.system,
-            storage_view.clone(),
-            protocol_version.into_api_vm_version(),
-        ));
-
+        let vm = match fast_vm_mode {
+            FastVmMode::Old => Vm::Legacy(LegacyVmInstance::new_with_specific_version(
+                env.l1_batch,
+                env.system,
+                storage_view.clone(),
+                protocol_version.into_api_vm_version(),
+            )),
+            FastVmMode::New => Vm::Fast(FastVmInstance::fast(
+                env.l1_batch,
+                env.system,
+                storage_view.clone(),
+            )),
+            FastVmMode::Shadow => Vm::Fast(FastVmInstance::shadowed(
+                env.l1_batch,
+                env.system,
+                storage_view.clone(),
+            )),
+        };
         Self {
             vm,
             storage_view,
@@ -277,7 +362,7 @@ impl<S: ReadStorage> VmSandbox<S> {
 
     pub(super) fn apply<T, F>(mut self, apply_fn: F) -> T
     where
-        F: FnOnce(&mut LegacyVmInstance<S, HistoryDisabled>, Transaction) -> T,
+        F: FnOnce(&mut Vm<S>, Transaction) -> T,
     {
         let tx_id = format!(
             "{:?}-{}",
@@ -286,19 +371,22 @@ impl<S: ReadStorage> VmSandbox<S> {
         );
 
         let started_at = Instant::now();
-        let result = apply_fn(&mut *self.vm, self.transaction);
+        let result = apply_fn(&mut self.vm, self.transaction);
         let vm_execution_took = started_at.elapsed();
 
         if let Some(histogram) = self.execution_latency_histogram {
             histogram.observe(vm_execution_took);
         }
-        let memory_metrics = self.vm.record_vm_memory_metrics();
-        metrics::report_vm_memory_metrics(
-            &tx_id,
-            &memory_metrics,
-            vm_execution_took,
-            &self.storage_view.borrow().stats(),
-        );
+        if let Vm::Legacy(vm) = &self.vm {
+            let memory_metrics = vm.record_vm_memory_metrics();
+            metrics::report_vm_memory_metrics(
+                &tx_id,
+                &memory_metrics,
+                vm_execution_took,
+                &self.storage_view.borrow().stats(),
+            );
+            // FIXME: Memory metrics don't work for the fast VM yet
+        }
         result
     }
 }
