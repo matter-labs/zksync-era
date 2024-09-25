@@ -1,5 +1,6 @@
 pub mod coingecko_api;
 pub mod forced_price_client;
+mod tests;
 mod utils;
 
 use std::fmt;

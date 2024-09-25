@@ -113,5 +113,22 @@ impl CoinGeckoPriceResponse {
 
 #[cfg(test)]
 mod test {
-    fn setup() {}
+    use httpmock::MockServer;
+
+    fn auth_check_create(
+        auth_header: String,
+        api_key: Option<String>,
+    ) -> impl (FnOnce(httpmock::When) -> httpmock::When) {
+        |when: httpmock::When| -> httpmock::When {
+            if let Some(x) = api_key {
+                when.header(auth_header, x)
+            } else {
+                when
+            }
+        }
+    }
+
+    fn setup() {
+        let server = MockServer::start();
+    }
 }
