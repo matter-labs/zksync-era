@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc, str::FromStr};
+use std::{cell::RefCell, rc::Rc};
 
 use once_cell::sync::Lazy;
 use zksync_config::configs::use_evm_simulator;
@@ -26,9 +26,8 @@ use zksync_types::{
     block::L2BlockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
     utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, K256PrivateKey,
     L1BatchNumber, L1TxCommonData, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, StorageKey,
-    Transaction, BOOTLOADER_ADDRESS, H256, SYSTEM_CONTEXT_ADDRESS,
-    SYSTEM_CONTEXT_GAS_PRICE_POSITION, SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256,
-    ZKPORTER_IS_AVAILABLE,
+    Transaction, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
+    SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
 

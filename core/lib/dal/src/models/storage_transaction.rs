@@ -367,8 +367,9 @@ impl From<StorageTransactionReceipt> for TransactionReceipt {
                 .and_then(|addr| {
                     serde_json::from_value::<Option<Address>>(addr)
                         .expect("invalid address value in the database")
-                // For better compatibility with various clients, we never return null.
-                }).or_else(|| Some(Address::zero())),
+                    // For better compatibility with various clients, we never return null.
+                })
+                .or_else(|| Some(Address::zero())),
             cumulative_gas_used: Default::default(), // TODO: Should be actually calculated (SMA-1183).
             gas_used: {
                 let refunded_gas: U256 = storage_receipt.refunded_gas.into();

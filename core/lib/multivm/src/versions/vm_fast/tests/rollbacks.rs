@@ -152,7 +152,8 @@ fn test_vm_loadnext_rollbacks() {
             TxModifier::NonceReused(
                 loadnext_deploy_tx.initiator_account(),
                 loadnext_deploy_tx.nonce().unwrap(),
-            ),
+            )
+            .into(),
         ),
         TransactionTestInfo::new_processed(loadnext_tx_1, false),
         TransactionTestInfo::new_processed(loadnext_tx_2.clone(), true),

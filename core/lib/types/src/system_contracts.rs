@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 
 use once_cell::sync::Lazy;
 use zksync_basic_types::{AccountTreeId, Address, H256, U256};
@@ -208,15 +208,14 @@ static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
     SYSTEM_CONTRACT_LIST
         .iter()
         .filter_map(|(path, name, address, contract_lang)| {
-            let result = if *name == "EvmGasManager" && !evm_simulator_is_used {
+            if *name == "EvmGasManager" && !evm_simulator_is_used {
                 None
             } else {
                 Some(DeployedContract {
                     account_id: AccountTreeId::new(*address),
                     bytecode: read_sys_contract_bytecode(path, name, contract_lang.clone()),
                 })
-            };
-            result
+            }
         })
         .collect::<Vec<_>>()
 });
@@ -235,15 +234,14 @@ pub fn get_system_smart_contracts_from_dir(path: PathBuf) -> Vec<DeployedContrac
     SYSTEM_CONTRACT_LIST
         .iter()
         .filter_map(|(path, name, address, contract_lang)| {
-            let result = if *name == "EvmGasManager" && !evm_simulator_is_used {
+            if *name == "EvmGasManager" && !evm_simulator_is_used {
                 None
             } else {
                 Some(DeployedContract {
                     account_id: AccountTreeId::new(*address),
                     bytecode: repo.read_sys_contract_bytecode(path, name, contract_lang.clone()),
                 })
-            };
-            result
+            }
         })
         .collect::<Vec<_>>()
 }

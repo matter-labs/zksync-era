@@ -1,6 +1,6 @@
 use std::fmt;
 
-use zksync_types::{ExecuteTransactionCommon, Transaction, H160, U256};
+use zksync_types::{ExecuteTransactionCommon, Nonce, Transaction, H160, U256};
 use zksync_vm2::interface::{Event, StateInterface};
 
 use super::VmTester;

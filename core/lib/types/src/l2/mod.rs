@@ -218,8 +218,11 @@ impl L2Tx {
         let raw = req.get_signed_bytes(&sig).context("get_signed_bytes")?;
         let (req, hash) =
             TransactionRequest::from_bytes_unverified(&raw).context("from_bytes_unverified()")?;
-        let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env().unwrap().use_evm_simulator;
-        let mut tx = L2Tx::from_request_unverified(req, use_evm_simulator).context("from_request_unverified()")?;
+        let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env()
+            .unwrap()
+            .use_evm_simulator;
+        let mut tx = L2Tx::from_request_unverified(req, use_evm_simulator)
+            .context("from_request_unverified()")?;
         tx.set_input(raw, hash);
         Ok(tx)
     }

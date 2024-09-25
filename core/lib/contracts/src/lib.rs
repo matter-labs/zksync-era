@@ -8,7 +8,6 @@ use std::{
     fs::{self, File},
     io::BufReader,
     path::{Path, PathBuf},
-    str::FromStr,
 };
 
 use ethabi::{

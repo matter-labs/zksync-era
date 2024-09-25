@@ -236,9 +236,9 @@ mod tests {
             tx,
             create_execution_result([]),
             vec![],
+            vec![],
             new_block_gas_count(),
             VmExecutionMetrics::default(),
-            vec![],
             vec![],
         );
 

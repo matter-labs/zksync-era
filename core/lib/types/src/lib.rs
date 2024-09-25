@@ -391,7 +391,9 @@ impl TryFrom<abi::Transaction> for Transaction {
             abi::Transaction::L2(raw) => {
                 let (req, hash) =
                     transaction_request::TransactionRequest::from_bytes_unverified(&raw)?;
-                let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env().unwrap().use_evm_simulator;
+                let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env()
+                    .unwrap()
+                    .use_evm_simulator;
                 let mut tx = L2Tx::from_request_unverified(req, use_evm_simulator)?;
                 tx.set_input(raw, hash);
                 tx.into()

@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use tokio::sync::watch;
 use zksync_config::configs::{
     eth_sender::SenderConfig,
@@ -189,7 +187,7 @@ impl EthTxAggregator {
             calldata: get_l2_default_aa_hash_input,
         };
 
-        let mut get_l2_evm_simulator_hash_input = self
+        let get_l2_evm_simulator_hash_input = self
             .functions
             .get_evm_simulator_bytecode_hash
             .as_ref()

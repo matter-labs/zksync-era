@@ -855,7 +855,9 @@ impl L2Tx {
         value: TransactionRequest,
         max_tx_size: usize,
     ) -> Result<Self, SerializationTransactionError> {
-        let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env().unwrap().use_evm_simulator;
+        let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env()
+            .unwrap()
+            .use_evm_simulator;
         let tx = Self::from_request_unverified(value, use_evm_simulator)?;
         tx.check_encoded_size(max_tx_size)?;
         Ok(tx)

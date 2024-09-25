@@ -4,8 +4,7 @@ use zksync_types::{
     vm::VmVersion,
     Transaction, H256,
 };
-use zksync_utils::{be_words_to_bytes, h256_to_u256};
-use zksync_utils::u256_to_h256;
+use zksync_utils::{be_words_to_bytes, h256_to_u256, u256_to_h256};
 
 use crate::{
     glue::GlueInto,
