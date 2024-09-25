@@ -2,7 +2,7 @@
 
 Instead of initializing a node using a Postgres dump, it's possible to configure a node to recover from a protocol-level
 snapshot. This process is much faster and requires much less storage. Postgres database of a mainnet node recovered from
-a snapshot is only about 300GB. Note that without [pruning](08_pruning.md) enabled, the node state will continuously
+a snapshot is less than 500GB. Note that without [pruning](08_pruning.md) enabled, the node state will continuously
 grow at a rate about 15GB per day.
 
 ## How it works
