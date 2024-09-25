@@ -152,8 +152,8 @@ impl EthClient for MockEthClient {
         Ok(logs
             .into_iter()
             .filter(|log| {
-                log.topics.contains(&topic1)
-                    && (topic2.is_none() || log.topics.contains(&topic2.unwrap()))
+                log.topics.get(0) == Some(&topic1)
+                    && (topic2.is_none() || log.topics.get(1) == topic2.as_ref())
             })
             .collect())
     }
