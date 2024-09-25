@@ -50,6 +50,7 @@ curl -L https://foundry.paradigm.xyz | bash
 foundryup --branch master
 
 # Non CUDA (GPU) setup, can be skipped if the machine has a CUDA installed for provers
+# Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
 echo "export ZKSYNC_USE_CUDA_STUBS=true" >> ~/.bashrc
 # You will need to reload your `*rc` file here
 
