@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE prover_jobs_fri\n            SET\n                status = $1,\n                attempts = $2\n            WHERE\n                l1_batch_number = $3\n                AND sequence_number = $4\n                AND aggregation_round = $5\n                AND circuit_id = $6\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int2",
+        "Int8",
+        "Int4",
+        "Int2",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2d1461e068e43fd16714610b383cf8c93630d529ec96e67aac078f18196f61a5"
+}

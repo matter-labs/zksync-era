@@ -517,12 +517,16 @@ impl HttpTest for TraceCallTest {
 
         self.fee_input.expect_default(Self::FEE_SCALE);
         let call_request = CallTest::call_request(b"pending");
-        let call_result = client.trace_call(call_request.clone(), None, None).await?;
+        let call_result = client
+            .trace_call(call_request.clone(), None, None)
+            .await?
+            .unwrap_default();
         Self::assert_debug_call(&call_request, &call_result);
         let pending_block_number = api::BlockId::Number(api::BlockNumber::Pending);
         let call_result = client
             .trace_call(call_request.clone(), Some(pending_block_number), None)
-            .await?;
+            .await?
+            .unwrap_default();
         Self::assert_debug_call(&call_request, &call_result);
 
         let latest_block_numbers = [api::BlockNumber::Latest, 1.into()];
@@ -535,7 +539,8 @@ impl HttpTest for TraceCallTest {
                     Some(api::BlockId::Number(number)),
                     None,
                 )
-                .await?;
+                .await?
+                .unwrap_default();
             Self::assert_debug_call(&call_request, &call_result);
         }
 
@@ -568,7 +573,7 @@ impl HttpTest for TraceCallTest {
         self.fee_input.expect_custom(block_header.batch_fee_input);
         let call_request = CallTest::call_request(b"block=3");
         let call_result = client.trace_call(call_request.clone(), None, None).await?;
-        Self::assert_debug_call(&call_request, &call_result);
+        Self::assert_debug_call(&call_request, &call_result.unwrap_default());
 
         Ok(())
     }
@@ -602,12 +607,16 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
     ) -> anyhow::Result<()> {
         self.fee_input.expect_default(TraceCallTest::FEE_SCALE);
         let call_request = CallTest::call_request(b"pending");
-        let call_result = client.trace_call(call_request.clone(), None, None).await?;
+        let call_result = client
+            .trace_call(call_request.clone(), None, None)
+            .await?
+            .unwrap_default();
         TraceCallTest::assert_debug_call(&call_request, &call_result);
         let pending_block_number = api::BlockId::Number(api::BlockNumber::Pending);
         let call_result = client
             .trace_call(call_request.clone(), Some(pending_block_number), None)
-            .await?;
+            .await?
+            .unwrap_default();
         TraceCallTest::assert_debug_call(&call_request, &call_result);
 
         let first_local_l2_block = StorageInitialization::SNAPSHOT_RECOVERY_BLOCK + 1;
@@ -629,7 +638,8 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
             let number = api::BlockId::Number(number);
             let call_result = client
                 .trace_call(call_request.clone(), Some(number), None)
-                .await?;
+                .await?
+                .unwrap_default();
             TraceCallTest::assert_debug_call(&call_request, &call_result);
         }
         Ok(())

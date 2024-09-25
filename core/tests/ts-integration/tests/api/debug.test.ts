@@ -50,7 +50,7 @@ describe('Debug methods', () => {
             output: '0x',
             revertReason: 'Error function_selector = 0x, data = 0x',
             to: BOOTLOADER_FORMAL_ADDRESS,
-            type: 'Call',
+            type: 'call',
             value: expect.any(String),
             calls: expect.any(Array)
         };
@@ -75,7 +75,7 @@ describe('Debug methods', () => {
             input: expect.any(String),
             output: '0x',
             to: BOOTLOADER_FORMAL_ADDRESS,
-            type: 'Call',
+            type: 'call',
             value: expect.any(String),
             calls: expect.any(Array)
             // We intentionally skip `error` and `revertReason` fields: the block may contain failing txs
@@ -99,7 +99,7 @@ describe('Debug methods', () => {
             output: '0x',
             revertReason: null,
             to: BOOTLOADER_FORMAL_ADDRESS,
-            type: 'Call',
+            type: 'call',
             value: '0x0',
             calls: expect.any(Array)
         };
