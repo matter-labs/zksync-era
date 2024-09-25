@@ -1,11 +1,5 @@
-import { shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { bigIntReplacer } from '../helpers';
 import { TestContextOwner, loadTestEnvironment } from '../index';
-import path from 'path';
-import { NodeSpawner, runServerInBackground } from '../utils';
-import { exec } from 'utils';
-import fs from 'node:fs/promises';
-import { logsTestPath } from 'utils/build/logs';
 
 declare global {
     var __ZKSYNC_TEST_CONTEXT_OWNER__: TestContextOwner;

@@ -11,18 +11,22 @@
  */
 import * as utils from 'utils';
 import fs from 'node:fs/promises';
-import { TestMaster } from '../src';
+import { TestContext, TestContextOwner, TestMaster } from '../src';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
-import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract, bigIntReviver, bigIntReplacer } from '../src/helpers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
 import path from 'path';
 import { NodeSpawner, Node, NodeType } from '../src/utils';
 import { deleteInternalEnforcedL1GasPrice, deleteInternalEnforcedPubdataPrice, setTransactionSlots } from './utils';
 import { killPidWithAllChilds } from 'utils/build/kill';
+
+declare global {
+    var __ZKSYNC_TEST_CONTEXT_OWNER__: TestContextOwner;
+}
 
 const UINT32_MAX = 2n ** 32n - 1n;
 const MAX_GAS_PER_PUBDATA = 50_000n;
@@ -75,9 +79,9 @@ testFees('Test fees', function () {
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
-        let l2Node = testMaster.environment().l2Node;
+        let l2Node = testMaster.environment().l2NodePid;
         if (l2Node !== undefined) {
-            await killPidWithAllChilds(l2Node.proc.pid!, 9);
+            await killPidWithAllChilds(l2Node, 9);
         }
 
         if (!fileConfig.loadFromFile) {
@@ -282,6 +286,7 @@ testFees('Test fees', function () {
         deleteInternalEnforcedL1GasPrice(pathToHome, fileConfig);
         deleteInternalEnforcedPubdataPrice(pathToHome, fileConfig);
         mainNode = await mainNodeSpawner.spawnMainNode();
+        await __ZKSYNC_TEST_CONTEXT_OWNER__.setPid(mainNode.proc.pid!);
     });
 });
 

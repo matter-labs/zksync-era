@@ -60,7 +60,7 @@ export interface TestEnvironment {
     /*
      * L2 node PID
      */
-    l2Node: Node<NodeType.MAIN> | undefined;
+    l2NodePid: number | undefined;
     /**
      * Plaintext name of the L1 network name (i.e. `localhost` or `goerli`).
      */

@@ -7,6 +7,7 @@ import { lookupPrerequisites } from './prerequisites';
 import { Reporter } from './reporter';
 import { scaledGasPrice } from './helpers';
 import { RetryProvider } from './retry-provider';
+import { killPidWithAllChilds } from 'utils/build/kill';
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
 // It is assumed to be enough to run a set of "normal" transactions.
@@ -624,6 +625,9 @@ export class TestContextOwner {
             // Then propagate the exception.
             throw error;
         }
+        if (this.env.l2NodePid !== undefined) {
+            await killPidWithAllChilds(this.env.l2NodePid, 9);
+        }
     }
 
     /**
@@ -647,6 +651,10 @@ export class TestContextOwner {
         // We don't really need to withdraw funds back, since test takes existing L2 balance
         // into account. If the same wallet would be reused (e.g. on stage), it'll just have to
         // deposit less next time.
+    }
+
+    async setPid(newPid: number) {
+        this.env.l2NodePid = newPid;
     }
 }
 

@@ -3,7 +3,7 @@ import { exec } from 'node:child_process';
 
 export async function killPidWithAllChilds(pid: number, signalNumber: number) {
     let childs = [pid];
-    console.log(pid, signalNumber);
+    console.log('kill child', pid, signalNumber);
     while (true) {
         try {
             let child = childs.at(-1);
