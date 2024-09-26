@@ -19,9 +19,7 @@ use zksync_node_framework::{
     implementations::layers::{
         base_token::{
             base_token_ratio_persister::BaseTokenRatioPersisterLayer,
-            base_token_ratio_provider::BaseTokenRatioProviderLayer, cmc_client::CmcClientLayer,
-            coingecko_client::CoingeckoClientLayer, forced_price_client::ForcedPriceClientLayer,
-            no_op_external_price_api_client::NoOpExternalPriceApiClientLayer,
+            base_token_ratio_provider::BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
         },
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
@@ -554,27 +552,8 @@ impl MainNodeBuilder {
 
     fn add_external_api_client_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.external_price_api_client_config);
-        match config.source.as_str() {
-            CmcClientLayer::CLIENT_NAME => {
-                self.node.add_layer(CmcClientLayer::new(config));
-            }
-            CoingeckoClientLayer::CLIENT_NAME => {
-                self.node.add_layer(CoingeckoClientLayer::new(config));
-            }
-            NoOpExternalPriceApiClientLayer::CLIENT_NAME => {
-                self.node.add_layer(NoOpExternalPriceApiClientLayer);
-            }
-            ForcedPriceClientLayer::CLIENT_NAME => {
-                self.node.add_layer(ForcedPriceClientLayer::new(config));
-            }
-            _ => {
-                anyhow::bail!(
-                    "Unknown external price API client source: {}",
-                    config.source
-                );
-            }
-        }
-
+        self.node
+            .add_layer(ExternalPriceApiLayer::try_from(config)?);
         Ok(self)
     }
 
