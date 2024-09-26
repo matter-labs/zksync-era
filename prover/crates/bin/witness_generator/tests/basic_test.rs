@@ -15,9 +15,8 @@ use zksync_types::{
     L1BatchNumber,
 };
 use zksync_witness_generator::{
-    leaf_aggregation::LeafAggregationWitnessGenerator,
-    node_aggregation::NodeAggregationWitnessGenerator, utils::AggregationWrapper,
-    witness_generator::WitnessGenerator,
+    rounds::{JobManager, LeafAggregation, NodeAggregation},
+    utils::AggregationWrapper,
 };
 
 fn compare_serialized<T: Serialize>(expected: &T, actual: &T) {
@@ -52,22 +51,13 @@ async fn test_leaf_witness_gen() {
         .unwrap();
 
     let keystore = Keystore::locate();
-    let job = LeafAggregationWitnessGenerator::prepare_job(
-        leaf_aggregation_job_metadata,
-        &*object_store,
-        keystore,
-    )
-    .await
-    .unwrap();
+    let job = LeafAggregation::prepare_job(leaf_aggregation_job_metadata, &*object_store, keystore)
+        .await
+        .unwrap();
 
-    let artifacts = LeafAggregationWitnessGenerator::process_job(
-        job,
-        object_store.clone(),
-        Some(500),
-        Instant::now(),
-    )
-    .await
-    .unwrap();
+    let artifacts = LeafAggregation::process_job(job, object_store.clone(), 500, Instant::now())
+        .await
+        .unwrap();
 
     let aggregations = AggregationWrapper(artifacts.aggregations);
 
@@ -147,22 +137,13 @@ async fn test_node_witness_gen() {
     };
 
     let keystore = Keystore::locate();
-    let job = NodeAggregationWitnessGenerator::prepare_job(
-        node_aggregation_job_metadata,
-        &*object_store,
-        keystore,
-    )
-    .await
-    .unwrap();
+    let job = NodeAggregation::prepare_job(node_aggregation_job_metadata, &*object_store, keystore)
+        .await
+        .unwrap();
 
-    let artifacts = NodeAggregationWitnessGenerator::process_job(
-        job,
-        object_store.clone(),
-        Some(500),
-        Instant::now(),
-    )
-    .await
-    .unwrap();
+    let artifacts = NodeAggregation::process_job(job, object_store.clone(), 500, Instant::now())
+        .await
+        .unwrap();
 
     let aggregations = AggregationWrapper(artifacts.next_aggregations);
 

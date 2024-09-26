@@ -9,13 +9,13 @@ use zksync_types::{basic_fri_types::AggregationRound, prover_dal::LeafAggregatio
 
 use crate::{
     artifacts::{AggregationBlobUrls, ArtifactsManager},
-    leaf_aggregation::{LeafAggregationArtifacts, LeafAggregationWitnessGenerator},
     metrics::WITNESS_GENERATOR_METRICS,
+    rounds::leaf_aggregation::{LeafAggregation, LeafAggregationArtifacts},
     utils::{AggregationWrapper, ClosedFormInputWrapper},
 };
 
 #[async_trait]
-impl ArtifactsManager for LeafAggregationWitnessGenerator {
+impl ArtifactsManager for LeafAggregation {
     type InputMetadata = LeafAggregationJobMetadata;
     type InputArtifacts = ClosedFormInputWrapper;
     type OutputArtifacts = LeafAggregationArtifacts;
@@ -46,6 +46,8 @@ impl ArtifactsManager for LeafAggregationWitnessGenerator {
         _job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
+        _shall_save_to_public_bucket: bool,
+        _public_blob_store: Option<std::sync::Arc<dyn ObjectStore>>,
     ) -> AggregationBlobUrls {
         let started_at = Instant::now();
         let key = AggregationsKey {
