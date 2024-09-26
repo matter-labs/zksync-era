@@ -20,7 +20,9 @@ use zksync_vm_interface::{
 };
 
 use crate::{
-    models::storage_transaction::{CallTrace, StorageTransaction},
+    models::storage_transaction::{
+        parse_call_trace, serialize_call_into_bytes, StorageTransaction,
+    },
     Core, CoreDal,
 };
 
@@ -521,8 +523,7 @@ impl TransactionsDal<'_, '_> {
         let mut bytea_call_traces = Vec::with_capacity(transactions.len());
         for tx_res in transactions {
             if let Some(call_trace) = tx_res.call_trace() {
-                bytea_call_traces
-                    .push(CallTrace::from_call(call_trace, protocol_version).call_trace);
+                bytea_call_traces.push(serialize_call_into_bytes(call_trace, protocol_version));
                 call_traces_tx_hashes.push(tx_res.hash.as_bytes());
             }
         }
@@ -2112,11 +2113,12 @@ impl TransactionsDal<'_, '_> {
         Ok(data)
     }
 
-    pub async fn get_call_trace(&mut self, tx_hash: H256) -> DalResult<Option<Call>> {
+    pub async fn get_call_trace(&mut self, tx_hash: H256) -> DalResult<Option<(Call, usize)>> {
         let row = sqlx::query!(
             r#"
             SELECT
-                protocol_version
+                protocol_version,
+                index_in_block
             FROM
                 transactions
                 INNER JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
@@ -2139,8 +2141,7 @@ impl TransactionsDal<'_, '_> {
             .map(|v| (v as u16).try_into().unwrap())
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
-        Ok(sqlx::query_as!(
-            CallTrace,
+        Ok(sqlx::query!(
             r#"
             SELECT
                 call_trace
@@ -2155,7 +2156,12 @@ impl TransactionsDal<'_, '_> {
         .with_arg("tx_hash", &tx_hash)
         .fetch_optional(self.storage)
         .await?
-        .map(|call_trace| call_trace.into_call(protocol_version)))
+        .map(|call_trace| {
+            (
+                parse_call_trace(&call_trace.call_trace, protocol_version),
+                row.index_in_block.unwrap_or_default() as usize,
+            )
+        }))
     }
 
     pub(crate) async fn get_tx_by_hash(&mut self, hash: H256) -> DalResult<Option<Transaction>> {
@@ -2227,7 +2233,7 @@ mod tests {
             .await
             .unwrap();
 
-        let call_trace = conn
+        let (call_trace, _) = conn
             .transactions_dal()
             .get_call_trace(tx_hash)
             .await
