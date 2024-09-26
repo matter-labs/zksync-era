@@ -59,11 +59,14 @@ pub async fn init(
     let mut ecosystem_ports = EcosystemPortsScanner::scan(shell)?;
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
-    let mut general_config = chain_config.get_general_config()?;
     if !init_args.no_port_reallocation {
-        ecosystem_ports
-            .allocate_ports_with_offset_from_defaults(&mut general_config, chain_config.id)?;
+        ecosystem_ports.allocate_ports_in_yaml(
+            shell,
+            &chain_config.path_to_general_config(),
+            chain_config.id,
+        )?;
     }
+    let mut general_config = chain_config.get_general_config()?;
 
     let consensus_port = get_consensus_port(&general_config);
 
