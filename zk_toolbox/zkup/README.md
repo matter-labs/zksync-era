@@ -39,8 +39,11 @@ The `zkup` script provides various options for installing `zk_toolbox`:
 - `-v, --version <version>`  
   Git tag to use when installing from a repository. Ignored if `--branch` or `--commit` is provided.
 
-- `--skip-zk-supervisor`  
-  Skip the installation of the `zk_supervisor` binary.
+- `--inception`  
+  Installs `zk_inception` from the repository. By default, `zkup` installs `zk_inception` and `zk_supervisor`.
+
+- `--supervisor`  
+  Installs `zk_supervisor` from the repository.
 
 ### Local Installation
 
@@ -66,8 +69,8 @@ different repository, branch, commit, or version using the respective options. I
 zkup --repo matter-labs/zksync-era --version 0.1.1
 ```
 
-**Install from a local path, skipping `zk_supervisor`:**
+**Install from a local path, only installing `zk_inception`:**
 
 ```bash
-zkup --path /path/to/local/zk_toolbox --skip-zk-supervisor
+zkup --path /path/to/local/zk_toolbox --inception
 ```
