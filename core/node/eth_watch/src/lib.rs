@@ -149,6 +149,10 @@ impl EthWatch {
                 .await
                 .map_err(DalError::generalize)?;
 
+            // There are no new blocks so there is nothing to be done
+            if from_block > finalized_block {
+                continue;
+            }
             let processor_events = client
                 .get_events(
                     Web3BlockNumber::Number(from_block.into()),
