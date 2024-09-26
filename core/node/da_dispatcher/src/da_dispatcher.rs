@@ -53,6 +53,12 @@ impl DataAvailabilityDispatcher {
                 },
             );
 
+            let subtasks = futures::future::join(subtasks, async {
+                if let Err(err) = self.update_metrics().await {
+                    tracing::error!("update_metrics error {err:?}");
+                }
+            });
+
             tokio::select! {
                 _ = subtasks => {},
                 _ = stop_receiver.changed() => {
@@ -113,6 +119,7 @@ impl DataAvailabilityDispatcher {
                 .last_dispatched_l1_batch
                 .set(batch.l1_batch_number.0 as usize);
             METRICS.blob_size.observe(batch.pubdata.len());
+            METRICS.blobs_dispatched.inc_by(1);
             tracing::info!(
                 "Dispatched a DA for batch_number: {}, pubdata_size: {}, dispatch_latency: {dispatch_latency_duration:?}",
                 batch.l1_batch_number,
@@ -172,12 +179,25 @@ impl DataAvailabilityDispatcher {
         METRICS
             .last_included_l1_batch
             .set(blob_info.l1_batch_number.0 as usize);
+        METRICS.blobs_included.inc_by(1);
 
         tracing::info!(
             "Received an inclusion data for a batch_number: {}, inclusion_latency_seconds: {}",
             blob_info.l1_batch_number,
             inclusion_latency.num_seconds()
         );
+
+        Ok(())
+    }
+
+    async fn update_metrics(&self) -> anyhow::Result<()> {
+        let mut conn = self.pool.connection_tagged("da_dispatcher").await?;
+        let batches = conn
+            .data_availability_dal()
+            .get_ready_for_da_dispatch_l1_batches(self.config.max_rows_to_dispatch() as usize)
+            .await?;
+        drop(conn);
+        METRICS.blobs_pending_dispatch.set(batches.len());
 
         Ok(())
     }

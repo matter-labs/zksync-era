@@ -80,7 +80,6 @@ members = [
     "core/tests/test_account",
     "core/tests/loadnext",
     "core/tests/vm-benchmark",
-    "retrieve-blobs",
 ]
 resolver = "2"
 

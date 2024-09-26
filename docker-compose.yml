@@ -61,14 +61,3 @@ services:
     ports:
       - "4242:4242"
     command: ./eigenda-proxy --addr 0.0.0.0 --port 4242 --memstore.enabled --eigenda-max-blob-length "2MiB"
-
-  eigenda-metrics:
-    depends_on:
-      - eigenda-proxy
-      - postgres
-    build: # This is the project root
-      context: .
-      dockerfile: ./docker/retrieve-blobs/Dockerfile
-    ports:
-      - "7070:7070"
-    command: ./retrieve-blobs
