@@ -97,10 +97,10 @@ impl TxSet {
                 let status = PendingTransaction::new(h, provider)
                     .await
                     .context("await")?
-                    .context("receipt missing")?
+                    .context(messages::MSG_RECEIPT_MISSING)?
                     .status
-                    .context("status missing")?;
-                anyhow::ensure!(status == 1.into(), "transaction failed");
+                    .context(messages::MSG_STATUS_MISSING)?;
+                anyhow::ensure!(status == 1.into(), messages::MSG_TRANSACTION_FAILED);
                 Ok(())
             }
             .await
@@ -133,7 +133,7 @@ impl Setup {
             .general
             .api_config
             .as_ref()
-            .context("api_config missing")?
+            .context(messages::MSG_API_CONFIG_MISSING)?
             .web3_json_rpc
             .http_url;
         Provider::try_from(l2_url).with_context(|| format!("Provider::try_from({l2_url})"))
@@ -148,7 +148,7 @@ impl Setup {
                     .context("get_contracts_config()")?
                     .l2
                     .multicall3
-                    .context("multicall3 contract not configured")?,
+                    .context(messages::MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED)?,
             ),
             Some(self.genesis.l2_chain_id.as_u64()),
         )?)
@@ -158,10 +158,10 @@ impl Setup {
         let governor = self
             .chain
             .get_wallets_config()
-            .context("get_secrets_config()")?
+            .context("get_wallets_config()")?
             .governor
             .private_key
-            .context("governor private key not set")?;
+            .context(messages::MSG_GOVERNOR_PRIVATE_KEY_NOT_SET)?;
         let governor = LocalWallet::from_bytes(governor.as_bytes())
             .context("LocalWallet::from_bytes()")?
             .with_chain_id(self.genesis.l2_chain_id.as_u64());
@@ -199,14 +199,14 @@ impl Setup {
             .contracts
             .l2
             .consensus_registry
-            .context("consensus_registry address not configured")?;
+            .context(messages::MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED)?;
         Ok(abi::ConsensusRegistry::new(addr, m))
     }
 
     async fn last_block(&self, m: &(impl 'static + Middleware)) -> anyhow::Result<BlockId> {
         Ok(m.get_block_number()
             .await
-            .context("get_block_number")?
+            .context("get_block_number()")?
             .into())
     }
 
@@ -224,7 +224,7 @@ impl Setup {
             .iter()
             .map(decode_weighted_attester)
             .collect::<Result<_, _>>()
-            .context("decode_weighted_attester")?;
+            .context("decode_weighted_attester()")?;
         attester::Committee::new(attesters.into_iter()).context("attester::Committee::new()")
     }
 
@@ -241,7 +241,7 @@ impl Setup {
                     .attesters,
             )
         })()
-        .context("consensus.genesis_spec.attesters missing in general.yaml")?;
+        .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?;
         let want = parse_attester_committee(want).context("parse_attester_committee()")?;
 
         let provider = self.provider().context("provider()")?;
@@ -249,7 +249,7 @@ impl Setup {
         let governor = self.governor().context("governor()")?;
         let consensus_registry = self
             .consensus_registry(governor.clone())
-            .context("consensus_registry")?;
+            .context("consensus_registry()")?;
         let mut multicall = self.multicall(governor.clone()).context("multicall()")?;
 
         // Fetch contract state.
@@ -261,7 +261,7 @@ impl Setup {
             .context("num_nodes()")?
             .try_into()
             .ok()
-            .context("overflow")?;
+            .context("num_nodes() overflow")?;
 
         multicall.block = Some(block_id);
         let node_owners: Vec<Address> = multicall
@@ -294,7 +294,7 @@ impl Setup {
             }
             let got = attester::WeightedAttester {
                 key: decode_attester_key(&node.attester_latest.pub_key)
-                    .context("decode_attester_key")?,
+                    .context("decode_attester_key()")?,
                 weight: node.attester_latest.weight.into(),
             };
             if let Some(weight) = to_insert.remove(&got.key) {
@@ -303,7 +303,7 @@ impl Setup {
                         "changed_attester_weight",
                         consensus_registry.change_attester_weight(
                             node_owners[i],
-                            weight.try_into().context("overflow")?,
+                            weight.try_into().context("weight overflow")?,
                         ),
                     )
                     .await?;
@@ -351,7 +351,7 @@ impl Command {
                 let got = setup.get_attester_committee().await?;
                 anyhow::ensure!(
                     got == want,
-                    "setting attester committee failed: got {got:?}, want {want:?}"
+                    messages::msg_setting_attester_committee_failed(&got, &want)
                 );
                 print_attesters(&got);
             }
