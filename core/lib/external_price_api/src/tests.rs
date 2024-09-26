@@ -19,17 +19,19 @@ pub(crate) async fn happy_day_test(setup: SetupFn) {
     let server = MockServer::start();
     let address_str = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"; //Uniswap (UNI)
     let address = Address::from_str(address_str).unwrap();
-    let base_token_price = 198.9;
+    let base_token_price = 0.00269; //ETH costs one token
 
     let SetupResult { client } = setup(&server, address, base_token_price);
     let api_price = client.fetch_ratio(address).await.unwrap();
 
-    let (numerator, denominator) = get_fraction(base_token_price);
+    let (num_in_eth, denom_in_eth) = get_fraction(base_token_price);
+    let (ratio_num, ratio_denom) = (denom_in_eth, num_in_eth);
+    assert!(((ratio_num.get() as f64) / (ratio_denom.get() as f64) - 371.74).abs() < 0.1);
 
     assert_eq!(
         BaseTokenAPIRatio {
-            numerator,
-            denominator,
+            numerator: ratio_num,
+            denominator: ratio_denom,
             ratio_timestamp: api_price.ratio_timestamp,
         },
         api_price

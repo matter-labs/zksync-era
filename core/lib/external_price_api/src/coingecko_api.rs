@@ -49,6 +49,7 @@ impl CoinGeckoPriceAPIClient {
         }
     }
 
+    /// returns ETH/BaseToken price of a token by address
     async fn get_token_price_by_address(&self, address: Address) -> anyhow::Result<f64> {
         let address_str = address_to_string(&address);
         let price_url = self
@@ -87,11 +88,13 @@ impl CoinGeckoPriceAPIClient {
 impl PriceAPIClient for CoinGeckoPriceAPIClient {
     async fn fetch_ratio(&self, token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
         let base_token_in_eth = self.get_token_price_by_address(token_address).await?;
-        let (numerator, denominator) = get_fraction(base_token_in_eth);
+        let (num_in_eth, denom_in_eth) = get_fraction(base_token_in_eth);
+        // take reciprocal of price as returned price is ETH/BaseToken and BaseToken/ETH is needed
+        let (num_in_base, denom_in_base) = (denom_in_eth, num_in_eth);
 
         return Ok(BaseTokenAPIRatio {
-            numerator,
-            denominator,
+            numerator: num_in_base,
+            denominator: denom_in_base,
             ratio_timestamp: Utc::now(),
         });
     }
