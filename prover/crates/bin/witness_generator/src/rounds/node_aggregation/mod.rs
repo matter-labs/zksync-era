@@ -7,9 +7,8 @@ use tokio::sync::Semaphore;
 use zkevm_test_harness::witness::recursive_aggregation::{
     compute_node_vk_commitment, create_node_witness,
 };
-use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
@@ -19,7 +18,7 @@ use zksync_prover_fri_types::{
         encodings::recursion_request::RecursionQueueSimulator,
         zkevm_circuits::recursion::leaf_layer::input::RecursionLeafParametersWitness,
     },
-    FriProofWrapper,
+    get_current_pod_name, FriProofWrapper,
 };
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_types::{
@@ -30,12 +29,10 @@ use zksync_types::{
 use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
+    rounds::JobManager,
     utils::{load_proofs_for_job_ids, save_recursive_layer_prover_input_artifacts},
-    witness_generator::WitnessGenerator,
 };
-
 mod artifacts;
-mod job_processor;
 
 #[derive(Clone)]
 pub struct NodeAggregationArtifacts {
@@ -58,38 +55,15 @@ pub struct NodeAggregationWitnessGeneratorJob {
     all_leafs_layer_params: Vec<(u8, RecursionLeafParametersWitness<GoldilocksField>)>,
 }
 
-#[derive(Debug)]
-pub struct NodeAggregationWitnessGenerator {
-    config: FriWitnessGeneratorConfig,
-    object_store: Arc<dyn ObjectStore>,
-    prover_connection_pool: ConnectionPool<Prover>,
-    protocol_version: ProtocolSemanticVersion,
-    keystore: Keystore,
-}
-
-impl NodeAggregationWitnessGenerator {
-    pub fn new(
-        config: FriWitnessGeneratorConfig,
-        object_store: Arc<dyn ObjectStore>,
-        prover_connection_pool: ConnectionPool<Prover>,
-        protocol_version: ProtocolSemanticVersion,
-        keystore: Keystore,
-    ) -> Self {
-        Self {
-            config,
-            object_store,
-            prover_connection_pool,
-            protocol_version,
-            keystore,
-        }
-    }
-}
+pub struct NodeAggregation;
 
 #[async_trait]
-impl WitnessGenerator for NodeAggregationWitnessGenerator {
+impl JobManager for NodeAggregation {
     type Job = NodeAggregationWitnessGeneratorJob;
     type Metadata = NodeAggregationJobMetadata;
-    type Artifacts = NodeAggregationArtifacts;
+
+    const ROUND: AggregationRound = AggregationRound::NodeAggregation;
+    const SERVICE_NAME: &'static str = "fri_node_aggregation_witness_generator";
 
     #[tracing::instrument(
         skip_all,
@@ -98,7 +72,7 @@ impl WitnessGenerator for NodeAggregationWitnessGenerator {
     async fn process_job(
         job: NodeAggregationWitnessGeneratorJob,
         object_store: Arc<dyn ObjectStore>,
-        max_circuits_in_flight: Option<usize>,
+        max_circuits_in_flight: usize,
         started_at: Instant,
     ) -> anyhow::Result<NodeAggregationArtifacts> {
         let node_vk_commitment = compute_node_vk_commitment(job.node_vk.clone());
@@ -126,7 +100,7 @@ impl WitnessGenerator for NodeAggregationWitnessGenerator {
             proofs_ids.len()
         );
 
-        let semaphore = Arc::new(Semaphore::new(max_circuits_in_flight.unwrap()));
+        let semaphore = Arc::new(Semaphore::new(max_circuits_in_flight));
 
         let mut handles = vec![];
         for (circuit_idx, (chunk, proofs_ids_for_chunk)) in job
@@ -233,8 +207,7 @@ impl WitnessGenerator for NodeAggregationWitnessGenerator {
         keystore: Keystore,
     ) -> anyhow::Result<NodeAggregationWitnessGeneratorJob> {
         let started_at = Instant::now();
-        let artifacts =
-            NodeAggregationWitnessGenerator::get_artifacts(&metadata, object_store).await?;
+        let artifacts = Self::get_artifacts(&metadata, object_store).await?;
 
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::NodeAggregation.into()]
             .observe(started_at.elapsed());
@@ -263,5 +236,23 @@ impl WitnessGenerator for NodeAggregationWitnessGenerator {
             all_leafs_layer_params: get_leaf_vk_params(&keystore)
                 .context("get_leaf_vk_params()")?,
         })
+    }
+
+    async fn get_metadata(
+        connection_pool: ConnectionPool<Prover>,
+        protocol_version: ProtocolSemanticVersion,
+    ) -> anyhow::Result<Option<(u32, Self::Metadata)>> {
+        let pod_name = get_current_pod_name();
+        let Some(metadata) = connection_pool
+            .connection()
+            .await?
+            .fri_witness_generator_dal()
+            .get_next_node_aggregation_job(protocol_version, &pod_name)
+            .await
+        else {
+            return Ok(None);
+        };
+
+        Ok(Some((metadata.id, metadata)))
     }
 }
