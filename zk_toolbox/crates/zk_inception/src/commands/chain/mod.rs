@@ -1,13 +1,17 @@
 use ::common::forge::ForgeScriptArgs;
 use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
-use clap::Subcommand;
+use clap::{command, Parser, Subcommand};
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
 use crate::commands::chain::{
-    args::{create::ChainCreateArgs, genesis::GenesisArgs, init::InitArgs},
+    args::{
+        create::ChainCreateArgs, genesis::GenesisArgs, init::InitArgs,
+        init_configs::InitConfigsArgs,
+    },
     deploy_l2_contracts::Deploy2ContractsOption,
+    genesis::GenesisSubcommands,
 };
 
 mod accept_chain_ownership;
@@ -18,10 +22,21 @@ mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 pub mod genesis;
+pub mod genesis_all;
 pub(crate) mod init;
+mod init_configs;
 pub mod register_chain;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
+
+#[derive(Parser, Debug)]
+#[command()]
+pub struct GenesisCommand {
+    #[command(subcommand)]
+    command: Option<GenesisSubcommands>,
+    #[clap(flatten)]
+    args: GenesisArgs,
+}
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {
@@ -32,7 +47,7 @@ pub enum ChainCommands {
     /// Initialize chain, deploying necessary contracts and performing on-chain operations
     Init(InitArgs),
     /// Run server genesis
-    Genesis(GenesisArgs),
+    Genesis(GenesisCommand),
     /// Register a new chain on L1 (executed by L1 governor).
     /// This command deploys and configures Governance, ChainAdmin, and DiamondProxy contracts,
     /// registers chain with BridgeHub and sets pending admin for DiamondProxy.
@@ -54,12 +69,15 @@ pub enum ChainCommands {
     #[command(alias = "consensus")]
     DeployConsensusRegistry(ForgeScriptArgs),
     /// Deploy Default Upgrader
-    Upgrader(ForgeScriptArgs),
+    #[command(alias = "upgrader")]
+    DeployUpgrader(ForgeScriptArgs),
     /// Deploy paymaster smart contract
     #[command(alias = "paymaster")]
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
+    /// Initializes chain configs
+    InitConfigs(InitConfigsArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -67,7 +85,13 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::Create(args) => create::run(args, shell),
         ChainCommands::Init(args) => init::run(args, shell).await,
         ChainCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
-        ChainCommands::Genesis(args) => genesis::run(args, shell).await,
+        ChainCommands::Genesis(args) => match args.command {
+            Some(GenesisSubcommands::InitDatabase(args)) => {
+                genesis::database::run(args, shell).await
+            }
+            Some(GenesisSubcommands::Server) => genesis::server::run(shell).await,
+            None => genesis_all::run(args.args, shell).await,
+        },
         ChainCommands::RegisterChain(args) => register_chain::run(args, shell).await,
         ChainCommands::DeployL2Contracts(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::All).await
@@ -76,7 +100,7 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::DeployConsensusRegistry(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::ConsensusRegistry).await
         }
-        ChainCommands::Upgrader(args) => {
+        ChainCommands::DeployUpgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await
         }
         ChainCommands::InitializeBridges(args) => {
@@ -86,5 +110,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
+        ChainCommands::InitConfigs(args) => init_configs::run(args, shell).await,
     }
 }

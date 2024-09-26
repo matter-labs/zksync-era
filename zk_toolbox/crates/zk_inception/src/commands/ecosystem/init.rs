@@ -368,7 +368,6 @@ async fn init_chains(
             deploy_paymaster,
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
             port_offset: PortOffset::from_chain_id(chain_config.id as u16).into(),
-            configs_only: false,
         };
         let mut final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 
