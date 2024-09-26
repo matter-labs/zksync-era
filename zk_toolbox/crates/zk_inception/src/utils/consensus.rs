@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    net::SocketAddr,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
 };
 
 use config::{ChainConfig, PortsConfig};
@@ -41,10 +41,12 @@ pub fn get_consensus_config(
 
     let public_addr = SocketAddr::new(CONSENSUS_PUBLIC_ADDRESS_HOST, ports.consensus_port);
     let server_addr = SocketAddr::new(CONSENSUS_SERVER_ADDRESS_HOST, ports.consensus_port);
+    let debug_page_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 5000);
 
     Ok(ConsensusConfig {
         server_addr,
         public_addr: Host(public_addr.encode()),
+        debug_page_addr,
         genesis_spec,
         max_payload_size: MAX_PAYLOAD_SIZE,
         gossip_dynamic_inbound_limit: GOSSIP_DYNAMIC_INBOUND_LIMIT,
