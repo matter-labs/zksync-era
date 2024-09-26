@@ -35,6 +35,7 @@ pub fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
     logger::info(MSG_PREPARING_EN_CONFIGS);
     let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let chain_count = ecosystem_config.list_of_chains().len().try_into()?;
     let mut chain_config = ecosystem_config
         .load_chain(chain_name)
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
@@ -45,7 +46,13 @@ pub fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
         .unwrap_or_else(|| chain_config.configs.join("external_node"));
     shell.create_dir(&external_node_config_path)?;
     chain_config.external_node_config_path = Some(external_node_config_path.clone());
-    prepare_configs(shell, &chain_config, &external_node_config_path, args)?;
+    prepare_configs(
+        shell,
+        &chain_config,
+        &external_node_config_path,
+        chain_count,
+        args,
+    )?;
     let chain_path = ecosystem_config.chains.join(&chain_config.name);
     chain_config.save_with_base_path(shell, chain_path)?;
     logger::info(msg_preparing_en_config_is_done(&external_node_config_path));
@@ -56,6 +63,7 @@ fn prepare_configs(
     shell: &Shell,
     config: &ChainConfig,
     en_configs_path: &Path,
+    chain_count: u32,
     args: PrepareConfigFinal,
 ) -> anyhow::Result<()> {
     let mut ports = EcosystemPortsScanner::scan(shell)?;
@@ -82,7 +90,7 @@ fn prepare_configs(
     ports.allocate_ports_in_yaml(
         shell,
         &GeneralConfig::get_path_with_base_path(en_configs_path),
-        config.id,
+        chain_count,
     )?;
 
     let mut general_en = GeneralConfig::read_with_base_path(shell, en_configs_path)?;
