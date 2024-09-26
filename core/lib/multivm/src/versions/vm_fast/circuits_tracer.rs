@@ -1,11 +1,13 @@
 use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
-use zksync_vm2::{CycleStats, Opcode, OpcodeType, StateInterface, Tracer};
+use zksync_vm2::interface::{CycleStats, Opcode, OpcodeType, StateInterface, Tracer};
 use zksync_vm_interface::CircuitStatistic;
 
 use crate::vm_latest::tracers::circuits_capacity::*;
 
+/// VM tracer tracking [`CircuitStatistic`]s. Statistics generally depend on the number of time some opcodes were invoked,
+/// and, for precompiles, invocation complexity (e.g., how many hashing cycles `keccak256` required).
 #[derive(Debug, Default, Clone, PartialEq)]
-pub(crate) struct CircuitsTracer {
+pub struct CircuitsTracer {
     main_vm_cycles: u32,
     ram_permutation_cycles: u32,
     storage_application_cycles: u32,
@@ -17,7 +19,7 @@ pub(crate) struct CircuitsTracer {
     keccak256_cycles: u32,
     ecrecover_cycles: u32,
     sha256_cycles: u32,
-    secp256k1_verify_cycles: u32,
+    secp256r1_verify_cycles: u32,
     transient_storage_checker_cycles: u32,
 }
 
@@ -115,7 +117,7 @@ impl Tracer for CircuitsTracer {
             CycleStats::Keccak256(cycles) => self.keccak256_cycles += cycles,
             CycleStats::Sha256(cycles) => self.sha256_cycles += cycles,
             CycleStats::EcRecover(cycles) => self.ecrecover_cycles += cycles,
-            CycleStats::Secp256k1Verify(cycles) => self.secp256k1_verify_cycles += cycles,
+            CycleStats::Secp256r1Verify(cycles) => self.secp256r1_verify_cycles += cycles,
             CycleStats::Decommit(cycles) => self.code_decommitter_cycles += cycles,
             CycleStats::StorageRead => self.storage_application_cycles += 1,
             CycleStats::StorageWrite => self.storage_application_cycles += 2,
@@ -124,7 +126,8 @@ impl Tracer for CircuitsTracer {
 }
 
 impl CircuitsTracer {
-    pub(crate) fn circuit_statistic(&self) -> CircuitStatistic {
+    /// Obtains the current circuit stats from this tracer.
+    pub fn circuit_statistic(&self) -> CircuitStatistic {
         CircuitStatistic {
             main_vm: self.main_vm_cycles as f32 / GEOMETRY_CONFIG.cycles_per_vm_snapshot as f32,
             ram_permutation: self.ram_permutation_cycles as f32
@@ -146,7 +149,7 @@ impl CircuitsTracer {
             ecrecover: self.ecrecover_cycles as f32
                 / GEOMETRY_CONFIG.cycles_per_ecrecover_circuit as f32,
             sha256: self.sha256_cycles as f32 / GEOMETRY_CONFIG.cycles_per_sha256_circuit as f32,
-            secp256k1_verify: self.secp256k1_verify_cycles as f32
+            secp256k1_verify: self.secp256r1_verify_cycles as f32
                 / GEOMETRY_CONFIG.cycles_per_secp256r1_verify_circuit as f32,
             transient_storage_checker: self.transient_storage_checker_cycles as f32
                 / GEOMETRY_CONFIG.cycles_per_transient_storage_sorter as f32,

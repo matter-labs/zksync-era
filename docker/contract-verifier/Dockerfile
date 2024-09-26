@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:experimental
-FROM matterlabs/zksync-build-base:latest AS builder
+FROM ghcr.io/matter-labs/zksync-build-base:latest AS builder
 
 ARG CUDA_ARCH=89
 ENV CUDAARCHS=${CUDA_ARCH}
@@ -19,9 +19,9 @@ COPY . .
 
 RUN cargo build --release
 
-FROM debian:bookworm-slim
+FROM ghcr.io/matter-labs/zksync-runtime-base:latest
 
-RUN apt-get update && apt-get install -y curl libpq5 ca-certificates wget python3 jq && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y wget python3 jq && rm -rf /var/lib/apt/lists/*
 
 # install zksolc 1.3.x
 RUN skip_versions="v1.3.12 v1.3.15 v1.3.20" && \
@@ -47,7 +47,7 @@ RUN mkdir -p /etc/zksolc-bin/vm-1.5.0-a167aa3 && \
     chmod +x /etc/zksolc-bin/vm-1.5.0-a167aa3/zksolc
 
 # install zksolc 1.5.x
-RUN for VERSION in $(seq -f "v1.5.%g" 0 3); do \
+RUN for VERSION in $(seq -f "v1.5.%g" 0 4); do \
     mkdir -p /etc/zksolc-bin/$VERSION && \
     wget https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksolc-linux-amd64-musl-$VERSION -O /etc/zksolc-bin/$VERSION/zksolc && \
     chmod +x /etc/zksolc-bin/$VERSION/zksolc; \

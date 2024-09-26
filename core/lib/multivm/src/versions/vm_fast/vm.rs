@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt, mem};
 
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
@@ -11,13 +11,13 @@ use zksync_types::{
         BYTES_PER_ENUMERATION_INDEX,
     },
     AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
-    BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
+    BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 use zksync_vm2::{
-    decode::decode_program, CallframeInterface, ExecutionEnd, FatPointer, HeapId, Program,
-    Settings, StateInterface, Tracer, VirtualMachine,
+    interface::{CallframeInterface, HeapId, StateInterface, Tracer},
+    ExecutionEnd, FatPointer, Program, Settings, VirtualMachine,
 };
 
 use super::{
@@ -31,11 +31,12 @@ use super::{
 use crate::{
     glue::GlueInto,
     interface::{
-        storage::ReadStorage, BytecodeCompressionError, BytecodeCompressionResult,
-        CurrentExecutionState, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
-        Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode,
-        VmExecutionResultAndLogs, VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics, VmRevertReason,
+        storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
+        BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
+        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv,
+        TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
+        VmExecutionStatistics, VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        VmRevertReason, VmTrackingContracts,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_fast::{
@@ -55,9 +56,16 @@ use crate::{
 
 const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
 
-pub struct Vm<S> {
-    pub(crate) world: World<S, CircuitsTracer>,
-    pub(crate) inner: VirtualMachine<CircuitsTracer, World<S, CircuitsTracer>>,
+type FullTracer<Tr> = (Tr, CircuitsTracer);
+
+/// Fast VM wrapper.
+///
+/// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait, a tracer must have `'static` lifetime
+/// and implement [`Default`] (the latter is necessary to complete batches). [`CircuitsTracer`] is currently always enabled;
+/// you don't need to specify it explicitly.
+pub struct Vm<S, Tr = ()> {
+    pub(crate) world: World<S, FullTracer<Tr>>,
+    pub(crate) inner: VirtualMachine<FullTracer<Tr>, World<S, FullTracer<Tr>>>,
     gas_for_account_validation: u32,
     pub(crate) bootloader_state: BootloaderState,
     pub(crate) batch_env: L1BatchEnv,
@@ -67,11 +75,70 @@ pub struct Vm<S> {
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
-impl<S: ReadStorage> Vm<S> {
+impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
+    pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
+        let default_aa_code_hash = system_env
+            .base_system_smart_contracts
+            .default_aa
+            .hash
+            .into();
+
+        let program_cache = HashMap::from([World::convert_system_contract_code(
+            &system_env.base_system_smart_contracts.default_aa,
+            false,
+        )]);
+
+        let (_, bootloader) = World::convert_system_contract_code(
+            &system_env.base_system_smart_contracts.bootloader,
+            true,
+        );
+        let bootloader_memory = bootloader_initial_memory(&batch_env);
+
+        let mut inner = VirtualMachine::new(
+            BOOTLOADER_ADDRESS,
+            bootloader,
+            H160::zero(),
+            &[],
+            system_env.bootloader_gas_limit,
+            Settings {
+                default_aa_code_hash,
+                // this will change after 1.5
+                evm_interpreter_code_hash: default_aa_code_hash,
+                hook_address: get_vm_hook_position(VM_VERSION) * 32,
+            },
+        );
+
+        inner.current_frame().set_stack_pointer(0);
+        // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
+        inner.current_frame().set_heap_bound(u32::MAX);
+        inner.current_frame().set_aux_heap_bound(u32::MAX);
+        inner
+            .current_frame()
+            .set_exception_handler(INITIAL_FRAME_FORMAL_EH_LOCATION);
+
+        let mut this = Self {
+            world: World::new(storage, program_cache),
+            inner,
+            gas_for_account_validation: system_env.default_validation_computational_gas_limit,
+            bootloader_state: BootloaderState::new(
+                system_env.execution_mode,
+                bootloader_memory.clone(),
+                batch_env.first_l2_block,
+            ),
+            system_env,
+            batch_env,
+            snapshot: None,
+            #[cfg(test)]
+            enforced_state_diffs: None,
+        };
+        this.write_to_bootloader_heap(bootloader_memory);
+        this
+    }
+
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,
-        tracer: &mut CircuitsTracer,
+        tracer: &mut (Tr, CircuitsTracer),
         track_refunds: bool,
     ) -> (ExecutionResult, Refunds) {
         let mut refunds = Refunds {
@@ -79,7 +146,7 @@ impl<S: ReadStorage> Vm<S> {
             operator_suggested_refund: 0,
         };
         let mut last_tx_result = None;
-        let mut pubdata_before = self.inner.world_diff().pubdata() as u32;
+        let mut pubdata_before = self.inner.pubdata() as u32;
 
         let result = loop {
             let hook = match self.inner.run(&mut self.world, tracer) {
@@ -125,7 +192,7 @@ impl<S: ReadStorage> Vm<S> {
                             )
                             .as_u64();
 
-                        let pubdata_published = self.inner.world_diff().pubdata() as u32;
+                        let pubdata_published = self.inner.pubdata() as u32;
 
                         refunds.operator_suggested_refund = compute_refund(
                             &self.batch_env,
@@ -186,8 +253,7 @@ impl<S: ReadStorage> Vm<S> {
                         unreachable!("We do not provide the pubdata when executing the block tip or a single transaction");
                     }
 
-                    let events =
-                        merge_events(self.inner.world_diff().events(), self.batch_env.number);
+                    let events = merge_events(self.inner.events(), self.batch_env.number);
 
                     let published_bytecodes = events
                         .iter()
@@ -394,74 +460,12 @@ impl<S: ReadStorage> Vm<S> {
     pub(super) fn gas_remaining(&mut self) -> u32 {
         self.inner.current_frame().gas()
     }
-}
-
-// We don't implement `VmFactory` trait because, unlike old VMs, the new VM doesn't require storage to be writable;
-// it maintains its own storage cache and a write buffer.
-impl<S: ReadStorage> Vm<S> {
-    pub fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
-        let default_aa_code_hash = system_env
-            .base_system_smart_contracts
-            .default_aa
-            .hash
-            .into();
-
-        let program_cache = HashMap::from([World::convert_system_contract_code(
-            &system_env.base_system_smart_contracts.default_aa,
-            false,
-        )]);
-
-        let (_, bootloader) = World::convert_system_contract_code(
-            &system_env.base_system_smart_contracts.bootloader,
-            true,
-        );
-        let bootloader_memory = bootloader_initial_memory(&batch_env);
-
-        let mut inner = VirtualMachine::new(
-            BOOTLOADER_ADDRESS,
-            bootloader,
-            H160::zero(),
-            vec![],
-            system_env.bootloader_gas_limit,
-            Settings {
-                default_aa_code_hash,
-                // this will change after 1.5
-                evm_interpreter_code_hash: default_aa_code_hash,
-                hook_address: get_vm_hook_position(VM_VERSION) * 32,
-            },
-        );
-
-        inner.current_frame().set_stack_pointer(0);
-        // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
-        inner.current_frame().set_heap_bound(u32::MAX);
-        inner.current_frame().set_aux_heap_bound(u32::MAX);
-        inner
-            .current_frame()
-            .set_exception_handler(INITIAL_FRAME_FORMAL_EH_LOCATION);
-
-        let mut this = Self {
-            world: World::new(storage, program_cache),
-            inner,
-            gas_for_account_validation: system_env.default_validation_computational_gas_limit,
-            bootloader_state: BootloaderState::new(
-                system_env.execution_mode,
-                bootloader_memory.clone(),
-                batch_env.first_l2_block,
-            ),
-            system_env,
-            batch_env,
-            snapshot: None,
-            #[cfg(test)]
-            enforced_state_diffs: None,
-        };
-        this.write_to_bootloader_heap(bootloader_memory);
-        this
-    }
 
     // visible for testing
     pub(super) fn get_current_execution_state(&self) -> CurrentExecutionState {
         let world_diff = self.inner.world_diff();
-        let events = merge_events(world_diff.events(), self.batch_env.number);
+        let vm = &self.inner;
+        let events = merge_events(vm.events(), self.batch_env.number);
 
         let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
             .into_iter()
@@ -480,26 +484,31 @@ impl<S: ReadStorage> Vm<S> {
                 })
                 .collect(),
             used_contract_hashes: self.decommitted_hashes().collect(),
-            system_logs: world_diff
-                .l2_to_l1_logs()
-                .iter()
-                .map(|x| x.glue_into())
-                .collect(),
+            system_logs: vm.l2_to_l1_logs().map(GlueInto::glue_into).collect(),
             user_l2_to_l1_logs,
             storage_refunds: world_diff.storage_refunds().to_vec(),
             pubdata_costs: world_diff.pubdata_costs().to_vec(),
         }
     }
+}
 
-    fn delete_history_if_appropriate(&mut self) {
-        if self.snapshot.is_none() && !self.has_previous_far_calls() {
-            self.inner.delete_history();
-        }
+impl<S, Tr> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
+where
+    S: ReadStorage,
+    Tr: Tracer + Default + 'static,
+{
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<StorageView<S>>,
+    ) -> Self {
+        let storage = ImmutableStorageView::new(storage);
+        Self::custom(batch_env, system_env, storage)
     }
 }
 
-impl<S: ReadStorage> VmInterface for Vm<S> {
-    type TracerDispatcher = ();
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
+    type TracerDispatcher = Tr;
 
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
         self.push_transaction_inner(tx, 0, true);
@@ -507,7 +516,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
     fn inspect(
         &mut self,
-        (): Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut track_refunds = false;
@@ -517,12 +526,14 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             track_refunds = true;
         }
 
-        let mut tracer = CircuitsTracer::default();
         let start = self.inner.world_diff().snapshot();
-        let pubdata_before = self.inner.world_diff().pubdata();
+        let pubdata_before = self.inner.pubdata();
         let gas_before = self.gas_remaining();
 
-        let (result, refunds) = self.run(execution_mode, &mut tracer, track_refunds);
+        let mut full_tracer = (mem::take(tracer), CircuitsTracer::default());
+        let (result, refunds) = self.run(execution_mode, &mut full_tracer, track_refunds);
+        *tracer = full_tracer.0; // place the tracer back
+
         let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
             && matches!(result, ExecutionResult::Halt { .. });
 
@@ -549,7 +560,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                 })
                 .collect();
             let events = merge_events(
-                self.inner.world_diff().events_after(&start),
+                self.inner.world_diff().events_after(&start).iter().copied(),
                 self.batch_env.number,
             );
             let user_l2_to_l1_logs = extract_l2tol1logs_from_l1_messenger(&events)
@@ -562,7 +573,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                 .world_diff()
                 .l2_to_l1_logs_after(&start)
                 .iter()
-                .map(|x| x.glue_into())
+                .map(|&log| log.glue_into())
                 .collect();
             VmExecutionLogs {
                 storage_logs,
@@ -573,8 +584,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             }
         };
 
-        let pubdata_after = self.inner.world_diff().pubdata();
-        let circuit_statistic = tracer.circuit_statistic();
+        let pubdata_after = self.inner.pubdata();
         let gas_remaining = self.gas_remaining();
         VmExecutionResultAndLogs {
             result,
@@ -588,7 +598,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                 computational_gas_used: 0,
                 total_log_queries: 0,
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
-                circuit_statistic,
+                circuit_statistic: full_tracer.1.circuit_statistic(),
             },
             refunds,
         }
@@ -596,12 +606,12 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        (): Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.push_transaction_inner(tx, 0, with_compression);
-        let result = self.inspect((), VmExecutionMode::OneTx);
+        let result = self.inspect(tracer, VmExecutionMode::OneTx);
 
         let compression_result = if self.has_unpublished_bytecodes() {
             Err(BytecodeCompressionError::BytecodeCompressionFailed)
@@ -623,7 +633,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.inspect((), VmExecutionMode::Batch);
+        let result = self.inspect(&mut Tr::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {
@@ -648,21 +658,19 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
 #[derive(Debug)]
 struct VmSnapshot {
-    vm_snapshot: zksync_vm2::Snapshot,
     bootloader_snapshot: BootloaderStateSnapshot,
     gas_for_account_validation: u32,
 }
 
-impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterfaceHistoryEnabled for Vm<S, Tr> {
     fn make_snapshot(&mut self) {
         assert!(
             self.snapshot.is_none(),
             "cannot create a VM snapshot until a previous snapshot is rolled back to or popped"
         );
 
-        self.delete_history_if_appropriate();
+        self.inner.make_snapshot();
         self.snapshot = Some(VmSnapshot {
-            vm_snapshot: self.inner.snapshot(),
             bootloader_snapshot: self.bootloader_state.get_snapshot(),
             gas_for_account_validation: self.gas_for_account_validation,
         });
@@ -670,25 +678,28 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
 
     fn rollback_to_the_latest_snapshot(&mut self) {
         let VmSnapshot {
-            vm_snapshot,
             bootloader_snapshot,
             gas_for_account_validation,
         } = self.snapshot.take().expect("no snapshots to rollback to");
 
-        self.inner.rollback(vm_snapshot);
+        self.inner.rollback();
         self.bootloader_state.apply_snapshot(bootloader_snapshot);
         self.gas_for_account_validation = gas_for_account_validation;
-
-        self.delete_history_if_appropriate();
     }
 
     fn pop_snapshot_no_rollback(&mut self) {
+        self.inner.pop_snapshot();
         self.snapshot = None;
-        self.delete_history_if_appropriate();
     }
 }
 
-impl<S: fmt::Debug> fmt::Debug for Vm<S> {
+impl<S: ReadStorage> VmTrackingContracts for Vm<S> {
+    fn used_contract_hashes(&self) -> Vec<H256> {
+        self.decommitted_hashes().map(u256_to_h256).collect()
+    }
+}
+
+impl<S: fmt::Debug, Tr: fmt::Debug> fmt::Debug for Vm<S, Tr> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vm")
             .field(
@@ -721,39 +732,13 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
         }
     }
 
-    fn bytecode_to_program(bytecode: &[u8]) -> Program<T, Self> {
-        Program::new(
-            decode_program(
-                &bytecode
-                    .chunks_exact(8)
-                    .map(|chunk| u64::from_be_bytes(chunk.try_into().unwrap()))
-                    .collect::<Vec<_>>(),
-                false,
-            ),
-            bytecode
-                .chunks_exact(32)
-                .map(U256::from_big_endian)
-                .collect::<Vec<_>>(),
-        )
-    }
-
     fn convert_system_contract_code(
         code: &SystemContractCode,
         is_bootloader: bool,
     ) -> (U256, Program<T, Self>) {
         (
             h256_to_u256(code.hash),
-            Program::new(
-                decode_program(
-                    &code
-                        .code
-                        .iter()
-                        .flat_map(|x| x.0.into_iter().rev())
-                        .collect::<Vec<_>>(),
-                    is_bootloader,
-                ),
-                code.code.clone(),
-            ),
+            Program::from_words(code.code.clone(), is_bootloader),
         )
     }
 }
@@ -808,11 +793,12 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
         self.program_cache
             .entry(hash)
             .or_insert_with(|| {
-                Self::bytecode_to_program(self.bytecode_cache.entry(hash).or_insert_with(|| {
+                let bytecode = self.bytecode_cache.entry(hash).or_insert_with(|| {
                     self.storage
                         .load_factory_dep(u256_to_h256(hash))
                         .expect("vm tried to decommit nonexistent bytecode")
-                }))
+                });
+                Program::new(bytecode, false)
             })
             .clone()
     }

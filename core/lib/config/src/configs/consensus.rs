@@ -92,6 +92,8 @@ pub struct GenesisSpec {
     pub leader: ValidatorPublicKey,
     /// Address of the registry contract.
     pub registry_address: Option<ethabi::Address>,
+    /// Recommended list of peers to connect to.
+    pub seed_peers: BTreeMap<NodePublicKey, Host>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]

@@ -131,9 +131,9 @@ async fn submit_tee_proof() {
     // send a request to the /tee/submit_proofs endpoint, using a mocked TEE proof
 
     let tee_proof_request_str = r#"{
-        "signature": [ 0, 1, 2, 3, 4 ],
-        "pubkey": [ 5, 6, 7, 8, 9 ],
-        "proof": [ 10, 11, 12, 13, 14 ],
+        "signature": "0001020304",
+        "pubkey": "0506070809",
+        "proof": "0A0B0C0D0E",
         "tee_type": "sgx"
     }"#;
     let tee_proof_request =

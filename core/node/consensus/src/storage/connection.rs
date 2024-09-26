@@ -5,10 +5,12 @@ use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
 use zksync_consensus_storage::{self as storage, BatchStoreState};
 use zksync_dal::{consensus_dal, consensus_dal::Payload, Core, CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
-use zksync_node_api_server::execution_sandbox::{BlockArgs, BlockStartInfo};
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
-use zksync_types::{api, commitment::L1BatchWithMetadata, L1BatchNumber};
+use zksync_types::{
+    commitment::L1BatchWithMetadata, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber,
+};
+use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
 use super::{InsertCertificateError, PayloadQueue};
 use crate::config;
@@ -317,6 +319,7 @@ impl<'a> Connection<'a> {
             }
             .with_hash(),
             registry_address: spec.registry_address,
+            seed_peers: spec.seed_peers.clone(),
         };
 
         txn.try_update_global_config(ctx, &new)
@@ -469,27 +472,30 @@ impl<'a> Connection<'a> {
     }
 
     /// Constructs `BlockArgs` for the last block of the batch.
-    pub async fn vm_block_args(
+    pub async fn vm_block_info(
         &mut self,
         ctx: &ctx::Ctx,
         batch: attester::BatchNumber,
-    ) -> ctx::Result<BlockArgs> {
+    ) -> ctx::Result<(ResolvedBlockInfo, BatchFeeInput)> {
         let (_, block) = self
             .get_l2_block_range_of_l1_batch(ctx, batch)
             .await
             .wrap("get_l2_block_range_of_l1_batch()")?
             .context("batch not sealed")?;
-        let block = api::BlockId::Number(api::BlockNumber::Number(block.0.into()));
-        let start_info = ctx
-            .wait(BlockStartInfo::new(
-                &mut self.0,
-                /*max_cache_age=*/ std::time::Duration::from_secs(10),
-            ))
+        // `unwrap()` is safe: the block range is returned as `L2BlockNumber`s
+        let block = L2BlockNumber(u32::try_from(block.0).unwrap());
+        let block_info = ctx
+            .wait(BlockInfo::for_existing_block(&mut self.0, block))
             .await?
-            .context("BlockStartInfo::new()")?;
-        Ok(ctx
-            .wait(BlockArgs::new(&mut self.0, block, &start_info))
+            .context("BlockInfo")?;
+        let resolved_block_info = ctx
+            .wait(block_info.resolve(&mut self.0))
             .await?
-            .context("BlockArgs::new")?)
+            .context("resolve()")?;
+        let fee_input = ctx
+            .wait(block_info.historical_fee_input(&mut self.0))
+            .await?
+            .context("historical_fee_input()")?;
+        Ok((resolved_block_info, fee_input))
     }
 }
