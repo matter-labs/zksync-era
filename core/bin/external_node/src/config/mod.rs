@@ -1260,7 +1260,7 @@ impl ExternalNodeConfig<()> {
             .context("failed decoding secrets YAML config")?;
 
         let consensus = consensus_config_path
-            .map(|path| read_yaml_repr::<proto::consensus::Config>(&path.into()))
+            .map(|path| read_yaml_repr::<proto::consensus::Config>(&path))
             .transpose()
             .context("failed decoding consensus YAML config")?;
         let consensus_secrets = secrets_config.consensus.clone();
