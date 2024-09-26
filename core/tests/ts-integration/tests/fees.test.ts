@@ -9,14 +9,13 @@
  * sure that the test is maintained does not get broken.
  *
  */
-import * as utils from 'utils';
 import fs from 'node:fs/promises';
-import { TestContext, TestContextOwner, TestMaster } from '../src';
+import { TestContextOwner, TestMaster } from '../src';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
-import { SYSTEM_CONTEXT_ADDRESS, getTestContract, bigIntReviver, bigIntReplacer } from '../src/helpers';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
 import path from 'path';

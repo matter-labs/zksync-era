@@ -282,7 +282,6 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     );
 
     const healthcheckPort = process.env.API_HEALTHCHECK_PORT ?? '3071';
-    const l2NodePid = 0;
     return {
         maxLogsLimit,
         pathToHome,

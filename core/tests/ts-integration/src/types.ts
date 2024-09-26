@@ -1,5 +1,3 @@
-import { Node, NodeType } from './utils';
-
 export enum NodeMode {
     Main,
     External

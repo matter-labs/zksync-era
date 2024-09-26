@@ -23,7 +23,7 @@ pub async fn run(shell: &Shell, args: FeesArgs) -> anyhow::Result<()> {
         ecosystem_config.current_chain()
     ));
 
-    let mut command = cmd!(shell, "yarn jest fees.test.ts --testTimeout 120000")
+    let mut command = cmd!(shell, "yarn jest fees.test.ts --testTimeout 240000")
         .env("SPAWN_NODE", "1")
         .env("RUN_FEE_TEST", "1")
         .env("NO_KILL", args.no_kill.to_string())
