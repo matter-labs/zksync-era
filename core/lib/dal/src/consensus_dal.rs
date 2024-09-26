@@ -85,12 +85,41 @@ impl ConsensusDal<'_, '_> {
             if got == want {
                 return Ok(());
             }
+            // If genesis didn't change, just update the config.
+            if got.genesis == want.genesis {
+                let s = zksync_protobuf::serde::Serialize;
+                let global_config = s.proto_fmt(want, serde_json::value::Serializer).unwrap();
+                sqlx::query!(
+                    r#"
+                    UPDATE consensus_replica_state
+                    SET
+                        global_config = $1
+                    "#,
+                    global_config,
+                )
+                .instrument("try_update_global_config#UPDATE consensus_replica_state")
+                .execute(&mut txn)
+                .await?;
+                txn.commit().await?;
+                return Ok(());
+            }
+
+            // Verify the genesis change.
             anyhow::ensure!(
                 got.genesis.chain_id == want.genesis.chain_id,
                 "changing chain_id is not allowed: old = {:?}, new = {:?}",
                 got.genesis.chain_id,
                 want.genesis.chain_id,
             );
+            // Note that it may happen that the fork number didn't change,
+            // in case the binary was updated to support more fields in genesis struct.
+            // In such a case, the old binary was not able to connect to the consensus network,
+            // because of the genesis hash mismatch.
+            // TODO: Perhaps it would be better to deny unknown fields in the genesis instead.
+            // It would require embedding the genesis either as a json string or protobuf bytes within
+            // the global config, so that the global config can be parsed with
+            // `deny_unknown_fields:false` while genesis would be parsed with
+            // `deny_unknown_fields:true`.
             anyhow::ensure!(
                 got.genesis.fork_number <= want.genesis.fork_number,
                 "transition to a past fork is not allowed: old = {:?}, new = {:?}",
@@ -99,6 +128,8 @@ impl ConsensusDal<'_, '_> {
             );
             want.genesis.verify().context("genesis.verify()")?;
         }
+
+        // Reset the consensus state.
         let s = zksync_protobuf::serde::Serialize;
         let genesis = s
             .proto_fmt(&want.genesis, serde_json::value::Serializer)
@@ -107,25 +138,22 @@ impl ConsensusDal<'_, '_> {
         let state = s
             .proto_fmt(&ReplicaState::default(), serde_json::value::Serializer)
             .unwrap();
-        if got.as_ref().map(|c| &c.genesis) != Some(&want.genesis) {
-            tracing::info!("consensus genesis changed, wiping consensus certificates");
-            sqlx::query!(
-                r#"
-                DELETE FROM l1_batches_consensus
-                "#
-            )
-            .instrument("try_update_genesis#DELETE FROM l1_batches_consensus")
-            .execute(&mut txn)
-            .await?;
-            sqlx::query!(
-                r#"
-                DELETE FROM miniblocks_consensus
-                "#
-            )
-            .instrument("try_update_genesis#DELETE FROM miniblock_consensus")
-            .execute(&mut txn)
-            .await?;
-        }
+        sqlx::query!(
+            r#"
+            DELETE FROM l1_batches_consensus
+            "#
+        )
+        .instrument("try_update_genesis#DELETE FROM l1_batches_consensus")
+        .execute(&mut txn)
+        .await?;
+        sqlx::query!(
+            r#"
+            DELETE FROM miniblocks_consensus
+            "#
+        )
+        .instrument("try_update_genesis#DELETE FROM miniblock_consensus")
+        .execute(&mut txn)
+        .await?;
         sqlx::query!(
             r#"
             DELETE FROM consensus_replica_state
