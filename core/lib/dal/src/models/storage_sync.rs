@@ -76,7 +76,11 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                     .decode_column("bootloader_code_hash")?,
                 default_aa: parse_h256_opt(block.default_aa_code_hash.as_deref())
                     .decode_column("default_aa_code_hash")?,
-                evm_simulator: parse_h256_opt(block.evm_simulator_code_hash.as_deref())
+                evm_simulator: block
+                    .evm_simulator_code_hash
+                    .as_deref()
+                    .map(parse_h256)
+                    .transpose()
                     .decode_column("evm_simulator_code_hash")?,
             },
             fee_account_address: parse_h160(&block.fee_account_address)

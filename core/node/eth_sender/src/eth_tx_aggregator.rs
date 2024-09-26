@@ -1,11 +1,7 @@
 use tokio::sync::watch;
-use zksync_config::configs::{
-    eth_sender::SenderConfig,
-    use_evm_simulator::{self},
-};
+use zksync_config::configs::eth_sender::SenderConfig;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_env_config::FromEnv;
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs};
 use zksync_l1_contract_interface::{
     i_executor::{
@@ -148,19 +144,21 @@ impl EthTxAggregator {
     }
 
     pub(super) async fn get_multicall_data(&mut self) -> Result<MulticallData, EthSenderError> {
-        let calldata = self.generate_calldata_for_multicall();
+        const USE_EVM_SIMULATOR: bool = false; // FIXME: define in an adequate way
+
+        let calldata = self.generate_calldata_for_multicall(USE_EVM_SIMULATOR);
         let args = CallFunctionArgs::new(&self.functions.aggregate3.name, calldata).for_contract(
             self.l1_multicall3_address,
             &self.functions.multicall_contract,
         );
         let aggregate3_result: Token = args.call((*self.eth_client).as_ref()).await?;
-        self.parse_multicall_data(aggregate3_result)
+        self.parse_multicall_data(aggregate3_result, USE_EVM_SIMULATOR)
     }
 
     // Multicall's aggregate function accepts 1 argument - arrays of different contract calls.
     // The role of the method below is to tokenize input for multicall, which is actually a vector of tokens.
     // Each token describes a specific contract call.
-    pub(super) fn generate_calldata_for_multicall(&self) -> Vec<Token> {
+    pub(super) fn generate_calldata_for_multicall(&self, use_evm_simulator: bool) -> Vec<Token> {
         const ALLOW_FAILURE: bool = false;
 
         // First zksync contract call
@@ -192,10 +190,6 @@ impl EthTxAggregator {
             .get_evm_simulator_bytecode_hash
             .as_ref()
             .and_then(|f| f.encode_input(&[]).ok());
-
-        let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env()
-            .unwrap()
-            .use_evm_simulator;
 
         let get_evm_simulator_hash_call = match get_l2_evm_simulator_hash_input {
             Some(input) if use_evm_simulator => Some(Multicall3Call {
@@ -258,6 +252,7 @@ impl EthTxAggregator {
     pub(super) fn parse_multicall_data(
         &self,
         token: Token,
+        use_evm_simulator: bool,
     ) -> Result<MulticallData, EthSenderError> {
         let parse_error = |tokens: &[Token]| {
             Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
@@ -266,9 +261,6 @@ impl EthTxAggregator {
         };
 
         if let Token::Array(call_results) = token {
-            let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env()
-                .unwrap()
-                .use_evm_simulator;
             let number_of_calls = if use_evm_simulator { 6 } else { 5 };
             // 5 calls are aggregated in multicall
             if call_results.len() != number_of_calls {
@@ -313,9 +305,9 @@ impl EthTxAggregator {
                         ),
                     )));
                 }
-                H256::from_slice(&multicall3_evm_simulator)
+                Some(H256::from_slice(&multicall3_evm_simulator))
             } else {
-                default_aa
+                None
             };
 
             let base_system_contracts_hashes = BaseSystemContractsHashes {

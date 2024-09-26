@@ -97,8 +97,11 @@ fn known_bytecodes_without_base_system_contracts<S: ReadStorage>(vm: &Vm<S>) -> 
         .collect::<HashSet<_>>();
     known_bytecodes_without_base_system_contracts
         .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.default_aa.hash));
-    known_bytecodes_without_base_system_contracts
-        .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.evm_simulator.hash));
+    if let Some(evm_simulator) = &BASE_SYSTEM_CONTRACTS.evm_simulator {
+        let was_removed =
+            known_bytecodes_without_base_system_contracts.remove(&h256_to_u256(evm_simulator.hash));
+        assert!(was_removed);
+    }
     known_bytecodes_without_base_system_contracts
 }
 

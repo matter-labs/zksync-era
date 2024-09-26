@@ -229,14 +229,6 @@ async fn get_updates_manager_witness_input_data(
         .ok_or_else(|| anyhow!("Default account bytecode should exist"))?;
     let account_bytecode = bytes_to_chunks(&account_bytecode_bytes);
 
-    let evm_simulator_code_hash = h256_to_u256(evm_simulator);
-    let simulator_bytecode_bytes = connection
-        .factory_deps_dal()
-        .get_sealed_factory_dep(evm_simulator)
-        .await?
-        .ok_or_else(|| anyhow!("EVM Simulator bytecode should exist"))?;
-    let evm_simulator_bytecode = bytes_to_chunks(&simulator_bytecode_bytes);
-
     let used_contract_hashes = &output.batch.final_execution_state.used_contract_hashes;
     let hashes: HashSet<H256> = used_contract_hashes
         .iter()
@@ -252,9 +244,21 @@ async fn get_updates_manager_witness_input_data(
         used_bytecodes.insert(account_code_hash, account_bytecode);
     }
 
-    if used_contract_hashes.contains(&evm_simulator_code_hash) {
-        used_bytecodes.insert(evm_simulator_code_hash, evm_simulator_bytecode);
-    }
+    let evm_simulator_code_hash = if let Some(evm_simulator) = evm_simulator {
+        let evm_simulator_code_hash = h256_to_u256(evm_simulator);
+        if used_contract_hashes.contains(&evm_simulator_code_hash) {
+            let simulator_bytecode_bytes = connection
+                .factory_deps_dal()
+                .get_sealed_factory_dep(evm_simulator)
+                .await?
+                .ok_or_else(|| anyhow!("EVM Simulator bytecode should exist"))?;
+            let evm_simulator_bytecode = bytes_to_chunks(&simulator_bytecode_bytes);
+            used_bytecodes.insert(evm_simulator_code_hash, evm_simulator_bytecode);
+        }
+        Some(evm_simulator_code_hash)
+    } else {
+        None
+    };
 
     let storage_refunds = output.batch.final_execution_state.storage_refunds.clone();
     let pubdata_costs = output.batch.final_execution_state.pubdata_costs.clone();

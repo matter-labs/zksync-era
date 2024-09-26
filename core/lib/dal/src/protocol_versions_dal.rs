@@ -57,7 +57,10 @@ impl ProtocolVersionsDal<'_, '_> {
             timestamp as i64,
             base_system_contracts_hashes.bootloader.as_bytes(),
             base_system_contracts_hashes.default_aa.as_bytes(),
-            base_system_contracts_hashes.evm_simulator.as_bytes(),
+            base_system_contracts_hashes
+                .evm_simulator
+                .as_ref()
+                .map(H256::as_bytes),
             tx_hash.as_ref().map(H256::as_bytes),
         )
         .instrument("save_protocol_version#minor")
@@ -215,10 +218,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 .get_base_system_contracts(
                     H256::from_slice(&row.bootloader_code_hash),
                     H256::from_slice(&row.default_account_code_hash),
-                    H256::from_slice(
-                        &row.evm_simulator_code_hash
-                            .unwrap_or(H256::zero().as_bytes().to_vec()),
-                    ),
+                    row.evm_simulator_code_hash.as_deref().map(H256::from_slice),
                 )
                 .await?;
             Some(contracts)

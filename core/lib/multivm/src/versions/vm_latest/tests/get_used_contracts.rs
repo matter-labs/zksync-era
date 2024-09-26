@@ -159,9 +159,11 @@ fn known_bytecodes_without_base_system_contracts<S: WriteStorage, H: HistoryMode
     known_bytecodes_without_base_system_contracts
         .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.default_aa.hash))
         .unwrap();
-    known_bytecodes_without_base_system_contracts
-        .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.evm_simulator.hash))
-        .unwrap();
+    if let Some(evm_simulator) = &BASE_SYSTEM_CONTRACTS.evm_simulator {
+        known_bytecodes_without_base_system_contracts
+            .remove(&h256_to_u256(evm_simulator.hash))
+            .unwrap();
+    }
     known_bytecodes_without_base_system_contracts
 }
 

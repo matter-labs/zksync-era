@@ -94,7 +94,7 @@ impl FactoryDepsDal<'_, '_> {
         &mut self,
         bootloader_hash: H256,
         default_aa_hash: H256,
-        evm_simulator_hash: H256,
+        evm_simulator_hash: Option<H256>,
     ) -> anyhow::Result<BaseSystemContracts> {
         let bootloader_bytecode = self
             .get_sealed_factory_dep(bootloader_hash)
@@ -117,15 +117,19 @@ impl FactoryDepsDal<'_, '_> {
             hash: default_aa_hash,
         };
 
-        let evm_simulator_bytecode = self
-            .get_sealed_factory_dep(evm_simulator_hash)
-            .await
-            .context("failed loading evm simulator code")?
-            .with_context(|| format!("evm simulator code with hash {default_aa_hash:?} should be present in the database"))?;
+        let evm_simulator_code = if let Some(evm_simulator_hash) = evm_simulator_hash {
+            let evm_simulator_bytecode = self
+                .get_sealed_factory_dep(evm_simulator_hash)
+                .await
+                .context("failed loading evm simulator code")?
+                .with_context(|| format!("evm simulator code with hash {default_aa_hash:?} should be present in the database"))?;
 
-        let evm_simulator_code = SystemContractCode {
-            code: bytes_to_be_words(evm_simulator_bytecode),
-            hash: evm_simulator_hash,
+            Some(SystemContractCode {
+                code: bytes_to_be_words(evm_simulator_bytecode),
+                hash: evm_simulator_hash,
+            })
+        } else {
+            None
         };
 
         Ok(BaseSystemContracts {

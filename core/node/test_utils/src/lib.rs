@@ -56,7 +56,7 @@ pub fn create_l1_batch(number: u32) -> L1BatchHeader {
         BaseSystemContractsHashes {
             bootloader: H256::repeat_byte(1),
             default_aa: H256::repeat_byte(42),
-            evm_simulator: H256::repeat_byte(43),
+            evm_simulator: Some(H256::repeat_byte(43)),
         },
         ProtocolVersionId::latest(),
     );
@@ -217,14 +217,11 @@ impl Snapshot {
         Snapshot {
             l1_batch,
             l2_block,
-            factory_deps: [
-                &contracts.bootloader,
-                &contracts.default_aa,
-                &contracts.evm_simulator,
-            ]
-            .into_iter()
-            .map(|c| (c.hash, zksync_utils::be_words_to_bytes(&c.code)))
-            .collect(),
+            factory_deps: [&contracts.bootloader, &contracts.default_aa]
+                .into_iter()
+                .chain(contracts.evm_simulator.as_ref())
+                .map(|c| (c.hash, zksync_utils::be_words_to_bytes(&c.code)))
+                .collect(),
             storage_logs,
         }
     }

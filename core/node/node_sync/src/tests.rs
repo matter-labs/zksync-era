@@ -350,7 +350,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         persisted_protocol_version
             .base_system_contracts_hashes
             .evm_simulator,
-        next_protocol_version.evm_simulator_code_hash.unwrap()
+        next_protocol_version.evm_simulator_code_hash
     );
 
     let l2_block = storage

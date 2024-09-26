@@ -1,12 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 
 use once_cell::sync::Lazy;
-use zksync_config::configs::use_evm_simulator;
 use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_bytecode_from_path, read_sys_contract_bytecode,
     BaseSystemContracts, ContractLanguage, SystemContractCode,
 };
-use zksync_env_config::FromEnv;
 use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, StorageView, WriteStorage},
@@ -74,31 +72,13 @@ pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
     let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
     let hash = hash_bytecode(&bytecode);
 
-    let (evm_simulator_bytecode, evm_simulator_hash) =
-        if use_evm_simulator::UseEvmSimulator::from_env()
-            .unwrap()
-            .use_evm_simulator
-        {
-            let evm_simulator_bytecode =
-                read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
-            (
-                evm_simulator_bytecode.clone(),
-                hash_bytecode(&evm_simulator_bytecode),
-            )
-        } else {
-            (bytecode.clone(), hash)
-        };
-
     BaseSystemContracts {
         default_aa: SystemContractCode {
             code: bytes_to_be_words(bytecode),
             hash,
         },
         bootloader,
-        evm_simulator: SystemContractCode {
-            code: bytes_to_be_words(evm_simulator_bytecode),
-            hash: evm_simulator_hash,
-        },
+        evm_simulator: None,
     }
 });
 
@@ -240,29 +220,10 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         hash,
     };
 
-    let (evm_simulator_bytecode, evm_simulator_hash) =
-        if use_evm_simulator::UseEvmSimulator::from_env()
-            .unwrap()
-            .use_evm_simulator
-        {
-            let evm_simulator_bytecode =
-                read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
-            (
-                evm_simulator_bytecode.clone(),
-                hash_bytecode(&evm_simulator_bytecode),
-            )
-        } else {
-            (bytecode.clone(), hash)
-        };
-    let evm_simulator = SystemContractCode {
-        code: bytes_to_be_words(evm_simulator_bytecode),
-        hash: evm_simulator_hash,
-    };
-
     let base_system_smart_contracts = BaseSystemContracts {
         bootloader,
         default_aa,
-        evm_simulator,
+        evm_simulator: None,
     };
 
     let system_env = SystemEnv {

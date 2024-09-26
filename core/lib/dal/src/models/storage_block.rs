@@ -114,9 +114,7 @@ fn convert_base_system_contracts_hashes(
         default_aa: default_aa_code_hash
             .map(|hash| H256::from_slice(&hash))
             .expect("should not be none"),
-        evm_simulator: evm_simulator_code_hash
-            .map(|hash| H256::from_slice(&hash))
-            .expect("should not be none"),
+        evm_simulator: evm_simulator_code_hash.map(|hash| H256::from_slice(&hash)),
     }
 }
 
@@ -248,11 +246,10 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
                         .default_aa_code_hash
                         .ok_or(L1BatchMetadataError::Incomplete("default_aa_code_hash"))?,
                 ),
-                evm_simulator_code_hash: H256::from_slice(
-                    &batch
-                        .evm_simulator_code_hash
-                        .ok_or(L1BatchMetadataError::Incomplete("evm_simulator_code_hash"))?,
-                ),
+                evm_simulator_code_hash: batch
+                    .evm_simulator_code_hash
+                    .as_deref()
+                    .map(H256::from_slice),
                 protocol_version: batch
                     .protocol_version
                     .map(|v| (v as u16).try_into().unwrap()),

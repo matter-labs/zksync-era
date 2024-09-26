@@ -305,7 +305,7 @@ impl ProtocolVersion {
                     .unwrap_or(self.base_system_contracts_hashes.default_aa),
                 evm_simulator: upgrade
                     .evm_simulator_code_hash
-                    .unwrap_or(self.base_system_contracts_hashes.evm_simulator),
+                    .or(self.base_system_contracts_hashes.evm_simulator),
             },
             tx: upgrade.tx,
         }

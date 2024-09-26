@@ -663,7 +663,11 @@ impl BlocksDal<'_, '_> {
             used_contract_hashes,
             header.base_system_contracts_hashes.bootloader.as_bytes(),
             header.base_system_contracts_hashes.default_aa.as_bytes(),
-            header.base_system_contracts_hashes.evm_simulator.as_bytes(),
+            header
+                .base_system_contracts_hashes
+                .evm_simulator
+                .as_ref()
+                .map(H256::as_bytes),
             header.protocol_version.map(|v| v as i32),
             &system_logs,
             &storage_refunds,

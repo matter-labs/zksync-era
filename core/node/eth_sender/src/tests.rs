@@ -75,7 +75,7 @@ pub(crate) fn default_l1_batch_metadata() -> L1BatchMetadata {
             zkporter_is_available: false,
             bootloader_code_hash: H256::default(),
             default_aa_code_hash: H256::default(),
-            evm_simulator_code_hash: H256::default(),
+            evm_simulator_code_hash: None,
             protocol_version: Some(ProtocolVersionId::default()),
         },
         aux_data_hash: H256::default(),
@@ -672,7 +672,7 @@ async fn test_parse_multicall_data(commitment_mode: L1BatchCommitmentMode) {
 
     assert!(tester
         .aggregator
-        .parse_multicall_data(mock_multicall_response())
+        .parse_multicall_data(mock_multicall_response(), true)
         .is_ok());
 
     let original_wrong_form_data = vec![
@@ -724,7 +724,7 @@ async fn test_parse_multicall_data(commitment_mode: L1BatchCommitmentMode) {
         assert_matches!(
             tester
                 .aggregator
-                .parse_multicall_data(wrong_data_instance.clone()),
+                .parse_multicall_data(wrong_data_instance.clone(), true),
             Err(EthSenderError::Parse(Error::InvalidOutputType(_)))
         );
     }
