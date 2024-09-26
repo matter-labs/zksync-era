@@ -233,13 +233,25 @@ impl Tokenizable for CommitBatchInfo<'_> {
                     .expect("Failed to get state_diff_hash from metadata")
             };
             tokens.push(Token::Bytes(match (self.mode, self.pubdata_da) {
+                // Validiums with custom DA need the inclusion data to be part of operator_da_input
+                (L1BatchCommitmentMode::Validium, PubdataDA::Custom) => {
+                    let mut operator_da_input: Vec<u8> = state_diff_hash.0.into();
+
+                    operator_da_input.extend(
+                        &self
+                            .l1_batch_with_metadata
+                            .metadata
+                            .da_inclusion_data
+                            .clone()
+                            .unwrap_or_default(),
+                    );
+
+                    operator_da_input
+                }
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
                 (
                     L1BatchCommitmentMode::Validium,
-                    PubdataDA::Calldata
-                    | PubdataDA::RelayedL2Calldata
-                    | PubdataDA::Blobs
-                    | PubdataDA::Custom,
+                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata | PubdataDA::Blobs,
                 ) => state_diff_hash.0.into(),
                 (L1BatchCommitmentMode::Rollup, PubdataDA::Custom) => {
                     panic!("Custom pubdata DA is incompatible with Rollup mode")

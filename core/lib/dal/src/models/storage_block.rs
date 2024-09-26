@@ -151,6 +151,7 @@ pub(crate) struct StorageL1Batch {
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
     pub state_diff_hash: Option<Vec<u8>>,
+    pub inclusion_data: Option<Vec<u8>>,
 }
 
 impl StorageL1Batch {
@@ -256,6 +257,7 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
             state_diff_hash: batch.state_diff_hash.map(|v| H256::from_slice(&v)),
             local_root: batch.local_root.map(|v| H256::from_slice(&v)),
             aggregation_root: batch.aggregation_root.map(|v| H256::from_slice(&v)),
+            da_inclusion_data: batch.inclusion_data,
         })
     }
 }

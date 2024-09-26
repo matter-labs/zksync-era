@@ -86,6 +86,7 @@ pub(crate) fn default_l1_batch_metadata() -> L1BatchMetadata {
         state_diff_hash: Some(H256::default()),
         local_root: Some(H256::default()),
         aggregation_root: Some(H256::default()),
+        da_inclusion_data: Some(vec![]),
     }
 }
 

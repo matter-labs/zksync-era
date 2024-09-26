@@ -99,6 +99,8 @@ pub struct L1BatchMetadata {
     /// Root hash of the aggregated logs tree. Tree aggregates `local_root`s of chains that settle on this chain.
     /// It's present only for post-gateway batches.
     pub aggregation_root: Option<H256>,
+    /// Data Availability inclusion proof, that has to be verified on the settlement layer.
+    pub da_inclusion_data: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
