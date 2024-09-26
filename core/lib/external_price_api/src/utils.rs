@@ -28,6 +28,7 @@ pub(crate) mod tests {
         );
     }
 
+    #[allow(clippy::approx_constant)]
     #[test]
     fn test_float_to_fraction_conversion_as_expected() {
         assert_get_fraction_value(1.0, 1, 1);

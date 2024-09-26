@@ -114,21 +114,170 @@ impl CoinGeckoPriceResponse {
 #[cfg(test)]
 mod test {
     use httpmock::MockServer;
+    use zksync_config::configs::external_price_api_client::DEFAULT_TIMEOUT_MS;
 
-    fn auth_check_create(
-        auth_header: String,
-        api_key: Option<String>,
-    ) -> impl (FnOnce(httpmock::When) -> httpmock::When) {
-        |when: httpmock::When| -> httpmock::When {
-            if let Some(x) = api_key {
-                when.header(auth_header, x)
-            } else {
-                when
-            }
+    use super::*;
+    use crate::tests::*;
+
+    fn auth_check(when: httpmock::When, api_key: Option<String>) -> httpmock::When {
+        if let Some(key) = api_key {
+            when.header(COINGECKO_AUTH_HEADER, key)
+        } else {
+            when
         }
     }
 
-    fn setup() {
-        let server = MockServer::start();
+    fn get_mock_response(address: &str, price: f64) -> String {
+        format!("{{\"{}\":{{\"eth\":{}}}}}", address, price)
+    }
+
+    #[test]
+    fn test_mock_response() {
+        // curl "https://api.coingecko.com/api/v3/simple/token_price/ethereum?contract_addresses=0x1f9840a85d5af5bf1d1762f925bdaddc4201f984&vs_currencies=eth"
+        // {"0x1f9840a85d5af5bf1d1762f925bdaddc4201f984":{"eth":0.00269512}}
+        assert_eq!(
+            get_mock_response("0x1f9840a85d5af5bf1d1762f925bdaddc4201f984", 0.00269512),
+            r#"{"0x1f9840a85d5af5bf1d1762f925bdaddc4201f984":{"eth":0.00269512}}"#
+        )
+    }
+
+    fn add_mock_by_address(
+        server: &MockServer,
+        // use string explicitly to verify that conversion of the address to string works as expected
+        address: String,
+        price: Option<f64>,
+        api_key: Option<String>,
+    ) {
+        server.mock(|mut when, then| {
+            when = when
+                .method(httpmock::Method::GET)
+                .path("/api/v3/simple/token_price/ethereum");
+
+            when = when.query_param("contract_addresses", address.clone());
+            when = when.query_param("vs_currencies", ETH_ID);
+            auth_check(when, api_key);
+
+            if let Some(p) = price {
+                then.status(200).body(get_mock_response(&address, p));
+            } else {
+                // requesting with invalid/unknown address results in empty json
+                // example:
+                // $ curl "https://api.coingecko.com/api/v3/simple/token_price/ethereum?contract_addresses=0x000000000000000000000000000000000000dead&vs_currencies=eth"
+                // {}
+                then.status(200).body("{}");
+            };
+        });
+    }
+
+    fn get_config(base_url: String, api_key: Option<String>) -> ExternalPriceApiClientConfig {
+        ExternalPriceApiClientConfig {
+            base_url: Some(base_url),
+            api_key,
+            source: "FILLER".to_string(),
+            client_timeout_ms: DEFAULT_TIMEOUT_MS,
+            forced: None,
+        }
+    }
+
+    fn happy_day_setup(
+        api_key: Option<String>,
+        server: &MockServer,
+        address: Address,
+        base_token_price: f64,
+    ) -> SetupResult {
+        add_mock_by_address(
+            server,
+            address_to_string(&address),
+            Some(base_token_price),
+            api_key.clone(),
+        );
+        SetupResult {
+            client: Box::new(CoinGeckoPriceAPIClient::new(get_config(
+                server.url(""),
+                api_key,
+            ))),
+        }
+    }
+
+    fn happy_day_setup_with_key(
+        server: &MockServer,
+        address: Address,
+        base_token_price: f64,
+    ) -> SetupResult {
+        happy_day_setup(
+            Some("test-key".to_string()),
+            server,
+            address,
+            base_token_price,
+        )
+    }
+
+    #[tokio::test]
+    async fn test_happy_day_with_api_key() {
+        happy_day_test(happy_day_setup_with_key).await
+    }
+
+    fn happy_day_setup_no_key(
+        server: &MockServer,
+        address: Address,
+        base_token_price: f64,
+    ) -> SetupResult {
+        happy_day_setup(None, server, address, base_token_price)
+    }
+
+    #[tokio::test]
+    async fn test_happy_day_with_no_api_key() {
+        happy_day_test(happy_day_setup_no_key).await
+    }
+
+    fn error_404_setup(
+        server: &MockServer,
+        _address: Address,
+        _base_token_price: f64,
+    ) -> SetupResult {
+        // just don't add mock
+        SetupResult {
+            client: Box::new(CoinGeckoPriceAPIClient::new(get_config(
+                server.url(""),
+                Some("FILLER".to_string()),
+            ))),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_error_404() {
+        let error_string = error_test(error_404_setup).await.to_string();
+        assert!(
+            error_string
+                .starts_with("Http error while fetching token price. Status: 404 Not Found"),
+            "Error was: {}",
+            &error_string
+        )
+    }
+
+    fn error_missing_setup(
+        server: &MockServer,
+        address: Address,
+        _base_token_price: f64,
+    ) -> SetupResult {
+        let api_key = Some("FILLER".to_string());
+
+        add_mock_by_address(server, address_to_string(&address), None, api_key.clone());
+        SetupResult {
+            client: Box::new(CoinGeckoPriceAPIClient::new(get_config(
+                server.url(""),
+                api_key,
+            ))),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_error_missing() {
+        let error_string = error_test(error_missing_setup).await.to_string();
+        assert!(
+            error_string.starts_with("Price not found for token"),
+            "Error was: {}",
+            error_string
+        )
     }
 }
