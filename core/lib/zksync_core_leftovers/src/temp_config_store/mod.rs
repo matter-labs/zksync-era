@@ -28,7 +28,7 @@ use zksync_protobuf_config::proto::secrets::Secrets;
 
 pub fn read_yaml_repr<T: ProtoRepr>(path: &PathBuf) -> anyhow::Result<T::Type> {
     (|| {
-        let yaml = std::fs::read_to_string(&path)?;
+        let yaml = std::fs::read_to_string(path)?;
         zksync_protobuf::serde::Deserialize {
             deny_unknown_fields: false,
         }
