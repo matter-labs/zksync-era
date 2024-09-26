@@ -5,7 +5,7 @@ use common::{config::global_config, logger};
 use config::{
     external_node::ENConfig,
     set_rocks_db_config,
-    traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
+    traits::{FileConfigWithDefaultName, ReadConfigWithBasePath, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfig, DEFAULT_CONSENSUS_PORT,
 };
 use xshell::Shell;
@@ -86,15 +86,15 @@ fn prepare_configs(
         main_node_rate_limit_rps: None,
         gateway_url: None,
     };
-    let mut general_en = general.clone();
-    // general_en.save_with_base_path(shell, en_configs_path)?;
-    // ports.allocate_ports_in_yaml(
-    //     shell,
-    //     &GeneralConfig::get_path_with_base_path(en_configs_path),
-    //     chain_count,
-    // )?;
 
-    // let mut general_en = GeneralConfig::read_with_base_path(shell, en_configs_path)?;
+    general.save_with_base_path(shell, en_configs_path)?;
+    ports.allocate_ports_in_yaml(
+        shell,
+        &GeneralConfig::get_path_with_base_path(en_configs_path),
+        chain_count,
+    )?;
+
+    let mut general_en = GeneralConfig::read_with_base_path(shell, en_configs_path)?;
 
     let consensus_port = ports.allocate_port(
         (DEFAULT_CONSENSUS_PORT + (chain_count * 100) as u16)..PORT_RANGE_END,
@@ -146,11 +146,11 @@ fn prepare_configs(
     general_en.save_with_base_path(shell, en_configs_path)?;
     en_config.save_with_base_path(shell, en_configs_path)?;
 
-    ports.allocate_ports_in_yaml(
-        shell,
-        &GeneralConfig::get_path_with_base_path(en_configs_path),
-        chain_count,
-    )?;
+    // ports.allocate_ports_in_yaml(
+    //     shell,
+    //     &GeneralConfig::get_path_with_base_path(en_configs_path),
+    //     chain_count,
+    // )?;
 
     Ok(())
 }
