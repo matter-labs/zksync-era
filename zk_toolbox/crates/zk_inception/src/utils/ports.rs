@@ -12,6 +12,7 @@ use config::{
     DEFAULT_EXPLORER_DATA_FETCHER_PORT, DEFAULT_EXPLORER_WORKER_PORT,
 };
 use serde_yaml::Value;
+use url::Url;
 use xshell::Shell;
 
 use crate::defaults::{DEFAULT_OBSERVABILITY_PORT, PORT_RANGE_END, PORT_RANGE_START};
@@ -65,6 +66,73 @@ impl EcosystemPorts {
             new_ports.insert(desc, new_port);
         }
         config.set_ports(new_ports)?;
+        Ok(())
+    }
+
+    pub fn allocate_ports_in_yaml(
+        &mut self,
+        shell: &Shell,
+        file_path: &Path,
+        chain_number: u32,
+    ) -> Result<()> {
+        let file_contents = shell.read_file(file_path)?;
+        let mut value: Value = serde_yaml::from_str(&file_contents)?;
+        self.traverse_allocate_ports_in_yaml(&mut value, chain_number)?;
+        let new_contents = serde_yaml::to_string(&value)?;
+        if new_contents != file_contents {
+            shell.write_file(file_path, new_contents)?;
+        }
+        Ok(())
+    }
+
+    fn traverse_allocate_ports_in_yaml(
+        &mut self,
+        value: &mut Value,
+        offset: u32,
+    ) -> anyhow::Result<()> {
+        match value {
+            Value::Mapping(map) => {
+                let mut updated_ports = HashMap::new();
+                for (key, val) in &mut *map {
+                    if key.as_str().map(|s| s.ends_with("port")).unwrap_or(false) {
+                        if let Some(port) = val.as_u64().and_then(|p| u16::try_from(p).ok()) {
+                            let new_port = self.allocate_port(
+                                (port + offset as u16)..PORT_RANGE_END,
+                                "".to_string(),
+                            )?;
+                            *val = Value::Number(serde_yaml::Number::from(new_port));
+                            updated_ports.insert(port, new_port);
+                        }
+                    }
+                }
+                // Update ports in URLs
+                for (key, val) in &mut *map {
+                    if key.as_str().map(|s| s.ends_with("url")).unwrap_or(false) {
+                        let mut url = Url::parse(val.as_str().unwrap())?;
+                        if let Some(port) = url.port() {
+                            if let Some(new_port) = updated_ports.get(&port) {
+                                if let Err(()) = url.set_port(Some(*new_port)) {
+                                    bail!("Failed to update port in URL {}", url);
+                                } else {
+                                    *val = Value::String(url.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+                // Continue traversing
+                for (_, val) in map {
+                    self.traverse_allocate_ports_in_yaml(val, offset)?;
+                }
+            }
+            Value::Sequence(seq) => {
+                for val in seq {
+                    self.traverse_allocate_ports_in_yaml(val, offset)?;
+                }
+            }
+            _ => {}
+        }
+
         Ok(())
     }
 }
@@ -504,5 +572,95 @@ mod tests {
         assert!(ecosystem_ports.is_port_assigned(8546));
         let port_info = ecosystem_ports.ports.get(&8546).unwrap();
         assert_eq!(port_info[0], "[test_config.yaml] reth:ports");
+    }
+
+    #[test]
+    fn test_traverse_allocate_ports_in_yaml_with_chain_number_zero() {
+        let yaml_content = r#"
+            api:
+                web3_json_rpc:
+                    http_port: 3050
+                    http_url: http://127.0.0.1:3050
+                    ws_port: 3051
+                    ws_url: ws://127.0.0.1:3051
+                    gas_price_scale_factor: 1.5
+                prometheus:
+                    listener_port: 3412
+                    pushgateway_url: http://127.0.0.1:9091
+                    push_interval_ms: 100
+        "#;
+
+        let mut value = serde_yaml::from_str(yaml_content).unwrap();
+        let mut ecosystem_ports = EcosystemPorts::default();
+        let chain_number = 0;
+        let offset = chain_number * 100;
+        ecosystem_ports
+            .traverse_allocate_ports_in_yaml(&mut value, offset)
+            .unwrap();
+
+        let api = value["api"].as_mapping().unwrap();
+        let web3_json_rpc = api["web3_json_rpc"].as_mapping().unwrap();
+        let prometheus = api["prometheus"].as_mapping().unwrap();
+
+        assert_eq!(web3_json_rpc["http_port"].as_u64().unwrap(), 3050);
+        assert_eq!(web3_json_rpc["ws_port"].as_u64().unwrap(), 3051);
+        assert_eq!(prometheus["listener_port"].as_u64().unwrap(), 3412);
+        assert_eq!(
+            web3_json_rpc["http_url"].as_str().unwrap(),
+            "http://127.0.0.1:3050/"
+        );
+        assert_eq!(
+            web3_json_rpc["ws_url"].as_str().unwrap(),
+            "ws://127.0.0.1:3051/"
+        );
+        assert_eq!(
+            prometheus["pushgateway_url"].as_str().unwrap(),
+            "http://127.0.0.1:9091"
+        );
+    }
+
+    #[test]
+    fn test_traverse_allocate_ports_in_yaml_with_chain_number_one() {
+        let yaml_content = r#"
+            api:
+                web3_json_rpc:
+                    http_port: 3050
+                    http_url: http://127.0.0.1:3050
+                    ws_port: 3051
+                    ws_url: ws://127.0.0.1:3051
+                    gas_price_scale_factor: 1.5
+                prometheus:
+                    listener_port: 3412
+                    pushgateway_url: http://127.0.0.1:9091
+                    push_interval_ms: 100
+        "#;
+
+        let mut value = serde_yaml::from_str(yaml_content).unwrap();
+        let mut ecosystem_ports = EcosystemPorts::default();
+        let chain_number = 1;
+        let offset = chain_number * 100;
+        ecosystem_ports
+            .traverse_allocate_ports_in_yaml(&mut value, offset)
+            .unwrap();
+
+        let api = value["api"].as_mapping().unwrap();
+        let web3_json_rpc = api["web3_json_rpc"].as_mapping().unwrap();
+        let prometheus = api["prometheus"].as_mapping().unwrap();
+
+        assert_eq!(web3_json_rpc["http_port"].as_u64().unwrap(), 3150);
+        assert_eq!(web3_json_rpc["ws_port"].as_u64().unwrap(), 3151);
+        assert_eq!(prometheus["listener_port"].as_u64().unwrap(), 3512);
+        assert_eq!(
+            web3_json_rpc["http_url"].as_str().unwrap(),
+            "http://127.0.0.1:3150/"
+        );
+        assert_eq!(
+            web3_json_rpc["ws_url"].as_str().unwrap(),
+            "ws://127.0.0.1:3151/"
+        );
+        assert_eq!(
+            prometheus["pushgateway_url"].as_str().unwrap(),
+            "http://127.0.0.1:9091"
+        );
     }
 }
