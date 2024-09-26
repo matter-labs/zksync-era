@@ -1,8 +1,8 @@
 use anyhow::Context;
 use common::{config::global_config, git, logger, spinner::Spinner};
 use config::{
-    copy_configs, get_consensus_port, set_l1_rpc_url, traits::SaveConfigWithBasePath,
-    update_from_chain_config, ChainConfig, EcosystemConfig,
+    copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
+    ChainConfig, EcosystemConfig, DEFAULT_CONSENSUS_PORT,
 };
 use types::BaseToken;
 use xshell::Shell;
@@ -20,6 +20,7 @@ use crate::{
         },
         portal::update_portal_config,
     },
+    defaults::PORT_RANGE_END,
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR,
@@ -67,8 +68,10 @@ pub async fn init(
         )?;
     }
     let mut general_config = chain_config.get_general_config()?;
-
-    let consensus_port = get_consensus_port(&general_config);
+    let offset = ((chain_config.id - 1) * 100) as u16;
+    let consensus_port_range = DEFAULT_CONSENSUS_PORT + offset..PORT_RANGE_END;
+    let consensus_port =
+        ecosystem_ports.allocate_port(consensus_port_range, "Consensus".to_string())?;
 
     let consensus_keys = generate_consensus_keys();
     let consensus_config = get_consensus_config(
