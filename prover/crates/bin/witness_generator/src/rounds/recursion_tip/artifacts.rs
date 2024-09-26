@@ -13,11 +13,11 @@ use zksync_types::{basic_fri_types::AggregationRound, L1BatchNumber};
 
 use crate::{
     artifacts::ArtifactsManager,
-    recursion_tip::{RecursionTipArtifacts, RecursionTipWitnessGenerator},
+    rounds::recursion_tip::{RecursionTip, RecursionTipArtifacts},
 };
 
 #[async_trait]
-impl ArtifactsManager for RecursionTipWitnessGenerator {
+impl ArtifactsManager for RecursionTip {
     type InputMetadata = Vec<(u8, u32)>;
     type InputArtifacts = Vec<ZkSyncRecursionProof>;
     type OutputArtifacts = RecursionTipArtifacts;
@@ -78,6 +78,8 @@ impl ArtifactsManager for RecursionTipWitnessGenerator {
         job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
+        _shall_save_to_public_bucket: bool,
+        _public_blob_store: Option<std::sync::Arc<dyn ObjectStore>>,
     ) -> String {
         let key = FriCircuitKey {
             block_number: L1BatchNumber(job_id),

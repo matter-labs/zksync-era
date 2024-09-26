@@ -2,182 +2,43 @@ use std::{
     collections::HashSet,
     hash::{DefaultHasher, Hash, Hasher},
     sync::Arc,
-    time::Instant,
 };
 
-use async_trait::async_trait;
 use circuit_definitions::{
     circuit_definitions::base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerStorage},
     encodings::recursion_request::RecursionQueueSimulator,
-    zkevm_circuits::{
-        fsm_input_output::ClosedFormInputCompactFormWitness,
-        scheduler::{
-            block_header::BlockAuxilaryOutputWitness, input::SchedulerCircuitInstanceWitness,
-        },
-    },
+    zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
 };
 use tokio::sync::Semaphore;
 use tracing::Instrument;
 use zkevm_test_harness::witness::oracle::WitnessGenerationArtifact;
-use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_multivm::{
     circuit_sequencer_api_latest::{
-        boojum::{
-            field::goldilocks::{GoldilocksExt2, GoldilocksField},
-            gadgets::recursion::recursive_tree_hasher::CircuitGoldilocksPoseidon2Sponge,
-        },
-        geometry_config::get_geometry_config,
+        boojum::field::goldilocks::GoldilocksField, geometry_config::get_geometry_config,
     },
     interface::storage::StorageView,
     vm_latest::{constants::MAX_CYCLES_FOR_TX, HistoryDisabled, StorageOracle as VmStorageOracle},
     zk_evm_latest::ethereum_types::Address,
 };
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::{keys::ClosedFormInputKey, CircuitAuxData};
 use zksync_prover_interface::inputs::WitnessInputData;
-use zksync_prover_keystore::keystore::Keystore;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
-use zksync_types::{
-    basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
-};
+use zksync_types::L1BatchNumber;
 
 use crate::{
-    artifacts::ArtifactsManager,
-    metrics::WITNESS_GENERATOR_METRICS,
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
+    rounds::basic_circuits::Witness,
     storage_oracle::StorageOracle,
     utils::{
         expand_bootloader_contents, save_circuit, save_ram_premutation_queue_witness,
         ClosedFormInputWrapper, KZG_TRUSTED_SETUP_FILE,
     },
     witness::WitnessStorage,
-    witness_generator::WitnessGenerator,
 };
 
-mod artifacts;
-pub mod job_processor;
-
-#[derive(Clone)]
-pub struct BasicCircuitArtifacts {
-    pub(super) circuit_urls: Vec<(u8, String)>,
-    pub(super) queue_urls: Vec<(u8, String, usize)>,
-    pub(super) scheduler_witness: SchedulerCircuitInstanceWitness<
-        GoldilocksField,
-        CircuitGoldilocksPoseidon2Sponge,
-        GoldilocksExt2,
-    >,
-    pub(super) aux_output_witness: BlockAuxilaryOutputWitness<GoldilocksField>,
-}
-
-#[derive(Clone)]
-pub struct BasicWitnessGeneratorJob {
-    pub(super) block_number: L1BatchNumber,
-    pub(super) data: WitnessInputData,
-}
-
-#[derive(Debug)]
-pub struct BasicWitnessGenerator {
-    config: Arc<FriWitnessGeneratorConfig>,
-    object_store: Arc<dyn ObjectStore>,
-    public_blob_store: Option<Arc<dyn ObjectStore>>,
-    prover_connection_pool: ConnectionPool<Prover>,
-    protocol_version: ProtocolSemanticVersion,
-}
-
-type Witness = (
-    Vec<(u8, String)>,
-    Vec<(u8, String, usize)>,
-    SchedulerCircuitInstanceWitness<
-        GoldilocksField,
-        CircuitGoldilocksPoseidon2Sponge,
-        GoldilocksExt2,
-    >,
-    BlockAuxilaryOutputWitness<GoldilocksField>,
-);
-
-impl BasicWitnessGenerator {
-    pub fn new(
-        config: FriWitnessGeneratorConfig,
-        object_store: Arc<dyn ObjectStore>,
-        public_blob_store: Option<Arc<dyn ObjectStore>>,
-        prover_connection_pool: ConnectionPool<Prover>,
-        protocol_version: ProtocolSemanticVersion,
-    ) -> Self {
-        Self {
-            config: Arc::new(config),
-            object_store,
-            public_blob_store,
-            prover_connection_pool,
-            protocol_version,
-        }
-    }
-}
-
-#[async_trait]
-impl WitnessGenerator for BasicWitnessGenerator {
-    type Job = BasicWitnessGeneratorJob;
-    type Metadata = L1BatchNumber;
-    type Artifacts = BasicCircuitArtifacts;
-
-    async fn process_job(
-        job: BasicWitnessGeneratorJob,
-        object_store: Arc<dyn ObjectStore>,
-        max_circuits_in_flight: Option<usize>,
-        started_at: Instant,
-    ) -> anyhow::Result<BasicCircuitArtifacts> {
-        let BasicWitnessGeneratorJob {
-            block_number,
-            data: job,
-        } = job;
-
-        tracing::info!(
-            "Starting witness generation of type {:?} for block {}",
-            AggregationRound::BasicCircuits,
-            block_number.0
-        );
-
-        let (circuit_urls, queue_urls, scheduler_witness, aux_output_witness) = generate_witness(
-            block_number,
-            object_store,
-            job,
-            max_circuits_in_flight.unwrap(),
-        )
-        .await;
-        WITNESS_GENERATOR_METRICS.witness_generation_time[&AggregationRound::BasicCircuits.into()]
-            .observe(started_at.elapsed());
-        tracing::info!(
-            "Witness generation for block {} is complete in {:?}",
-            block_number.0,
-            started_at.elapsed()
-        );
-
-        Ok(BasicCircuitArtifacts {
-            circuit_urls,
-            queue_urls,
-            scheduler_witness,
-            aux_output_witness,
-        })
-    }
-
-    async fn prepare_job(
-        metadata: L1BatchNumber,
-        object_store: &dyn ObjectStore,
-        _keystore: Keystore,
-    ) -> anyhow::Result<Self::Job> {
-        tracing::info!("Processing FRI basic witness-gen for block {}", metadata.0);
-        let started_at = Instant::now();
-        let job = Self::get_artifacts(&metadata, object_store).await?;
-
-        WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::BasicCircuits.into()]
-            .observe(started_at.elapsed());
-
-        Ok(job)
-    }
-}
-
 #[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
-async fn generate_witness(
+pub(super) async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: Arc<dyn ObjectStore>,
     input: WitnessInputData,
