@@ -4,9 +4,9 @@ use anyhow::Context;
 use common::{config::global_config, logger};
 use config::{
     external_node::ENConfig,
-    get_consensus_port, set_rocks_db_config,
-    traits::{FileConfigWithDefaultName, ReadConfigWithBasePath, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfig,
+    set_rocks_db_config,
+    traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
+    ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfig, DEFAULT_CONSENSUS_PORT,
 };
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
@@ -19,6 +19,7 @@ use zksync_consensus_roles as roles;
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
+    defaults::PORT_RANGE_END,
     messages::{
         msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED,
         MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_CONSENSUS_SECRETS_MISSING_ERR,
@@ -85,17 +86,20 @@ fn prepare_configs(
         main_node_rate_limit_rps: None,
         gateway_url: None,
     };
-    let general_en = general.clone();
-    general_en.save_with_base_path(shell, en_configs_path)?;
-    ports.allocate_ports_in_yaml(
-        shell,
-        &GeneralConfig::get_path_with_base_path(en_configs_path),
-        chain_count,
+    let mut general_en = general.clone();
+    // general_en.save_with_base_path(shell, en_configs_path)?;
+    // ports.allocate_ports_in_yaml(
+    //     shell,
+    //     &GeneralConfig::get_path_with_base_path(en_configs_path),
+    //     chain_count,
+    // )?;
+
+    // let mut general_en = GeneralConfig::read_with_base_path(shell, en_configs_path)?;
+
+    let consensus_port = ports.allocate_port(
+        (DEFAULT_CONSENSUS_PORT + (chain_count * 100) as u16)..PORT_RANGE_END,
+        "Consensus".to_string(),
     )?;
-
-    let mut general_en = GeneralConfig::read_with_base_path(shell, en_configs_path)?;
-
-    let consensus_port = get_consensus_port(&general_en);
 
     // Set consensus config
     let main_node_consensus_config = general
@@ -141,6 +145,12 @@ fn prepare_configs(
     set_rocks_db_config(&mut general_en, dirs)?;
     general_en.save_with_base_path(shell, en_configs_path)?;
     en_config.save_with_base_path(shell, en_configs_path)?;
+
+    ports.allocate_ports_in_yaml(
+        shell,
+        &GeneralConfig::get_path_with_base_path(en_configs_path),
+        chain_count,
+    )?;
 
     Ok(())
 }
