@@ -15,13 +15,13 @@ const DEFAULT_CMC_API_URL: &str = "https://pro-api.coinmarketcap.com";
 const ALLOW_TOKENS_ONLY_ON_CMC_PLATFORM_ID: i32 = 1; // 1 = Ethereum
 
 #[derive(Debug)]
-pub struct CMCPriceAPIClient {
+pub struct CmcPriceApiClient {
     base_url: Url,
     client: reqwest::Client,
     cache_token_id_by_address: RwLock<HashMap<Address, i32>>,
 }
 
-impl CMCPriceAPIClient {
+impl CmcPriceApiClient {
     pub fn new(config: ExternalPriceApiClientConfig) -> Self {
         let client = if let Some(api_key) = &config.api_key {
             use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
@@ -158,7 +158,7 @@ struct CryptocurrencyPlatform {
 }
 
 #[async_trait]
-impl PriceAPIClient for CMCPriceAPIClient {
+impl PriceAPIClient for CmcPriceApiClient {
     async fn fetch_ratio(&self, token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
         let base_token_in_eth = self.get_token_price_by_address(token_address).await?;
         let (numerator, denominator) = get_fraction(base_token_in_eth);
@@ -178,7 +178,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "run manually (accesses network); specify CoinMarketCap API key in env var CMC_API_KEY"]
     async fn test() {
-        let client = CMCPriceAPIClient::new(ExternalPriceApiClientConfig {
+        let client = CmcPriceApiClient::new(ExternalPriceApiClientConfig {
             api_key: Some(std::env::var("CMC_API_KEY").unwrap()),
             base_url: None,
             client_timeout_ms: 5000,
