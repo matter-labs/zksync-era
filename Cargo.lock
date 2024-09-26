@@ -10037,6 +10037,7 @@ dependencies = [
  "zksync_kzg",
  "zksync_prover_interface",
  "zksync_solidity_vk_codegen",
+ "zksync_system_constants",
  "zksync_types",
 ]
 

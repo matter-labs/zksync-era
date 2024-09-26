@@ -8,7 +8,7 @@ use zksync_types::{
     ethabi::{ParamType, Token},
     pubdata_da::PubdataDA,
     web3::{contract::Error as ContractError, keccak256},
-    ProtocolVersionId, H256, U256,
+    ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY, U256,
 };
 
 use crate::{
@@ -216,34 +216,36 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 L1BatchCommitmentMode::Validium => vec![],
             }));
         } else {
+            let state_diff_hash = if protocol_version.is_pre_gateway() {
+                self.l1_batch_with_metadata
+                    .header
+                    .system_logs
+                    .iter()
+                    .find_map(|log| {
+                        (log.0.key == H256::from_low_u64_be(STATE_DIFF_HASH_KEY_PRE_GATEWAY))
+                            .then_some(log.0.value)
+                    })
+                    .expect("Failed to get state_diff_hash from system logs")
+            } else {
+                self.l1_batch_with_metadata
+                    .metadata
+                    .state_diff_hash
+                    .expect("Failed to get state_diff_hash from metadata")
+            };
             tokens.push(Token::Bytes(match (self.mode, self.pubdata_da) {
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
                 (
                     L1BatchCommitmentMode::Validium,
-                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
-                ) => self
-                    .l1_batch_with_metadata
-                    .metadata
-                    .state_diff_hash
-                    .0
-                    .into(),
-                (L1BatchCommitmentMode::Validium, PubdataDA::Blobs) => self
-                    .l1_batch_with_metadata
-                    .metadata
-                    .state_diff_hash
-                    .0
-                    .into(),
-
+                    PubdataDA::Calldata
+                    | PubdataDA::RelayedL2Calldata
+                    | PubdataDA::Blobs
+                    | PubdataDA::Custom,
+                ) => state_diff_hash.0.into(),
                 (L1BatchCommitmentMode::Rollup, PubdataDA::Custom) => {
                     panic!("Custom pubdata DA is incompatible with Rollup mode")
                 }
                 (L1BatchCommitmentMode::Validium, PubdataDA::Custom) => {
-                    let mut operator_da_input: Vec<u8> = self
-                        .l1_batch_with_metadata
-                        .metadata
-                        .state_diff_hash
-                        .0
-                        .into();
+                    let mut operator_da_input: Vec<u8> = state_diff_hash.0.into();
 
                     operator_da_input.extend(
                         &self
@@ -262,14 +264,8 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 ) => {
                     let pubdata = self.pubdata_input();
 
-                    let header = compose_header_for_l1_commit_rollup(
-                        self.l1_batch_with_metadata
-                            .metadata
-                            .state_diff_hash
-                            .0
-                            .into(),
-                        pubdata.clone(),
-                    );
+                    let header =
+                        compose_header_for_l1_commit_rollup(state_diff_hash, pubdata.clone());
 
                     // We compute and add the blob commitment to the pubdata payload so that we can verify the proof
                     // even if we are not using blobs.
@@ -284,14 +280,8 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 (L1BatchCommitmentMode::Rollup, PubdataDA::Blobs) => {
                     let pubdata = self.pubdata_input();
 
-                    let header = compose_header_for_l1_commit_rollup(
-                        self.l1_batch_with_metadata
-                            .metadata
-                            .state_diff_hash
-                            .0
-                            .into(),
-                        pubdata.clone(),
-                    );
+                    let header =
+                        compose_header_for_l1_commit_rollup(state_diff_hash, pubdata.clone());
 
                     let pubdata_commitments: Vec<u8> = pubdata
                         .chunks(ZK_SYNC_BYTES_PER_BLOB)

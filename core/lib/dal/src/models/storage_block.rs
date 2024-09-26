@@ -254,21 +254,9 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
             bootloader_initial_content_commitment: batch
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
-            state_diff_hash: H256::from_slice(
-                &batch
-                    .state_diff_hash
-                    .ok_or(L1BatchMetadataError::Incomplete("state_diff_hash"))?,
-            ),
-            local_root: H256::from_slice(
-                &batch
-                    .local_root
-                    .ok_or(L1BatchMetadataError::Incomplete("local_root"))?,
-            ),
-            aggregation_root: H256::from_slice(
-                &batch
-                    .aggregation_root
-                    .ok_or(L1BatchMetadataError::Incomplete("aggregation_root"))?,
-            ),
+            state_diff_hash: batch.state_diff_hash.map(|v| H256::from_slice(&v)),
+            local_root: batch.local_root.map(|v| H256::from_slice(&v)),
+            aggregation_root: batch.aggregation_root.map(|v| H256::from_slice(&v)),
             da_inclusion_data: batch.inclusion_data,
         })
     }
