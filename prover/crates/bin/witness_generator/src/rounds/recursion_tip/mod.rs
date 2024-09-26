@@ -35,22 +35,20 @@ use zkevm_test_harness::{
         scheduler::aux::BaseLayerCircuitType,
     },
 };
-use zksync_config::configs::FriWitnessGeneratorConfig;
 use zksync_object_store::ObjectStore;
-use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_prover_fri_types::keys::ClosedFormInputKey;
+use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+use zksync_prover_fri_types::{get_current_pod_name, keys::ClosedFormInputKey};
 use zksync_prover_keystore::{keystore::Keystore, utils::get_leaf_vk_params};
 use zksync_types::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolSemanticVersion, L1BatchNumber,
 };
 
 use crate::{
-    artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS, utils::ClosedFormInputWrapper,
-    witness_generator::WitnessGenerator,
+    artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS, rounds::JobManager,
+    utils::ClosedFormInputWrapper,
 };
 
 mod artifacts;
-mod job_processor;
 
 #[derive(Clone)]
 pub struct RecursionTipWitnessGeneratorJob {
@@ -73,38 +71,15 @@ pub struct RecursionTipJobMetadata {
     pub final_node_proof_job_ids: Vec<(u8, u32)>,
 }
 
-#[derive(Debug)]
-pub struct RecursionTipWitnessGenerator {
-    config: FriWitnessGeneratorConfig,
-    object_store: Arc<dyn ObjectStore>,
-    prover_connection_pool: ConnectionPool<Prover>,
-    protocol_version: ProtocolSemanticVersion,
-    keystore: Keystore,
-}
-
-impl RecursionTipWitnessGenerator {
-    pub fn new(
-        config: FriWitnessGeneratorConfig,
-        object_store: Arc<dyn ObjectStore>,
-        prover_connection_pool: ConnectionPool<Prover>,
-        protocol_version: ProtocolSemanticVersion,
-        keystore: Keystore,
-    ) -> Self {
-        Self {
-            config,
-            object_store,
-            prover_connection_pool,
-            protocol_version,
-            keystore,
-        }
-    }
-}
+pub struct RecursionTip;
 
 #[async_trait]
-impl WitnessGenerator for RecursionTipWitnessGenerator {
+impl JobManager for RecursionTip {
     type Job = RecursionTipWitnessGeneratorJob;
     type Metadata = RecursionTipJobMetadata;
-    type Artifacts = RecursionTipArtifacts;
+
+    const ROUND: AggregationRound = AggregationRound::RecursionTip;
+    const SERVICE_NAME: &'static str = "recursion_tip_witness_generator";
 
     #[tracing::instrument(
         skip_all,
@@ -113,7 +88,7 @@ impl WitnessGenerator for RecursionTipWitnessGenerator {
     async fn process_job(
         job: Self::Job,
         _object_store: Arc<dyn ObjectStore>,
-        _max_circuits_in_flight: Option<usize>,
+        _max_circuits_in_flight: usize,
         started_at: Instant,
     ) -> anyhow::Result<RecursionTipArtifacts> {
         tracing::info!(
@@ -160,11 +135,8 @@ impl WitnessGenerator for RecursionTipWitnessGenerator {
         keystore: Keystore,
     ) -> anyhow::Result<RecursionTipWitnessGeneratorJob> {
         let started_at = Instant::now();
-        let recursion_tip_proofs = RecursionTipWitnessGenerator::get_artifacts(
-            &metadata.final_node_proof_job_ids,
-            object_store,
-        )
-        .await?;
+        let recursion_tip_proofs =
+            Self::get_artifacts(&metadata.final_node_proof_job_ids, object_store).await?;
         WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::RecursionTip.into()]
             .observe(started_at.elapsed());
 
@@ -240,5 +212,43 @@ impl WitnessGenerator for RecursionTipWitnessGenerator {
             recursion_tip_witness,
             node_vk,
         })
+    }
+
+    async fn get_metadata(
+        connection_pool: ConnectionPool<Prover>,
+        protocol_version: ProtocolSemanticVersion,
+    ) -> anyhow::Result<Option<(u32, Self::Metadata)>> {
+        let pod_name = get_current_pod_name();
+        let Some((l1_batch_number, number_of_final_node_jobs)) = connection_pool
+            .connection()
+            .await?
+            .fri_witness_generator_dal()
+            .get_next_recursion_tip_witness_job(protocol_version, &pod_name)
+            .await
+        else {
+            return Ok(None);
+        };
+
+        let final_node_proof_job_ids = connection_pool
+            .connection()
+            .await?
+            .fri_prover_jobs_dal()
+            .get_final_node_proof_job_ids_for(l1_batch_number)
+            .await;
+
+        assert_eq!(
+            final_node_proof_job_ids.len(),
+            number_of_final_node_jobs as usize,
+            "recursion tip witness job was scheduled without all final node jobs being completed; expected {}, got {}",
+            number_of_final_node_jobs, final_node_proof_job_ids.len()
+        );
+
+        Ok(Some((
+            l1_batch_number.0,
+            RecursionTipJobMetadata {
+                l1_batch_number,
+                final_node_proof_job_ids,
+            },
+        )))
     }
 }
