@@ -12,8 +12,6 @@ use zk_evm_1_5_0::{
     witness_trace::DummyTracer,
     zkevm_opcode_defs::{decoding::EncodingModeProduction, Opcode, RetOpcode},
 };
-use zksync_config::configs::use_evm_simulator::{self};
-use zksync_env_config::FromEnv;
 
 use super::{EvmDeployTracer, PubdataTracer};
 use crate::{
@@ -73,8 +71,10 @@ pub struct DefaultExecutionTracer<S: WriteStorage, H: HistoryMode> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         computational_gas_limit: u32,
+        use_evm_simulator: bool,
         execution_mode: VmExecutionMode,
         dispatcher: TracerDispatcher<S, H>,
         storage: StoragePtr<S>,
@@ -82,9 +82,6 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
         pubdata_tracer: Option<PubdataTracer<S>>,
         subversion: MultiVMSubversion,
     ) -> Self {
-        let active_evm = use_evm_simulator::UseEvmSimulator::from_env()
-            .unwrap()
-            .use_evm_simulator;
         Self {
             tx_has_been_processed: false,
             execution_mode,
@@ -99,7 +96,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             pubdata_tracer,
             ret_from_the_bootloader: None,
             circuits_tracer: CircuitsTracer::new(),
-            evm_deploy_tracer: if active_evm {
+            evm_deploy_tracer: if use_evm_simulator {
                 Some(EvmDeployTracer::new())
             } else {
                 None

@@ -56,6 +56,10 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             .then_some(RefundsTracer::new(self.batch_env.clone(), self.subversion));
         let mut tx_tracer: DefaultExecutionTracer<S, H::Vm1_5_0> = DefaultExecutionTracer::new(
             self.system_env.default_validation_computational_gas_limit,
+            self.system_env
+                .base_system_smart_contracts
+                .evm_simulator
+                .is_some(),
             execution_mode,
             mem::take(dispatcher),
             self.storage.clone(),
