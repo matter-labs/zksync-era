@@ -70,7 +70,7 @@ pub async fn init(
     let mut general_config = chain_config.get_general_config()?;
 
     let consensus_port = ecosystem_ports.allocate_port(
-        (DEFAULT_CONSENSUS_PORT + (chain_config.id * 100) as u16)..PORT_RANGE_END,
+        (DEFAULT_CONSENSUS_PORT + ((chain_config.id - 1) * 100) as u16)..PORT_RANGE_END,
         "Consensus".to_string(),
     )?;
 
