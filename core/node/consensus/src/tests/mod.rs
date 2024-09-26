@@ -282,12 +282,6 @@ async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId) {
                     .await
                     .context("validator")
             });
-            // API server needs at least 1 L1 batch to start.
-            validator.seal_batch().await;
-            validator_pool
-                .wait_for_payload(ctx, validator.last_block())
-                .await?;
-
             tracing::info!("Run validator.");
             s.spawn_bg(run_main_node(
                 ctx,
@@ -295,6 +289,12 @@ async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId) {
                 validator_cfg.secrets.clone(),
                 validator_pool.clone(),
             ));
+
+            // Wait for the main node to start and to update the global config.
+            validator.seal_batch().await;
+            validator_pool
+                .wait_for_block_certificate(ctx, validator.last_block())
+                .await?;
 
             tracing::info!("Run node.");
             let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
