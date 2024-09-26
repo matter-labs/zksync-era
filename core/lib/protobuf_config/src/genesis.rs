@@ -75,11 +75,12 @@ impl ProtoRepr for proto::Genesis {
                     .and_then(|x| parse_h256(x))
                     .context("default_aa_hash")?,
             ),
-            evm_simulator_hash: Some(
-                required(&self.evm_simulator_hash)
-                    .and_then(|x| parse_h256(x))
-                    .context("evm_simulator_hash")?,
-            ),
+            evm_simulator_hash: self
+                .evm_simulator_hash
+                .as_deref()
+                .map(parse_h256)
+                .transpose()
+                .context("evm_simulator_hash")?,
             l1_chain_id: required(&self.l1_chain_id)
                 .map(|x| L1ChainId(*x))
                 .context("l1_chain_id")?,

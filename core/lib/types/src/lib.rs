@@ -16,9 +16,7 @@ use serde::{Deserialize, Serialize};
 pub use storage::*;
 pub use tx::Execute;
 pub use zksync_basic_types::{protocol_version::ProtocolVersionId, vm, *};
-use zksync_config::configs::use_evm_simulator;
 pub use zksync_crypto_primitives::*;
-use zksync_env_config::FromEnv;
 use zksync_utils::{
     address_to_u256, bytecode::hash_bytecode, h256_to_u256, u256_to_account_address,
 };
@@ -317,9 +315,8 @@ impl TryFrom<Transaction> for abi::Transaction {
     }
 }
 
-impl TryFrom<abi::Transaction> for Transaction {
-    type Error = anyhow::Error;
-    fn try_from(tx: abi::Transaction) -> anyhow::Result<Self> {
+impl Transaction {
+    pub fn from_abi(tx: abi::Transaction, use_evm_simulator: bool) -> anyhow::Result<Self> {
         Ok(match tx {
             abi::Transaction::L1 {
                 tx,
@@ -391,9 +388,6 @@ impl TryFrom<abi::Transaction> for Transaction {
             abi::Transaction::L2(raw) => {
                 let (req, hash) =
                     transaction_request::TransactionRequest::from_bytes_unverified(&raw)?;
-                let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env()
-                    .unwrap()
-                    .use_evm_simulator;
                 let mut tx = L2Tx::from_request_unverified(req, use_evm_simulator)?;
                 tx.set_input(raw, hash);
                 tx.into()

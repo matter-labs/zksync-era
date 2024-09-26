@@ -1,4 +1,4 @@
-use std::{collections::HashMap, convert::TryInto};
+use std::collections::HashMap;
 
 use anyhow::Context as _;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
@@ -65,6 +65,7 @@ impl ZksNamespace {
         let mut tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
+            false, // FIXME: configure
         )?;
 
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
@@ -88,8 +89,8 @@ impl ZksNamespace {
             }
         }
 
-        let tx: L1Tx = request_with_gas_per_pubdata_overridden
-            .try_into()
+        // FIXME: configure
+        let tx = L1Tx::from_request(request_with_gas_per_pubdata_overridden, false)
             .map_err(Web3Error::SerializationError)?;
 
         let fee = self.estimate_fee(tx.into(), state_override).await?;

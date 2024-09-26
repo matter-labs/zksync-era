@@ -11020,7 +11020,6 @@ dependencies = [
  "zksync_contracts",
  "zksync_system_constants",
  "zksync_types",
- "zksync_utils",
 ]
 
 [[package]]

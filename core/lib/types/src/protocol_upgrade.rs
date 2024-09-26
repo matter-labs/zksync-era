@@ -129,11 +129,14 @@ impl ProtocolUpgrade {
             timestamp: upgrade.upgrade_timestamp.try_into().unwrap(),
             tx: (upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero())
                 .then(|| {
-                    Transaction::try_from(abi::Transaction::L1 {
-                        tx: upgrade.l2_protocol_upgrade_tx,
-                        factory_deps: upgrade.factory_deps,
-                        eth_block: 0,
-                    })
+                    Transaction::from_abi(
+                        abi::Transaction::L1 {
+                            tx: upgrade.l2_protocol_upgrade_tx,
+                            factory_deps: upgrade.factory_deps,
+                            eth_block: 0,
+                        },
+                        true,
+                    )
                     .context("Transaction::try_from()")?
                     .try_into()
                     .map_err(|err| anyhow::format_err!("try_into::<ProtocolUpgradeTx>(): {err}"))
@@ -154,11 +157,14 @@ pub fn decode_set_chain_id_event(
         .unwrap_or_else(|_| panic!("Version is not supported, packed version: {full_version_id}"));
     Ok((
         protocol_version,
-        Transaction::try_from(abi::Transaction::L1 {
-            tx: tx.into(),
-            eth_block: 0,
-            factory_deps: vec![],
-        })
+        Transaction::from_abi(
+            abi::Transaction::L1 {
+                tx: tx.into(),
+                eth_block: 0,
+                factory_deps: vec![],
+            },
+            true,
+        )
         .unwrap()
         .try_into()
         .unwrap(),

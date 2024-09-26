@@ -48,10 +48,11 @@ async fn create_genesis_params(
     // Load the list of addresses that are known to contain system contracts at any point in time.
     // Not every of these addresses is guaranteed to be present in the genesis state, but we'll iterate through
     // them and try to fetch the contract bytecode for each of them.
-    let system_contract_addresses: Vec<_> = get_system_smart_contracts()
-        .into_iter()
-        .map(|contract| *contract.account_id.address())
-        .collect();
+    let system_contract_addresses: Vec<_> =
+        get_system_smart_contracts(config.evm_simulator_hash.is_some())
+            .into_iter()
+            .map(|contract| *contract.account_id.address())
+            .collect();
 
     // These have to be *initial* base contract hashes of main node
     // (those that were used during genesis), not necessarily the current ones.

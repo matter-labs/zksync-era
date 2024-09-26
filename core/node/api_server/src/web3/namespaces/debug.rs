@@ -265,7 +265,8 @@ impl DebugNamespace {
         drop(connection);
 
         let call_overrides = request.get_call_overrides()?;
-        let call = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
+        // FIXME: configure
+        let call = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE, false)?;
 
         let vm_permit = self
             .state

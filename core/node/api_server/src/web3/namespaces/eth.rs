@@ -76,7 +76,8 @@ impl EthNamespace {
         drop(connection);
 
         let call_overrides = request.get_call_overrides()?;
-        let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
+        // FIXME: configure
+        let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size, false)?;
 
         // It is assumed that the previous checks has already enforced that the `max_fee_per_gas` is at most u64.
         let call_result: Vec<u8> = self
@@ -111,6 +112,7 @@ impl EthNamespace {
         let mut tx: L2Tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
+            false, // FIXME: configure
         )?;
 
         // The user may not include the proper transaction type during the estimation of

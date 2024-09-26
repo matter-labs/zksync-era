@@ -4,8 +4,6 @@ use rlp::{DecoderError, Rlp, RlpStream};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use zksync_basic_types::H256;
-use zksync_config::configs::use_evm_simulator;
-use zksync_env_config::FromEnv;
 use zksync_system_constants::{DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, MAX_ENCODED_TX_SIZE};
 use zksync_utils::{
     bytecode::{hash_bytecode, validate_bytecode, InvalidBytecodeError},
@@ -854,10 +852,8 @@ impl L2Tx {
     pub fn from_request(
         value: TransactionRequest,
         max_tx_size: usize,
+        use_evm_simulator: bool,
     ) -> Result<Self, SerializationTransactionError> {
-        let use_evm_simulator = use_evm_simulator::UseEvmSimulator::from_env()
-            .unwrap()
-            .use_evm_simulator;
         let tx = Self::from_request_unverified(value, use_evm_simulator)?;
         tx.check_encoded_size(max_tx_size)?;
         Ok(tx)
@@ -922,11 +918,13 @@ impl From<CallRequest> for TransactionRequest {
     }
 }
 
-impl TryFrom<CallRequest> for L1Tx {
-    type Error = SerializationTransactionError;
-    fn try_from(tx: CallRequest) -> Result<Self, Self::Error> {
+impl L1Tx {
+    pub fn from_request(
+        tx: CallRequest,
+        use_evm_simulator: bool,
+    ) -> Result<Self, SerializationTransactionError> {
         // L1 transactions have no limitations on the transaction size.
-        let tx: L2Tx = L2Tx::from_request(tx.into(), MAX_ENCODED_TX_SIZE)?;
+        let tx: L2Tx = L2Tx::from_request(tx.into(), MAX_ENCODED_TX_SIZE, use_evm_simulator)?;
 
         // Note, that while the user has theoretically provided the fee for ETH on L1,
         // the payment to the operator as well as refunds happen on L2 and so all the ETH
@@ -1322,7 +1320,7 @@ mod tests {
             ..Default::default()
         };
         let execute_tx1: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx1, usize::MAX);
+            L2Tx::from_request(tx1, usize::MAX, true);
         assert!(execute_tx1.is_ok());
 
         let tx2 = TransactionRequest {
@@ -1333,7 +1331,7 @@ mod tests {
             ..Default::default()
         };
         let execute_tx2: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx2, usize::MAX);
+            L2Tx::from_request(tx2, usize::MAX, true);
         assert_eq!(
             execute_tx2.unwrap_err(),
             SerializationTransactionError::TooBigNonce
@@ -1350,7 +1348,7 @@ mod tests {
             ..Default::default()
         };
         let execute_tx1: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx1, usize::MAX);
+            L2Tx::from_request(tx1, usize::MAX, true);
         assert_eq!(
             execute_tx1.unwrap_err(),
             SerializationTransactionError::MaxFeePerGasNotU64
@@ -1364,7 +1362,7 @@ mod tests {
             ..Default::default()
         };
         let execute_tx2: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx2, usize::MAX);
+            L2Tx::from_request(tx2, usize::MAX, true);
         assert_eq!(
             execute_tx2.unwrap_err(),
             SerializationTransactionError::MaxPriorityFeePerGasNotU64
@@ -1382,7 +1380,7 @@ mod tests {
         };
 
         let execute_tx3: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx3, usize::MAX);
+            L2Tx::from_request(tx3, usize::MAX, true);
         assert_eq!(
             execute_tx3.unwrap_err(),
             SerializationTransactionError::MaxFeePerPubdataByteNotU64
@@ -1438,7 +1436,7 @@ mod tests {
         let request =
             TransactionRequest::from_bytes(data.as_slice(), L2ChainId::from(270)).unwrap();
         assert_matches!(
-            L2Tx::from_request(request.0, random_tx_max_size),
+            L2Tx::from_request(request.0, random_tx_max_size, true),
             Err(SerializationTransactionError::OversizedData(_, _))
         )
     }
@@ -1464,7 +1462,7 @@ mod tests {
         };
 
         let try_to_l2_tx: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(call_request.into(), random_tx_max_size);
+            L2Tx::from_request(call_request.into(), random_tx_max_size, true);
 
         assert_matches!(
             try_to_l2_tx,
@@ -1489,15 +1487,20 @@ mod tests {
             access_list: None,
             eip712_meta: None,
         };
-        let l2_tx = L2Tx::from_request(call_request_with_nonce.clone().into(), MAX_ENCODED_TX_SIZE)
-            .unwrap();
+        let l2_tx = L2Tx::from_request(
+            call_request_with_nonce.clone().into(),
+            MAX_ENCODED_TX_SIZE,
+            true,
+        )
+        .unwrap();
         assert_eq!(l2_tx.nonce(), Nonce(123u32));
 
         let mut call_request_without_nonce = call_request_with_nonce;
         call_request_without_nonce.nonce = None;
 
         let l2_tx =
-            L2Tx::from_request(call_request_without_nonce.into(), MAX_ENCODED_TX_SIZE).unwrap();
+            L2Tx::from_request(call_request_without_nonce.into(), MAX_ENCODED_TX_SIZE, true)
+                .unwrap();
         assert_eq!(l2_tx.nonce(), Nonce(0u32));
     }
 

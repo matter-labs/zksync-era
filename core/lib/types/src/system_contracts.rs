@@ -1,16 +1,12 @@
 use std::path::PathBuf;
 
-use once_cell::sync::Lazy;
-use zksync_basic_types::{AccountTreeId, Address, H256, U256};
-use zksync_config::configs::use_evm_simulator;
+use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
-use zksync_env_config::FromEnv;
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
     EVENT_WRITER_ADDRESS, EVM_GAS_MANAGER_ADDRESS, P256VERIFY_PRECOMPILE_ADDRESS,
     PUBDATA_CHUNK_PUBLISHER_ADDRESS,
 };
-use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     block::DeployedContract, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS,
@@ -180,35 +176,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 26] = [
     ),
 ];
 
-static EVM_SIMULATOR_HASH: Lazy<H256> = Lazy::new(|| {
-    if use_evm_simulator::UseEvmSimulator::from_env()
-        .unwrap()
-        .use_evm_simulator
-    {
-        hash_bytecode(&read_sys_contract_bytecode(
-            "",
-            "EvmInterpreter",
-            ContractLanguage::Yul,
-        ))
-    } else {
-        let default_account_code =
-            read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
-        hash_bytecode(&default_account_code)
-    }
-});
-
-pub fn get_evm_simulator_hash() -> H256 {
-    *EVM_SIMULATOR_HASH
-}
-
-static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
-    let evm_simulator_is_used = use_evm_simulator::UseEvmSimulator::from_env()
-        .unwrap()
-        .use_evm_simulator;
+/// Gets default set of system contracts, based on Cargo workspace location.
+pub fn get_system_smart_contracts(use_evm_simulator: bool) -> Vec<DeployedContract> {
     SYSTEM_CONTRACT_LIST
         .iter()
         .filter_map(|(path, name, address, contract_lang)| {
-            if *name == "EvmGasManager" && !evm_simulator_is_used {
+            if *name == "EvmGasManager" && !use_evm_simulator {
                 None
             } else {
                 Some(DeployedContract {
@@ -217,24 +190,19 @@ static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {
                 })
             }
         })
-        .collect::<Vec<_>>()
-});
-
-/// Gets default set of system contracts, based on Cargo workspace location.
-pub fn get_system_smart_contracts() -> Vec<DeployedContract> {
-    SYSTEM_CONTRACTS.clone()
+        .collect()
 }
 
 /// Loads system contracts from a given directory.
-pub fn get_system_smart_contracts_from_dir(path: PathBuf) -> Vec<DeployedContract> {
-    let evm_simulator_is_used = use_evm_simulator::UseEvmSimulator::from_env()
-        .unwrap()
-        .use_evm_simulator;
+pub fn get_system_smart_contracts_from_dir(
+    path: PathBuf,
+    use_evm_simulator: bool,
+) -> Vec<DeployedContract> {
     let repo = SystemContractsRepo { root: path };
     SYSTEM_CONTRACT_LIST
         .iter()
         .filter_map(|(path, name, address, contract_lang)| {
-            if *name == "EvmGasManager" && !evm_simulator_is_used {
+            if *name == "EvmGasManager" && !use_evm_simulator {
                 None
             } else {
                 Some(DeployedContract {
