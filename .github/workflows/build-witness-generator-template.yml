@@ -51,6 +51,7 @@ jobs:
       ERA_BELLMAN_CUDA_RELEASE: ${{ inputs.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: ${{ inputs.CUDA_ARCH }}
       WITNESS_GENERATOR_RUST_FLAGS: ${{ inputs.WITNESS_GENERATOR_RUST_FLAGS }}
+      ZKSYNC_USE_CUDA_STUBS: true
     runs-on: [ matterlabs-ci-runner-c3d ]
     strategy:
       matrix:
