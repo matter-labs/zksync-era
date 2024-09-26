@@ -158,7 +158,7 @@ fn make_config(
         public_addr: config::Host(cfg.public_addr.0.clone()),
         debug_page_addr: std::net::SocketAddr::new(
             std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)),
-            8080,
+            5000,
         ),
         max_payload_size: usize::MAX,
         max_batch_size: usize::MAX,
