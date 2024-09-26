@@ -56,10 +56,9 @@ pub fn note(msg: impl Display, content: impl Display) {
 }
 
 pub fn error_note(msg: &str, content: &str) {
-    let symbol = CliclackTheme.state_symbol(&ThemeState::Submit);
-    let note = CliclackTheme
-        .format_note(msg, content)
-        .replace(&symbol, &CliclackTheme.error_symbol());
+    let note = CliclackTheme.format_log(msg, &CliclackTheme.error_symbol());
+    term_write(note);
+    let note = CliclackTheme.format_log(content, &CliclackTheme.error_symbol());
     term_write(note);
 }
 

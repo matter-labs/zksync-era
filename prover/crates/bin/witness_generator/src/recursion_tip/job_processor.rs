@@ -11,9 +11,10 @@ use crate::{
     artifacts::ArtifactsManager,
     metrics::WITNESS_GENERATOR_METRICS,
     recursion_tip::{
-        prepare_job, RecursionTipArtifacts, RecursionTipWitnessGenerator,
+        RecursionTipArtifacts, RecursionTipJobMetadata, RecursionTipWitnessGenerator,
         RecursionTipWitnessGeneratorJob,
     },
+    witness_generator::WitnessGenerator,
 };
 
 #[async_trait]
@@ -49,9 +50,11 @@ impl JobProcessor for RecursionTipWitnessGenerator {
 
         Ok(Some((
             l1_batch_number,
-            prepare_job(
-                l1_batch_number,
-                final_node_proof_job_ids,
+            <Self as WitnessGenerator>::prepare_job(
+                RecursionTipJobMetadata {
+                    l1_batch_number,
+                    final_node_proof_job_ids,
+                },
                 &*self.object_store,
                 self.keystore.clone(),
             )
@@ -77,7 +80,10 @@ impl JobProcessor for RecursionTipWitnessGenerator {
         job: RecursionTipWitnessGeneratorJob,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<RecursionTipArtifacts>> {
-        tokio::task::spawn_blocking(move || Ok(Self::process_job_sync(job, started_at)))
+        let object_store = self.object_store.clone();
+        tokio::spawn(async move {
+            <Self as WitnessGenerator>::process_job(job, object_store, None, started_at).await
+        })
     }
 
     #[tracing::instrument(
@@ -93,12 +99,12 @@ impl JobProcessor for RecursionTipWitnessGenerator {
         let blob_save_started_at = Instant::now();
 
         let blob_urls =
-            Self::save_artifacts(job_id.0, artifacts.clone(), &*self.object_store).await;
+            Self::save_to_bucket(job_id.0, artifacts.clone(), &*self.object_store).await;
 
         WITNESS_GENERATOR_METRICS.blob_save_time[&AggregationRound::RecursionTip.into()]
             .observe(blob_save_started_at.elapsed());
 
-        Self::update_database(
+        Self::save_to_database(
             &self.prover_connection_pool,
             job_id.0,
             started_at,

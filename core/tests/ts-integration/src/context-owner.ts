@@ -398,7 +398,7 @@ export class TestContextOwner {
                         gasPrice
                     },
                     // specify gas limit manually, until EVM-554 is fixed
-                    l2GasLimit: 1000000
+                    l2GasLimit: 2000000
                 })
                 .then(async (tx) => {
                     const amount = ethers.formatEther(l2ETHAmountToDeposit);

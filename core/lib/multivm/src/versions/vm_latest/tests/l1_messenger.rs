@@ -99,7 +99,7 @@ fn test_publish_and_clear_state() {
 
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: L1_MESSENGER_ADDRESS,
+            contract_address: Some(L1_MESSENGER_ADDRESS),
             calldata: encoded_data,
             value: U256::zero(),
             factory_deps: vec![],

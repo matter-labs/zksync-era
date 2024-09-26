@@ -62,6 +62,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
                     self.batch_env.clone(),
                     execution_mode,
                     self.subversion,
+                    self.system_env.version,
                 ))
             }),
             self.subversion,

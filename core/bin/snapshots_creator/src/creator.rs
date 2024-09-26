@@ -291,25 +291,38 @@ impl SnapshotCreator {
             .get_sealed_l1_batch_number()
             .await?;
         let sealed_l1_batch_number = sealed_l1_batch_number.context("No L1 batches in Postgres")?;
-        let requested_l1_batch_number = if let Some(l1_batch_number) = config.l1_batch_number {
+        let (requested_l1_batch_number, existing_snapshot) = if let Some(l1_batch_number) =
+            config.l1_batch_number
+        {
             anyhow::ensure!(
                 l1_batch_number <= sealed_l1_batch_number,
                 "Requested a snapshot for L1 batch #{l1_batch_number} that doesn't exist in Postgres (latest L1 batch: {sealed_l1_batch_number})"
             );
-            l1_batch_number
+
+            let existing_snapshot = master_conn
+                .snapshots_dal()
+                .get_snapshot_metadata(l1_batch_number)
+                .await?;
+            (l1_batch_number, existing_snapshot)
         } else {
             // We subtract 1 so that after restore, EN node has at least one L1 batch to fetch.
             anyhow::ensure!(
                 sealed_l1_batch_number != L1BatchNumber(0),
                 "Cannot create snapshot when only the genesis L1 batch is present in Postgres"
             );
-            sealed_l1_batch_number - 1
-        };
+            let requested_l1_batch_number = sealed_l1_batch_number - 1;
 
-        let existing_snapshot = master_conn
-            .snapshots_dal()
-            .get_snapshot_metadata(requested_l1_batch_number)
-            .await?;
+            // Continue creating a pending snapshot if it exists, even if it doesn't correspond to the latest L1 batch.
+            // OTOH, a completed snapshot does not matter, unless it corresponds to `requested_l1_batch_number` (in which case it doesn't need to be created again).
+            let existing_snapshot = master_conn
+                .snapshots_dal()
+                .get_newest_snapshot_metadata()
+                .await?
+                .filter(|snapshot| {
+                    !snapshot.is_complete() || snapshot.l1_batch_number == requested_l1_batch_number
+                });
+            (requested_l1_batch_number, existing_snapshot)
+        };
         drop(master_conn);
 
         match existing_snapshot {
@@ -317,18 +330,7 @@ impl SnapshotCreator {
                 tracing::info!("Snapshot for the requested L1 batch is complete: {snapshot:?}");
                 Ok(None)
             }
-            Some(snapshot) if config.l1_batch_number.is_some() => {
-                Ok(Some(SnapshotProgress::from_existing_snapshot(&snapshot)))
-            }
-            Some(snapshot) => {
-                // Unless creating a snapshot for a specific L1 batch is requested, we never continue an existing snapshot, even if it's incomplete.
-                // This it to make running multiple snapshot creator instances in parallel easier to reason about.
-                tracing::warn!(
-                    "Snapshot at expected L1 batch #{requested_l1_batch_number} exists, but is incomplete: {snapshot:?}. If you need to resume creating it, \
-                     specify the L1 batch number in the snapshot creator config"
-                );
-                Ok(None)
-            }
+            Some(snapshot) => Ok(Some(SnapshotProgress::from_existing_snapshot(&snapshot))),
             None => {
                 Self::initialize_snapshot_progress(
                     config,

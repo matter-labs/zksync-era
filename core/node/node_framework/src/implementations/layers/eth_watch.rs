@@ -1,4 +1,4 @@
-use zksync_config::{ContractsConfig, EthWatchConfig};
+use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
 use zksync_contracts::{chain_admin_contract, governance_contract};
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_types::settlement::SettlementMode;
@@ -23,7 +23,7 @@ use crate::{
 pub struct EthWatchLayer {
     eth_watch_config: EthWatchConfig,
     contracts_config: ContractsConfig,
-    gateway_contracts_config: Option<ContractsConfig>,
+    gateway_contracts_config: Option<GatewayChainConfig>,
     settlement_mode: SettlementMode,
 }
 
@@ -47,7 +47,7 @@ impl EthWatchLayer {
     pub fn new(
         eth_watch_config: EthWatchConfig,
         contracts_config: ContractsConfig,
-        gateway_contracts_config: Option<ContractsConfig>,
+        gateway_contracts_config: Option<GatewayChainConfig>,
         settlement_mode: SettlementMode,
     ) -> Self {
         Self {
@@ -106,9 +106,7 @@ impl WiringLayer for EthWatchLayer {
             EthHttpQueryClient::new(
                 gateway_client,
                 contracts_config.diamond_proxy_addr,
-                contracts_config
-                    .ecosystem_contracts
-                    .map(|a| a.state_transition_proxy_addr),
+                Some(contracts_config.state_transition_proxy_addr),
                 contracts_config.chain_admin_addr,
                 contracts_config.governance_addr,
                 self.eth_watch_config.confirmations_for_eth_event,

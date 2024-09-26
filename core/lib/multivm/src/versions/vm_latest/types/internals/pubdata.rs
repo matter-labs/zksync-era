@@ -3,10 +3,8 @@ use zksync_contracts::load_sys_contract_interface;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     ethabi,
-    l2_to_l1_log::l2_to_l1_logs_tree_size,
     web3::keccak256,
     writes::{compress_state_diffs, StateDiffRecord},
-    ProtocolVersionId,
 };
 use zksync_utils::bytecode::hash_bytecode;
 
@@ -18,6 +16,7 @@ pub(crate) struct PubdataInput {
     pub(crate) l2_to_l1_messages: Vec<Vec<u8>>,
     pub(crate) published_bytecodes: Vec<Vec<u8>>,
     pub(crate) state_diffs: Vec<StateDiffRecord>,
+    pub(crate) l2_to_l1_logs_tree_size: usize,
 }
 
 pub trait PubdataBuilder {
@@ -59,11 +58,12 @@ impl PubdataBuilder for RollupPubdataBuilder {
             l2_to_l1_messages,
             published_bytecodes,
             state_diffs,
+            l2_to_l1_logs_tree_size,
         } = input;
 
         if l2_version {
             let chained_log_hash = build_chained_log_hash(user_logs.clone());
-            let log_root_hash = build_logs_root(user_logs.clone());
+            let log_root_hash = build_logs_root(user_logs.clone(), l2_to_l1_logs_tree_size);
             let chained_msg_hash = build_chained_message_hash(l2_to_l1_messages.clone());
             let chained_bytecodes_hash = build_chained_bytecode_hash(published_bytecodes.clone());
 
@@ -128,8 +128,52 @@ impl ValidiumPubdataBuilder {
 }
 
 impl PubdataBuilder for ValidiumPubdataBuilder {
-    fn build_pubdata(&self, _: PubdataInput, _: bool) -> Vec<u8> {
-        todo!()
+    fn build_pubdata(&self, input: PubdataInput, l2_version: bool) -> Vec<u8> {
+        let mut l1_messenger_pubdata = vec![];
+        let mut l2_da_header = vec![];
+
+        let PubdataInput {
+            user_logs,
+            l2_to_l1_messages,
+            published_bytecodes,
+            state_diffs,
+            l2_to_l1_logs_tree_size,
+        } = input;
+
+        if l2_version {
+            let chained_log_hash = build_chained_log_hash(user_logs.clone());
+            let log_root_hash = build_logs_root(user_logs.clone(), l2_to_l1_logs_tree_size);
+            let chained_msg_hash = build_chained_message_hash(l2_to_l1_messages.clone());
+            let chained_bytecodes_hash = build_chained_bytecode_hash(published_bytecodes.clone());
+
+            l2_da_header.push(Token::FixedBytes(chained_log_hash));
+            l2_da_header.push(Token::FixedBytes(log_root_hash));
+            l2_da_header.push(Token::FixedBytes(chained_msg_hash));
+            l2_da_header.push(Token::FixedBytes(chained_bytecodes_hash));
+        }
+
+        l1_messenger_pubdata.extend(encode_user_logs(user_logs));
+
+        if l2_version {
+            let func_selector = load_sys_contract_interface("IL2DAValidator")
+                .function("validatePubdata")
+                .expect("validatePubdata Function does not exist on IL2DAValidator")
+                .short_signature()
+                .to_vec();
+
+            l2_da_header.push(ethabi::Token::Bytes(l1_messenger_pubdata));
+
+            [func_selector, ethabi::encode(&l2_da_header)]
+                .concat()
+                .to_vec()
+        } else {
+            let state_diffs_packed = state_diffs
+                .into_iter()
+                .flat_map(|diff| diff.encode_padded())
+                .collect::<Vec<_>>();
+
+            keccak256(&state_diffs_packed).to_vec()
+        }
     }
 }
 
@@ -146,20 +190,20 @@ fn build_chained_log_hash(user_logs: Vec<L1MessengerL2ToL1Log>) -> Vec<u8> {
     chained_log_hash
 }
 
-fn build_logs_root(user_logs: Vec<L1MessengerL2ToL1Log>) -> Vec<u8> {
+fn build_logs_root(
+    user_logs: Vec<L1MessengerL2ToL1Log>,
+    l2_to_l1_logs_tree_size: usize,
+) -> Vec<u8> {
     let logs = user_logs.iter().map(|log| {
         let encoded = log.packed_encoding();
         let mut slice = [0u8; 88];
         slice.copy_from_slice(&encoded);
         slice
     });
-    MiniMerkleTree::new(
-        logs,
-        Some(l2_to_l1_logs_tree_size(ProtocolVersionId::latest())),
-    )
-    .merkle_root()
-    .as_bytes()
-    .to_vec()
+    MiniMerkleTree::new(logs, Some(l2_to_l1_logs_tree_size))
+        .merkle_root()
+        .as_bytes()
+        .to_vec()
 }
 
 fn build_chained_message_hash(l2_to_l1_messages: Vec<Vec<u8>>) -> Vec<u8> {

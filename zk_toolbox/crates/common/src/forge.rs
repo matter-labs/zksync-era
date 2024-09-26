@@ -69,6 +69,17 @@ impl ForgeScript {
                 return Ok(res?);
             }
         }
+
+        // TODO: This line is very helpful for debugging purposes,
+        // maybe it makes sense to make it conditionally displayed.
+        let command = format!(
+            "forge script {} --legacy {}",
+            script_path.to_str().unwrap(),
+            args_no_resume.join(" ")
+        );
+
+        println!("Command: {}", command);
+
         let mut cmd = Cmd::new(cmd!(
             shell,
             "forge script {script_path} --legacy {args_no_resume...}"
@@ -93,6 +104,12 @@ impl ForgeScript {
     /// Add the ffi flag to the forge script command.
     pub fn with_ffi(mut self) -> Self {
         self.args.add_arg(ForgeScriptArg::Ffi);
+        self
+    }
+
+    /// Add the sender address to the forge script command.
+    pub fn with_sender(mut self, address: String) -> Self {
+        self.args.add_arg(ForgeScriptArg::Sender { address });
         self
     }
 
@@ -135,6 +152,7 @@ impl ForgeScript {
         });
         self
     }
+
     // Do not start the script if balance is not enough
     pub fn private_key(&self) -> Option<H256> {
         self.args.args.iter().find_map(|a| {
@@ -244,6 +262,10 @@ pub enum ForgeScriptArg {
     },
     Verify,
     Resume,
+    #[strum(to_string = "sender={address}")]
+    Sender {
+        address: String,
+    },
 }
 
 /// ForgeScriptArgs is a set of arguments that can be passed to the forge script command.

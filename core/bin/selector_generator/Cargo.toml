@@ -11,8 +11,11 @@ categories.workspace = true
 publish = false
 
 [dependencies]
+anyhow.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-sha3.workspace = true
 glob.workspace = true
-clap = { workspace = true,  features = ["derive"] }
+clap = { workspace = true, features = ["derive"] }
+ethabi.workspace = true
+hex.workspace = true
+tokio = { workspace = true, features = ["full"] }

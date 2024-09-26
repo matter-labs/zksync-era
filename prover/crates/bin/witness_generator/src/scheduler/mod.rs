@@ -1,6 +1,7 @@
 use std::{convert::TryInto, sync::Arc, time::Instant};
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use zkevm_test_harness::zkevm_circuits::recursion::{
     leaf_layer::input::RecursionLeafParametersWitness, NUM_BASE_LAYER_CIRCUITS,
 };
@@ -29,7 +30,7 @@ use zksync_types::{
 
 use crate::{
     artifacts::ArtifactsManager, metrics::WITNESS_GENERATOR_METRICS,
-    utils::SchedulerPartialInputWrapper,
+    utils::SchedulerPartialInputWrapper, witness_generator::WitnessGenerator,
 };
 
 mod artifacts;
@@ -52,6 +53,11 @@ pub struct SchedulerWitnessGeneratorJob {
     recursion_tip_vk: ZkSyncRecursionLayerVerificationKey,
     leaf_layer_parameters:
         [RecursionLeafParametersWitness<GoldilocksField>; NUM_BASE_LAYER_CIRCUITS],
+}
+
+pub struct SchedulerWitnessJobMetadata {
+    pub l1_batch_number: L1BatchNumber,
+    pub recursion_tip_job_id: u32,
 }
 
 #[derive(Debug)]
@@ -79,15 +85,24 @@ impl SchedulerWitnessGenerator {
             keystore,
         }
     }
+}
+
+#[async_trait]
+impl WitnessGenerator for SchedulerWitnessGenerator {
+    type Job = SchedulerWitnessGeneratorJob;
+    type Metadata = SchedulerWitnessJobMetadata;
+    type Artifacts = SchedulerArtifacts;
 
     #[tracing::instrument(
         skip_all,
         fields(l1_batch = %job.block_number)
     )]
-    pub fn process_job_sync(
+    async fn process_job(
         job: SchedulerWitnessGeneratorJob,
+        _object_store: Arc<dyn ObjectStore>,
+        _max_circuits_in_flight: Option<usize>,
         started_at: Instant,
-    ) -> SchedulerArtifacts {
+    ) -> anyhow::Result<SchedulerArtifacts> {
         tracing::info!(
             "Starting fri witness generation of type {:?} for block {}",
             AggregationRound::Scheduler,
@@ -118,66 +133,67 @@ impl SchedulerWitnessGenerator {
             started_at.elapsed()
         );
 
-        SchedulerArtifacts {
+        Ok(SchedulerArtifacts {
             scheduler_circuit: ZkSyncRecursiveLayerCircuit::SchedulerCircuit(scheduler_circuit),
-        }
+        })
     }
-}
 
-#[tracing::instrument(
-    skip_all,
-    fields(l1_batch = %l1_batch_number)
-)]
-pub async fn prepare_job(
-    l1_batch_number: L1BatchNumber,
-    recursion_tip_job_id: u32,
-    object_store: &dyn ObjectStore,
-    keystore: Keystore,
-) -> anyhow::Result<SchedulerWitnessGeneratorJob> {
-    let started_at = Instant::now();
-    let wrapper =
-        SchedulerWitnessGenerator::get_artifacts(&recursion_tip_job_id, object_store).await?;
-    let recursion_tip_proof = match wrapper {
-        FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
-            "Expected only recursive proofs for scheduler l1 batch {l1_batch_number}, got Base"
-        )),
-        FriProofWrapper::Recursive(recursive_proof) => Ok(recursive_proof.into_inner()),
-    }?;
-    WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::Scheduler.into()]
-        .observe(started_at.elapsed());
+    #[tracing::instrument(
+        skip_all,
+        fields(l1_batch = %metadata.l1_batch_number)
+    )]
+    async fn prepare_job(
+        metadata: SchedulerWitnessJobMetadata,
+        object_store: &dyn ObjectStore,
+        keystore: Keystore,
+    ) -> anyhow::Result<Self::Job> {
+        let started_at = Instant::now();
+        let wrapper =
+            SchedulerWitnessGenerator::get_artifacts(&metadata.recursion_tip_job_id, object_store)
+                .await?;
+        let recursion_tip_proof = match wrapper {
+            FriProofWrapper::Base(_) => Err(anyhow::anyhow!(
+                "Expected only recursive proofs for scheduler l1 batch {}, got Base",
+                metadata.l1_batch_number
+            )),
+            FriProofWrapper::Recursive(recursive_proof) => Ok(recursive_proof.into_inner()),
+        }?;
+        WITNESS_GENERATOR_METRICS.blob_fetch_time[&AggregationRound::Scheduler.into()]
+            .observe(started_at.elapsed());
 
-    let started_at = Instant::now();
-    let node_vk = keystore
-        .load_recursive_layer_verification_key(
-            ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
-        )
-        .context("get_recursive_layer_vk_for_circuit_type()")?;
-    let SchedulerPartialInputWrapper(mut scheduler_witness) =
-        object_store.get(l1_batch_number).await?;
+        let started_at = Instant::now();
+        let node_vk = keystore
+            .load_recursive_layer_verification_key(
+                ZkSyncRecursionLayerStorageType::NodeLayerCircuit as u8,
+            )
+            .context("get_recursive_layer_vk_for_circuit_type()")?;
+        let SchedulerPartialInputWrapper(mut scheduler_witness) =
+            object_store.get(metadata.l1_batch_number).await?;
 
-    let recursion_tip_vk = keystore
-        .load_recursive_layer_verification_key(
-            ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
-        )
-        .context("get_recursion_tip_vk()")?;
-    scheduler_witness.proof_witnesses = vec![recursion_tip_proof].into();
+        let recursion_tip_vk = keystore
+            .load_recursive_layer_verification_key(
+                ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8,
+            )
+            .context("get_recursion_tip_vk()")?;
+        scheduler_witness.proof_witnesses = vec![recursion_tip_proof].into();
 
-    let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
-    let leaf_layer_parameters = leaf_vk_commits
-        .iter()
-        .map(|el| el.1.clone())
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap();
+        let leaf_vk_commits = get_leaf_vk_params(&keystore).context("get_leaf_vk_params()")?;
+        let leaf_layer_parameters = leaf_vk_commits
+            .iter()
+            .map(|el| el.1.clone())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
 
-    WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::Scheduler.into()]
-        .observe(started_at.elapsed());
+        WITNESS_GENERATOR_METRICS.prepare_job_time[&AggregationRound::Scheduler.into()]
+            .observe(started_at.elapsed());
 
-    Ok(SchedulerWitnessGeneratorJob {
-        block_number: l1_batch_number,
-        scheduler_witness,
-        node_vk,
-        leaf_layer_parameters,
-        recursion_tip_vk,
-    })
+        Ok(SchedulerWitnessGeneratorJob {
+            block_number: metadata.l1_batch_number,
+            scheduler_witness,
+            node_vk,
+            leaf_layer_parameters,
+            recursion_tip_vk,
+        })
+    }
 }

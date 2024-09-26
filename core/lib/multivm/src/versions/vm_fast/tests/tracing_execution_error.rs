@@ -2,6 +2,7 @@ use zksync_types::{Execute, H160};
 
 use crate::{
     interface::{TxExecutionMode, TxRevertReason, VmRevertReason},
+    versions::testonly::ContractToDeploy,
     vm_fast::tests::{
         tester::{ExpectedError, TransactionTestInfo, VmTesterBuilder},
         utils::{get_execute_error_calldata, read_error_contract, BASE_SYSTEM_CONTRACTS},
@@ -14,7 +15,10 @@ fn test_tracing_of_execution_errors() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
-        .with_custom_contracts(vec![(read_error_contract(), contract_address, false)])
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            read_error_contract(),
+            contract_address,
+        )])
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()
         .with_random_rich_accounts(1)
@@ -24,7 +28,7 @@ fn test_tracing_of_execution_errors() {
 
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address,
+            contract_address: Some(contract_address),
             calldata: get_execute_error_calldata(),
             value: Default::default(),
             factory_deps: vec![],
