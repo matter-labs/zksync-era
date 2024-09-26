@@ -502,7 +502,7 @@ impl ConsensusDal<'_, '_> {
         committee: &attester::Committee,
     ) -> anyhow::Result<()> {
         let committee = zksync_protobuf::serde::Serialize
-            .proto_repr::<proto::AttesterCommittee, _>(&committee, serde_json::value::Serializer)
+            .proto_repr::<proto::AttesterCommittee, _>(committee, serde_json::value::Serializer)
             .unwrap();
         sqlx::query!(
             r#"
