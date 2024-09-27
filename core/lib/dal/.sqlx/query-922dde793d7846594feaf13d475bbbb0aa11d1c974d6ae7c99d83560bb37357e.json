@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                miniblocks.number,\n                miniblocks.timestamp,\n                miniblocks.hash,\n                miniblocks.l1_tx_count,\n                miniblocks.l2_tx_count,\n                fee_account_address AS \"fee_account_address!\",\n                miniblocks.base_fee_per_gas,\n                miniblocks.l1_gas_price,\n                miniblocks.l2_fair_gas_price,\n                miniblocks.gas_per_pubdata_limit,\n                miniblocks.bootloader_code_hash,\n                miniblocks.default_aa_code_hash,\n                l1_batches.evm_simulator_code_hash,\n                miniblocks.protocol_version,\n                miniblocks.virtual_blocks,\n                miniblocks.fair_pubdata_price,\n                miniblocks.gas_limit,\n                miniblocks.logs_bloom\n            FROM\n                miniblocks\n                LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                hash,\n                l1_tx_count,\n                l2_tx_count,\n                fee_account_address AS \"fee_account_address!\",\n                base_fee_per_gas,\n                l1_gas_price,\n                l2_fair_gas_price,\n                gas_per_pubdata_limit,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_simulator_code_hash,\n                protocol_version,\n                virtual_blocks,\n                fair_pubdata_price,\n                gas_limit,\n                logs_bloom\n            FROM\n                miniblocks\n            WHERE\n                number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -95,7 +95,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8"
+      ]
     },
     "nullable": [
       false,
@@ -118,5 +120,5 @@
       true
     ]
   },
-  "hash": "7ab5adc5fd35ae709ceb1506329106bb777f29b3cb88d53786c02f2860631691"
+  "hash": "922dde793d7846594feaf13d475bbbb0aa11d1c974d6ae7c99d83560bb37357e"
 }

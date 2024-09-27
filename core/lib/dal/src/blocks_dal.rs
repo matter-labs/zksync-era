@@ -712,6 +712,7 @@ impl BlocksDal<'_, '_> {
                     gas_per_pubdata_limit,
                     bootloader_code_hash,
                     default_aa_code_hash,
+                    evm_simulator_code_hash,
                     protocol_version,
                     virtual_blocks,
                     fair_pubdata_price,
@@ -739,6 +740,7 @@ impl BlocksDal<'_, '_> {
                     $15,
                     $16,
                     $17,
+                    $18,
                     NOW(),
                     NOW()
                 )
@@ -761,6 +763,11 @@ impl BlocksDal<'_, '_> {
                 .base_system_contracts_hashes
                 .default_aa
                 .as_bytes(),
+            l2_block_header
+                .base_system_contracts_hashes
+                .evm_simulator
+                .as_ref()
+                .map(H256::as_bytes),
             l2_block_header.protocol_version.map(|v| v as i32),
             i64::from(l2_block_header.virtual_blocks),
             l2_block_header.batch_fee_input.fair_pubdata_price() as i64,
@@ -777,27 +784,26 @@ impl BlocksDal<'_, '_> {
             StorageL2BlockHeader,
             r#"
             SELECT
-                miniblocks.number,
-                miniblocks.timestamp,
-                miniblocks.hash,
-                miniblocks.l1_tx_count,
-                miniblocks.l2_tx_count,
+                number,
+                timestamp,
+                hash,
+                l1_tx_count,
+                l2_tx_count,
                 fee_account_address AS "fee_account_address!",
-                miniblocks.base_fee_per_gas,
-                miniblocks.l1_gas_price,
-                miniblocks.l2_fair_gas_price,
-                miniblocks.gas_per_pubdata_limit,
-                miniblocks.bootloader_code_hash,
-                miniblocks.default_aa_code_hash,
-                l1_batches.evm_simulator_code_hash,
-                miniblocks.protocol_version,
-                miniblocks.virtual_blocks,
-                miniblocks.fair_pubdata_price,
-                miniblocks.gas_limit,
-                miniblocks.logs_bloom
+                base_fee_per_gas,
+                l1_gas_price,
+                l2_fair_gas_price,
+                gas_per_pubdata_limit,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                evm_simulator_code_hash,
+                protocol_version,
+                virtual_blocks,
+                fair_pubdata_price,
+                gas_limit,
+                logs_bloom
             FROM
                 miniblocks
-                LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
             ORDER BY
                 number DESC
             LIMIT
@@ -819,29 +825,28 @@ impl BlocksDal<'_, '_> {
             StorageL2BlockHeader,
             r#"
             SELECT
-                miniblocks.number,
-                miniblocks.timestamp,
-                miniblocks.hash,
-                miniblocks.l1_tx_count,
-                miniblocks.l2_tx_count,
+                number,
+                timestamp,
+                hash,
+                l1_tx_count,
+                l2_tx_count,
                 fee_account_address AS "fee_account_address!",
-                miniblocks.base_fee_per_gas,
-                miniblocks.l1_gas_price,
-                miniblocks.l2_fair_gas_price,
-                miniblocks.gas_per_pubdata_limit,
-                miniblocks.bootloader_code_hash,
-                miniblocks.default_aa_code_hash,
-                l1_batches.evm_simulator_code_hash,
-                miniblocks.protocol_version,
-                miniblocks.virtual_blocks,
-                miniblocks.fair_pubdata_price,
-                miniblocks.gas_limit,
-                miniblocks.logs_bloom
+                base_fee_per_gas,
+                l1_gas_price,
+                l2_fair_gas_price,
+                gas_per_pubdata_limit,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                evm_simulator_code_hash,
+                protocol_version,
+                virtual_blocks,
+                fair_pubdata_price,
+                gas_limit,
+                logs_bloom
             FROM
                 miniblocks
-                LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
             WHERE
-                miniblocks.number = $1
+                number = $1
             "#,
             i64::from(l2_block_number.0),
         )
@@ -2696,6 +2701,40 @@ mod tests {
             )
             .await
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn persisting_evm_simulator_hash() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let mut l2_block_header = create_l2_block_header(1);
+        l2_block_header.base_system_contracts_hashes.evm_simulator = Some(H256::repeat_byte(0x23));
+        conn.blocks_dal()
+            .insert_l2_block(&l2_block_header)
+            .await
+            .unwrap();
+
+        let mut fetched_block_header = conn
+            .blocks_dal()
+            .get_last_sealed_l2_block_header()
+            .await
+            .unwrap()
+            .expect("no block");
+        // Batch fee input isn't restored exactly
+        fetched_block_header.batch_fee_input = l2_block_header.batch_fee_input;
+
+        assert_eq!(fetched_block_header, l2_block_header);
+        // ...and a sanity check just to be sure
+        assert!(fetched_block_header
+            .base_system_contracts_hashes
+            .evm_simulator
+            .is_some());
     }
 
     #[tokio::test]

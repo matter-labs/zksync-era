@@ -508,11 +508,9 @@ impl StorageApiTransaction {
             .signature
             .and_then(|signature| PackedEthSignature::deserialize_packed(&signature).ok());
 
-        let to = if let Ok(address) = serde_json::from_value(self.execute_contract_address) {
-            Some(address)
-        } else {
-            Some(Address::zero())
-        };
+        let to = serde_json::from_value(self.execute_contract_address)
+            .ok()
+            .unwrap_or_default();
 
         // For legacy and EIP-2930 transactions it is gas price willing to be paid by the sender in wei.
         // For other transactions it should be the effective gas price if transaction is included in block,
