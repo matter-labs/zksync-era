@@ -424,6 +424,7 @@ impl EthTxAggregator {
 
     fn encode_aggregated_op(&self, op: &AggregatedOperation) -> TxData {
         let mut args = vec![Token::Uint(self.rollup_chain_id.as_u64().into())];
+        let is_op_pre_gateway = op.protocol_version().is_pre_gateway();
 
         let (calldata, sidecar) = match op {
             AggregatedOperation::Commit(last_committed_l1_batch, l1_batches, pubdata_da) => {
@@ -433,17 +434,17 @@ impl EthTxAggregator {
                     pubdata_da: *pubdata_da,
                     mode: self.aggregator.mode(),
                 };
-                let commit_data_base = commit_batches.into_tokens(
-                    l1_batches[0]
-                        .header
-                        .protocol_version
-                        .unwrap()
-                        .is_pre_gateway(),
-                );
+                let commit_data_base = commit_batches.into_tokens(is_op_pre_gateway);
 
                 args.extend(commit_data_base);
 
                 let commit_data = args;
+
+                let encoding_fn = if is_op_pre_gateway {
+                    &self.functions.post_shared_bridge_commit
+                } else {
+                    &self.functions.post_gateway_commit
+                };
 
                 let l1_batch_for_sidecar = if PubdataDA::Blobs == self.aggregator.pubdata_da() {
                     Some(l1_batches[0].clone())
@@ -451,26 +452,28 @@ impl EthTxAggregator {
                     None
                 };
 
-                Self::encode_commit_data(
-                    &self.functions.post_shared_bridge_commit,
-                    &commit_data,
-                    l1_batch_for_sidecar,
-                )
+                Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
             }
             AggregatedOperation::PublishProofOnchain(op) => {
                 args.extend(op.into_tokens());
-                let calldata = self
-                    .functions
-                    .post_shared_bridge_prove
+                let encoding_fn = if is_op_pre_gateway {
+                    &self.functions.post_shared_bridge_prove
+                } else {
+                    &self.functions.post_gateway_prove
+                };
+                let calldata = encoding_fn
                     .encode_input(&args)
                     .expect("Failed to encode prove transaction data");
                 (calldata, None)
             }
             AggregatedOperation::Execute(op) => {
                 args.extend(op.into_tokens());
-                let calldata = self
-                    .functions
-                    .post_shared_bridge_execute
+                let encoding_fn = if is_op_pre_gateway {
+                    &self.functions.post_shared_bridge_execute
+                } else {
+                    &self.functions.post_gateway_execute
+                };
+                let calldata = encoding_fn
                     .encode_input(&args)
                     .expect("Failed to encode execute transaction data");
                 (calldata, None)
