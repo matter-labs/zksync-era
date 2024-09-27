@@ -46,7 +46,6 @@ impl ProtoRepr for proto::GeneralConfig {
             ),
             experimental_vm_config: read_optional_repr(&self.experimental_vm),
             prover_job_monitor_config: read_optional_repr(&self.prover_job_monitor),
-            use_evm_simulator: read_optional_repr(&self.use_evm_simulator),
         })
     }
 
@@ -103,7 +102,6 @@ impl ProtoRepr for proto::GeneralConfig {
                 .as_ref()
                 .map(ProtoRepr::build),
             experimental_vm: this.experimental_vm_config.as_ref().map(ProtoRepr::build),
-            use_evm_simulator: this.use_evm_simulator.as_ref().map(ProtoRepr::build),
             prover_job_monitor: this
                 .prover_job_monitor_config
                 .as_ref()
