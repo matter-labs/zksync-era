@@ -25,7 +25,7 @@ pub use self::{
     proof_data_handler::ProofDataHandlerConfig,
     prover_job_monitor::ProverJobMonitorConfig,
     pruning::PruningConfig,
-    secrets::{DatabaseSecrets, L1Secrets, Secrets},
+    secrets::{DataAvailabilitySecrets, DatabaseSecrets, L1Secrets, Secrets},
     snapshot_recovery::SnapshotRecoveryConfig,
     snapshots_creator::SnapshotsCreatorConfig,
     utils::PrometheusConfig,

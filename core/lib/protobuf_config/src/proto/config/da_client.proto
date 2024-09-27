@@ -4,30 +4,18 @@ package zksync.config.da_client;
 
 import "zksync/config/object_store.proto";
 
-message AvailSecrets {
-  optional string seed_phrase = 1;
-}
-
 message AvailConfig {
   optional string api_node_url = 1;
   optional string bridge_api_url = 2;
   optional uint32 app_id = 4;
   optional uint64 timeout = 5;
   optional uint64 max_retries = 6;
-
-  optional AvailSecrets secrets = 7;
   reserved 3; reserved "seed";
-}
-
-message CelestiaSecrets {
-  optional string private_key = 1;
 }
 
 message CelestiaConfig {
   optional string api_node_url = 1;
   optional string namespace = 2;
-
-  optional CelestiaSecrets secrets = 3;
 }
 
 message DataAvailabilityClient {

@@ -8,8 +8,6 @@ pub struct AvailConfig {
     pub app_id: u32,
     pub timeout: usize,
     pub max_retries: usize,
-    #[serde(skip)]
-    pub secrets: Option<AvailSecrets>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

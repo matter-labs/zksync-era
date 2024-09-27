@@ -3,7 +3,7 @@ use std::{fmt::Debug, sync::Arc};
 use async_trait::async_trait;
 use jsonrpsee::ws_client::WsClientBuilder;
 use subxt_signer::ExposeSecret;
-use zksync_config::configs::da_client::avail::AvailConfig;
+use zksync_config::configs::da_client::avail::{AvailConfig, AvailSecrets};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
@@ -19,11 +19,7 @@ pub struct AvailClient {
 }
 
 impl AvailClient {
-    pub async fn new(config: AvailConfig) -> anyhow::Result<Self> {
-        let Some(secrets) = config.clone().secrets else {
-            return Err(anyhow::anyhow!("Avail secrets are empty"));
-        };
-
+    pub async fn new(config: AvailConfig, secrets: AvailSecrets) -> anyhow::Result<Self> {
         let sdk_client =
             RawAvailClient::new(config.app_id, secrets.seed_phrase.0.expose_secret()).await?;
 

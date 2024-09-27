@@ -2,15 +2,22 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use secrecy::ExposeSecret;
-use zksync_basic_types::url::SensitiveUrl;
+use zksync_basic_types::{
+    secrets::{PrivateKey, SeedPhrase},
+    url::SensitiveUrl,
+};
 use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
-    secrets::Secrets,
+    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets},
+    secrets::{DataAvailabilitySecrets, Secrets},
     DatabaseSecrets, L1Secrets,
 };
 use zksync_protobuf::{required, ProtoRepr};
 
-use crate::{proto::secrets as proto, read_optional_repr};
+use crate::{
+    proto::{secrets as proto, secrets::data_availability_secrets::DaSecrets},
+    read_optional_repr,
+};
 
 impl ProtoRepr for proto::Secrets {
     type Type = Secrets;
@@ -20,6 +27,7 @@ impl ProtoRepr for proto::Secrets {
             consensus: read_optional_repr(&self.consensus),
             database: read_optional_repr(&self.database),
             l1: read_optional_repr(&self.l1),
+            data_availability: read_optional_repr(&self.data_availability),
         })
     }
 
@@ -28,6 +36,7 @@ impl ProtoRepr for proto::Secrets {
             database: this.database.as_ref().map(ProtoRepr::build),
             l1: this.l1.as_ref().map(ProtoRepr::build),
             consensus: this.consensus.as_ref().map(ProtoRepr::build),
+            data_availability: this.data_availability.as_ref().map(ProtoRepr::build),
         }
     }
 }
@@ -83,6 +92,48 @@ impl ProtoRepr for proto::L1Secrets {
     fn build(this: &Self::Type) -> Self {
         Self {
             l1_rpc_url: Some(this.l1_rpc_url.expose_str().to_string()),
+        }
+    }
+}
+
+impl ProtoRepr for proto::DataAvailabilitySecrets {
+    type Type = DataAvailabilitySecrets;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        let secrets = required(&self.da_secrets).context("config")?;
+
+        let client = match secrets {
+            DaSecrets::Avail(avail) => DataAvailabilitySecrets::Avail(AvailSecrets {
+                seed_phrase: SeedPhrase::from_str(
+                    required(&avail.seed_phrase).context("seed_phrase")?,
+                )
+                .unwrap(),
+            }),
+            DaSecrets::Celestia(celestia) => DataAvailabilitySecrets::Celestia(CelestiaSecrets {
+                private_key: PrivateKey::from_str(
+                    required(&celestia.private_key).context("private_key")?,
+                )
+                .unwrap(),
+            }),
+        };
+
+        Ok(client)
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        let secrets = match &this {
+            DataAvailabilitySecrets::Avail(config) => Some(DaSecrets::Avail(proto::AvailSecrets {
+                seed_phrase: Some(config.seed_phrase.0.expose_secret().to_string()),
+            })),
+            DataAvailabilitySecrets::Celestia(config) => {
+                Some(DaSecrets::Celestia(proto::CelestiaSecrets {
+                    private_key: Some(config.private_key.0.expose_secret().to_string()),
+                }))
+            }
+        };
+
+        Self {
+            da_secrets: secrets,
         }
     }
 }

@@ -8,7 +8,7 @@ use celestia_rpc::{BlobClient, Client};
 use celestia_types::{blob::Commitment, nmt::Namespace, Blob, TxConfig};
 use serde::{Deserialize, Serialize};
 use subxt_signer::ExposeSecret;
-use zksync_config::configs::da_client::celestia::CelestiaConfig;
+use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
@@ -24,17 +24,13 @@ pub struct CelestiaClient {
 }
 
 impl CelestiaClient {
-    pub async fn new(config: CelestiaConfig) -> anyhow::Result<Self> {
-        let Some(secrets) = config.clone().secrets else {
-            return Err(anyhow::anyhow!("Celestia secrets are empty"));
-        };
-
+    pub async fn new(config: CelestiaConfig, secrets: CelestiaSecrets) -> anyhow::Result<Self> {
         let client = Client::new(
             &config.api_node_url,
             Some(secrets.private_key.0.expose_secret()),
         )
         .await
-        .expect("could not create client");
+        .expect("could not create Celestia client");
 
         Ok(Self {
             config: config.clone(),

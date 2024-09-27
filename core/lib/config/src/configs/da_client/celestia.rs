@@ -5,8 +5,6 @@ use zksync_basic_types::secrets::PrivateKey;
 pub struct CelestiaConfig {
     pub api_node_url: String,
     pub namespace: String,
-    #[serde(skip)]
-    pub secrets: Option<CelestiaSecrets>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
