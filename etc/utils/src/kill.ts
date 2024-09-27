@@ -3,7 +3,6 @@ import { exec } from 'node:child_process';
 
 export async function killPidWithAllChilds(pid: number, signalNumber: number) {
     let childs = [pid];
-    console.log('kill child', pid, signalNumber);
     while (true) {
         try {
             let child = childs.at(-1);
@@ -13,9 +12,7 @@ export async function killPidWithAllChilds(pid: number, signalNumber: number) {
         }
     }
     // We always run the test using additional tools, that means we have to kill not the main process, but the child process
-    console.log('childs', childs);
     for (let i = childs.length - 1; i >= 0; i--) {
-        console.log(`kill ${childs[i]}`);
         try {
             await promisify(exec)(`kill -${signalNumber} ${childs[i]}`);
         } catch (e) {

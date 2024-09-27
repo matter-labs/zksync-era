@@ -285,7 +285,7 @@ testFees('Test fees', function () {
         deleteInternalEnforcedL1GasPrice(pathToHome, fileConfig);
         deleteInternalEnforcedPubdataPrice(pathToHome, fileConfig);
         mainNode = await mainNodeSpawner.spawnMainNode();
-        await __ZKSYNC_TEST_CONTEXT_OWNER__.setPid(mainNode.proc.pid!);
+        __ZKSYNC_TEST_CONTEXT_OWNER__.setL2NodePid(mainNode.proc.pid!);
     });
 });
 

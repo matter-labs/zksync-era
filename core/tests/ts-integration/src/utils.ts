@@ -15,41 +15,6 @@ import {
 
 // executes a command in background and returns a child process handle
 // by default pipes data to parent's stdio but this can be overridden
-export function background({
-    command,
-    stdio = 'inherit',
-    cwd,
-    env
-}: {
-    command: string;
-    stdio: any;
-    cwd?: ProcessEnvOptions['cwd'];
-    env?: ProcessEnvOptions['env'];
-}): ChildProcessWithoutNullStreams {
-    command = command.replace(/\n/g, ' ');
-    console.log(`Run command ${command}`);
-    return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd, env });
-}
-
-export function runInBackground({
-    command,
-    components,
-    stdio,
-    cwd,
-    env
-}: {
-    command: string;
-    components?: string[];
-    stdio: any;
-    cwd?: Parameters<typeof background>[0]['cwd'];
-    env?: Parameters<typeof background>[0]['env'];
-}): ChildProcessWithoutNullStreams {
-    if (components && components.length > 0) {
-        command += ` --components=${components.join(',')}`;
-    }
-    return background({ command, stdio, cwd, env });
-}
-
 export function runServerInBackground({
     components,
     stdio,
@@ -60,8 +25,8 @@ export function runServerInBackground({
 }: {
     components?: string[];
     stdio: any;
-    cwd?: Parameters<typeof background>[0]['cwd'];
-    env?: Parameters<typeof background>[0]['env'];
+    cwd?: ProcessEnvOptions['cwd'];
+    env?: ProcessEnvOptions['env'];
     useZkInception?: boolean;
     newL1GasPrice?: string;
     newPubdataPrice?: string;
@@ -76,7 +41,12 @@ export function runServerInBackground({
     } else {
         command = 'zk server';
     }
-    return runInBackground({ command, components, stdio, cwd, env });
+    if (components && components.length > 0) {
+        command += ` --components=${components.join(',')}`;
+    }
+    command = command.replace(/\n/g, ' ');
+    console.log(`Run command ${command}`);
+    return _spawn(command, { stdio: stdio, shell: true, detached: true, cwd, env });
 }
 
 export interface MainNodeSpawnOptions {
@@ -115,14 +85,6 @@ export class Node<TYPE extends NodeType> {
         }
     }
 
-    /** Waits for the node process to exit. */
-    public async waitForExit(): Promise<number> {
-        while (this.proc.exitCode === null) {
-            await utils.sleep(1);
-        }
-        return this.proc.exitCode;
-    }
-
     public async killAndWaitForShutdown() {
         await this.terminate();
         // Wait until it's really stopped.
@@ -149,7 +111,7 @@ export class NodeSpawner {
         private readonly logs: fs.FileHandle,
         private readonly fileConfig: FileConfig,
         private readonly options: MainNodeSpawnOptions,
-        private readonly env?: ProcessEnvOptions['env']
+        private env?: ProcessEnvOptions['env']
     ) {}
 
     public async spawnMainNode(newL1GasPrice?: string, newPubdataPrice?: string): Promise<Node<NodeType.MAIN>> {

@@ -626,7 +626,9 @@ export class TestContextOwner {
             throw error;
         }
         if (this.env.l2NodePid !== undefined) {
+            this.reporter.startAction(`Terminating L2 node process`);
             await killPidWithAllChilds(this.env.l2NodePid, 9);
+            this.reporter.finishAction();
         }
     }
 
@@ -653,7 +655,7 @@ export class TestContextOwner {
         // deposit less next time.
     }
 
-    async setPid(newPid: number) {
+    setL2NodePid(newPid: number) {
         this.env.l2NodePid = newPid;
     }
 }
