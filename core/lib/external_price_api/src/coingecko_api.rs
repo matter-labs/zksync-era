@@ -49,7 +49,7 @@ impl CoinGeckoPriceAPIClient {
         }
     }
 
-    /// returns ETH/BaseToken price of a token by address
+    /// returns token price in ETH by token address. Returned value is X such that 1 TOKEN = X ETH.
     async fn get_token_price_by_address(&self, address: Address) -> anyhow::Result<f64> {
         let address_str = address_to_string(&address);
         let price_url = self

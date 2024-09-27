@@ -13,7 +13,8 @@ use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
 #[async_trait]
 pub trait PriceAPIClient: Sync + Send + fmt::Debug + 'static {
     /// Returns the BaseToken<->ETH ratio for the input token address.
-    /// The returned unit is BaseToken/ETH. Example if 1 BaseToken = 0.002 ETH, then ratio is 500/1
+    /// The returned value is rational number X such that X BaseToken = 1 ETH.
+    /// Example if 1 BaseToken = 0.002 ETH, then ratio is 500/1 (500 BaseToken = 1ETH)
     async fn fetch_ratio(&self, token_address: Address) -> anyhow::Result<BaseTokenAPIRatio>;
 }
 
