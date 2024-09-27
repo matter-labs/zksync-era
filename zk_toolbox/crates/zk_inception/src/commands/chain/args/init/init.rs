@@ -7,9 +7,8 @@ use serde::{Deserialize, Serialize};
 use types::L1Network;
 use url::Url;
 
-use super::genesis::GenesisArgsFinal;
 use crate::{
-    commands::chain::args::genesis::GenesisArgs,
+    commands::chain::args::genesis::{GenesisArgs, GenesisArgsFinal},
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_DEPLOY_PAYMASTER_PROMPT, MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP,

@@ -5,9 +5,11 @@ use serde::{Deserialize, Serialize};
 use types::L1Network;
 use url::Url;
 
-use super::{genesis::GenesisArgsFinal, init::InitArgsFinal};
 use crate::{
-    commands::chain::args::{genesis::GenesisArgs, init::PortOffset},
+    commands::chain::args::{
+        genesis::{GenesisArgs, GenesisArgsFinal},
+        init::InitArgsFinal,
+    },
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
@@ -28,7 +30,6 @@ pub struct InitConfigsArgs {
 pub struct InitConfigsArgsFinal {
     pub genesis_args: GenesisArgsFinal,
     pub l1_rpc_url: String,
-    pub port_offset: u16,
 }
 
 impl InitConfigsArgs {
@@ -50,7 +51,6 @@ impl InitConfigsArgs {
         InitConfigsArgsFinal {
             genesis_args: self.genesis_args.fill_values_with_prompt(config),
             l1_rpc_url,
-            port_offset: PortOffset::from_chain_id(config.id as u16).into(),
         }
     }
 }
@@ -60,7 +60,6 @@ impl InitConfigsArgsFinal {
         InitConfigsArgsFinal {
             genesis_args: init_args.genesis_args.clone(),
             l1_rpc_url: init_args.l1_rpc_url.clone(),
-            port_offset: init_args.port_offset.clone(),
         }
     }
 }

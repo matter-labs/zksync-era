@@ -3,11 +3,10 @@ use common::{config::global_config, logger, spinner::Spinner};
 use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
 
-use super::{args::genesis::GenesisArgsFinal, genesis};
 use crate::{
     commands::chain::{
-        args::genesis::GenesisArgs,
-        genesis::{database::initialize_databases, server::run_server_genesis},
+        args::genesis::{GenesisArgs, GenesisArgsFinal},
+        genesis::{self, database::initialize_databases, server::run_server_genesis},
     },
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_GENESIS_COMPLETED, MSG_INITIALIZING_DATABASES_SPINNER,

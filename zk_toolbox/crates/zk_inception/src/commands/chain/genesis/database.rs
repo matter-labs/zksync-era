@@ -106,6 +106,11 @@ pub fn update_configs(
 ) -> anyhow::Result<()> {
     shell.create_dir(&config.rocks_db_path)?;
 
+    // Update secrets configs
+    let mut secrets = config.get_secrets_config()?;
+    set_databases(&mut secrets, &args.server_db, &args.prover_db)?;
+    secrets.save_with_base_path(shell, &config.configs)?;
+
     // Update general config
     let mut general = config.get_general_config()?;
     let rocks_db = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::Main)
@@ -114,10 +119,6 @@ pub fn update_configs(
     set_rocks_db_config(&mut general, rocks_db)?;
     set_file_artifacts(&mut general, file_artifacts);
     general.save_with_base_path(shell, &config.configs)?;
-
-    let mut secrets = config.get_secrets_config()?;
-    set_databases(&mut secrets, &args.server_db, &args.prover_db)?;
-    secrets.save_with_base_path(shell, &config.configs)?;
 
     let link_to_code = config.link_to_code.clone();
     if config.prover_version != ProverMode::NoProofs {

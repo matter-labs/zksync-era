@@ -1,17 +1,13 @@
 use ::common::forge::ForgeScriptArgs;
 use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
-use clap::{command, Parser, Subcommand};
+use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
 use crate::commands::chain::{
-    args::{
-        create::ChainCreateArgs, genesis::GenesisArgs, init::InitArgs,
-        init_configs::InitConfigsArgs,
-    },
-    deploy_l2_contracts::Deploy2ContractsOption,
-    genesis::GenesisSubcommands,
+    args::create::ChainCreateArgs, deploy_l2_contracts::Deploy2ContractsOption,
+    genesis::GenesisCommand, init::ChainInitCommand,
 };
 
 mod accept_chain_ownership;
@@ -22,21 +18,10 @@ mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 pub mod genesis;
-pub mod genesis_all;
-pub(crate) mod init;
-mod init_configs;
+pub mod init;
 pub mod register_chain;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
-
-#[derive(Parser, Debug)]
-#[command()]
-pub struct GenesisCommand {
-    #[command(subcommand)]
-    command: Option<GenesisSubcommands>,
-    #[clap(flatten)]
-    args: GenesisArgs,
-}
 
 #[derive(Subcommand, Debug)]
 pub enum ChainCommands {
@@ -45,7 +30,7 @@ pub enum ChainCommands {
     /// Create unsigned transactions for chain deployment
     BuildTransactions(BuildTransactionsArgs),
     /// Initialize chain, deploying necessary contracts and performing on-chain operations
-    Init(InitArgs),
+    Init(ChainInitCommand),
     /// Run server genesis
     Genesis(GenesisCommand),
     /// Register a new chain on L1 (executed by L1 governor).
@@ -76,8 +61,6 @@ pub enum ChainCommands {
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
-    /// Initializes chain configs
-    InitConfigs(InitConfigsArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -85,13 +68,7 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::Create(args) => create::run(args, shell),
         ChainCommands::Init(args) => init::run(args, shell).await,
         ChainCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
-        ChainCommands::Genesis(args) => match args.command {
-            Some(GenesisSubcommands::InitDatabase(args)) => {
-                genesis::database::run(args, shell).await
-            }
-            Some(GenesisSubcommands::Server) => genesis::server::run(shell).await,
-            None => genesis_all::run(args.args, shell).await,
-        },
+        ChainCommands::Genesis(args) => genesis::run(args, shell).await,
         ChainCommands::RegisterChain(args) => register_chain::run(args, shell).await,
         ChainCommands::DeployL2Contracts(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::All).await
@@ -110,6 +87,5 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
-        ChainCommands::InitConfigs(args) => init_configs::run(args, shell).await,
     }
 }

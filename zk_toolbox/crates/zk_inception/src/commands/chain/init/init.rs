@@ -4,17 +4,14 @@ use config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
 use types::BaseToken;
 use xshell::Shell;
 
-use super::common::{distribute_eth, mint_base_token};
 use crate::{
     accept_ownership::accept_admin,
     commands::chain::{
-        args::{
-            init::{InitArgs, InitArgsFinal},
-            init_configs::InitConfigsArgsFinal,
-        },
+        args::init::{configs::InitConfigsArgsFinal, InitArgs, InitArgsFinal},
+        common::{distribute_eth, mint_base_token},
         deploy_l2_contracts, deploy_paymaster,
-        genesis_all::genesis,
-        init_configs::init_configs,
+        genesis::genesis,
+        init::configs::init_configs,
         register_chain::register_chain,
         set_token_multiplier_setter::set_token_multiplier_setter,
         setup_legacy_bridge::setup_legacy_bridge,
