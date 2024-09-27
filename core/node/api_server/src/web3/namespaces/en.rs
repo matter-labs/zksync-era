@@ -34,7 +34,9 @@ impl EnNamespace {
             return Ok(None);
         };
         Ok(Some(en::ConsensusGlobalConfig(
-            zksync_protobuf::serde::serialize(&cfg, serde_json::value::Serializer).unwrap(),
+            zksync_protobuf::serde::Serialize
+                .proto_fmt(&cfg, serde_json::value::Serializer)
+                .unwrap(),
         )))
     }
 
@@ -49,7 +51,9 @@ impl EnNamespace {
             return Ok(None);
         };
         Ok(Some(en::ConsensusGenesis(
-            zksync_protobuf::serde::serialize(&cfg.genesis, serde_json::value::Serializer).unwrap(),
+            zksync_protobuf::serde::Serialize
+                .proto_fmt(&cfg.genesis, serde_json::value::Serializer)
+                .unwrap(),
         )))
     }
 
@@ -76,7 +80,9 @@ impl EnNamespace {
             return Ok(None);
         };
         Ok(Some(en::AttestationStatus(
-            zksync_protobuf::serde::serialize(&status, serde_json::value::Serializer).unwrap(),
+            zksync_protobuf::serde::Serialize
+                .proto_fmt(&status, serde_json::value::Serializer)
+                .unwrap(),
         )))
     }
 
