@@ -210,12 +210,12 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                 );
                 VmInstance::Vm1_5_0(vm)
             }
-            VmVersion::VmSyncLayer => {
+            VmVersion::VmGateway => {
                 let vm = crate::vm_latest::Vm::new_with_subversion(
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    crate::vm_latest::MultiVMSubversion::SyncLayer,
+                    crate::vm_latest::MultiVMSubversion::Gateway,
                 );
                 VmInstance::Vm1_5_0(vm)
             }

@@ -239,7 +239,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
             apply_pubdata_to_memory(
                 &mut memory_to_apply,
                 pubdata_input,
-                bootloader_state.pubdata_params,
+                bootloader_state.get_pubdata_params(),
+                bootloader_state.get_vm_subversion(),
             );
             state.memory.populate_page(
                 BOOTLOADER_HEAP_PAGE as usize,
