@@ -24,12 +24,12 @@ axum.workspace = true
 tokio.workspace = true
 tower-http = { workspace = true, features = ["compression-zstd", "decompression-zstd"] }
 tracing.workspace = true
+chrono.workspace = true
 
 [dev-dependencies]
 hyper.workspace = true
-chrono.workspace = true
 zksync_multivm.workspace = true
 serde_json.workspace = true
 tower.workspace = true
-zksync_basic_types.workspace = true
 zksync_contracts.workspace = true
+zksync_basic_types.workspace = true
