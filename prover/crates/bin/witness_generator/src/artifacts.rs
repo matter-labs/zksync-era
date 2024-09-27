@@ -1,20 +1,20 @@
-use std::time::Instant;
+use std::{sync::Arc, time::Instant};
 
 use async_trait::async_trait;
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover};
 
 #[derive(Debug)]
-pub(crate) struct AggregationBlobUrls {
+pub struct AggregationBlobUrls {
     pub aggregation_urls: String,
     pub circuit_ids_and_urls: Vec<(u8, String)>,
 }
 
 #[async_trait]
-pub(crate) trait ArtifactsManager {
+pub trait ArtifactsManager {
     type InputMetadata;
     type InputArtifacts;
-    type OutputArtifacts;
+    type OutputArtifacts: Send + Clone + 'static;
     type BlobUrls;
 
     async fn get_artifacts(
@@ -26,6 +26,8 @@ pub(crate) trait ArtifactsManager {
         job_id: u32,
         artifacts: Self::OutputArtifacts,
         object_store: &dyn ObjectStore,
+        shall_save_to_public_bucket: bool,
+        public_blob_store: Option<Arc<dyn ObjectStore>>,
     ) -> Self::BlobUrls;
 
     async fn save_to_database(

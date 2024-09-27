@@ -200,7 +200,7 @@ mod tests {
             round: AggregationRound::BasicCircuits,
         };
 
-        let result = get_setup_data_key(key.clone());
+        let result = get_setup_data_key(key);
 
         // Check if the key has remained same
         assert_eq!(key, result);
