@@ -1,9 +1,9 @@
-/// Utility functions for the VM.
-use ethabi;
+//! Utility functions for the VM.
+
 use once_cell::sync::Lazy;
-use zk_evm_1_4_1::sha2;
 use zk_evm_1_5_0::{
     aux_structures::MemoryPage,
+    sha2,
     zkevm_opcode_defs::{BlobSha256Format, VersionedHashLen32},
 };
 use zksync_types::{H256, KNOWN_CODES_STORAGE_ADDRESS};
@@ -15,7 +15,6 @@ pub(crate) mod logs;
 pub mod overhead;
 pub mod transaction_encoding;
 
-/// TODO: maybe move to a different folder
 pub(crate) fn hash_evm_bytecode(bytecode: &[u8]) -> H256 {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();

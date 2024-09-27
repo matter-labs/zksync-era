@@ -198,7 +198,7 @@ pub struct ProposedUpgrade {
     pub factory_deps: Vec<Vec<u8>>,
     pub bootloader_hash: [u8; 32],
     pub default_account_hash: [u8; 32],
-    pub evm_simulator_hash: [u8; 32],
+    pub evm_simulator_hash: [u8; 32], // FIXME: is a breaking change here OK?
     pub verifier: Address,
     pub verifier_params: VerifierParams,
     pub l1_contracts_upgrade_calldata: Vec<u8>,
