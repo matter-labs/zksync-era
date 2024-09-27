@@ -76,7 +76,8 @@ impl EcosystemPorts {
     ) -> Result<()> {
         let file_contents = shell.read_file(file_path)?;
         let mut value: Value = serde_yaml::from_str(&file_contents)?;
-        self.traverse_allocate_ports_in_yaml(&mut value, chain_number)?;
+        let offset = (chain_number - 1) * 100;
+        self.traverse_allocate_ports_in_yaml(&mut value, offset)?;
         let new_contents = serde_yaml::to_string(&value)?;
         if new_contents != file_contents {
             shell.write_file(file_path, new_contents)?;
