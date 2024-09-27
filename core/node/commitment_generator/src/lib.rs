@@ -5,9 +5,7 @@ use itertools::Itertools;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
-use zksync_l1_contract_interface::i_executor::commit::kzg::{
-    pubdata_to_blob_commitments, ZK_SYNC_BYTES_PER_BLOB,
-};
+use zksync_l1_contract_interface::i_executor::commit::kzg::pubdata_to_blob_commitments;
 use zksync_multivm::zk_evm_latest::ethereum_types::U256;
 use zksync_types::{
     blob::num_blobs_required,
@@ -15,15 +13,17 @@ use zksync_types::{
         AuxCommitments, CommitmentCommonInput, CommitmentInput, L1BatchAuxiliaryOutput,
         L1BatchCommitment, L1BatchCommitmentArtifacts, L1BatchCommitmentMode,
     },
-    web3::keccak256,
     writes::{InitialStorageWrite, RepeatedStorageWrite, StateDiffRecord},
-    AccountTreeId, L1BatchNumber, ProtocolVersionId, StorageKey, H256, L2_MESSAGE_ROOT_ADDRESS,
+    L1BatchNumber, ProtocolVersionId, StorageKey, H256,
 };
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_utils::h256_to_u256;
 
 use crate::{
     metrics::{CommitmentStage, METRICS},
-    utils::{convert_vm_events_to_log_queries, CommitmentComputer, RealCommitmentComputer},
+    utils::{
+        convert_vm_events_to_log_queries, pubdata_to_blob_linear_hashes, read_aggregation_root,
+        CommitmentComputer, RealCommitmentComputer,
+    },
 };
 
 mod metrics;
@@ -196,6 +196,7 @@ impl CommitmentGenerator {
             .storage_logs_dal()
             .get_l1_batches_and_indices_for_initial_writes(&touched_hashed_keys)
             .await?;
+        drop(connection);
 
         let mut input = if protocol_version.is_pre_boojum() {
             let mut initial_writes = Vec::new();
@@ -287,65 +288,11 @@ impl CommitmentGenerator {
                 )
             };
 
-            let right_block = connection
-                .blocks_dal()
-                .get_l2_block_range_of_l1_batch(l1_batch_number)
-                .await?
-                .expect("No range for batch")
-                .1;
-
-            let message_root_addr = L2_MESSAGE_ROOT_ADDRESS;
-
-            println!("message_root_addr = {:#?}", message_root_addr);
-
-            const FULL_TREE_SLOT: usize = 3;
-            const NODES_SLOT: usize = 5;
-
-            let agg_tree_height_slot = StorageKey::new(
-                AccountTreeId::new(message_root_addr),
-                u256_to_h256(FULL_TREE_SLOT.into()),
-            );
-
-            let agg_tree_height = connection
-                .storage_web3_dal()
-                .get_historical_value_unchecked(agg_tree_height_slot.hashed_key(), right_block)
+            let mut connection = self
+                .connection_pool
+                .connection_tagged("commitment_generator")
                 .await?;
-            let agg_tree_height = h256_to_u256(agg_tree_height);
-
-            println!("Agg tree height: {}", agg_tree_height);
-
-            let nodes_slot_position_enoded = u256_to_h256(U256::from(NODES_SLOT));
-
-            println!(
-                "nodes_slot_position_enoded: {:#?}",
-                nodes_slot_position_enoded
-            );
-            let nodes_slot_position_enoded = H256(keccak256(&nodes_slot_position_enoded.0));
-            println!(
-                "nodes_slot_position_enoded2: {:#?}",
-                nodes_slot_position_enoded
-            );
-
-            let nodes_slot_position_enoded =
-                u256_to_h256(h256_to_u256(nodes_slot_position_enoded) + agg_tree_height);
-            println!(
-                "nodes_slot_position_enoded3: {:#?}",
-                nodes_slot_position_enoded
-            );
-
-            let root_slot_offset = H256(keccak256(&nodes_slot_position_enoded.0));
-            println!("root_slot_offset: {:#?}", nodes_slot_position_enoded);
-
-            let root_slot =
-                StorageKey::new(AccountTreeId::new(message_root_addr), root_slot_offset);
-            let aggregated_root = connection
-                .storage_web3_dal()
-                .get_historical_value_unchecked(root_slot.hashed_key(), right_block)
-                .await?;
-
-            println!("aggregated_root: {:#?}", aggregated_root);
-
-            // let root_slot_offset = H256(keccak256(&nodes_slot_position_enoded.0));
+            let aggregated_root = read_aggregation_root(&mut connection, l1_batch_number).await?;
 
             CommitmentInput::PostBoojum {
                 common,
@@ -433,7 +380,6 @@ impl CommitmentGenerator {
             (L1BatchCommitmentMode::Rollup, _) => {
                 // Do nothing
             }
-
             (
                 L1BatchCommitmentMode::Validium,
                 CommitmentInput::PostBoojum {
@@ -533,25 +479,4 @@ impl CommitmentGenerator {
         }
         Ok(())
     }
-}
-
-fn pubdata_to_blob_linear_hashes(blobs_required: usize, mut pubdata_input: Vec<u8>) -> Vec<H256> {
-    // Now, we need to calculate the linear hashes of the blobs.
-    // Firstly, let's pad the pubdata to the size of the blob.
-    if pubdata_input.len() % ZK_SYNC_BYTES_PER_BLOB != 0 {
-        let padding =
-            vec![0u8; ZK_SYNC_BYTES_PER_BLOB - pubdata_input.len() % ZK_SYNC_BYTES_PER_BLOB];
-        pubdata_input.extend(padding);
-    }
-
-    let mut result = vec![H256::zero(); blobs_required];
-
-    pubdata_input
-        .chunks(ZK_SYNC_BYTES_PER_BLOB)
-        .enumerate()
-        .for_each(|(i, chunk)| {
-            result[i] = H256(keccak256(chunk));
-        });
-
-    result
 }
