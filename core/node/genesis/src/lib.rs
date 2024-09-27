@@ -125,7 +125,10 @@ impl GenesisParams {
     }
 
     pub fn load_genesis_params(config: GenesisConfig) -> Result<GenesisParams, GenesisError> {
-        let base_system_contracts = BaseSystemContracts::load_from_disk();
+        let mut base_system_contracts = BaseSystemContracts::load_from_disk();
+        if config.evm_simulator_hash.is_some() {
+            base_system_contracts = base_system_contracts.with_latest_evm_simulator();
+        }
         let system_contracts = get_system_smart_contracts(config.evm_simulator_hash.is_some());
         Self::from_genesis_config(config, base_system_contracts, system_contracts)
     }
