@@ -68,6 +68,8 @@ pub async fn init(
         )?;
     }
     let mut general_config = chain_config.get_general_config()?;
+
+    // TODO: This is a temporary solution. We should allocate consensus port using `EcosystemPorts::allocate_ports_in_yaml`
     let offset = ((chain_config.id - 1) * 100) as u16;
     let consensus_port_range = DEFAULT_CONSENSUS_PORT + offset..PORT_RANGE_END;
     let consensus_port =
