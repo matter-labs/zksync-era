@@ -9199,6 +9199,7 @@ dependencies = [
  "ethabi",
  "hex",
  "num_enum 0.7.2",
+ "secrecy",
  "serde",
  "serde_json",
  "serde_with",

@@ -11,6 +11,7 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        secrets::DataAvailabilitySecrets,
         BasicWitnessInputProducerConfig, ContractsConfig, DatabaseSecrets, ExperimentalVmConfig,
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
@@ -116,6 +117,7 @@ fn main() -> anyhow::Result<()> {
             consensus: config::read_consensus_secrets().context("read_consensus_secrets()")?,
             database: DatabaseSecrets::from_env().ok(),
             l1: L1Secrets::from_env().ok(),
+            data_availability: DataAvailabilitySecrets::from_env().ok(),
         },
     };
 
