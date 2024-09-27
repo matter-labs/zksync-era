@@ -285,9 +285,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         pubdata_params: Default::default(),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
-        l2_shared_bridge_addr: Address::default(),
-        l2_native_token_vault_proxy_addr: Address::default(),
-        l2_legacy_shared_bridge_addr: Address::default(),
+        l2_shared_bridge_addr: Default::default(),
         pre_insert_txs: false,
     };
     connection_pool
@@ -377,9 +375,7 @@ async fn processing_events_when_sealing_l2_block() {
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
-        l2_shared_bridge_addr: Address::default(),
-        l2_native_token_vault_proxy_addr: Address::default(),
-        l2_legacy_shared_bridge_addr: Address::default(),
+        l2_shared_bridge_addr: Default::default(),
         pre_insert_txs: false,
     };
     pool.connection()
@@ -468,13 +464,8 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         vec![],
     );
 
-    let (mut persistence, l2_block_sealer) = StateKeeperPersistence::new(
-        connection_pool.clone(),
-        Address::default(),
-        Address::default(),
-        Address::default(),
-        0,
-    );
+    let (mut persistence, l2_block_sealer) =
+        StateKeeperPersistence::new(connection_pool.clone(), Some(Address::default()), 0);
     tokio::spawn(l2_block_sealer.run());
     persistence.handle_l2_block(&updates).await.unwrap();
 

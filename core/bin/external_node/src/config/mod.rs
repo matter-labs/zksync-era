@@ -111,7 +111,7 @@ pub(crate) struct RemoteENConfig {
     // a different name, with names adapted only for consistency.
     pub l1_shared_bridge_proxy_addr: Option<Address>,
     pub l2_shared_bridge_addr: Option<Address>,
-    pub l2_legacy_shared_bridge_addr: Option<Address>,
+    pub l2_token_deployer_addr: Option<Address>,
     pub l1_erc20_bridge_proxy_addr: Option<Address>,
     pub l2_erc20_bridge_addr: Option<Address>,
     pub l1_weth_bridge_addr: Option<Address>,
@@ -122,7 +122,6 @@ pub(crate) struct RemoteENConfig {
     pub dummy_verifier: bool,
 
     pub user_facing_bridgehub: Option<Address>,
-    pub l2_native_token_vault_proxy_addr: Option<Address>,
 }
 
 impl RemoteENConfig {
@@ -134,14 +133,6 @@ impl RemoteENConfig {
         let l2_testnet_paymaster_addr = client
             .get_testnet_paymaster()
             .rpc_context("get_testnet_paymaster")
-            .await?;
-        let l2_native_token_vault_proxy_addr = client
-            .get_native_token_vault_proxy_addr()
-            .rpc_context("get_native_token_vault")
-            .await?;
-        let l2_legacy_shared_bridge_addr = client
-            .get_legacy_shared_bridge()
-            .rpc_context("get_legacy_shared_bridge")
             .await?;
         let genesis = client.genesis_config().rpc_context("genesis").await.ok();
         let ecosystem_contracts = client
@@ -208,7 +199,7 @@ impl RemoteENConfig {
             l2_erc20_bridge_addr: l2_erc20_default_bridge,
             l1_shared_bridge_proxy_addr: bridges.l1_shared_default_bridge,
             l2_shared_bridge_addr: l2_erc20_shared_bridge,
-            l2_legacy_shared_bridge_addr,
+            l2_token_deployer_addr: bridges.l2_token_deployer,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             base_token_addr,
@@ -220,7 +211,6 @@ impl RemoteENConfig {
                 .as_ref()
                 .map(|a| a.dummy_verifier)
                 .unwrap_or_default(),
-            l2_native_token_vault_proxy_addr,
         })
     }
 
@@ -240,10 +230,9 @@ impl RemoteENConfig {
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(5)),
             l1_weth_bridge_addr: None,
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
-            l2_legacy_shared_bridge_addr: Some(Address::repeat_byte(7)),
+            l2_token_deployer_addr: Some(Address::repeat_byte(6)),
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             dummy_verifier: true,
-            l2_native_token_vault_proxy_addr: Some(Address::repeat_byte(7)),
         }
     }
 }
@@ -1417,6 +1406,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
                 l2_shared_default_bridge: config.remote.l2_shared_bridge_addr,
                 l1_weth_bridge: config.remote.l1_weth_bridge_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
+                l2_token_deployer: config.remote.l2_token_deployer_addr,
             },
             bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
             state_transition_proxy_addr: config.remote.state_transition_proxy_addr,
@@ -1430,8 +1420,6 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             filters_disabled: config.optional.filters_disabled,
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
-            l2_native_token_vault_proxy_addr: config.remote.l2_native_token_vault_proxy_addr,
-            l2_legacy_shared_bridge_addr: config.remote.l2_legacy_shared_bridge_addr,
         }
     }
 }

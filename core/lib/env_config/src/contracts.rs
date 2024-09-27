@@ -95,10 +95,6 @@ mod tests {
             user_facing_diamond_proxy_addr: Some(addr(
                 "0xF00B988a98Ca742e7958DeF9F7823b5908715f4a",
             )),
-            l2_native_token_vault_proxy_addr: Some(addr(
-                "0xfc073319977e314f251eae6ae6be76b0b3baeecf",
-            )),
-            l2_legacy_shared_bridge_addr: Some(addr("0x8656770FA78c830456B00B4fFCeE6b1De0e1b888")),
             chain_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             l2_da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
         }
@@ -131,7 +127,6 @@ CONTRACTS_USER_FACING_DIAMOND_PROXY_ADDR="0xF00B988a98Ca742e7958DeF9F7823b590871
 CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR="0xfc073319977e314f251eae6ae6be76b0b3baeecf"
 CONTRACTS_L2_DA_VALIDATOR_ADDR="0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
 CONTRACTS_CHAIN_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff"
-CONTRACTS_L2_LEGACY_SHARED_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
         "#;
         lock.set_env(config);
 

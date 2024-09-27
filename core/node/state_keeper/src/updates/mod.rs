@@ -85,9 +85,7 @@ impl UpdatesManager {
 
     pub(crate) fn seal_l2_block_command(
         &self,
-        l2_shared_bridge_addr: Address,
-        l2_native_token_vault_proxy_addr: Address,
-        l2_legacy_shared_bridge_addr: Address,
+        l2_shared_bridge_addr: Option<Address>,
         pre_insert_txs: bool,
     ) -> L2BlockSealCommand {
         L2BlockSealCommand {
@@ -101,8 +99,6 @@ impl UpdatesManager {
             base_system_contracts_hashes: self.base_system_contract_hashes,
             protocol_version: Some(self.protocol_version),
             l2_shared_bridge_addr,
-            l2_native_token_vault_proxy_addr,
-            l2_legacy_shared_bridge_addr,
             pre_insert_txs,
         }
     }
@@ -213,9 +209,7 @@ pub struct L2BlockSealCommand {
     pub base_fee_per_gas: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
-    pub l2_shared_bridge_addr: Address,
-    pub l2_native_token_vault_proxy_addr: Address,
-    pub l2_legacy_shared_bridge_addr: Address,
+    pub l2_shared_bridge_addr: Option<Address>,
     pub pubdata_params: PubdataParams,
     /// Whether transactions should be pre-inserted to DB.
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB

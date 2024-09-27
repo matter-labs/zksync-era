@@ -195,6 +195,13 @@ impl StateKeeperIO for MempoolIO {
                 continue;
             }
 
+            // Pubdata type should be `Rollup` for pre-gateway batches.
+            let pubdata_type = if protocol_version.is_pre_gateway() {
+                L1BatchCommitmentMode::Rollup
+            } else {
+                self.pubdata_type
+            };
+
             return Ok(Some(L1BatchParams {
                 protocol_version,
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
@@ -207,7 +214,7 @@ impl StateKeeperIO for MempoolIO {
                 },
                 pubdata_params: PubdataParams {
                     l2_da_validator_address: self.l2_da_validator_address,
-                    pubdata_type: self.pubdata_type,
+                    pubdata_type,
                 },
             }));
         }

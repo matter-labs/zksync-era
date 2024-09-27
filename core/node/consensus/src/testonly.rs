@@ -568,9 +568,7 @@ impl StateKeeperRunner {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
                 self.pool.0.clone(),
-                ethabi::Address::repeat_byte(11),
-                ethabi::Address::repeat_byte(12),
-                ethabi::Address::repeat_byte(13),
+                Some(ethabi::Address::repeat_byte(11)),
                 5,
             );
 
@@ -682,9 +680,7 @@ impl StateKeeperRunner {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
                 self.pool.0.clone(),
-                ethabi::Address::repeat_byte(11),
-                ethabi::Address::repeat_byte(12),
-                ethabi::Address::repeat_byte(13),
+                Some(ethabi::Address::repeat_byte(11)),
                 5,
             );
             let tree_writes_persistence = TreeWritesPersistence::new(self.pool.0.clone());
