@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                miniblocks.number,\n                miniblocks.timestamp,\n                miniblocks.hash,\n                miniblocks.l1_tx_count,\n                miniblocks.l2_tx_count,\n                fee_account_address AS \"fee_account_address!\",\n                miniblocks.base_fee_per_gas,\n                miniblocks.l1_gas_price,\n                miniblocks.l2_fair_gas_price,\n                miniblocks.gas_per_pubdata_limit,\n                miniblocks.bootloader_code_hash,\n                miniblocks.default_aa_code_hash,\n                l1_batches.evm_simulator_code_hash,\n                miniblocks.protocol_version,\n                miniblocks.virtual_blocks,\n                miniblocks.fair_pubdata_price,\n                miniblocks.gas_limit,\n                miniblocks.logs_bloom\n            FROM\n                miniblocks\n                INNER JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
+  "query": "\n            SELECT\n                miniblocks.number,\n                miniblocks.timestamp,\n                miniblocks.hash,\n                miniblocks.l1_tx_count,\n                miniblocks.l2_tx_count,\n                fee_account_address AS \"fee_account_address!\",\n                miniblocks.base_fee_per_gas,\n                miniblocks.l1_gas_price,\n                miniblocks.l2_fair_gas_price,\n                miniblocks.gas_per_pubdata_limit,\n                miniblocks.bootloader_code_hash,\n                miniblocks.default_aa_code_hash,\n                l1_batches.evm_simulator_code_hash,\n                miniblocks.protocol_version,\n                miniblocks.virtual_blocks,\n                miniblocks.fair_pubdata_price,\n                miniblocks.gas_limit,\n                miniblocks.logs_bloom\n            FROM\n                miniblocks\n                LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number\n            WHERE\n                miniblocks.number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -95,7 +95,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8"
+      ]
     },
     "nullable": [
       false,
@@ -118,5 +120,5 @@
       true
     ]
   },
-  "hash": "f9f2560aacc9cf94c560f3692d0dce25e8b15a8f8c15a3523ef2a04528be2741"
+  "hash": "ff894e84935c697f3aa7bd66cf64b187976f54ddfb69baffc29456da199f76f4"
 }

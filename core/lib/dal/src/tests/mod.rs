@@ -54,6 +54,7 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         logs_bloom: Default::default(),
     }
 }
+
 pub(crate) fn create_l1_batch_header(number: u32) -> L1BatchHeader {
     L1BatchHeader::new(
         L1BatchNumber(number),

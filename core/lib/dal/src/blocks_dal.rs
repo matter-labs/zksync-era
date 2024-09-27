@@ -797,7 +797,7 @@ impl BlocksDal<'_, '_> {
                 miniblocks.logs_bloom
             FROM
                 miniblocks
-                INNER JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
+                LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
             ORDER BY
                 number DESC
             LIMIT
@@ -839,7 +839,7 @@ impl BlocksDal<'_, '_> {
                 miniblocks.logs_bloom
             FROM
                 miniblocks
-                INNER JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
+                LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
             WHERE
                 miniblocks.number = $1
             "#,

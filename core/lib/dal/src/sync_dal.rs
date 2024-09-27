@@ -57,7 +57,7 @@ impl SyncDal<'_, '_> {
                 miniblocks.fee_account_address AS "fee_account_address!"
             FROM
                 miniblocks
-                INNER JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
+                LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
             WHERE
                 miniblocks.number BETWEEN $1 AND $2
             "#,
