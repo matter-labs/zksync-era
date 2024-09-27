@@ -7,8 +7,7 @@ use std::{
 
 use anyhow::{bail, Context, Result};
 use config::{
-    explorer_compose::ExplorerBackendPorts, update_port_in_host, update_port_in_url,
-    EcosystemConfig, GeneralConfig, DEFAULT_CONSENSUS_PORT, DEFAULT_EXPLORER_API_PORT,
+    explorer_compose::ExplorerBackendPorts, EcosystemConfig, DEFAULT_EXPLORER_API_PORT,
     DEFAULT_EXPLORER_DATA_FETCHER_PORT, DEFAULT_EXPLORER_WORKER_PORT,
 };
 use serde_yaml::Value;
@@ -351,96 +350,6 @@ impl ConfigWithChainPorts for ExplorerBackendPorts {
                 _ => bail!("Unknown port descriptor: {}", desc),
             }
         }
-        Ok(())
-    }
-}
-
-impl ConfigWithChainPorts for GeneralConfig {
-    fn get_default_ports(&self) -> anyhow::Result<HashMap<String, u16>> {
-        let api = self
-            .api_config
-            .clone()
-            .context("Api config is not presented")?;
-        let contract_verifier = self
-            .contract_verifier
-            .clone()
-            .context("Contract Verifier config is not presented")?;
-        let prometheus = self
-            .prometheus_config
-            .clone()
-            .context("Prometheus config is not presented")?;
-
-        let consensus_port = if let Some(consensus) = self.consensus_config.clone() {
-            consensus.server_addr.port()
-        } else {
-            DEFAULT_CONSENSUS_PORT
-        };
-
-        Ok(HashMap::from([
-            (
-                "web3_json_rpc_http_port".to_string(),
-                api.web3_json_rpc.http_port,
-            ),
-            (
-                "web3_json_rpc_ws_port".to_string(),
-                api.web3_json_rpc.ws_port,
-            ),
-            ("healthcheck_port".to_string(), api.healthcheck.port),
-            ("merkle_tree_port".to_string(), api.merkle_tree.port),
-            (
-                "prometheus_listener_port".to_string(),
-                prometheus.listener_port,
-            ),
-            ("contract_verifier_port".to_string(), contract_verifier.port),
-            ("consensus_port".to_string(), consensus_port),
-        ]))
-    }
-
-    fn set_ports(&mut self, ports: HashMap<String, u16>) -> anyhow::Result<()> {
-        if ports.len() != self.get_default_ports()?.len() {
-            bail!("Incorrect number of ports provided");
-        }
-
-        let api = self
-            .api_config
-            .as_mut()
-            .context("Api config is not presented")?;
-        let contract_verifier = self
-            .contract_verifier
-            .as_mut()
-            .context("Contract Verifier config is not presented")?;
-        let prometheus = self
-            .prometheus_config
-            .as_mut()
-            .context("Prometheus config is not presented")?;
-
-        for (desc, port) in ports {
-            match desc.as_str() {
-                "web3_json_rpc_http_port" => {
-                    api.web3_json_rpc.http_port = port;
-                    update_port_in_url(&mut api.web3_json_rpc.http_url, port)?;
-                }
-                "web3_json_rpc_ws_port" => {
-                    api.web3_json_rpc.ws_port = port;
-                    update_port_in_url(&mut api.web3_json_rpc.ws_url, port)?;
-                }
-                "healthcheck_port" => api.healthcheck.port = port,
-                "merkle_tree_port" => api.merkle_tree.port = port,
-                "prometheus_listener_port" => prometheus.listener_port = port,
-                "contract_verifier_port" => {
-                    contract_verifier.port = port;
-                    update_port_in_url(&mut contract_verifier.url, port)?;
-                }
-                "consensus_port" => {
-                    if let Some(consensus) = self.consensus_config.as_mut() {
-                        consensus.server_addr.set_port(port);
-                        update_port_in_host(&mut consensus.public_addr, port)?;
-                    }
-                }
-                _ => bail!("Unknown port descriptor: {}", desc),
-            }
-        }
-
         Ok(())
     }
 }

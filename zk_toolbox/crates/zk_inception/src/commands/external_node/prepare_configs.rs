@@ -3,8 +3,10 @@ use std::{collections::BTreeMap, path::Path, str::FromStr};
 use anyhow::Context;
 use common::{config::global_config, logger};
 use config::{
-    external_node::ENConfig, get_consensus_port, set_rocks_db_config,
-    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, SecretsConfig,
+    external_node::ENConfig,
+    get_consensus_port, set_rocks_db_config,
+    traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
+    ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfig,
 };
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
@@ -76,7 +78,6 @@ fn prepare_configs(
         gateway_url: None,
     };
     let mut general_en = general.clone();
-    ports.allocate_ports_with_offset_from_defaults(&mut general_en, config.id)?;
     let consensus_port = get_consensus_port(&general_en);
 
     // Set consensus config
@@ -123,6 +124,12 @@ fn prepare_configs(
     set_rocks_db_config(&mut general_en, dirs)?;
     general_en.save_with_base_path(shell, en_configs_path)?;
     en_config.save_with_base_path(shell, en_configs_path)?;
+
+    ports.allocate_ports_in_yaml(
+        shell,
+        &GeneralConfig::get_path_with_base_path(en_configs_path),
+        config.id,
+    )?;
 
     Ok(())
 }
