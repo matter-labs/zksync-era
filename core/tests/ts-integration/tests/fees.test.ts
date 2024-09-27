@@ -72,8 +72,9 @@ testFees('Test fees', function () {
     const pathToHome = path.join(__dirname, '../../../..');
     const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
 
-    async function logsPath(name: string): Promise<string> {
-        return await logsTestPath(fileConfig.chain, 'logs/server/fees', name);
+    async function logsPath(chain: string | undefined, name: string): Promise<string> {
+        chain = chain ? chain : 'default';
+        return await logsTestPath(chain, 'logs/server/fees', name);
     }
 
     beforeAll(async () => {
@@ -109,7 +110,7 @@ testFees('Test fees', function () {
             baseTokenAddress = contractsConfig.l1.base_token_addr;
         }
 
-        const pathToMainLogs = await logsPath('server.log');
+        const pathToMainLogs = await logsPath(fileConfig.chain, 'server.log');
         mainLogs = await fs.open(pathToMainLogs, 'a');
         console.log(`Writing server logs to ${pathToMainLogs}`);
 
