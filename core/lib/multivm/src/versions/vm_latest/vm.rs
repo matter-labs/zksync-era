@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
@@ -79,21 +81,18 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         self.state.local_state.callstack.current.ergs_remaining
     }
 
-    pub(crate) fn ask_decommitter(&self, hashes: Vec<H256>) -> Vec<Vec<u8>> {
-        let mut result = vec![];
-        for hash in hashes {
-            let bytecode = self
+    pub(crate) fn decommit_bytecodes(&self, hashes: &[H256]) -> HashMap<H256, Vec<u8>> {
+        let bytecodes = hashes.iter().map(|&hash| {
+            let bytecode_words = self
                 .state
                 .decommittment_processor
                 .known_bytecodes
                 .inner()
                 .get(&h256_to_u256(hash))
-                .expect("Bytecode not found")
-                .clone();
-            result.push(be_words_to_bytes(&bytecode));
-        }
-
-        result
+                .unwrap_or_else(|| panic!("Bytecode with hash {hash:?} not found"));
+            (hash, be_words_to_bytes(bytecode_words))
+        });
+        bytecodes.collect()
     }
 
     // visible for testing

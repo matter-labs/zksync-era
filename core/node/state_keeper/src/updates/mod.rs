@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
     interface::{
@@ -110,7 +112,7 @@ impl UpdatesManager {
         tx: Transaction,
         tx_execution_result: VmExecutionResultAndLogs,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
-        new_known_factory_deps: Vec<(H256, Vec<u8>)>,
+        new_known_factory_deps: HashMap<H256, Vec<u8>>,
         tx_l1_gas_this_tx: BlockGasCount,
         execution_metrics: VmExecutionMetrics,
         call_traces: Vec<Call>,
@@ -236,7 +238,7 @@ mod tests {
             tx,
             create_execution_result([]),
             vec![],
-            vec![],
+            HashMap::new(),
             new_block_gas_count(),
             VmExecutionMetrics::default(),
             vec![],

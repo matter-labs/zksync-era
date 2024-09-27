@@ -101,11 +101,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         );
         let result = tx_tracer.result_tracer.into_result();
         let factory_deps_marked_as_known = extract_bytecodes_marked_as_known(&logs.events);
-        let preimages = self.ask_decommitter(factory_deps_marked_as_known.clone());
-        let new_known_factory_deps = factory_deps_marked_as_known
-            .into_iter()
-            .zip(preimages)
-            .collect();
+        let new_known_factory_deps = self.decommit_bytecodes(&factory_deps_marked_as_known);
         *dispatcher = tx_tracer.dispatcher;
 
         let result = VmExecutionResultAndLogs {
