@@ -11,7 +11,7 @@ use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 use crate::{
     consts::GENERAL_FILE,
     traits::{ConfigWithL2RpcUrl, FileConfigWithDefaultName, ReadConfig, SaveConfig},
-    ChainConfig, DEFAULT_CONSENSUS_PORT,
+    ChainConfig,
 };
 
 pub struct RocksDbs {
@@ -111,14 +111,6 @@ pub fn set_file_artifacts(config: &mut GeneralConfig, file_artifacts: FileArtifa
     );
 
     set_artifact_path!(config.core_object_store, file_artifacts.core_object_store);
-}
-
-pub fn get_consensus_port(config: &GeneralConfig) -> u16 {
-    config
-        .consensus_config
-        .as_ref()
-        .map(|c| c.server_addr.port())
-        .unwrap_or(DEFAULT_CONSENSUS_PORT)
 }
 
 pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> anyhow::Result<()> {
