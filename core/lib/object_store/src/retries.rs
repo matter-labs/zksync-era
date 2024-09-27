@@ -28,6 +28,43 @@ impl Request<'_> {
         self,
         store: &impl fmt::Debug,
         max_retries: u16,
+        f: F,
+    ) -> Result<T, ObjectStoreError>
+    where
+        Fut: Future<Output = Result<T, ObjectStoreError>>,
+        F: FnMut() -> Fut,
+    {
+        self.retry_internal(max_retries, f).await
+    }
+
+    #[tracing::instrument(
+        name = "object_store::Request::retry_optional",
+        skip(f), // output request and store as a part of structured logs
+        fields(retries) // Will be recorded before returning from the function
+    )]
+    async fn retry_optional<T, Fut, F>(
+        self,
+        store: &impl fmt::Debug,
+        max_retries: u16,
+        f: F,
+    ) -> Result<Option<T>, ObjectStoreError>
+    where
+        Fut: Future<Output = Result<T, ObjectStoreError>>,
+        F: FnMut() -> Fut,
+    {
+        match self.retry_internal(max_retries, f).await {
+            Ok(result) => Ok(Some(result)),
+            Err(ObjectStoreError::KeyNotFound(_)) => Ok(None),
+            Err(err) => {
+                tracing::warn!(%err, "Failed request with a fatal error");
+                Err(err)
+            }
+        }
+    }
+
+    async fn retry_internal<T, Fut, F>(
+        &self,
+        max_retries: u16,
         mut f: F,
     ) -> Result<T, ObjectStoreError>
     where
@@ -53,7 +90,6 @@ impl Request<'_> {
                     backoff_secs *= 2;
                 }
                 Err(err) => {
-                    tracing::warn!(%err, "Failed request with a fatal error");
                     break Err(err);
                 }
             }
