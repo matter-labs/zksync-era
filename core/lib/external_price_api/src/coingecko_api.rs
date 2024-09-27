@@ -122,14 +122,6 @@ mod test {
     use super::*;
     use crate::tests::*;
 
-    fn auth_check(when: httpmock::When, api_key: Option<String>) -> httpmock::When {
-        if let Some(key) = api_key {
-            when.header(COINGECKO_AUTH_HEADER, key)
-        } else {
-            when
-        }
-    }
-
     fn get_mock_response(address: &str, price: f64) -> String {
         format!("{{\"{}\":{{\"eth\":{}}}}}", address, price)
     }
@@ -158,7 +150,7 @@ mod test {
 
             when = when.query_param("contract_addresses", address.clone());
             when = when.query_param("vs_currencies", ETH_ID);
-            auth_check(when, api_key);
+            api_key.map(|key| when.header(COINGECKO_AUTH_HEADER, key));
 
             if let Some(p) = price {
                 then.status(200).body(get_mock_response(&address, p));
@@ -176,7 +168,7 @@ mod test {
         ExternalPriceApiClientConfig {
             base_url: Some(base_url),
             api_key,
-            source: "FILLER".to_string(),
+            source: "coingecko".to_string(),
             client_timeout_ms: DEFAULT_TIMEOUT_MS,
             forced: None,
         }
@@ -202,35 +194,29 @@ mod test {
         }
     }
 
-    fn happy_day_setup_with_key(
-        server: &MockServer,
-        address: Address,
-        base_token_price: f64,
-    ) -> SetupResult {
-        happy_day_setup(
-            Some("test-key".to_string()),
-            server,
-            address,
-            base_token_price,
-        )
-    }
-
     #[tokio::test]
     async fn test_happy_day_with_api_key() {
-        happy_day_test(happy_day_setup_with_key).await
-    }
-
-    fn happy_day_setup_no_key(
-        server: &MockServer,
-        address: Address,
-        base_token_price: f64,
-    ) -> SetupResult {
-        happy_day_setup(None, server, address, base_token_price)
+        happy_day_test(
+            |server: &MockServer, address: Address, base_token_price: f64| {
+                happy_day_setup(
+                    Some("test-key".to_string()),
+                    server,
+                    address,
+                    base_token_price,
+                )
+            },
+        )
+        .await
     }
 
     #[tokio::test]
     async fn test_happy_day_with_no_api_key() {
-        happy_day_test(happy_day_setup_no_key).await
+        happy_day_test(
+            |server: &MockServer, address: Address, base_token_price: f64| {
+                happy_day_setup(None, server, address, base_token_price)
+            },
+        )
+        .await
     }
 
     fn error_404_setup(
