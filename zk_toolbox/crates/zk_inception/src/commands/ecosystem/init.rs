@@ -369,10 +369,10 @@ async fn init_chains(
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
             port_offset: PortOffset::from_chain_id(chain_config.id as u16).into(),
         };
-        let mut final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
+        let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 
         chain::init::init(
-            &mut final_chain_init_args,
+            &final_chain_init_args,
             shell,
             ecosystem_config,
             &chain_config,

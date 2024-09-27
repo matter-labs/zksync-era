@@ -78,7 +78,7 @@ pub async fn init_configs(
     secrets.consensus = Some(get_consensus_secrets(&consensus_keys));
     secrets.save_with_base_path(shell, &chain_config.configs)?;
 
-    genesis::database::update_configs(init_args.genesis_args.clone(), shell, &chain_config)?;
+    genesis::database::update_configs(init_args.genesis_args.clone(), shell, chain_config)?;
 
     update_portal_config(shell, chain_config)
         .await

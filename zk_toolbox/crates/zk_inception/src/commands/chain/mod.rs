@@ -30,7 +30,7 @@ pub enum ChainCommands {
     /// Create unsigned transactions for chain deployment
     BuildTransactions(BuildTransactionsArgs),
     /// Initialize chain, deploying necessary contracts and performing on-chain operations
-    Init(ChainInitCommand),
+    Init(Box<ChainInitCommand>),
     /// Run server genesis
     Genesis(GenesisCommand),
     /// Register a new chain on L1 (executed by L1 governor).
@@ -66,7 +66,7 @@ pub enum ChainCommands {
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
     match args {
         ChainCommands::Create(args) => create::run(args, shell),
-        ChainCommands::Init(args) => init::run(args, shell).await,
+        ChainCommands::Init(args) => init::run(*args, shell).await,
         ChainCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
         ChainCommands::Genesis(args) => genesis::run(args, shell).await,
         ChainCommands::RegisterChain(args) => register_chain::run(args, shell).await,
