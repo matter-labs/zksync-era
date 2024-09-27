@@ -22,7 +22,7 @@ pub mod server;
 #[derive(Subcommand, Debug, Clone)]
 pub enum GenesisSubcommands {
     /// Initialize databases
-    #[command(alias = "db")]
+    #[command(alias = "database")]
     InitDatabase(Box<GenesisArgs>),
     /// Runs server genesis
     Server,
