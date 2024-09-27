@@ -5,7 +5,7 @@ use common::{config::global_config, logger};
 use config::{
     external_node::ENConfig,
     set_rocks_db_config,
-    traits::{FileConfigWithDefaultName, ReadConfigWithBasePath, SaveConfigWithBasePath},
+    traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
     ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfig, DEFAULT_CONSENSUS_PORT,
 };
 use xshell::Shell;
@@ -78,15 +78,7 @@ fn prepare_configs(
         main_node_rate_limit_rps: None,
         gateway_url: None,
     };
-    let general_en = general.clone();
-    general_en.save_with_base_path(shell, en_configs_path)?;
-    ports.allocate_ports_in_yaml(
-        shell,
-        &GeneralConfig::get_path_with_base_path(en_configs_path),
-        0, // This is zero because general_en ports already have a chain offset
-    )?;
-
-    let mut general_en = GeneralConfig::read_with_base_path(shell, en_configs_path)?;
+    let mut general_en = general.clone();
 
     let main_node_consensus_config = general
         .consensus_config
@@ -140,6 +132,12 @@ fn prepare_configs(
     set_rocks_db_config(&mut general_en, dirs)?;
     general_en.save_with_base_path(shell, en_configs_path)?;
     en_config.save_with_base_path(shell, en_configs_path)?;
+
+    ports.allocate_ports_in_yaml(
+        shell,
+        &GeneralConfig::get_path_with_base_path(en_configs_path),
+        0, // This is zero because general_en ports already have a chain offset
+    )?;
 
     Ok(())
 }
