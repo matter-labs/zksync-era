@@ -158,14 +158,11 @@ pub(super) fn executor(
         refresh: time::Duration::ZERO,
     };
 
-    let debug_page = match cfg.debug_page_addr {
-        Some(addr) => Some(network::debug_page::Config {
-            addr,
-            credentials: None,
-            tls: None,
-        }),
-        None => None,
-    };
+    let debug_page = cfg.debug_page_addr.map(|addr| network::debug_page::Config {
+        addr,
+        credentials: None,
+        tls: None,
+    });
 
     Ok(executor::Config {
         build_version,
