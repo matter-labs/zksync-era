@@ -19,6 +19,7 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception chain upgrader`↴](#zk_inception-chain-upgrader)
 - [`zk_inception chain deploy-paymaster`↴](#zk_inception-chain-deploy-paymaster)
 - [`zk_inception chain update-token-multiplier-setter`↴](#zk_inception-chain-update-token-multiplier-setter)
+- [`zk_inception chain database`↴](#zk_inception-chain-database)
 - [`zk_inception prover`↴](#zk_inception-prover)
 - [`zk_inception prover init`↴](#zk_inception-prover-init)
 - [`zk_inception prover setup-keys`↴](#zk_inception-prover-setup-keys)
@@ -164,6 +165,7 @@ Initialize ecosystem and chain, deploying necessary contracts and performing on-
 - `--prover-db-name <PROVER_DB_NAME>` — Prover database name
 - `-u`, `--use-default` — Use default database urls and names
 - `-d`, `--dont-drop`
+- `-s`, `--skip-genesis` — Skip db init and chain genesis
 - `--dev` — Deploy ecosystem using all defaults. Suitable for local development
 - `-o`, `--observability <OBSERVABILITY>` — Enable Grafana
 
@@ -201,6 +203,7 @@ Chain related commands
 - `upgrader` — Deploy Default Upgrader
 - `deploy-paymaster` — Deploy paymaster smart contract
 - `update-token-multiplier-setter` — Update Token Multiplier Setter address on L1
+- `database` — Run database initialization alone
 
 ## `zk_inception chain create`
 
@@ -268,6 +271,7 @@ Initialize chain, deploying necessary contracts and performing on-chain operatio
 - `--prover-db-name <PROVER_DB_NAME>` — Prover database name
 - `-u`, `--use-default` — Use default database urls and names
 - `-d`, `--dont-drop`
+- `-s`, `--skip-genesis` — Skip db init and chain genesis
 - `--deploy-paymaster <DEPLOY_PAYMASTER>`
 
   Possible values: `true`, `false`
@@ -413,6 +417,21 @@ Update Token Multiplier Setter address on L1
 - `-a`, `--additional-args <ADDITIONAL_ARGS>` — List of additional arguments that can be passed through the CLI.
 
   e.g.: `zk_inception init -a --private-key=<PRIVATE_KEY>`
+
+## `zk_inception chain database`
+
+Run database initialization alone
+
+**Usage:** `zk_inception chain database [OPTIONS]`
+
+###### **Options:**
+
+- `--server-db-url <SERVER_DB_URL>` — Server database url without database name
+- `--server-db-name <SERVER_DB_NAME>` — Server database name
+- `--prover-db-url <PROVER_DB_URL>` — Prover database url without database name
+- `--prover-db-name <PROVER_DB_NAME>` — Prover database name
+- `--link-to-code <PATH>` — Path to zksync-era repository on disk
+- `-d`, `--dont-drop` — Don't drop databases before attempting to create them
 
 ## `zk_inception prover`
 
