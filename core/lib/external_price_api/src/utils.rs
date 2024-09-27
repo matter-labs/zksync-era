@@ -55,33 +55,21 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_zero_panics() {
+    fn test_to_fraction_bad_inputs() {
         assert_eq!(
             get_fraction(0.0).expect_err("did not error").to_string(),
             "numerator is zero"
         );
-    }
-
-    #[test]
-    fn test_negative() {
         assert_eq!(
             get_fraction(-1.0).expect_err("did not error").to_string(),
             "number is negative"
         );
-    }
-
-    #[test]
-    fn test_nan() {
         assert_eq!(
             get_fraction(f64::NAN)
                 .expect_err("did not error")
                 .to_string(),
             "number is not rational"
         );
-    }
-
-    #[test]
-    fn test_infinity() {
         assert_eq!(
             get_fraction(f64::INFINITY)
                 .expect_err("did not error")
