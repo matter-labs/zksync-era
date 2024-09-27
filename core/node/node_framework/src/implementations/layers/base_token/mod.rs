@@ -86,7 +86,7 @@ impl WiringLayer for ExternalPriceApiLayer {
 
     async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
         Ok(Output {
-            price_api_client: self.kind.instantiate(self.config).into(),
+            price_api_client: self.kind.instantiate(self.config),
         })
     }
 }
