@@ -4,8 +4,8 @@ use anyhow::Context;
 use common::yaml::merge_yaml;
 use url::Url;
 use xshell::Shell;
+use zksync_config::configs::object_store::ObjectStoreMode;
 pub use zksync_config::configs::GeneralConfig;
-use zksync_config::configs::{consensus::Host, object_store::ObjectStoreMode};
 use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
 
 use crate::{
@@ -119,22 +119,6 @@ pub fn override_config(shell: &Shell, path: PathBuf, chain: &ChainConfig) -> any
     let mut chain_config = serde_yaml::from_str(&shell.read_file(chain_config_path.clone())?)?;
     merge_yaml(&mut chain_config, override_config, true)?;
     shell.write_file(chain_config_path, serde_yaml::to_string(&chain_config)?)?;
-    Ok(())
-}
-
-pub fn update_port_in_url(http_url: &mut String, port: u16) -> anyhow::Result<()> {
-    let mut http_url_url = Url::parse(http_url)?;
-    if let Err(()) = http_url_url.set_port(Some(port)) {
-        anyhow::bail!("Wrong url, setting port is impossible");
-    }
-    *http_url = http_url_url.to_string();
-    Ok(())
-}
-
-pub fn update_port_in_host(host: &mut Host, port: u16) -> anyhow::Result<()> {
-    let url = Url::parse(&format!("http://{}", host.0))?;
-    let host_str = url.host_str().context("Failed to get host")?;
-    host.0 = format!("{host_str}:{port}");
     Ok(())
 }
 
