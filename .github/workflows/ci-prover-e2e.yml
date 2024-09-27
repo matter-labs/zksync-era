@@ -1,0 +1,76 @@
+name: Workflow for testing prover component end-to-end
+on:
+  workflow_call:
+jobs:
+  e2e-test:
+    runs-on: [ matterlabs-ci-gpu-runner ]
+    env:
+      RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
+
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+        with:
+          submodules: "recursive"
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
+          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
+          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
+          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
+          echo "RUSTC_WRAPPER=sccache" >> .env
+          echo "prover_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local_prover" >> $GITHUB_ENV
+          echo "core_url=postgres://postgres:notsecurepassword@localhost:5432/zksync_local" >> $GITHUB_ENV
+
+      - name: Start services
+        run: |
+          run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
+          mkdir -p ./volumes/postgres
+          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
+
+      - name: Init
+        run: |
+          ci_run zkt
+          ci_run zk_supervisor db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
+
+      - name: Formatting
+        run: ci_run bash -c "cd prover && cargo fmt --check"
+
+  unit-tests:
+    runs-on: [ matterlabs-ci-runner-highmem-long ]
+    env:
+      RUNNER_COMPOSE_FILE: "docker-compose-runner-nightly.yml"
+
+    steps:
+      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+        with:
+          submodules: "recursive"
+
+      - name: Setup environment
+        run: |
+          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+          echo $(pwd)/bin >> $GITHUB_PATH
+          echo IN_DOCKER=1 >> .env
+          echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
+          echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
+          echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
+          echo "RUSTC_WRAPPER=sccache" >> .env
+          echo "ZKSYNC_USE_CUDA_STUBS=true" >> .env
+
+      - name: Start services
+        run: |
+          run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
+          mkdir -p ./volumes/postgres
+          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
+
+      - name: Init
+        run: |
+          ci_run zkt
+          ci_run run_retried rustup show
+
+      - name: Prover unit tests
+        run: |
+          # Not all tests are enabled, since prover and setup_key_generator_and_server requires bellman-cuda to be present
+          ci_run zk_supervisor test prover
