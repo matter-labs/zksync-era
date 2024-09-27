@@ -23,28 +23,8 @@ enum ExternalPriceApiKind {
     CoinMarketCap,
 }
 
-impl ExternalPriceApiKind {
-    fn layer_name(&self) -> &'static str {
-        match self {
-            Self::NoOp => "no_op_external_price_api_client",
-            Self::Forced => "forced_price_client",
-            Self::CoinGecko => "coingecko_api_client",
-            Self::CoinMarketCap => "coinmarketcap_api_client",
-        }
-    }
-
-    fn instantiate(&self, config: ExternalPriceApiClientConfig) -> PriceAPIClientResource {
-        PriceAPIClientResource(match self {
-            Self::NoOp => Arc::new(NoOpPriceAPIClient {}),
-            Self::Forced => Arc::new(ForcedPriceClient::new(config)),
-            Self::CoinGecko => Arc::new(CoinGeckoPriceAPIClient::new(config)),
-            Self::CoinMarketCap => Arc::new(CmcPriceApiClient::new(config)),
-        })
-    }
-}
-
 #[derive(Debug, thiserror::Error)]
-#[error("Unknown external price API client source: {0}")]
+#[error("Unknown external price API client source: \"{0}\"")]
 pub struct UnknownExternalPriceApiClientSourceError(String);
 
 impl FromStr for ExternalPriceApiKind {
@@ -52,11 +32,22 @@ impl FromStr for ExternalPriceApiKind {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(match &s.to_lowercase()[..] {
-            "no-op" => Self::NoOp,
+            "no-op" | "noop" => Self::NoOp,
             "forced" => Self::Forced,
             "coingecko" => Self::CoinGecko,
             "coinmarketcap" => Self::CoinMarketCap,
             _ => return Err(UnknownExternalPriceApiClientSourceError(s.to_owned())),
+        })
+    }
+}
+
+impl ExternalPriceApiKind {
+    fn instantiate(&self, config: ExternalPriceApiClientConfig) -> PriceAPIClientResource {
+        PriceAPIClientResource(match self {
+            Self::NoOp => Arc::new(NoOpPriceAPIClient {}),
+            Self::Forced => Arc::new(ForcedPriceClient::new(config)),
+            Self::CoinGecko => Arc::new(CoinGeckoPriceAPIClient::new(config)),
+            Self::CoinMarketCap => Arc::new(CmcPriceApiClient::new(config)),
         })
     }
 }
@@ -90,7 +81,7 @@ impl WiringLayer for ExternalPriceApiLayer {
     type Output = Output;
 
     fn layer_name(&self) -> &'static str {
-        self.kind.layer_name()
+        "external_price_api"
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
