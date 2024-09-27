@@ -351,6 +351,10 @@ jobs:
 
           ci_run sleep 5
 
+      - name: Setup attester committee for the consensus chain
+        run: |
+          ci_run zk_inception consensus set-attester-committee --chain consensus &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log 
+
       - name: Run integration tests
         run: |
           PASSED_ENV_VARS="RUN_CONTRACT_VERIFICATION_TEST" \
