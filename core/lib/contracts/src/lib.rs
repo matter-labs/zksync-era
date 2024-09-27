@@ -307,6 +307,7 @@ pub struct SystemContractCode {
 pub struct BaseSystemContracts {
     pub bootloader: SystemContractCode,
     pub default_aa: SystemContractCode,
+    /// Never filled in constructors for now. The only way to get the EVM simulator enabled is to call [`Self::with_evm_simulator()`].
     pub evm_simulator: Option<SystemContractCode>,
 }
 
@@ -339,7 +340,7 @@ impl BaseSystemContracts {
         let hash = hash_bytecode(&bytecode);
 
         let default_aa = SystemContractCode {
-            code: bytes_to_be_words(bytecode.clone()),
+            code: bytes_to_be_words(bytecode),
             hash,
         };
 
@@ -349,10 +350,22 @@ impl BaseSystemContracts {
             evm_simulator: None,
         }
     }
-    // BaseSystemContracts with proved bootloader - for handling transactions.
+
+    /// BaseSystemContracts with proved bootloader - for handling transactions.
     pub fn load_from_disk() -> Self {
         let bootloader_bytecode = read_proved_batch_bootloader_bytecode();
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    /// Loads the latest EVM simulator for these base system contracts. Logically, it only makes sense to do for the latest protocol version.
+    pub fn with_latest_evm_simulator(mut self) -> Self {
+        let bytecode = read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
+        let hash = hash_bytecode(&bytecode);
+        self.evm_simulator = Some(SystemContractCode {
+            code: bytes_to_be_words(bytecode),
+            hash,
+        });
+        self
     }
 
     /// BaseSystemContracts with playground bootloader - used for handling eth_calls.

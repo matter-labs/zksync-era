@@ -287,13 +287,11 @@ impl TxSender {
     pub async fn submit_tx(
         &self,
         tx: L2Tx,
+        block_args: BlockArgs,
     ) -> Result<(L2TxSubmissionResult, VmExecutionResultAndLogs), SubmitTxError> {
         let tx_hash = tx.hash();
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
-        let mut connection = self.acquire_replica_connection().await?;
-        let protocol_version = connection.blocks_dal().pending_protocol_version().await?;
-        drop(connection);
-        self.validate_tx(&tx, protocol_version).await?;
+        self.validate_tx(&tx, block_args.protocol_version()).await?;
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
@@ -312,9 +310,7 @@ impl TxSender {
             tx: tx.clone(),
         };
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
-        let mut connection = self.acquire_replica_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
-
+        let connection = self.acquire_replica_connection().await?;
         let execution_output = self
             .0
             .executor
@@ -567,7 +563,7 @@ impl TxSender {
         tx_gas_limit: u64,
         gas_price_per_pubdata: u32,
         fee_input: BatchFeeInput,
-        block_args: BlockArgs,
+        block_args: &BlockArgs,
         base_fee: u64,
         vm_version: VmVersion,
         state_override: Option<StateOverride>,
@@ -610,7 +606,7 @@ impl TxSender {
         let execution_output = self
             .0
             .executor
-            .execute_in_sandbox(vm_permit, connection, action, &block_args, state_override)
+            .execute_in_sandbox(vm_permit, connection, action, block_args, state_override)
             .await?;
         Ok((execution_output.vm, execution_output.metrics))
     }
@@ -622,21 +618,14 @@ impl TxSender {
     pub async fn get_txs_fee_in_wei(
         &self,
         mut tx: Transaction,
+        block_args: BlockArgs,
         estimated_fee_scale_factor: f64,
         acceptable_overestimation: u64,
         state_override: Option<StateOverride>,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
-
-        let mut connection = self.acquire_replica_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
-        let protocol_version = connection
-            .blocks_dal()
-            .pending_protocol_version()
-            .await
-            .context("failed getting pending protocol version")?;
+        let protocol_version = block_args.protocol_version();
         let max_gas_limit = get_max_batch_gas_limit(protocol_version.into());
-        drop(connection);
 
         let fee_input = adjust_pubdata_price_for_tx(
             self.scaled_batch_fee_input().await?,
@@ -733,7 +722,7 @@ impl TxSender {
                     max_gas_limit,
                     gas_per_pubdata_byte as u32,
                     fee_input,
-                    block_args,
+                    &block_args,
                     base_fee,
                     protocol_version.into(),
                     state_override.clone(),
@@ -769,7 +758,7 @@ impl TxSender {
                     try_gas_limit,
                     gas_per_pubdata_byte as u32,
                     fee_input,
-                    block_args,
+                    &block_args,
                     base_fee,
                     protocol_version.into(),
                     state_override.clone(),
@@ -802,7 +791,7 @@ impl TxSender {
                 suggested_gas_limit,
                 gas_per_pubdata_byte as u32,
                 fee_input,
-                block_args,
+                &block_args,
                 base_fee,
                 protocol_version.into(),
                 state_override,

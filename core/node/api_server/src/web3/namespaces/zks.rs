@@ -30,6 +30,7 @@ use zksync_web3_decl::{
 };
 
 use crate::{
+    execution_sandbox::BlockArgs,
     utils::open_readonly_transaction,
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
 };
@@ -62,17 +63,21 @@ impl ZksNamespace {
             eip712_meta.gas_per_pubdata = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
         }
 
+        let mut connection = self.state.acquire_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
+        drop(connection);
         let mut tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
-            false, // FIXME: configure
+            block_args.use_evm_simulator(),
         )?;
 
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
         // not consider provided ones.
         tx.common_data.fee.max_priority_fee_per_gas = 0u64.into();
         tx.common_data.fee.gas_per_pubdata_limit = U256::from(DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE);
-        self.estimate_fee(tx.into(), state_override).await
+        self.estimate_fee(tx.into(), block_args, state_override)
+            .await
     }
 
     pub async fn estimate_l1_to_l2_gas_impl(
@@ -89,17 +94,25 @@ impl ZksNamespace {
             }
         }
 
-        // FIXME: configure
-        let tx = L1Tx::from_request(request_with_gas_per_pubdata_overridden, false)
-            .map_err(Web3Error::SerializationError)?;
+        let mut connection = self.state.acquire_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
+        drop(connection);
+        let tx = L1Tx::from_request(
+            request_with_gas_per_pubdata_overridden,
+            block_args.use_evm_simulator(),
+        )
+        .map_err(Web3Error::SerializationError)?;
 
-        let fee = self.estimate_fee(tx.into(), state_override).await?;
+        let fee = self
+            .estimate_fee(tx.into(), block_args, state_override)
+            .await?;
         Ok(fee.gas_limit)
     }
 
     async fn estimate_fee(
         &self,
         tx: Transaction,
+        block_args: BlockArgs,
         state_override: Option<StateOverride>,
     ) -> Result<Fee, Web3Error> {
         let scale_factor = self.state.api_config.estimate_gas_scale_factor;
@@ -111,6 +124,7 @@ impl ZksNamespace {
             .tx_sender
             .get_txs_fee_in_wei(
                 tx,
+                block_args,
                 scale_factor,
                 acceptable_overestimation as u64,
                 state_override,
@@ -581,10 +595,15 @@ impl ZksNamespace {
         &self,
         tx_bytes: Bytes,
     ) -> Result<(H256, VmExecutionResultAndLogs), Web3Error> {
-        let (mut tx, hash) = self.state.parse_transaction_bytes(&tx_bytes.0)?;
+        let mut connection = self.state.acquire_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
+        drop(connection);
+        let (mut tx, hash) = self
+            .state
+            .parse_transaction_bytes(&tx_bytes.0, &block_args)?;
         tx.set_input(tx_bytes.0, hash);
 
-        let submit_result = self.state.tx_sender.submit_tx(tx).await;
+        let submit_result = self.state.tx_sender.submit_tx(tx, block_args).await;
         submit_result.map(|result| (hash, result.1)).map_err(|err| {
             tracing::debug!("Send raw transaction error: {err}");
             API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
