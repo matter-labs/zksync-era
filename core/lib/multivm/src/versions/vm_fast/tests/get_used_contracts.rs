@@ -117,7 +117,7 @@ struct ProxyCounterData {
     counter_bytecode_hash: U256,
 }
 
-fn execute_proxy_counter(gas: u32) -> (VmTester, ProxyCounterData, VmExecutionResultAndLogs) {
+fn execute_proxy_counter(gas: u32) -> (VmTester<()>, ProxyCounterData, VmExecutionResultAndLogs) {
     let counter_bytecode = inflated_counter_bytecode();
     let counter_bytecode_hash = h256_to_u256(hash_bytecode(&counter_bytecode));
     let counter_address = Address::repeat_byte(0x23);
