@@ -112,8 +112,9 @@ fn test_l1_tx_execution() {
     let res = vm.vm.execute(VmExecutionMode::OneTx);
     let storage_logs = res.logs.storage_logs;
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
-    // We changed one slot inside contract.
-    assert_eq!(res.initial_storage_writes - basic_initial_writes, 1);
+    // We changed one slot inside contract. However, the rewrite of the `basePubdataSpent` didn't happen, since it was the same
+    // as the start of the previous tx. Thus we have `+1` slot for the changed counter and `-1` slot for base pubdata spent
+    assert_eq!(res.initial_storage_writes - basic_initial_writes, 0);
 
     // No repeated writes
     let repeated_writes = res.repeated_storage_writes;
@@ -141,7 +142,7 @@ fn test_l1_tx_execution() {
 
     let res = StorageWritesDeduplicator::apply_on_empty_state(&result.logs.storage_logs);
     // There are only basic initial writes
-    assert_eq!(res.initial_storage_writes - basic_initial_writes, 2);
+    assert_eq!(res.initial_storage_writes - basic_initial_writes, 1);
 }
 
 #[test]
