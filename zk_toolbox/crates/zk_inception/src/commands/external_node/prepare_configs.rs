@@ -88,14 +88,17 @@ fn prepare_configs(
 
     let mut general_en = GeneralConfig::read_with_base_path(shell, en_configs_path)?;
 
-    let offset = ((config.id - 1) * 100) as u16;
-    let consensus_port_range = DEFAULT_CONSENSUS_PORT + offset..PORT_RANGE_END;
-    let consensus_port = ports.allocate_port(consensus_port_range, "Consensus".to_string())?;
-
-    // Set consensus config
     let main_node_consensus_config = general
         .consensus_config
         .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
+    ports.add_port_info(
+        main_node_consensus_config.server_addr.port(),
+        "Main node consensus".to_string(),
+    );
+
+    let offset = ((config.id - 1) * 100) as u16;
+    let consensus_port_range = DEFAULT_CONSENSUS_PORT + offset..PORT_RANGE_END;
+    let consensus_port = ports.allocate_port(consensus_port_range, "Consensus".to_string())?;
 
     let mut gossip_static_outbound = BTreeMap::new();
     let main_node_public_key = node_public_key(
