@@ -102,9 +102,7 @@ mod tests {
             default_aa_hash: Some(hash(
                 "0x0100058d9eee51f4b9e9a9ecb7fd7e8301e90bef018c2bd913ed36e583fec8c2",
             )),
-            evm_simulator_hash: Some(hash(
-                "0x01000e53aa35d9d19fa99341c2e2901cf93b3668f01569dd5c6ca409c7696b91",
-            )),
+            evm_simulator_hash: None,
             l1_batch_commit_data_generator_mode,
             max_circuits_per_batch: 24100,
             protective_reads_persistence_enabled: true,
