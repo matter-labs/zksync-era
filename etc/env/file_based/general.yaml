@@ -305,9 +305,6 @@ external_price_api_client:
 house_keeper:
   l1_batch_metrics_reporting_interval_ms: 10000
 
-use_evm_simulator:
-  use_evm_simulator: false
-
 prometheus:
   listener_port: 3314
   pushgateway_url: http://127.0.0.1:9091
