@@ -66,10 +66,7 @@ impl OutputHandlerTester {
                     code: vec![],
                     hash: Default::default(),
                 },
-                evm_simulator: Some(SystemContractCode {
-                    code: vec![],
-                    hash: Default::default(),
-                }),
+                evm_simulator: None,
             },
             bootloader_gas_limit: 0,
             execution_mode: TxExecutionMode::VerifyExecute,

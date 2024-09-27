@@ -56,7 +56,7 @@ pub fn create_l1_batch(number: u32) -> L1BatchHeader {
         BaseSystemContractsHashes {
             bootloader: H256::repeat_byte(1),
             default_aa: H256::repeat_byte(42),
-            evm_simulator: Some(H256::repeat_byte(43)),
+            evm_simulator: None,
         },
         ProtocolVersionId::latest(),
     );
