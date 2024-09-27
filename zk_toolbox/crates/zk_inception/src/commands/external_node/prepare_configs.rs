@@ -4,9 +4,9 @@ use anyhow::Context;
 use common::{config::global_config, logger};
 use config::{
     external_node::ENConfig,
-    get_consensus_port, set_rocks_db_config,
+    set_rocks_db_config,
     traits::{FileConfigWithDefaultName, ReadConfigWithBasePath, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfig,
+    ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfig, DEFAULT_CONSENSUS_PORT,
 };
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
@@ -19,6 +19,7 @@ use zksync_consensus_roles as roles;
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
+    defaults::PORT_RANGE_END,
     messages::{
         msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED,
         MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_CONSENSUS_SECRETS_MISSING_ERR,
@@ -82,12 +83,14 @@ fn prepare_configs(
     ports.allocate_ports_in_yaml(
         shell,
         &GeneralConfig::get_path_with_base_path(en_configs_path),
-        config.id,
+        0, // This is zero because general_en ports already have a chain offset
     )?;
 
     let mut general_en = GeneralConfig::read_with_base_path(shell, en_configs_path)?;
 
-    let consensus_port = get_consensus_port(&general_en);
+    let offset = ((config.id - 1) * 100) as u16;
+    let consensus_port_range = DEFAULT_CONSENSUS_PORT + offset..PORT_RANGE_END;
+    let consensus_port = ports.allocate_port(consensus_port_range, "Consensus".to_string())?;
 
     // Set consensus config
     let main_node_consensus_config = general
