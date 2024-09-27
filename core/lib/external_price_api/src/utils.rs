@@ -3,18 +3,26 @@ use std::num::NonZeroU64;
 use fraction::Fraction;
 
 /// Using the base token price and eth price, calculate the fraction of the base token to eth.
-pub fn get_fraction(ratio_f64: f64) -> (NonZeroU64, NonZeroU64) {
+pub fn get_fraction(ratio_f64: f64) -> anyhow::Result<(NonZeroU64, NonZeroU64)> {
     let rate_fraction = Fraction::from(ratio_f64);
     if rate_fraction.sign() == Some(fraction::Sign::Minus) {
-        panic!("number is negative");
+        return Err(anyhow::anyhow!("number is negative"));
     }
 
-    let numerator = NonZeroU64::new(*rate_fraction.numer().expect("number is not rational"))
-        .expect("numerator is zero");
-    let denominator = NonZeroU64::new(*rate_fraction.denom().expect("number is not rational"))
-        .expect("denominator is zero");
+    let numerator = NonZeroU64::new(
+        *rate_fraction
+            .numer()
+            .ok_or(anyhow::anyhow!("number is not rational"))?,
+    )
+    .ok_or(anyhow::anyhow!("numerator is zero"))?;
+    let denominator = NonZeroU64::new(
+        *rate_fraction
+            .denom()
+            .ok_or(anyhow::anyhow!("number is not rational"))?,
+    )
+    .ok_or(anyhow::anyhow!("denominator is zero"))?;
 
-    (numerator, denominator)
+    Ok((numerator, denominator))
 }
 
 #[cfg(test)]
@@ -23,7 +31,7 @@ pub(crate) mod tests {
 
     fn assert_get_fraction_value(f: f64, num: u64, denum: u64) {
         assert_eq!(
-            get_fraction(f),
+            get_fraction(f).unwrap(),
             (
                 NonZeroU64::try_from(num).unwrap(),
                 NonZeroU64::try_from(denum).unwrap()
@@ -46,27 +54,39 @@ pub(crate) mod tests {
         assert_get_fraction_value(3.1415, 6283, 2000);
     }
 
-    #[should_panic(expected = "numerator is zero")]
     #[test]
     fn test_zero_panics() {
-        get_fraction(0.0);
+        assert_eq!(
+            get_fraction(0.0).expect_err("did not error").to_string(),
+            "numerator is zero"
+        );
     }
 
-    #[should_panic(expected = "number is negative")]
     #[test]
     fn test_negative() {
-        get_fraction(-1.0);
+        assert_eq!(
+            get_fraction(-1.0).expect_err("did not error").to_string(),
+            "number is negative"
+        );
     }
 
-    #[should_panic(expected = "number is not rational")]
     #[test]
     fn test_nan() {
-        get_fraction(f64::NAN);
+        assert_eq!(
+            get_fraction(f64::NAN)
+                .expect_err("did not error")
+                .to_string(),
+            "number is not rational"
+        );
     }
 
-    #[should_panic(expected = "number is not rational")]
     #[test]
     fn test_infinity() {
-        get_fraction(f64::INFINITY);
+        assert_eq!(
+            get_fraction(f64::INFINITY)
+                .expect_err("did not error")
+                .to_string(),
+            "number is not rational"
+        );
     }
 }

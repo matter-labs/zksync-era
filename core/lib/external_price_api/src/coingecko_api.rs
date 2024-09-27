@@ -88,7 +88,7 @@ impl CoinGeckoPriceAPIClient {
 impl PriceAPIClient for CoinGeckoPriceAPIClient {
     async fn fetch_ratio(&self, token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
         let base_token_in_eth = self.get_token_price_by_address(token_address).await?;
-        let (num_in_eth, denom_in_eth) = get_fraction(base_token_in_eth);
+        let (num_in_eth, denom_in_eth) = get_fraction(base_token_in_eth)?;
         // take reciprocal of price as returned price is ETH/BaseToken and BaseToken/ETH is needed
         let (num_in_base, denom_in_base) = (denom_in_eth, num_in_eth);
 
