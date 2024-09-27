@@ -173,7 +173,7 @@ impl ProtoRepr for proto::Config {
             rpc: read_optional_repr(&self.rpc_config),
             debug_page_addr: required(&self.debug_page_addr)
                 .and_then(|x| Ok(x.parse()?))
-                .context("debug_page_addr")?,
+                .ok(),
         })
     }
 
@@ -198,7 +198,7 @@ impl ProtoRepr for proto::Config {
                 .collect(),
             genesis_spec: this.genesis_spec.as_ref().map(ProtoRepr::build),
             rpc_config: this.rpc.as_ref().map(ProtoRepr::build),
-            debug_page_addr: Some(this.debug_page_addr.to_string()),
+            debug_page_addr: this.debug_page_addr.as_ref().map(|x| x.to_string()),
         }
     }
 }

@@ -798,7 +798,6 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
         ConsensusConfig {
             server_addr: self.sample(rng),
             public_addr: Host(self.sample(rng)),
-            debug_page_addr: self.sample(rng),
             max_payload_size: self.sample(rng),
             max_batch_size: self.sample(rng),
             gossip_dynamic_inbound_limit: self.sample(rng),
@@ -812,6 +811,7 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
                 .collect(),
             genesis_spec: self.sample(rng),
             rpc: self.sample(rng),
+            debug_page_addr: self.sample(rng),
         }
     }
 }

@@ -158,6 +158,15 @@ pub(super) fn executor(
         refresh: time::Duration::ZERO,
     };
 
+    let debug_page = match cfg.debug_page_addr {
+        Some(addr) => Some(network::debug_page::Config {
+            addr,
+            credentials: None,
+            tls: None,
+        }),
+        None => None,
+    };
+
     Ok(executor::Config {
         build_version,
         server_addr: cfg.server_addr,
@@ -177,11 +186,7 @@ pub(super) fn executor(
             .context("gossip_static_inbound")?,
         gossip_static_outbound,
         rpc,
-        debug_page: Some(network::debug_page::Config {
-            addr: cfg.debug_page_addr,
-            credentials: None,
-            tls: None,
-        }),
+        debug_page,
         batch_poll_interval: time::Duration::seconds(1),
     })
 }
