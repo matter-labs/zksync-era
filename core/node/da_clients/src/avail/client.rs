@@ -2,7 +2,8 @@ use std::{fmt::Debug, sync::Arc};
 
 use async_trait::async_trait;
 use jsonrpsee::ws_client::WsClientBuilder;
-use zksync_config::AvailConfig;
+use subxt_signer::ExposeSecret;
+use zksync_config::configs::da_client::avail::{AvailConfig, AvailSecrets};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
@@ -18,8 +19,11 @@ pub struct AvailClient {
 }
 
 impl AvailClient {
-    pub async fn new(config: AvailConfig) -> anyhow::Result<Self> {
-        let sdk_client = RawAvailClient::new(config.app_id, config.seed.clone()).await?;
+    pub async fn new(config: AvailConfig, secrets: AvailSecrets) -> anyhow::Result<Self> {
+        let seed_phrase = secrets
+            .seed_phrase
+            .ok_or_else(|| anyhow::anyhow!("seed phrase"))?;
+        let sdk_client = RawAvailClient::new(config.app_id, seed_phrase.0.expose_secret()).await?;
 
         Ok(Self {
             config,

@@ -1,11 +1,13 @@
 use std::num::NonZeroUsize;
 
 use rand::{distributions::Distribution, Rng};
+use secrecy::Secret;
 use zksync_basic_types::{
     basic_fri_types::CircuitIdRoundTuple,
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    seed_phrase::SeedPhrase,
     vm::FastVmMode,
     L1BatchNumber, L1ChainId, L2ChainId,
 };
@@ -14,7 +16,7 @@ use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{
     configs::{
-        self, da_client::DAClient::Avail, eth_sender::PubdataSendingMode,
+        self, da_client::DAClientConfig::Avail, eth_sender::PubdataSendingMode,
         external_price_api_client::ForcedPriceClientConfig,
     },
     AvailConfig,
@@ -864,6 +866,7 @@ impl Distribution<configs::secrets::Secrets> for EncodeDist {
             consensus: self.sample_opt(|| self.sample(rng)),
             database: self.sample_opt(|| self.sample(rng)),
             l1: self.sample_opt(|| self.sample(rng)),
+            data_availability: self.sample_opt(|| self.sample(rng)),
         }
     }
 }
@@ -935,16 +938,21 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
 
 impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_client::DAClientConfig {
-        configs::da_client::DAClientConfig {
-            client: Avail(AvailConfig {
-                api_node_url: self.sample(rng),
-                bridge_api_url: self.sample(rng),
-                seed: self.sample(rng),
-                app_id: self.sample(rng),
-                timeout: self.sample(rng),
-                max_retries: self.sample(rng),
-            }),
-        }
+        Avail(AvailConfig {
+            api_node_url: self.sample(rng),
+            bridge_api_url: self.sample(rng),
+            app_id: self.sample(rng),
+            timeout: self.sample(rng),
+            max_retries: self.sample(rng),
+        })
+    }
+}
+
+impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::DataAvailabilitySecrets {
+        configs::secrets::DataAvailabilitySecrets::Avail(configs::da_client::avail::AvailSecrets {
+            seed_phrase: Some(SeedPhrase(Secret::new(self.sample(rng)))),
+        })
     }
 }
 

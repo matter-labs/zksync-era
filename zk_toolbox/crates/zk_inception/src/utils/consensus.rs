@@ -1,6 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    net::{IpAddr, Ipv4Addr, SocketAddr},
+    net::SocketAddr,
 };
 
 /// Code duplicated from `zksync_node_consensus::config`.
