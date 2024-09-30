@@ -166,8 +166,8 @@ pub(super) fn executor(
 
     Ok(executor::Config {
         build_version,
-        server_addr: cfg.server_addr,
-        public_addr: net::Host(cfg.public_addr.0.clone()),
+        server_addr: cfg.server_url,
+        public_addr: net::Host(cfg.public_url.0.clone()),
         max_payload_size: cfg.max_payload_size,
         max_batch_size: cfg.max_batch_size,
         node_key: node_key(secrets)
