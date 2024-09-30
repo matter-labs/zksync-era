@@ -809,7 +809,7 @@ impl TransactionRequest {
 impl L2Tx {
     pub(crate) fn from_request_unverified(
         mut value: TransactionRequest,
-        use_evm_simulator: bool,
+        allow_no_target: bool,
     ) -> Result<Self, SerializationTransactionError> {
         let fee = value.get_fee_data_checked()?;
         let nonce = value.get_nonce_checked()?;
@@ -818,8 +818,7 @@ impl L2Tx {
         let meta = value.eip712_meta.take().unwrap_or_default();
         validate_factory_deps(&meta.factory_deps)?;
 
-        // TODO: Remove this check when evm equivalence gets enabled
-        if value.to.is_none() && !use_evm_simulator {
+        if value.to.is_none() && !allow_no_target {
             return Err(SerializationTransactionError::ToAddressIsNull);
         }
 
@@ -849,12 +848,18 @@ impl L2Tx {
         Ok(tx)
     }
 
+    /// Converts a request into a transaction.
+    ///
+    /// # Arguments
+    ///
+    /// - `allow_no_target` enables / disables transactions without target (i.e., `to` field).
+    ///   This field can only be absent for EVM deployment transactions.
     pub fn from_request(
-        value: TransactionRequest,
+        request: TransactionRequest,
         max_tx_size: usize,
-        use_evm_simulator: bool,
+        allow_no_target: bool,
     ) -> Result<Self, SerializationTransactionError> {
-        let tx = Self::from_request_unverified(value, use_evm_simulator)?;
+        let tx = Self::from_request_unverified(request, allow_no_target)?;
         tx.check_encoded_size(max_tx_size)?;
         Ok(tx)
     }
@@ -919,12 +924,18 @@ impl From<CallRequest> for TransactionRequest {
 }
 
 impl L1Tx {
+    /// Converts a request into a transaction.
+    ///
+    /// # Arguments
+    ///
+    /// - `allow_no_target` enables / disables transactions without target (i.e., `to` field).
+    ///   This field can only be absent for EVM deployment transactions.
     pub fn from_request(
-        tx: CallRequest,
-        use_evm_simulator: bool,
+        request: CallRequest,
+        allow_no_target: bool,
     ) -> Result<Self, SerializationTransactionError> {
         // L1 transactions have no limitations on the transaction size.
-        let tx: L2Tx = L2Tx::from_request(tx.into(), MAX_ENCODED_TX_SIZE, use_evm_simulator)?;
+        let tx: L2Tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE, allow_no_target)?;
 
         // Note, that while the user has theoretically provided the fee for ETH on L1,
         // the payment to the operator as well as refunds happen on L2 and so all the ETH
