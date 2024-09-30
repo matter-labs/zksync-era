@@ -18,10 +18,7 @@ async function performSetup(_globalConfig: any, _projectConfig: any) {
     console.log('');
     globalThis.rawWriteToConsole = console.log;
 
-    // Before starting any actual logic, we need to ensure that the server is running (it may not
-    // be the case, for example, right after deployment on stage).
-
-    const testEnvironment = await loadTestEnvironment();
+    let testEnvironment = await loadTestEnvironment();
     const testContextOwner = new TestContextOwner(testEnvironment);
     const testContext = await testContextOwner.setupContext();
 
