@@ -54,39 +54,21 @@ check-foundry:
 check-tools: check-nodejs check-yarn check-rust check-sqlx-cli check-docker check-foundry
 	@echo "All required tools are installed."
 
+# Check that contracts are checkout properly
+check-contracts:
+	@if [ ! -d contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests ] || [ -z "$$(ls -A contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests)" ]; then \
+		echo "l1-contracts submodule is missing. Please download repo with `git clone --recurse-submodules https://github.com/matter-labs/zksync-era.git`"; \
+		exit 1; \
+	fi
+
 # Build and download needed contracts
-prepare-contracts: check-tools
+prepare-contracts: check-tools check-contracts
 	@export ZKSYNC_HOME=$$(pwd) && \
 	export PATH=$$PATH:$${ZKSYNC_HOME}/bin && \
-	git submodule update --recursive && \
-	commit_sha=$$(git submodule status contracts | awk '{print $$1}' | tr -d '-') && \
-	page=1 && \
-	filtered_tag="" && \
-	while [ true ]; do \
-		tags=$$(run_retried curl -s -H "Accept: application/vnd.github+json" \
-			"https://api.github.com/repos/matter-labs/era-contracts/tags?per_page=100&page=$${page}" | jq .) && \
-		filtered_tag=$$(jq -r --arg commit_sha "$$commit_sha" 'map(select(.commit.sha == $$commit_sha)) | .[].name' <<<"$$tags") && \
-		if [ -n "$$filtered_tag" ]; then \
-			break; \
-		fi && \
-		((page++)); \
-	done && \
-	echo "Contracts tag is: $${filtered_tag}" && \
-	mkdir -p ./contracts && \
-	run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/$${filtered_tag}/l1-contracts.tar.gz && \
-	run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/$${filtered_tag}/l2-contracts.tar.gz && \
-	run_retried curl -s -LO https://github.com/matter-labs/era-contracts/releases/download/$${filtered_tag}/system-contracts.tar.gz && \
-	tar -C ./contracts -zxf l1-contracts.tar.gz && \
-	tar -C ./contracts -zxf l2-contracts.tar.gz && \
-	tar -C ./contracts -zxf system-contracts.tar.gz && \
-	rm -f l1-contracts.tar.gz && \
-	rm -f l2-contracts.tar.gz && \
-	rm -f system-contracts.tar.gz && \
-	cp etc/tokens/test.json . && \
-	cp etc/tokens/localhost.json . && \
 	mkdir -p ./volumes/postgres && \
 	docker compose up -d postgres && \
 	zkt || true && \
+	cp etc/tokens/test.json . && \
 	zk_supervisor contracts
 
 # Download setup-key
@@ -98,9 +80,9 @@ build-contract-verifier: check-tools prepare-contracts prepare-keys
 	$(DOCKER_BUILD_CMD) --file $(DOCKERFILES)/contract-verifier/Dockerfile --load \
 		--tag contract-verifier:$(PROTOCOL_VERSION) $(CONTEXT)
 
-build-core: check-tools prepare-contracts prepare-keys
-	$(DOCKER_BUILD_CMD) --file $(DOCKERFILES)/core/Dockerfile --load \
-		--tag core:$(PROTOCOL_VERSION) $(CONTEXT)
+build-server-v2: check-tools prepare-contracts prepare-keys
+	$(DOCKER_BUILD_CMD) --file $(DOCKERFILES)/server-v2/Dockerfile --load \
+		--tag server-v2:$(PROTOCOL_VERSION) $(CONTEXT)
 
 build-circuit-prover-gpu: check-tools prepare-keys
 	$(DOCKER_BUILD_CMD) --file $(DOCKERFILES)/circuit-prover-gpu/Dockerfile --load \
@@ -113,12 +95,13 @@ build-witness-generator: check-tools prepare-keys
 
 
 # Build all containers
-build-all: build-contract-verifier build-core build-witness-generator build-circuit-prover-gpu cleanup
+build-all: build-contract-verifier build-server-v2 build-witness-generator build-circuit-prover-gpu cleanup
 
 # Clean generated images
-clean-images:
-	@docker rmi contract-verifier:$$(PROTOCOL_VERSION)
-	docker rmi core:$$(PROTOCOL_VERSION)-$$(PROTOCOL_VERSION)
+clean: cleanup
+	@ git submodule update --recursive
+	docker rmi contract-verifier:$$(PROTOCOL_VERSION)
+	docker rmi server-v2:$$(PROTOCOL_VERSION)-$$(PROTOCOL_VERSION)
 	docker rmi prover:$$(PROTOCOL_VERSION)
 	docker rmi witness-generator:$$(PROTOCOL_VERSION)
 
