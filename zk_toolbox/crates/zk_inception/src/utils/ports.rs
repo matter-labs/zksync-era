@@ -163,7 +163,7 @@ impl Default for EcosystemPorts {
     }
 }
 
-pub struct EcosystemPortsScanner {}
+pub struct EcosystemPortsScanner;
 
 impl EcosystemPortsScanner {
     /// Scans the ecosystem directory for YAML files and extracts port information.
