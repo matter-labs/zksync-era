@@ -57,7 +57,8 @@ impl TeeVerifierInputProducerDal<'_, '_> {
             INSERT INTO
                 tee_verifier_input_producer_jobs (l1_batch_number, status, created_at, updated_at)
             VALUES
-                ($1, $2, NOW(), NOW()) ON CONFLICT (l1_batch_number) DO NOTHING
+                ($1, $2, NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(l1_batch_number.0),
             TeeVerifierInputProducerJobStatus::Queued as TeeVerifierInputProducerJobStatus,
@@ -76,8 +77,7 @@ impl TeeVerifierInputProducerDal<'_, '_> {
     ) -> DalResult<Option<L1BatchNumber>> {
         let l1_batch_number = sqlx::query!(
             r#"
-            UPDATE
-                tee_verifier_input_producer_jobs
+            UPDATE tee_verifier_input_producer_jobs
             SET
                 status = $1,
                 attempts = attempts + 1,
@@ -93,7 +93,7 @@ impl TeeVerifierInputProducerDal<'_, '_> {
                         status = $2
                         OR (
                             status = $1
-                            AND processing_started_at < NOW() - $4 :: INTERVAL
+                            AND processing_started_at < NOW() - $4::INTERVAL
                         )
                         OR (
                             status = $3
@@ -102,8 +102,8 @@ impl TeeVerifierInputProducerDal<'_, '_> {
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
-                        1 FOR
-                    UPDATE
+                        1
+                    FOR UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -156,8 +156,7 @@ impl TeeVerifierInputProducerDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE
-                tee_verifier_input_producer_jobs
+            UPDATE tee_verifier_input_producer_jobs
             SET
                 status = $1,
                 updated_at = NOW(),
@@ -188,8 +187,7 @@ impl TeeVerifierInputProducerDal<'_, '_> {
     ) -> DalResult<Option<u32>> {
         let attempts = sqlx::query!(
             r#"
-            UPDATE
-                tee_verifier_input_producer_jobs
+            UPDATE tee_verifier_input_producer_jobs
             SET
                 status = $1,
                 updated_at = NOW(),
@@ -223,8 +221,7 @@ impl TeeVerifierInputProducerDal<'_, '_> {
     pub async fn delete_all_jobs(&mut self) -> DalResult<()> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                tee_verifier_input_producer_jobs
+            DELETE FROM tee_verifier_input_producer_jobs
             "#
         )
         .instrument("delete_all_tee_verifier_jobs")

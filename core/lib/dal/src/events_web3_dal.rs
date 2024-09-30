@@ -188,27 +188,28 @@ impl EventsWeb3Dal<'_, '_> {
         let db_logs: Vec<StorageWeb3Log> = sqlx::query_as!(
             StorageWeb3Log,
             r#"
-            WITH events_select AS (
-                SELECT
-                    address,
-                    topic1,
-                    topic2,
-                    topic3,
-                    topic4,
-                    value,
-                    miniblock_number,
-                    tx_hash,
-                    tx_index_in_block,
-                    event_index_in_block,
-                    event_index_in_tx
-                FROM
-                    events
-                WHERE
-                    miniblock_number > $1
-                ORDER BY
-                    miniblock_number ASC,
-                    event_index_in_block ASC
-            )
+            WITH
+                events_select AS (
+                    SELECT
+                        address,
+                        topic1,
+                        topic2,
+                        topic3,
+                        topic4,
+                        value,
+                        miniblock_number,
+                        tx_hash,
+                        tx_index_in_block,
+                        event_index_in_block,
+                        event_index_in_tx
+                    FROM
+                        events
+                    WHERE
+                        miniblock_number > $1
+                    ORDER BY
+                        miniblock_number ASC,
+                        event_index_in_block ASC
+                )
             SELECT
                 miniblocks.hash AS "block_hash?",
                 address AS "address!",

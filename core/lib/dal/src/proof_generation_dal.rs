@@ -44,8 +44,7 @@ impl ProofGenerationDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let result: Option<L1BatchNumber> = sqlx::query!(
             r#"
-            UPDATE
-                proof_generation_details
+            UPDATE proof_generation_details
             SET
                 status = 'picked_by_prover',
                 updated_at = NOW(),
@@ -68,7 +67,7 @@ impl ProofGenerationDal<'_, '_> {
                         )
                         OR (
                             status = 'picked_by_prover'
-                            AND prover_taken_at < NOW() - $1 :: INTERVAL
+                            AND prover_taken_at < NOW() - $1::INTERVAL
                         )
                     ORDER BY
                         l1_batch_number ASC
@@ -118,8 +117,7 @@ impl ProofGenerationDal<'_, '_> {
         let batch_number = i64::from(l1_batch_number.0);
         sqlx::query!(
             r#"
-            UPDATE
-                proof_generation_details
+            UPDATE proof_generation_details
             SET
                 status = 'unpicked',
                 updated_at = NOW()
@@ -144,8 +142,7 @@ impl ProofGenerationDal<'_, '_> {
         let batch_number = i64::from(batch_number.0);
         let query = sqlx::query!(
             r#"
-            UPDATE
-                proof_generation_details
+            UPDATE proof_generation_details
             SET
                 status = 'generated',
                 proof_blob_url = $1,
@@ -183,8 +180,7 @@ impl ProofGenerationDal<'_, '_> {
         let batch_number = i64::from(batch_number.0);
         let query = sqlx::query!(
             r#"
-            UPDATE
-                proof_generation_details
+            UPDATE proof_generation_details
             SET
                 vm_run_data_blob_url = $1,
                 updated_at = NOW()
@@ -221,8 +217,7 @@ impl ProofGenerationDal<'_, '_> {
         let batch_number = i64::from(batch_number.0);
         let query = sqlx::query!(
             r#"
-            UPDATE
-                proof_generation_details
+            UPDATE proof_generation_details
             SET
                 proof_gen_data_blob_url = $1,
                 updated_at = NOW()
@@ -261,7 +256,8 @@ impl ProofGenerationDal<'_, '_> {
             INSERT INTO
                 proof_generation_details (l1_batch_number, status, created_at, updated_at)
             VALUES
-                ($1, 'unpicked', NOW(), NOW()) ON CONFLICT (l1_batch_number) DO NOTHING
+                ($1, 'unpicked', NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(l1_batch_number.0),
         )
@@ -288,8 +284,7 @@ impl ProofGenerationDal<'_, '_> {
         let l1_batch_number = i64::from(block_number.0);
         let query = sqlx::query!(
             r#"
-            UPDATE
-                proof_generation_details
+            UPDATE proof_generation_details
             SET
                 status = $1,
                 updated_at = NOW()

@@ -36,25 +36,26 @@ impl VmRunnerDal<'_, '_> {
     ) -> DalResult<L1BatchNumber> {
         let row = sqlx::query!(
             r#"
-            WITH available_batches AS (
-                SELECT
-                    MAX(number) AS "last_batch"
-                FROM
-                    l1_batches
-            ),
-            processed_batches AS (
-                SELECT
-                    COALESCE(MAX(l1_batch_number), $1) + $2 AS "last_ready_batch"
-                FROM
-                    vm_runner_protective_reads
-                WHERE
-                    time_taken IS NOT NULL
-            )
+            WITH
+                available_batches AS (
+                    SELECT
+                        MAX(number) AS "last_batch"
+                    FROM
+                        l1_batches
+                ),
+                processed_batches AS (
+                    SELECT
+                        COALESCE(MAX(l1_batch_number), $1) + $2 AS "last_ready_batch"
+                    FROM
+                        vm_runner_protective_reads
+                    WHERE
+                        time_taken IS NOT NULL
+                )
             SELECT
                 LEAST(last_batch, last_ready_batch) AS "last_ready_batch!"
             FROM
-                available_batches FULL
-                JOIN processed_batches ON TRUE
+                available_batches
+                FULL JOIN processed_batches ON TRUE
             "#,
             default_batch.0 as i32,
             window_size as i32
@@ -73,14 +74,10 @@ impl VmRunnerDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                vm_runner_protective_reads (
-                    l1_batch_number,
-                    created_at,
-                    updated_at,
-                    processing_started_at
-                )
+                vm_runner_protective_reads (l1_batch_number, created_at, updated_at, processing_started_at)
             VALUES
-                ($1, NOW(), NOW(), NOW()) ON CONFLICT (l1_batch_number) DO
+                ($1, NOW(), NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO
             UPDATE
             SET
                 updated_at = NOW(),
@@ -101,8 +98,7 @@ impl VmRunnerDal<'_, '_> {
     ) -> anyhow::Result<()> {
         let update_result = sqlx::query!(
             r#"
-            UPDATE
-                vm_runner_protective_reads
+            UPDATE vm_runner_protective_reads
             SET
                 time_taken = NOW() - processing_started_at
             WHERE
@@ -137,8 +133,7 @@ impl VmRunnerDal<'_, '_> {
         let l1_batch_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
-            DELETE FROM
-                vm_runner_protective_reads
+            DELETE FROM vm_runner_protective_reads
             WHERE
                 l1_batch_number > $1
             "#,
@@ -162,8 +157,7 @@ impl VmRunnerDal<'_, '_> {
         let l1_batch_number = last_batch_to_keep.map_or(-1, |number| i64::from(number.0));
         sqlx::query!(
             r#"
-            DELETE FROM
-                vm_runner_bwip
+            DELETE FROM vm_runner_bwip
             WHERE
                 l1_batch_number > $1
             "#,
@@ -201,25 +195,26 @@ impl VmRunnerDal<'_, '_> {
     ) -> DalResult<L1BatchNumber> {
         let row = sqlx::query!(
             r#"
-            WITH available_batches AS (
-                SELECT
-                    MAX(number) AS "last_batch"
-                FROM
-                    l1_batches
-            ),
-            processed_batches AS (
-                SELECT
-                    COALESCE(MAX(l1_batch_number), $1) + $2 AS "last_ready_batch"
-                FROM
-                    vm_runner_bwip
-                WHERE
-                    time_taken IS NOT NULL
-            )
+            WITH
+                available_batches AS (
+                    SELECT
+                        MAX(number) AS "last_batch"
+                    FROM
+                        l1_batches
+                ),
+                processed_batches AS (
+                    SELECT
+                        COALESCE(MAX(l1_batch_number), $1) + $2 AS "last_ready_batch"
+                    FROM
+                        vm_runner_bwip
+                    WHERE
+                        time_taken IS NOT NULL
+                )
             SELECT
                 LEAST(last_batch, last_ready_batch) AS "last_ready_batch!"
             FROM
-                available_batches FULL
-                JOIN processed_batches ON TRUE
+                available_batches
+                FULL JOIN processed_batches ON TRUE
             "#,
             default_batch.0 as i32,
             window_size as i32
@@ -238,14 +233,10 @@ impl VmRunnerDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                vm_runner_bwip (
-                    l1_batch_number,
-                    created_at,
-                    updated_at,
-                    processing_started_at
-                )
+                vm_runner_bwip (l1_batch_number, created_at, updated_at, processing_started_at)
             VALUES
-                ($1, NOW(), NOW(), NOW()) ON CONFLICT (l1_batch_number) DO
+                ($1, NOW(), NOW(), NOW())
+            ON CONFLICT (l1_batch_number) DO
             UPDATE
             SET
                 updated_at = NOW(),
@@ -266,8 +257,7 @@ impl VmRunnerDal<'_, '_> {
     ) -> anyhow::Result<()> {
         let update_result = sqlx::query!(
             r#"
-            UPDATE
-                vm_runner_bwip
+            UPDATE vm_runner_bwip
             SET
                 time_taken = NOW() - processing_started_at
             WHERE

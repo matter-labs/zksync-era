@@ -707,18 +707,19 @@ impl BlocksWeb3Dal<'_, '_> {
         let l1_batch_details: Option<StorageL1BatchDetails> = sqlx::query_as!(
             StorageL1BatchDetails,
             r#"
-            WITH mb AS (
-                SELECT
-                    l1_gas_price,
-                    l2_fair_gas_price,
-                    fair_pubdata_price
-                FROM
-                    miniblocks
-                WHERE
-                    l1_batch_number = $1
-                LIMIT
-                    1
-            )
+            WITH
+                mb AS (
+                    SELECT
+                        l1_gas_price,
+                        l2_fair_gas_price,
+                        fair_pubdata_price
+                    FROM
+                        miniblocks
+                    WHERE
+                        l1_batch_number = $1
+                    LIMIT
+                        1
+                )
             SELECT
                 l1_batches.number,
                 l1_batches.timestamp,

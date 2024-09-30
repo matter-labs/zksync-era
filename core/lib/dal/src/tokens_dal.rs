@@ -49,8 +49,7 @@ impl TokensDal<'_, '_> {
     pub async fn mark_token_as_well_known(&mut self, l1_address: Address) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE
-                tokens
+            UPDATE tokens
             SET
                 well_known = TRUE,
                 updated_at = NOW()
@@ -109,8 +108,7 @@ impl TokensDal<'_, '_> {
             .collect();
         sqlx::query!(
             r#"
-            DELETE FROM
-                tokens
+            DELETE FROM tokens
             WHERE
                 l2_address = ANY ($1)
             "#,

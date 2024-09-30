@@ -37,7 +37,8 @@ impl FriProofCompressorDal<'_, '_> {
                     protocol_version_patch
                 )
             VALUES
-                ($1, $2, $3, NOW(), NOW(), $4, $5) ON CONFLICT (l1_batch_number) DO NOTHING
+                ($1, $2, $3, NOW(), NOW(), $4, $5)
+            ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
             fri_proof_blob_url,
@@ -57,8 +58,7 @@ impl FriProofCompressorDal<'_, '_> {
     ) -> Option<L1BatchNumber> {
         sqlx::query!(
             r#"
-            UPDATE
-                proof_compression_jobs_fri
+            UPDATE proof_compression_jobs_fri
             SET
                 status = $1,
                 attempts = attempts + 1,
@@ -78,8 +78,8 @@ impl FriProofCompressorDal<'_, '_> {
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
-                        1 FOR
-                    UPDATE
+                        1
+                    FOR UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -127,8 +127,7 @@ impl FriProofCompressorDal<'_, '_> {
     ) {
         sqlx::query!(
             r#"
-            UPDATE
-                proof_compression_jobs_fri
+            UPDATE proof_compression_jobs_fri
             SET
                 status = $1,
                 updated_at = NOW(),
@@ -154,8 +153,7 @@ impl FriProofCompressorDal<'_, '_> {
     ) {
         sqlx::query!(
             r#"
-            UPDATE
-                proof_compression_jobs_fri
+            UPDATE proof_compression_jobs_fri
             SET
                 status = $1,
                 error = $2,
@@ -225,8 +223,7 @@ impl FriProofCompressorDal<'_, '_> {
     pub async fn mark_proof_sent_to_server(&mut self, block_number: L1BatchNumber) {
         sqlx::query!(
             r#"
-            UPDATE
-                proof_compression_jobs_fri
+            UPDATE proof_compression_jobs_fri
             SET
                 status = $1,
                 updated_at = NOW()
@@ -315,8 +312,7 @@ impl FriProofCompressorDal<'_, '_> {
         {
             sqlx::query!(
                 r#"
-                UPDATE
-                    proof_compression_jobs_fri
+                UPDATE proof_compression_jobs_fri
                 SET
                     status = 'queued',
                     updated_at = NOW(),
@@ -324,7 +320,7 @@ impl FriProofCompressorDal<'_, '_> {
                 WHERE
                     (
                         status = 'in_progress'
-                        AND processing_started_at <= NOW() - $1 :: INTERVAL
+                        AND processing_started_at <= NOW() - $1::INTERVAL
                         AND attempts < $2
                     )
                     OR (
@@ -396,8 +392,7 @@ impl FriProofCompressorDal<'_, '_> {
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                proof_compression_jobs_fri
+            DELETE FROM proof_compression_jobs_fri
             WHERE
                 l1_batch_number = $1
             "#,
@@ -410,8 +405,7 @@ impl FriProofCompressorDal<'_, '_> {
     pub async fn delete(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                proof_compression_jobs_fri
+            DELETE FROM proof_compression_jobs_fri
             "#
         )
         .execute(self.storage.conn())
@@ -426,8 +420,7 @@ impl FriProofCompressorDal<'_, '_> {
         {
             sqlx::query!(
                 r#"
-                UPDATE
-                    proof_compression_jobs_fri
+                UPDATE proof_compression_jobs_fri
                 SET
                     status = 'queued',
                     error = 'Manually requeued',

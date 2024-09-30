@@ -68,8 +68,7 @@ impl FriProverDal<'_, '_> {
     ) -> Option<FriProverJobMetadata> {
         sqlx::query!(
             r#"
-            UPDATE
-                prover_jobs_fri
+            UPDATE prover_jobs_fri
             SET
                 status = 'in_progress',
                 attempts = attempts + 1,
@@ -92,8 +91,8 @@ impl FriProverDal<'_, '_> {
                         circuit_id ASC,
                         id ASC
                     LIMIT
-                        1 FOR
-                    UPDATE
+                        1
+                    FOR UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -131,8 +130,7 @@ impl FriProverDal<'_, '_> {
     ) -> Option<FriProverJobMetadata> {
         sqlx::query!(
             r#"
-            UPDATE
-                prover_jobs_fri
+            UPDATE prover_jobs_fri
             SET
                 status = 'in_progress',
                 attempts = attempts + 1,
@@ -154,8 +152,8 @@ impl FriProverDal<'_, '_> {
                         l1_batch_number ASC,
                         id ASC
                     LIMIT
-                        1 FOR
-                    UPDATE
+                        1
+                    FOR UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -202,8 +200,7 @@ impl FriProverDal<'_, '_> {
             .collect();
         sqlx::query!(
             r#"
-            UPDATE
-                prover_jobs_fri
+            UPDATE prover_jobs_fri
             SET
                 status = 'in_progress',
                 attempts = attempts + 1,
@@ -219,7 +216,7 @@ impl FriProverDal<'_, '_> {
                             SELECT
                                 *
                             FROM
-                                UNNEST($1 :: SMALLINT [], $2 :: SMALLINT [])
+                                UNNEST($1::SMALLINT[], $2::SMALLINT[])
                         ) AS tuple (circuit_id, ROUND)
                         JOIN LATERAL (
                             SELECT
@@ -243,8 +240,8 @@ impl FriProverDal<'_, '_> {
                         pj.aggregation_round DESC,
                         pj.id ASC
                     LIMIT
-                        1 FOR
-                    UPDATE
+                        1
+                    FOR UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -281,8 +278,7 @@ impl FriProverDal<'_, '_> {
         {
             sqlx::query!(
                 r#"
-                UPDATE
-                    prover_jobs_fri
+                UPDATE prover_jobs_fri
                 SET
                     status = 'failed',
                     error = $1,
@@ -327,8 +323,7 @@ impl FriProverDal<'_, '_> {
     ) -> FriProverJobMetadata {
         sqlx::query!(
             r#"
-            UPDATE
-                prover_jobs_fri
+            UPDATE prover_jobs_fri
             SET
                 status = 'successful',
                 updated_at = NOW(),
@@ -377,8 +372,7 @@ impl FriProverDal<'_, '_> {
         {
             sqlx::query!(
                 r#"
-                UPDATE
-                    prover_jobs_fri
+                UPDATE prover_jobs_fri
                 SET
                     status = 'queued',
                     updated_at = NOW(),
@@ -392,14 +386,14 @@ impl FriProverDal<'_, '_> {
                         WHERE
                             (
                                 status IN ('in_progress', 'in_gpu_proof')
-                                AND processing_started_at <= NOW() - $1 :: INTERVAL
+                                AND processing_started_at <= NOW() - $1::INTERVAL
                                 AND attempts < $2
                             )
                             OR (
                                 status = 'failed'
                                 AND attempts < $2
-                            ) FOR
-                        UPDATE
+                            )
+                        FOR UPDATE
                             SKIP LOCKED
                     )
                 RETURNING
@@ -459,26 +453,8 @@ impl FriProverDal<'_, '_> {
                     protocol_version_patch
                 )
             VALUES
-                (
-                    $1,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    $8,
-                    'queued',
-                    NOW(),
-                    NOW(),
-                    $9
-                ) ON CONFLICT (
-                    l1_batch_number,
-                    aggregation_round,
-                    circuit_id,
-                    depth,
-                    sequence_number
-                ) DO
+                ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9)
+            ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number) DO
             UPDATE
             SET
                 updated_at = NOW()
@@ -601,12 +577,7 @@ impl FriProverDal<'_, '_> {
                 FROM
                     prover_jobs_fri
                 WHERE
-                    status IN (
-                        'queued',
-                        'in_gpu_proof',
-                        'in_progress',
-                        'failed'
-                    )
+                    status IN ('queued', 'in_gpu_proof', 'in_progress', 'failed')
                 GROUP BY
                     circuit_id,
                     aggregation_round
@@ -629,8 +600,7 @@ impl FriProverDal<'_, '_> {
     pub async fn update_status(&mut self, id: u32, status: &str) {
         sqlx::query!(
             r#"
-            UPDATE
-                prover_jobs_fri
+            UPDATE prover_jobs_fri
             SET
                 status = $1,
                 updated_at = NOW()
@@ -803,8 +773,7 @@ impl FriProverDal<'_, '_> {
     ) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                prover_jobs_fri
+            DELETE FROM prover_jobs_fri
             WHERE
                 l1_batch_number = $1;
             "#,
@@ -825,8 +794,7 @@ impl FriProverDal<'_, '_> {
     pub async fn delete_prover_jobs_fri(&mut self) -> sqlx::Result<sqlx::postgres::PgQueryResult> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                prover_jobs_fri
+            DELETE FROM prover_jobs_fri
             "#
         )
         .execute(self.storage.conn())
@@ -845,8 +813,7 @@ impl FriProverDal<'_, '_> {
         {
             sqlx::query!(
                 r#"
-                UPDATE
-                    prover_jobs_fri
+                UPDATE prover_jobs_fri
                 SET
                     status = 'queued',
                     error = 'Manually requeued',

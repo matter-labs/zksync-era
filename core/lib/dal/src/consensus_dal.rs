@@ -91,8 +91,7 @@ impl ConsensusDal<'_, '_> {
                 let global_config = s.proto_fmt(want, serde_json::value::Serializer).unwrap();
                 sqlx::query!(
                     r#"
-                    UPDATE
-                        consensus_replica_state
+                    UPDATE consensus_replica_state
                     SET
                         global_config = $1
                     "#,
@@ -141,8 +140,7 @@ impl ConsensusDal<'_, '_> {
             .unwrap();
         sqlx::query!(
             r#"
-            DELETE FROM
-                l1_batches_consensus
+            DELETE FROM l1_batches_consensus
             "#
         )
         .instrument("try_update_genesis#DELETE FROM l1_batches_consensus")
@@ -150,8 +148,7 @@ impl ConsensusDal<'_, '_> {
         .await?;
         sqlx::query!(
             r#"
-            DELETE FROM
-                miniblocks_consensus
+            DELETE FROM miniblocks_consensus
             "#
         )
         .instrument("try_update_genesis#DELETE FROM miniblock_consensus")
@@ -159,8 +156,7 @@ impl ConsensusDal<'_, '_> {
         .await?;
         sqlx::query!(
             r#"
-            DELETE FROM
-                consensus_replica_state
+            DELETE FROM consensus_replica_state
             "#
         )
         .instrument("try_update_genesis#DELETE FROM consensus_replica_state")
@@ -256,8 +252,7 @@ impl ConsensusDal<'_, '_> {
             .unwrap();
         sqlx::query!(
             r#"
-            UPDATE
-                consensus_replica_state
+            UPDATE consensus_replica_state
             SET
                 state = $1
             WHERE
@@ -514,7 +509,8 @@ impl ConsensusDal<'_, '_> {
             INSERT INTO
                 l1_batches_consensus_committees (l1_batch_number, attesters, updated_at)
             VALUES
-                ($1, $2, NOW()) ON CONFLICT (l1_batch_number) DO
+                ($1, $2, NOW())
+            ON CONFLICT (l1_batch_number) DO
             UPDATE
             SET
                 l1_batch_number = $1,
@@ -586,12 +582,7 @@ impl ConsensusDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                l1_batches_consensus (
-                    l1_batch_number,
-                    certificate,
-                    updated_at,
-                    created_at
-                )
+                l1_batches_consensus (l1_batch_number, certificate, updated_at, created_at)
             VALUES
                 ($1, $2, NOW(), NOW())
             "#,

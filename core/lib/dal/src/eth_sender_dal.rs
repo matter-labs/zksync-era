@@ -35,9 +35,7 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                from_addr IS NOT DISTINCT
-            FROM
-                $1 -- can't just use equality as NULL != NULL
+                from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL
                 AND confirmed_eth_tx_history_id IS NULL
                 AND is_gateway = $2
                 AND id <= (
@@ -48,9 +46,7 @@ impl EthSenderDal<'_, '_> {
                         JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
                     WHERE
                         eth_txs_history.sent_at_block IS NOT NULL
-                        AND eth_txs.from_addr IS NOT DISTINCT
-                    FROM
-                        $1
+                        AND eth_txs.from_addr IS NOT DISTINCT FROM $1
                         AND is_gateway = $2
                 )
             ORDER BY
@@ -171,9 +167,7 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                from_addr IS NOT DISTINCT
-            FROM
-                $2 -- can't just use equality as NULL != NULL
+                from_addr IS NOT DISTINCT FROM $2 -- can't just use equality as NULL != NULL
                 AND is_gateway = $3
                 AND id > (
                     SELECT
@@ -183,9 +177,7 @@ impl EthSenderDal<'_, '_> {
                         JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
                     WHERE
                         eth_txs_history.sent_at_block IS NOT NULL
-                        AND eth_txs.from_addr IS NOT DISTINCT
-                    FROM
-                        $2
+                        AND eth_txs.from_addr IS NOT DISTINCT FROM $2
                         AND is_gateway = $3
                 )
             ORDER BY
@@ -311,7 +303,8 @@ impl EthSenderDal<'_, '_> {
                     sent_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, NOW()) ON CONFLICT (tx_hash) DO NOTHING
+                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, NOW())
+            ON CONFLICT (tx_hash) DO NOTHING
             RETURNING
                 id
             "#,
@@ -335,8 +328,7 @@ impl EthSenderDal<'_, '_> {
     ) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
-            UPDATE
-                eth_txs_history
+            UPDATE eth_txs_history
             SET
                 sent_at_block = $2,
                 sent_at = NOW()
@@ -355,8 +347,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn remove_tx_history(&mut self, eth_txs_history_id: u32) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                eth_txs_history
+            DELETE FROM eth_txs_history
             WHERE
                 id = $1
             "#,
@@ -378,8 +369,7 @@ impl EthSenderDal<'_, '_> {
         let tx_hash = format!("{:#x}", tx_hash);
         let ids = sqlx::query!(
             r#"
-            UPDATE
-                eth_txs_history
+            UPDATE eth_txs_history
             SET
                 updated_at = NOW(),
                 confirmed_at = NOW()
@@ -396,8 +386,7 @@ impl EthSenderDal<'_, '_> {
 
         sqlx::query!(
             r#"
-            UPDATE
-                eth_txs
+            UPDATE eth_txs
             SET
                 gas_used = $1,
                 confirmed_eth_tx_history_id = $2
@@ -418,8 +407,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn set_chain_id(&mut self, eth_tx_id: u32, chain_id: u64) -> anyhow::Result<()> {
         sqlx::query!(
             r#"
-            UPDATE
-                eth_txs
+            UPDATE eth_txs
             SET
                 chain_id = $1
             WHERE
@@ -525,8 +513,7 @@ impl EthSenderDal<'_, '_> {
             // Mark general entry as confirmed.
             sqlx::query!(
                 r#"
-                UPDATE
-                    eth_txs
+                UPDATE eth_txs
                 SET
                     confirmed_eth_tx_history_id = $1
                 WHERE
@@ -649,9 +636,7 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                from_addr IS NOT DISTINCT
-            FROM
-                $1 -- can't just use equality as NULL != NULL\
+                from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL\
                 AND is_gateway = $2
             ORDER BY
                 id DESC
@@ -670,8 +655,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn mark_failed_transaction(&mut self, eth_tx_id: u32) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
-            UPDATE
-                eth_txs
+            UPDATE eth_txs
             SET
                 has_failed = TRUE
             WHERE
@@ -704,8 +688,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn clear_failed_transactions(&mut self) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                eth_txs
+            DELETE FROM eth_txs
             WHERE
                 id >= (
                     SELECT
@@ -725,8 +708,7 @@ impl EthSenderDal<'_, '_> {
     pub async fn delete_eth_txs(&mut self, last_batch_to_keep: L1BatchNumber) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                eth_txs
+            DELETE FROM eth_txs
             WHERE
                 id IN (
                     (

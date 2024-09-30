@@ -49,7 +49,8 @@ impl ProtocolVersionsDal<'_, '_> {
                     created_at
                 )
             VALUES
-                ($1, $2, $3, $4, $5, NOW()) ON CONFLICT DO NOTHING
+                ($1, $2, $3, $4, $5, NOW())
+            ON CONFLICT DO NOTHING
             "#,
             version.minor as i32,
             timestamp as i64,
@@ -72,7 +73,8 @@ impl ProtocolVersionsDal<'_, '_> {
             INSERT INTO
                 protocol_patches (minor, patch, snark_wrapper_vk_hash, created_at)
             VALUES
-                ($1, $2, $3, NOW()) ON CONFLICT DO NOTHING
+                ($1, $2, $3, NOW())
+            ON CONFLICT DO NOTHING
             "#,
             version.minor as i32,
             version.patch.0 as i32,
@@ -121,8 +123,7 @@ impl ProtocolVersionsDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE
-                protocol_versions
+            UPDATE protocol_versions
             SET
                 upgrade_tx_hash = $1
             WHERE

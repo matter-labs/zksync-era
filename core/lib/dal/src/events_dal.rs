@@ -105,8 +105,7 @@ impl EventsDal<'_, '_> {
     pub async fn roll_back_events(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                events
+            DELETE FROM events
             WHERE
                 miniblock_number > $1
             "#,
@@ -186,8 +185,7 @@ impl EventsDal<'_, '_> {
     pub async fn roll_back_l2_to_l1_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                l2_to_l1_logs
+            DELETE FROM l2_to_l1_logs
             WHERE
                 miniblock_number > $1
             "#,
@@ -218,14 +216,14 @@ impl EventsDal<'_, '_> {
                 topic3,
                 topic4,
                 value,
-                NULL :: bytea AS "block_hash",
-                NULL :: BIGINT AS "l1_batch_number?",
+                NULL::bytea AS "block_hash",
+                NULL::BIGINT AS "l1_batch_number?",
                 miniblock_number,
                 tx_hash,
                 tx_index_in_block,
                 event_index_in_block,
                 event_index_in_tx,
-                NULL :: BIGINT AS "block_timestamp?"
+                NULL::BIGINT AS "block_timestamp?"
             FROM
                 events
             WHERE
@@ -310,7 +308,7 @@ impl EventsDal<'_, '_> {
                 log_index_in_miniblock,
                 log_index_in_tx,
                 tx_hash,
-                NULL :: BIGINT AS "l1_batch_number?",
+                NULL::BIGINT AS "l1_batch_number?",
                 shard_id,
                 is_service,
                 tx_index_in_miniblock,

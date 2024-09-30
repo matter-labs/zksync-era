@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                DELETE FROM transactions\n                WHERE\n                    hash = ANY ($1)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "ByteaArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "69c885498b186f3b7cbb215112ec86783d7da0ec1d008680872f3619cf217923"
+}

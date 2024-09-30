@@ -83,21 +83,7 @@ impl ContractVerificationDal<'_, '_> {
                     updated_at
                 )
             VALUES
-                (
-                    $1,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    $8,
-                    $9,
-                    $10,
-                    'queued',
-                    NOW(),
-                    NOW()
-                )
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'queued', NOW(), NOW())
             RETURNING
                 id
             "#,
@@ -134,8 +120,7 @@ impl ContractVerificationDal<'_, '_> {
         let result = sqlx::query_as!(
             StorageVerificationRequest,
             r#"
-            UPDATE
-                contract_verification_requests
+            UPDATE contract_verification_requests
             SET
                 status = 'in_progress',
                 attempts = attempts + 1,
@@ -151,13 +136,13 @@ impl ContractVerificationDal<'_, '_> {
                         status = 'queued'
                         OR (
                             status = 'in_progress'
-                            AND processing_started_at < NOW() - $1 :: INTERVAL
+                            AND processing_started_at < NOW() - $1::INTERVAL
                         )
                     ORDER BY
                         created_at
                     LIMIT
-                        1 FOR
-                    UPDATE
+                        1
+                    FOR UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -194,8 +179,7 @@ impl ContractVerificationDal<'_, '_> {
 
         sqlx::query!(
             r#"
-            UPDATE
-                contract_verification_requests
+            UPDATE contract_verification_requests
             SET
                 status = 'successful',
                 updated_at = NOW()
@@ -216,7 +200,8 @@ impl ContractVerificationDal<'_, '_> {
             INSERT INTO
                 contracts_verification_info (address, verification_info)
             VALUES
-                ($1, $2) ON CONFLICT (address) DO
+                ($1, $2)
+            ON CONFLICT (address) DO
             UPDATE
             SET
                 verification_info = $2
@@ -240,8 +225,7 @@ impl ContractVerificationDal<'_, '_> {
     ) -> sqlx::Result<()> {
         sqlx::query!(
             r#"
-            UPDATE
-                contract_verification_requests
+            UPDATE contract_verification_requests
             SET
                 status = 'failed',
                 updated_at = NOW(),
@@ -437,8 +421,7 @@ impl ContractVerificationDal<'_, '_> {
 
         sqlx::query!(
             r#"
-            DELETE FROM
-                compiler_versions
+            DELETE FROM compiler_versions
             WHERE
                 compiler = $1
             "#,
@@ -457,7 +440,8 @@ impl ContractVerificationDal<'_, '_> {
                 NOW(),
                 NOW()
             FROM
-                UNNEST($1 :: TEXT []) AS u (VERSION) ON CONFLICT (VERSION, compiler) DO NOTHING
+                UNNEST($1::TEXT[]) AS u (VERSION)
+            ON CONFLICT (VERSION, compiler) DO NOTHING
             "#,
             &versions,
             &compiler,

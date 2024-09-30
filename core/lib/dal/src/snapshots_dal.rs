@@ -63,14 +63,7 @@ impl SnapshotsDal<'_, '_> {
                     updated_at
                 )
             VALUES
-                (
-                    $1,
-                    $2,
-                    ARRAY_FILL('' :: TEXT, ARRAY [$3::INTEGER]),
-                    $4,
-                    NOW(),
-                    NOW()
-                )
+                ($1, $2, ARRAY_FILL(''::TEXT, ARRAY[$3::INTEGER]), $4, NOW(), NOW())
             "#,
             version as i32,
             l1_batch_number.0 as i32,
@@ -94,10 +87,9 @@ impl SnapshotsDal<'_, '_> {
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
-            UPDATE
-                snapshots
+            UPDATE snapshots
             SET
-                storage_logs_filepaths [$2] = $3,
+                storage_logs_filepaths[$2] = $3,
                 updated_at = NOW()
             WHERE
                 l1_batch_number = $1
@@ -123,7 +115,7 @@ impl SnapshotsDal<'_, '_> {
             FROM
                 snapshots
             WHERE
-                NOT ('' :: TEXT = ANY (storage_logs_filepaths))
+                NOT (''::TEXT = ANY (storage_logs_filepaths))
             ORDER BY
                 l1_batch_number DESC
             "#
@@ -202,8 +194,7 @@ impl SnapshotsDal<'_, '_> {
         sqlx::query_as!(
             StorageSnapshotMetadata,
             r#"
-            DELETE FROM
-                snapshots
+            DELETE FROM snapshots
             WHERE
                 l1_batch_number > $1
             RETURNING

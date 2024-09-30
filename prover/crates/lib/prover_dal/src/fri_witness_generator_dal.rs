@@ -59,7 +59,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     protocol_version_patch
                 )
             VALUES
-                ($1, $2, $3, 'queued', NOW(), NOW(), $4) ON CONFLICT (l1_batch_number) DO NOTHING
+                ($1, $2, $3, 'queued', NOW(), NOW(), $4)
+            ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
             witness_inputs_blob_url,
@@ -80,8 +81,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) -> Option<L1BatchNumber> {
         sqlx::query!(
             r#"
-            UPDATE
-                witness_inputs_fri
+            UPDATE witness_inputs_fri
             SET
                 status = 'in_progress',
                 attempts = attempts + 1,
@@ -101,8 +101,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
-                        1 FOR
-                    UPDATE
+                        1
+                    FOR UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -125,8 +125,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) {
         sqlx::query!(
             r#"
-            UPDATE
-                witness_inputs_fri
+            UPDATE witness_inputs_fri
             SET
                 status = $1,
                 updated_at = NOW()
@@ -149,8 +148,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) {
         sqlx::query!(
             r#"
-            UPDATE
-                witness_inputs_fri
+            UPDATE witness_inputs_fri
             SET
                 status = 'successful',
                 updated_at = NOW(),
@@ -169,8 +167,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn mark_leaf_aggregation_as_successful(&mut self, id: u32, time_taken: Duration) {
         sqlx::query!(
             r#"
-            UPDATE
-                leaf_aggregation_witness_jobs_fri
+            UPDATE leaf_aggregation_witness_jobs_fri
             SET
                 status = 'successful',
                 updated_at = NOW(),
@@ -194,8 +191,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         sqlx::query!(
             r#"
-            UPDATE
-                witness_inputs_fri
+            UPDATE witness_inputs_fri
             SET
                 status = 'queued',
                 updated_at = NOW(),
@@ -203,7 +199,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 (
                     status = 'in_progress'
-                    AND processing_started_at <= NOW() - $1 :: INTERVAL
+                    AND processing_started_at <= NOW() - $1::INTERVAL
                     AND attempts < $2
                 )
                 OR (
@@ -272,17 +268,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                             protocol_version_patch
                         )
                     VALUES
-                        (
-                            $1,
-                            $2,
-                            $3,
-                            $4,
-                            $5,
-                            'waiting_for_proofs',
-                            NOW(),
-                            NOW(),
-                            $6
-                        ) ON CONFLICT (l1_batch_number, circuit_id) DO
+                        ($1, $2, $3, $4, $5, 'waiting_for_proofs', NOW(), NOW(), $6)
+                    ON CONFLICT (l1_batch_number, circuit_id) DO
                     UPDATE
                     SET
                         updated_at = NOW()
@@ -322,15 +309,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         protocol_version_patch
                     )
                 VALUES
-                    (
-                        $1,
-                        'waiting_for_proofs',
-                        $2,
-                        $3,
-                        NOW(),
-                        NOW(),
-                        $4
-                    ) ON CONFLICT (l1_batch_number) DO
+                    ($1, 'waiting_for_proofs', $2, $3, NOW(), NOW(), $4)
+                ON CONFLICT (l1_batch_number) DO
                 UPDATE
                 SET
                     updated_at = NOW()
@@ -357,15 +337,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         protocol_version_patch
                     )
                 VALUES
-                    (
-                        $1,
-                        $2,
-                        $3,
-                        'waiting_for_proofs',
-                        NOW(),
-                        NOW(),
-                        $4
-                    ) ON CONFLICT (l1_batch_number) DO
+                    ($1, $2, $3, 'waiting_for_proofs', NOW(), NOW(), $4)
+                ON CONFLICT (l1_batch_number) DO
                 UPDATE
                 SET
                     updated_at = NOW()
@@ -390,8 +363,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) -> Option<LeafAggregationJobMetadata> {
         let row = sqlx::query!(
             r#"
-            UPDATE
-                leaf_aggregation_witness_jobs_fri
+            UPDATE leaf_aggregation_witness_jobs_fri
             SET
                 status = 'in_progress',
                 attempts = attempts + 1,
@@ -412,8 +384,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         l1_batch_number ASC,
                         id ASC
                     LIMIT
-                        1 FOR
-                    UPDATE
+                        1
+                    FOR UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -482,8 +454,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn move_leaf_aggregation_jobs_from_waiting_to_queued(&mut self) -> Vec<(i64, u8)> {
         sqlx::query!(
             r#"
-            UPDATE
-                leaf_aggregation_witness_jobs_fri
+            UPDATE leaf_aggregation_witness_jobs_fri
             SET
                 status = 'queued'
             WHERE
@@ -529,8 +500,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) {
         sqlx::query!(
             r#"
-            UPDATE
-                node_aggregation_witness_jobs_fri
+            UPDATE node_aggregation_witness_jobs_fri
             SET
                 aggregations_url = $1,
                 number_of_dependent_jobs = $5,
@@ -558,8 +528,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) -> Option<NodeAggregationJobMetadata> {
         let row = sqlx::query!(
             r#"
-            UPDATE
-                node_aggregation_witness_jobs_fri
+            UPDATE node_aggregation_witness_jobs_fri
             SET
                 status = 'in_progress',
                 attempts = attempts + 1,
@@ -581,8 +550,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         depth ASC,
                         id ASC
                     LIMIT
-                        1 FOR
-                    UPDATE
+                        1
+                    FOR UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -620,8 +589,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn mark_node_aggregation_as_successful(&mut self, id: u32, time_taken: Duration) {
         sqlx::query!(
             r#"
-            UPDATE
-                node_aggregation_witness_jobs_fri
+            UPDATE node_aggregation_witness_jobs_fri
             SET
                 status = 'successful',
                 updated_at = NOW(),
@@ -662,18 +630,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     protocol_version_patch
                 )
             VALUES
-                (
-                    $1,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    'waiting_for_proofs',
-                    NOW(),
-                    NOW(),
-                    $7
-                ) ON CONFLICT (l1_batch_number, circuit_id, depth) DO
+                ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7)
+            ON CONFLICT (l1_batch_number, circuit_id, depth) DO
             UPDATE
             SET
                 updated_at = NOW()
@@ -694,8 +652,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn move_depth_zero_node_aggregation_jobs(&mut self) -> Vec<(i64, u8, u16)> {
         sqlx::query!(
             r#"
-            UPDATE
-                node_aggregation_witness_jobs_fri
+            UPDATE node_aggregation_witness_jobs_fri
             SET
                 status = 'queued'
             WHERE
@@ -739,8 +696,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn move_depth_non_zero_node_aggregation_jobs(&mut self) -> Vec<(i64, u8, u16)> {
         sqlx::query!(
             r#"
-            UPDATE
-                node_aggregation_witness_jobs_fri
+            UPDATE node_aggregation_witness_jobs_fri
             SET
                 status = 'queued'
             WHERE
@@ -783,8 +739,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn move_recursion_tip_jobs_from_waiting_to_queued(&mut self) -> Vec<u64> {
         sqlx::query!(
             r#"
-            UPDATE
-                recursion_tip_witness_jobs_fri
+            UPDATE recursion_tip_witness_jobs_fri
             SET
                 status = 'queued'
             WHERE
@@ -821,8 +776,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn move_scheduler_jobs_from_waiting_to_queued(&mut self) -> Vec<u64> {
         sqlx::query!(
             r#"
-            UPDATE
-                scheduler_witness_jobs_fri
+            UPDATE scheduler_witness_jobs_fri
             SET
                 status = 'queued'
             WHERE
@@ -858,8 +812,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         sqlx::query!(
             r#"
-            UPDATE
-                leaf_aggregation_witness_jobs_fri
+            UPDATE leaf_aggregation_witness_jobs_fri
             SET
                 status = 'queued',
                 updated_at = NOW(),
@@ -867,7 +820,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 (
                     status = 'in_progress'
-                    AND processing_started_at <= NOW() - $1 :: INTERVAL
+                    AND processing_started_at <= NOW() - $1::INTERVAL
                     AND attempts < $2
                 )
                 OR (
@@ -908,8 +861,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         sqlx::query!(
             r#"
-            UPDATE
-                node_aggregation_witness_jobs_fri
+            UPDATE node_aggregation_witness_jobs_fri
             SET
                 status = 'queued',
                 updated_at = NOW(),
@@ -917,7 +869,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 (
                     status = 'in_progress'
-                    AND processing_started_at <= NOW() - $1 :: INTERVAL
+                    AND processing_started_at <= NOW() - $1::INTERVAL
                     AND attempts < $2
                 )
                 OR (
@@ -958,8 +910,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         sqlx::query!(
             r#"
-            UPDATE
-                recursion_tip_witness_jobs_fri
+            UPDATE recursion_tip_witness_jobs_fri
             SET
                 status = 'queued',
                 updated_at = NOW(),
@@ -967,7 +918,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 (
                     status = 'in_progress'
-                    AND processing_started_at <= NOW() - $1 :: INTERVAL
+                    AND processing_started_at <= NOW() - $1::INTERVAL
                     AND attempts < $2
                 )
                 OR (
@@ -1006,8 +957,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) -> Option<(L1BatchNumber, i32)> {
         sqlx::query!(
             r#"
-            UPDATE
-                recursion_tip_witness_jobs_fri
+            UPDATE recursion_tip_witness_jobs_fri
             SET
                 status = 'in_progress',
                 attempts = attempts + 1,
@@ -1027,8 +977,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
-                        1 FOR
-                    UPDATE
+                        1
+                    FOR UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -1053,8 +1003,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     pub async fn mark_scheduler_jobs_as_queued(&mut self, l1_batch_number: i64) {
         sqlx::query!(
             r#"
-            UPDATE
-                scheduler_witness_jobs_fri
+            UPDATE scheduler_witness_jobs_fri
             SET
                 status = 'queued'
             WHERE
@@ -1077,8 +1026,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         sqlx::query!(
             r#"
-            UPDATE
-                scheduler_witness_jobs_fri
+            UPDATE scheduler_witness_jobs_fri
             SET
                 status = 'queued',
                 updated_at = NOW(),
@@ -1086,7 +1034,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
             WHERE
                 (
                     status = 'in_progress'
-                    AND processing_started_at <= NOW() - $1 :: INTERVAL
+                    AND processing_started_at <= NOW() - $1::INTERVAL
                     AND attempts < $2
                 )
                 OR (
@@ -1125,8 +1073,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) -> Option<L1BatchNumber> {
         sqlx::query!(
             r#"
-            UPDATE
-                scheduler_witness_jobs_fri
+            UPDATE scheduler_witness_jobs_fri
             SET
                 status = 'in_progress',
                 attempts = attempts + 1,
@@ -1146,8 +1093,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
-                        1 FOR
-                    UPDATE
+                        1
+                    FOR UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -1210,8 +1157,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) {
         sqlx::query!(
             r#"
-            UPDATE
-                recursion_tip_witness_jobs_fri
+            UPDATE recursion_tip_witness_jobs_fri
             SET
                 status = 'successful',
                 updated_at = NOW(),
@@ -1234,8 +1180,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) {
         sqlx::query!(
             r#"
-            UPDATE
-                scheduler_witness_jobs_fri
+            UPDATE scheduler_witness_jobs_fri
             SET
                 status = 'successful',
                 updated_at = NOW(),
@@ -1628,8 +1573,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) -> Vec<StuckJobs> {
         sqlx::query!(
             r#"
-            UPDATE
-                witness_inputs_fri
+            UPDATE witness_inputs_fri
             SET
                 status = 'queued',
                 updated_at = NOW(),
@@ -1699,8 +1643,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) -> Vec<StuckJobs> {
         sqlx::query!(
             r#"
-            UPDATE
-                recursion_tip_witness_jobs_fri
+            UPDATE recursion_tip_witness_jobs_fri
             SET
                 status = 'queued',
                 updated_at = NOW(),
@@ -1744,8 +1687,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
     ) -> Vec<StuckJobs> {
         sqlx::query!(
             r#"
-            UPDATE
-                scheduler_witness_jobs_fri
+            UPDATE scheduler_witness_jobs_fri
             SET
                 status = 'queued',
                 updated_at = NOW(),

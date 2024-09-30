@@ -41,8 +41,7 @@ impl TeeProofGenerationDal<'_, '_> {
         let min_batch_number = min_batch_number.map_or(0, |num| i64::from(num.0));
         let query = sqlx::query!(
             r#"
-            UPDATE
-                tee_proof_generation_details
+            UPDATE tee_proof_generation_details
             SET
                 status = $1,
                 updated_at = NOW(),
@@ -61,15 +60,15 @@ impl TeeProofGenerationDal<'_, '_> {
                             proofs.status = $4
                             OR (
                                 proofs.status = $1
-                                AND proofs.prover_taken_at < NOW() - $5 :: INTERVAL
+                                AND proofs.prover_taken_at < NOW() - $5::INTERVAL
                             )
                         )
                         AND proofs.l1_batch_number >= $6
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
-                        1 FOR
-                    UPDATE
+                        1
+                    FOR UPDATE
                         SKIP LOCKED
                 )
             RETURNING
@@ -103,8 +102,7 @@ impl TeeProofGenerationDal<'_, '_> {
         let batch_number = i64::from(l1_batch_number.0);
         sqlx::query!(
             r#"
-            UPDATE
-                tee_proof_generation_details
+            UPDATE tee_proof_generation_details
             SET
                 status = $1,
                 updated_at = NOW()
@@ -136,8 +134,7 @@ impl TeeProofGenerationDal<'_, '_> {
         let batch_number = i64::from(batch_number.0);
         let query = sqlx::query!(
             r#"
-            UPDATE
-                tee_proof_generation_details
+            UPDATE tee_proof_generation_details
             SET
                 tee_type = $1,
                 status = $2,
@@ -186,15 +183,10 @@ impl TeeProofGenerationDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-                tee_proof_generation_details (
-                    l1_batch_number,
-                    tee_type,
-                    status,
-                    created_at,
-                    updated_at
-                )
+                tee_proof_generation_details (l1_batch_number, tee_type, status, created_at, updated_at)
             VALUES
-                ($1, $2, $3, NOW(), NOW()) ON CONFLICT (l1_batch_number, tee_type) DO NOTHING
+                ($1, $2, $3, NOW(), NOW())
+            ON CONFLICT (l1_batch_number, tee_type) DO NOTHING
             "#,
             batch_number,
             tee_type.to_string(),
@@ -218,7 +210,8 @@ impl TeeProofGenerationDal<'_, '_> {
             INSERT INTO
                 tee_attestations (pubkey, attestation)
             VALUES
-                ($1, $2) ON CONFLICT (pubkey) DO NOTHING
+                ($1, $2)
+            ON CONFLICT (pubkey) DO NOTHING
             "#,
             pubkey,
             attestation

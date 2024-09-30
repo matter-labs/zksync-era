@@ -186,8 +186,8 @@ impl StorageLogsDal<'_, '_> {
     ) -> DalResult<Vec<H256>> {
         let rows = sqlx::query!(
             r#"
-            SELECT
-                DISTINCT hashed_key
+            SELECT DISTINCT
+                hashed_key
             FROM
                 storage_logs
             WHERE
@@ -211,8 +211,7 @@ impl StorageLogsDal<'_, '_> {
     pub async fn roll_back_storage_logs(&mut self, block_number: L2BlockNumber) -> DalResult<()> {
         sqlx::query!(
             r#"
-            DELETE FROM
-                storage_logs
+            DELETE FROM storage_logs
             WHERE
                 miniblock_number > $1
             "#,
@@ -290,8 +289,8 @@ impl StorageLogsDal<'_, '_> {
         // this value will equal `FAILED_CONTRACT_DEPLOYMENT_BYTECODE_HASH`, so that they can be easily filtered.
         let rows = sqlx::query!(
             r#"
-            SELECT
-                DISTINCT ON (hashed_key) hashed_key,
+            SELECT DISTINCT
+                ON (hashed_key) hashed_key,
                 miniblock_number,
                 value
             FROM
@@ -544,7 +543,7 @@ impl StorageLogsDal<'_, '_> {
             FROM
                 initial_writes
             WHERE
-                hashed_key = ANY ($1 :: bytea [])
+                hashed_key = ANY ($1::bytea[])
             "#,
             &hashed_keys as &[&[u8]],
         )
@@ -622,7 +621,7 @@ impl StorageLogsDal<'_, '_> {
                         1
                 ) AS "value?"
             FROM
-                UNNEST($1 :: bytea []) AS u (hashed_key)
+                UNNEST($1::bytea[]) AS u (hashed_key)
             "#,
             &hashed_keys as &[&[u8]],
             i64::from(l2_block_number.0)
@@ -717,32 +716,33 @@ impl StorageLogsDal<'_, '_> {
             .unzip();
         let rows = sqlx::query!(
             r#"
-            WITH sl AS (
-                SELECT
-                    (
-                        SELECT
-                            ARRAY [hashed_key, value] AS kv
-                        FROM
-                            storage_logs
-                        WHERE
-                            storage_logs.miniblock_number = $1
-                            AND storage_logs.hashed_key >= u.start_key
-                            AND storage_logs.hashed_key <= u.end_key
-                        ORDER BY
-                            storage_logs.hashed_key
-                        LIMIT
-                            1
-                    )
-                FROM
-                    UNNEST($2 :: bytea [], $3 :: bytea []) AS u (start_key, end_key)
-            )
+            WITH
+                sl AS (
+                    SELECT
+                        (
+                            SELECT
+                                ARRAY[hashed_key, value] AS kv
+                            FROM
+                                storage_logs
+                            WHERE
+                                storage_logs.miniblock_number = $1
+                                AND storage_logs.hashed_key >= u.start_key
+                                AND storage_logs.hashed_key <= u.end_key
+                            ORDER BY
+                                storage_logs.hashed_key
+                            LIMIT
+                                1
+                        )
+                    FROM
+                        UNNEST($2::bytea[], $3::bytea[]) AS u (start_key, end_key)
+                )
             SELECT
-                sl.kv [1] AS "hashed_key?",
-                sl.kv [2] AS "value?",
+                sl.kv[1] AS "hashed_key?",
+                sl.kv[2] AS "value?",
                 initial_writes.index
             FROM
                 sl
-                LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv [1]
+                LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]
             "#,
             i64::from(l2_block_number.0),
             &start_keys as &[&[u8]],
@@ -782,8 +782,8 @@ impl StorageLogsDal<'_, '_> {
                 INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key
             WHERE
                 storage_logs.miniblock_number = $1
-                AND storage_logs.hashed_key >= $2 :: bytea
-                AND storage_logs.hashed_key <= $3 :: bytea
+                AND storage_logs.hashed_key >= $2::bytea
+                AND storage_logs.hashed_key <= $3::bytea
             ORDER BY
                 storage_logs.hashed_key
             "#,

@@ -28,15 +28,10 @@ impl DataAvailabilityDal<'_, '_> {
         let update_result = sqlx::query!(
             r#"
             INSERT INTO
-                data_availability (
-                    l1_batch_number,
-                    blob_id,
-                    sent_at,
-                    created_at,
-                    updated_at
-                )
+                data_availability (l1_batch_number, blob_id, sent_at, created_at, updated_at)
             VALUES
-                ($1, $2, $3, NOW(), NOW()) ON CONFLICT DO NOTHING
+                ($1, $2, $3, NOW(), NOW())
+            ON CONFLICT DO NOTHING
             "#,
             i64::from(number.0),
             blob_id,
@@ -98,8 +93,7 @@ impl DataAvailabilityDal<'_, '_> {
     ) -> DalResult<()> {
         let update_result = sqlx::query!(
             r#"
-            UPDATE
-                data_availability
+            UPDATE data_availability
             SET
                 inclusion_data = $1,
                 updated_at = NOW()
