@@ -5,7 +5,7 @@ CONTEXT=.
 # Additional packages versions
 DOCKER_VERSION_MIN=27.1.2
 NODE_VERSION_MIN=20.17.0
-YARN_VERSION_MIN=1.22.21
+YARN_VERSION_MIN=1.22.19
 RUST_VERSION=nightly-2024-08-01
 SQLX_CLI_VERSION=0.8.1
 FORGE_MIN_VERSION=0.2.0
@@ -54,10 +54,11 @@ check-foundry:
 check-tools: check-nodejs check-yarn check-rust check-sqlx-cli check-docker check-foundry
 	@echo "All required tools are installed."
 
-# Build and download neede contracts
+# Build and download needed contracts
 prepare-contracts: check-tools
 	@export ZKSYNC_HOME=$$(pwd) && \
 	export PATH=$$PATH:$${ZKSYNC_HOME}/bin && \
+	git submodule update --recursive && \
 	commit_sha=$$(git submodule status contracts | awk '{print $$1}' | tr -d '-') && \
 	page=1 && \
 	filtered_tag="" && \
@@ -81,10 +82,11 @@ prepare-contracts: check-tools
 	rm -f l1-contracts.tar.gz && \
 	rm -f l2-contracts.tar.gz && \
 	rm -f system-contracts.tar.gz && \
+	cp etc/tokens/test.json . && \
+	cp etc/tokens/localhost.json . && \
 	mkdir -p ./volumes/postgres && \
 	docker compose up -d postgres && \
 	zkt || true && \
-	cp etc/tokens/{test,localhost}.json && \
 	zk_supervisor contracts
 
 # Download setup-key
@@ -93,27 +95,25 @@ prepare-keys:
 
 # Targets for building each container
 build-contract-verifier: check-tools prepare-contracts prepare-keys
-	$$(DOCKER_BUILD_CMD) --file $$(DOCKERFILES)/contract-verifier/Dockerfile \
-		--tag contract-verifier:$$(PROTOCOL_VERSION) $$(CONTEXT)
+	$(DOCKER_BUILD_CMD) --file $(DOCKERFILES)/contract-verifier/Dockerfile --load \
+		--tag contract-verifier:$(PROTOCOL_VERSION) $(CONTEXT)
 
 build-core: check-tools prepare-contracts prepare-keys
-	$$(DOCKER_BUILD_CMD) --file $$(DOCKERFILES)/core/Dockerfile \
-		--tag core:$$(PROTOCOL_VERSION) $$(CONTEXT)
+	$(DOCKER_BUILD_CMD) --file $(DOCKERFILES)/core/Dockerfile --load \
+		--tag core:$(PROTOCOL_VERSION) $(CONTEXT)
 
-build-prover: check-tools prepare-keys
-	$$(DOCKER_BUILD_CMD) --file $$(DOCKERFILES)/prover/Dockerfile \
-		--tag prover:$$(PROTOCOL_VERSION) $$(CONTEXT)
+build-circuit-prover-gpu: check-tools prepare-keys
+	$(DOCKER_BUILD_CMD) --file $(DOCKERFILES)/circuit-prover-gpu/Dockerfile --load \
+		--platform linux/amd64 \
+		--tag prover:$(PROTOCOL_VERSION) $(CONTEXT)
 
 build-witness-generator: check-tools prepare-keys
-	$$(DOCKER_BUILD_CMD) --file $$(DOCKERFILES)/witness-generator/Dockerfile \
-		--tag witness-generator:$$(PROTOCOL_VERSION) $$(CONTEXT)
+	$(DOCKER_BUILD_CMD) --file $(DOCKERFILES)/witness-generator/Dockerfile --load \
+		--tag witness-generator:$(PROTOCOL_VERSION) $(CONTEXT)
 
-build-witness-vector-generator: check-tools prepare-keys
-	$$(DOCKER_BUILD_CMD) --file $$(DOCKERFILES)/witness-vector-generator/Dockerfile \
-		--tag witness-generator:$$(PROTOCOL_VERSION) $$(CONTEXT)
 
 # Build all containers
-build-all: build-contract-verifier build-core build-prover build-witness-generator build-witness-vector-generator cleanup
+build-all: build-contract-verifier build-core build-witness-generator build-circuit-prover-gpu cleanup
 
 # Clean generated images
 clean-images:
@@ -126,5 +126,4 @@ clean-images:
 cleanup:
 	@echo "Running cleanup..." && \
 	docker compose down -v >/dev/null 2>&1 && \
-	rm -rf ./volumes/postgres && \
-	rm -rf ./contracts
+	rm -rf ./volumes/postgres
