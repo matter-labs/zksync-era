@@ -2,7 +2,7 @@ use std::env;
 
 use zksync_config::configs::{
     da_client::{
-        avail::AvailSecrets, DAClientConfig, AVAIL_CLIENT_CONFIG_NAME,
+        avail::AvailSecrets, DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, NEAR_CLIENT_CONFIG_NAME,
         OBJECT_STORE_CLIENT_CONFIG_NAME,
     },
     secrets::DataAvailabilitySecrets,
@@ -15,6 +15,7 @@ impl FromEnv for DAClientConfig {
         let client_tag = std::env::var("DA_CLIENT")?;
         let config = match client_tag.as_str() {
             AVAIL_CLIENT_CONFIG_NAME => Self::Avail(envy_load("da_avail_config", "DA_")?),
+            NEAR_CLIENT_CONFIG_NAME => Self::Near(envy_load("da_near_config", "DA_")?),
             OBJECT_STORE_CLIENT_CONFIG_NAME => {
                 Self::ObjectStore(envy_load("da_object_store", "DA_")?)
             }
@@ -50,7 +51,7 @@ mod tests {
             da_client::{DAClientConfig, DAClientConfig::ObjectStore},
             object_store::ObjectStoreMode::GCS,
         },
-        AvailConfig, ObjectStoreConfig,
+        AvailConfig, NearConfig, ObjectStoreConfig,
     };
 
     use super::*;
@@ -148,6 +149,34 @@ mod tests {
             "bottom drive obey lake curtain smoke basket hold race lonely fit walk"
                 .parse()
                 .unwrap()
+        );
+    }
+
+    fn from_env_near_client() {
+        let mut lock = MUTEX.lock();
+        let config = r#"
+            DA_CLIENT="Near"
+            DA_EVM_PROVIDER_URL="https://sepolia-rollup.arbitrum.io/rpc"
+            DA_RPC_CLIENT_URL="https://rpc.testnet.near.org"
+            DA_BLOB_CONTRACT="blob-store-contract.near"
+            DA_BRIDGE_CONTRACT="0x0000000000000000000000000000000000000001"
+            DA_ACCOUNT_ID="acount-id.near"
+            DA_SECRET_KEY="YOUR_SECRET_KEY"
+        "#;
+
+        lock.set_env(config);
+        let actual = DAClientConfig::from_env().unwrap();
+
+        assert_eq!(
+            actual,
+            DAClientConfig::Near(NearConfig {
+                evm_provider_url: "https://sepolia-rollup.arbitrum.io/rpc".to_string(),
+                rpc_client_url: "https://rpc.testnet.near.org".to_string(),
+                blob_contract: "blob-store-contract.near".to_string(),
+                bridge_contract: "0x0000000000000000000000000000000000000001".to_string(),
+                account_id: "acount-id.near".to_string(),
+                secret_key: "YOUR_SECRET_KEY".to_string(),
+            })
         );
     }
 }
