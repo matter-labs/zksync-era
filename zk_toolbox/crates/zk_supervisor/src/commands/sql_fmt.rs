@@ -3,13 +3,12 @@ use common::spinner::Spinner;
 use regex::Regex;
 use xshell::Shell;
 
+use super::lint_utils::{get_unignored_files, IgnoredData, Target};
 use crate::messages::{
     msg_file_is_not_formatted, MSG_FAILED_TO_DETERMINE_BASE_INDENT,
     MSG_FAILED_TO_FIND_END_OF_REGULAR_STRING_QUERY,
     MSG_FAILED_TO_FIND_START_OF_REGULAR_STRING_QUERY, MSG_RUNNING_SQL_FMT_SPINNER,
 };
-
-use super::lint_utils::{get_unignored_files, IgnoredData, Target};
 
 fn format_query(query: &str) -> anyhow::Result<String> {
     let options = sqlformat::FormatOptions {
@@ -30,7 +29,9 @@ fn format_query(query: &str) -> anyhow::Result<String> {
         "VALUE",
         "DEPTH",
         "KEY",
+        "KEYS",
         "STATUS",
+        "EVENTS",
     ];
     for keyword in keywords {
         let regex = Regex::new(&format!(r"\b{}\b", keyword))?;
