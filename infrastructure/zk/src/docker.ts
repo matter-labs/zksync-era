@@ -11,6 +11,7 @@ const IMAGES = [
     'witness-generator',
     'prover-gpu-fri',
     'witness-vector-generator',
+    'circuit-prover-gpu',
     'prover-fri-gateway',
     'prover-job-monitor',
     'proof-fri-gpu-compressor',
@@ -87,7 +88,8 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
             'prover-fri-gateway',
             'prover-gpu-fri',
             'witness-generator',
-            'witness-vector-generator'
+            'witness-vector-generator',
+            'circuit-prover-gpu'
         ].includes(image)
     ) {
         tagList.push(`2.0-${protocolVersionTag}-${imageTagShaTS}`, `${protocolVersionTag}-${imageTagShaTS}`);

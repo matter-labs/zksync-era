@@ -1,7 +1,9 @@
 use std::fmt;
 
 use anyhow::Context;
-use zksync_contracts::{getters_contract, state_transition_manager_contract, verifier_contract};
+use zksync_contracts::{
+    getters_facet_contract, state_transition_manager_contract, verifier_contract,
+};
 use zksync_eth_client::{
     clients::{DynClient, L1},
     CallFunctionArgs, ClientError, ContractCallError, EnrichedClientError, EnrichedClientResult,
@@ -21,8 +23,8 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         &self,
         from: BlockNumber,
         to: BlockNumber,
-        topics1: Vec<H256>,
-        topics2: Vec<H256>,
+        topic1: H256,
+        topic2: Option<H256>,
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>>;
     /// Returns finalized L1 block number.
@@ -45,6 +47,7 @@ pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 const TOO_MANY_RESULTS_RETH: &str = "query exceeds max block range";
+const TOO_MANY_RESULTS_CHAINSTACK: &str = "range limit exceeded";
 
 /// Implementation of [`EthClient`] based on HTTP JSON-RPC (encapsulated via [`EthInterface`]).
 #[derive(Debug, Clone)]
@@ -57,7 +60,7 @@ pub struct EthHttpQueryClient {
     state_transition_manager_address: Option<Address>,
     chain_admin_address: Option<Address>,
     verifier_contract_abi: Contract,
-    getters_contract_abi: Contract,
+    getters_facet_contract_abi: Contract,
     confirmations_for_eth_event: Option<u64>,
 }
 
@@ -87,7 +90,7 @@ impl EthHttpQueryClient {
                 .unwrap()
                 .signature(),
             verifier_contract_abi: verifier_contract(),
-            getters_contract_abi: getters_contract(),
+            getters_facet_contract_abi: getters_facet_contract(),
             confirmations_for_eth_event,
         }
     }
@@ -146,6 +149,7 @@ impl EthHttpQueryClient {
             if err_message.contains(TOO_MANY_RESULTS_INFURA)
                 || err_message.contains(TOO_MANY_RESULTS_ALCHEMY)
                 || err_message.contains(TOO_MANY_RESULTS_RETH)
+                || err_message.contains(TOO_MANY_RESULTS_CHAINSTACK)
             {
                 // get the numeric block ids
                 let from_number = match from {
@@ -253,15 +257,15 @@ impl EthClient for EthHttpQueryClient {
         &self,
         from: BlockNumber,
         to: BlockNumber,
-        topics1: Vec<H256>,
-        topics2: Vec<H256>,
+        topic1: H256,
+        topic2: Option<H256>,
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
         self.get_events_inner(
             from,
             to,
-            Some(topics1),
-            Some(topics2),
+            Some(vec![topic1]),
+            topic2.map(|topic2| vec![topic2]),
             Some(self.get_default_address_list()),
             retries_left,
         )
@@ -291,7 +295,7 @@ impl EthClient for EthHttpQueryClient {
 
     async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
         CallFunctionArgs::new("getTotalPriorityTxs", ())
-            .for_contract(self.diamond_proxy_addr, &self.getters_contract_abi)
+            .for_contract(self.diamond_proxy_addr, &self.getters_facet_contract_abi)
             .call(&self.client)
             .await
             .map(|x: U256| x.try_into().unwrap())

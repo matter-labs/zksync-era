@@ -29,6 +29,7 @@ use crate::{
 };
 
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;
+// type ShadowedFastVm<S = InMemoryStorage> = crate::vm_instance::ShadowedFastVm<S>;
 
 fn hash_block(block_env: L2BlockEnv, tx_hashes: &[H256]) -> H256 {
     let mut hasher = L2BlockHasher::new(
@@ -248,12 +249,12 @@ fn sanity_check_shadow_vm() {
 // FIXME: gateway is not supported in fast vm
 // #[test]
 // fn shadow_vm_basics() {
-//     let (vm, harness) = sanity_check_vm::<ShadowedVmFast>();
+//     let (vm, harness) = sanity_check_vm::<ShadowedFastVm>();
 //     let mut dump = vm.dump_state();
 //     Harness::assert_dump(&mut dump);
-
+//
 //     // Test standard playback functionality.
-//     let replayed_dump = dump.clone().play_back::<ShadowedVmFast<_>>().dump_state();
+//     let replayed_dump = dump.clone().play_back::<ShadowedFastVm<_>>().dump_state();
 //     pretty_assertions::assert_eq!(replayed_dump, dump);
 
 //     // Check that the VM executes identically when reading from the original storage and one restored from the dump.

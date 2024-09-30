@@ -5,10 +5,11 @@ BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
 ZKT_DIR=${ZKT_DIR:-"$BASE_DIR/.zkt"}
 ZKT_BIN_DIR="$ZKT_DIR/bin"
 
-ZKUP_SKIP_ZK_SUPERVISOR=0
+ZKUP_INSTALL_SUPERVISOR=0
+ZKUP_INSTALL_INCEPTION=0
 ZKUP_ALIAS=0
 
-BINS=(zk_inception zk_supervisor)
+BINS=()
 
 main() {
   parse_args "$@"
@@ -17,6 +18,8 @@ main() {
 
   check_prerequisites
   mkdir -p "$ZKT_BIN_DIR"
+
+  set_bins
 
   if [ -n "$ZKUP_PATH" ]; then
     install_local
@@ -84,7 +87,8 @@ parse_args() {
       shift
       ZKUP_VERSION=$1
       ;;
-    --skip-zk-supervisor) ZKUP_SKIP_ZK_SUPERVISOR=1 ;;
+    --inception) ZKUP_INSTALL_INCEPTION=1 ;;
+    --supervisor) ZKUP_INSTALL_SUPERVISOR=1 ;;
     -a | --alias) ZKUP_ALIAS=1 ;;
     -h | --help)
       usage
@@ -113,13 +117,29 @@ Options:
   -c, --commit <commit>     Git commit hash to use when installing from a repository. Ignored if --branch or --version is provided.
   -v, --version <version>   Git tag to use when installing from a repository. Ignored if --branch or --commit is provided.
   -a, --alias               Create aliases zki and zks for zk_inception and zk_supervisor binaries.
-  --skip-zk-supervisor      Skip installation of the zk_supervisor binary.
+  --inception               Installs the zk_inception binary. Default is to install both zk_inception and zk_supervisor binaries.
+  --supervisor              Installs the zk_supervisor binary. Default is to install both zk_inception and zk_supervisor binaries.
   -h, --help                Show this help message and exit.
 
 Examples:
   $(basename "$0") --repo matter-labs/zksync-era --version 0.1.1
-  $(basename "$0") --path /path/to/local/zk_toolbox --skip-zk-supervisor
+  $(basename "$0") --path /path/to/local/zk_toolbox --inception
 EOF
+}
+
+set_bins() {
+  if [ $ZKUP_INSTALL_INCEPTION -eq 1 ]; then
+    BINS+=(zk_inception)
+  fi
+
+  if [ $ZKUP_INSTALL_SUPERVISOR -eq 1 ]; then
+    BINS+=(zk_supervisor)
+  fi
+
+  # Installs both binaries if not option is provided
+  if [ ${#BINS[@]} -eq 0 ]; then
+    BINS=(zk_inception zk_supervisor)
+  fi
 }
 
 install_local() {
@@ -135,10 +155,6 @@ install_local() {
   say "Installing zk_toolbox from $ZKUP_PATH"
   ensure cd "$ZKUP_PATH"/zk_toolbox
 
-  if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 1 ]; then
-    BINS=(zk_inception)
-  fi
-
   for bin in "${BINS[@]}"; do
     say "Installing $bin"
     ensure cargo install --root $ZKT_DIR --path ./crates/$bin --force
@@ -153,10 +169,6 @@ install_from_repo() {
   ZKUP_REPO=${ZKUP_REPO:-"matter-labs/zksync-era"}
 
   say "Installing zk_toolbox from $ZKUP_REPO"
-
-  if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 1 ]; then
-    BINS=(zk_inception)
-  fi
 
   if [ -n "$ZKUP_VERSION" ]; then
     if [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_BRANCH" ]; then
@@ -176,10 +188,12 @@ install_from_repo() {
 }
 
 create_alias() {
-  say "Creating alias 'zki' for zk_inception"
-  ensure ln -sf "$ZKT_BIN_DIR/zk_inception" "$ZKT_BIN_DIR/zki"
+  if [[ "${BINS[@]}" =~ "zk_inception" ]]; then
+    say "Creating alias 'zki' for zk_inception"
+    ensure ln -sf "$ZKT_BIN_DIR/zk_inception" "$ZKT_BIN_DIR/zki"
+  fi
 
-  if [ $ZKUP_SKIP_ZK_SUPERVISOR -eq 0 ]; then
+  if [[ "${BINS[@]}" =~ "zk_supervisor" ]]; then
     say "Creating alias 'zks' for zk_supervisor"
     ensure ln -sf "$ZKT_BIN_DIR/zk_supervisor" "$ZKT_BIN_DIR/zks"
   fi

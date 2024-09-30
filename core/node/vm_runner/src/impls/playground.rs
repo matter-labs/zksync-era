@@ -87,7 +87,7 @@ enum VmPlaygroundStorage {
 #[derive(Debug)]
 pub struct VmPlayground {
     pool: ConnectionPool<Core>,
-    batch_executor_factory: MainBatchExecutorFactory,
+    batch_executor_factory: MainBatchExecutorFactory<()>,
     storage: VmPlaygroundStorage,
     chain_id: L2ChainId,
     io: VmPlaygroundIo,
@@ -133,7 +133,7 @@ impl VmPlayground {
             latest_processed_batch.unwrap_or(cursor.first_processed_batch)
         };
 
-        let mut batch_executor_factory = MainBatchExecutorFactory::new(false, false);
+        let mut batch_executor_factory = MainBatchExecutorFactory::new(false);
         batch_executor_factory.set_fast_vm_mode(vm_mode);
         batch_executor_factory.observe_storage_metrics();
         let handle = tokio::runtime::Handle::current();
@@ -224,10 +224,10 @@ impl VmPlayground {
         self.io.health_updater.subscribe()
     }
 
-    #[cfg(test)]
-    pub(crate) fn io(&self) -> &VmPlaygroundIo {
-        &self.io
-    }
+    // #[cfg(test)]
+    // pub(crate) fn io(&self) -> &VmPlaygroundIo {
+    //     &self.io
+    // }
 
     #[tracing::instrument(skip(self), err)]
     async fn reset_rocksdb_cache(&self, last_retained_batch: L1BatchNumber) -> anyhow::Result<()> {
@@ -379,10 +379,10 @@ impl VmPlaygroundIo {
         self.health_updater.update(health.into());
     }
 
-    #[cfg(test)]
-    pub(crate) fn subscribe_to_completed_batches(&self) -> watch::Receiver<L1BatchNumber> {
-        self.latest_processed_batch.subscribe()
-    }
+    // #[cfg(test)]
+    // pub(crate) fn subscribe_to_completed_batches(&self) -> watch::Receiver<L1BatchNumber> {
+    //     self.latest_processed_batch.subscribe()
+    // }
 }
 
 #[async_trait]
