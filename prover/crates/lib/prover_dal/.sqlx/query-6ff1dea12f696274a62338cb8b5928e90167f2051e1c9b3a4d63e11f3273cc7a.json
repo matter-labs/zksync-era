@@ -1,10 +1,6 @@
 {
   "db_name": "PostgreSQL",
-<<<<<<<< HEAD:prover/crates/lib/prover_dal/.sqlx/query-6ff1dea12f696274a62338cb8b5928e90167f2051e1c9b3a4d63e11f3273cc7a.json
   "query": "\n            INSERT INTO\n                scheduler_witness_jobs_fri (\n                    l1_batch_number,\n                    scheduler_partial_input_blob_url,\n                    status,\n                    created_at,\n                    updated_at\n                )\n            VALUES\n                ($1, '', 'waiting_for_proofs', NOW(), NOW()) ON CONFLICT (l1_batch_number) DO\n            UPDATE\n            SET\n                status = $2\n            ",
-========
-  "query": "\n            INSERT INTO\n                scheduler_witness_jobs_fri (\n                    l1_batch_number,\n                    scheduler_partial_input_blob_url,\n                    status,\n                    created_at,\n                    updated_at\n                )\n            VALUES\n                ($1, '', 'waiting_for_proofs', NOW(), NOW())\n            ON CONFLICT (l1_batch_number) DO\n            UPDATE\n            SET\n                status = $2\n            ",
->>>>>>>> 79b6fcf8b5d10a0ccdceb846370dd6870b6a32b5:prover/crates/lib/prover_dal/.sqlx/query-e875dcbbdaed6998dbea45d4eab5d005d8760c4809b7aef902155196873da66e.json
   "describe": {
     "columns": [],
     "parameters": {
@@ -15,9 +11,5 @@
     },
     "nullable": []
   },
-<<<<<<<< HEAD:prover/crates/lib/prover_dal/.sqlx/query-6ff1dea12f696274a62338cb8b5928e90167f2051e1c9b3a4d63e11f3273cc7a.json
   "hash": "6ff1dea12f696274a62338cb8b5928e90167f2051e1c9b3a4d63e11f3273cc7a"
-========
-  "hash": "e875dcbbdaed6998dbea45d4eab5d005d8760c4809b7aef902155196873da66e"
->>>>>>>> 79b6fcf8b5d10a0ccdceb846370dd6870b6a32b5:prover/crates/lib/prover_dal/.sqlx/query-e875dcbbdaed6998dbea45d4eab5d005d8760c4809b7aef902155196873da66e.json
 }

@@ -166,51 +166,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .unwrap();
     }
 
-<<<<<<< HEAD
-    pub async fn mark_witness_job_failed(&mut self, error: &str, block_number: L1BatchNumber) {
-        sqlx::query!(
-            r#"
-            UPDATE
-                witness_inputs_fri
-            SET
-                status = 'failed',
-                error = $1,
-                updated_at = NOW()
-            WHERE
-                l1_batch_number = $2
-                AND status != 'successful'
-            "#,
-            error,
-            i64::from(block_number.0)
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
-
-    pub async fn mark_leaf_aggregation_job_failed(&mut self, error: &str, id: u32) {
-        sqlx::query!(
-            r#"
-            UPDATE
-                leaf_aggregation_witness_jobs_fri
-            SET
-                status = 'failed',
-                error = $1,
-                updated_at = NOW()
-            WHERE
-                id = $2
-                AND status != 'successful'
-            "#,
-            error,
-            i64::from(id)
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
-
-=======
->>>>>>> 79b6fcf8b5d10a0ccdceb846370dd6870b6a32b5
     pub async fn mark_leaf_aggregation_as_successful(&mut self, id: u32, time_taken: Duration) {
         sqlx::query!(
             r#"
@@ -662,53 +617,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
         })
     }
 
-<<<<<<< HEAD
-    pub async fn get_node_aggregation_job_attempts(
-        &mut self,
-        id: u32,
-    ) -> sqlx::Result<Option<u32>> {
-        let attempts = sqlx::query!(
-            r#"
-            SELECT
-                attempts
-            FROM
-                node_aggregation_witness_jobs_fri
-            WHERE
-                id = $1
-            "#,
-            i64::from(id)
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| row.attempts as u32);
-
-        Ok(attempts)
-    }
-
-    pub async fn mark_node_aggregation_job_failed(&mut self, error: &str, id: u32) {
-        sqlx::query!(
-            r#"
-            UPDATE
-                node_aggregation_witness_jobs_fri
-            SET
-                status = 'failed',
-                error = $1,
-                updated_at = NOW()
-            WHERE
-                id = $2
-                AND status != 'successful'
-            "#,
-            error,
-            i64::from(id)
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
-
-=======
->>>>>>> 79b6fcf8b5d10a0ccdceb846370dd6870b6a32b5
     pub async fn mark_node_aggregation_as_successful(&mut self, id: u32, time_taken: Duration) {
         sqlx::query!(
             r#"
@@ -1349,27 +1257,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
         job_id: u32,
         aggregation_round: AggregationRound,
     ) {
-<<<<<<< HEAD
-        sqlx::query!(
-            r#"
-            UPDATE
-                recursion_tip_witness_jobs_fri
-            SET
-                status = 'failed',
-                error = $1,
-                updated_at = NOW()
-            WHERE
-                l1_batch_number = $2
-                AND status != 'successful'
-            "#,
-            error,
-            l1_batch_number.0 as i64
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
-=======
         let table = match aggregation_round {
             AggregationRound::BasicCircuits => "witness_inputs_fri",
             AggregationRound::LeafAggregation => "leaf_aggregation_witness_jobs_fri",
@@ -1377,7 +1264,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
             AggregationRound::RecursionTip => "recursion_tip_witness_jobs_fri",
             AggregationRound::Scheduler => "scheduler_witness_jobs_fri",
         };
->>>>>>> 79b6fcf8b5d10a0ccdceb846370dd6870b6a32b5
 
         let job_id_column = match aggregation_round {
             AggregationRound::BasicCircuits => "l1_batch_number",
@@ -1389,12 +1275,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
 
         let query = format!(
             r#"
-<<<<<<< HEAD
-            UPDATE
-                scheduler_witness_jobs_fri
-=======
             UPDATE {table}
->>>>>>> 79b6fcf8b5d10a0ccdceb846370dd6870b6a32b5
             SET
                 status = 'failed',
                 error = {error},
