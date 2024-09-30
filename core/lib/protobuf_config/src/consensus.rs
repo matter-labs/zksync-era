@@ -171,9 +171,12 @@ impl ProtoRepr for proto::Config {
                 .context("gossip_static_outbound")?,
             genesis_spec: read_optional_repr(&self.genesis_spec),
             rpc: read_optional_repr(&self.rpc_config),
-            debug_page_addr: required(&self.debug_page_addr)
-                .and_then(|x| Ok(x.parse()?))
-                .ok(),
+            debug_page_addr: self
+                .debug_page_addr
+                .as_ref()
+                .map(|x| Ok::<_, anyhow::Error>(x.parse()?))
+                .transpose()
+                .context("debug_page_addr")?,
         })
     }
 
