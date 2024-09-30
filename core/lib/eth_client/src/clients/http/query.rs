@@ -15,7 +15,7 @@ use crate::{
     BaseFees, EthFeeInterface, EthInterface, RawTransactionBytes,
 };
 
-const FEE_HISTORY_MAX_REQUEST_CHUNK: usize = 1024;
+const FEE_HISTORY_MAX_REQUEST_CHUNK: usize = 1023;
 
 #[async_trait]
 impl<T> EthInterface for T
@@ -311,7 +311,7 @@ where
     // starting from the oldest block.
     for chunk_start in (from_block..=upto_block).step_by(FEE_HISTORY_MAX_REQUEST_CHUNK) {
         let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
-        let chunk_size = chunk_end - chunk_start;
+        let chunk_size = chunk_end - chunk_start + 1;
 
         let fee_history = client
             .fee_history(
@@ -324,21 +324,47 @@ where
             .with_arg("block", &chunk_end)
             .await?;
 
-        // Check that the lengths are the same.
+        if fee_history.oldest_block != web3::BlockNumber::Number(chunk_start.into()) {
+            let oldest_block = match fee_history.oldest_block {
+                web3::BlockNumber::Number(oldest_block) => oldest_block.to_string(),
+                _ => format!("{:?}", fee_history.oldest_block),
+            };
+            let message =
+                format!("unexpected `oldest_block`, expected: {chunk_start}, got {oldest_block}");
+            return Err(EnrichedClientError::custom(message, "l1_fee_history")
+                .with_arg("chunk_size", &chunk_size)
+                .with_arg("chunk_end", &chunk_end));
+        }
+
+        if fee_history.base_fee_per_gas.len() != chunk_size + 1 {
+            let message = format!(
+                "unexpected `base_fee_per_gas.len()`, expected: {}, got {}",
+                chunk_size + 1,
+                fee_history.base_fee_per_gas.len()
+            );
+            return Err(EnrichedClientError::custom(message, "l1_fee_history")
+                .with_arg("chunk_size", &chunk_size)
+                .with_arg("chunk_end", &chunk_end));
+        }
+
         // Per specification, the values should always be provided, and must be 0 for blocks
         // prior to EIP-4844.
         // https://ethereum.github.io/execution-apis/api-documentation/
-        if fee_history.base_fee_per_gas.len() != fee_history.base_fee_per_blob_gas.len() {
-            tracing::error!(
-                "base_fee_per_gas and base_fee_per_blob_gas have different lengths: {} and {}",
-                fee_history.base_fee_per_gas.len(),
+        if fee_history.base_fee_per_blob_gas.len() != chunk_size + 1 {
+            let message = format!(
+                "unexpected `base_fee_per_blob_gas.len()`, expected: {}, got {}",
+                chunk_size + 1,
                 fee_history.base_fee_per_blob_gas.len()
             );
+            return Err(EnrichedClientError::custom(message, "l1_fee_history")
+                .with_arg("chunk_size", &chunk_size)
+                .with_arg("chunk_end", &chunk_end));
         }
 
         for (base, blob) in fee_history
             .base_fee_per_gas
             .into_iter()
+            .take(chunk_size)
             .zip(fee_history.base_fee_per_blob_gas)
         {
             let fees = BaseFees {
@@ -394,7 +420,7 @@ where
     // starting from the oldest block.
     for chunk_start in (from_block..=upto_block).step_by(FEE_HISTORY_MAX_REQUEST_CHUNK) {
         let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
-        let chunk_size = chunk_end - chunk_start;
+        let chunk_size = chunk_end - chunk_start + 1;
 
         let fee_history = EthNamespaceClient::fee_history(
             client,
@@ -407,19 +433,45 @@ where
         .with_arg("block", &chunk_end)
         .await?;
 
-        // Check that the lengths are the same.
-        if fee_history.inner.base_fee_per_gas.len() != fee_history.l2_pubdata_price.len() {
-            tracing::error!(
-                "base_fee_per_gas and pubdata_price have different lengths: {} and {}",
-                fee_history.inner.base_fee_per_gas.len(),
+        if fee_history.inner.oldest_block != web3::BlockNumber::Number(chunk_start.into()) {
+            let oldest_block = match fee_history.inner.oldest_block {
+                web3::BlockNumber::Number(oldest_block) => oldest_block.to_string(),
+                _ => format!("{:?}", fee_history.inner.oldest_block),
+            };
+            let message =
+                format!("unexpected `oldest_block`, expected: {chunk_start}, got {oldest_block}");
+            return Err(EnrichedClientError::custom(message, "l2_fee_history")
+                .with_arg("chunk_size", &chunk_size)
+                .with_arg("chunk_end", &chunk_end));
+        }
+
+        if fee_history.inner.base_fee_per_gas.len() != chunk_size + 1 {
+            let message = format!(
+                "unexpected `base_fee_per_gas.len()`, expected: {}, got {}",
+                chunk_size + 1,
+                fee_history.inner.base_fee_per_gas.len()
+            );
+            return Err(EnrichedClientError::custom(message, "l2_fee_history")
+                .with_arg("chunk_size", &chunk_size)
+                .with_arg("chunk_end", &chunk_end));
+        }
+
+        if fee_history.l2_pubdata_price.len() != chunk_size {
+            let message = format!(
+                "unexpected `l2_pubdata_price.len()`, expected: {}, got {}",
+                chunk_size + 1,
                 fee_history.l2_pubdata_price.len()
             );
+            return Err(EnrichedClientError::custom(message, "l2_fee_history")
+                .with_arg("chunk_size", &chunk_size)
+                .with_arg("chunk_end", &chunk_end));
         }
 
         for (base, l2_pubdata_price) in fee_history
             .inner
             .base_fee_per_gas
             .into_iter()
+            .take(chunk_size)
             .zip(fee_history.l2_pubdata_price)
         {
             let fees = BaseFees {
