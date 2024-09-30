@@ -10,7 +10,7 @@ use ethers::{
 };
 use types::TokenInfo;
 
-use crate::wallets::Wallet;
+use crate::{logger, wallets::Wallet};
 
 pub fn create_ethers_client(
     private_key: H256,
@@ -103,13 +103,12 @@ pub async fn mint_token(
 
     let mut pending_txs = vec![];
     for call in &pending_calls {
-        pending_txs.push(
-            call.send()
-                .await?
-                // It's safe to set such low number of confirmations and low interval for localhost
-                .confirmations(3)
-                .interval(Duration::from_millis(30)),
-        );
+        let call = call.send().await;
+        match call {
+            // It's safe to set such low number of confirmations and low interval for localhost
+            Ok(call) => pending_txs.push(call.confirmations(3).interval(Duration::from_millis(30))),
+            Err(e) => logger::error(format!("Minting is not successful {e}")),
+        }
     }
 
     futures::future::join_all(pending_txs).await;

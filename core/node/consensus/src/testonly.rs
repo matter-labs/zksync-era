@@ -20,7 +20,7 @@ use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_metadata_calculator::{
     LazyAsyncTreeReader, MetadataCalculator, MetadataCalculatorConfig,
 };
-use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::spawn_http_server};
+use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
     fetcher::{FetchedTransaction, IoCursorExt as _},
@@ -646,14 +646,9 @@ impl StateKeeperRunner {
                     &configs::contracts::ContractsConfig::for_tests(),
                     &configs::GenesisConfig::for_tests(),
                 );
-                let mut server = spawn_http_server(
-                    cfg,
-                    self.pool.0.clone(),
-                    Default::default(),
-                    Arc::default(),
-                    stop_recv,
-                )
-                .await;
+                let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
+                    .build_http(stop_recv)
+                    .await;
                 if let Ok(addr) = ctx.wait(server.wait_until_ready()).await {
                     self.addr.send_replace(Some(addr));
                     tracing::info!("API server ready!");
@@ -731,14 +726,9 @@ impl StateKeeperRunner {
                     &configs::contracts::ContractsConfig::for_tests(),
                     &configs::GenesisConfig::for_tests(),
                 );
-                let mut server = spawn_http_server(
-                    cfg,
-                    self.pool.0.clone(),
-                    Default::default(),
-                    Arc::default(),
-                    stop_recv,
-                )
-                .await;
+                let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
+                    .build_http(stop_recv)
+                    .await;
                 if let Ok(addr) = ctx.wait(server.wait_until_ready()).await {
                     self.addr.send_replace(Some(addr));
                     tracing::info!("API server ready!");

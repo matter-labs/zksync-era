@@ -3,6 +3,8 @@ use std::{
     net::SocketAddr,
 };
 
+/// Code duplicated from `zksync_node_consensus::config`.
+use anyhow::Context as _;
 use config::{ChainConfig, PortsConfig};
 use secrecy::{ExposeSecret, Secret};
 use zksync_config::configs::consensus::{
@@ -11,23 +13,40 @@ use zksync_config::configs::consensus::{
     WeightedAttester, WeightedValidator,
 };
 use zksync_consensus_crypto::{Text, TextFmt};
-use zksync_consensus_roles as roles;
+use zksync_consensus_roles::{attester, node, validator};
 
 use crate::consts::{
     CONSENSUS_PUBLIC_ADDRESS_HOST, CONSENSUS_SERVER_ADDRESS_HOST, GOSSIP_DYNAMIC_INBOUND_LIMIT,
     MAX_BATCH_SIZE, MAX_PAYLOAD_SIZE,
 };
 
+pub(crate) fn parse_attester_committee(
+    attesters: &[WeightedAttester],
+) -> anyhow::Result<attester::Committee> {
+    let attesters: Vec<_> = attesters
+        .iter()
+        .enumerate()
+        .map(|(i, v)| {
+            Ok(attester::WeightedAttester {
+                key: Text::new(&v.key.0).decode().context("key").context(i)?,
+                weight: v.weight,
+            })
+        })
+        .collect::<anyhow::Result<_>>()
+        .context("attesters")?;
+    attester::Committee::new(attesters).context("Committee::new()")
+}
+
 #[derive(Debug, Clone)]
 pub struct ConsensusSecretKeys {
-    validator_key: roles::validator::SecretKey,
-    attester_key: roles::attester::SecretKey,
-    node_key: roles::node::SecretKey,
+    validator_key: validator::SecretKey,
+    attester_key: attester::SecretKey,
+    node_key: node::SecretKey,
 }
 
 pub struct ConsensusPublicKeys {
-    validator_key: roles::validator::PublicKey,
-    attester_key: roles::attester::PublicKey,
+    validator_key: validator::PublicKey,
+    attester_key: attester::PublicKey,
 }
 
 pub fn get_consensus_config(
@@ -57,9 +76,9 @@ pub fn get_consensus_config(
 
 pub fn generate_consensus_keys() -> ConsensusSecretKeys {
     ConsensusSecretKeys {
-        validator_key: roles::validator::SecretKey::generate(),
-        attester_key: roles::attester::SecretKey::generate(),
-        node_key: roles::node::SecretKey::generate(),
+        validator_key: validator::SecretKey::generate(),
+        attester_key: attester::SecretKey::generate(),
+        node_key: node::SecretKey::generate(),
     }
 }
 
@@ -114,7 +133,7 @@ pub fn get_consensus_secrets(consensus_keys: &ConsensusSecretKeys) -> ConsensusS
 pub fn node_public_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<NodePublicKey>> {
     Ok(node_key(secrets)?.map(|node_secret_key| NodePublicKey(node_secret_key.public().encode())))
 }
-fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<roles::node::SecretKey>> {
+fn node_key(secrets: &ConsensusSecrets) -> anyhow::Result<Option<node::SecretKey>> {
     read_secret_text(secrets.node_key.as_ref().map(|x| &x.0))
 }
 

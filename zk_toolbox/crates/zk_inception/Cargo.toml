@@ -15,7 +15,6 @@ anyhow.workspace = true
 clap.workspace = true
 cliclack.workspace = true
 config.workspace = true
-console.workspace = true
 human-panic.workspace = true
 lazy_static.workspace = true
 serde_yaml.workspace = true
@@ -37,3 +36,7 @@ clap-markdown.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_consensus_crypto.workspace = true
 secrecy.workspace = true
+
+[build-dependencies]
+eyre.workspace = true
+ethers.workspace = true
