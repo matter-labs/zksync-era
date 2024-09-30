@@ -55,7 +55,7 @@ impl DataAvailabilityClient for CelestiaClient {
             .map_err(to_non_retriable_da_error)?;
         let blob = Blob::new(namespace, data).map_err(to_non_retriable_da_error)?;
 
-        let commitment = blob.commitment.clone();
+        let commitment = blob.commitment;
         let height = self
             .client
             .blob_submit(&[blob], TxConfig::default())
