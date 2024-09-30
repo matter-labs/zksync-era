@@ -106,7 +106,7 @@ impl EventsDal<'_, '_> {
         sqlx::query!(
             r#"
             DELETE FROM
-                EVENTS
+                events
             WHERE
                 miniblock_number > $1
             "#,
@@ -227,7 +227,7 @@ impl EventsDal<'_, '_> {
                 event_index_in_tx,
                 NULL :: BIGINT AS "block_timestamp?"
             FROM
-                EVENTS
+                events
             WHERE
                 tx_hash = ANY ($1)
             ORDER BY
@@ -268,7 +268,7 @@ impl EventsDal<'_, '_> {
             SELECT
                 value
             FROM
-                EVENTS
+                events
             WHERE
                 miniblock_number BETWEEN $1 AND $2
                 AND address = $3
@@ -369,7 +369,7 @@ impl EventsDal<'_, '_> {
                 value,
                 event_index_in_tx
             FROM
-                EVENTS
+                events
             WHERE
                 miniblock_number BETWEEN $1 AND $2
             ORDER BY
@@ -426,7 +426,7 @@ impl EventsDal<'_, '_> {
                 topic4,
                 miniblock_number
             FROM
-                EVENTS
+                events
             WHERE
                 miniblock_number BETWEEN $1 AND $2
             ORDER BY

@@ -201,7 +201,7 @@ impl PruningDal<'_, '_> {
         let execution_result = sqlx::query!(
             r#"
             DELETE FROM
-                EVENTS
+                events
             WHERE
                 miniblock_number BETWEEN $1 AND $2
             "#,

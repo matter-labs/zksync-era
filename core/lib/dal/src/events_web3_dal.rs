@@ -202,7 +202,7 @@ impl EventsWeb3Dal<'_, '_> {
                     event_index_in_block,
                     event_index_in_tx
                 FROM
-                    EVENTS
+                    events
                 WHERE
                     miniblock_number > $1
                 ORDER BY

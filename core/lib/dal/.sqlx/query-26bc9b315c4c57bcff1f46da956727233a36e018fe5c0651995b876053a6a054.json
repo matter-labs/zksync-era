@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                address,\n                topic1,\n                topic2,\n                topic3,\n                topic4,\n                miniblock_number\n            FROM\n                EVENTS\n            WHERE\n                miniblock_number BETWEEN $1 AND $2\n            ORDER BY\n                miniblock_number\n            ",
+  "query": "\n            SELECT\n                address,\n                topic1,\n                topic2,\n                topic3,\n                topic4,\n                value,\n                event_index_in_tx\n            FROM\n                events\n            WHERE\n                miniblock_number BETWEEN $1 AND $2\n            ORDER BY\n                miniblock_number ASC,\n                event_index_in_block ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -30,8 +30,13 @@
       },
       {
         "ordinal": 5,
-        "name": "miniblock_number",
-        "type_info": "Int8"
+        "name": "value",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 6,
+        "name": "event_index_in_tx",
+        "type_info": "Int4"
       }
     ],
     "parameters": {
@@ -46,8 +51,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "959e1b8231484611334d4441823ad49a080299632be9f41bc838d2e7416fce75"
+  "hash": "26bc9b315c4c57bcff1f46da956727233a36e018fe5c0651995b876053a6a054"
 }

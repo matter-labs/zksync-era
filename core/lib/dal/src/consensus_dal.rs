@@ -91,7 +91,8 @@ impl ConsensusDal<'_, '_> {
                 let global_config = s.proto_fmt(want, serde_json::value::Serializer).unwrap();
                 sqlx::query!(
                     r#"
-                    UPDATE consensus_replica_state
+                    UPDATE
+                        consensus_replica_state
                     SET
                         global_config = $1
                     "#,

@@ -48,18 +48,18 @@ impl TransactionsWeb3Dal<'_, '_> {
         let st_receipts: Vec<StorageTransactionReceipt> = sqlx::query_as!(
             StorageTransactionReceipt,
             r#"
-            WITH EVENTS AS (
+            WITH events AS (
                 SELECT
-                    DISTINCT ON (EVENTS.tx_hash) *
+                    DISTINCT ON (events.tx_hash) *
                 FROM
-                    EVENTS
+                    events
                 WHERE
-                    EVENTS.address = $1
-                    AND EVENTS.topic1 = $2
-                    AND EVENTS.tx_hash = ANY ($3)
+                    events.address = $1
+                    AND events.topic1 = $2
+                    AND events.tx_hash = ANY ($3)
                 ORDER BY
-                    EVENTS.tx_hash,
-                    EVENTS.event_index_in_tx DESC
+                    events.tx_hash,
+                    events.event_index_in_tx DESC
             )
             SELECT
                 transactions.hash AS tx_hash,
@@ -76,12 +76,12 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.gas_limit AS gas_limit,
                 miniblocks.hash AS "block_hash",
                 miniblocks.l1_batch_number AS "l1_batch_number?",
-                EVENTS.topic4 AS "contract_address?",
+                events.topic4 AS "contract_address?",
                 miniblocks.timestamp AS "block_timestamp?"
             FROM
                 transactions
                 JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-                LEFT JOIN EVENTS ON EVENTS.tx_hash = transactions.hash
+                LEFT JOIN events ON events.tx_hash = transactions.hash
             WHERE
                 transactions.hash = ANY ($3)
                 AND transactions.data != '{}' :: jsonb

@@ -321,7 +321,7 @@ impl ContractVerificationDal<'_, '_> {
                         tx_hash,
                         topic3
                     FROM
-                        EVENTS
+                        events
                     WHERE
                         address = $1
                         AND topic1 = $2

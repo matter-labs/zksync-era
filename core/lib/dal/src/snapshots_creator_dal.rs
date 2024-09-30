@@ -77,11 +77,11 @@ impl SnapshotsCreatorDal<'_, '_> {
                         hashed_key
                     ORDER BY
                         hashed_key
-                ) AS KEYS
-                INNER JOIN storage_logs ON KEYS.hashed_key = storage_logs.hashed_key
-                AND storage_logs.miniblock_number = KEYS.op [1]
-                AND storage_logs.operation_number = KEYS.op [2]
-                INNER JOIN initial_writes ON KEYS.hashed_key = initial_writes.hashed_key
+                ) AS keys
+                INNER JOIN storage_logs ON keys.hashed_key = storage_logs.hashed_key
+                AND storage_logs.miniblock_number = keys.op [1]
+                AND storage_logs.operation_number = keys.op [2]
+                INNER JOIN initial_writes ON keys.hashed_key = initial_writes.hashed_key
             WHERE
                 initial_writes.l1_batch_number <= $2
             "#,
@@ -145,11 +145,11 @@ impl SnapshotsCreatorDal<'_, '_> {
                         hashed_key
                     ORDER BY
                         hashed_key
-                ) AS KEYS
-                INNER JOIN storage_logs ON KEYS.hashed_key = storage_logs.hashed_key
-                AND storage_logs.miniblock_number = KEYS.op [1]
-                AND storage_logs.operation_number = KEYS.op [2]
-                INNER JOIN initial_writes ON KEYS.hashed_key = initial_writes.hashed_key
+                ) AS keys
+                INNER JOIN storage_logs ON keys.hashed_key = storage_logs.hashed_key
+                AND storage_logs.miniblock_number = keys.op [1]
+                AND storage_logs.operation_number = keys.op [2]
+                INNER JOIN initial_writes ON keys.hashed_key = initial_writes.hashed_key
             WHERE
                 initial_writes.l1_batch_number <= $2
             "#,
