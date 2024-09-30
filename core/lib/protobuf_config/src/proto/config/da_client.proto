@@ -13,10 +13,16 @@ message AvailConfig {
   reserved 3; reserved "seed";
 }
 
+message CelestiaConfig {
+  optional string api_node_url = 1;
+  optional string namespace = 2;
+}
+
 message DataAvailabilityClient {
   // oneof in protobuf allows for None
   oneof config {
     AvailConfig avail = 1;
     object_store.ObjectStore object_store = 2;
+    CelestiaConfig celestia = 3;
   }
 }

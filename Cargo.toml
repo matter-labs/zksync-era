@@ -208,6 +208,10 @@ subxt-metadata = "0.34.0"
 parity-scale-codec = { version = "3.6.9", default-features = false }
 subxt-signer = { version = "0.34", default-features = false }
 
+# Celestia
+celestia-rpc = { git = "https://github.com/S1nus/lumina.git", rev = "8c8e53aaf7f976d10a71eba670f23e5ba38997c6" }
+celestia-types = { git = "https://github.com/S1nus/lumina.git", rev = "8c8e53aaf7f976d10a71eba670f23e5ba38997c6" }
+
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
 # However, for the historical version of protocol crates, we have lax requirements. Otherwise,

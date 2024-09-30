@@ -7,7 +7,7 @@ use zksync_basic_types::{
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
-    seed_phrase::SeedPhrase,
+    secrets::SeedPhrase,
     vm::FastVmMode,
     L1BatchNumber, L1ChainId, L2ChainId,
 };
@@ -870,6 +870,14 @@ impl Distribution<configs::secrets::Secrets> for EncodeDist {
     }
 }
 
+impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::DataAvailabilitySecrets {
+        configs::secrets::DataAvailabilitySecrets::Avail(configs::da_client::avail::AvailSecrets {
+            seed_phrase: SeedPhrase(Secret::new(self.sample(rng))),
+        })
+    }
+}
+
 impl Distribution<configs::wallets::Wallet> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::wallets::Wallet {
         configs::wallets::Wallet::new(K256PrivateKey::from_bytes(rng.gen()).unwrap())
@@ -943,14 +951,6 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
             app_id: self.sample(rng),
             timeout: self.sample(rng),
             max_retries: self.sample(rng),
-        })
-    }
-}
-
-impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::DataAvailabilitySecrets {
-        configs::secrets::DataAvailabilitySecrets::Avail(configs::da_client::avail::AvailSecrets {
-            seed_phrase: Some(SeedPhrase(Secret::new(self.sample(rng)))),
         })
     }
 }

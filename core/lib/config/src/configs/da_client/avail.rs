@@ -1,7 +1,7 @@
 use serde::Deserialize;
-use zksync_basic_types::seed_phrase::SeedPhrase;
+use zksync_basic_types::secrets::SeedPhrase;
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct AvailConfig {
     pub api_node_url: String,
     pub bridge_api_url: String,
@@ -12,5 +12,5 @@ pub struct AvailConfig {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AvailSecrets {
-    pub seed_phrase: Option<SeedPhrase>,
+    pub seed_phrase: SeedPhrase,
 }
