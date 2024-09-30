@@ -1,8 +1,11 @@
 //! Tests for the VM-instantiating methods (e.g., `eth_call`).
 
-use std::sync::{
-    atomic::{AtomicU32, Ordering},
-    Mutex,
+use std::{
+    str,
+    sync::{
+        atomic::{AtomicU32, Ordering},
+        Mutex,
+    },
 };
 
 use api::state_override::{OverrideAccount, StateOverride};
@@ -51,6 +54,11 @@ impl ExpectedFeeInput {
         self.expect_for_block(api::BlockNumber::Pending, scale);
     }
 
+    #[allow(dead_code)]
+    fn expect_custom(&self, expected: BatchFeeInput) {
+        *self.0.lock().unwrap() = expected;
+    }
+
     fn assert_eq(&self, actual: BatchFeeInput) {
         let expected = *self.0.lock().unwrap();
         // We do relaxed comparisons to deal with the fact that the fee input provider may convert inputs to pubdata independent form.
@@ -87,11 +95,18 @@ impl CallTest {
             expected_fee_input.assert_eq(env.l1_batch.fee_input);
 
             let expected_block_number = match tx.execute.calldata() {
-                b"pending" => latest_block + 1,
-                b"latest" => latest_block,
+                b"pending" => latest_block.0 + 1,
+                b"latest" => latest_block.0,
+                block if block.starts_with(b"block=") => str::from_utf8(block)
+                    .expect("non-UTF8 calldata")
+                    .strip_prefix("block=")
+                    .unwrap()
+                    .trim()
+                    .parse()
+                    .expect("invalid block number"),
                 data => panic!("Unexpected calldata: {data:?}"),
             };
-            assert_eq!(env.l1_batch.first_l2_block.number, expected_block_number.0);
+            assert_eq!(env.l1_batch.first_l2_block.number, expected_block_number);
 
             ExecutionResult::Success {
                 output: b"output".to_vec(),
@@ -115,7 +130,6 @@ impl HttpTest for CallTest {
         // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
         let mut connection = pool.connection().await?;
         store_l2_block(&mut connection, L2BlockNumber(1), &[]).await?;
-        drop(connection);
 
         let call_result = client
             .call(Self::call_request(b"pending"), None, None)
@@ -147,6 +161,22 @@ impl HttpTest for CallTest {
         } else {
             panic!("Unexpected error: {error:?}");
         }
+
+        // Check that the method handler fetches fee inputs for recent blocks. To do that, we create a new block
+        // with a large fee input; it should be loaded by `ApiFeeInputProvider` and override the input provided by the wrapped mock provider.
+        let mut block_header = create_l2_block(2);
+        block_header.batch_fee_input =
+            <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
+                FeeParams::sensible_v1_default(),
+                2.5,
+                2.5,
+            );
+        store_custom_l2_block(&mut connection, &block_header, &[]).await?;
+        // Fee input is not scaled further as per `ApiFeeInputProvider` implementation
+        self.fee_input.expect_custom(block_header.batch_fee_input);
+        let call_request = CallTest::call_request(b"block=3");
+        let call_result = client.call(call_request.clone(), None, None).await?;
+        assert_eq!(call_result.0, b"output");
 
         Ok(())
     }
@@ -484,7 +514,6 @@ impl HttpTest for TraceCallTest {
         // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
         let mut connection = pool.connection().await?;
         store_l2_block(&mut connection, L2BlockNumber(1), &[]).await?;
-        drop(connection);
 
         self.fee_input.expect_default(Self::FEE_SCALE);
         let call_request = CallTest::call_request(b"pending");
@@ -529,6 +558,22 @@ impl HttpTest for TraceCallTest {
         } else {
             panic!("Unexpected error: {error:?}");
         }
+
+        // Check that the method handler fetches fee inputs for recent blocks. To do that, we create a new block
+        // with a large fee input; it should be loaded by `ApiFeeInputProvider` and override the input provided by the wrapped mock provider.
+        let mut block_header = create_l2_block(2);
+        block_header.batch_fee_input =
+            <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
+                FeeParams::sensible_v1_default(),
+                3.0,
+                3.0,
+            );
+        store_custom_l2_block(&mut connection, &block_header, &[]).await?;
+        // Fee input is not scaled further as per `ApiFeeInputProvider` implementation
+        self.fee_input.expect_custom(block_header.batch_fee_input);
+        let call_request = CallTest::call_request(b"block=3");
+        let call_result = client.trace_call(call_request.clone(), None, None).await?;
+        Self::assert_debug_call(&call_request, &call_result.unwrap_default());
 
         Ok(())
     }
