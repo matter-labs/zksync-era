@@ -6,23 +6,21 @@ use std::{
 use anyhow::Context as _;
 use rand::{thread_rng, Rng};
 use zksync_dal::{pruning_dal::PruningInfo, Connection, Core, CoreDal, DalError};
-use zksync_multivm::interface::TxExecutionMode;
-use zksync_state::PostgresStorageCaches;
+use zksync_multivm::utils::get_eth_call_gas_limit;
 use zksync_types::{
-    api, fee_model::BatchFeeInput, AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    api, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, U256,
 };
+use zksync_vm_executor::oneshot::BlockInfo;
 
-pub use self::execute::TransactionExecutor; // FIXME (PLA-1018): remove
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
     error::SandboxExecutionError,
+    execute::{SandboxAction, SandboxExecutor},
     validate::ValidationError,
     vm_metrics::{SubmitTxStage, SANDBOX_METRICS},
 };
-use super::tx_sender::MultiVMBaseSystemContracts;
 
 // Note: keep the modules private, and instead re-export functions that make public interface.
-mod apply;
 mod error;
 mod execute;
 mod storage;
@@ -133,53 +131,6 @@ impl VmConcurrencyLimiter {
         Some(VmPermit {
             _permit: Arc::new(permit),
         })
-    }
-}
-
-async fn get_pending_state(
-    connection: &mut Connection<'_, Core>,
-) -> anyhow::Result<(api::BlockId, L2BlockNumber)> {
-    let block_id = api::BlockId::Number(api::BlockNumber::Pending);
-    let resolved_block_number = connection
-        .blocks_web3_dal()
-        .resolve_block_id(block_id)
-        .await
-        .map_err(DalError::generalize)?
-        .context("pending block should always be present in Postgres")?;
-    Ok((block_id, resolved_block_number))
-}
-
-/// Arguments for VM execution necessary to set up storage and environment.
-#[derive(Debug, Clone)]
-pub struct TxSetupArgs {
-    pub execution_mode: TxExecutionMode,
-    pub operator_account: AccountTreeId,
-    pub fee_input: BatchFeeInput,
-    pub base_system_contracts: MultiVMBaseSystemContracts,
-    pub caches: PostgresStorageCaches,
-    pub validation_computational_gas_limit: u32,
-    pub chain_id: L2ChainId,
-    pub whitelisted_tokens_for_aa: Vec<Address>,
-    pub enforced_base_fee: Option<u64>,
-}
-
-impl TxSetupArgs {
-    #[cfg(test)]
-    pub fn mock(
-        execution_mode: TxExecutionMode,
-        base_system_contracts: MultiVMBaseSystemContracts,
-    ) -> Self {
-        Self {
-            execution_mode,
-            operator_account: AccountTreeId::default(),
-            fee_input: BatchFeeInput::l1_pegged(55, 555),
-            base_system_contracts,
-            caches: PostgresStorageCaches::new(1, 1),
-            validation_computational_gas_limit: u32::MAX,
-            chain_id: L2ChainId::default(),
-            whitelisted_tokens_for_aa: vec![],
-            enforced_base_fee: None,
-        }
     }
 }
 
@@ -335,19 +286,17 @@ pub enum BlockArgsError {
 
 /// Information about a block provided to VM.
 #[derive(Debug, Clone, Copy)]
-pub struct BlockArgs {
+pub(crate) struct BlockArgs {
+    inner: BlockInfo,
     block_id: api::BlockId,
-    resolved_block_number: L2BlockNumber,
-    l1_batch_timestamp_s: Option<u64>,
 }
 
 impl BlockArgs {
-    pub(crate) async fn pending(connection: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
-        let (block_id, resolved_block_number) = get_pending_state(connection).await?;
+    pub async fn pending(connection: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
+        let inner = BlockInfo::pending(connection).await?;
         Ok(Self {
-            block_id,
-            resolved_block_number,
-            l1_batch_timestamp_s: None,
+            inner,
+            block_id: api::BlockId::Number(api::BlockNumber::Pending),
         })
     }
 
@@ -365,7 +314,7 @@ impl BlockArgs {
             .await?;
 
         if block_id == api::BlockId::Number(api::BlockNumber::Pending) {
-            return Ok(BlockArgs::pending(connection).await?);
+            return Ok(Self::pending(connection).await?);
         }
 
         let resolved_block_number = connection
@@ -373,32 +322,25 @@ impl BlockArgs {
             .resolve_block_id(block_id)
             .await
             .map_err(DalError::generalize)?;
-        let Some(resolved_block_number) = resolved_block_number else {
+        let Some(block_number) = resolved_block_number else {
             return Err(BlockArgsError::Missing);
         };
 
-        let l1_batch = connection
-            .storage_web3_dal()
-            .resolve_l1_batch_number_of_l2_block(resolved_block_number)
-            .await
-            .with_context(|| {
-                format!("failed resolving L1 batch number of L2 block #{resolved_block_number}")
-            })?;
-        let l1_batch_timestamp = connection
-            .blocks_web3_dal()
-            .get_expected_l1_batch_timestamp(&l1_batch)
-            .await
-            .map_err(DalError::generalize)?
-            .context("missing timestamp for non-pending block")?;
         Ok(Self {
+            inner: BlockInfo::for_existing_block(connection, block_number).await?,
             block_id,
-            resolved_block_number,
-            l1_batch_timestamp_s: Some(l1_batch_timestamp),
         })
     }
 
     pub fn resolved_block_number(&self) -> L2BlockNumber {
-        self.resolved_block_number
+        self.inner.block_number()
+    }
+
+    fn is_pending(&self) -> bool {
+        matches!(
+            self.block_id,
+            api::BlockId::Number(api::BlockNumber::Pending)
+        )
     }
 
     pub fn resolves_to_latest_sealed_l2_block(&self) -> bool {
@@ -408,5 +350,31 @@ impl BlockArgs {
                 api::BlockNumber::Pending | api::BlockNumber::Latest | api::BlockNumber::Committed
             )
         )
+    }
+
+    pub async fn historical_fee_input(
+        &self,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<BatchFeeInput> {
+        self.inner.historical_fee_input(connection).await
+    }
+
+    pub async fn default_eth_call_gas(
+        &self,
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<U256> {
+        let protocol_version = if self.is_pending() {
+            connection.blocks_dal().pending_protocol_version().await?
+        } else {
+            let block_number = self.inner.block_number();
+            connection
+                .blocks_dal()
+                .get_l2_block_header(block_number)
+                .await?
+                .with_context(|| format!("missing header for resolved block #{block_number}"))?
+                .protocol_version
+                .unwrap_or_else(ProtocolVersionId::last_potentially_undefined)
+        };
+        Ok(get_eth_call_gas_limit(protocol_version.into()).into())
     }
 }
