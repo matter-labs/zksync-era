@@ -55,7 +55,7 @@ check-tools: check-nodejs check-yarn check-rust check-sqlx-cli check-docker chec
 	@echo "All required tools are installed."
 
 # Build and download neede contracts
-prepare-contracts:
+prepare-contracts: check-tools
 	@export ZKSYNC_HOME=$$(pwd) && \
 	export PATH=$$PATH:$${ZKSYNC_HOME}/bin && \
 	commit_sha=$$(git submodule status contracts | awk '{print $$1}' | tr -d '-') && \
@@ -100,16 +100,20 @@ build-core: check-tools prepare-contracts prepare-keys
 	$$(DOCKER_BUILD_CMD) --file $$(DOCKERFILES)/core/Dockerfile \
 		--tag core:$$(PROTOCOL_VERSION) $$(CONTEXT)
 
-build-prover: check-tools prepare-contracts prepare-keys
+build-prover: check-tools prepare-keys
 	$$(DOCKER_BUILD_CMD) --file $$(DOCKERFILES)/prover/Dockerfile \
 		--tag prover:$$(PROTOCOL_VERSION) $$(CONTEXT)
 
-build-witness-generator: check-tools prepare-contracts prepare-keys
+build-witness-generator: check-tools prepare-keys
 	$$(DOCKER_BUILD_CMD) --file $$(DOCKERFILES)/witness-generator/Dockerfile \
 		--tag witness-generator:$$(PROTOCOL_VERSION) $$(CONTEXT)
 
+build-witness-vector-generator: check-tools prepare-keys
+	$$(DOCKER_BUILD_CMD) --file $$(DOCKERFILES)/witness-vector-generator/Dockerfile \
+		--tag witness-generator:$$(PROTOCOL_VERSION) $$(CONTEXT)
+
 # Build all containers
-build-all: build-contract-verifier build-core build-prover build-witness-generator clean-images
+build-all: build-contract-verifier build-core build-prover build-witness-generator build-witness-vector-generator cleanup
 
 # Clean generated images
 clean-images:
