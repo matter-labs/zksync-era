@@ -103,5 +103,9 @@ message Config {
   // RPC rate limits configuration.
   // If missing, defaults are used.
   optional RpcConfig rpc_config = 9; // optional
+
+  // IP:port to expose the debug page.
+  // Use `127.0.0.1:<port>` to only allow local access to the page.
+  optional string debug_page_addr = 11; // required; IpAddr
 }
 

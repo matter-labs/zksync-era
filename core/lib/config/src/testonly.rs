@@ -813,6 +813,7 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
                 .collect(),
             genesis_spec: self.sample(rng),
             rpc: self.sample(rng),
+            debug_page_addr: self.sample(rng),
         }
     }
 }
