@@ -246,6 +246,7 @@ testFees('Test fees', function () {
         const tx = await l1Messenger.sendToL1(largeData, { type: 0 });
         expect(tx.gasLimit > UINT32_MAX).toBeTruthy();
         const receipt = await tx.wait();
+        console.log(`Gas used ${receipt.gasUsed}`);
         expect(receipt.gasUsed > UINT32_MAX).toBeTruthy();
 
         // Let's also check that the same transaction would work as eth_call
