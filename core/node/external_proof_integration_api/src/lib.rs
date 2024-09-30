@@ -54,6 +54,11 @@ impl Api {
                 "/verify_proof/:l1_batch_number",
                 post(Api::verify_proof).layer(middleware_factory(Method::VerifyProof)),
             )
+            .route(
+                "/tee/proof_inputs/:l1_batch_number",
+                get(Api::tee_proof_inputs_for_existing_batch)
+                    .layer(middleware_factory(Method::GetSpecificTeeProofInputs)),
+            )
             .with_state(processor);
 
         Self { router, port }
@@ -103,6 +108,15 @@ impl Api {
     ) -> Result<(), ProcessorError> {
         processor
             .verify_proof(L1BatchNumber(l1_batch_number), proof)
+            .await
+    }
+
+    async fn tee_proof_inputs_for_existing_batch(
+        State(processor): State<Processor>,
+        Path(l1_batch_number): Path<u32>,
+    ) -> Result<ProofGenerationDataResponse, ProcessorError> {
+        processor
+            .tee_proof_inputs_for_existing_batch(L1BatchNumber(l1_batch_number))
             .await
     }
 }

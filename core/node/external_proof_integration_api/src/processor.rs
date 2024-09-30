@@ -87,6 +87,33 @@ impl Processor {
             .map(ProofGenerationDataResponse)
     }
 
+    pub(crate) async fn tee_proof_inputs_for_existing_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<ProofGenerationDataResponse, ProcessorError> {
+        tracing::debug!(
+            "Received request for TEE proof inputs for batch: {:?}",
+            l1_batch_number
+        );
+
+        let latest_available_batch = self.latest_tee_available_batch().await?;
+
+        if l1_batch_number > latest_available_batch {
+            tracing::error!(
+                "Requested batch is not available: {:?}, latest available batch is {:?}",
+                l1_batch_number,
+                latest_available_batch
+            );
+            return Err(ProcessorError::BatchNotReady(l1_batch_number));
+        }
+
+        let proof_generation_data = self
+            .proof_generation_data_for_existing_batch_internal(l1_batch_number)
+            .await?;
+
+        Ok(ProofGenerationDataResponse(proof_generation_data))
+    }
+
     async fn latest_available_batch(&self) -> Result<L1BatchNumber, ProcessorError> {
         Ok(self
             .pool

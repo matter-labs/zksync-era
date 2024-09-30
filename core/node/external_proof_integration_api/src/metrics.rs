@@ -8,6 +8,7 @@ pub(crate) enum Method {
     GetLatestProofGenerationData,
     GetSpecificProofGenerationData,
     VerifyProof,
+    GetSpecificTeeProofInputs,
 }
 
 #[derive(Debug, Metrics)]
