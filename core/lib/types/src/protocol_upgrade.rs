@@ -114,15 +114,13 @@ impl ProtocolUpgrade {
         let upgrade = abi::ProposedUpgrade::decode(upgrade.into_iter().next().unwrap()).unwrap();
         let bootloader_hash = H256::from_slice(&upgrade.bootloader_hash);
         let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
-        let evm_simulator_hash = H256::from_slice(&upgrade.evm_simulator_hash);
         Ok(Self {
             version: ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
                 .map_err(|err| anyhow::format_err!("Version is not supported: {err}"))?,
             bootloader_code_hash: (bootloader_hash != H256::zero()).then_some(bootloader_hash),
             default_account_code_hash: (default_account_hash != H256::zero())
                 .then_some(default_account_hash),
-            evm_simulator_code_hash: (evm_simulator_hash != H256::zero())
-                .then_some(evm_simulator_hash),
+            evm_simulator_code_hash: None, // EVM simulator upgrades are not supported yet
             verifier_params: (upgrade.verifier_params != abi::VerifierParams::default())
                 .then_some(upgrade.verifier_params.into()),
             verifier_address: (upgrade.verifier != Address::zero()).then_some(upgrade.verifier),
