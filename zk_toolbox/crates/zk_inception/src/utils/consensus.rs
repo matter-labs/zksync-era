@@ -71,6 +71,7 @@ pub fn get_consensus_config(
         gossip_static_inbound: BTreeSet::new(),
         gossip_static_outbound: gossip_static_outbound.unwrap_or_default(),
         rpc: None,
+        debug_page_addr: None,
     })
 }
 
