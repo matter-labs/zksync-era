@@ -2,56 +2,26 @@
 
 use std::{pin::Pin, time::Instant};
 
-use async_trait::async_trait;
 use tokio::sync::watch;
 use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig, wallets::Wallets};
 use zksync_dal::ConnectionPool;
 use zksync_health_check::CheckHealth;
-use zksync_node_fee_model::{BatchFeeModelInputProvider, MockBatchFeeParamsProvider};
+use zksync_node_fee_model::MockBatchFeeParamsProvider;
 use zksync_state::PostgresStorageCaches;
 use zksync_state_keeper::seal_criteria::NoopSealer;
-use zksync_types::{
-    fee_model::{BatchFeeInput, FeeParams},
-    L2ChainId,
-};
+use zksync_types::L2ChainId;
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
 use super::{metrics::ApiTransportLabel, *};
-use crate::{execution_sandbox::TransactionExecutor, tx_sender::TxSenderConfig};
+use crate::{execution_sandbox::SandboxExecutor, tx_sender::TxSenderConfig};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(90);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
 
-/// Same as [`MockBatchFeeParamsProvider`], but also artificially acquires a Postgres connection on each call
-/// (same as the real node implementation).
-#[derive(Debug)]
-struct MockApiBatchFeeParamsProvider {
-    inner: MockBatchFeeParamsProvider,
-    pool: ConnectionPool<Core>,
-}
-
-#[async_trait]
-impl BatchFeeModelInputProvider for MockApiBatchFeeParamsProvider {
-    async fn get_batch_fee_input_scaled(
-        &self,
-        l1_gas_price_scale_factor: f64,
-        l1_pubdata_price_scale_factor: f64,
-    ) -> anyhow::Result<BatchFeeInput> {
-        let _connection = self.pool.connection().await?;
-        self.inner
-            .get_batch_fee_input_scaled(l1_gas_price_scale_factor, l1_pubdata_price_scale_factor)
-            .await
-    }
-
-    fn get_fee_model_params(&self) -> FeeParams {
-        self.inner.get_fee_model_params()
-    }
-}
-
 pub(crate) async fn create_test_tx_sender(
     pool: ConnectionPool<Core>,
     l2_chain_id: L2ChainId,
-    tx_executor: TransactionExecutor,
+    tx_executor: SandboxExecutor,
 ) -> (TxSender, VmConcurrencyBarrier) {
     let web3_config = Web3JsonRpcConfig::for_tests();
     let state_keeper_config = StateKeeperConfig::for_tests();
@@ -64,10 +34,7 @@ pub(crate) async fn create_test_tx_sender(
     );
 
     let storage_caches = PostgresStorageCaches::new(1, 1);
-    let batch_fee_model_input_provider = Arc::new(MockApiBatchFeeParamsProvider {
-        inner: MockBatchFeeParamsProvider::default(),
-        pool: pool.clone(),
-    });
+    let batch_fee_model_input_provider = Arc::<MockBatchFeeParamsProvider>::default();
     let (mut tx_sender, vm_barrier) = crate::tx_sender::build_tx_sender(
         &tx_sender_config,
         &web3_config,
@@ -177,8 +144,9 @@ async fn spawn_server(
     method_tracer: Arc<MethodTracer>,
     stop_receiver: watch::Receiver<bool>,
 ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
     let (tx_sender, vm_barrier) =
-        create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor.into()).await;
+        create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor).await;
     let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
 
     let mut namespaces = Namespace::DEFAULT.to_vec();

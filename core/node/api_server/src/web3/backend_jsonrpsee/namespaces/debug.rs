@@ -1,6 +1,5 @@
 use zksync_types::{
-    api::{BlockId, BlockNumber, DebugCall, ResultDebugCall, TracerConfig},
-    debug_flat_call::DebugCallFlat,
+    api::{BlockId, BlockNumber, CallTracerBlockResult, CallTracerResult, TracerConfig},
     transaction_request::CallRequest,
     H256,
 };
@@ -17,18 +16,8 @@ impl DebugNamespaceServer for DebugNamespace {
         &self,
         block: BlockNumber,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Vec<ResultDebugCall>> {
+    ) -> RpcResult<CallTracerBlockResult> {
         self.debug_trace_block_impl(BlockId::Number(block), options)
-            .await
-            .map_err(|err| self.current_method().map_err(err))
-    }
-
-    async fn trace_block_by_number_flat(
-        &self,
-        block: BlockNumber,
-        options: Option<TracerConfig>,
-    ) -> RpcResult<Vec<DebugCallFlat>> {
-        self.debug_trace_block_flat_impl(BlockId::Number(block), options)
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
@@ -37,7 +26,7 @@ impl DebugNamespaceServer for DebugNamespace {
         &self,
         hash: H256,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Vec<ResultDebugCall>> {
+    ) -> RpcResult<CallTracerBlockResult> {
         self.debug_trace_block_impl(BlockId::Hash(hash), options)
             .await
             .map_err(|err| self.current_method().map_err(err))
@@ -48,7 +37,7 @@ impl DebugNamespaceServer for DebugNamespace {
         request: CallRequest,
         block: Option<BlockId>,
         options: Option<TracerConfig>,
-    ) -> RpcResult<DebugCall> {
+    ) -> RpcResult<CallTracerResult> {
         self.debug_trace_call_impl(request, block, options)
             .await
             .map_err(|err| self.current_method().map_err(err))
@@ -58,7 +47,7 @@ impl DebugNamespaceServer for DebugNamespace {
         &self,
         tx_hash: H256,
         options: Option<TracerConfig>,
-    ) -> RpcResult<Option<DebugCall>> {
+    ) -> RpcResult<Option<CallTracerResult>> {
         self.debug_trace_transaction_impl(tx_hash, options)
             .await
             .map_err(|err| self.current_method().map_err(err))

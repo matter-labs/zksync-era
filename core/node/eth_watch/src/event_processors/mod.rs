@@ -6,12 +6,11 @@ use zksync_types::{web3::Log, H256};
 
 pub(crate) use self::{
     decentralized_upgrades::DecentralizedUpgradesEventProcessor,
-    governance_upgrades::GovernanceUpgradesEventProcessor, priority_ops::PriorityOpsEventProcessor,
+    priority_ops::PriorityOpsEventProcessor,
 };
 use crate::client::EthClient;
 
 mod decentralized_upgrades;
-mod governance_upgrades;
 pub mod priority_ops;
 
 /// Errors issued by an [`EventProcessor`].
@@ -52,6 +51,7 @@ impl EventProcessorError {
 #[async_trait::async_trait]
 pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
     /// Processes given events. All events are guaranteed to match [`Self::relevant_topic()`].
+    /// Returns number of processed events, this result is used to update last processed block.
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
