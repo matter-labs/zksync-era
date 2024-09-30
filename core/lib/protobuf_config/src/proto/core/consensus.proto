@@ -70,7 +70,7 @@ message Config {
   reserved 1;
   reserved "server_addr";
   reserved 2;
-  reserved "server_addr";
+  reserved "public_addr";
   reserved 3;
   reserved "validators";
 
