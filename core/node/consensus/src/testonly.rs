@@ -178,6 +178,7 @@ fn make_config(
         // genesis generator for zksync-era tests.
         genesis_spec,
         rpc: None,
+        debug_page_addr: None,
     }
 }
 
