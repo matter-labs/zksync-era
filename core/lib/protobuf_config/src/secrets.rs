@@ -27,7 +27,7 @@ impl ProtoRepr for proto::Secrets {
             consensus: read_optional_repr(&self.consensus),
             database: read_optional_repr(&self.database),
             l1: read_optional_repr(&self.l1),
-            data_availability: read_optional_repr(&self.data_availability),
+            data_availability: read_optional_repr(&self.da),
         })
     }
 
@@ -36,7 +36,7 @@ impl ProtoRepr for proto::Secrets {
             database: this.database.as_ref().map(ProtoRepr::build),
             l1: this.l1.as_ref().map(ProtoRepr::build),
             consensus: this.consensus.as_ref().map(ProtoRepr::build),
-            data_availability: this.data_availability.as_ref().map(ProtoRepr::build),
+            da: this.data_availability.as_ref().map(ProtoRepr::build),
         }
     }
 }
@@ -122,11 +122,11 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
 
     fn build(this: &Self::Type) -> Self {
         let secrets = match &this {
-            DataAvailabilitySecrets::Avail(config) => Some(DaSecrets::Avail(proto::AvailSecrets {
+            DataAvailabilitySecrets::Avail(config) => Some(DaSecrets::Avail(proto::AvailSecret {
                 seed_phrase: Some(config.seed_phrase.0.expose_secret().to_string()),
             })),
             DataAvailabilitySecrets::Celestia(config) => {
-                Some(DaSecrets::Celestia(proto::CelestiaSecrets {
+                Some(DaSecrets::Celestia(proto::CelestiaSecret {
                     private_key: Some(config.private_key.0.expose_secret().to_string()),
                 }))
             }
