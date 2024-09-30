@@ -51,8 +51,10 @@ impl DataAvailabilityClient for CelestiaClient {
         _: u32, // batch number
         data: Vec<u8>,
     ) -> Result<DispatchResponse, DAError> {
-        let namespace = Namespace::new_v0(self.config.namespace.as_bytes())
-            .map_err(to_non_retriable_da_error)?;
+        let namespace_bytes =
+            hex::decode(&self.config.namespace).map_err(to_non_retriable_da_error)?;
+        let namespace =
+            Namespace::new_v0(namespace_bytes.as_bytes()).map_err(to_non_retriable_da_error)?;
         let blob = Blob::new(namespace, data).map_err(to_non_retriable_da_error)?;
 
         let commitment = blob.commitment;
