@@ -14,10 +14,11 @@ use zksync_merkle_tree::{
 use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, ReadStorage, StorageView},
-        FinishedL1Batch, L2BlockEnv, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        FinishedL1Batch, L2BlockEnv, VmFactory, VmInterface, VmInterfaceExt,
+        VmInterfaceHistoryEnabled,
     },
     vm_latest::HistoryEnabled,
-    VmInstance,
+    LegacyVmInstance,
 };
 use zksync_prover_interface::inputs::{
     StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
@@ -69,7 +70,7 @@ impl Verify for V1TeeVerifierInput {
         let storage_view = Rc::new(RefCell::new(StorageView::new(&raw_storage)));
 
         let batch_number = self.l1_batch_env.number;
-        let vm = VmInstance::new(self.l1_batch_env, self.system_env, storage_view);
+        let vm = LegacyVmInstance::new(self.l1_batch_env, self.system_env, storage_view);
 
         let vm_out = execute_vm(self.l2_blocks_execution_data, vm)?;
 
@@ -157,7 +158,7 @@ fn get_bowp_and_set_initial_values(
 /// Executes the VM and returns `FinishedL1Batch` on success.
 fn execute_vm<S: ReadStorage>(
     l2_blocks_execution_data: Vec<L2BlockExecutionData>,
-    mut vm: VmInstance<S, HistoryEnabled>,
+    mut vm: LegacyVmInstance<S, HistoryEnabled>,
 ) -> anyhow::Result<FinishedL1Batch> {
     let next_l2_blocks_data = l2_blocks_execution_data.iter().skip(1);
 
@@ -239,12 +240,12 @@ fn generate_tree_instructions(
 
 fn execute_tx<S: ReadStorage>(
     tx: &Transaction,
-    vm: &mut VmInstance<S, HistoryEnabled>,
+    vm: &mut LegacyVmInstance<S, HistoryEnabled>,
 ) -> anyhow::Result<()> {
     // Attempt to run VM with bytecode compression on.
     vm.make_snapshot();
     if vm
-        .inspect_transaction_with_bytecode_compression(Default::default(), tx.clone(), true)
+        .execute_transaction_with_bytecode_compression(tx.clone(), true)
         .0
         .is_ok()
     {
@@ -255,7 +256,7 @@ fn execute_tx<S: ReadStorage>(
     // If failed with bytecode compression, attempt to run without bytecode compression.
     vm.rollback_to_the_latest_snapshot();
     if vm
-        .inspect_transaction_with_bytecode_compression(Default::default(), tx.clone(), false)
+        .execute_transaction_with_bytecode_compression(tx.clone(), false)
         .0
         .is_err()
     {

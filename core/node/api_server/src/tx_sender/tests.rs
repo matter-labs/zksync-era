@@ -32,7 +32,8 @@ async fn getting_nonce_for_account() {
         .await
         .unwrap();
 
-    let tx_executor = MockOneshotExecutor::default().into();
+    let tx_executor = MockOneshotExecutor::default();
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
 
     let nonce = tx_sender.get_expected_nonce(test_address).await.unwrap();
@@ -82,7 +83,8 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     .await;
 
     let l2_chain_id = L2ChainId::default();
-    let tx_executor = MockOneshotExecutor::default().into();
+    let tx_executor = MockOneshotExecutor::default();
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
 
     storage
@@ -142,7 +144,7 @@ async fn submitting_tx_requires_one_connection() {
         assert_eq!(received_tx.hash(), tx_hash);
         ExecutionResult::Success { output: vec![] }
     });
-    let tx_executor = tx_executor.into();
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
     let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
 
     let submission_result = tx_sender.submit_tx(tx).await.unwrap();
@@ -184,7 +186,7 @@ async fn eth_call_requires_single_connection() {
             output: b"success!".to_vec(),
         }
     });
-    let tx_executor = tx_executor.into();
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
     let (tx_sender, _) = create_test_tx_sender(
         pool.clone(),
         genesis_params.config().l2_chain_id,

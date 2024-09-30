@@ -13,3 +13,4 @@ RUN curl https://sh.rustup.rs -sSf | bash -s -- -y && \
     rustup default nightly-2024-08-01
 
 RUN cargo install sqlx-cli --version 0.8.0
+RUN cargo install sccache --version 0.8.1

@@ -40,7 +40,7 @@ struct BoundedVec<_0>(pub Vec<_0>);
 impl RawAvailClient {
     pub(crate) const MAX_BLOB_SIZE: usize = 512 * 1024; // 512kb
 
-    pub(crate) async fn new(app_id: u32, seed: String) -> anyhow::Result<Self> {
+    pub(crate) async fn new(app_id: u32, seed: &str) -> anyhow::Result<Self> {
         let mnemonic = Mnemonic::parse(seed)?;
         let keypair = Keypair::from_phrase(&mnemonic, None)?;
 

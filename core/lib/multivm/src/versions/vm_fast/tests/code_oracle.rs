@@ -6,12 +6,13 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    versions::testonly::ContractToDeploy,
     vm_fast::{
-        circuits_tracer::CircuitsTracer,
         tests::{
             tester::{get_empty_storage, VmTesterBuilder},
             utils::{load_precompiles_contract, read_precompiles_contract, read_test_contract},
         },
+        CircuitsTracer,
     },
 };
 
@@ -41,10 +42,9 @@ fn test_code_oracle() {
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
-        .with_custom_contracts(vec![(
+        .with_custom_contracts(vec![ContractToDeploy::new(
             precompile_contract_bytecode,
             precompiles_contract_address,
-            false,
         )])
         .with_storage(storage)
         .build();
@@ -58,7 +58,7 @@ fn test_code_oracle() {
     // Firstly, let's ensure that the contract works.
     let tx1 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: precompiles_contract_address,
+            contract_address: Some(precompiles_contract_address),
             calldata: call_code_oracle_function
                 .encode_input(&[
                     Token::FixedBytes(normal_zkevm_bytecode_hash.0.to_vec()),
@@ -82,7 +82,7 @@ fn test_code_oracle() {
     // the decommitted bytecode gets erased (it shouldn't).
     let tx2 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: precompiles_contract_address,
+            contract_address: Some(precompiles_contract_address),
             calldata: call_code_oracle_function
                 .encode_input(&[
                     Token::FixedBytes(normal_zkevm_bytecode_hash.0.to_vec()),
@@ -134,10 +134,9 @@ fn test_code_oracle_big_bytecode() {
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
-        .with_custom_contracts(vec![(
+        .with_custom_contracts(vec![ContractToDeploy::new(
             precompile_contract_bytecode,
             precompiles_contract_address,
-            false,
         )])
         .with_storage(storage)
         .build();
@@ -152,7 +151,7 @@ fn test_code_oracle_big_bytecode() {
     // Firstly, let's ensure that the contract works.
     let tx1 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: precompiles_contract_address,
+            contract_address: Some(precompiles_contract_address),
             calldata: call_code_oracle_function
                 .encode_input(&[
                     Token::FixedBytes(big_zkevm_bytecode_hash.0.to_vec()),
@@ -198,10 +197,9 @@ fn refunds_in_code_oracle() {
         let mut vm = VmTesterBuilder::new()
             .with_execution_mode(TxExecutionMode::VerifyExecute)
             .with_random_rich_accounts(1)
-            .with_custom_contracts(vec![(
+            .with_custom_contracts(vec![ContractToDeploy::new(
                 precompile_contract_bytecode.clone(),
                 precompiles_contract_address,
-                false,
             )])
             .with_storage(storage.clone())
             .build();
@@ -212,7 +210,7 @@ fn refunds_in_code_oracle() {
         if decommit {
             let (_, is_fresh) = vm.vm.inner.world_diff_mut().decommit_opcode(
                 &mut vm.vm.world,
-                &mut CircuitsTracer::default(),
+                &mut ((), CircuitsTracer::default()),
                 h256_to_u256(normal_zkevm_bytecode_hash),
             );
             assert!(is_fresh);
@@ -220,7 +218,7 @@ fn refunds_in_code_oracle() {
 
         let tx = account.get_l2_tx_for_execute(
             Execute {
-                contract_address: precompiles_contract_address,
+                contract_address: Some(precompiles_contract_address),
                 calldata: call_code_oracle_function
                     .encode_input(&[
                         Token::FixedBytes(normal_zkevm_bytecode_hash.0.to_vec()),

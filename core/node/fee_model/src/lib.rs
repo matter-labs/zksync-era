@@ -34,8 +34,27 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
         l1_pubdata_price_scale_factor: f64,
     ) -> anyhow::Result<BatchFeeInput> {
         let params = self.get_fee_model_params();
+        Ok(
+            <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
+                params,
+                l1_gas_price_scale_factor,
+                l1_pubdata_price_scale_factor,
+            ),
+        )
+    }
 
-        Ok(match params {
+    /// Returns the fee model parameters using the denomination of the base token used (WEI for ETH).
+    fn get_fee_model_params(&self) -> FeeParams;
+}
+
+impl dyn BatchFeeModelInputProvider {
+    /// Provides the default implementation of `get_batch_fee_input_scaled()` given [`FeeParams`].
+    pub fn default_batch_fee_input_scaled(
+        params: FeeParams,
+        l1_gas_price_scale_factor: f64,
+        l1_pubdata_price_scale_factor: f64,
+    ) -> BatchFeeInput {
+        match params {
             FeeParams::V1(params) => BatchFeeInput::L1Pegged(compute_batch_fee_model_input_v1(
                 params,
                 l1_gas_price_scale_factor,
@@ -47,14 +66,9 @@ pub trait BatchFeeModelInputProvider: fmt::Debug + 'static + Send + Sync {
                     l1_pubdata_price_scale_factor,
                 )),
             ),
-        })
+        }
     }
 
-    /// Returns the fee model parameters using the denomination of the base token used (WEI for ETH).
-    fn get_fee_model_params(&self) -> FeeParams;
-}
-
-impl dyn BatchFeeModelInputProvider {
     /// Returns the batch fee input as-is, i.e. without any scaling for the L1 gas and pubdata prices.
     pub async fn get_batch_fee_input(&self) -> anyhow::Result<BatchFeeInput> {
         self.get_batch_fee_input_scaled(1.0, 1.0).await

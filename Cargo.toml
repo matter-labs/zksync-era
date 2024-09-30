@@ -105,6 +105,7 @@ categories = ["cryptography"]
 anyhow = "1"
 assert_matches = "1.5"
 async-trait = "0.1"
+async-recursion = "1"
 axum = "0.7.5"
 backon = "0.4.4"
 bigdecimal = "0.4.5"
@@ -116,7 +117,7 @@ codegen = "0.2.0"
 criterion = "0.4.0"
 ctrlc = "3.1"
 dashmap = "5.5.3"
-derive_more = "=1.0.0-beta.6"
+derive_more = "1.0.0"
 envy = "0.4"
 ethabi = "18.0.0"
 flate2 = "1.0.28"
@@ -233,19 +234,19 @@ zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
 zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.5" }
 
 # New VM; pinned to a specific commit because of instability
-zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "cd6136c42ec56856e0abcf2a98d1a9e120161482" }
+zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "74577d9be13b1bff9d1a712389731f669b179e47" }
 
 # Consensus dependencies.
-zksync_concurrency = "=0.1.1"
-zksync_consensus_bft = "=0.1.1"
-zksync_consensus_crypto = "=0.1.1"
-zksync_consensus_executor = "=0.1.1"
-zksync_consensus_network = "=0.1.1"
-zksync_consensus_roles = "=0.1.1"
-zksync_consensus_storage = "=0.1.1"
-zksync_consensus_utils = "=0.1.1"
-zksync_protobuf = "=0.1.1"
-zksync_protobuf_build = "=0.1.1"
+zksync_concurrency = "=0.3.0"
+zksync_consensus_bft = "=0.3.0"
+zksync_consensus_crypto = "=0.3.0"
+zksync_consensus_executor = "=0.3.0"
+zksync_consensus_network = "=0.3.0"
+zksync_consensus_roles = "=0.3.0"
+zksync_consensus_storage = "=0.3.0"
+zksync_consensus_utils = "=0.3.0"
+zksync_protobuf = "=0.3.0"
+zksync_protobuf_build = "=0.3.0"
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }

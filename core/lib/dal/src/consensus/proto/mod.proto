@@ -4,6 +4,7 @@ package zksync.dal;
 
 import "zksync/roles/validator.proto";
 import "zksync/roles/attester.proto";
+import "zksync/roles/node.proto";
 
 message Payload {
   // zksync-era ProtocolVersionId
@@ -102,7 +103,7 @@ message ProtocolUpgradeTxCommonData {
 }
 
 message Execute {
-  optional bytes contract_address = 1; // required; H160
+  optional bytes contract_address = 1; // optional; H160
   optional bytes calldata = 2; // required
   optional bytes value = 3; // required; U256
   repeated bytes factory_deps = 4;
@@ -122,9 +123,15 @@ message AttesterCommittee {
   repeated roles.attester.WeightedAttester members = 1; // required
 }
 
+message NodeAddr {
+  optional roles.node.PublicKey key = 1; // required
+  optional string addr = 2; // required; Host
+}
+
 message GlobalConfig {
   optional roles.validator.Genesis genesis = 1; // required
   optional bytes registry_address = 2; // optional; H160
+  repeated NodeAddr seed_peers = 3;
 }
 
 message AttestationStatus {

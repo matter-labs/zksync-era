@@ -7,7 +7,7 @@ import { getZksolcUrl, saltFromUrl } from '@matterlabs/hardhat-zksync-solc';
 import { getCompilersDir } from 'hardhat/internal/util/global-dir';
 import path from 'path';
 
-const COMPILER_VERSION = '1.3.21';
+const COMPILER_VERSION = '1.5.3';
 const IS_COMPILER_PRE_RELEASE = false;
 
 async function compilerLocation(): Promise<string> {
@@ -48,18 +48,24 @@ export async function compile(
     }
     let paths = preparePaths(pathToHome, path, files, outputDirName);
 
-    let systemMode = type === 'yul' ? '--system-mode  --optimization 3' : '';
+    let eraVmExtensions = type === 'yul' ? '--enable-eravm-extensions  --optimization 3' : '';
 
     const zksolcLocation = await compilerLocation();
     await spawn(
-        `${zksolcLocation} ${paths.absolutePathSources}/${paths.outputDir} ${systemMode} --${type} --bin --overwrite -o ${paths.absolutePathArtifacts}/${paths.outputDir}`
+        `${zksolcLocation} ${paths.absolutePathSources}/${paths.outputDir} ${eraVmExtensions} --${type} --bin --overwrite -o ${paths.absolutePathArtifacts}/${paths.outputDir}`
     );
 }
 
 export async function compileFolder(pathToHome: string, path: string, type: string) {
+    let compilationMode;
+    if (type === 'zkasm') {
+        compilationMode = 'eravm-assembly';
+    } else {
+        compilationMode = type;
+    }
     let files: string[] = (await fs.promises.readdir(path)).filter((fn) => fn.endsWith(`.${type}`));
     for (const file of files) {
-        await compile(pathToHome, path, [file], `${file}`, type);
+        await compile(pathToHome, path, [file], `${file}`, compilationMode);
     }
 }
 

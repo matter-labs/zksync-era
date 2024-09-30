@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
+use serde_with::{hex::Hex, serde_as};
 use strum::Display;
 use zksync_basic_types::{
     tee_types::TeeType,
@@ -12,7 +13,10 @@ use zksync_contracts::BaseSystemContractsHashes;
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
-use crate::{protocol_version::L1VerifierConfig, Address, L2BlockNumber, ProtocolVersionId};
+use crate::{
+    debug_flat_call::DebugCallFlat, protocol_version::L1VerifierConfig, Address, L2BlockNumber,
+    ProtocolVersionId,
+};
 
 pub mod en;
 pub mod state_override;
@@ -601,6 +605,7 @@ pub struct ResultDebugCall {
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub enum DebugCallType {
     #[default]
     Call,
@@ -700,19 +705,20 @@ impl ProtocolVersion {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub enum SupportedTracers {
     CallTracer,
+    FlatCallTracer,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct CallTracerConfig {
     pub only_top_call: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct TracerConfig {
     pub tracer: SupportedTracers,
@@ -720,11 +726,70 @@ pub struct TracerConfig {
     pub tracer_config: CallTracerConfig,
 }
 
+impl Default for TracerConfig {
+    fn default() -> Self {
+        TracerConfig {
+            tracer: SupportedTracers::CallTracer,
+            tracer_config: CallTracerConfig {
+                only_top_call: false,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum BlockStatus {
     Sealed,
     Verified,
+}
+
+/// Result tracers need to have a nested result field for compatibility. So we have two different
+/// structs 1 for blocks tracing and one for txs and call tracing
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum CallTracerBlockResult {
+    CallTrace(Vec<ResultDebugCall>),
+    FlatCallTrace(Vec<DebugCallFlat>),
+}
+
+impl CallTracerBlockResult {
+    pub fn unwrap_flat(self) -> Vec<DebugCallFlat> {
+        match self {
+            Self::CallTrace(_) => panic!("Result is a FlatCallTrace"),
+            Self::FlatCallTrace(trace) => trace,
+        }
+    }
+
+    pub fn unwrap_default(self) -> Vec<ResultDebugCall> {
+        match self {
+            Self::CallTrace(trace) => trace,
+            Self::FlatCallTrace(_) => panic!("Result is a CallTrace"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum CallTracerResult {
+    CallTrace(DebugCall),
+    FlatCallTrace(Vec<DebugCallFlat>),
+}
+
+impl CallTracerResult {
+    pub fn unwrap_flat(self) -> Vec<DebugCallFlat> {
+        match self {
+            Self::CallTrace(_) => panic!("Result is a FlatCallTrace"),
+            Self::FlatCallTrace(trace) => trace,
+        }
+    }
+
+    pub fn unwrap_default(self) -> DebugCall {
+        match self {
+            Self::CallTrace(trace) => trace,
+            Self::FlatCallTrace(_) => panic!("Result is a CallTrace"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -784,15 +849,20 @@ pub struct Proof {
     pub storage_proof: Vec<StorageProof>,
 }
 
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TeeProof {
     pub l1_batch_number: L1BatchNumber,
     pub tee_type: Option<TeeType>,
+    #[serde_as(as = "Option<Hex>")]
     pub pubkey: Option<Vec<u8>>,
+    #[serde_as(as = "Option<Hex>")]
     pub signature: Option<Vec<u8>>,
+    #[serde_as(as = "Option<Hex>")]
     pub proof: Option<Vec<u8>>,
     pub proved_at: DateTime<Utc>,
+    #[serde_as(as = "Option<Hex>")]
     pub attestation: Option<Vec<u8>>,
 }
 

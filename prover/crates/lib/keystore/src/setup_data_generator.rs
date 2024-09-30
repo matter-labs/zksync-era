@@ -33,7 +33,7 @@ pub fn generate_setup_data_common(
 
     let (finalization, vk) = if circuit.is_base_layer() {
         (
-            Some(keystore.load_finalization_hints(circuit.clone())?),
+            Some(keystore.load_finalization_hints(circuit)?),
             data_source
                 .get_base_layer_vk(circuit.circuit_id)
                 .unwrap()
@@ -41,7 +41,7 @@ pub fn generate_setup_data_common(
         )
     } else {
         (
-            Some(keystore.load_finalization_hints(circuit.clone())?),
+            Some(keystore.load_finalization_hints(circuit)?),
             data_source
                 .get_recursion_layer_vk(circuit.circuit_id)
                 .unwrap()
@@ -86,7 +86,7 @@ pub trait SetupDataGenerator {
             );
             return Ok("Skipped".to_string());
         }
-        let serialized = self.generate_setup_data(circuit.clone())?;
+        let serialized = self.generate_setup_data(circuit)?;
         let digest = md5::compute(&serialized);
 
         if !dry_run {
@@ -109,7 +109,7 @@ pub trait SetupDataGenerator {
             .iter()
             .map(|circuit| {
                 let digest = self
-                    .generate_and_write_setup_data(circuit.clone(), dry_run, recompute_if_missing)
+                    .generate_and_write_setup_data(*circuit, dry_run, recompute_if_missing)
                     .context(circuit.name())
                     .unwrap();
                 (circuit.name(), digest)

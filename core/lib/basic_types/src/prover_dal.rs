@@ -2,13 +2,14 @@
 use std::{net::IpAddr, ops::Add, str::FromStr};
 
 use chrono::{DateTime, Duration, NaiveDateTime, NaiveTime, Utc};
+use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
 
 use crate::{
     basic_fri_types::AggregationRound, protocol_version::ProtocolVersionId, L1BatchNumber,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct FriProverJobMetadata {
     pub id: u32,
     pub block_number: L1BatchNumber,
@@ -27,7 +28,7 @@ pub struct ExtendedJobCountStatistics {
     pub successful: usize,
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
 pub struct JobCountStatistics {
     pub queued: usize,
     pub in_progress: usize,
