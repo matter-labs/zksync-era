@@ -202,7 +202,8 @@ where
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
-        let tx_hash = tx.hash();
+        let tx_repr = format!("{tx:?}"); // includes little data, so is OK to call proactively
+
         let (main_bytecodes_result, main_tx_result) =
             self.main.inspect_transaction_with_bytecode_compression(
                 main_tracer,
@@ -224,7 +225,7 @@ where
             errors.check_results_match(&main_tx_result, &shadow_result.1);
             if let Err(err) = errors.into_result() {
                 let ctx = format!(
-                    "inspecting transaction {tx_hash:?}, with_compression={with_compression:?}"
+                    "inspecting transaction {tx_repr}, with_compression={with_compression:?}"
                 );
                 self.report(err.context(ctx));
             }
