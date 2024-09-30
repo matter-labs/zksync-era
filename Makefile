@@ -89,7 +89,7 @@ prepare-contracts: check-tools
 
 # Download setup-key
 prepare-keys:
-	@run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+	@curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
 # Targets for building each container
 build-contract-verifier: check-tools prepare-contracts prepare-keys
