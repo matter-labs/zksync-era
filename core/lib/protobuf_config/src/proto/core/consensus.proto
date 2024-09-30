@@ -68,9 +68,9 @@ message RpcConfig {
 
 message Config {
   reserved 1;
-  reserved server_addr;
+  reserved "server_addr";
   reserver 2;
-  reserved server_addr;
+  reserved "server_addr";
   reserved 3;
   reserved "validators";
 
