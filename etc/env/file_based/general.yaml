@@ -80,7 +80,7 @@ operations_manager:
 contract_verifier:
   compilation_timeout: 240
   polling_interval: 1000
-  prometheus_port: 3314
+  prometheus_port: 3318
   port: 3070
   url: http://127.0.0.1:3070
   threads_per_server: 128

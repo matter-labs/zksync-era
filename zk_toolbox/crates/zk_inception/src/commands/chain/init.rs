@@ -1,8 +1,8 @@
-use anyhow::{bail, Context};
+use anyhow::Context;
 use common::{config::global_config, git, logger, spinner::Spinner};
 use config::{
-    copy_configs, ports_config, set_l1_rpc_url, traits::SaveConfigWithBasePath,
-    update_from_chain_config, update_ports, ChainConfig, EcosystemConfig, GeneralConfig,
+    copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
+    ChainConfig, EcosystemConfig, DEFAULT_CONSENSUS_PORT,
 };
 use types::BaseToken;
 use xshell::Shell;
@@ -20,14 +20,17 @@ use crate::{
         },
         portal::update_portal_config,
     },
+    defaults::PORT_RANGE_END,
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR,
-        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTS_CONFIG_ERR,
-        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
-    utils::consensus::{generate_consensus_keys, get_consensus_config, get_consensus_secrets},
+    utils::{
+        consensus::{generate_consensus_keys, get_consensus_config, get_consensus_secrets},
+        ports::EcosystemPortsScanner,
+    },
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -54,15 +57,31 @@ pub async fn init(
     ecosystem_config: &EcosystemConfig,
     chain_config: &ChainConfig,
 ) -> anyhow::Result<()> {
+    let mut ecosystem_ports = EcosystemPortsScanner::scan(shell)?;
     copy_configs(shell, &ecosystem_config.link_to_code, &chain_config.configs)?;
 
+    if !init_args.no_port_reallocation {
+        ecosystem_ports.allocate_ports_in_yaml(
+            shell,
+            &chain_config.path_to_general_config(),
+            chain_config.id,
+        )?;
+    }
     let mut general_config = chain_config.get_general_config()?;
-    apply_port_offset(init_args.port_offset, &mut general_config)?;
-    let ports = ports_config(&general_config).context(MSG_PORTS_CONFIG_ERR)?;
+
+    // TODO: This is a temporary solution. We should allocate consensus port using `EcosystemPorts::allocate_ports_in_yaml`
+    let offset = ((chain_config.id - 1) * 100) as u16;
+    let consensus_port_range = DEFAULT_CONSENSUS_PORT + offset..PORT_RANGE_END;
+    let consensus_port =
+        ecosystem_ports.allocate_port(consensus_port_range, "Consensus".to_string())?;
 
     let consensus_keys = generate_consensus_keys();
-    let consensus_config =
-        get_consensus_config(chain_config, ports, Some(consensus_keys.clone()), None)?;
+    let consensus_config = get_consensus_config(
+        chain_config,
+        consensus_port,
+        Some(consensus_keys.clone()),
+        None,
+    )?;
     general_config.consensus_config = Some(consensus_config);
     general_config.save_with_base_path(shell, &chain_config.configs)?;
 
@@ -173,18 +192,6 @@ pub async fn init(
     update_portal_config(shell, chain_config)
         .await
         .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?;
-
-    Ok(())
-}
-
-fn apply_port_offset(port_offset: u16, general_config: &mut GeneralConfig) -> anyhow::Result<()> {
-    let Some(mut ports_config) = ports_config(general_config) else {
-        bail!("Missing ports config");
-    };
-
-    ports_config.apply_offset(port_offset);
-
-    update_ports(general_config, &ports_config)?;
 
     Ok(())
 }
