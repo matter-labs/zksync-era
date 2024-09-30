@@ -1,5 +1,8 @@
+use std::mem::take;
+
 use anyhow::{bail, Context, Result};
 use common::spinner::Spinner;
+use sqruff_lib::{api::simple::get_simple_config, core::linter::core::Linter};
 use xshell::Shell;
 
 use super::lint_utils::{get_unignored_files, IgnoredData, Target};
@@ -9,8 +12,24 @@ use crate::messages::{
     MSG_FAILED_TO_FIND_START_OF_REGULAR_STRING_QUERY, MSG_RUNNING_SQL_FMT_SPINNER,
 };
 
+fn custom_fmt(query: &str) -> anyhow::Result<String> {
+    let exclude_rules = vec!["LT12".to_string()]; // avoid adding newline before `$` character
+    let cfg = get_simple_config(Some("postgres".into()), None, Some(exclude_rules), None).unwrap();
+    let mut linter = Linter::new(cfg, None, None);
+    let mut result = linter.lint_string_wrapped(query, None, true);
+    let formatted_query = take(&mut result.paths[0].files[0]).fix_string();
+    // Remove first empty line
+    let formatted_query = formatted_query
+        .lines()
+        .skip(1)
+        .collect::<Vec<&str>>()
+        .join("\n");
+
+    Ok(formatted_query)
+}
+
 fn format_query(query: &str) -> anyhow::Result<String> {
-    let formatted_query = sqruff_lib::api::simple::fix(query);
+    let formatted_query = custom_fmt(query)?;
 
     // Remove minimum indent from the formatted query
     let formatted_lines: Vec<&str> = formatted_query.lines().collect();

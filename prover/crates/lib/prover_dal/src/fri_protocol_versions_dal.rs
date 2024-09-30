@@ -20,9 +20,11 @@ impl FriProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                prover_fri_protocol_versions (id, snark_wrapper_vk_hash, created_at, protocol_version_patch)
+            prover_fri_protocol_versions (
+                id, snark_wrapper_vk_hash, created_at, protocol_version_patch
+            )
             VALUES
-                ($1, $2, NOW(), $3)
+            ($1, $2, NOW(), $3)
             ON CONFLICT (id, protocol_version_patch) DO NOTHING
             "#,
             id.minor as i32,

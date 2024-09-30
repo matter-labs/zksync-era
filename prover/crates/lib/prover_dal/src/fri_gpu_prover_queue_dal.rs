@@ -52,10 +52,10 @@ impl FriGpuProverQueueDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                gpu_prover_queue_fri.*
+            gpu_prover_queue_fri.*
             "#,
             &processing_timeout,
             i16::from(specialized_prover_group_id),
@@ -84,28 +84,28 @@ impl FriGpuProverQueueDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                gpu_prover_queue_fri (
-                    instance_host,
-                    instance_port,
-                    instance_status,
-                    specialized_prover_group_id,
-                    zone,
-                    created_at,
-                    updated_at,
-                    protocol_version,
-                    protocol_version_patch
-                )
+            gpu_prover_queue_fri (
+                instance_host,
+                instance_port,
+                instance_status,
+                specialized_prover_group_id,
+                zone,
+                created_at,
+                updated_at,
+                protocol_version,
+                protocol_version_patch
+            )
             VALUES
-                (CAST($1::TEXT AS inet), $2, 'available', $3, $4, NOW(), NOW(), $5, $6)
+            (CAST($1::TEXT AS INET), $2, 'available', $3, $4, NOW(), NOW(), $5, $6)
             ON CONFLICT (instance_host, instance_port, zone) DO
             UPDATE
             SET
-                instance_status = 'available',
-                specialized_prover_group_id = $3,
-                zone = $4,
-                updated_at = NOW(),
-                protocol_version = $5,
-                protocol_version_patch = $6
+            instance_status = 'available',
+            specialized_prover_group_id = $3,
+            zone = $4,
+            updated_at = NOW(),
+            protocol_version = $5,
+            protocol_version_patch = $6
             "#,
             address.host.to_string(),
             i32::from(address.port),
@@ -132,7 +132,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                 instance_status = $1,
                 updated_at = NOW()
             WHERE
-                instance_host = $2::TEXT::inet
+                instance_host = $2::TEXT::INET
                 AND instance_port = $3
                 AND zone = $4
             "#,
@@ -158,7 +158,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                 instance_status = 'available',
                 updated_at = NOW()
             WHERE
-                instance_host = $1::TEXT::inet
+                instance_host = $1::TEXT::INET
                 AND instance_port = $2
                 AND instance_status = 'full'
                 AND zone = $3
@@ -184,7 +184,7 @@ impl FriGpuProverQueueDal<'_, '_> {
             FROM
                 gpu_prover_queue_fri
             WHERE
-                instance_host = $1::TEXT::inet
+                instance_host = $1::TEXT::INET
                 AND instance_port = $2
                 AND zone = $3
             "#,

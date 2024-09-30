@@ -21,11 +21,13 @@ impl BaseTokenDal<'_, '_> {
         let row = sqlx::query!(
             r#"
             INSERT INTO
-                base_token_ratios (numerator, denominator, ratio_timestamp, created_at, updated_at)
+            base_token_ratios (
+                numerator, denominator, ratio_timestamp, created_at, updated_at
+            )
             VALUES
-                ($1, $2, $3, NOW(), NOW())
+            ($1, $2, $3, NOW(), NOW())
             RETURNING
-                id
+            id
             "#,
             BigDecimal::from_u64(numerator.get()),
             BigDecimal::from_u64(denominator.get()),
