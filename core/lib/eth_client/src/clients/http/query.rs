@@ -304,7 +304,7 @@ where
     COUNTERS.call[&(Method::BaseFeeHistory, client.component())].inc();
     let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
     let mut history = Vec::with_capacity(block_count);
-    let from_block = upto_block.saturating_sub(block_count);
+    let from_block = upto_block.saturating_sub(block_count - 1);
 
     // Here we are requesting `fee_history` from blocks
     // `(from_block; upto_block)` in chunks of size `MAX_REQUEST_CHUNK`
@@ -413,7 +413,7 @@ where
     COUNTERS.call[&(Method::L2FeeHistory, client.component())].inc();
     let latency = LATENCIES.direct[&Method::BaseFeeHistory].start();
     let mut history = Vec::with_capacity(block_count);
-    let from_block = upto_block.saturating_sub(block_count);
+    let from_block = upto_block.saturating_sub(block_count - 1);
 
     // Here we are requesting `fee_history` from blocks
     // `(from_block; upto_block)` in chunks of size `FEE_HISTORY_MAX_REQUEST_CHUNK`
