@@ -40,7 +40,6 @@ impl InMemoryStorage {
         )
     }
 
-    // TODO: add `(get_deployer_key(1), evm_simulator_hash)` if EVM simulator is enabled (as a separate method?)
     /// Constructs a storage that contains custom system contracts (provided in a vector).
     pub fn with_custom_system_contracts_and_chain_id(
         chain_id: L2ChainId,

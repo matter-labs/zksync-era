@@ -48,6 +48,10 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
         .get_evm_simulator_bytecode_hash
         .as_ref()
         .map(ethabi::Function::short_signature);
+    let bootloader_signature = functions.get_l2_bootloader_bytecode_hash.short_signature();
+    let default_aa_signature = functions
+        .get_l2_default_account_bytecode_hash
+        .short_signature();
     let evm_simulator_getter_signature =
         evm_simulator_getter_signature.as_ref().map(|sig| &sig[..]);
 
@@ -67,15 +71,10 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
         let call = call.unwrap();
         assert_eq!(call.target, STATE_TRANSITION_CONTRACT_ADDRESS);
         let output = match &call.calldata[..4] {
-            selector if selector == functions.get_l2_bootloader_bytecode_hash.short_signature() => {
+            selector if selector == bootloader_signature => {
                 vec![1u8; 32]
             }
-            selector
-                if selector
-                    == functions
-                        .get_l2_default_account_bytecode_hash
-                        .short_signature() =>
-            {
+            selector if selector == default_aa_signature => {
                 vec![2u8; 32]
             }
             selector if Some(selector) == evm_simulator_getter_signature => {

@@ -216,7 +216,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
     let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
     let hash = hash_bytecode(&bytecode);
     let default_aa = SystemContractCode {
-        code: bytes_to_be_words(bytecode.clone()),
+        code: bytes_to_be_words(bytecode),
         hash,
     };
 

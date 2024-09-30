@@ -96,11 +96,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             pubdata_tracer,
             ret_from_the_bootloader: None,
             circuits_tracer: CircuitsTracer::new(),
-            evm_deploy_tracer: if use_evm_simulator {
-                Some(EvmDeployTracer::new())
-            } else {
-                None
-            },
+            evm_deploy_tracer: use_evm_simulator.then(EvmDeployTracer::new),
             storage,
             _phantom: PhantomData,
         }
