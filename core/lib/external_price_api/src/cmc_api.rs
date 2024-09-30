@@ -13,6 +13,7 @@ use crate::{address_to_string, utils::get_fraction, PriceAPIClient};
 const AUTH_HEADER: &str = "x-cmc_pro_api_key";
 const DEFAULT_API_URL: &str = "https://pro-api.coinmarketcap.com";
 const ALLOW_TOKENS_ONLY_ON_PLATFORM_ID: i32 = 1; // 1 = Ethereum
+const REQUEST_QUOTE_IN_CURRENCY_ID: &str = "1027"; // 1027 = ETH
 
 #[derive(Debug)]
 pub struct CmcPriceApiClient {
@@ -106,6 +107,7 @@ impl CmcPriceApiClient {
         let response = self
             .get("/v2/cryptocurrency/quotes/latest")
             .query(&[("id", id)])
+            .query(&[("convert_id", REQUEST_QUOTE_IN_CURRENCY_ID)])
             .send()
             .await?;
 
@@ -122,7 +124,7 @@ impl CmcPriceApiClient {
             .await?
             .data
             .get(&id)
-            .and_then(|data| data.quote.get("USD"))
+            .and_then(|data| data.quote.get(REQUEST_QUOTE_IN_CURRENCY_ID))
             .map(|mq| mq.price)
             .ok_or_else(|| anyhow::anyhow!("Price not found for token: {id}"))
     }
@@ -167,11 +169,11 @@ struct CryptocurrencyPlatform {
 impl PriceAPIClient for CmcPriceApiClient {
     async fn fetch_ratio(&self, token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
         let base_token_in_eth = self.get_token_price_by_address(token_address).await?;
-        let (numerator, denominator) = get_fraction(base_token_in_eth);
+        let (term_ether, term_base_token) = get_fraction(base_token_in_eth);
 
         return Ok(BaseTokenAPIRatio {
-            numerator,
-            denominator,
+            numerator: term_base_token,
+            denominator: term_ether,
             ratio_timestamp: Utc::now(),
         });
     }
