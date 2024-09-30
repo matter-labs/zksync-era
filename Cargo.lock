@@ -9923,6 +9923,7 @@ dependencies = [
  "reqwest 0.12.5",
  "serde",
  "tokio",
+ "tracing",
  "url",
  "zksync_config",
  "zksync_types",

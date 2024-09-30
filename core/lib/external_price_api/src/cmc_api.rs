@@ -8,7 +8,7 @@ use url::Url;
 use zksync_config::configs::ExternalPriceApiClientConfig;
 use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
 
-use crate::{utils::get_fraction, PriceAPIClient};
+use crate::{address_to_string, utils::get_fraction, PriceAPIClient};
 
 const AUTH_HEADER: &str = "x-cmc_pro_api_key";
 const DEFAULT_API_URL: &str = "https://pro-api.coinmarketcap.com";
@@ -75,6 +75,16 @@ impl CmcPriceApiClient {
                 if platform.id == ALLOW_TOKENS_ONLY_ON_PLATFORM_ID
                     && Address::from_str(&platform.token_address).is_ok_and(|a| a == address)
                 {
+                    if token_info.is_active != 1 {
+                        tracing::warn!(
+                            "CoinMarketCap API reports token {} ({}) on platform {} ({}) is not active",
+                            address_to_string(&address),
+                            token_info.name,
+                            platform.id,
+                            platform.name,
+                        );
+                    }
+
                     self.cache_token_id_by_address
                         .write()
                         .await
@@ -103,7 +113,7 @@ impl CmcPriceApiClient {
         if !status.is_success() {
             return Err(anyhow::anyhow!(
                 "Http error while fetching token price. Status: {status}, token: {id}, msg: {}",
-                response.text().await.unwrap_or("".to_string())
+                response.text().await.unwrap_or_default(),
             ));
         }
 
@@ -125,8 +135,6 @@ struct V2CryptocurrencyQuotesLatestResponse {
 
 #[derive(Debug, Deserialize)]
 struct CryptocurrencyQuoteObject {
-    // #[serde(flatten)]
-    // cryptocurrency_object: CryptocurrencyObject,
     quote: HashMap<String, MarketQuote>,
 }
 
@@ -143,17 +151,15 @@ struct V1CryptocurrencyMapResponse {
 #[derive(Debug, Deserialize)]
 struct CryptocurrencyObject {
     id: i32,
-    // name: String,
-    // symbol: String,
-    // slug: String,
-    // is_active: u8, // TODO: This field is available, should we at least emit a warning if the listing is not marked as active?
+    name: String,
+    is_active: u8,
     platform: Option<CryptocurrencyPlatform>,
 }
 
 #[derive(Debug, Deserialize)]
 struct CryptocurrencyPlatform {
     id: i32,
-    // name: String,
+    name: String,
     token_address: String,
 }
 
@@ -177,12 +183,12 @@ mod tests {
 
     #[tokio::test]
     #[ignore = "run manually (accesses network); specify CoinMarketCap API key in env var CMC_API_KEY"]
-    async fn test() {
+    async fn cmc_tether_peg() {
         let client = CmcPriceApiClient::new(ExternalPriceApiClientConfig {
             api_key: Some(std::env::var("CMC_API_KEY").unwrap()),
             base_url: None,
             client_timeout_ms: 5000,
-            source: String::new(),
+            source: "coinmarketcap".to_string(),
             forced: None,
         });
 
