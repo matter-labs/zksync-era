@@ -91,7 +91,7 @@ impl TeeRequestProcessor {
 
         if let Some((start, end)) = missing_range {
             tracing::warn!(
-                "Blobs for batch numbers {} to {} not found in the object store. Marked as unpicked.",
+                "Blobs for batch numbers {} to {} not found in the object store. Marked as unpicked or permanently ignored.",
                 start,
                 end
             );
