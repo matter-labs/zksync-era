@@ -10,9 +10,9 @@ use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
 
 use crate::{utils::get_fraction, PriceAPIClient};
 
-const CMC_AUTH_HEADER: &str = "x-cmc_pro_api_key";
-const DEFAULT_CMC_API_URL: &str = "https://pro-api.coinmarketcap.com";
-const ALLOW_TOKENS_ONLY_ON_CMC_PLATFORM_ID: i32 = 1; // 1 = Ethereum
+const AUTH_HEADER: &str = "x-cmc_pro_api_key";
+const DEFAULT_API_URL: &str = "https://pro-api.coinmarketcap.com";
+const ALLOW_TOKENS_ONLY_ON_PLATFORM_ID: i32 = 1; // 1 = Ethereum
 
 #[derive(Debug)]
 pub struct CmcPriceApiClient {
@@ -27,7 +27,7 @@ impl CmcPriceApiClient {
             use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 
             let default_headers = HeaderMap::from_iter([(
-                HeaderName::from_static(CMC_AUTH_HEADER),
+                HeaderName::from_static(AUTH_HEADER),
                 HeaderValue::from_str(api_key).expect("Failed to create header value"),
             )]);
 
@@ -39,7 +39,7 @@ impl CmcPriceApiClient {
         .build()
         .expect("Failed to build reqwest client");
 
-        let base_url = config.base_url.unwrap_or(DEFAULT_CMC_API_URL.to_string());
+        let base_url = config.base_url.unwrap_or(DEFAULT_API_URL.to_string());
         let base_url = Url::parse(&base_url).expect("Failed to parse CoinMarketCap API URL");
 
         Self {
@@ -72,7 +72,7 @@ impl CmcPriceApiClient {
         let parsed = response.json::<V1CryptocurrencyMapResponse>().await?;
         for token_info in parsed.data {
             if let Some(platform) = token_info.platform {
-                if platform.id == ALLOW_TOKENS_ONLY_ON_CMC_PLATFORM_ID
+                if platform.id == ALLOW_TOKENS_ONLY_ON_PLATFORM_ID
                     && Address::from_str(&platform.token_address).is_ok_and(|a| a == address)
                 {
                     self.cache_token_id_by_address
