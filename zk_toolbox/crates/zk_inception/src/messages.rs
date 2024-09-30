@@ -4,6 +4,7 @@ use ethers::{
     types::{H160, U256},
     utils::format_ether,
 };
+use zksync_consensus_roles::attester;
 
 pub(super) const MSG_SETUP_KEYS_DOWNLOAD_SELECTION_PROMPT: &str =
     "Do you want to download the setup keys or generate them?";
@@ -480,4 +481,23 @@ pub(super) fn msg_diff_secrets(
 
 pub(super) fn msg_updating_chain(chain: &str) -> String {
     format!("Updating chain: {}", chain)
+}
+
+/// consensus command messages
+pub(super) const MSG_RECEIPT_MISSING: &str = "receipt missing";
+pub(super) const MSG_STATUS_MISSING: &str = "status missing";
+pub(super) const MSG_TRANSACTION_FAILED: &str = "transaction failed";
+pub(super) const MSG_API_CONFIG_MISSING: &str = "api config missing";
+pub(super) const MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED: &str =
+    "multicall3 contract not configured";
+pub(super) const MSG_GOVERNOR_PRIVATE_KEY_NOT_SET: &str = "governor private key not set";
+pub(super) const MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED: &str =
+    "consensus registry address not configured";
+pub(super) const MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML: &str =
+    "consensus.genesis_spec.attesters missing in general.yaml";
+pub(super) fn msg_setting_attester_committee_failed(
+    got: &attester::Committee,
+    want: &attester::Committee,
+) -> String {
+    format!("setting attester committee failed: got {got:?}, want {want:?}")
 }
