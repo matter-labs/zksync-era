@@ -520,7 +520,7 @@ impl MainNodeBuilder {
                 self.node
                     .add_layer(ObjectStorageClientWiringLayer::new(config));
             }
-            DAClient::Near(config) => {
+            (DAClientConfig::Near(config), _) => {
                 self.node.add_layer(NearWiringLayer::new(config));
             }
         }
