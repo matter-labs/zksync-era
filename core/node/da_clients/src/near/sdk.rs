@@ -1,7 +1,6 @@
-use anyhow::anyhow;
 use std::str::FromStr;
-use zksync_config::NearConfig;
 
+use anyhow::anyhow;
 use near_crypto::{InMemorySigner, SecretKey, Signer};
 use near_jsonrpc_client::{
     methods::{block::RpcBlockRequest, query::RpcQueryRequest, send_tx::RpcSendTransactionRequest},
@@ -23,11 +22,11 @@ use near_primitives::{
         TxExecutionStatus,
     },
 };
-
-use crate::utils::to_non_retriable_da_error;
+use zksync_config::NearConfig;
 use zksync_da_client::types::{self, DAError};
 
 use super::{types::LatestHeaderResponse, NearClient};
+use crate::utils::to_non_retriable_da_error;
 
 const GAS_LIMIT: u64 = 20_000_000_000_000;
 
