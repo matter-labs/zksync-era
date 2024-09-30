@@ -6670,7 +6670,6 @@ dependencies = [
  "ethers",
  "futures",
  "human-panic",
- "regex",
  "serde",
  "serde_json",
  "serde_yaml",
