@@ -58,6 +58,27 @@ const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemo
 
 type FullTracer<Tr> = (Tr, CircuitsTracer);
 
+#[derive(Debug)]
+struct VmRunResult {
+    execution_result: ExecutionResult,
+    /// `true` if VM execution has terminated (as opposed to being stopped on a hook, e.g. when executing a single transaction
+    /// in a batch). Used for `execution_result == Revert { .. }` to understand whether VM logs should be reverted.
+    execution_ended: bool,
+    refunds: Refunds,
+}
+
+impl VmRunResult {
+    fn should_ignore_vm_logs(&self) -> bool {
+        match &self.execution_result {
+            ExecutionResult::Success { .. } => false,
+            ExecutionResult::Halt { .. } => true,
+            // Logs generated during reverts should only be ignored if the revert has reached the root (bootloader) call frame,
+            // which is only possible with a playground bootloader.
+            ExecutionResult::Revert { .. } => self.execution_ended,
+        }
+    }
+}
+
 /// Fast VM wrapper.
 ///
 /// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait, a tracer must have `'static` lifetime
@@ -140,32 +161,38 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
         execution_mode: VmExecutionMode,
         tracer: &mut (Tr, CircuitsTracer),
         track_refunds: bool,
-    ) -> (ExecutionResult, Refunds) {
+    ) -> VmRunResult {
         let mut refunds = Refunds {
             gas_refunded: 0,
             operator_suggested_refund: 0,
         };
         let mut last_tx_result = None;
         let mut pubdata_before = self.inner.pubdata() as u32;
+        let mut execution_ended = false;
 
-        let result = loop {
+        let execution_result = loop {
             let hook = match self.inner.run(&mut self.world, tracer) {
                 ExecutionEnd::SuspendedOnHook(hook) => hook,
-                ExecutionEnd::ProgramFinished(output) => break ExecutionResult::Success { output },
+                ExecutionEnd::ProgramFinished(output) => {
+                    execution_ended = true;
+                    break ExecutionResult::Success { output };
+                }
                 ExecutionEnd::Reverted(output) => {
+                    execution_ended = true;
                     break match TxRevertReason::parse_error(&output) {
                         TxRevertReason::TxReverted(output) => ExecutionResult::Revert { output },
                         TxRevertReason::Halt(reason) => ExecutionResult::Halt { reason },
-                    }
+                    };
                 }
                 ExecutionEnd::Panicked => {
+                    execution_ended = true;
                     break ExecutionResult::Halt {
                         reason: if self.gas_remaining() == 0 {
                             Halt::BootloaderOutOfGas
                         } else {
                             Halt::VMPanic
                         },
-                    }
+                    };
                 }
             };
 
@@ -305,7 +332,11 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
             }
         };
 
-        (result, refunds)
+        VmRunResult {
+            execution_result,
+            execution_ended,
+            refunds,
+        }
     }
 
     fn get_hook_params(&self) -> [U256; 3] {
@@ -534,14 +565,16 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
         let gas_before = self.gas_remaining();
 
         let mut full_tracer = (mem::take(tracer), CircuitsTracer::default());
-        let (result, refunds) = self.run(execution_mode, &mut full_tracer, track_refunds);
+        let result = self.run(execution_mode, &mut full_tracer, track_refunds);
         *tracer = full_tracer.0; // place the tracer back
 
-        let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
-            && matches!(result, ExecutionResult::Halt { .. });
+        let ignore_world_diff =
+            matches!(execution_mode, VmExecutionMode::OneTx) && result.should_ignore_vm_logs();
 
         // If the execution is halted, the VM changes are expected to be rolled back by the caller.
         // Earlier VMs return empty execution logs in this case, so we follow this behavior.
+        // Likewise, if a revert has reached the bootloader frame (possible with `TxExecutionMode::EthCall`; otherwise, the bootloader catches reverts),
+        // old VMs revert all logs; the new VM doesn't do that automatically, so we recreate this behavior here.
         let logs = if ignore_world_diff {
             VmExecutionLogs::default()
         } else {
@@ -590,7 +623,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
         let pubdata_after = self.inner.pubdata();
         let gas_remaining = self.gas_remaining();
         VmExecutionResultAndLogs {
-            result,
+            result: result.execution_result,
             logs,
             // TODO (PLA-936): Fill statistics; investigate whether they should be zeroed on `Halt`
             statistics: VmExecutionStatistics {
@@ -603,7 +636,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
                 pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
                 circuit_statistic: full_tracer.1.circuit_statistic(),
             },
-            refunds,
+            refunds: result.refunds,
         }
     }
 
