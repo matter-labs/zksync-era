@@ -1,7 +1,9 @@
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
-use zksync_l1_contract_interface::i_executor::methods::ExecuteBatches;
+use zksync_l1_contract_interface::{
+    i_executor::methods::ExecuteBatches, multicall3::Multicall3Call, Tokenizable,
+};
 use zksync_node_test_utils::create_l1_batch;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
@@ -9,16 +11,19 @@ use zksync_types::{
     commitment::{
         L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, L1BatchWithMetadata,
     },
+    ethabi,
     ethabi::Token,
     helpers::unix_timestamp_ms,
+    web3,
     web3::contract::Error,
-    ProtocolVersionId, H256,
+    Address, ProtocolVersionId, H256,
 };
 
 use crate::{
     abstract_l1_interface::OperatorType,
     aggregated_operations::AggregatedOperation,
-    tester::{EthSenderTester, TestL1Batch},
+    tester::{EthSenderTester, TestL1Batch, STATE_TRANSITION_CONTRACT_ADDRESS},
+    zksync_functions::ZkSyncFunctions,
     EthSenderError,
 };
 
@@ -37,22 +42,61 @@ const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
     L1BatchCommitmentMode::Validium,
 ];
 
-pub(crate) fn mock_multicall_response() -> Token {
-    Token::Array(vec![
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 32])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 96])]),
-        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![5u8; 32])]),
-        Token::Tuple(vec![
-            Token::Bool(true),
-            Token::Bytes(
+pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
+    let functions = ZkSyncFunctions::default();
+    let evm_simulator_getter_signature = functions
+        .get_evm_simulator_bytecode_hash
+        .as_ref()
+        .map(ethabi::Function::short_signature);
+    let evm_simulator_getter_signature =
+        evm_simulator_getter_signature.as_ref().map(|sig| &sig[..]);
+
+    let calldata = &call.data.as_ref().expect("no calldata").0;
+    assert_eq!(calldata[..4], functions.aggregate3.short_signature());
+    let mut tokens = functions
+        .aggregate3
+        .decode_input(&calldata[4..])
+        .expect("invalid multicall");
+    assert_eq!(tokens.len(), 1);
+    let Token::Array(tokens) = tokens.pop().unwrap() else {
+        panic!("Unexpected input: {tokens:?}");
+    };
+
+    let calls = tokens.into_iter().map(Multicall3Call::from_token);
+    let response = calls.map(|call| {
+        let call = call.unwrap();
+        assert_eq!(call.target, STATE_TRANSITION_CONTRACT_ADDRESS);
+        let output = match &call.calldata[..4] {
+            selector if selector == functions.get_l2_bootloader_bytecode_hash.short_signature() => {
+                vec![1u8; 32]
+            }
+            selector
+                if selector
+                    == functions
+                        .get_l2_default_account_bytecode_hash
+                        .short_signature() =>
+            {
+                vec![2u8; 32]
+            }
+            selector if Some(selector) == evm_simulator_getter_signature => {
+                vec![3u8; 32]
+            }
+            selector if selector == functions.get_verifier_params.short_signature() => {
+                vec![4u8; 96]
+            }
+            selector if selector == functions.get_verifier.short_signature() => {
+                vec![5u8; 32]
+            }
+            selector if selector == functions.get_protocol_version.short_signature() => {
                 H256::from_low_u64_be(ProtocolVersionId::default() as u64)
                     .0
-                    .to_vec(),
-            ),
-        ]),
-    ])
+                    .to_vec()
+            }
+            _ => panic!("unexpected call: {call:?}"),
+        };
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(output)])
+    });
+    Token::Array(response.collect())
 }
 
 pub(crate) fn l1_batch_with_metadata(header: L1BatchHeader) -> L1BatchWithMetadata {
@@ -658,22 +702,71 @@ async fn skipped_l1_batch_in_the_middle(
     Ok(())
 }
 
-#[test_casing(2, COMMITMENT_MODES)]
+#[test_casing(2, [false, true])]
 #[test_log::test(tokio::test)]
-async fn test_parse_multicall_data(commitment_mode: L1BatchCommitmentMode) {
+async fn parsing_multicall_data(with_evm_simulator: bool) {
     let tester = EthSenderTester::new(
         ConnectionPool::<Core>::test_pool().await,
         vec![100; 100],
         false,
         true,
-        commitment_mode,
+        L1BatchCommitmentMode::Rollup,
     )
     .await;
 
-    assert!(tester
+    let mut mock_response = vec![
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![1u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![2u8; 32])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![4u8; 96])]),
+        Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![5u8; 32])]),
+        Token::Tuple(vec![
+            Token::Bool(true),
+            Token::Bytes(
+                H256::from_low_u64_be(ProtocolVersionId::latest() as u64)
+                    .0
+                    .to_vec(),
+            ),
+        ]),
+    ];
+    if with_evm_simulator {
+        mock_response.insert(
+            2,
+            Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 32])]),
+        );
+    }
+    let mock_response = Token::Array(mock_response);
+
+    let parsed = tester
         .aggregator
-        .parse_multicall_data(mock_multicall_response(), true)
-        .is_ok());
+        .parse_multicall_data(mock_response, with_evm_simulator)
+        .unwrap();
+    assert_eq!(
+        parsed.base_system_contracts_hashes.bootloader,
+        H256::repeat_byte(1)
+    );
+    assert_eq!(
+        parsed.base_system_contracts_hashes.default_aa,
+        H256::repeat_byte(2)
+    );
+    let expected_evm_simulator_hash = with_evm_simulator.then(|| H256::repeat_byte(3));
+    assert_eq!(
+        parsed.base_system_contracts_hashes.evm_simulator,
+        expected_evm_simulator_hash
+    );
+    assert_eq!(parsed.verifier_address, Address::repeat_byte(5));
+    assert_eq!(parsed.protocol_version_id, ProtocolVersionId::latest());
+}
+
+#[test_log::test(tokio::test)]
+async fn parsing_multicall_data_errors() {
+    let tester = EthSenderTester::new(
+        ConnectionPool::<Core>::test_pool().await,
+        vec![100; 100],
+        false,
+        true,
+        L1BatchCommitmentMode::Rollup,
+    )
+    .await;
 
     let original_wrong_form_data = vec![
         // should contain 5 tuples
@@ -741,6 +834,17 @@ async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
         commitment_mode,
     )
     .await;
-    let multicall_data = tester.aggregator.get_multicall_data().await;
-    assert!(multicall_data.is_ok());
+
+    let data = tester.aggregator.get_multicall_data().await.unwrap();
+    assert_eq!(
+        data.base_system_contracts_hashes.bootloader,
+        H256::repeat_byte(1)
+    );
+    assert_eq!(
+        data.base_system_contracts_hashes.default_aa,
+        H256::repeat_byte(2)
+    );
+    assert_eq!(data.base_system_contracts_hashes.evm_simulator, None);
+    assert_eq!(data.verifier_address, Address::repeat_byte(5));
+    assert_eq!(data.protocol_version_id, ProtocolVersionId::latest());
 }
