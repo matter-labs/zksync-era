@@ -13,7 +13,10 @@ export async function killPidWithAllChilds(pid: number, signalNumber: number) {
     }
     // We always run the test using additional tools, that means we have to kill not the main process, but the child process
     for (let i = childs.length - 1; i >= 0; i--) {
-        console.log(`kill ${childs[i]}`);
-        await promisify(exec)(`kill -${signalNumber} ${childs[i]}`);
+        try {
+            await promisify(exec)(`kill -${signalNumber} ${childs[i]}`);
+        } catch (e) {
+            console.log(`Failed to kill ${childs[i]} with ${e}`);
+        }
     }
 }
