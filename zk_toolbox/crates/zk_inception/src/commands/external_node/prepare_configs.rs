@@ -86,7 +86,7 @@ fn prepare_configs(
 
     // TODO: This is a temporary solution. We should allocate consensus port using `EcosystemPorts::allocate_ports_in_yaml`
     ports.add_port_info(
-        main_node_consensus_config.server_addr.port(),
+        main_node_consensus_config.server_url.port(),
         "Main node consensus".to_string(),
     );
     let offset = ((config.id - 1) * 100) as u16;
@@ -102,7 +102,7 @@ fn prepare_configs(
     )?
     .context(MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR)?;
 
-    gossip_static_outbound.insert(main_node_public_key, main_node_consensus_config.public_addr);
+    gossip_static_outbound.insert(main_node_public_key, main_node_consensus_config.public_url);
 
     let en_consensus_config =
         get_consensus_config(config, consensus_port, None, Some(gossip_static_outbound))?;

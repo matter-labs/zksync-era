@@ -148,10 +148,13 @@ impl ProtoRepr for proto::Config {
         };
 
         Ok(Self::Type {
-            server_addr: required(&self.server_addr)
+            port: required(&self.port)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("port")?,
+            server_url: required(&self.server_url)
                 .and_then(|x| Ok(x.parse()?))
-                .context("server_addr")?,
-            public_addr: Host(required(&self.public_addr).context("public_addr")?.clone()),
+                .context("server_url")?,
+            public_url: Host(required(&self.public_url).context("public_url")?.clone()),
             max_payload_size,
             max_batch_size,
             gossip_dynamic_inbound_limit: required(&self.gossip_dynamic_inbound_limit)
@@ -182,8 +185,9 @@ impl ProtoRepr for proto::Config {
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            server_addr: Some(this.server_addr.to_string()),
-            public_addr: Some(this.public_addr.0.clone()),
+            port: Some(this.port.try_into().unwrap()),
+            server_url: Some(this.server_url.to_string()),
+            public_url: Some(this.public_url.0.clone()),
             max_payload_size: Some(this.max_payload_size.try_into().unwrap()),
             max_batch_size: Some(this.max_batch_size.try_into().unwrap()),
             gossip_dynamic_inbound_limit: Some(

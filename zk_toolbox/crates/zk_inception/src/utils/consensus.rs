@@ -57,12 +57,13 @@ pub fn get_consensus_config(
     let genesis_spec =
         consensus_keys.map(|consensus_keys| get_genesis_specs(chain_config, &consensus_keys));
 
-    let public_addr = SocketAddr::new(CONSENSUS_PUBLIC_ADDRESS_HOST, consensus_port);
-    let server_addr = SocketAddr::new(CONSENSUS_SERVER_ADDRESS_HOST, consensus_port);
+    let public_url = SocketAddr::new(CONSENSUS_PUBLIC_ADDRESS_HOST, consensus_port);
+    let server_url = SocketAddr::new(CONSENSUS_SERVER_ADDRESS_HOST, consensus_port);
 
     Ok(ConsensusConfig {
-        server_addr,
-        public_addr: Host(public_addr.encode()),
+        port: consensus_port,
+        server_url,
+        public_url: Host(public_url.encode()),
         genesis_spec,
         max_payload_size: MAX_PAYLOAD_SIZE,
         gossip_dynamic_inbound_limit: GOSSIP_DYNAMIC_INBOUND_LIMIT,
