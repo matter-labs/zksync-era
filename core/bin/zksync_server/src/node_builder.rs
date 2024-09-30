@@ -57,7 +57,6 @@ use zksync_node_framework::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
             output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
         },
-        tee_verifier_input_producer::TeeVerifierInputProducerLayer,
         vm_runner::{
             bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
             protective_reads::ProtectiveReadsWriterLayer,
@@ -494,14 +493,6 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_tee_verifier_input_producer_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(TeeVerifierInputProducerLayer::new(
-            self.genesis_config.l2_chain_id,
-        ));
-
-        Ok(self)
-    }
-
     fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
         let Some(da_client_config) = self.configs.da_client_config.clone() else {
             tracing::warn!("No config for DA client, using the NoDA client");
@@ -740,9 +731,6 @@ impl MainNodeBuilder {
                 }
                 Component::EthTxManager => {
                     self = self.add_eth_tx_manager_layer()?;
-                }
-                Component::TeeVerifierInputProducer => {
-                    self = self.add_tee_verifier_input_producer_layer()?;
                 }
                 Component::Housekeeper => {
                     self = self

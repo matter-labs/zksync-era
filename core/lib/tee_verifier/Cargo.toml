@@ -20,9 +20,12 @@ zksync_prover_interface.workspace = true
 zksync_types.workspace = true
 zksync_utils.workspace = true
 
+once_cell.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
 zksync_contracts.workspace = true
+zksync_prover_interface.workspace = true
+bincode.workspace = true
