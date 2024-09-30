@@ -8,7 +8,6 @@ use zksync_types::{
         ResultDebugCall, SupportedTracers, TracerConfig,
     },
     debug_flat_call::{Action, CallResult, DebugCallFlat},
-    fee_model::BatchFeeInput,
     l2::L2Tx,
     transaction_request::CallRequest,
     web3, H256, U256,
@@ -22,27 +21,12 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub(crate) struct DebugNamespace {
-    batch_fee_input: BatchFeeInput,
     state: RpcState,
 }
 
 impl DebugNamespace {
     pub async fn new(state: RpcState) -> anyhow::Result<Self> {
-        let fee_input_provider = &state.tx_sender.0.batch_fee_input_provider;
-        // FIXME (PLA-1033): use the fee input provider instead of a constant value
-        let batch_fee_input = fee_input_provider
-            .get_batch_fee_input_scaled(
-                state.api_config.estimate_gas_scale_factor,
-                state.api_config.estimate_gas_scale_factor,
-            )
-            .await
-            .context("cannot get batch fee input")?;
-
-        Ok(Self {
-            // For now, the same scaling is used for both the L1 gas price and the pubdata price
-            batch_fee_input,
-            state,
-        })
+        Ok(Self { state })
     }
 
     pub(crate) fn map_call(
@@ -257,12 +241,22 @@ impl DebugNamespace {
         if request.gas.is_none() {
             request.gas = Some(block_args.default_eth_call_gas(&mut connection).await?);
         }
+
         let fee_input = if block_args.resolves_to_latest_sealed_l2_block() {
-            self.batch_fee_input
+            // It is important to drop a DB connection before calling the provider, since it acquires a connection internally
+            // on the main node.
+            drop(connection);
+            let scale_factor = self.state.api_config.estimate_gas_scale_factor;
+            let fee_input_provider = &self.state.tx_sender.0.batch_fee_input_provider;
+            // For now, the same scaling is used for both the L1 gas price and the pubdata price
+            fee_input_provider
+                .get_batch_fee_input_scaled(scale_factor, scale_factor)
+                .await?
         } else {
-            block_args.historical_fee_input(&mut connection).await?
+            let fee_input = block_args.historical_fee_input(&mut connection).await?;
+            drop(connection);
+            fee_input
         };
-        drop(connection);
 
         let call_overrides = request.get_call_overrides()?;
         let call = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
