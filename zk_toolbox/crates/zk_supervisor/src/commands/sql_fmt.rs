@@ -1,6 +1,5 @@
 use anyhow::{bail, Context, Result};
 use common::spinner::Spinner;
-use regex::Regex;
 use xshell::Shell;
 
 use super::lint_utils::{get_unignored_files, IgnoredData, Target};
@@ -11,34 +10,7 @@ use crate::messages::{
 };
 
 fn format_query(query: &str) -> anyhow::Result<String> {
-    let options = sqlformat::FormatOptions {
-        indent: sqlformat::Indent::Spaces(4),
-        uppercase: true,
-        lines_between_queries: 1,
-    };
-
-    let mut formatted_query = sqlformat::format(query, &sqlformat::QueryParams::None, options);
-
-    // Replace certain keywords with lowercase versions
-    let keywords = vec![
-        "STORAGE",
-        "TIMESTAMP",
-        "INPUT",
-        "DATA",
-        "ZONE",
-        "VALUE",
-        "DEPTH",
-        "KEY",
-        "KEYS",
-        "STATUS",
-        "EVENTS",
-    ];
-    for keyword in keywords {
-        let regex = Regex::new(&format!(r"\b{}\b", keyword))?;
-        formatted_query = regex
-            .replace_all(&formatted_query, keyword.to_lowercase())
-            .to_string();
-    }
+    let formatted_query = sqruff_lib::api::simple::fix(query);
 
     // Remove minimum indent from the formatted query
     let formatted_lines: Vec<&str> = formatted_query.lines().collect();
@@ -47,9 +19,15 @@ fn format_query(query: &str) -> anyhow::Result<String> {
         .filter_map(|line| line.find(|c: char| !c.is_whitespace()))
         .min()
         .unwrap_or(0);
+
     Ok(formatted_query
         .lines()
-        .map(|line| line[min_indent..].to_string())
+        .map(|line| {
+            if line.trim().is_empty() {
+                return "".to_string();
+            }
+            line[min_indent..].to_string()
+        })
         .collect::<Vec<String>>()
         .join("\n"))
 }

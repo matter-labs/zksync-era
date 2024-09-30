@@ -29,5 +29,5 @@ futures.workspace = true
 types.workspace = true
 serde_yaml.workspace = true
 zksync_basic_types.workspace = true
-sqlformat = "0.2.6"
 regex = "1.10.6"
+sqruff-lib = { git = "https://github.com/quarylabs/sqruff", version = "0.18.2" }
