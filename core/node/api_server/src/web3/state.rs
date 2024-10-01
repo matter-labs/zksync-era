@@ -188,18 +188,13 @@ impl SealedL2BlockNumber {
     pub fn new(
         connection_pool: ConnectionPool<Core>,
         update_interval: Duration,
-        stop_receiver: watch::Receiver<bool>,
+        mut stop_receiver: watch::Receiver<bool>,
     ) -> (Self, impl Future<Output = anyhow::Result<()>>) {
         let this = Self(Arc::default());
         let number_updater = this.clone();
 
         let update_task = async move {
-            loop {
-                if *stop_receiver.borrow() {
-                    tracing::debug!("Stopping latest sealed L2 block updates");
-                    return Ok(());
-                }
-
+            while !*stop_receiver.borrow_and_update() {
                 let mut connection = connection_pool.connection_tagged("api").await.unwrap();
                 let Some(last_sealed_l2_block) =
                     connection.blocks_dal().get_sealed_l2_block_number().await?
@@ -210,8 +205,17 @@ impl SealedL2BlockNumber {
                 drop(connection);
 
                 number_updater.update(last_sealed_l2_block);
-                tokio::time::sleep(update_interval).await;
+
+                if tokio::time::timeout(update_interval, stop_receiver.changed())
+                    .await
+                    .is_ok()
+                {
+                    break;
+                }
             }
+
+            tracing::debug!("Stopping latest sealed L2 block updates");
+            Ok(())
         };
 
         (this, update_task)
@@ -260,18 +264,13 @@ impl BridgeAddressesHandle {
         main_node_client: Box<DynClient<L2>>,
         initial_value: BridgeAddresses,
         update_interval: Duration,
-        stop_receiver: watch::Receiver<bool>,
+        mut stop_receiver: watch::Receiver<bool>,
     ) -> (Self, impl Future<Output = anyhow::Result<()>>) {
         let this = Self(Arc::new(RwLock::new(initial_value)));
         let updater = this.clone();
 
         let update_task = async move {
-            loop {
-                if *stop_receiver.borrow() {
-                    tracing::debug!("Stopping bridge addresses updates");
-                    return Ok(());
-                }
-
+            while !*stop_receiver.borrow_and_update() {
                 match main_node_client.get_bridge_contracts().await {
                     Ok(bridge_addresses) => {
                         *updater.0.write().await = bridge_addresses;
@@ -280,8 +279,17 @@ impl BridgeAddressesHandle {
                         tracing::error!("Failed to query `get_bridge_contracts`, error: {err:?}");
                     }
                 }
-                tokio::time::sleep(update_interval).await;
+
+                if tokio::time::timeout(update_interval, stop_receiver.changed())
+                    .await
+                    .is_ok()
+                {
+                    break;
+                }
             }
+
+            tracing::debug!("Stopping bridge addresses updates");
+            Ok(())
         };
 
         (this, update_task)
