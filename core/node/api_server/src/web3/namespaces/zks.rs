@@ -31,6 +31,7 @@ use zksync_web3_decl::{
 
 use crate::{
     execution_sandbox::BlockArgs,
+    tx_sender::BinarySearchKind,
     utils::open_readonly_transaction,
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
 };
@@ -118,6 +119,7 @@ impl ZksNamespace {
         let scale_factor = self.state.api_config.estimate_gas_scale_factor;
         let acceptable_overestimation =
             self.state.api_config.estimate_gas_acceptable_overestimation;
+        let search_kind = BinarySearchKind::new(self.state.api_config.estimate_gas_optimize_search);
 
         Ok(self
             .state
@@ -128,6 +130,7 @@ impl ZksNamespace {
                 scale_factor,
                 acceptable_overestimation as u64,
                 state_override,
+                search_kind,
             )
             .await?)
     }

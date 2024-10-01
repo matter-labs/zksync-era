@@ -285,7 +285,7 @@ pub enum BlockArgsError {
 }
 
 /// Information about a block provided to VM.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct BlockArgs {
     inner: BlockInfo,
     resolved: ResolvedBlockInfo,

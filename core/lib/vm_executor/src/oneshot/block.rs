@@ -152,7 +152,7 @@ impl BlockInfo {
 }
 
 /// Resolved [`BlockInfo`] containing additional data from VM state.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResolvedBlockInfo {
     state_l2_block_number: L2BlockNumber,
     state_l2_block_hash: H256,

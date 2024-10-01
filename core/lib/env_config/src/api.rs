@@ -69,6 +69,7 @@ mod tests {
                 estimate_gas_scale_factor: 1.0f64,
                 gas_price_scale_factor: 1.2,
                 estimate_gas_acceptable_overestimation: 1000,
+                estimate_gas_optimize_search: false,
                 max_tx_size: 1000000,
                 vm_execution_cache_misses_limit: None,
                 vm_concurrency_limit: Some(512),
