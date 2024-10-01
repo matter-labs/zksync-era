@@ -8,12 +8,11 @@ use zksync_multivm::{
         adjust_pubdata_price_for_tx, derive_base_fee_and_gas_per_pubdata, derive_overhead,
         get_max_batch_gas_limit,
     },
-    zk_evm_latest::ethereum_types::H256,
 };
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
     api::state_override::StateOverride, fee::Fee, fee_model::BatchFeeInput, get_code_key,
-    ExecuteTransactionCommon, PackedEthSignature, ProtocolVersionId, Transaction,
+    ExecuteTransactionCommon, PackedEthSignature, ProtocolVersionId, Transaction, H256,
 };
 
 use super::{result::ApiCallResult, SubmitTxError, TxSender};
@@ -59,12 +58,13 @@ impl TxSender {
         let (bounds, initial_pivot) = match kind {
             BinarySearchKind::Full => {
                 let lower_bound = initial_estimate.gas_charged_for_pubdata;
-                let upper_bound = MAX_L2_TX_GAS_LIMIT;
+                let upper_bound = MAX_L2_TX_GAS_LIMIT + initial_estimate.gas_charged_for_pubdata;
                 (lower_bound..=upper_bound, None)
             }
             BinarySearchKind::Optimized => {
-                let lower_bound = optimized_lower_bound.unwrap_or(0);
-                let upper_bound = MAX_L2_TX_GAS_LIMIT;
+                let lower_bound =
+                    optimized_lower_bound.unwrap_or(initial_estimate.gas_charged_for_pubdata);
+                let upper_bound = MAX_L2_TX_GAS_LIMIT + initial_estimate.gas_charged_for_pubdata;
                 let initial_pivot = optimistic_gas_limit.filter(|&gas| {
                     // If `optimistic_gas_limit` is greater than the ordinary binary search pivot, there's no sense using it.
                     gas < (lower_bound + upper_bound) / 2
@@ -387,7 +387,6 @@ impl<'a> GasEstimator<'a> {
                 .context("estimate_gas step failed")?;
             // If the transaction has failed with such a large gas limit, we return an API error here right away,
             // since the inferred gas bounds would be unreliable in this case.
-            // FIXME: double-check that returning early is OK
             result.check_api_call_result()?;
 
             // It is assumed that there is no overflow here

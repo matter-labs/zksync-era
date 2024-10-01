@@ -56,7 +56,6 @@ impl<S: ReadStorage> StorageWithOverrides<S> {
                 let code_key = get_code_key(account);
                 let code_hash = code.hash();
                 self.overridden_slots.insert(code_key, code_hash);
-                // FIXME: is this addition correct?
                 let known_code_key = get_known_code_key(&code_hash);
                 self.overridden_slots
                     .insert(known_code_key, H256::from_low_u64_be(1));
