@@ -63,10 +63,7 @@ async fn main() -> anyhow::Result<()> {
         .context("general config")?;
     // That's unfortunate that there are at least 3 different Duration in rust and we use all 3 in this repo.
     // TODO: Consider updating zksync_protobuf to support std::time::Duration.
-    let graceful_shutdown_timeout = Duration::new(
-        general_config.graceful_shutdown_timeout.whole_seconds() as u64,
-        general_config.graceful_shutdown_timeout.whole_nanoseconds() as u32,
-    );
+    let graceful_shutdown_timeout = general_config.graceful_shutdown_timeout.unsigned_abs();
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
     let mut stop_signal_sender = Some(stop_signal_sender);
@@ -114,10 +111,7 @@ async fn main() -> anyhow::Result<()> {
             let watcher = global::watcher::Watcher::new(scaler_config.agents);
             let queuer = global::queuer::Queuer::new(scaler_config.prover_job_monitor_url);
             let scaler = global::scaler::Scaler::new(watcher.clone(), queuer);
-            let interval = Duration::new(
-                scaler_config.scaler_run_interval.whole_seconds() as u64,
-                scaler_config.scaler_run_interval.whole_nanoseconds() as u32,
-            );
+            let interval = scaler_config.scaler_run_interval.unsigned_abs();
             tasks.extend(get_tasks(watcher, scaler, interval, stop_receiver)?);
         }
     }
