@@ -198,11 +198,6 @@ pub(super) const MSG_RUNNING_CONTRACTS_LINTER_SPINNER: &str = "Running contracts
 pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for contracts..";
 
 pub(super) const MSG_RUNNING_SQL_FMT_SPINNER: &str = "Running SQL formatter..";
-pub(super) const MSG_FAILED_TO_FIND_END_OF_REGULAR_STRING_QUERY: &str =
-    "Failed to find the end of the regular string query";
-pub(super) const MSG_FAILED_TO_FIND_START_OF_REGULAR_STRING_QUERY: &str =
-    "Failed to find the start of the regular string query";
-pub(super) const MSG_FAILED_TO_DETERMINE_BASE_INDENT: &str = "Failed to determine base indent";
 
 pub(super) fn msg_file_is_not_formatted(file: &str) -> String {
     format!("File {} is not formatted", file)

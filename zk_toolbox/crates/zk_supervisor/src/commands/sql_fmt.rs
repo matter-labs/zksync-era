@@ -1,16 +1,12 @@
 use std::mem::take;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use common::spinner::Spinner;
 use sqruff_lib::{api::simple::get_simple_config, core::linter::core::Linter};
 use xshell::Shell;
 
 use super::lint_utils::{get_unignored_files, IgnoredData, Target};
-use crate::messages::{
-    msg_file_is_not_formatted, MSG_FAILED_TO_DETERMINE_BASE_INDENT,
-    MSG_FAILED_TO_FIND_END_OF_REGULAR_STRING_QUERY,
-    MSG_FAILED_TO_FIND_START_OF_REGULAR_STRING_QUERY, MSG_RUNNING_SQL_FMT_SPINNER,
-};
+use crate::messages::{msg_file_is_not_formatted, MSG_RUNNING_SQL_FMT_SPINNER};
 
 fn format_query(query: &str) -> anyhow::Result<String> {
     let exclude_rules = vec!["LT12".to_string()]; // avoid adding newline before `$` character
@@ -68,44 +64,6 @@ fn format_rust_string_query(query: &str, is_raw: bool) -> anyhow::Result<String>
     Ok(add_indent(&reconstructed_rust_string, base_indent))
 }
 
-fn format_one_line_query(line: &str) -> anyhow::Result<String> {
-    let is_raw_string = line.contains("sqlx::query!(r");
-
-    let query_start = if is_raw_string {
-        line.find(r#"r#""#)
-            .context(MSG_FAILED_TO_FIND_START_OF_REGULAR_STRING_QUERY)?
-    } else {
-        line.find('"')
-            .context(MSG_FAILED_TO_FIND_START_OF_REGULAR_STRING_QUERY)?
-    };
-
-    let base_indent = line
-        .find(|c: char| !c.is_whitespace())
-        .context(MSG_FAILED_TO_DETERMINE_BASE_INDENT)?
-        + 4;
-
-    let prefix = &line[..query_start];
-
-    let query_end = if is_raw_string {
-        line.find(r#""#)
-            .context(MSG_FAILED_TO_FIND_END_OF_REGULAR_STRING_QUERY)?
-            + 2
-    } else {
-        line[1..]
-            .find('"')
-            .context(MSG_FAILED_TO_FIND_END_OF_REGULAR_STRING_QUERY)?
-            + 3
-    };
-
-    let suffix = &line[query_end..];
-    let query = &line[query_start..query_end];
-
-    let mut formatted_query = format_rust_string_query(query, is_raw_string)?;
-    formatted_query = add_indent(&formatted_query, base_indent);
-
-    Ok(format!("{}\n{}\n{}", prefix, formatted_query, suffix))
-}
-
 fn fmt_file(shell: &Shell, file_path: &str, check: bool) -> Result<()> {
     let content = shell.read_file(file_path)?;
     let mut modified_file = String::new();
@@ -116,12 +74,6 @@ fn fmt_file(shell: &Shell, file_path: &str, check: bool) -> Result<()> {
     let mut built_query = String::new();
 
     for line in content.lines() {
-        if line.contains("sqlx::query!(\"") || line.contains("sqlx::query!(r") {
-            modified_file.push_str(&format_one_line_query(line)?);
-            modified_file.push('\n');
-            continue;
-        }
-
         if line.ends_with("sqlx::query!(") {
             lines_to_query = Some(1);
             is_raw_string = false;
