@@ -17,11 +17,9 @@ import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
-import { logsTestPath } from 'utils/build/logs';
+import { logsTestPath, killPidWithAllChilds } from 'utils/build/logs';
 import path from 'path';
 import { NodeSpawner, Node, NodeType } from '../src/utils';
-import { deleteInternalEnforcedL1GasPrice, deleteInternalEnforcedPubdataPrice, setTransactionSlots } from './utils';
-import { killPidWithAllChilds } from 'utils/build/kill';
 import { sendTransfers } from '../src/context-owner';
 import { Reporter } from '../src/reporter';
 
@@ -136,9 +134,6 @@ testFees('Test fees', function () {
             alice._providerL1()
         );
 
-        const bridgehub = await mainWallet.getBridgehubContract();
-        const chainId = testMaster.environment().l2ChainId;
-        const baseTokenAddress = await bridgehub.baseToken(chainId);
         isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
 
         // On non ETH based chains the standard deposit is not enough to run all this tests
@@ -214,7 +209,10 @@ testFees('Test fees', function () {
         for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
             // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
             await mainNode.killAndWaitForShutdown();
-            mainNode = await mainNodeSpawner.spawnMainNode(gasPrice.toString(), gasPrice.toString());
+            mainNode = await mainNodeSpawner.spawnMainNode({
+                newL1GasPrice: gasPrice,
+                newPubdataPrice: gasPrice
+            });
 
             reports = await appendResults(
                 alice,
@@ -253,10 +251,9 @@ testFees('Test fees', function () {
         const receiver = ethers.Wallet.createRandom().address;
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
 
-        await setFeeParams(alice._providerL2(), {
-            newL1GasPrice: l1GasPrice.toString(),
-            newPubdataPrice: l1GasPrice.toString(),
-            customBaseToken: !isETHBasedChain
+        await mainNodeSpawner.spawnMainNode({
+            newL1GasPrice: l1GasPrice,
+            newPubdataPrice: l1GasPrice,
         });
 
         const receipt = await (
@@ -293,10 +290,9 @@ testFees('Test fees', function () {
 
         if (isETHBasedChain) return;
 
-        await setFeeParams(alice._providerL2(), {
-            newL1GasPrice: l1GasPrice.toString(),
-            newPubdataPrice: l1GasPrice.toString(),
-            customBaseToken: true,
+        await mainNodeSpawner.spawnMainNode({
+            newL1GasPrice: l1GasPrice,
+            newPubdataPrice: l1GasPrice,
             externalPriceApiClientForcedNumerator: 300,
             externalPriceApiClientForcedDenominator: 100,
             externalPriceApiClientForcedFluctuation: 20,
@@ -366,9 +362,9 @@ testFees('Test fees', function () {
         const requiredPubdataPrice = minimalL2GasPrice * 100_000n;
 
         await mainNode.killAndWaitForShutdown();
-        mainNode = await mainNodeSpawner.spawnMainNode(
-            requiredPubdataPrice.toString(),
-            requiredPubdataPrice.toString()
+        mainNode = await mainNodeSpawner.spawnMainNode({
+            newL1GasPrice: requiredPubdataPrice,
+            newPubdataPrice: requiredPubdataPrice}
         );
 
         const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
@@ -413,11 +409,7 @@ testFees('Test fees', function () {
         await testMaster.deinitialize();
         await mainNode.killAndWaitForShutdown();
         // Returning the pubdata price to the default one
-
-        // Restore defaults
-        setTransactionSlots(pathToHome, fileConfig, 8192);
-        deleteInternalEnforcedL1GasPrice(pathToHome, fileConfig);
-        deleteInternalEnforcedPubdataPrice(pathToHome, fileConfig);
+        // Spawning with no options restores defaults.
         mainNode = await mainNodeSpawner.spawnMainNode();
         __ZKSYNC_TEST_CONTEXT_OWNER__.setL2NodePid(mainNode.proc.pid!);
     });
