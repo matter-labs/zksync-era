@@ -1,9 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt,
-    ops::Range,
-    path::Path,
-};
+use std::{collections::HashMap, fmt, ops::Range, path::Path};
 
 use anyhow::{bail, Context, Result};
 use config::{
