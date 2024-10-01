@@ -6,8 +6,9 @@ use zksync_types::{
 
 use crate::{
     i_executor::structures::{CommitBatchInfo, StoredBatchInfo, SUPPORTED_ENCODING_VERSION},
-    Tokenizable,
+    Tokenizable, Tokenize,
 };
+
 /// Input required to encode `commitBatches` call for a contract
 #[derive(Debug)]
 pub struct CommitBatches<'a> {
@@ -17,8 +18,9 @@ pub struct CommitBatches<'a> {
     pub mode: L1BatchCommitmentMode,
 }
 
-impl CommitBatches<'_> {
-    pub fn into_tokens(self, pre_gateway: bool) -> Vec<Token> {
+impl Tokenize for &CommitBatches<'_> {
+    fn into_tokens(self) -> Vec<Token> {
+        let protocol_version = self.l1_batches[0].header.protocol_version.unwrap();
         let stored_batch_info = StoredBatchInfo::from(self.last_committed_l1_batch).into_token();
         let l1_batches_to_commit: Vec<Token> = self
             .l1_batches
@@ -26,7 +28,7 @@ impl CommitBatches<'_> {
             .map(|batch| CommitBatchInfo::new(self.mode, batch, self.pubdata_da).into_token())
             .collect();
 
-        if pre_gateway {
+        if protocol_version.is_pre_gateway() {
             vec![stored_batch_info, Token::Array(l1_batches_to_commit)]
         } else {
             let encoded_data = encode(&[

@@ -52,7 +52,7 @@ impl Tokenize for &ProveBatches {
                 let proof_input = Token::Array(proof.into_iter().map(Token::Uint).collect());
 
                 let encoded_data = encode(&[prev_l1_batch_info, batches_arg, proof_input]);
-                let commit_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+                let prove_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
                     .concat()
                     .to_vec();
 
@@ -61,7 +61,7 @@ impl Tokenize for &ProveBatches {
                     Token::Uint(
                         (self.prev_l1_batch.header.number.0 + self.l1_batches.len() as u32).into(),
                     ),
-                    Token::Bytes(commit_data),
+                    Token::Bytes(prove_data),
                 ]
             }
         } else if protocol_version.is_pre_gateway() {
@@ -72,7 +72,7 @@ impl Tokenize for &ProveBatches {
             ]
         } else {
             let encoded_data = encode(&[prev_l1_batch_info, batches_arg, Token::Array(vec![])]);
-            let commit_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+            let prove_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
                 .concat()
                 .to_vec();
 
@@ -81,7 +81,7 @@ impl Tokenize for &ProveBatches {
                 Token::Uint(
                     (self.prev_l1_batch.header.number.0 + self.l1_batches.len() as u32).into(),
                 ),
-                Token::Bytes(commit_data),
+                Token::Bytes(prove_data),
             ]
         }
     }

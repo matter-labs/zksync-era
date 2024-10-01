@@ -41,7 +41,7 @@ impl Tokenize for &ExecuteBatches {
                         .collect(),
                 ),
             ]);
-            let commit_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
+            let execute_data = [[SUPPORTED_ENCODING_VERSION].to_vec(), encoded_data]
                 .concat()
                 .to_vec();
 
@@ -54,7 +54,7 @@ impl Tokenize for &ExecuteBatches {
                         .0
                         .into(),
                 ),
-                Token::Bytes(commit_data),
+                Token::Bytes(execute_data),
             ]
         }
     }
