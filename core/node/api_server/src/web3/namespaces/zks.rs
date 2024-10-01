@@ -7,7 +7,7 @@ use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiError;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_multivm::interface::VmExecutionResultAndLogs;
-use zksync_system_constants::{DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, L2_ASSET_ROUTER_ADDRESS};
+use zksync_system_constants::DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     api::{
         state_override::StateOverride, BlockDetails, BridgeAddresses, ChainAggProof, GetLogsFilter,
@@ -147,18 +147,8 @@ impl ZksNamespace {
         self.state.api_config.l2_testnet_paymaster_addr
     }
 
-    pub async fn get_bridge_contracts_impl(&self) -> Result<BridgeAddresses, Web3Error> {
-        let mut bridge_contracts = self.state.api_config.bridge_addresses.clone();
-        let mut storage = self.state.acquire_connection().await?;
-
-        // `L2_ASSET_ROUTER_ADDRESS` should be used as l2 bridge after gateway upgrade.
-        let pending_protocol_version = storage.blocks_dal().pending_protocol_version().await?;
-        if !pending_protocol_version.is_pre_gateway() {
-            bridge_contracts.l2_erc20_default_bridge = None;
-            bridge_contracts.l2_shared_default_bridge = Some(L2_ASSET_ROUTER_ADDRESS);
-        }
-
-        Ok(bridge_contracts)
+    pub fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
+        self.state.api_config.bridge_addresses.clone()
     }
 
     pub fn l1_chain_id_impl(&self) -> U64 {

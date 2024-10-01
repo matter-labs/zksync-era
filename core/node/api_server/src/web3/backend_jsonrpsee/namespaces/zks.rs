@@ -55,9 +55,7 @@ impl ZksNamespaceServer for ZksNamespace {
     }
 
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses> {
-        self.get_bridge_contracts_impl()
-            .await
-            .map_err(|err| self.current_method().map_err(err))
+        Ok(self.get_bridge_contracts_impl())
     }
 
     async fn l1_chain_id(&self) -> RpcResult<U64> {

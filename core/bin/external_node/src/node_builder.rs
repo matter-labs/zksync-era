@@ -192,7 +192,7 @@ impl ExternalNodeBuilder {
         const OPTIONAL_BYTECODE_COMPRESSION: bool = true;
 
         let persistence_layer = OutputHandlerLayer::new(
-            self.config.remote.l2_token_deployer_addr,
+            self.config.remote.l2_legacy_shared_bridge_addr,
             self.config.optional.l2_block_seal_queue_capacity,
         )
         .with_pre_insert_txs(true) // EN requires txs to be pre-inserted.

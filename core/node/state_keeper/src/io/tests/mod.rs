@@ -285,7 +285,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         pubdata_params: Default::default(),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
-        l2_shared_bridge_addr: Default::default(),
+        l2_legacy_shared_bridge_addr: Default::default(),
         pre_insert_txs: false,
     };
     connection_pool
@@ -375,7 +375,7 @@ async fn processing_events_when_sealing_l2_block() {
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
-        l2_shared_bridge_addr: Default::default(),
+        l2_legacy_shared_bridge_addr: Default::default(),
         pre_insert_txs: false,
     };
     pool.connection()
