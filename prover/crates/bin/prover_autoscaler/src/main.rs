@@ -138,7 +138,7 @@ fn get_tasks(
     interval: Duration,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
-    let mut task_runner = TaskRunner::new();
+    let mut task_runner = TaskRunner::default();
 
     task_runner.add("Watcher", interval, watcher);
     task_runner.add("Scaler", interval, scaler);

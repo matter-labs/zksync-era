@@ -88,7 +88,7 @@ impl Scaler {
             // No namespace in config, ignoring.
             return vec![];
         };
-        for (dn, _dv) in &nv.deployments {
+        for dn in nv.deployments.keys() {
             let Some(caps) = self.prover_deployment_re.captures(dn) else {
                 // Not a prover, ignore.
                 continue;

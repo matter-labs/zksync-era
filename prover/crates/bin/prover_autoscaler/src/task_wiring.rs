@@ -43,15 +43,12 @@ impl PeriodicTask {
 }
 
 /// Wrapper on a vector of task. Makes adding/spawning tasks and sharing resources ergonomic.
+#[derive(Default)]
 pub struct TaskRunner {
     tasks: Vec<PeriodicTask>,
 }
 
 impl TaskRunner {
-    pub fn new() -> Self {
-        Self { tasks: Vec::new() }
-    }
-
     pub fn add<T: Task + Send + Sync + 'static>(&mut self, name: &str, interval: Duration, job: T) {
         self.tasks.push(PeriodicTask {
             name: name.into(),
