@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context};
+use anyhow::Context as _;
 use common::config::global_config;
 use config::{EcosystemConfig, SecretsConfig};
 use url::Url;
@@ -92,7 +92,7 @@ fn get_secrets(shell: &Shell) -> anyhow::Result<SecretsConfig> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
         .load_chain(global_config().chain_name.clone())
-        .ok_or(anyhow!(MSG_CHAIN_NOT_FOUND_ERR))?;
+        .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let secrets = chain_config.get_secrets_config()?;
 
     Ok(secrets)
