@@ -62,11 +62,13 @@ check-contracts:
 	fi
 
 # Build and download needed contracts
+# TODO: Remove hack with mkdir after https://github.com/matter-labs/zksync-era/pull/2989 merge
 prepare-contracts: check-tools check-contracts
 	@export ZKSYNC_HOME=$$(pwd) && \
 	export PATH=$$PATH:$${ZKSYNC_HOME}/bin && \
 	zkt || true && \
-	zk_supervisor contracts
+	zk_supervisor contracts && \
+	mkdir -p contracts/l1-contracts/artifacts/
 
 # Download setup-key
 prepare-keys:
@@ -95,7 +97,7 @@ build-witness-generator: check-tools prepare-keys
 build-all: build-contract-verifier build-server-v2 build-witness-generator build-circuit-prover-gpu cleanup
 
 # Clean generated images
-clean: cleanup
+clean: clean-all
 	@git submodule update --recursive
 	docker rmi contract-verifier:$(PROTOCOL_VERSION) >/dev/null 2>&1
 	docker rmi server-v2:$(PROTOCOL_VERSION) >/dev/null 2>&1

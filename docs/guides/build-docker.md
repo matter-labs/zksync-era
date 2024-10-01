@@ -39,6 +39,6 @@ make build-witness-generator
 Simply run
 
 ```shell
-make clean
+make clean-all
 make build-all
 ```
