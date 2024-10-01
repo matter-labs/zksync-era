@@ -27,7 +27,7 @@ check-yarn:
 
 check-rust:
 	@command -v rustc >/dev/null 2>&1 || { echo >&2 "Rust is not installed. Please install Rust v$(RUST_VERSION)."; exit 1; }
-	@command -v rustup install $$RUST_VERSION  >/dev/null 2>&1
+	@command rustup install $(RUST_VERSION) >/dev/null 2>&1
 
 check-sqlx-cli:
 	@command -v sqlx >/dev/null 2>&1 || { echo >&2 "sqlx-cli is not installed. Please install sqlx-cli v$(SQLX_CLI_VERSION)"; exit 1; }
