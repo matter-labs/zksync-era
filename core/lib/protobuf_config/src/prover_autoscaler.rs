@@ -35,7 +35,7 @@ impl ProtoRepr for proto::ProverAutoscalerAgentConfig {
             http_port: required(&self.http_port)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("http_port")?,
-            namespaces: self.namespaces.iter().cloned().collect(),
+            namespaces: self.namespaces.to_vec(),
             cluster_name: Some("".to_string()),
         })
     }
@@ -62,7 +62,7 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
             prover_job_monitor_url: required(&self.prover_job_monitor_url)
                 .context("prover_job_monitor_url")?
                 .clone(),
-            agents: self.agents.iter().cloned().collect(),
+            agents: self.agents.to_vec(),
         })
     }
 
