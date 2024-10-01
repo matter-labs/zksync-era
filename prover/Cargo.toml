@@ -63,8 +63,8 @@ circuit_sequencer_api = "=0.150.5"
 zkevm_test_harness = "=0.150.5"
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.150.7" }
-shivini = "=0.150.7"
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.150.9" }
+shivini = "=0.150.9"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }

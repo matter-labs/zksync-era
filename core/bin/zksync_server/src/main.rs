@@ -11,6 +11,7 @@ use zksync_config::{
         },
         fri_prover_group::FriProverGroupConfig,
         house_keeper::HouseKeeperConfig,
+        secrets::DataAvailabilitySecrets,
         BasicWitnessInputProducerConfig, ContractsConfig, DatabaseSecrets, ExperimentalVmConfig,
         ExternalPriceApiClientConfig, FriProofCompressorConfig, FriProverConfig,
         FriProverGatewayConfig, FriWitnessGeneratorConfig, FriWitnessVectorGeneratorConfig,
@@ -22,7 +23,7 @@ use zksync_config::{
     GenesisConfig, ObjectStoreConfig, PostgresConfig, SnapshotsCreatorConfig,
 };
 use zksync_core_leftovers::{
-    temp_config_store::{decode_yaml_repr, TempConfigStore},
+    temp_config_store::{read_yaml_repr, TempConfigStore},
     Component, Components,
 };
 use zksync_env_config::FromEnv;
@@ -98,55 +99,38 @@ fn main() -> anyhow::Result<()> {
             configs
         }
         Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
+            read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path)
                 .context("failed decoding general YAML config")?
         }
     };
 
     let wallets = match opt.wallets_path {
         None => tmp_config.wallets(),
-        Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&yaml)
-                .context("failed decoding wallets YAML config")?
-        }
+        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&path)
+            .context("failed decoding wallets YAML config")?,
     };
 
     let secrets: Secrets = match opt.secrets_path {
-        Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&yaml)
-                .context("failed decoding secrets YAML config")?
-        }
+        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&path)
+            .context("failed decoding secrets YAML config")?,
         None => Secrets {
             consensus: config::read_consensus_secrets().context("read_consensus_secrets()")?,
             database: DatabaseSecrets::from_env().ok(),
             l1: L1Secrets::from_env().ok(),
+            data_availability: DataAvailabilitySecrets::from_env().ok(),
         },
     };
 
     let contracts_config = match opt.contracts_config_path {
         None => ContractsConfig::from_env().context("contracts_config")?,
-        Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(&yaml)
-                .context("failed decoding contracts YAML config")?
-        }
+        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(&path)
+            .context("failed decoding contracts YAML config")?,
     };
 
     let genesis = match opt.genesis_path {
         None => GenesisConfig::from_env().context("Genesis config")?,
-        Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&yaml)
-                .context("failed decoding genesis YAML config")?
-        }
+        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&path)
+            .context("failed decoding genesis YAML config")?,
     };
     let observability_config = configs
         .observability

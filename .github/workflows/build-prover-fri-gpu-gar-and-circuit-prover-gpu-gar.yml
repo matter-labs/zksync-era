@@ -28,6 +28,7 @@ jobs:
       - name: Download Setup data
         run: |
           gsutil -m rsync -r gs://matterlabs-setup-data-us/${{ inputs.setup_keys_id }} docker/prover-gpu-fri-gar
+          cp -v docker/prover-gpu-fri-gar/*.bin docker/circuit-prover-gpu-gar/
 
       - name: Login to us-central1 GAR
         run: |
