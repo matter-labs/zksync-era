@@ -285,9 +285,10 @@ mod tests {
     use tokio::sync::Mutex;
 
     use super::*;
-    use crate::cluster_types::{self, Deployment, Namespace, Pod};
-    use crate::global::queuer;
-    use crate::global::watcher;
+    use crate::{
+        cluster_types::{self, Deployment, Namespace, Pod},
+        global::{queuer, watcher},
+    };
 
     #[test]
     fn test_run() {

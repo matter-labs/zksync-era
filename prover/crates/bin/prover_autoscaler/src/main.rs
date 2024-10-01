@@ -59,7 +59,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let opt = Opt::from_args();
-    let general_config = read_yaml_repr::<prover_autoscaler::GeneralConfig>(opt.config_path)
+    let general_config = read_yaml_repr::<prover_autoscaler::GeneralConfig>(&opt.config_path)
         .context("general config")?;
     // That's unfortunate that there are at least 3 different Duration in rust and we use all 3 in this repo.
     // TODO: Consider updating zksync_protobuf to support std::time::Duration.

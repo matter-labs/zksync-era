@@ -1,6 +1,6 @@
 use vise::{Counter, Gauge, LabeledFamily, Metrics};
-//use zksync_types::protocol_version::ProtocolSemanticVersion;
 
+//use zksync_types::protocol_version::ProtocolSemanticVersion;
 use crate::cluster_types::GPU;
 
 #[derive(Debug, Metrics)]
