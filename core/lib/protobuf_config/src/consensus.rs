@@ -185,7 +185,7 @@ impl ProtoRepr for proto::Config {
 
     fn build(this: &Self::Type) -> Self {
         Self {
-            port: Some(this.port.try_into().unwrap()),
+            port: Some(this.port.into()),
             server_url: Some(this.server_url.to_string()),
             public_url: Some(this.public_url.0.clone()),
             max_payload_size: Some(this.max_payload_size.try_into().unwrap()),

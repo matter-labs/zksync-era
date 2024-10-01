@@ -21,10 +21,6 @@ pub struct EcosystemPorts {
 }
 
 impl EcosystemPorts {
-    pub fn get_assigned_ports(&self) -> HashSet<u16> {
-        self.ports.keys().cloned().collect()
-    }
-
     pub fn is_port_assigned(&self, port: u16) -> bool {
         self.ports.contains_key(&port)
     }
