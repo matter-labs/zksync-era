@@ -87,7 +87,7 @@ enum VmPlaygroundStorage {
 #[derive(Debug)]
 pub struct VmPlayground {
     pool: ConnectionPool<Core>,
-    batch_executor_factory: MainBatchExecutorFactory,
+    batch_executor_factory: MainBatchExecutorFactory<()>,
     storage: VmPlaygroundStorage,
     chain_id: L2ChainId,
     io: VmPlaygroundIo,
@@ -133,7 +133,7 @@ impl VmPlayground {
             latest_processed_batch.unwrap_or(cursor.first_processed_batch)
         };
 
-        let mut batch_executor_factory = MainBatchExecutorFactory::new(false, false);
+        let mut batch_executor_factory = MainBatchExecutorFactory::new(false);
         batch_executor_factory.set_fast_vm_mode(vm_mode);
         batch_executor_factory.observe_storage_metrics();
         let handle = tokio::runtime::Handle::current();

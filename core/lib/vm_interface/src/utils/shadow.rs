@@ -158,7 +158,10 @@ where
     Main: VmTrackingContracts,
     Shadow: VmInterface,
 {
-    type TracerDispatcher = <Main as VmInterface>::TracerDispatcher;
+    type TracerDispatcher = (
+        <Main as VmInterface>::TracerDispatcher,
+        <Shadow as VmInterface>::TracerDispatcher,
+    );
 
     fn push_transaction(&mut self, tx: Transaction) {
         if let Some(shadow) = self.shadow.get_mut() {
@@ -169,14 +172,12 @@ where
 
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher,
+        (main_tracer, shadow_tracer): &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        let main_result = self.main.inspect(dispatcher, execution_mode);
+        let main_result = self.main.inspect(main_tracer, execution_mode);
         if let Some(shadow) = self.shadow.get_mut() {
-            let shadow_result = shadow
-                .vm
-                .inspect(Shadow::TracerDispatcher::default(), execution_mode);
+            let shadow_result = shadow.vm.inspect(shadow_tracer, execution_mode);
             let mut errors = DivergenceErrors::new();
             errors.check_results_match(&main_result, &shadow_result);
 
@@ -197,14 +198,17 @@ where
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        (main_tracer, shadow_tracer): &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         let tx_hash = tx.hash();
-        let (main_bytecodes_result, main_tx_result) = self
-            .main
-            .inspect_transaction_with_bytecode_compression(tracer, tx.clone(), with_compression);
+        let (main_bytecodes_result, main_tx_result) =
+            self.main.inspect_transaction_with_bytecode_compression(
+                main_tracer,
+                tx.clone(),
+                with_compression,
+            );
         // Extend lifetime to `'static` so that the result isn't mutably borrowed from the main VM.
         // Unfortunately, there's no way to express that this borrow is actually immutable, which would allow not extending the lifetime unless there's a divergence.
         let main_bytecodes_result =
@@ -212,7 +216,7 @@ where
 
         if let Some(shadow) = self.shadow.get_mut() {
             let shadow_result = shadow.vm.inspect_transaction_with_bytecode_compression(
-                Shadow::TracerDispatcher::default(),
+                shadow_tracer,
                 tx,
                 with_compression,
             );

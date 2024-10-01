@@ -1,5 +1,5 @@
 use zksync_types::vm::FastVmMode;
-use zksync_vm_executor::batch::MainBatchExecutorFactory;
+use zksync_vm_executor::batch::{BatchTracer, MainBatchExecutorFactory, TraceCalls};
 
 use crate::{
     implementations::resources::state_keeper::BatchExecutorResource,
@@ -27,6 +27,12 @@ impl MainBatchExecutorLayer {
         self.fast_vm_mode = mode;
         self
     }
+
+    fn create_executor<Tr: BatchTracer>(&self) -> BatchExecutorResource {
+        let mut executor = MainBatchExecutorFactory::<Tr>::new(self.optional_bytecode_compression);
+        executor.set_fast_vm_mode(self.fast_vm_mode);
+        executor.into()
+    }
 }
 
 #[async_trait::async_trait]
@@ -39,11 +45,10 @@ impl WiringLayer for MainBatchExecutorLayer {
     }
 
     async fn wire(self, (): Self::Input) -> Result<Self::Output, WiringError> {
-        let mut executor = MainBatchExecutorFactory::new(
-            self.save_call_traces,
-            self.optional_bytecode_compression,
-        );
-        executor.set_fast_vm_mode(self.fast_vm_mode);
-        Ok(executor.into())
+        Ok(if self.save_call_traces {
+            self.create_executor::<TraceCalls>()
+        } else {
+            self.create_executor::<()>()
+        })
     }
 }

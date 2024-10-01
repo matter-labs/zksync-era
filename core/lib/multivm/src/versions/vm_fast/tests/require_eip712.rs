@@ -19,7 +19,7 @@ use crate::{
     },
 };
 
-impl VmTester {
+impl VmTester<()> {
     pub(crate) fn get_eth_balance(&mut self, address: Address) -> U256 {
         let key = storage_key_for_standard_token_balance(
             AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),

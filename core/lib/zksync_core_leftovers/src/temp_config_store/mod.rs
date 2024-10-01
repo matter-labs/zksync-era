@@ -26,15 +26,15 @@ use zksync_env_config::FromEnv;
 use zksync_protobuf::repr::ProtoRepr;
 use zksync_protobuf_config::proto::secrets::Secrets;
 
-pub fn decode_yaml_repr<T: ProtoRepr>(yaml: &str) -> anyhow::Result<T::Type> {
-    let d = serde_yaml::Deserializer::from_str(yaml);
-    let this: T = zksync_protobuf::serde::deserialize_proto_with_options(d, false)?;
-    this.read()
-}
-
-pub fn read_yaml_repr<T: ProtoRepr>(path_buf: PathBuf) -> anyhow::Result<T::Type> {
-    let yaml = std::fs::read_to_string(path_buf).context("failed reading YAML config")?;
-    decode_yaml_repr::<T>(&yaml)
+pub fn read_yaml_repr<T: ProtoRepr>(path: &PathBuf) -> anyhow::Result<T::Type> {
+    (|| {
+        let yaml = std::fs::read_to_string(path)?;
+        zksync_protobuf::serde::Deserialize {
+            deny_unknown_fields: false,
+        }
+        .proto_repr_from_yaml::<T>(&yaml)
+    })()
+    .with_context(|| format!("failed to read {}", path.display()))
 }
 
 // TODO (QIT-22): This structure is going to be removed when components will be responsible for their own configs.
@@ -209,8 +209,7 @@ fn load_env_config() -> anyhow::Result<TempConfigStore> {
 pub fn load_general_config(path: Option<PathBuf>) -> anyhow::Result<GeneralConfig> {
     match path {
         Some(path) => {
-            let yaml = std::fs::read_to_string(path).context("Failed to read general config")?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
+            read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path)
         }
         None => Ok(load_env_config()
             .context("general config from env")?
@@ -221,8 +220,7 @@ pub fn load_general_config(path: Option<PathBuf>) -> anyhow::Result<GeneralConfi
 pub fn load_database_secrets(path: Option<PathBuf>) -> anyhow::Result<DatabaseSecrets> {
     match path {
         Some(path) => {
-            let yaml = std::fs::read_to_string(path).context("Failed to read secrets")?;
-            let secrets = decode_yaml_repr::<Secrets>(&yaml).context("Failed to parse secrets")?;
+            let secrets = read_yaml_repr::<Secrets>(&path)?;
             Ok(secrets
                 .database
                 .context("failed to parse database secrets")?)

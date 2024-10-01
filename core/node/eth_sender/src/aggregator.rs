@@ -526,22 +526,5 @@ pub async fn load_wrapped_fri_proofs_for_range(
         }
     }
 
-    // We also check file with deprecated name if patch 0 is allowed.
-    // TODO: remove in the next release.
-    let is_patch_0_present = allowed_versions.iter().any(|v| v.patch.0 == 0);
-    if is_patch_0_present {
-        match blob_store
-            .get_by_encoded_key(format!("l1_batch_proof_{l1_batch_number}.bin"))
-            .await
-        {
-            Ok(proof) => return Some(proof),
-            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
-            Err(err) => panic!(
-                "Failed to load proof for batch {}: {}",
-                l1_batch_number.0, err
-            ),
-        }
-    }
-
     None
 }
