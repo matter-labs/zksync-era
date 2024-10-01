@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{cmd::Cmd, config::global_config, logger, server::Server, spinner::Spinner};
+use common::{cmd::Cmd, logger, server::Server, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
@@ -40,7 +40,7 @@ async fn run_test(
 ) -> anyhow::Result<()> {
     Spinner::new("Running test...").freeze();
     let chain_config = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
     let cmd = if args.snapshot {
