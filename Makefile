@@ -65,10 +65,7 @@ check-contracts:
 prepare-contracts: check-tools check-contracts
 	@export ZKSYNC_HOME=$$(pwd) && \
 	export PATH=$$PATH:$${ZKSYNC_HOME}/bin && \
-	mkdir -p ./volumes/postgres && \
-	docker compose up -d postgres && \
 	zkt || true && \
-	cp etc/tokens/test.json . && \
 	zk_supervisor contracts
 
 # Download setup-key
