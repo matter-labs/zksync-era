@@ -48,7 +48,7 @@ of the first block in the batch). You can configure the retention period using:
 EN_PRUNING_DATA_RETENTION_SEC: '259200' # 3 days
 ```
 
-The retention period can be set to any value, but for mainnet values under 21h will be ignored because a batch can only
+The retention period can be set to any value, but for mainnet values under 24h will be ignored because a batch can only
 be pruned after it has been executed on Ethereum.
 
 Pruning can be disabled or enabled and the data retention period can be freely changed during the node lifetime.
