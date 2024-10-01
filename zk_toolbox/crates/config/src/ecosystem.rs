@@ -151,6 +151,10 @@ impl EcosystemConfig {
         self.load_chain_inner(&name)
     }
 
+    pub fn load_current_chain(&self) -> anyhow::Result<ChainConfig> {
+        self.load_chain_inner(self.current_chain())
+    }
+
     fn load_chain_inner(&self, name: &str) -> anyhow::Result<ChainConfig> {
         let path = self.chains.join(name).join(CONFIG_NAME);
         let config = ChainConfigInternal::read(self.get_shell(), path.clone())?;

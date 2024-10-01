@@ -23,6 +23,7 @@ num_enum.workspace = true
 anyhow.workspace = true
 url = { workspace = true, features = ["serde"] }
 serde_with.workspace = true
+secrecy.workspace = true
 
 [dev-dependencies]
 bincode.workspace = true

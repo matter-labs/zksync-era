@@ -3,7 +3,7 @@ use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 /// Consensus registry contract operations.
 /// Includes code duplicated from `zksync_node_consensus::registry::abi`.
 use anyhow::Context as _;
-use common::{config::global_config, logger};
+use common::logger;
 use config::EcosystemConfig;
 use conv::*;
 use ethers::{
@@ -194,10 +194,8 @@ impl Setup {
     fn new(shell: &Shell) -> anyhow::Result<Self> {
         let ecosystem_config =
             EcosystemConfig::from_file(shell).context("EcosystemConfig::from_file()")?;
-        let chain_name = global_config().chain_name.clone();
         let chain = ecosystem_config
-            .load_chain(chain_name)
-            .context("load_chain()")
+            .load_current_chain()
             .context(messages::MSG_CHAIN_NOT_INITIALIZED)?;
         let contracts = chain
             .get_contracts_config()
