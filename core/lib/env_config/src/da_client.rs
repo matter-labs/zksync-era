@@ -39,11 +39,11 @@ impl FromEnv for DataAvailabilitySecrets {
                 Self::Avail(AvailSecrets { seed_phrase })
             }
             CELESTIA_CLIENT_CONFIG_NAME => {
-                let private_key = env::var("DA_SECRETS_PRIVATE_KEY")
-                    .map_err(|e| anyhow::format_err!("private key not found: {}", e))?
+                let auth_token = env::var("DA_SECRETS_AUTH_TOKEN")
+                    .map_err(|e| anyhow::format_err!("auth token not found: {}", e))?
                     .parse()
-                    .map_err(|e| anyhow::format_err!("failed to parse the private key: {}", e))?;
-                Self::Celestia(CelestiaSecrets { private_key })
+                    .map_err(|e| anyhow::format_err!("failed to parse the auth token: {}", e))?;
+                Self::Celestia(CelestiaSecrets { auth_token })
             }
 
             _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
@@ -192,7 +192,7 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             DA_CLIENT="Celestia"
-            DA_SECRETS_PRIVATE_KEY="0xf55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
+            DA_SECRETS_AUTH_TOKEN="0xf55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
         "#;
 
         lock.set_env(config);
@@ -203,7 +203,7 @@ mod tests {
             panic!("expected Celestia config")
         };
         assert_eq!(
-            actual.private_key,
+            actual.auth_token,
             "0xf55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
                 .parse()
                 .unwrap()

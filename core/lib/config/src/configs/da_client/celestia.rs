@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use zksync_basic_types::secrets::PrivateKey;
+use zksync_basic_types::secrets::AuthToken;
 
 #[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct CelestiaConfig {
@@ -9,5 +9,5 @@ pub struct CelestiaConfig {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CelestiaSecrets {
-    pub private_key: PrivateKey,
+    pub auth_token: AuthToken,
 }

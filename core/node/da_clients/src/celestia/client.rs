@@ -27,7 +27,7 @@ impl CelestiaClient {
     pub async fn new(config: CelestiaConfig, secrets: CelestiaSecrets) -> anyhow::Result<Self> {
         let client = Client::new(
             &config.api_node_url,
-            Some(secrets.private_key.0.expose_secret()),
+            Some(secrets.auth_token.0.expose_secret()),
         )
         .await
         .expect("could not create Celestia client");
@@ -54,7 +54,7 @@ impl DataAvailabilityClient for CelestiaClient {
         let namespace_bytes =
             hex::decode(&self.config.namespace).map_err(to_non_retriable_da_error)?;
         let namespace =
-            Namespace::new_v0(namespace_bytes.as_bytes()).map_err(to_non_retriable_da_error)?;
+            Namespace::new_v0(namespace_bytes.as_slice()).map_err(to_non_retriable_da_error)?;
         let blob = Blob::new(namespace, data).map_err(to_non_retriable_da_error)?;
 
         let commitment = blob.commitment;
