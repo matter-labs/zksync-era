@@ -17,4 +17,5 @@ message ProverJobMonitor {
   optional uint64 prover_queue_reporter_run_interval_ms = 12; // optional; ms
   optional uint64 witness_generator_queue_reporter_run_interval_ms = 13; // optional; ms
   optional uint64 witness_job_queuer_run_interval_ms = 14; // optional; ms
+  optional uint32 http_port = 15; // required; u32
 }

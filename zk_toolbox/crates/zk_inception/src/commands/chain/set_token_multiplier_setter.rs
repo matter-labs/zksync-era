@@ -1,6 +1,5 @@
 use anyhow::Context;
 use common::{
-    config::global_config,
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     logger,
     spinner::Spinner,
@@ -15,7 +14,7 @@ use crate::{
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED,
         MSG_TOKEN_MULTIPLIER_SETTER_UPDATED_TO, MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER,
-        MSG_WALLETS_CONFIG_MUST_BE_PRESENT,
+        MSG_WALLETS_CONFIG_MUST_BE_PRESENT, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
@@ -30,10 +29,9 @@ lazy_static! {
 }
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let contracts_config = chain_config.get_contracts_config()?;
     let l1_url = chain_config
@@ -43,10 +41,11 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .l1_rpc_url
         .expose_str()
         .to_string();
-    let token_multiplier_setter_address = ecosystem_config
-        .get_wallets()
+    let token_multiplier_setter_address = chain_config
+        .get_wallets_config()
         .context(MSG_WALLETS_CONFIG_MUST_BE_PRESENT)?
         .token_multiplier_setter
+        .context(MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND)?
         .address;
 
     let spinner = Spinner::new(MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER);

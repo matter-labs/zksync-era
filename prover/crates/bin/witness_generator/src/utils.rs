@@ -1,21 +1,14 @@
 use std::{
-    collections::HashMap,
     io::{BufWriter, Write as _},
     sync::Arc,
 };
 
 use circuit_definitions::{
-    circuit_definitions::{
-        base_layer::ZkSyncBaseLayerCircuit,
-        recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionProof},
-    },
+    circuit_definitions::base_layer::ZkSyncBaseLayerCircuit,
     encodings::memory_query::MemoryQueueStateWitnesses,
 };
 use once_cell::sync::Lazy;
-use zkevm_test_harness::{
-    boojum::field::goldilocks::GoldilocksField, empty_node_proof,
-    zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
-};
+use zkevm_test_harness::boojum::field::goldilocks::GoldilocksField;
 use zksync_multivm::utils::get_used_bootloader_memory_bytes;
 use zksync_object_store::{serialize_using_bincode, Bucket, ObjectStore, StoredObject};
 use zksync_prover_fri_types::{
@@ -211,28 +204,6 @@ pub async fn save_recursive_layer_prover_input_artifacts(
     ids_and_urls
 }
 
-#[tracing::instrument(
-    skip_all,
-    fields(l1_batch = %block_number, circuit_id = %circuit_id)
-)]
-pub async fn save_node_aggregations_artifacts(
-    block_number: L1BatchNumber,
-    circuit_id: u8,
-    depth: u16,
-    aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
-    object_store: &dyn ObjectStore,
-) -> String {
-    let key = AggregationsKey {
-        block_number,
-        circuit_id,
-        depth,
-    };
-    object_store
-        .put(key, &AggregationWrapper(aggregations))
-        .await
-        .unwrap()
-}
-
 #[tracing::instrument(skip_all)]
 pub async fn load_proofs_for_job_ids(
     job_ids: &[u32],
@@ -247,55 +218,4 @@ pub async fn load_proofs_for_job_ids(
         .into_iter()
         .map(|x| x.unwrap())
         .collect()
-}
-
-/// Loads all proofs for a given recursion tip's job ids.
-/// Note that recursion tip may not have proofs for some specific circuits (because the batch didn't contain them).
-/// In this scenario, we still need to pass a proof, but it won't be taken into account during proving.
-/// For this scenario, we use an empty_proof, but any proof would suffice.
-#[tracing::instrument(skip_all)]
-pub async fn load_proofs_for_recursion_tip(
-    job_ids: Vec<(u8, u32)>,
-    object_store: &dyn ObjectStore,
-) -> anyhow::Result<Vec<ZkSyncRecursionProof>> {
-    let job_mapping: HashMap<u8, u32> = job_ids
-        .into_iter()
-        .map(|(leaf_circuit_id, job_id)| {
-            (
-                ZkSyncRecursionLayerStorageType::from_leaf_u8_to_basic_u8(leaf_circuit_id),
-                job_id,
-            )
-        })
-        .collect();
-
-    let empty_proof = empty_node_proof().into_inner();
-
-    let mut proofs = Vec::new();
-    for circuit_id in BaseLayerCircuitType::as_iter_u8() {
-        if job_mapping.contains_key(&circuit_id) {
-            let fri_proof_wrapper = object_store
-                .get(*job_mapping.get(&circuit_id).unwrap())
-                .await
-                .unwrap_or_else(|_| {
-                    panic!(
-                        "Failed to load proof with circuit_id {} for recursion tip",
-                        circuit_id
-                    )
-                });
-            match fri_proof_wrapper {
-                FriProofWrapper::Base(_) => {
-                    return Err(anyhow::anyhow!(
-                        "Expected only recursive proofs for recursion tip, got Base for circuit {}",
-                        circuit_id
-                    ));
-                }
-                FriProofWrapper::Recursive(recursive_proof) => {
-                    proofs.push(recursive_proof.into_inner());
-                }
-            }
-        } else {
-            proofs.push(empty_proof.clone());
-        }
-    }
-    Ok(proofs)
 }

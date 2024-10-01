@@ -23,6 +23,7 @@ import {
     setTreeRecoveryParallelPersistenceBuffer
 } from './utils';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import { logsTestPath } from 'utils/build/logs';
 
 const pathToHome = path.join(__dirname, '../../../..');
 const fileConfig = shouldLoadConfigFromFile();
@@ -59,6 +60,10 @@ interface TokenInfo {
     readonly l2_address: string;
 }
 
+async function logsPath(name: string): Promise<string> {
+    return await logsTestPath(fileConfig.chain, 'logs/recovery/snapshot/', name);
+}
+
 /**
  * Tests snapshot recovery and node state pruning.
  *
@@ -93,6 +98,8 @@ describe('snapshot recovery', () => {
         EN_EXPERIMENTAL_SNAPSHOTS_RECOVERY_TREE_PARALLEL_PERSISTENCE_BUFFER: '4'
     };
 
+    const autoKill: boolean = !fileConfig.loadFromFile || !process.env.NO_KILL;
+
     let snapshotMetadata: GetSnapshotResponse;
     let mainNode: zksync.Provider;
     let externalNode: zksync.Provider;
@@ -112,11 +119,18 @@ describe('snapshot recovery', () => {
         if (fileConfig.loadFromFile) {
             const secretsConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'secrets.yaml' });
             const generalConfig = loadConfig({ pathToHome, chain: fileConfig.chain, config: 'general.yaml' });
+            const externalNodeGeneralConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                configsFolderSuffix: 'external_node',
+                config: 'general.yaml'
+            });
 
             ethRpcUrl = secretsConfig.l1.l1_rpc_url;
             apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
-            externalNodeUrl = 'http://127.0.0.1:3150';
-            extNodeHealthUrl = 'http://127.0.0.1:3171/health';
+
+            externalNodeUrl = externalNodeGeneralConfig.api.web3_json_rpc.http_url;
+            extNodeHealthUrl = `http://127.0.0.1:${externalNodeGeneralConfig.api.healthcheck.port}/health`;
 
             setSnapshotRecovery(pathToHome, fileConfig, true);
             setTreeRecoveryParallelPersistenceBuffer(pathToHome, fileConfig, 4);
@@ -129,7 +143,9 @@ describe('snapshot recovery', () => {
 
         mainNode = new zksync.Provider(apiWeb3JsonRpcHttpUrl);
         externalNode = new zksync.Provider(externalNodeUrl);
-        await NodeProcess.stopAll('KILL');
+        if (autoKill) {
+            await NodeProcess.stopAll('KILL');
+        }
     });
 
     before('create test wallet', async () => {
@@ -169,10 +185,7 @@ describe('snapshot recovery', () => {
     }
 
     step('create snapshot', async () => {
-        await executeCommandWithLogs(
-            fileConfig.loadFromFile ? `zk_supervisor snapshot create` : 'zk run snapshots-creator',
-            'snapshot-creator.log'
-        );
+        await createSnapshot(fileConfig.loadFromFile);
     });
 
     step('validate snapshot', async () => {
@@ -226,15 +239,17 @@ describe('snapshot recovery', () => {
     });
 
     step('drop external node data', async () => {
-        await dropNodeData(fileConfig.loadFromFile, externalNodeEnv);
+        await dropNodeData(externalNodeEnv, fileConfig.loadFromFile, fileConfig.chain);
     });
 
     step('initialize external node', async () => {
         externalNodeProcess = await NodeProcess.spawn(
             externalNodeEnv,
-            'snapshot-recovery.log',
+            await logsPath('external_node.log'),
             pathToHome,
-            fileConfig.loadFromFile
+            NodeComponents.STANDARD,
+            fileConfig.loadFromFile,
+            fileConfig.chain
         );
 
         let recoveryFinished = false;
@@ -356,8 +371,9 @@ describe('snapshot recovery', () => {
             externalNodeEnv,
             externalNodeProcess.logs,
             pathToHome,
+            components,
             fileConfig.loadFromFile,
-            components
+            fileConfig.chain
         );
 
         let isDbPrunerReady = false;
@@ -440,4 +456,15 @@ async function decompressGzip(filePath: string): Promise<Buffer> {
         gunzip.on('error', reject);
         readStream.pipe(gunzip);
     });
+}
+
+async function createSnapshot(zkSupervisor: boolean) {
+    let command = '';
+    if (zkSupervisor) {
+        command = `zk_supervisor snapshot create`;
+        command += ` --chain ${fileConfig.chain}`;
+    } else {
+        command = `zk run snapshots-creator`;
+    }
+    await executeCommandWithLogs(command, 'snapshot-creator.log');
 }

@@ -38,6 +38,14 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
 
     download_binaries(
         shell,
+        args.era_vm_solc_releases,
+        get_era_vm_solc_path,
+        &link_to_code,
+        "solc",
+    )?;
+
+    download_binaries(
+        shell,
         args.vyper_releases,
         get_vyper_path,
         &link_to_code,
@@ -104,4 +112,10 @@ fn get_vyper_path(link_to_code: &Path, version: &str) -> PathBuf {
 
 fn get_solc_path(link_to_code: &Path, version: &str) -> PathBuf {
     link_to_code.join("etc/solc-bin/").join(version)
+}
+
+fn get_era_vm_solc_path(link_to_code: &Path, version: &str) -> PathBuf {
+    link_to_code
+        .join("etc/solc-bin/")
+        .join(format!("zkVM-{version}"))
 }

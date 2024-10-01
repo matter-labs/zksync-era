@@ -325,9 +325,10 @@ impl storage::PersistentBlockStore for Store {
         Ok(self
             .conn(ctx)
             .await?
-            .genesis(ctx)
+            .global_config(ctx)
             .await?
-            .context("not found")?)
+            .context("not found")?
+            .genesis)
     }
 
     fn persisted(&self) -> sync::watch::Receiver<storage::BlockStoreState> {

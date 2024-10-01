@@ -5,7 +5,10 @@ use crate::{
     consts::CONTRACTS_FILE,
     forge_interface::{
         deploy_ecosystem::output::DeployL1Output,
-        deploy_l2_contracts::output::{DefaultL2UpgradeOutput, InitializeBridgeOutput},
+        deploy_l2_contracts::output::{
+            ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
+            Multicall3Output,
+        },
         register_chain::output::RegisterChainOutput,
     },
     traits::{FileConfigWithDefaultName, ZkToolboxConfig},
@@ -67,6 +70,7 @@ impl ContractsConfig {
         self.ecosystem_contracts
             .diamond_cut_data
             .clone_from(&deploy_l1_output.contracts_config.diamond_cut_data);
+        self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
     }
 
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
@@ -84,11 +88,24 @@ impl ContractsConfig {
         Ok(())
     }
 
+    pub fn set_consensus_registry(
+        &mut self,
+        consensus_registry_output: &ConsensusRegistryOutput,
+    ) -> anyhow::Result<()> {
+        self.l2.consensus_registry = Some(consensus_registry_output.consensus_registry_proxy);
+        Ok(())
+    }
+
     pub fn set_default_l2_upgrade(
         &mut self,
         default_upgrade_output: &DefaultL2UpgradeOutput,
     ) -> anyhow::Result<()> {
         self.l2.default_l2_upgrader = default_upgrade_output.l2_default_upgrader;
+        Ok(())
+    }
+
+    pub fn set_multicall3(&mut self, multicall3_output: &Multicall3Output) -> anyhow::Result<()> {
+        self.l2.multicall3 = Some(multicall3_output.multicall3);
         Ok(())
     }
 }
@@ -140,4 +157,6 @@ pub struct L1Contracts {
 pub struct L2Contracts {
     pub testnet_paymaster_addr: Address,
     pub default_l2_upgrader: Address,
+    pub consensus_registry: Option<Address>,
+    pub multicall3: Option<Address>,
 }

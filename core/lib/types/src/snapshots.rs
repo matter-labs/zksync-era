@@ -270,11 +270,11 @@ where
 pub struct SnapshotRecoveryStatus {
     pub l1_batch_number: L1BatchNumber,
     pub l1_batch_root_hash: H256,
-    #[debug("{} (raw: {})", utils::display_timestamp(**l1_batch_timestamp), l1_batch_timestamp)]
+    #[debug("{} (raw: {})", utils::display_timestamp(*l1_batch_timestamp), l1_batch_timestamp)]
     pub l1_batch_timestamp: u64,
     pub l2_block_number: L2BlockNumber,
     pub l2_block_hash: H256,
-    #[debug("{} (raw: {})", utils::display_timestamp(**l2_block_timestamp), l2_block_timestamp)]
+    #[debug("{} (raw: {})", utils::display_timestamp(*l2_block_timestamp), l2_block_timestamp)]
     pub l2_block_timestamp: u64,
     pub protocol_version: ProtocolVersionId,
     #[debug(

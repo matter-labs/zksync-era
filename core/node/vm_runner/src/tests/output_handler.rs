@@ -6,13 +6,13 @@ use tokio::{
 };
 use zksync_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
-use zksync_state_keeper::UpdatesManager;
+use zksync_state::interface::StorageViewCache;
 use zksync_types::L1BatchNumber;
+use zksync_vm_interface::{FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 
 use crate::{
     tests::{wait, IoMock, TestOutputFactory},
-    ConcurrentOutputHandlerFactory, OutputHandlerFactory,
+    ConcurrentOutputHandlerFactory, L1BatchOutput, L2BlockOutput, OutputHandlerFactory,
 };
 
 struct OutputHandlerTester {
@@ -40,47 +40,53 @@ impl OutputHandlerTester {
     }
 
     async fn spawn_test_task(&mut self, l1_batch_number: L1BatchNumber) -> anyhow::Result<()> {
-        let mut output_handler = self.output_factory.create_handler(l1_batch_number).await?;
-        let join_handle = tokio::task::spawn(async move {
-            let l1_batch_env = L1BatchEnv {
-                previous_batch_hash: None,
-                number: Default::default(),
+        let l1_batch_env = L1BatchEnv {
+            previous_batch_hash: None,
+            number: l1_batch_number,
+            timestamp: 0,
+            fee_input: Default::default(),
+            fee_account: Default::default(),
+            enforced_base_fee: None,
+            first_l2_block: L2BlockEnv {
+                number: 0,
                 timestamp: 0,
-                fee_input: Default::default(),
-                fee_account: Default::default(),
-                enforced_base_fee: None,
-                first_l2_block: L2BlockEnv {
-                    number: 0,
-                    timestamp: 0,
-                    prev_block_hash: Default::default(),
-                    max_virtual_blocks_to_create: 0,
+                prev_block_hash: Default::default(),
+                max_virtual_blocks_to_create: 0,
+            },
+        };
+        let system_env = SystemEnv {
+            zk_porter_available: false,
+            version: Default::default(),
+            base_system_smart_contracts: BaseSystemContracts {
+                bootloader: SystemContractCode {
+                    code: vec![],
+                    hash: Default::default(),
                 },
-            };
-            let system_env = SystemEnv {
-                zk_porter_available: false,
-                version: Default::default(),
-                base_system_smart_contracts: BaseSystemContracts {
-                    bootloader: SystemContractCode {
-                        code: vec![],
-                        hash: Default::default(),
-                    },
-                    default_aa: SystemContractCode {
-                        code: vec![],
-                        hash: Default::default(),
-                    },
+                default_aa: SystemContractCode {
+                    code: vec![],
+                    hash: Default::default(),
                 },
-                bootloader_gas_limit: 0,
-                execution_mode: TxExecutionMode::VerifyExecute,
-                default_validation_computational_gas_limit: 0,
-                chain_id: Default::default(),
-            };
-            let updates_manager = UpdatesManager::new(&l1_batch_env, &system_env);
+            },
+            bootloader_gas_limit: 0,
+            execution_mode: TxExecutionMode::VerifyExecute,
+            default_validation_computational_gas_limit: 0,
+            chain_id: Default::default(),
+        };
+
+        let mut output_handler = self
+            .output_factory
+            .create_handler(system_env, l1_batch_env.clone())
+            .await?;
+        let join_handle = tokio::task::spawn(async move {
             output_handler
-                .handle_l2_block(&updates_manager)
+                .handle_l2_block(l1_batch_env.first_l2_block, &L2BlockOutput::default())
                 .await
                 .unwrap();
             output_handler
-                .handle_l1_batch(Arc::new(updates_manager))
+                .handle_l1_batch(Arc::new(L1BatchOutput {
+                    batch: FinishedL1Batch::mock(),
+                    storage_view_cache: StorageViewCache::default(),
+                }))
                 .await
                 .unwrap();
         });

@@ -1,10 +1,12 @@
+use std::mem;
+
 use zk_evm_1_3_3::aux_structures::Timestamp;
 
 use crate::{
     interface::{
         storage::WriteStorage,
         tracer::{TracerExecutionStopReason, VmExecutionStopReason},
-        VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+        VmExecutionMode, VmExecutionResultAndLogs,
     },
     vm_virtual_blocks::{
         old_vm::utils::{vm_may_have_ended_inner, VmExecutionResult},
@@ -21,7 +23,7 @@ use crate::{
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(crate) fn inspect_inner(
         &mut self,
-        tracer: TracerDispatcher<S, H::VmVirtualBlocksMode>,
+        tracer: &mut TracerDispatcher<S, H::VmVirtualBlocksMode>,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut enable_refund_tracer = false;
@@ -40,7 +42,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     /// Collect the result from the default tracers.
     fn inspect_and_collect_results(
         &mut self,
-        dispatcher: TracerDispatcher<S, H::VmVirtualBlocksMode>,
+        dispatcher: &mut TracerDispatcher<S, H::VmVirtualBlocksMode>,
         execution_mode: VmExecutionMode,
         enable_refund_tracer: bool,
     ) -> (VmExecutionStopReason, VmExecutionResultAndLogs) {
@@ -50,7 +52,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             DefaultExecutionTracer::new(
                 self.system_env.default_validation_computational_gas_limit,
                 execution_mode,
-                dispatcher,
+                mem::take(dispatcher),
                 refund_tracer,
                 self.storage.clone(),
             );
@@ -89,6 +91,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         };
 
         tx_tracer.dispatcher.save_results(&mut result);
+        *dispatcher = tx_tracer.dispatcher;
         (stop_reason, result)
     }
 

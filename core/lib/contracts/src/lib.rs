@@ -16,7 +16,7 @@ use ethabi::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, workspace_dir_or_current_dir};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, env::Workspace};
 
 pub mod test_contracts;
 
@@ -48,9 +48,14 @@ const DIAMOND_INIT_CONTRACT_FILE: (&str, &str) = (
 );
 const GOVERNANCE_CONTRACT_FILE: (&str, &str) = ("governance", "IGovernance.sol/IGovernance.json");
 const CHAIN_ADMIN_CONTRACT_FILE: (&str, &str) = ("governance", "IChainAdmin.sol/IChainAdmin.json");
+const GETTERS_FACET_CONTRACT_FILE: (&str, &str) = (
+    "state-transition/chain-interfaces",
+    "IGetters.sol/IGetters.json",
+);
 
 const MULTICALL3_CONTRACT_FILE: (&str, &str) = ("dev-contracts", "Multicall3.sol/Multicall3.json");
 const VERIFIER_CONTRACT_FILE: (&str, &str) = ("state-transition", "Verifier.sol/Verifier.json");
+
 const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
 const _FAIL_ON_RECEIVE_CONTRACT_FILE:  &str  =
@@ -60,8 +65,8 @@ const LOADNEXT_CONTRACT_FILE: &str =
 const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
 
-fn home_path() -> &'static Path {
-    workspace_dir_or_current_dir()
+fn home_path() -> PathBuf {
+    Workspace::locate().core()
 }
 
 fn read_file_to_json_value(path: impl AsRef<Path> + std::fmt::Debug) -> serde_json::Value {
@@ -134,6 +139,10 @@ pub fn chain_admin_contract() -> Contract {
     load_contract_for_both_compilers(CHAIN_ADMIN_CONTRACT_FILE)
 }
 
+pub fn getters_facet_contract() -> Contract {
+    load_contract_for_both_compilers(GETTERS_FACET_CONTRACT_FILE)
+}
+
 pub fn state_transition_manager_contract() -> Contract {
     load_contract_for_both_compilers(STATE_TRANSITION_CONTRACT_FILE)
 }
@@ -203,7 +212,7 @@ pub fn known_codes_contract() -> Contract {
 }
 
 /// Reads bytecode from a given path.
-fn read_bytecode_from_path(artifact_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
+pub fn read_bytecode_from_path(artifact_path: impl AsRef<Path> + std::fmt::Debug) -> Vec<u8> {
     let artifact = read_file_to_json_value(&artifact_path);
 
     let bytecode = artifact["bytecode"]

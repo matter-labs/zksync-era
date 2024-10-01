@@ -10,7 +10,8 @@ on:
 
 jobs:
   release:
-    runs-on: [matterlabs-ci-runner]
+    # TODO: After migraton switch to CI
+    runs-on: [matterlabs-default-infra-runners]
     steps:
       - name: Login to Docker registries
         run: |
@@ -42,7 +43,7 @@ jobs:
               docker pull $alpha_tag
               docker tag $alpha_tag $tag
               docker push $tag
-               
+
               platform_tags+=" --amend $tag"
             done
             for manifest in "${repo}:${tag_name}" "${repo}:2.0-${tag_name}"; do

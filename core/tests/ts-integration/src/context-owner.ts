@@ -7,6 +7,7 @@ import { lookupPrerequisites } from './prerequisites';
 import { Reporter } from './reporter';
 import { scaledGasPrice } from './helpers';
 import { RetryProvider } from './retry-provider';
+import { killPidWithAllChilds } from 'utils/build/kill';
 
 // These amounts of ETH would be provided to each test suite through its "main" account.
 // It is assumed to be enough to run a set of "normal" transactions.
@@ -553,7 +554,6 @@ export class TestContextOwner {
                 break;
             }
             const lastNodeBatch = await this.l2Provider.getL1BatchNumber();
-
             this.reporter.debug(`VM playground progress: L1 batch #${lastProcessedBatch} / ${lastNodeBatch}`);
             if (lastProcessedBatch >= lastNodeBatch) {
                 break;
@@ -581,7 +581,7 @@ export class TestContextOwner {
             };
         }
 
-        const healthcheckPort = process.env.API_HEALTHCHECK_PORT ?? '3071';
+        const healthcheckPort = this.env.healthcheckPort;
         const nodeHealth = (await (await fetch(`http://127.0.0.1:${healthcheckPort}/health`)).json()) as NodeHealth;
         const playgroundHealth = nodeHealth.components.vm_playground;
         if (playgroundHealth === undefined) {
@@ -606,7 +606,7 @@ export class TestContextOwner {
         // Reset the reporter context.
         this.reporter = new Reporter();
         try {
-            if (this.env.nodeMode == NodeMode.Main && this.env.network === 'localhost') {
+            if (this.env.nodeMode == NodeMode.Main && this.env.network.toLowerCase() === 'localhost') {
                 // Check that the VM execution hasn't diverged using the VM playground. The component and thus the main node
                 // will crash on divergence, so we just need to make sure that the test doesn't exit before the VM playground
                 // processes all batches on the node.
@@ -624,6 +624,11 @@ export class TestContextOwner {
 
             // Then propagate the exception.
             throw error;
+        }
+        if (this.env.l2NodePid !== undefined) {
+            this.reporter.startAction(`Terminating L2 node process`);
+            await killPidWithAllChilds(this.env.l2NodePid, 9);
+            this.reporter.finishAction();
         }
     }
 
@@ -648,6 +653,10 @@ export class TestContextOwner {
         // We don't really need to withdraw funds back, since test takes existing L2 balance
         // into account. If the same wallet would be reused (e.g. on stage), it'll just have to
         // deposit less next time.
+    }
+
+    setL2NodePid(newPid: number) {
+        this.env.l2NodePid = newPid;
     }
 }
 

@@ -1,5 +1,27 @@
 # Changelog
 
+## [16.5.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.4.0...prover-v16.5.0) (2024-08-28)
+
+
+### Features
+
+* **prover_cli:** Add test for status, l1 and config commands. ([#2263](https://github.com/matter-labs/zksync-era/issues/2263)) ([6a2e3b0](https://github.com/matter-labs/zksync-era/commit/6a2e3b05b7d9c9e8b476fb207631c2285e1bd881))
+* **prover_cli:** Stuck status ([#2441](https://github.com/matter-labs/zksync-era/issues/2441)) ([232a817](https://github.com/matter-labs/zksync-era/commit/232a817a73fa842ca4b3be419bc775c85204901e))
+* **prover:** Add ProverJobMonitor ([#2666](https://github.com/matter-labs/zksync-era/issues/2666)) ([e22cfb6](https://github.com/matter-labs/zksync-era/commit/e22cfb6cffd2c4b2ad1ec3f3f433616fcd738511))
+* **prover:** parallelized memory queues simulation in BWG ([#2652](https://github.com/matter-labs/zksync-era/issues/2652)) ([b4ffcd2](https://github.com/matter-labs/zksync-era/commit/b4ffcd237ee594fc659ccfa96668868f5a87d5e3))
+* Provide easy prover setup ([#2683](https://github.com/matter-labs/zksync-era/issues/2683)) ([30edda4](https://github.com/matter-labs/zksync-era/commit/30edda404193938fbd55815bed164b5321d7c642))
+
+
+### Bug Fixes
+
+* **prover_cli:** Remove congif file check ([#2695](https://github.com/matter-labs/zksync-era/issues/2695)) ([2f456f0](https://github.com/matter-labs/zksync-era/commit/2f456f05937dec62d6a10cec8c948a2915650b92))
+* **prover_cli:** Update prover cli README ([#2700](https://github.com/matter-labs/zksync-era/issues/2700)) ([5a9bbb3](https://github.com/matter-labs/zksync-era/commit/5a9bbb3ccf900cea738290ceed2b1ed78908990c))
+* **prover:** change bucket for RAM permutation witnesses ([#2672](https://github.com/matter-labs/zksync-era/issues/2672)) ([8b4cbf4](https://github.com/matter-labs/zksync-era/commit/8b4cbf43e52203aac829324aa48450575b70c656))
+* **prover:** fail when fri prover job is not found ([#2711](https://github.com/matter-labs/zksync-era/issues/2711)) ([8776875](https://github.com/matter-labs/zksync-era/commit/87768755e8653e4be5f29945b56fd05a5246d5a8))
+* **prover:** Revert use of spawn_blocking in LWG/NWG ([#2682](https://github.com/matter-labs/zksync-era/issues/2682)) ([edfcc7d](https://github.com/matter-labs/zksync-era/commit/edfcc7dbb7fb60f0f42fff4f3d350974128127b4))
+* **prover:** speed up LWG and NWG ([#2661](https://github.com/matter-labs/zksync-era/issues/2661)) ([6243399](https://github.com/matter-labs/zksync-era/commit/6243399a9ebee88a80fbc6c7e794519712f6e955))
+* **vm:** Fix used bytecodes divergence ([#2741](https://github.com/matter-labs/zksync-era/issues/2741)) ([923e33e](https://github.com/matter-labs/zksync-era/commit/923e33e81bba83f72b97ca9590c5cdf2da2a311b))
+
 ## [16.4.0](https://github.com/matter-labs/zksync-era/compare/prover-v16.3.0...prover-v16.4.0) (2024-08-16)
 
 

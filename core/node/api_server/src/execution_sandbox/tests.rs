@@ -1,15 +1,24 @@
 //! Tests for the VM execution sandbox.
 
+use std::collections::HashMap;
+
 use assert_matches::assert_matches;
+use test_casing::test_casing;
 use zksync_dal::ConnectionPool;
+use zksync_multivm::{interface::ExecutionResult, utils::derive_base_fee_and_gas_per_pubdata};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
-use zksync_types::{api::state_override::StateOverride, Transaction};
+use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
+use zksync_state::PostgresStorageCaches;
+use zksync_types::{
+    api::state_override::{OverrideAccount, StateOverride},
+    fee_model::BatchFeeInput,
+    K256PrivateKey, ProtocolVersionId, Transaction, U256,
+};
 
 use super::*;
 use crate::{
-    execution_sandbox::{apply::VmSandbox, storage::StorageWithOverrides},
-    tx_sender::ApiContracts,
+    execution_sandbox::execute::SandboxExecutor, testonly::TestAccount,
+    tx_sender::SandboxExecutorOptions,
 };
 
 #[tokio::test]
@@ -31,8 +40,9 @@ async fn creating_block_args() {
         pending_block_args.block_id,
         api::BlockId::Number(api::BlockNumber::Pending)
     );
-    assert_eq!(pending_block_args.resolved_block_number, L2BlockNumber(2));
-    assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
+    assert_eq!(pending_block_args.resolved_block_number(), L2BlockNumber(2));
+    assert_eq!(pending_block_args.inner.l1_batch_timestamp(), None);
+    assert!(pending_block_args.is_pending());
 
     let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
         .await
@@ -51,9 +61,9 @@ async fn creating_block_args() {
         .await
         .unwrap();
     assert_eq!(latest_block_args.block_id, latest_block);
-    assert_eq!(latest_block_args.resolved_block_number, L2BlockNumber(1));
+    assert_eq!(latest_block_args.resolved_block_number(), L2BlockNumber(1));
     assert_eq!(
-        latest_block_args.l1_batch_timestamp_s,
+        latest_block_args.inner.l1_batch_timestamp(),
         Some(l2_block.timestamp)
     );
 
@@ -62,8 +72,11 @@ async fn creating_block_args() {
         .await
         .unwrap();
     assert_eq!(earliest_block_args.block_id, earliest_block);
-    assert_eq!(earliest_block_args.resolved_block_number, L2BlockNumber(0));
-    assert_eq!(earliest_block_args.l1_batch_timestamp_s, Some(0));
+    assert_eq!(
+        earliest_block_args.resolved_block_number(),
+        L2BlockNumber(0)
+    );
+    assert_eq!(earliest_block_args.inner.l1_batch_timestamp(), Some(0));
 
     let missing_block = api::BlockId::Number(100.into());
     let err = BlockArgs::new(&mut storage, missing_block, &start_info)
@@ -85,10 +98,10 @@ async fn creating_block_args_after_snapshot_recovery() {
         api::BlockId::Number(api::BlockNumber::Pending)
     );
     assert_eq!(
-        pending_block_args.resolved_block_number,
+        pending_block_args.resolved_block_number(),
         snapshot_recovery.l2_block_number + 1
     );
-    assert_eq!(pending_block_args.l1_batch_timestamp_s, None);
+    assert!(pending_block_args.is_pending());
 
     let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
         .await
@@ -144,9 +157,9 @@ async fn creating_block_args_after_snapshot_recovery() {
         .await
         .unwrap();
     assert_eq!(latest_block_args.block_id, latest_block);
-    assert_eq!(latest_block_args.resolved_block_number, l2_block.number);
+    assert_eq!(latest_block_args.resolved_block_number(), l2_block.number);
     assert_eq!(
-        latest_block_args.l1_batch_timestamp_s,
+        latest_block_args.inner.l1_batch_timestamp(),
         Some(l2_block.timestamp)
     );
 
@@ -167,7 +180,7 @@ async fn creating_block_args_after_snapshot_recovery() {
 }
 
 #[tokio::test]
-async fn instantiating_vm() {
+async fn estimating_gas() {
     let pool = ConnectionPool::<Core>::test_pool().await;
     let mut connection = pool.connection().await.unwrap();
     insert_genesis_batch(&mut connection, &GenesisParams::mock())
@@ -188,24 +201,90 @@ async fn instantiating_vm() {
 }
 
 async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args: BlockArgs) {
-    let transaction = Transaction::from(create_l2_transaction(10, 100));
-    let estimate_gas_contracts = ApiContracts::load_from_disk().await.unwrap().estimate_gas;
+    let executor = SandboxExecutor::real(
+        SandboxExecutorOptions::mock().await,
+        PostgresStorageCaches::new(1, 1),
+        usize::MAX,
+    );
 
-    let execution_args = TxExecutionArgs::for_gas_estimate(transaction.clone());
-    let (env, storage) = apply::prepare_env_and_storage(
-        connection,
-        TxSetupArgs::mock(TxExecutionMode::EstimateFee, estimate_gas_contracts),
-        &block_args,
-    )
-    .await
-    .unwrap();
-    let storage = StorageWithOverrides::new(storage, &StateOverride::default());
+    let fee_input = BatchFeeInput::l1_pegged(55, 555);
+    let (base_fee, gas_per_pubdata) =
+        derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
+    let tx = Transaction::from(K256PrivateKey::random().create_transfer(
+        0.into(),
+        base_fee,
+        gas_per_pubdata,
+    ));
 
-    tokio::task::spawn_blocking(move || {
-        VmSandbox::new(storage, env, execution_args).apply(|_, received_tx| {
-            assert_eq!(received_tx, transaction);
-        });
-    })
-    .await
-    .expect("VM execution panicked")
+    let (limiter, _) = VmConcurrencyLimiter::new(1);
+    let vm_permit = limiter.acquire().await.unwrap();
+    let action = SandboxAction::GasEstimation {
+        fee_input,
+        base_fee,
+        tx,
+    };
+    let output = executor
+        .execute_in_sandbox(vm_permit, connection, action, &block_args, None)
+        .await
+        .unwrap();
+
+    assert!(output.are_published_bytecodes_ok);
+    let tx_result = output.vm;
+    assert!(!tx_result.result.is_failed(), "{tx_result:#?}");
+}
+
+#[test_casing(2, [false, true])]
+#[tokio::test]
+async fn validating_transaction(set_balance: bool) {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let mut connection = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut connection, &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let block_args = BlockArgs::pending(&mut connection).await.unwrap();
+
+    let executor = SandboxExecutor::real(
+        SandboxExecutorOptions::mock().await,
+        PostgresStorageCaches::new(1, 1),
+        usize::MAX,
+    );
+
+    let fee_input = BatchFeeInput::l1_pegged(55, 555);
+    let (base_fee, gas_per_pubdata) =
+        derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
+    let tx = K256PrivateKey::random().create_transfer(0.into(), base_fee, gas_per_pubdata);
+
+    let (limiter, _) = VmConcurrencyLimiter::new(1);
+    let vm_permit = limiter.acquire().await.unwrap();
+    let state_override = if set_balance {
+        let account_override = OverrideAccount {
+            balance: Some(U256::from(1) << 128),
+            ..OverrideAccount::default()
+        };
+        StateOverride::new(HashMap::from([(tx.initiator_account(), account_override)]))
+    } else {
+        StateOverride::default()
+    };
+
+    let result = executor
+        .execute_in_sandbox(
+            vm_permit,
+            connection,
+            SandboxAction::Execution { tx, fee_input },
+            &block_args,
+            Some(state_override),
+        )
+        .await
+        .unwrap();
+
+    let result = result.vm.result;
+    if set_balance {
+        assert_matches!(result, ExecutionResult::Success { .. });
+    } else {
+        assert_matches!(
+            result,
+            ExecutionResult::Halt { reason } if reason.to_string().contains("Not enough balance")
+        );
+    }
 }

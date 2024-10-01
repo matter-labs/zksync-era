@@ -7,7 +7,7 @@ use zksync_types::{
     block::L2BlockExecutionData, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
     Address, L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
 };
-use zksync_vm_utils::storage::l1_batch_params;
+use zksync_vm_executor::storage::l1_batch_params;
 
 pub use self::{
     common::IoCursor,
