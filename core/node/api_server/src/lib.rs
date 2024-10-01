@@ -4,5 +4,7 @@
 mod utils;
 pub mod execution_sandbox;
 pub mod healthcheck;
+#[cfg(test)]
+mod testonly;
 pub mod tx_sender;
 pub mod web3;

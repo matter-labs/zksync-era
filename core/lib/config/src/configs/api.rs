@@ -169,6 +169,10 @@ pub struct Web3JsonRpcConfig {
     pub estimate_gas_scale_factor: f64,
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     pub estimate_gas_acceptable_overestimation: u32,
+    /// Enables optimizations for the binary search of the gas limit in `eth_estimateGas`. These optimizations are currently
+    /// considered experimental.
+    #[serde(default)]
+    pub estimate_gas_optimize_search: bool,
     ///  Max possible size of an ABI encoded tx (in bytes).
     pub max_tx_size: usize,
     /// Max number of cache misses during one VM execution. If the number of cache misses exceeds this value, the API server panics.
@@ -237,6 +241,7 @@ impl Web3JsonRpcConfig {
             gas_price_scale_factor: 1.2,
             estimate_gas_scale_factor: 1.2,
             estimate_gas_acceptable_overestimation: 1000,
+            estimate_gas_optimize_search: false,
             max_tx_size: 1000000,
             vm_execution_cache_misses_limit: Default::default(),
             vm_concurrency_limit: Default::default(),
