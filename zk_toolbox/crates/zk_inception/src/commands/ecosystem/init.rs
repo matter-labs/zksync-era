@@ -31,7 +31,7 @@ use super::{
 use crate::{
     accept_ownership::{accept_admin, accept_owner},
     commands::{
-        chain::{self, args::init::PortOffset},
+        chain::{self},
         ecosystem::create_configs::{
             create_erc20_deployment_config, create_initial_deployments_config,
         },
@@ -96,7 +96,6 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     if !final_ecosystem_args.ecosystem_only {
         chains = init_chains(&args, &final_ecosystem_args, shell, &ecosystem_config).await?;
     }
-
     logger::outro(msg_ecosystem_initialized(&chains.join(",")));
 
     Ok(())
@@ -367,7 +366,7 @@ async fn init_chains(
             genesis_args: genesis_args.clone(),
             deploy_paymaster,
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
-            port_offset: PortOffset::from_chain_id(chain_config.id as u16).into(),
+            no_port_reallocation: final_init_args.no_port_reallocation
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 

@@ -1,6 +1,5 @@
 use anyhow::Context;
 use common::{
-    config::global_config,
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     logger,
     spinner::Spinner,
@@ -30,10 +29,9 @@ lazy_static! {
 }
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let contracts_config = chain_config.get_contracts_config()?;
     let l1_url = chain_config

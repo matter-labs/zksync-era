@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
-use common::{config::global_config, git, logger, spinner::Spinner};
+use common::{git, logger, spinner::Spinner};
 use config::{traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig};
 use types::BaseToken;
 use xshell::Shell;
@@ -54,10 +54,9 @@ pub(crate) async fn run(args: ChainInitCommand, shell: &Shell) -> anyhow::Result
 }
 
 async fn run_init(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
     let config = EcosystemConfig::from_file(shell)?;
     let chain_config = config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let args = args.fill_values_with_prompt(&chain_config);
 
@@ -81,7 +80,7 @@ pub async fn init(
     let init_configs_args = InitConfigsArgsFinal::from_chain_init_args(init_args);
     let mut contracts_config =
         init_configs(&init_configs_args, shell, ecosystem_config, chain_config).await?;
-
+        
     // Fund some wallet addresses with ETH or base token (only for Localhost)
     distribute_eth(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
     mint_base_token(ecosystem_config, chain_config, init_args.l1_rpc_url.clone()).await?;
@@ -179,6 +178,6 @@ pub async fn init(
     genesis(init_args.genesis_args.clone(), shell, chain_config)
         .await
         .context(MSG_GENESIS_DATABASE_ERR)?;
-
+    
     Ok(())
 }

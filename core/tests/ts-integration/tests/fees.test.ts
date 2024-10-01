@@ -9,22 +9,26 @@
  * sure that the test is maintained does not get broken.
  *
  */
-import * as utils from 'utils';
-import * as fs from 'fs';
-import { TestMaster } from '../src';
+import fs from 'node:fs/promises';
+import { TestContextOwner, TestMaster } from '../src';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
+import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import { logsTestPath } from 'utils/build/logs';
+import path from 'path';
+import { NodeSpawner, Node, NodeType } from '../src/utils';
+import { deleteInternalEnforcedL1GasPrice, deleteInternalEnforcedPubdataPrice, setTransactionSlots } from './utils';
+import { killPidWithAllChilds } from 'utils/build/kill';
+
+declare global {
+    var __ZKSYNC_TEST_CONTEXT_OWNER__: TestContextOwner;
+}
 
 const UINT32_MAX = 2n ** 32n - 1n;
 const MAX_GAS_PER_PUBDATA = 50_000n;
-
-const logs = fs.createWriteStream('fees.log', { flags: 'a' });
-
-// Unless `RUN_FEE_TEST` is provided, skip the test suit
-const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
 
 // The L1 gas prices under which the test will be conducted.
 // For CI we use only 2 gas prices to not slow it down too much.
@@ -47,22 +51,84 @@ const L1_GAS_PRICES_TO_TEST = process.env.CI
           2_000_000_000_000n // 2000 gwei
       ];
 
-testFees('Test fees', () => {
+// Unless `RUN_FEE_TEST` is provided, skip the test suit
+const testFees = process.env.RUN_FEE_TEST ? describe : describe.skip;
+
+testFees('Test fees', function () {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
 
     let tokenDetails: Token;
     let aliceErc20: zksync.Contract;
 
-    beforeAll(() => {
-        testMaster = TestMaster.getInstance(__filename);
-        alice = testMaster.mainAccount();
+    let mainLogs: fs.FileHandle;
+    let baseTokenAddress: string;
+    let ethClientWeb3Url: string;
+    let apiWeb3JsonRpcHttpUrl: string;
+    let mainNodeSpawner: NodeSpawner;
+    let mainNode: Node<NodeType.MAIN>;
 
+    const fileConfig = shouldLoadConfigFromFile();
+    const pathToHome = path.join(__dirname, '../../../..');
+    const enableConsensus = process.env.ENABLE_CONSENSUS == 'true';
+
+    async function logsPath(chain: string | undefined, name: string): Promise<string> {
+        chain = chain ? chain : 'default';
+        return await logsTestPath(chain, 'logs/server/fees', name);
+    }
+
+    beforeAll(async () => {
+        testMaster = TestMaster.getInstance(__filename);
+        let l2Node = testMaster.environment().l2NodePid;
+        if (l2Node !== undefined) {
+            await killPidWithAllChilds(l2Node, 9);
+        }
+
+        if (!fileConfig.loadFromFile) {
+            ethClientWeb3Url = process.env.ETH_CLIENT_WEB3_URL!;
+            apiWeb3JsonRpcHttpUrl = process.env.API_WEB3_JSON_RPC_HTTP_URL!;
+            baseTokenAddress = process.env.CONTRACTS_BASE_TOKEN_ADDR!;
+        } else {
+            const generalConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                config: 'general.yaml'
+            });
+            const secretsConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                config: 'secrets.yaml'
+            });
+            const contractsConfig = loadConfig({
+                pathToHome,
+                chain: fileConfig.chain,
+                config: 'contracts.yaml'
+            });
+
+            ethClientWeb3Url = secretsConfig.l1.l1_rpc_url;
+            apiWeb3JsonRpcHttpUrl = generalConfig.api.web3_json_rpc.http_url;
+            baseTokenAddress = contractsConfig.l1.base_token_addr;
+        }
+
+        const pathToMainLogs = await logsPath(fileConfig.chain, 'server.log');
+        mainLogs = await fs.open(pathToMainLogs, 'a');
+        console.log(`Writing server logs to ${pathToMainLogs}`);
+
+        mainNodeSpawner = new NodeSpawner(pathToHome, mainLogs, fileConfig, {
+            enableConsensus,
+            ethClientWeb3Url,
+            apiWeb3JsonRpcHttpUrl,
+            baseTokenAddress
+        });
+
+        mainNode = await mainNodeSpawner.spawnMainNode();
+
+        alice = testMaster.mainAccount();
         tokenDetails = testMaster.environment().erc20Token;
         aliceErc20 = new ethers.Contract(tokenDetails.l1Address, zksync.utils.IERC20, alice.ethWallet());
     });
 
-    test('Test fees', async () => {
+    test('Test all fees', async () => {
         const receiver = ethers.Wallet.createRandom().address;
 
         // Getting ETH price in gas.
@@ -110,6 +176,10 @@ testFees('Test fees', () => {
             'ERC20 transfer (to old):\n\n'
         ];
         for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
+            // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
+            await mainNode.killAndWaitForShutdown();
+            mainNode = await mainNodeSpawner.spawnMainNode(gasPrice.toString(), gasPrice.toString());
+
             reports = await appendResults(
                 alice,
                 [feeTestL1Receipt, feeTestL1Receipt, feeTestL1ReceiptERC20, feeTestL1ReceiptERC20],
@@ -163,8 +233,8 @@ testFees('Test fees', () => {
         // that the gasLimit is indeed over u32::MAX, which is the most important tested property.
         const requiredPubdataPrice = minimalL2GasPrice * 100_000n;
 
-        await setInternalL1GasPrice(
-            alice._providerL2(),
+        await mainNode.killAndWaitForShutdown();
+        mainNode = await mainNodeSpawner.spawnMainNode(
             requiredPubdataPrice.toString(),
             requiredPubdataPrice.toString()
         );
@@ -176,6 +246,7 @@ testFees('Test fees', () => {
         const tx = await l1Messenger.sendToL1(largeData, { type: 0 });
         expect(tx.gasLimit > UINT32_MAX).toBeTruthy();
         const receipt = await tx.wait();
+        console.log(`Gas used ${receipt.gasUsed}`);
         expect(receipt.gasUsed > UINT32_MAX).toBeTruthy();
 
         // Let's also check that the same transaction would work as eth_call
@@ -207,10 +278,16 @@ testFees('Test fees', () => {
     });
 
     afterAll(async () => {
-        // Returning the pubdata price to the default one
-        await setInternalL1GasPrice(alice._providerL2(), undefined, undefined, true);
-
         await testMaster.deinitialize();
+        await mainNode.killAndWaitForShutdown();
+        // Returning the pubdata price to the default one
+
+        // Restore defaults
+        setTransactionSlots(pathToHome, fileConfig, 8192);
+        deleteInternalEnforcedL1GasPrice(pathToHome, fileConfig);
+        deleteInternalEnforcedPubdataPrice(pathToHome, fileConfig);
+        mainNode = await mainNodeSpawner.spawnMainNode();
+        __ZKSYNC_TEST_CONTEXT_OWNER__.setL2NodePid(mainNode.proc.pid!);
     });
 });
 
@@ -221,9 +298,6 @@ async function appendResults(
     newL1GasPrice: bigint,
     reports: string[]
 ): Promise<string[]> {
-    // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
-    await setInternalL1GasPrice(sender._providerL2(), newL1GasPrice.toString(), newL1GasPrice.toString());
-
     if (originalL1Receipts.length !== reports.length && originalL1Receipts.length !== transactionRequests.length) {
         throw new Error('The array of receipts and reports have different length');
     }
@@ -273,76 +347,4 @@ async function updateReport(
     console.log(gasReport);
 
     return oldReport + gasReport;
-}
-
-async function killServerAndWaitForShutdown(provider: zksync.Provider) {
-    await utils.exec('pkill zksync_server');
-    // Wait until it's really stopped.
-    let iter = 0;
-    while (iter < 30) {
-        try {
-            await provider.getBlockNumber();
-            await utils.sleep(2);
-            iter += 1;
-        } catch (_) {
-            // When exception happens, we assume that server died.
-            return;
-        }
-    }
-    // It's going to panic anyway, since the server is a singleton entity, so better to exit early.
-    throw new Error("Server didn't stop after a kill request");
-}
-
-async function setInternalL1GasPrice(
-    provider: zksync.Provider,
-    newL1GasPrice?: string,
-    newPubdataPrice?: string,
-    disconnect?: boolean
-) {
-    // Make sure server isn't running.
-    try {
-        await killServerAndWaitForShutdown(provider);
-    } catch (_) {}
-
-    // Run server in background.
-    let command = 'zk server --components api,tree,eth,state_keeper,da_dispatcher,vm_runner_protective_reads';
-    command = `DATABASE_MERKLE_TREE_MODE=full ${command}`;
-
-    if (newPubdataPrice) {
-        command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE=${newPubdataPrice} ${command}`;
-    }
-
-    if (newL1GasPrice) {
-        // We need to ensure that each transaction gets into its own batch for more fair comparison.
-        command = `ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_L1_GAS_PRICE=${newL1GasPrice}  ${command}`;
-    }
-
-    const testMode = newPubdataPrice || newL1GasPrice;
-    if (testMode) {
-        // We need to ensure that each transaction gets into its own batch for more fair comparison.
-        command = `CHAIN_STATE_KEEPER_TRANSACTION_SLOTS=1 ${command}`;
-    }
-
-    const zkSyncServer = utils.background({ command, stdio: [null, logs, logs] });
-
-    if (disconnect) {
-        zkSyncServer.unref();
-    }
-
-    // Server may need some time to recompile if it's a cold run, so wait for it.
-    let iter = 0;
-    let mainContract;
-    while (iter < 30 && !mainContract) {
-        try {
-            mainContract = await provider.getMainContractAddress();
-        } catch (_) {
-            await utils.sleep(2);
-            iter += 1;
-        }
-    }
-    if (!mainContract) {
-        throw new Error('Server did not start');
-    }
-
-    await utils.sleep(10);
 }

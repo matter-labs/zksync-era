@@ -1,7 +1,5 @@
 use anyhow::Context;
-use common::{
-    check_prerequisites, cmd::Cmd, config::global_config, spinner::Spinner, WGET_PREREQUISITE,
-};
+use common::{check_prerequisites, cmd::Cmd, spinner::Spinner, WGET_PREREQUISITE};
 use config::{get_link_to_prover, EcosystemConfig, GeneralConfig};
 use xshell::{cmd, Shell};
 
@@ -14,7 +12,7 @@ use crate::messages::{
 pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let mut general_config = chain_config.get_general_config()?;
 

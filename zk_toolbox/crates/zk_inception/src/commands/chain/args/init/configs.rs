@@ -13,7 +13,7 @@ use crate::{
     defaults::LOCAL_RPC_URL,
     messages::{
         MSG_GENESIS_ARGS_HELP, MSG_L1_RPC_URL_HELP, MSG_L1_RPC_URL_INVALID_ERR,
-        MSG_L1_RPC_URL_PROMPT,
+        MSG_L1_RPC_URL_PROMPT, MSG_NO_PORT_REALLOCATION_HELP
     },
 };
 
@@ -24,12 +24,15 @@ pub struct InitConfigsArgs {
     pub genesis_args: GenesisArgs,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
+    #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP, default_value = "false", default_missing_value = "true", num_args = 0..=1)]
+    pub no_port_reallocation: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct InitConfigsArgsFinal {
     pub genesis_args: GenesisArgsFinal,
     pub l1_rpc_url: String,
+    pub no_port_reallocation: bool,
 }
 
 impl InitConfigsArgs {
@@ -51,6 +54,7 @@ impl InitConfigsArgs {
         InitConfigsArgsFinal {
             genesis_args: self.genesis_args.fill_values_with_prompt(config),
             l1_rpc_url,
+            no_port_reallocation: self.no_port_reallocation,
         }
     }
 }
@@ -60,6 +64,7 @@ impl InitConfigsArgsFinal {
         InitConfigsArgsFinal {
             genesis_args: init_args.genesis_args.clone(),
             l1_rpc_url: init_args.l1_rpc_url.clone(),
+            no_port_reallocation: init_args.no_port_reallocation,
         }
     }
 }
