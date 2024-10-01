@@ -528,8 +528,14 @@ impl FriProverDal<'_, '_> {
                 SELECT
                     protocol_version AS "protocol_version!",
                     protocol_version_patch AS "protocol_version_patch!",
-                    COUNT(*) FILTER (WHERE status = 'queued') as queued,
-                    COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress
+                    COUNT(*) FILTER (
+                        WHERE
+                            status = 'queued'
+                    ) AS queued,
+                    COUNT(*) FILTER (
+                        WHERE
+                            status = 'in_progress'
+                    ) AS in_progress
                 FROM
                     prover_jobs_fri
                 WHERE

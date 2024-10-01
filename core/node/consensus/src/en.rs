@@ -282,7 +282,11 @@ impl EN {
         match ctx.wait(self.client.consensus_global_config()).await? {
             Ok(cfg) => {
                 let cfg = cfg.context("main node is not running consensus component")?;
-                return Ok(zksync_protobuf::serde::deserialize(&cfg.0).context("deserialize()")?);
+                return Ok(zksync_protobuf::serde::Deserialize {
+                    deny_unknown_fields: false,
+                }
+                .proto_fmt(&cfg.0)
+                .context("deserialize()")?);
             }
             // For non-whitelisted methods, proxyd returns HTTP 403 with MethodNotFound in the body.
             // For some stupid reason ClientError doesn't expose HTTP error codes.
@@ -302,7 +306,11 @@ impl EN {
             .context("consensus_genesis()")?
             .context("main node is not running consensus component")?;
         Ok(consensus_dal::GlobalConfig {
-            genesis: zksync_protobuf::serde::deserialize(&genesis.0).context("deserialize()")?,
+            genesis: zksync_protobuf::serde::Deserialize {
+                deny_unknown_fields: false,
+            }
+            .proto_fmt(&genesis.0)
+            .context("deserialize()")?,
             registry_address: None,
             seed_peers: [].into(),
         })
@@ -318,7 +326,11 @@ impl EN {
             .await?
             .context("attestation_status()")?
             .context("main node is not runnign consensus component")?;
-        Ok(zksync_protobuf::serde::deserialize(&status.0).context("deserialize()")?)
+        Ok(zksync_protobuf::serde::Deserialize {
+            deny_unknown_fields: false,
+        }
+        .proto_fmt(&status.0)
+        .context("deserialize()")?)
     }
 
     /// Fetches (with retries) the given block from the main node.

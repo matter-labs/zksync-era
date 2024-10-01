@@ -19,26 +19,27 @@ use crate::{
 };
 
 pub trait VmInterface {
+    /// Lifetime is used to be able to define `Option<&mut _>` as a dispatcher.
     type TracerDispatcher: Default;
 
     /// Push transaction to bootloader memory.
     fn push_transaction(&mut self, tx: Transaction);
 
-    /// Execute next VM step (either next transaction or bootloader or the whole batch)
+    /// Executes the next VM step (either next transaction or bootloader or the whole batch)
     /// with custom tracers.
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher,
+        dispatcher: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs;
 
     /// Start a new L2 block.
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv);
 
-    /// Execute transaction with optional bytecode compression using custom tracers.
+    /// Executes the provided transaction with optional bytecode compression using custom tracers.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs);
@@ -55,7 +56,7 @@ pub trait VmInterface {
 pub trait VmInterfaceExt: VmInterface {
     /// Executes the next VM step (either next transaction or bootloader or the whole batch).
     fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
-        self.inspect(Self::TracerDispatcher::default(), execution_mode)
+        self.inspect(&mut <Self::TracerDispatcher>::default(), execution_mode)
     }
 
     /// Executes a transaction with optional bytecode compression.
@@ -65,7 +66,7 @@ pub trait VmInterfaceExt: VmInterface {
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.inspect_transaction_with_bytecode_compression(
-            Self::TracerDispatcher::default(),
+            &mut <Self::TracerDispatcher>::default(),
             tx,
             with_compression,
         )

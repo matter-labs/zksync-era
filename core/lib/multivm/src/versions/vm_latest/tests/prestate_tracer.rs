@@ -40,7 +40,8 @@ fn test_prestate_tracer() {
     let prestate_tracer_result = Arc::new(OnceCell::default());
     let prestate_tracer = PrestateTracer::new(false, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
-    vm.vm.inspect(tracer_ptr.into(), VmExecutionMode::Batch);
+    vm.vm
+        .inspect(&mut tracer_ptr.into(), VmExecutionMode::Batch);
 
     let prestate_result = Arc::try_unwrap(prestate_tracer_result)
         .unwrap()
@@ -110,7 +111,7 @@ fn test_prestate_tracer_diff_mode() {
     let prestate_tracer = PrestateTracer::new(true, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
     vm.vm
-        .inspect(tracer_ptr.into(), VmExecutionMode::Bootloader);
+        .inspect(&mut tracer_ptr.into(), VmExecutionMode::Bootloader);
 
     let prestate_result = Arc::try_unwrap(prestate_tracer_result)
         .unwrap()

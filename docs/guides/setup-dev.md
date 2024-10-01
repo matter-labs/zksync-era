@@ -49,9 +49,9 @@ cargo install sqlx-cli --version 0.8.1
 curl -L https://foundry.paradigm.xyz | bash
 foundryup --branch master
 
-# Non GPU setup, can be skipped if the machine has a GPU configured for provers
-echo "export RUSTFLAGS='--cfg=no_cuda'" >> ~/.bashrc
-
+# Non CUDA (GPU) setup, can be skipped if the machine has a CUDA installed for provers
+# Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
+echo "export ZKSYNC_USE_CUDA_STUBS=true" >> ~/.bashrc
 # You will need to reload your `*rc` file here
 
 # Clone the repo to the desired location
@@ -243,20 +243,23 @@ commands related to deployment, you can pass flags for Foundry integration.
 
 ## Non-GPU setup
 
-Circuit Prover requires a GPU (& CUDA bindings) to run. If you still want to be able to build everything locally on
-non-GPU setup, you'll need to change your rustflags.
+Circuit Prover requires a CUDA bindings to run. If you still want to be able to build everything locally on non-CUDA
+setup, you'll need use CUDA stubs.
 
 For a single run, it's enough to export it on the shell:
 
 ```
-export RUSTFLAGS='--cfg=no_cuda'
+export ZKSYNC_USE_CUDA_STUBS=true
 ```
 
-For persistent runs, you can either echo it in your ~/.<shell>rc file (discouraged), or configure it for your taste in
-`config.toml`.
+For persistent runs, you can echo it in your ~/.<shell>rc file
 
-For project level configuration, edit `/path/to/zksync/.cargo/config.toml`. For global cargo setup,
-`~/.cargo/config.toml`. Add the following:
+```
+echo "export ZKSYNC_USE_CUDA_STUBS=true" >> ~/.<SHELL>rc
+```
+
+Note that the same can be achieved with RUSTFLAGS (discouraged). The flag is `--cfg=no_cuda`. You can either set
+RUSTFLAGS as env var, or pass it in `config.toml` (either project level or global). The config would need the following:
 
 ```toml
 [build]
