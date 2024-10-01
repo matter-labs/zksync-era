@@ -11,6 +11,7 @@ use zksync_circuit_prover::{
     Backoff, CircuitProver, FinalizationHintsCache, SetupDataCache, WitnessVectorGenerator,
     PROVER_BINARY_METRICS,
 };
+use zksync_circuit_prover_service::witness_vector_generator::WitnessVectorGeneratorJobPicker;
 use zksync_config::{
     configs::{FriProverConfig, ObservabilityConfig},
     ObjectStoreConfig,
@@ -18,7 +19,7 @@ use zksync_config::{
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
+use zksync_prover_fri_types::{get_current_pod_name, PROVER_PROTOCOL_SEMANTIC_VERSION};
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_utils::wait_for_tasks::ManagedTasks;
 
@@ -73,12 +74,20 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Starting {wvg_count} Witness Vector Generators.");
 
     for _ in 0..wvg_count {
-        let wvg = WitnessVectorGenerator::new(
-            object_store.clone(),
+        let witness_vector_generator_job_picker = WitnessVectorGeneratorJobPicker::new(
             connection_pool.clone(),
+            object_store.clone(),
+            get_current_pod_name(),
             PROVER_PROTOCOL_SEMANTIC_VERSION,
-            sender.clone(),
             hints.clone(),
+        );
+        let wvg = WitnessVectorGenerator::new(
+            // object_store.clone(),
+            // connection_pool.clone(),
+            // PROVER_PROTOCOL_SEMANTIC_VERSION,
+            sender.clone(),
+            witness_vector_generator_job_picker,
+            // hints.clone(),
         );
         tasks.push(tokio::spawn(
             wvg.run(cancellation_token.clone(), backoff.clone()),

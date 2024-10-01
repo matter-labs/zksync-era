@@ -3,6 +3,10 @@ use std::{collections::HashMap, sync::Arc, time::Instant};
 use anyhow::Context;
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
+use zksync_circuit_prover_service::{
+    types::witness_vector_generator_payload::WitnessVectorGeneratorPayload,
+    witness_vector_generator::{WitnessVectorGeneratorExecutor, WitnessVectorGeneratorJobPicker},
+};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
@@ -19,6 +23,7 @@ use zksync_prover_fri_types::{
     CircuitAuxData, CircuitWrapper, ProverJob, ProverServiceDataKey, RamPermutationQueueWitness,
     WitnessVectorArtifactsTemp,
 };
+use zksync_prover_job_processor::Executor;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
@@ -28,31 +33,29 @@ use crate::{metrics::WITNESS_VECTOR_GENERATOR_METRICS, Backoff, FinalizationHint
 /// Both job runner & job executor.
 #[derive(Debug)]
 pub struct WitnessVectorGenerator {
-    object_store: Arc<dyn ObjectStore>,
-    connection_pool: ConnectionPool<Prover>,
-    protocol_version: ProtocolSemanticVersion,
-    /// Finalization Hints used for Witness Vector generation
-    finalization_hints_cache: FinalizationHintsCache,
+    // object_store: Arc<dyn ObjectStore>,
+    // connection_pool: ConnectionPool<Prover>,
+    // protocol_version: ProtocolSemanticVersion,
+    job_picker: WitnessVectorGeneratorJobPicker,
     /// Witness Vector sender for Circuit Prover
     sender: Sender<WitnessVectorArtifactsTemp>,
-    pod_name: String,
+    // pod_name: String,
 }
 
 impl WitnessVectorGenerator {
     pub fn new(
-        object_store: Arc<dyn ObjectStore>,
-        connection_pool: ConnectionPool<Prover>,
-        protocol_version: ProtocolSemanticVersion,
+        // object_store: Arc<dyn ObjectStore>,
+        // connection_pool: ConnectionPool<Prover>,
+        // protocol_version: ProtocolSemanticVersion,
         sender: Sender<WitnessVectorArtifactsTemp>,
-        finalization_hints: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
+        job_picker: WitnessVectorGeneratorJobPicker,
     ) -> Self {
         Self {
-            object_store,
-            connection_pool,
-            protocol_version,
-            finalization_hints_cache: finalization_hints,
+            // object_store,
+            // connection_pool,
+            // protocol_version,
             sender,
-            pod_name: get_current_pod_name(),
+            // pod_name: get_current_pod_name(),
         }
     }
 
@@ -65,11 +68,17 @@ impl WitnessVectorGenerator {
     ) -> anyhow::Result<()> {
         let mut get_job_timer = Instant::now();
         while !cancellation_token.is_cancelled() {
-            if let Some(prover_job) = self
-                .get_job()
+            if self
+                .job_picker
+                .pick_job()
                 .await
-                .context("failed to get next witness generation job")?
+                .context("failed to get prover job")?
             {
+                // if let Some(prover_job) = self
+                //     .get_job()
+                //     .await
+                //     .context("failed to get next witness generation job")?
+                // {
                 tracing::info!(
                     "Witness Vector Generator received job {:?} after: {:?}",
                     prover_job.job_id,
@@ -211,9 +220,14 @@ impl WitnessVectorGenerator {
             .clone();
         let job_id = prover_job.job_id;
         let task = tokio::task::spawn_blocking(move || {
-            let block_number = prover_job.block_number;
-            let _span = tracing::info_span!("witness_vector_generator", %block_number).entered();
-            Self::generate_witness_vector(prover_job, finalization_hints)
+            let payload = WitnessVectorGeneratorPayload::new(
+                prover_job.circuit_wrapper.into(),
+                finalization_hints,
+            );
+            WitnessVectorGeneratorExecutor::execute(payload)
+            // let block_number = prover_job.block_number;
+            // let _span = tracing::info_span!("witness_vector_generator", %block_number).entered();
+            // Self::generate_witness_vector(prover_job, finalization_hints)
         });
 
         self.finish_task(job_id, start_time, task, cancellation_token.clone())
@@ -230,37 +244,37 @@ impl WitnessVectorGenerator {
         Ok(())
     }
 
-    /// Generates witness vector using crypto primitives.
-    #[tracing::instrument(
-        skip_all,
-        fields(l1_batch = % prover_job.block_number)
-    )]
-    pub fn generate_witness_vector(
-        prover_job: ProverJob,
-        finalization_hints: Arc<FinalizationHintsForProver>,
-    ) -> anyhow::Result<WitnessVectorArtifactsTemp> {
-        let time = Instant::now();
-        let cs = match prover_job.circuit_wrapper.clone() {
-            CircuitWrapper::Base(base_circuit) => {
-                base_circuit.synthesis::<GoldilocksField>(&finalization_hints)
-            }
-            CircuitWrapper::Recursive(recursive_circuit) => {
-                recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
-            }
-            // circuit must be hydrated during `get_job`
-            CircuitWrapper::BasePartial(_) => {
-                return Err(anyhow::anyhow!("received unexpected dehydrated proof"));
-            }
-        };
-        WITNESS_VECTOR_GENERATOR_METRICS
-            .crypto_primitive_time
-            .observe(time.elapsed());
-        Ok(WitnessVectorArtifactsTemp::new(
-            cs.witness.unwrap(),
-            prover_job,
-            time,
-        ))
-    }
+    // /// Generates witness vector using crypto primitives.
+    // #[tracing::instrument(
+    //     skip_all,
+    //     fields(l1_batch = % prover_job.block_number)
+    // )]
+    // pub fn generate_witness_vector(
+    //     prover_job: ProverJob,
+    //     finalization_hints: Arc<FinalizationHintsForProver>,
+    // ) -> anyhow::Result<WitnessVectorArtifactsTemp> {
+    //     let time = Instant::now();
+    //     let cs = match prover_job.circuit_wrapper.clone() {
+    //         CircuitWrapper::Base(base_circuit) => {
+    //             base_circuit.synthesis::<GoldilocksField>(&finalization_hints)
+    //         }
+    //         CircuitWrapper::Recursive(recursive_circuit) => {
+    //             recursive_circuit.synthesis::<GoldilocksField>(&finalization_hints)
+    //         }
+    //         // circuit must be hydrated during `get_job`
+    //         CircuitWrapper::BasePartial(_) => {
+    //             return Err(anyhow::anyhow!("received unexpected dehydrated proof"));
+    //         }
+    //     };
+    //     WITNESS_VECTOR_GENERATOR_METRICS
+    //         .crypto_primitive_time
+    //         .observe(time.elapsed());
+    //     Ok(WitnessVectorArtifactsTemp::new(
+    //         cs.witness.unwrap(),
+    //         prover_job,
+    //         time,
+    //     ))
+    // }
 
     /// Runs task to completion and persists result.
     /// NOTE: Task may be cancelled mid-flight.

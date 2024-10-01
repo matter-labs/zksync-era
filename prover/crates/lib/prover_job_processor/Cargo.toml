@@ -1,0 +1,14 @@
+[package]
+name = "zksync_prover_job_processor"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+anyhow.workspace = true
