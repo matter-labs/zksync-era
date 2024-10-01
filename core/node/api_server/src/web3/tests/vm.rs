@@ -227,12 +227,12 @@ struct SendRawTransactionTest {
 }
 
 impl SendRawTransactionTest {
-    fn transaction_bytes_and_hash() -> (Vec<u8>, H256) {
+    fn transaction_bytes_and_hash(include_to: bool) -> (Vec<u8>, H256) {
         let private_key = Self::private_key();
         let tx_request = api::TransactionRequest {
             chain_id: Some(L2ChainId::default().as_u64()),
             from: Some(private_key.address()),
-            to: Some(Address::repeat_byte(2)),
+            to: include_to.then(|| Address::repeat_byte(2)),
             value: 123_456.into(),
             gas: (get_intrinsic_constants().l2_tx_intrinsic_gas * 2).into(),
             gas_price: StateKeeperConfig::for_tests().minimal_l2_gas_price.into(),
@@ -283,7 +283,7 @@ impl HttpTest for SendRawTransactionTest {
             L2BlockNumber(1)
         };
         tx_executor.set_tx_responses(move |tx, env| {
-            assert_eq!(tx.hash(), Self::transaction_bytes_and_hash().1);
+            assert_eq!(tx.hash(), Self::transaction_bytes_and_hash(true).1);
             assert_eq!(env.l1_batch.first_l2_block.number, pending_block.0);
             ExecutionResult::Success { output: vec![] }
         });
@@ -304,7 +304,7 @@ impl HttpTest for SendRawTransactionTest {
                 .await?;
         }
 
-        let (tx_bytes, tx_hash) = Self::transaction_bytes_and_hash();
+        let (tx_bytes, tx_hash) = Self::transaction_bytes_and_hash(true);
         let send_result = client.send_raw_transaction(tx_bytes.into()).await?;
         assert_eq!(send_result, tx_hash);
         Ok(())
@@ -325,6 +325,50 @@ async fn send_raw_transaction_after_snapshot_recovery() {
         snapshot_recovery: true,
     })
     .await;
+}
+
+fn assert_null_to_address_error(error: &ClientError) {
+    if let ClientError::Call(error) = error {
+        assert_eq!(error.code(), 3);
+        assert!(error.message().contains("toAddressIsNull"), "{error:?}");
+        assert!(error.data().is_none(), "{error:?}");
+    } else {
+        panic!("Unexpected error: {error:?}");
+    }
+}
+
+#[derive(Debug)]
+struct SendRawTransactionWithoutToAddressTest;
+
+#[async_trait]
+impl HttpTest for SendRawTransactionWithoutToAddressTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut storage = pool.connection().await?;
+        storage
+            .storage_logs_dal()
+            .append_storage_logs(
+                L2BlockNumber(0),
+                &[SendRawTransactionTest::balance_storage_log()],
+            )
+            .await?;
+
+        let (tx_bytes, _) = SendRawTransactionTest::transaction_bytes_and_hash(false);
+        let err = client
+            .send_raw_transaction(tx_bytes.into())
+            .await
+            .unwrap_err();
+        assert_null_to_address_error(&err);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn send_raw_transaction_fails_without_to_address() {
+    test_http_server(SendRawTransactionWithoutToAddressTest).await;
 }
 
 #[derive(Debug)]
@@ -375,7 +419,7 @@ impl SendTransactionWithDetailedOutputTest {
 impl HttpTest for SendTransactionWithDetailedOutputTest {
     fn transaction_executor(&self) -> MockOneshotExecutor {
         let mut tx_executor = MockOneshotExecutor::default();
-        let tx_bytes_and_hash = SendRawTransactionTest::transaction_bytes_and_hash();
+        let tx_bytes_and_hash = SendRawTransactionTest::transaction_bytes_and_hash(true);
         let vm_execution_logs = VmExecutionLogs {
             storage_logs: self.storage_logs(),
             events: self.vm_events(),
@@ -414,7 +458,7 @@ impl HttpTest for SendTransactionWithDetailedOutputTest {
             )
             .await?;
 
-        let (tx_bytes, tx_hash) = SendRawTransactionTest::transaction_bytes_and_hash();
+        let (tx_bytes, tx_hash) = SendRawTransactionTest::transaction_bytes_and_hash(true);
         let send_result = client
             .send_raw_transaction_with_detailed_output(tx_bytes.into())
             .await?;
@@ -790,4 +834,31 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
 async fn estimate_gas_with_state_override() {
     let inner = EstimateGasTest::new(false);
     test_http_server(EstimateGasWithStateOverrideTest { inner }).await;
+}
+
+#[derive(Debug)]
+struct EstimateGasWithoutToAddessTest;
+
+#[async_trait]
+impl HttpTest for EstimateGasWithoutToAddessTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut l2_transaction = create_l2_transaction(10, 100);
+        l2_transaction.execute.contract_address = None;
+        l2_transaction.common_data.signature = vec![]; // Remove invalidated signature so that it doesn't trip estimation logic
+        let err = client
+            .estimate_gas(l2_transaction.clone().into(), None, None)
+            .await
+            .unwrap_err();
+        assert_null_to_address_error(&err);
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn estimate_gas_fails_without_to_address() {
+    test_http_server(EstimateGasWithoutToAddessTest).await;
 }
