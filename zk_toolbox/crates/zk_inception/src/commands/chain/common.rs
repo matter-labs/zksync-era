@@ -111,7 +111,7 @@ pub async fn mint_base_token(
         let amount = AMOUNT_FOR_DISTRIBUTION_TO_WALLETS * base_token.nominator as u128
             / base_token.denominator as u128;
         common::ethereum::mint_token(
-            wallets.operator,
+            wallets.governor,
             base_token.address,
             addresses,
             l1_rpc_url,

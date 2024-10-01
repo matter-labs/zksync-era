@@ -19,7 +19,7 @@ use zksync_config::{
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
-use zksync_core_leftovers::temp_config_store::{decode_yaml_repr, read_yaml_repr};
+use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
 use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
@@ -1158,9 +1158,8 @@ pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets
     let Ok(path) = env::var("EN_CONSENSUS_SECRETS_PATH") else {
         return Ok(None);
     };
-    let cfg = std::fs::read_to_string(&path).context(path)?;
     Ok(Some(
-        decode_yaml_repr::<proto::secrets::ConsensusSecrets>(&cfg)
+        read_yaml_repr::<proto::secrets::ConsensusSecrets>(&path.into())
             .context("failed decoding YAML")?,
     ))
 }
@@ -1169,9 +1168,8 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>>
     let Ok(path) = env::var("EN_CONSENSUS_CONFIG_PATH") else {
         return Ok(None);
     };
-    let cfg = std::fs::read_to_string(&path).context(path)?;
     Ok(Some(
-        decode_yaml_repr::<proto::consensus::Config>(&cfg).context("failed decoding YAML")?,
+        read_yaml_repr::<proto::consensus::Config>(&path.into()).context("failed decoding YAML")?,
     ))
 }
 
@@ -1262,16 +1260,16 @@ impl ExternalNodeConfig<()> {
         secrets_configs_path: PathBuf,
         consensus_config_path: Option<PathBuf>,
     ) -> anyhow::Result<Self> {
-        let general_config = read_yaml_repr::<proto::general::GeneralConfig>(general_config_path)
+        let general_config = read_yaml_repr::<proto::general::GeneralConfig>(&general_config_path)
             .context("failed decoding general YAML config")?;
         let external_node_config =
-            read_yaml_repr::<proto::en::ExternalNode>(external_node_config_path)
+            read_yaml_repr::<proto::en::ExternalNode>(&external_node_config_path)
                 .context("failed decoding external node YAML config")?;
-        let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(secrets_configs_path)
+        let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(&secrets_configs_path)
             .context("failed decoding secrets YAML config")?;
 
         let consensus = consensus_config_path
-            .map(read_yaml_repr::<proto::consensus::Config>)
+            .map(|path| read_yaml_repr::<proto::consensus::Config>(&path))
             .transpose()
             .context("failed decoding consensus YAML config")?;
         let consensus_secrets = secrets_config.consensus.clone();

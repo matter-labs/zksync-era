@@ -32,9 +32,9 @@ git_version_macro = { path = "crates/git_version_macro" }
 zksync_config = { path = "../core/lib/config" }
 zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
-zksync_consensus_roles = "=0.1.1"
-zksync_consensus_crypto = "=0.1.1"
-zksync_protobuf = "=0.1.1"
+zksync_consensus_roles = "=0.3.0"
+zksync_consensus_crypto = "=0.3.0"
+zksync_protobuf = "=0.3.0"
 
 # External dependencies
 anyhow = "1.0.82"
@@ -43,6 +43,7 @@ slugify-rs = "0.0.3"
 cliclack = "0.2.5"
 console = "0.15.8"
 chrono = "0.4.38"
+eyre = "0.6.12"
 ethers = "2.0"
 futures = "0.3.30"
 human-panic = "2.0"

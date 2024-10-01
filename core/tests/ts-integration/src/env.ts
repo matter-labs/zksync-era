@@ -6,7 +6,17 @@ import { DataAvailabityMode, NodeMode, TestEnvironment } from './types';
 import { Reporter } from './reporter';
 import * as yaml from 'yaml';
 import { L2_BASE_TOKEN_ADDRESS } from 'zksync-ethers/build/utils';
-import { loadConfig, loadEcosystem, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import { FileConfig, loadConfig, loadEcosystem, shouldLoadConfigFromFile } from 'utils/build/file-configs';
+import { NodeSpawner } from './utils';
+import { logsTestPath } from 'utils/build/logs';
+import * as nodefs from 'node:fs/promises';
+import { exec } from 'utils';
+
+const enableConsensus = process.env.ENABLE_CONSENSUS === 'true';
+
+async function logsPath(chain: string, name: string): Promise<string> {
+    return await logsTestPath(chain, 'logs/server/', name);
+}
 
 /**
  * Attempts to connect to server.
@@ -60,8 +70,10 @@ function getMainWalletPk(pathToHome: string): string {
 /*
     Loads the environment for file based configs.
  */
-async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironment> {
+async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<TestEnvironment> {
+    let chain = fileConfig.chain!;
     const pathToHome = path.join(__dirname, '../../../..');
+    let spawnNode = process.env.SPAWN_NODE;
     let nodeMode;
     if (process.env.EXTERNAL_NODE == 'true') {
         nodeMode = NodeMode.External;
@@ -75,18 +87,42 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
     let configsFolderSuffix = nodeMode == NodeMode.External ? 'external_node' : undefined;
     let generalConfig = loadConfig({ pathToHome, chain, config: 'general.yaml', configsFolderSuffix });
     let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml', configsFolderSuffix });
+    let contracts = loadConfig({ pathToHome, chain, config: 'contracts.yaml', configsFolderSuffix });
 
     const network = ecosystem.l1_network.toLowerCase();
     let mainWalletPK = getMainWalletPk(pathToHome);
 
     const l2NodeUrl = generalConfig.api.web3_json_rpc.http_url;
 
-    await waitForServer(l2NodeUrl);
+    const l1NodeUrl = secretsConfig.l1.l1_rpc_url;
+
+    const pathToMainLogs = await logsPath(fileConfig.chain!, 'server.log');
+    let mainLogs = await nodefs.open(pathToMainLogs, 'a');
+    let l2Node;
+    if (spawnNode) {
+        // Before starting any actual logic, we need to ensure that the server is running (it may not
+        // be the case, for example, right after deployment on stage).
+        const autoKill: boolean = process.env.NO_KILL !== 'true';
+        if (autoKill) {
+            try {
+                await exec(`killall -KILL zksync_server`);
+            } catch (err) {
+                console.log(`ignored error: ${err}`);
+            }
+        }
+        let mainNodeSpawner = new NodeSpawner(pathToHome, mainLogs, fileConfig, {
+            enableConsensus,
+            ethClientWeb3Url: l1NodeUrl,
+            apiWeb3JsonRpcHttpUrl: l2NodeUrl,
+            baseTokenAddress: contracts.l1.base_token_addr
+        });
+
+        l2Node = await mainNodeSpawner.spawnMainNode();
+    }
 
     const l2Provider = new zksync.Provider(l2NodeUrl);
     const baseTokenAddress = await l2Provider.getBaseTokenContractAddress();
 
-    const l1NodeUrl = secretsConfig.l1.l1_rpc_url;
     const wsL2NodeUrl = generalConfig.api.web3_json_rpc.ws_url;
 
     const contractVerificationUrl = generalConfig.contract_verifier.url;
@@ -141,6 +177,7 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
         network,
         mainWalletPK,
         l2NodeUrl,
+        l2NodePid: l2Node ? l2Node.proc.pid : undefined,
         l1NodeUrl,
         wsL2NodeUrl,
         contractVerificationUrl,
@@ -163,10 +200,10 @@ async function loadTestEnvironmentFromFile(chain: string): Promise<TestEnvironme
 }
 
 export async function loadTestEnvironment(): Promise<TestEnvironment> {
-    const { loadFromFile, chain } = shouldLoadConfigFromFile();
+    const fileConfig = shouldLoadConfigFromFile();
 
-    if (loadFromFile) {
-        return await loadTestEnvironmentFromFile(chain);
+    if (fileConfig.loadFromFile) {
+        return await loadTestEnvironmentFromFile(fileConfig);
     }
     return await loadTestEnvironmentFromEnv();
 }
@@ -257,6 +294,7 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
         network,
         mainWalletPK,
         l2NodeUrl,
+        l2NodePid: undefined,
         l1NodeUrl,
         wsL2NodeUrl,
         healthcheckPort,
