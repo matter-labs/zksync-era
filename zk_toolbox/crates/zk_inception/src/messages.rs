@@ -52,7 +52,7 @@ pub(super) fn msg_path_to_zksync_does_not_exist_err(path: &str) -> String {
 
 /// Ecosystem and chain init related messages
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
-pub(super) const MSG_PORT_OFFSET_HELP: &str = "Add a costant offset to the ports exposed by the components. Useful when running multiple chains on the same machine";
+pub(super) const MSG_NO_PORT_REALLOCATION_HELP: &str = "Do not reallocate ports";
 pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
 pub(super) const MSG_DEV_ARG_HELP: &str =
     "Deploy ecosystem  using all defaults. Suitable for local development";
@@ -329,8 +329,6 @@ pub(super) const MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED: &str =
 pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is missing";
 pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
 pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
-
-pub(super) const MSG_PORTS_CONFIG_ERR: &str = "Failed to get ports config";
 
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 

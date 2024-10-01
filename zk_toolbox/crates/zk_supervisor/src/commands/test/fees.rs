@@ -21,7 +21,7 @@ pub async fn run(shell: &Shell, args: FeesArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     shell.change_dir(ecosystem_config.link_to_code.join(TS_INTEGRATION_PATH));
     let chain_config = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
+        .load_current_chain()
         .expect(MSG_CHAIN_NOT_FOUND_ERR);
 
     if !args.no_deps {
