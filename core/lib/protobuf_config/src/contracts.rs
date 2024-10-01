@@ -77,7 +77,7 @@ impl ProtoRepr for proto::Contracts {
                 .transpose()
                 .context("l2_shared_bridge_addr")?,
             l2_legacy_shared_bridge_addr: l2
-                .legacy_shared_bridge
+                .legacy_shared_bridge_addr
                 .as_ref()
                 .map(|x| parse_h160(x))
                 .transpose()
@@ -167,7 +167,7 @@ impl ProtoRepr for proto::Contracts {
             l2: Some(proto::L2 {
                 testnet_paymaster_addr: this.l2_testnet_paymaster_addr.map(|a| format!("{:?}", a)),
                 da_validator_addr: this.l2_da_validator_addr.map(|a| format!("{:?}", a)),
-                legacy_shared_bridge: this
+                legacy_shared_bridge_addr: this
                     .l2_legacy_shared_bridge_addr
                     .map(|a| format!("{:?}", a)),
             }),
