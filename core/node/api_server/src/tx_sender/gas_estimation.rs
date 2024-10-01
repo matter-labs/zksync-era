@@ -82,7 +82,7 @@ impl TxSender {
             }
         };
 
-        let unscaled_gas_limit =
+        let (unscaled_gas_limit, iteration_count) =
             Self::binary_search(&estimator, bounds, initial_pivot, acceptable_overestimation)
                 .await?;
         // Metrics are intentionally reported regardless of the binary search mode, so that the collected stats can be used to adjust
@@ -103,6 +103,14 @@ impl TxSender {
                 .estimate_gas_optimistic_gas_limit_relative_diff
                 .observe(diff);
         }
+        tracing::debug!(
+            optimized_lower_bound,
+            optimistic_gas_limit,
+            unscaled_gas_limit,
+            binary_search = ?kind,
+            iteration_count,
+            "Finished estimating gas limit for transaction"
+        );
 
         let suggested_gas_limit = (unscaled_gas_limit as f64 * estimated_fee_scale_factor) as u64;
         estimator
@@ -115,7 +123,7 @@ impl TxSender {
         bounds: ops::RangeInclusive<u64>,
         initial_pivot: Option<u64>,
         acceptable_overestimation: u64,
-    ) -> Result<u64, SubmitTxError> {
+    ) -> Result<(u64, usize), SubmitTxError> {
         let mut number_of_iterations = 0;
         let mut lower_bound = *bounds.start();
         let mut upper_bound = *bounds.end();
@@ -157,7 +165,7 @@ impl TxSender {
         SANDBOX_METRICS
             .estimate_gas_binary_search_iterations
             .observe(number_of_iterations);
-        Ok(upper_bound)
+        Ok((upper_bound, number_of_iterations))
     }
 
     async fn ensure_sufficient_balance(
