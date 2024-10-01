@@ -7,14 +7,15 @@ use xshell::{cmd, Shell};
 
 use super::{
     args::integration::IntegrationArgs,
-    utils::{build_contracts, install_and_build_dependencies, TestWallets, TEST_WALLETS_PATH},
+    utils::{
+        build_contracts, install_and_build_dependencies, TestWallets, TEST_WALLETS_PATH,
+        TS_INTEGRATION_PATH,
+    },
 };
 use crate::messages::{
     msg_integration_tests_run, MSG_CHAIN_NOT_FOUND_ERR, MSG_DESERIALIZE_TEST_WALLETS_ERR,
     MSG_INTEGRATION_TESTS_RUN_SUCCESS,
 };
-
-const TS_INTEGRATION_PATH: &str = "core/tests/ts-integration";
 
 pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
