@@ -80,6 +80,7 @@ pub struct SetAttesterCommitteeCommand {
     from_genesis: bool,
     /// Sets the attester committee in the consensus registry contract to
     /// the committee in the yaml file.
+    /// File format is definied in `commands/consensus/proto/mod.proto`.
     #[clap(long)]
     from_file: Option<PathBuf>,
 }
