@@ -23,8 +23,17 @@ pub(crate) enum BinarySearchKind {
     /// Full binary search.
     Full,
     /// Binary search with an optimized initial pivot.
-    #[allow(dead_code)] // FIXME
     Optimized,
+}
+
+impl BinarySearchKind {
+    pub(crate) fn new(optimize: bool) -> Self {
+        if optimize {
+            Self::Optimized
+        } else {
+            Self::Full
+        }
+    }
 }
 
 impl TxSender {

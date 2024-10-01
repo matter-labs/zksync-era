@@ -40,6 +40,8 @@ message Web3JsonRpc {
   repeated MaxResponseSizeOverride max_response_body_size_overrides = 31;
   repeated string api_namespaces = 32; // Optional, if empty all namespaces are available
   optional bool extended_api_tracing = 33; // optional, default false
+  optional bool estimate_gas_optimize_search = 34; // optional, default false
+
   reserved 15; reserved "l1_to_l2_transactions_compatibility_mode";
   reserved 11; reserved "request_timeout";
   reserved 12; reserved "account_pks";
