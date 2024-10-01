@@ -90,8 +90,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let genesis_config = chain_config.get_genesis_config()?;
 
-    // Firstly, deploying gateway contracts
-
     let preparation_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
     let preparation_config = GatewayPreparationConfig::new(
         &gateway_chain_config,
@@ -133,7 +131,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?;
 
-    println!("Migrating the chain...");
+    println!("Migrating the chain to the Gateway...");
 
     let hash = call_script(
         shell,

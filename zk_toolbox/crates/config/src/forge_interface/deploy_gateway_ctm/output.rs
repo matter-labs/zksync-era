@@ -1,6 +1,5 @@
 use ethers::abi::Address;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::web3::Bytes;
 
 use crate::traits::ZkToolboxConfig;
 
@@ -10,7 +9,7 @@ pub struct DeployGatewayCTMOutput {
     pub multicall3_addr: Address,
     pub validium_da_validator: Address,
     pub relayed_sl_da_validator: Address,
-    pub diamond_cut_data: Bytes,
+    pub diamond_cut_data: String,
 }
 
 impl ZkToolboxConfig for DeployGatewayCTMOutput {}
