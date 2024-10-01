@@ -108,6 +108,8 @@ async fn main() -> anyhow::Result<()> {
         }
         ProverJob::Scaler => {
             let scaler_config = general_config.scaler_config.context("scaler_config")?;
+            let exporter_config = PrometheusExporterConfig::pull(scaler_config.prometheus_port);
+            tasks.push(tokio::spawn(exporter_config.run(stop_receiver.clone())));
             let watcher = global::watcher::Watcher::new(scaler_config.agents);
             let queuer = global::queuer::Queuer::new(scaler_config.prover_job_monitor_url);
             let scaler = global::scaler::Scaler::new(watcher.clone(), queuer);
