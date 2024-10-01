@@ -57,18 +57,16 @@ check-tools: check-nodejs check-yarn check-rust check-sqlx-cli check-docker chec
 # Check that contracts are checkout properly
 check-contracts:
 	@if [ ! -d contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests ] || [ -z "$$(ls -A contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests)" ]; then \
-		echo "l1-contracts submodule is missing. Please download repo with `git clone --recurse-submodules https://github.com/matter-labs/zksync-era.git`"; \
+		echo "l1-contracts git submodule is missing. Please re-download repo with `git clone --recurse-submodules https://github.com/matter-labs/zksync-era.git`"; \
 		exit 1; \
 	fi
 
 # Build and download needed contracts
-# TODO: Remove hack with mkdir after https://github.com/matter-labs/zksync-era/pull/2989 merge
 prepare-contracts: check-tools check-contracts
 	@export ZKSYNC_HOME=$$(pwd) && \
 	export PATH=$$PATH:$${ZKSYNC_HOME}/bin && \
 	zkt || true && \
-	zk_supervisor contracts && \
-	mkdir -p contracts/l1-contracts/artifacts/
+	zk_supervisor contracts
 
 # Download setup-key
 prepare-keys:
