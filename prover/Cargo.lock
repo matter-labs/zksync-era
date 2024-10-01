@@ -45,8 +45,8 @@ version = "0.8.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e89da841a80418a9b391ebaea17f5c112ffaaa96f621d2c285b5174da76b9011"
 dependencies = [
- "getrandom",
  "cfg-if",
+ "getrandom",
  "once_cell",
  "version_check",
  "zerocopy",
@@ -2884,7 +2884,7 @@ version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a5bbe824c507c5da5956355e86a746d82e0e1464f65d862cc5e71da70e94b2c"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if",
 ]
 
 [[package]]
@@ -7849,12 +7849,14 @@ dependencies = [
  "rand 0.8.5",
  "secrecy",
  "serde",
+ "time",
  "tracing",
  "url",
  "zksync_basic_types",
  "zksync_concurrency",
  "zksync_consensus_utils",
  "zksync_crypto_primitives",
+ "zksync_protobuf",
  "zksync_vlog",
 ]
 
@@ -8280,6 +8282,7 @@ dependencies = [
  "secrecy",
  "serde_json",
  "serde_yaml",
+ "time",
  "tracing",
  "zksync_basic_types",
  "zksync_config",
@@ -8311,6 +8314,7 @@ dependencies = [
  "serde_json",
  "structopt",
  "strum",
+ "time",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -8318,6 +8322,7 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_core_leftovers",
+ "zksync_protobuf_config",
  "zksync_prover_job_monitor",
  "zksync_types",
  "zksync_utils",

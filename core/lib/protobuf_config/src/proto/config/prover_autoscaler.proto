@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package zksync.config.prover_autoscaler;
+
+//import "/usr/include/google/protobuf/duration.proto";
+import "zksync/std.proto";
+
+message GeneralConfig {
+  optional std.Duration graceful_shutdown_timeout = 1; // optional
+  optional ProverAutoscalerAgentConfig agent_config = 2; // optional
+  optional ProverAutoscalerScalerConfig scaler_config = 3; // optional
+}
+
+message ProverAutoscalerAgentConfig {
+  optional uint32 prometheus_port = 1; // required
+  optional uint32 http_port = 2; // required
+  repeated string namespaces = 3; // optional
+  // optional string cluster_name = 4; // optional
+}
+
+message ProverAutoscalerScalerConfig {
+  optional uint32 prometheus_port = 1; // required
+  optional std.Duration scaler_run_interval = 2; // optional
+  optional string prover_job_monitor_url = 3; // required
+  repeated string agents = 4; // required at least one
+}

@@ -269,6 +269,7 @@ impl Task for Scaler {
                     AUTOSCALER_METRICS.provers[&(k.cluster.clone(), ns.clone(), k.gpu)]
                         .set(*num as u64);
                 }
+                dbg!(provers);
                 // TODO: compare before and desired, send commands [cluster,namespace,deployment] -> provers
             }
         }
@@ -296,7 +297,9 @@ mod tests {
                 ..Default::default()
             })),
         };
-        let queuer = queuer::Queuer {};
+        let queuer = queuer::Queuer {
+            prover_job_monitor_url: "".to_string(),
+        };
         let scaler = Scaler::new(watcher, queuer);
         let got = scaler.run(
             &"prover".to_string(),

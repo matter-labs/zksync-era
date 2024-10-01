@@ -9342,12 +9342,14 @@ dependencies = [
  "secrecy",
  "serde",
  "serde_json",
+ "time",
  "tracing",
  "url",
  "zksync_basic_types",
  "zksync_concurrency",
  "zksync_consensus_utils",
  "zksync_crypto_primitives",
+ "zksync_protobuf",
  "zksync_vlog",
 ]
 
@@ -10575,6 +10577,7 @@ dependencies = [
  "secrecy",
  "serde_json",
  "serde_yaml",
+ "time",
  "tracing",
  "zksync_basic_types",
  "zksync_config",

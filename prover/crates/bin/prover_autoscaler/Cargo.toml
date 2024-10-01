@@ -16,6 +16,7 @@ zksync_utils.workspace = true
 zksync_types.workspace = true
 zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_prover_job_monitor.workspace = true
+zksync_protobuf_config.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
@@ -41,3 +42,4 @@ url = "2.5.2"
 regex.workspace = true
 strum.workspace = true
 debug-map-sorted = "0.1.1"
+time = "0.3.36"

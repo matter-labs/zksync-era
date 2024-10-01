@@ -1,14 +1,16 @@
 use std::time::Duration;
 
-use anyhow::Context as _;
+use anyhow::Context;
 use structopt::StructOpt;
 use tokio::{
     sync::{oneshot, watch},
     task::JoinHandle,
 };
+use zksync_core_leftovers::temp_config_store::read_yaml_repr;
+use zksync_protobuf_config::proto::prover_autoscaler;
 use zksync_prover_autoscaler::{
     agent,
-    global::{self, queuer},
+    global::{self},
     k8s::{Scaler, Watcher},
     task_wiring::TaskRunner,
 };
@@ -47,7 +49,7 @@ struct Opt {
     cluster_name: Option<String>,
     /// Path to the configuration file.
     #[structopt(long)]
-    config_path: Option<std::path::PathBuf>,
+    config_path: std::path::PathBuf,
 }
 
 #[tokio::main]
@@ -57,9 +59,14 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let opt = Opt::from_args();
-    // let general_config = load_general_config(opt.config_path).context("general config")?;
-
-    let exporter_config = PrometheusExporterConfig::pull(8080);
+    let general_config = read_yaml_repr::<prover_autoscaler::GeneralConfig>(opt.config_path)
+        .context("general config")?;
+    // That's unfortunate that there are at least 3 different Duration in rust and we use all 3 in this repo.
+    // TODO: Consider updating zksync_protobuf to support std::time::Duration.
+    let graceful_shutdown_timeout = Duration::new(
+        general_config.graceful_shutdown_timeout.whole_seconds() as u64,
+        general_config.graceful_shutdown_timeout.whole_nanoseconds() as u32,
+    );
 
     let (stop_signal_sender, stop_signal_receiver) = oneshot::channel();
     let mut stop_signal_sender = Some(stop_signal_sender);
@@ -77,35 +84,41 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("Starting ProverAutoscaler");
 
-    // TODO get from config
-    let graceful_shutdown_timeout = Duration::from_millis(20);
-
-    let mut tasks = vec![tokio::spawn(exporter_config.run(stop_receiver.clone()))];
+    let mut tasks = vec![];
 
     match opt.job {
         ProverJob::Agent => {
+            let agent_config = general_config.agent_config.context("agent_config")?;
+            let exporter_config = PrometheusExporterConfig::pull(agent_config.prometheus_port);
+            tasks.push(tokio::spawn(exporter_config.run(stop_receiver.clone())));
+
             // TODO: maybe get cluster name from curl -H "Metadata-Flavor: Google"
             // http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name
             let watcher = Watcher::new(
                 client.clone(),
                 opt.cluster_name
                     .context("cluster_name is required for Agent")?,
-                vec!["prover-blue".to_string(), "prover-red".to_string()],
+                agent_config.namespaces,
             );
             let scaler = Scaler { client };
             tasks.push(tokio::spawn(watcher.clone().run()));
             tasks.push(tokio::spawn(agent::run_server(
-                8081,
+                agent_config.http_port,
                 watcher,
                 scaler,
                 stop_receiver.clone(),
             )))
         }
         ProverJob::Scaler => {
-            let watcher = global::watcher::Watcher::new(vec!["http://localhost:8081".to_string()]);
-            let queuer = global::queuer::Queuer {};
+            let scaler_config = general_config.scaler_config.context("scaler_config")?;
+            let watcher = global::watcher::Watcher::new(scaler_config.agents);
+            let queuer = global::queuer::Queuer::new(scaler_config.prover_job_monitor_url);
             let scaler = global::scaler::Scaler::new(watcher.clone(), queuer);
-            tasks.extend(get_tasks(watcher, scaler, stop_receiver)?);
+            let interval = Duration::new(
+                scaler_config.scaler_run_interval.whole_seconds() as u64,
+                scaler_config.scaler_run_interval.whole_nanoseconds() as u32,
+            );
+            tasks.extend(get_tasks(watcher, scaler, interval, stop_receiver)?);
         }
     }
 
@@ -126,12 +139,13 @@ async fn main() -> anyhow::Result<()> {
 fn get_tasks(
     watcher: global::watcher::Watcher,
     scaler: global::scaler::Scaler,
+    interval: Duration,
     stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<Vec<JoinHandle<anyhow::Result<()>>>> {
     let mut task_runner = TaskRunner::new();
 
-    task_runner.add("Watcher", Duration::from_secs(10), watcher);
-    task_runner.add("Scaler", Duration::from_secs(10), scaler);
+    task_runner.add("Watcher", interval, watcher);
+    task_runner.add("Scaler", interval, scaler);
 
     Ok(task_runner.spawn(stop_receiver))
 }
