@@ -1,6 +1,5 @@
 use anyhow::Context;
 use common::{
-    config::global_config,
     logger,
     server::{Server, ServerMode},
     spinner::Spinner,
@@ -17,10 +16,9 @@ use crate::messages::{
 };
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);

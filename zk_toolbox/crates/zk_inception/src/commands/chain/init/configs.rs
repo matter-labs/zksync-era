@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{config::global_config, logger};
+use common::logger;
 use config::{
     copy_configs, set_l1_rpc_url, update_from_chain_config,
     ChainConfig, ContractsConfig, EcosystemConfig,
@@ -29,10 +29,9 @@ use crate::{
 };
 
 pub async fn run(args: InitConfigsArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let args = args.fill_values_with_prompt(&chain_config);
 

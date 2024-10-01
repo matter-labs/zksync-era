@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{config::global_config, forge::ForgeScriptArgs, logger, spinner::Spinner};
+use common::{forge::ForgeScriptArgs, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::Shell;
 
@@ -12,10 +12,9 @@ use crate::{
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let contracts = chain_config.get_contracts_config()?;
     let secrets = chain_config.get_secrets_config()?;

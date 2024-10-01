@@ -136,7 +136,7 @@ pub async fn init(
         spinner.finish();
     }
 
-    // Deploy L2 contracts: L2 Shared Bridge, L2 Default Upgrader, etc. (run by L2 Governor)
+    // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
     deploy_l2_contracts::deploy_l2_contracts(
         shell,
         chain_config,

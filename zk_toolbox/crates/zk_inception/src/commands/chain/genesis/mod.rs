@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::{command, Parser, Subcommand};
-use common::{config::global_config, logger, spinner::Spinner};
+use common::{logger, spinner::Spinner};
 use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
 
@@ -46,10 +46,9 @@ pub(crate) async fn run(args: GenesisCommand, shell: &Shell) -> anyhow::Result<(
 }
 
 pub async fn run_genesis(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let args = args.fill_values_with_prompt(&chain_config);
 
