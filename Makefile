@@ -2,7 +2,7 @@ DOCKER_BUILD_CMD=docker build
 PROTOCOL_VERSION=2.0
 DOCKERFILES=docker
 CONTEXT=.
-# Additional packages versions
+# Additional package versions
 DOCKER_VERSION_MIN=27.1.2
 NODE_VERSION_MIN=20.17.0
 YARN_VERSION_MIN=1.22.19
@@ -99,11 +99,11 @@ build-all: build-contract-verifier build-server-v2 build-witness-generator build
 
 # Clean generated images
 clean: cleanup
-	@ git submodule update --recursive
-	docker rmi contract-verifier:$$(PROTOCOL_VERSION)
-	docker rmi server-v2:$$(PROTOCOL_VERSION)-$$(PROTOCOL_VERSION)
-	docker rmi prover:$$(PROTOCOL_VERSION)
-	docker rmi witness-generator:$$(PROTOCOL_VERSION)
+	@git submodule update --recursive
+	docker rmi contract-verifier:$(PROTOCOL_VERSION) >/dev/null 2>&1
+	docker rmi server-v2:$(PROTOCOL_VERSION) >/dev/null 2>&1
+	docker rmi prover:$(PROTOCOL_VERSION) >/dev/null 2>&1
+	docker rmi witness-generator:$(PROTOCOL_VERSION) >/dev/null 2>&1
 
 # Clean after build-all
 cleanup:
