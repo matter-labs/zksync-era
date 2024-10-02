@@ -33,6 +33,7 @@ use crate::{
         oracles::storage::StorageOracle,
         types::l1_batch::bootloader_initial_memory,
         utils::l2_blocks::{assert_next_block, load_last_l2_block},
+        MultiVMSubversion,
     },
 };
 
@@ -64,6 +65,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     storage: StoragePtr<S>,
     system_env: &SystemEnv,
     l1_batch_env: &L1BatchEnv,
+    subversion: MultiVMSubversion,
 ) -> (ZkSyncVmState<S, H>, BootloaderState) {
     let last_l2_block = if let Some(last_l2_block) = load_last_l2_block(&storage) {
         last_l2_block
@@ -182,6 +184,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         bootloader_initial_memory,
         first_l2_block,
         system_env.pubdata_params,
+        subversion,
     );
 
     (vm, bootloader_state)
