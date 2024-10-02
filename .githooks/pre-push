@@ -7,10 +7,10 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Check that prettier formatting rules are not violated.
-if which zk_supervisor >/dev/null; then
-  if ! zk_supervisor fmt --check; then
+if which zk_inception >/dev/null; then
+  if ! zk_inception dev fmt --check; then
       echo -e "${RED}Push error!${NC}"
-      echo "Please format the code via 'zks fmt', cannot push unformatted code"
+      echo "Please format the code via 'zki dev fmt', cannot push unformatted code"
       exit 1
   fi
 else
