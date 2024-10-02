@@ -361,6 +361,8 @@ where
                 .with_arg("chunk_end", &chunk_end));
         }
 
+        // We take `chunk_size` entries for consistency with `l2_base_fee_history` which doesn't
+        // have correct data for block with number `upto_block + 1`.
         for (base, blob) in fee_history
             .base_fee_per_gas
             .into_iter()
@@ -467,6 +469,7 @@ where
                 .with_arg("chunk_end", &chunk_end));
         }
 
+        // We take `chunk_size` entries because base fee for block `upto_block + 1` may change.
         for (base, l2_pubdata_price) in fee_history
             .inner
             .base_fee_per_gas
