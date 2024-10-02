@@ -92,6 +92,8 @@ pub struct GenesisSpec {
     pub leader: ValidatorPublicKey,
     /// Address of the registry contract.
     pub registry_address: Option<ethabi::Address>,
+    /// Recommended list of peers to connect to.
+    pub seed_peers: BTreeMap<NodePublicKey, Host>,
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -146,6 +148,9 @@ pub struct ConsensusConfig {
 
     /// Rate limiting configuration for the p2p RPCs.
     pub rpc: Option<RpcConfig>,
+
+    /// Local socket address to expose the node debug page.
+    pub debug_page_addr: Option<std::net::SocketAddr>,
 }
 
 impl ConsensusConfig {

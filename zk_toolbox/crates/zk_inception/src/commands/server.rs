@@ -1,6 +1,5 @@
 use anyhow::Context;
 use common::{
-    config::global_config,
     logger,
     server::{Server, ServerMode},
 };
@@ -18,9 +17,8 @@ use crate::{
 pub fn run(shell: &Shell, args: RunServerArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let chain = global_config().chain_name.clone();
     let chain_config = ecosystem_config
-        .load_chain(chain)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     logger::info(MSG_STARTING_SERVER);

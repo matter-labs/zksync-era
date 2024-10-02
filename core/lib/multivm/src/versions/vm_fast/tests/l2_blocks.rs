@@ -18,10 +18,8 @@ use crate::{
         storage::ReadStorage, ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode,
         VmInterface, VmInterfaceExt,
     },
-    vm_fast::{
-        tests::tester::{default_l1_batch, VmTesterBuilder},
-        vm::Vm,
-    },
+    versions::testonly::default_l1_batch,
+    vm_fast::{tests::tester::VmTesterBuilder, vm::Vm},
     vm_latest::{
         constants::{TX_OPERATOR_L2_BLOCK_INFO_OFFSET, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO},
         utils::l2_blocks::get_l2_block_hash_key,
@@ -37,7 +35,7 @@ fn get_l1_noop() -> Transaction {
             ..Default::default()
         }),
         execute: Execute {
-            contract_address: H160::zero(),
+            contract_address: Some(H160::zero()),
             calldata: vec![],
             value: U256::zero(),
             factory_deps: vec![],

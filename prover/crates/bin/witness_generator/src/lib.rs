@@ -2,13 +2,9 @@
 #![feature(generic_const_exprs)]
 
 pub mod artifacts;
-pub mod basic_circuits;
-pub mod leaf_aggregation;
 pub mod metrics;
-pub mod node_aggregation;
 pub mod precalculated_merkle_paths_provider;
-pub mod recursion_tip;
-pub mod scheduler;
+pub mod rounds;
 mod storage_oracle;
 #[cfg(test)]
 mod tests;

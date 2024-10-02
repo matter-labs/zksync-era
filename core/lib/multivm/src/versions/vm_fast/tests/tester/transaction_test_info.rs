@@ -1,4 +1,5 @@
 use zksync_types::{ExecuteTransactionCommon, Nonce, Transaction, H160, U256};
+use zksync_vm2::interface::{Event, StateInterface};
 
 use super::VmTester;
 use crate::{
@@ -179,7 +180,7 @@ impl TransactionTestInfo {
 struct VmStateDump<S> {
     state: S,
     storage_writes: Vec<((H160, U256), U256)>,
-    events: Box<[zksync_vm2::Event]>,
+    events: Box<[Event]>,
 }
 
 impl<S: PartialEq> PartialEq for VmStateDump<S> {
@@ -194,19 +195,13 @@ impl<S: ReadStorage> Vm<S> {
     fn dump_state(&self) -> VmStateDump<impl PartialEq + std::fmt::Debug> {
         VmStateDump {
             state: self.inner.dump_state(),
-            storage_writes: self
-                .inner
-                .world_diff()
-                .get_storage_state()
-                .iter()
-                .map(|(k, v)| (*k, *v))
-                .collect(),
-            events: self.inner.world_diff().events().into(),
+            storage_writes: self.inner.get_storage_state().collect(),
+            events: self.inner.events().collect(),
         }
     }
 }
 
-impl VmTester {
+impl VmTester<()> {
     pub(crate) fn execute_and_verify_txs(
         &mut self,
         txs: &[TransactionTestInfo],

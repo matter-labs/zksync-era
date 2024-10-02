@@ -15,8 +15,7 @@ use zksync_types::{
     L1BatchNumber,
 };
 use zksync_witness_generator::{
-    leaf_aggregation::{prepare_leaf_aggregation_job, LeafAggregationWitnessGenerator},
-    node_aggregation::{self, NodeAggregationWitnessGenerator},
+    rounds::{JobManager, LeafAggregation, NodeAggregation},
     utils::AggregationWrapper,
 };
 
@@ -52,17 +51,13 @@ async fn test_leaf_witness_gen() {
         .unwrap();
 
     let keystore = Keystore::locate();
-    let job = prepare_leaf_aggregation_job(leaf_aggregation_job_metadata, &*object_store, keystore)
+    let job = LeafAggregation::prepare_job(leaf_aggregation_job_metadata, &*object_store, keystore)
         .await
         .unwrap();
 
-    let artifacts = LeafAggregationWitnessGenerator::process_job_impl(
-        job,
-        Instant::now(),
-        object_store.clone(),
-        500,
-    )
-    .await;
+    let artifacts = LeafAggregation::process_job(job, object_store.clone(), 500, Instant::now())
+        .await
+        .unwrap();
 
     let aggregations = AggregationWrapper(artifacts.aggregations);
 
@@ -142,18 +137,14 @@ async fn test_node_witness_gen() {
     };
 
     let keystore = Keystore::locate();
-    let job =
-        node_aggregation::prepare_job(node_aggregation_job_metadata, &*object_store, keystore)
-            .await
-            .unwrap();
+    let job = NodeAggregation::prepare_job(node_aggregation_job_metadata, &*object_store, keystore)
+        .await
+        .unwrap();
 
-    let artifacts = NodeAggregationWitnessGenerator::process_job_impl(
-        job,
-        Instant::now(),
-        object_store.clone(),
-        500,
-    )
-    .await;
+    let artifacts = NodeAggregation::process_job(job, object_store.clone(), 500, Instant::now())
+        .await
+        .unwrap();
+
     let aggregations = AggregationWrapper(artifacts.next_aggregations);
 
     let expected_results_object_store_config = ObjectStoreConfig {

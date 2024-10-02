@@ -58,7 +58,7 @@ impl Task for WitnessGeneratorQueueReporter {
                 .fri_witness_generator_dal()
                 .get_witness_jobs_stats(round)
                 .await;
-            for ((round, semantic_protocol_version), job_stats) in stats {
+            for (semantic_protocol_version, job_stats) in stats {
                 Self::emit_metrics_for_round(round, semantic_protocol_version, &job_stats);
             }
         }

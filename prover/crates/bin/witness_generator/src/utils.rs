@@ -204,28 +204,6 @@ pub async fn save_recursive_layer_prover_input_artifacts(
     ids_and_urls
 }
 
-#[tracing::instrument(
-    skip_all,
-    fields(l1_batch = %block_number, circuit_id = %circuit_id)
-)]
-pub async fn save_node_aggregations_artifacts(
-    block_number: L1BatchNumber,
-    circuit_id: u8,
-    depth: u16,
-    aggregations: Vec<(u64, RecursionQueueSimulator<GoldilocksField>)>,
-    object_store: &dyn ObjectStore,
-) -> String {
-    let key = AggregationsKey {
-        block_number,
-        circuit_id,
-        depth,
-    };
-    object_store
-        .put(key, &AggregationWrapper(aggregations))
-        .await
-        .unwrap()
-}
-
 #[tracing::instrument(skip_all)]
 pub async fn load_proofs_for_job_ids(
     job_ids: &[u32],
