@@ -15,6 +15,7 @@ use crate::{execution_sandbox::BlockStartInfo, web3::testonly::create_test_tx_se
 
 mod call;
 mod gas_estimation;
+mod send_tx;
 
 const LOAD_TEST_CASES: TestCases<LoadnextContractExecutionParams> = test_casing::cases! {[
     LoadnextContractExecutionParams::default(),
