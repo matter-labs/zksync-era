@@ -4,7 +4,7 @@ genesis_batch_commitment: 0x2d00e5f8d77afcebf58a6b82ae56ba967566fe7dfbcb6760319f
 genesis_protocol_semantic_version: '0.24.2'
 # deprecated
 genesis_protocol_version: 24
-default_aa_hash: 0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32
+default_aa_hash: 0x0100058dc26123dc4bea48125357414b0163579dd8e2f313d2ee34cf3e444579
 bootloader_hash: 0x010008e742608b21bf7eb23c1a9d0602047e3618b464c9b59c0fba3b3d7ab66e
 l1_chain_id: 9
 l2_chain_id: 270
@@ -14,4 +14,4 @@ prover:
   dummy_verifier: true
 l1_batch_commit_data_generator_mode: Rollup
 # Uncomment to enable EVM simulation (requires to run genesis)
-# evm_simulator_hash: 0x01000e53aa35d9d19fa99341c2e2901cf93b3668f01569dd5c6ca409c7696b91
+ evm_simulator_hash: 0x01000cc9566d1d6e6634f8e79c42e5cd86de12e4b9a9af069ffe49bf10ab0ab6
