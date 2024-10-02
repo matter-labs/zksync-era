@@ -15,8 +15,7 @@ use zksync_multivm::interface::{
 };
 use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, vm::FastVmMode,
-    Transaction,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
@@ -109,6 +108,7 @@ impl SandboxExecutor {
         missed_storage_invocation_limit: usize,
     ) -> Self {
         let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
+        executor.set_fast_vm_modes(options.fast_vm_modes);
         executor
             .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
         Self {
