@@ -54,18 +54,132 @@ async fn submitting_tx_requires_one_connection() {
 }
 
 #[tokio::test]
+async fn nonce_validation_errors() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+    drop(storage);
+
+    let l2_chain_id = L2ChainId::default();
+    let tx_executor = SandboxExecutor::mock(MockOneshotExecutor::default()).await;
+    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
+    let mut tx = create_l2_transaction(55, 555);
+
+    tx_sender.validate_account_nonce(&tx).await.unwrap();
+    // There should be some leeway with the nonce validation.
+    tx.common_data.nonce = Nonce(1);
+    tx_sender.validate_account_nonce(&tx).await.unwrap();
+
+    tx.common_data.nonce = Nonce(10_000);
+    let err = tx_sender.validate_account_nonce(&tx).await.unwrap_err();
+    assert_matches!(
+        err,
+        SubmitTxError::NonceIsTooHigh(from, _, actual) if actual == 10_000 && from == 0
+    );
+
+    let mut storage = pool.connection().await.unwrap();
+    let nonce_key = get_nonce_key(&tx.initiator_account());
+    let nonce_log = StorageLog::new_write_log(nonce_key, H256::from_low_u64_be(42));
+    storage
+        .storage_logs_dal()
+        .append_storage_logs(L2BlockNumber(0), &[nonce_log])
+        .await
+        .unwrap();
+    drop(storage);
+
+    let err = tx_sender.validate_account_nonce(&tx).await.unwrap_err();
+    assert_matches!(
+        err,
+        SubmitTxError::NonceIsTooHigh(from, _, actual) if actual == 10_000 && from == 42
+    );
+
+    tx.common_data.nonce = Nonce(5);
+    let err = tx_sender.validate_account_nonce(&tx).await.unwrap_err();
+    assert_matches!(
+        err,
+        SubmitTxError::NonceIsTooLow(from, _, actual) if actual == 5 && from == 42
+    );
+}
+
+#[tokio::test]
+async fn fee_validation_errors() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+
+    let l2_chain_id = L2ChainId::default();
+    let tx_executor = SandboxExecutor::mock(MockOneshotExecutor::default()).await;
+    let (tx_sender, _) = create_test_tx_sender(pool.clone(), l2_chain_id, tx_executor).await;
+    let fee_input = MockBatchFeeParamsProvider::default()
+        .get_batch_fee_input_scaled(1.0, 1.0)
+        .await
+        .unwrap();
+    let (base_fee, gas_per_pubdata) =
+        derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
+    let tx = create_l2_transaction(base_fee, gas_per_pubdata);
+
+    StateBuilder::default()
+        .with_balance(tx.initiator_account(), u64::MAX.into())
+        .apply(&mut storage)
+        .await;
+    drop(storage);
+
+    // Sanity check: validation should succeed with reasonable fee params.
+    tx_sender
+        .validate_tx(&tx, ProtocolVersionId::latest())
+        .await
+        .unwrap();
+
+    {
+        let mut tx = tx.clone();
+        tx.common_data.fee.gas_limit = 100.into();
+        let err = tx_sender
+            .validate_tx(&tx, ProtocolVersionId::latest())
+            .await
+            .unwrap_err();
+        assert_matches!(err, SubmitTxError::IntrinsicGas);
+    }
+    {
+        let mut tx = tx.clone();
+        tx.common_data.fee.gas_limit = u64::MAX.into();
+        let err = tx_sender
+            .validate_tx(&tx, ProtocolVersionId::latest())
+            .await
+            .unwrap_err();
+        assert_matches!(err, SubmitTxError::GasLimitIsTooBig);
+    }
+    {
+        let mut tx = tx.clone();
+        tx.common_data.fee.max_fee_per_gas = 1.into();
+        let err = tx_sender
+            .validate_tx(&tx, ProtocolVersionId::latest())
+            .await
+            .unwrap_err();
+        assert_matches!(err, SubmitTxError::MaxFeePerGasTooLow);
+    }
+    {
+        let mut tx = tx.clone();
+        tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas * 2;
+        let err = tx_sender
+            .validate_tx(&tx, ProtocolVersionId::latest())
+            .await
+            .unwrap_err();
+        assert_matches!(err, SubmitTxError::MaxPriorityFeeGreaterThanMaxFee);
+    }
+}
+
+#[tokio::test]
 async fn sending_transfer() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
     let alice = K256PrivateKey::random();
 
     // Manually set sufficient balance for the tx initiator.
-    let mut storage = tx_sender
-        .0
-        .replica_connection_pool
-        .connection()
-        .await
-        .unwrap();
+    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
         .with_balance(alice.address(), u64::MAX.into())
         .apply(&mut storage)
@@ -101,12 +215,7 @@ async fn sending_transfer_with_incorrect_signature() {
     let alice = K256PrivateKey::random();
     let transfer_value = 1_000_000_000.into();
 
-    let mut storage = tx_sender
-        .0
-        .replica_connection_pool
-        .connection()
-        .await
-        .unwrap();
+    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
         .with_balance(alice.address(), u64::MAX.into())
         .apply(&mut storage)
@@ -126,12 +235,7 @@ async fn sending_load_test_transaction(tx_params: LoadnextContractExecutionParam
     let tx_sender = create_real_tx_sender(pool).await;
     let alice = K256PrivateKey::random();
 
-    let mut storage = tx_sender
-        .0
-        .replica_connection_pool
-        .connection()
-        .await
-        .unwrap();
+    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
     StateBuilder::default()
         .with_load_test_contract()
         .with_balance(alice.address(), u64::MAX.into())
@@ -143,4 +247,45 @@ async fn sending_load_test_transaction(tx_params: LoadnextContractExecutionParam
     let (sub_result, vm_result) = tx_sender.submit_tx(tx).await.unwrap();
     assert_matches!(sub_result, L2TxSubmissionResult::Added);
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+}
+
+#[tokio::test]
+async fn sending_reverting_transaction() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool).await;
+    let alice = K256PrivateKey::random();
+
+    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
+    StateBuilder::default()
+        .with_counter_contract(0)
+        .with_balance(alice.address(), u64::MAX.into())
+        .apply(&mut storage)
+        .await;
+    drop(storage);
+
+    let tx = alice.create_counter_tx(1.into(), true);
+    let (_, vm_result) = tx_sender.submit_tx(tx).await.unwrap();
+    assert_matches!(
+        vm_result.result,
+        ExecutionResult::Revert { output } if output.to_string().contains("This method always reverts")
+    );
+}
+
+#[tokio::test]
+async fn sending_transaction_out_of_gas() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let tx_sender = create_real_tx_sender(pool).await;
+    let alice = K256PrivateKey::random();
+
+    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
+    StateBuilder::default()
+        .with_infinite_loop_contract()
+        .with_balance(alice.address(), u64::MAX.into())
+        .apply(&mut storage)
+        .await;
+    drop(storage);
+
+    let tx = alice.create_infinite_loop_tx();
+    let (_, vm_result) = tx_sender.submit_tx(tx).await.unwrap();
+    assert_matches!(vm_result.result, ExecutionResult::Revert { .. });
 }
