@@ -298,8 +298,7 @@ jobs:
             --server-db-name=zksync_server_localhost_gateway \
             --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
             --prover-db-name=zksync_prover_localhost_gateway \
-            --port-offset 4000 \
-            --chain gateway \
+            --chain gateway
 
           ci_run zk_inception chain convert-to-gateway --chain gateway --ignore-prerequisites
 
