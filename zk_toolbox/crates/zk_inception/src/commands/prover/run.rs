@@ -113,11 +113,7 @@ fn run_dockerized_component(
 ) -> anyhow::Result<()> {
     logger::info(message);
 
-    let path_to_configs = if path_to_configs.starts_with("./") {
-        path_to_ecosystem.join(path_to_configs)
-    } else {
-        path_to_configs.clone()
-    };
+    let path_to_configs = path_to_ecosystem.join(path_to_configs);
 
     let mut cmd = Cmd::new(cmd!(
         shell,
