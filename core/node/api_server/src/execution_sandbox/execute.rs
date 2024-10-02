@@ -1,204 +1,303 @@
 //! Implementation of "executing" methods, e.g. `eth_call`.
 
+use std::time::{Duration, Instant};
+
 use anyhow::Context as _;
-use tracing::{span, Level};
-use zksync_dal::{ConnectionPool, Core};
-use zksync_multivm::{
-    interface::{
-        TransactionExecutionMetrics, TxExecutionMode, VmExecutionResultAndLogs, VmInterface,
-    },
-    tracers::StorageInvocations,
-    MultiVMTracer,
+use async_trait::async_trait;
+use tokio::runtime::Handle;
+use zksync_dal::{Connection, Core};
+use zksync_multivm::interface::{
+    executor::{OneshotExecutor, TransactionValidator},
+    storage::ReadStorage,
+    tracer::{ValidationError, ValidationParams},
+    Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
+    TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
 };
+use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
-    l2::L2Tx, transaction_request::CallOverrides, ExecuteTransactionCommon, Nonce,
-    PackedEthSignature, Transaction, U256,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Transaction,
 };
+use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
 use super::{
-    apply, testonly::MockTransactionExecutor, vm_metrics, ApiTracer, BlockArgs, TxSharedArgs,
-    VmPermit,
+    storage::StorageWithOverrides,
+    vm_metrics::{self, SandboxStage},
+    BlockArgs, VmPermit, SANDBOX_METRICS,
 };
-use crate::execution_sandbox::api::state_override::StateOverride;
+use crate::tx_sender::SandboxExecutorOptions;
 
+/// Action that can be executed by [`SandboxExecutor`].
 #[derive(Debug)]
-pub(crate) struct TxExecutionArgs {
-    pub execution_mode: TxExecutionMode,
-    pub enforced_nonce: Option<Nonce>,
-    pub added_balance: U256,
-    pub enforced_base_fee: Option<u64>,
-    pub missed_storage_invocation_limit: usize,
-}
-
-impl TxExecutionArgs {
-    pub fn for_validation(tx: &L2Tx) -> Self {
-        Self {
-            execution_mode: TxExecutionMode::VerifyExecute,
-            enforced_nonce: Some(tx.nonce()),
-            added_balance: U256::zero(),
-            enforced_base_fee: Some(tx.common_data.fee.max_fee_per_gas.as_u64()),
-            missed_storage_invocation_limit: usize::MAX,
-        }
-    }
-
-    fn for_eth_call(
+pub(crate) enum SandboxAction {
+    /// Execute a transaction.
+    Execution { tx: L2Tx, fee_input: BatchFeeInput },
+    /// Execute a call, possibly with tracing.
+    Call {
+        call: L2Tx,
+        fee_input: BatchFeeInput,
         enforced_base_fee: Option<u64>,
-        vm_execution_cache_misses_limit: Option<usize>,
-    ) -> Self {
-        let missed_storage_invocation_limit = vm_execution_cache_misses_limit.unwrap_or(usize::MAX);
-        Self {
-            execution_mode: TxExecutionMode::EthCall,
-            enforced_nonce: None,
-            added_balance: U256::zero(),
-            enforced_base_fee,
-            missed_storage_invocation_limit,
+        tracing_params: OneshotTracingParams,
+    },
+    /// Estimate gas for a transaction.
+    GasEstimation {
+        tx: Transaction,
+        fee_input: BatchFeeInput,
+        base_fee: u64,
+    },
+}
+
+impl SandboxAction {
+    fn factory_deps_count(&self) -> usize {
+        match self {
+            Self::Execution { tx, .. } | Self::Call { call: tx, .. } => {
+                tx.execute.factory_deps.len()
+            }
+            Self::GasEstimation { tx, .. } => tx.execute.factory_deps.len(),
         }
     }
 
-    pub fn for_gas_estimate(
-        vm_execution_cache_misses_limit: Option<usize>,
-        tx: &Transaction,
-        base_fee: u64,
-    ) -> Self {
-        let missed_storage_invocation_limit = vm_execution_cache_misses_limit.unwrap_or(usize::MAX);
-        // For L2 transactions we need to explicitly put enough balance into the account of the users
-        // while for L1->L2 transactions the `to_mint` field plays this role
-        let added_balance = match &tx.common_data {
-            ExecuteTransactionCommon::L2(data) => data.fee.gas_limit * data.fee.max_fee_per_gas,
-            ExecuteTransactionCommon::L1(_) => U256::zero(),
-            ExecuteTransactionCommon::ProtocolUpgrade(_) => U256::zero(),
-        };
-
-        Self {
-            execution_mode: TxExecutionMode::EstimateFee,
-            missed_storage_invocation_limit,
-            enforced_nonce: tx.nonce(),
-            added_balance,
-            enforced_base_fee: Some(base_fee),
+    fn into_parts(self) -> (TxExecutionArgs, OneshotTracingParams) {
+        match self {
+            Self::Execution { tx, .. } => (
+                TxExecutionArgs::for_validation(tx),
+                OneshotTracingParams::default(),
+            ),
+            Self::GasEstimation { tx, .. } => (
+                TxExecutionArgs::for_gas_estimate(tx),
+                OneshotTracingParams::default(),
+            ),
+            Self::Call {
+                call,
+                tracing_params,
+                ..
+            } => (TxExecutionArgs::for_eth_call(call), tracing_params),
         }
     }
 }
 
+/// Output of [`SandboxExecutor::execute_in_sandbox()`].
 #[derive(Debug, Clone)]
-pub(crate) struct TransactionExecutionOutput {
+pub(crate) struct SandboxExecutionOutput {
     /// Output of the VM.
     pub vm: VmExecutionResultAndLogs,
+    /// Traced calls if requested.
+    pub call_traces: Vec<Call>,
     /// Execution metrics.
     pub metrics: TransactionExecutionMetrics,
     /// Were published bytecodes OK?
     pub are_published_bytecodes_ok: bool,
 }
 
-/// Executor of transactions.
 #[derive(Debug)]
-pub(crate) enum TransactionExecutor {
-    Real,
-    #[doc(hidden)] // Intended for tests only
-    Mock(MockTransactionExecutor),
+enum SandboxExecutorEngine {
+    Real(MainOneshotExecutor),
+    Mock(MockOneshotExecutor),
 }
 
-impl TransactionExecutor {
+/// Executor of transactions / calls used in the API server.
+#[derive(Debug)]
+pub(crate) struct SandboxExecutor {
+    engine: SandboxExecutorEngine,
+    pub(super) options: SandboxExecutorOptions,
+    storage_caches: Option<PostgresStorageCaches>,
+}
+
+impl SandboxExecutor {
+    pub fn real(
+        options: SandboxExecutorOptions,
+        caches: PostgresStorageCaches,
+        missed_storage_invocation_limit: usize,
+    ) -> Self {
+        let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
+        executor
+            .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
+        Self {
+            engine: SandboxExecutorEngine::Real(executor),
+            options,
+            storage_caches: Some(caches),
+        }
+    }
+
+    pub(crate) async fn mock(executor: MockOneshotExecutor) -> Self {
+        Self {
+            engine: SandboxExecutorEngine::Mock(executor),
+            options: SandboxExecutorOptions::mock().await,
+            storage_caches: None,
+        }
+    }
+
     /// This method assumes that (block with number `resolved_block_number` is present in DB)
     /// or (`block_id` is `pending` and block with number `resolved_block_number - 1` is present in DB)
     #[allow(clippy::too_many_arguments)]
-    #[tracing::instrument(skip_all)]
-    pub async fn execute_tx_in_sandbox(
+    #[tracing::instrument(level = "debug", skip_all)]
+    pub async fn execute_in_sandbox(
         &self,
         vm_permit: VmPermit,
-        shared_args: TxSharedArgs,
-        // If `true`, then the batch's L1/pubdata gas price will be adjusted so that the transaction's gas per pubdata limit is <=
-        // to the one in the block. This is often helpful in case we want the transaction validation to work regardless of the
-        // current L1 prices for gas or pubdata.
-        adjust_pubdata_price: bool,
-        execution_args: TxExecutionArgs,
-        connection_pool: ConnectionPool<Core>,
-        tx: Transaction,
-        block_args: BlockArgs,
+        connection: Connection<'static, Core>,
+        action: SandboxAction,
+        block_args: &BlockArgs,
         state_override: Option<StateOverride>,
-        custom_tracers: Vec<ApiTracer>,
-    ) -> anyhow::Result<TransactionExecutionOutput> {
-        if let Self::Mock(mock_executor) = self {
-            return mock_executor.execute_tx(&tx, &block_args);
-        }
+    ) -> anyhow::Result<SandboxExecutionOutput> {
+        let total_factory_deps = action.factory_deps_count() as u16;
+        let (env, storage) = self
+            .prepare_env_and_storage(connection, block_args, &action)
+            .await?;
 
-        let total_factory_deps = tx.execute.factory_deps.len() as u16;
-
-        let (published_bytecodes, execution_result) = tokio::task::spawn_blocking(move || {
-            let span = span!(Level::DEBUG, "execute_in_sandbox").entered();
-            let result = apply::apply_vm_in_sandbox(
-                vm_permit,
-                shared_args,
-                adjust_pubdata_price,
-                &execution_args,
-                &connection_pool,
-                tx,
-                block_args,
-                state_override,
-                |vm, tx, _| {
-                    let storage_invocation_tracer =
-                        StorageInvocations::new(execution_args.missed_storage_invocation_limit);
-                    let custom_tracers: Vec<_> = custom_tracers
-                        .into_iter()
-                        .map(|tracer| tracer.into_boxed())
-                        .chain(vec![storage_invocation_tracer.into_tracer_pointer()])
-                        .collect();
-                    vm.inspect_transaction_with_bytecode_compression(
-                        custom_tracers.into(),
-                        tx,
-                        true,
-                    )
-                },
-            );
-            span.exit();
-            result
-        })
-        .await
-        .context("transaction execution panicked")??;
+        let state_override = state_override.unwrap_or_default();
+        let storage = StorageWithOverrides::new(storage, &state_override);
+        let (execution_args, tracing_params) = action.into_parts();
+        let result = self
+            .inspect_transaction_with_bytecode_compression(
+                storage,
+                env,
+                execution_args,
+                tracing_params,
+            )
+            .await?;
+        drop(vm_permit);
 
         let metrics =
-            vm_metrics::collect_tx_execution_metrics(total_factory_deps, &execution_result);
-        Ok(TransactionExecutionOutput {
-            vm: execution_result,
+            vm_metrics::collect_tx_execution_metrics(total_factory_deps, &result.tx_result);
+        Ok(SandboxExecutionOutput {
+            vm: *result.tx_result,
+            call_traces: result.call_traces,
             metrics,
-            are_published_bytecodes_ok: published_bytecodes.is_ok(),
+            are_published_bytecodes_ok: result.compression_result.is_ok(),
         })
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub async fn execute_tx_eth_call(
+    pub(super) async fn prepare_env_and_storage(
         &self,
-        vm_permit: VmPermit,
-        shared_args: TxSharedArgs,
-        connection_pool: ConnectionPool<Core>,
-        call_overrides: CallOverrides,
-        mut tx: L2Tx,
-        block_args: BlockArgs,
-        vm_execution_cache_misses_limit: Option<usize>,
-        custom_tracers: Vec<ApiTracer>,
-        state_override: Option<StateOverride>,
-    ) -> anyhow::Result<VmExecutionResultAndLogs> {
-        let execution_args = TxExecutionArgs::for_eth_call(
-            call_overrides.enforced_base_fee,
-            vm_execution_cache_misses_limit,
-        );
-
-        if tx.common_data.signature.is_empty() {
-            tx.common_data.signature = PackedEthSignature::default().serialize_packed().into();
+        mut connection: Connection<'static, Core>,
+        block_args: &BlockArgs,
+        action: &SandboxAction,
+    ) -> anyhow::Result<(OneshotEnv, PostgresStorage<'static>)> {
+        let initialization_stage = SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].start();
+        let resolve_started_at = Instant::now();
+        let resolve_time = resolve_started_at.elapsed();
+        let resolved_block_info = block_args.inner.resolve(&mut connection).await?;
+        // We don't want to emit too many logs.
+        if resolve_time > Duration::from_millis(10) {
+            tracing::debug!("Resolved block numbers (took {resolve_time:?})");
         }
 
-        let output = self
-            .execute_tx_in_sandbox(
-                vm_permit,
-                shared_args,
-                false,
-                execution_args,
-                connection_pool,
-                tx.into(),
-                block_args,
-                state_override,
-                custom_tracers,
-            )
-            .await?;
-        Ok(output.vm)
+        let env = match action {
+            SandboxAction::Execution { fee_input, tx } => {
+                self.options
+                    .eth_call
+                    .to_execute_env(&mut connection, &resolved_block_info, *fee_input, tx)
+                    .await?
+            }
+            &SandboxAction::Call {
+                fee_input,
+                enforced_base_fee,
+                ..
+            } => {
+                self.options
+                    .eth_call
+                    .to_call_env(
+                        &mut connection,
+                        &resolved_block_info,
+                        fee_input,
+                        enforced_base_fee,
+                    )
+                    .await?
+            }
+            &SandboxAction::GasEstimation {
+                fee_input,
+                base_fee,
+                ..
+            } => {
+                self.options
+                    .estimate_gas
+                    .to_env(&mut connection, &resolved_block_info, fee_input, base_fee)
+                    .await?
+            }
+        };
+
+        if block_args.resolves_to_latest_sealed_l2_block() {
+            if let Some(caches) = &self.storage_caches {
+                caches.schedule_values_update(resolved_block_info.state_l2_block_number());
+            }
+        }
+
+        let mut storage = PostgresStorage::new_async(
+            Handle::current(),
+            connection,
+            resolved_block_info.state_l2_block_number(),
+            false,
+        )
+        .await
+        .context("cannot create `PostgresStorage`")?;
+
+        if let Some(caches) = &self.storage_caches {
+            storage = storage.with_caches(caches.clone());
+        }
+        initialization_stage.observe();
+        Ok((env, storage))
+    }
+}
+
+#[async_trait]
+impl<S> OneshotExecutor<S> for SandboxExecutor
+where
+    S: ReadStorage + Send + 'static,
+{
+    async fn inspect_transaction_with_bytecode_compression(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        args: TxExecutionArgs,
+        tracing_params: OneshotTracingParams,
+    ) -> anyhow::Result<OneshotTransactionExecutionResult> {
+        match &self.engine {
+            SandboxExecutorEngine::Real(executor) => {
+                executor
+                    .inspect_transaction_with_bytecode_compression(
+                        storage,
+                        env,
+                        args,
+                        tracing_params,
+                    )
+                    .await
+            }
+            SandboxExecutorEngine::Mock(executor) => {
+                executor
+                    .inspect_transaction_with_bytecode_compression(
+                        storage,
+                        env,
+                        args,
+                        tracing_params,
+                    )
+                    .await
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl<S> TransactionValidator<S> for SandboxExecutor
+where
+    S: ReadStorage + Send + 'static,
+{
+    async fn validate_transaction(
+        &self,
+        storage: S,
+        env: OneshotEnv,
+        tx: L2Tx,
+        validation_params: ValidationParams,
+    ) -> anyhow::Result<Result<(), ValidationError>> {
+        match &self.engine {
+            SandboxExecutorEngine::Real(executor) => {
+                executor
+                    .validate_transaction(storage, env, tx, validation_params)
+                    .await
+            }
+            SandboxExecutorEngine::Mock(executor) => {
+                executor
+                    .validate_transaction(storage, env, tx, validation_params)
+                    .await
+            }
+        }
     }
 }

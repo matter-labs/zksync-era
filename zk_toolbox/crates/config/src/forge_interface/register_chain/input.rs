@@ -54,7 +54,6 @@ impl ZkToolboxConfig for RegisterChainL1Config {}
 
 impl RegisterChainL1Config {
     pub fn new(chain_config: &ChainConfig, contracts: &ContractsConfig) -> anyhow::Result<Self> {
-        let genesis_config = chain_config.get_genesis_config()?;
         let wallets_config = chain_config.get_wallets_config()?;
         Ok(Self {
             contracts_config: Contracts {
@@ -72,7 +71,7 @@ impl RegisterChainL1Config {
                 validator_timelock_addr: contracts.ecosystem_contracts.validator_timelock_addr,
             },
             chain: ChainL1Config {
-                chain_chain_id: genesis_config.l2_chain_id,
+                chain_chain_id: chain_config.chain_id,
                 base_token_gas_price_multiplier_nominator: chain_config.base_token.nominator,
                 base_token_gas_price_multiplier_denominator: chain_config.base_token.denominator,
                 base_token_addr: chain_config.base_token.address,

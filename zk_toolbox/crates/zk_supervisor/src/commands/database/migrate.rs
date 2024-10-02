@@ -23,7 +23,7 @@ pub fn run(shell: &Shell, args: DatabaseCommonArgs) -> anyhow::Result<()> {
     logger::info(msg_database_info(MSG_DATABASE_MIGRATE_GERUND));
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let dals = get_dals(shell, &args.selected_dals)?;
+    let dals = get_dals(shell, &args.selected_dals, &args.urls)?;
     for dal in dals {
         migrate_database(shell, &ecosystem_config.link_to_code, dal)?;
     }

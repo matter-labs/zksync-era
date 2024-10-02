@@ -333,16 +333,13 @@ impl Aggregator {
         // keys that correspond to one on L1.
         let allowed_patch_versions = storage
             .protocol_versions_dal()
-            .get_patch_versions_for_vk(
-                minor_version,
-                l1_verifier_config.recursion_scheduler_level_vk_hash,
-            )
+            .get_patch_versions_for_vk(minor_version, l1_verifier_config.snark_wrapper_vk_hash)
             .await
             .unwrap();
         if allowed_patch_versions.is_empty() {
             tracing::warn!(
                 "No patch version corresponds to the verification key on L1: {:?}",
-                l1_verifier_config.recursion_scheduler_level_vk_hash
+                l1_verifier_config.snark_wrapper_vk_hash
             );
             return None;
         };
@@ -520,23 +517,6 @@ pub async fn load_wrapped_fri_proofs_for_range(
 ) -> Option<L1BatchProofForL1> {
     for version in allowed_versions {
         match blob_store.get((l1_batch_number, *version)).await {
-            Ok(proof) => return Some(proof),
-            Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
-            Err(err) => panic!(
-                "Failed to load proof for batch {}: {}",
-                l1_batch_number.0, err
-            ),
-        }
-    }
-
-    // We also check file with deprecated name if patch 0 is allowed.
-    // TODO: remove in the next release.
-    let is_patch_0_present = allowed_versions.iter().any(|v| v.patch.0 == 0);
-    if is_patch_0_present {
-        match blob_store
-            .get_by_encoded_key(format!("l1_batch_proof_{l1_batch_number}.bin"))
-            .await
-        {
             Ok(proof) => return Some(proof),
             Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
             Err(err) => panic!(

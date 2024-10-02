@@ -1,7 +1,7 @@
 genesis_root: 0xabdb766b18a479a5c783a4b80e12686bc8ea3cc2d8a3050491b701d72370ebb5
 genesis_rollup_leaf_index: 54
 genesis_batch_commitment: 0x2d00e5f8d77afcebf58a6b82ae56ba967566fe7dfbcb6760319fb0d215d18ffd
-genesis_protocol_semantic_version: '0.24.1'
+genesis_protocol_semantic_version: '0.24.2'
 # deprecated
 genesis_protocol_version: 24
 default_aa_hash: 0x01000563374c277a2c1e34659a2a1e87371bb6d852ce142022d497bfb50b9e32

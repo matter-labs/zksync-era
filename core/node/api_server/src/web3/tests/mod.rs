@@ -26,9 +26,12 @@ use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
     l1_batch_metadata_to_commitment_artifacts, prepare_recovery_snapshot,
 };
+use zksync_system_constants::{
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+};
 use zksync_types::{
     api,
-    block::L2BlockHeader,
+    block::{pack_block_info, L2BlockHeader},
     get_nonce_key,
     l2::L2Tx,
     storage::get_code_key,
@@ -39,6 +42,7 @@ use zksync_types::{
     U256, U64,
 };
 use zksync_utils::u256_to_h256;
+use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
     jsonrpsee::{
@@ -54,14 +58,12 @@ use zksync_web3_decl::{
 };
 
 use super::*;
-use crate::{
-    execution_sandbox::testonly::MockTransactionExecutor,
-    web3::testonly::{spawn_http_server, spawn_ws_server},
-};
+use crate::web3::testonly::TestServerBuilder;
 
 mod debug;
 mod filters;
 mod snapshots;
+mod unstable;
 mod vm;
 mod ws;
 
@@ -135,8 +137,8 @@ trait HttpTest: Send + Sync {
         StorageInitialization::Genesis
     }
 
-    fn transaction_executor(&self) -> MockTransactionExecutor {
-        MockTransactionExecutor::default()
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        MockOneshotExecutor::default()
     }
 
     fn method_tracer(&self) -> Arc<MethodTracer> {
@@ -174,7 +176,7 @@ impl StorageInitialization {
     }
 
     async fn prepare_storage(
-        &self,
+        self,
         network_config: &NetworkConfig,
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
@@ -189,17 +191,33 @@ impl StorageInitialization {
                     insert_genesis_batch(storage, &params).await?;
                 }
             }
-            Self::Recovery { logs, factory_deps } => {
+            Self::Recovery {
+                mut logs,
+                factory_deps,
+            } => {
+                let l2_block_info_key = StorageKey::new(
+                    AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+                    SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+                );
+                let block_info = pack_block_info(
+                    Self::SNAPSHOT_RECOVERY_BLOCK.0.into(),
+                    Self::SNAPSHOT_RECOVERY_BLOCK.0.into(),
+                );
+                logs.push(StorageLog::new_write_log(
+                    l2_block_info_key,
+                    u256_to_h256(block_info),
+                ));
+
                 prepare_recovery_snapshot(
                     storage,
                     Self::SNAPSHOT_RECOVERY_BATCH,
                     Self::SNAPSHOT_RECOVERY_BLOCK,
-                    logs,
+                    &logs,
                 )
                 .await;
                 storage
                     .factory_deps_dal()
-                    .insert_factory_deps(Self::SNAPSHOT_RECOVERY_BLOCK, factory_deps)
+                    .insert_factory_deps(Self::SNAPSHOT_RECOVERY_BLOCK, &factory_deps)
                     .await?;
 
                 // Insert the next L1 batch in the storage so that the API server doesn't hang up.
@@ -227,14 +245,11 @@ async fn test_http_server(test: impl HttpTest) {
     let genesis = GenesisConfig::for_tests();
     let mut api_config = InternalApiConfig::new(&web3_config, &contracts_config, &genesis);
     api_config.filters_disabled = test.filters_disabled();
-    let mut server_handles = spawn_http_server(
-        api_config,
-        pool.clone(),
-        test.transaction_executor(),
-        test.method_tracer(),
-        stop_receiver,
-    )
-    .await;
+    let mut server_handles = TestServerBuilder::new(pool.clone(), api_config)
+        .with_tx_executor(test.transaction_executor())
+        .with_method_tracer(test.method_tracer())
+        .build_http(stop_receiver)
+        .await;
 
     let local_addr = server_handles.wait_until_ready().await;
     let client = Client::http(format!("http://{local_addr}/").parse().unwrap())
@@ -282,12 +297,23 @@ fn execute_l2_transaction(transaction: L2Tx) -> TransactionExecutionResult {
     }
 }
 
-/// Stores L2 block with a single transaction and returns the L2 block header + transaction hash.
+/// Stores L2 block and returns the L2 block header.
 async fn store_l2_block(
     storage: &mut Connection<'_, Core>,
     number: L2BlockNumber,
     transaction_results: &[TransactionExecutionResult],
 ) -> anyhow::Result<L2BlockHeader> {
+    let header = create_l2_block(number.0);
+    store_custom_l2_block(storage, &header, transaction_results).await?;
+    Ok(header)
+}
+
+async fn store_custom_l2_block(
+    storage: &mut Connection<'_, Core>,
+    header: &L2BlockHeader,
+    transaction_results: &[TransactionExecutionResult],
+) -> anyhow::Result<()> {
+    let number = header.number;
     for result in transaction_results {
         let l2_tx = result.transaction.clone().try_into().unwrap();
         let tx_submission_result = storage
@@ -298,19 +324,30 @@ async fn store_l2_block(
         assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
     }
 
-    let new_l2_block = create_l2_block(number.0);
-    storage.blocks_dal().insert_l2_block(&new_l2_block).await?;
+    // Record L2 block info which is read by the VM sandbox logic
+    let l2_block_info_key = StorageKey::new(
+        AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
+        SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    );
+    let block_info = pack_block_info(number.0.into(), number.0.into());
+    let l2_block_log = StorageLog::new_write_log(l2_block_info_key, u256_to_h256(block_info));
+    storage
+        .storage_logs_dal()
+        .append_storage_logs(number, &[l2_block_log])
+        .await?;
+
+    storage.blocks_dal().insert_l2_block(header).await?;
     storage
         .transactions_dal()
         .mark_txs_as_executed_in_l2_block(
-            new_l2_block.number,
+            number,
             transaction_results,
             1.into(),
             ProtocolVersionId::latest(),
             false,
         )
         .await?;
-    Ok(new_l2_block)
+    Ok(())
 }
 
 async fn seal_l1_batch(

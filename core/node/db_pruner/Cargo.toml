@@ -26,7 +26,6 @@ serde_json.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
-test-casing.workspace = true
 test-log.workspace = true
 
 zksync_node_genesis.workspace = true

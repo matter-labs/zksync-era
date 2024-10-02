@@ -1,33 +1,30 @@
-use std::{collections::HashMap, path::Path};
+use std::path::Path;
 
-use anyhow::{anyhow, Context};
-use common::{docker, ethereum, logger};
+use anyhow::Context;
+use common::{config::global_config, docker, ethereum, logger};
 use config::{
     portal::*,
-    traits::{ReadConfig, SaveConfig},
-    ChainConfig, EcosystemConfig,
+    traits::{ConfigWithL2RpcUrl, SaveConfig},
+    AppsEcosystemConfig, ChainConfig, EcosystemConfig,
 };
 use ethers::types::Address;
 use types::{BaseToken, TokenInfo};
 use xshell::Shell;
 
 use crate::{
-    commands::args::PortalArgs,
-    consts::{L2_BASE_TOKEN_ADDRESS, PORTAL_DOCKER_CONTAINER_PORT, PORTAL_DOCKER_IMAGE},
+    consts::{L2_BASE_TOKEN_ADDRESS, PORTAL_DOCKER_CONFIG_PATH, PORTAL_DOCKER_IMAGE},
     messages::{
-        msg_portal_starting_on, MSG_PORTAL_CONFIG_IS_EMPTY_ERR,
-        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTAL_FAILED_TO_RUN_DOCKER_ERR,
+        msg_portal_running_with_config, msg_portal_starting_on,
+        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_PORTAL_FAILED_TO_FIND_ANY_CHAIN_ERR,
+        MSG_PORTAL_FAILED_TO_RUN_DOCKER_ERR,
     },
 };
 
-async fn create_hyperchain_config(chain_config: &ChainConfig) -> anyhow::Result<HyperchainConfig> {
+async fn build_portal_chain_config(
+    chain_config: &ChainConfig,
+) -> anyhow::Result<PortalChainConfig> {
     // Get L2 RPC URL from general config
-    let general_config = chain_config.get_general_config()?;
-    let rpc_url = general_config
-        .api_config
-        .as_ref()
-        .map(|api_config| &api_config.web3_json_rpc.http_url)
-        .context("api_config")?;
+    let l2_rpc_url = chain_config.get_general_config()?.get_l2_rpc_url()?;
     // Get L1 RPC URL from secrects config
     let secrets_config = chain_config.get_secrets_config()?;
     let l1_rpc_url = secrets_config
@@ -68,97 +65,126 @@ async fn create_hyperchain_config(chain_config: &ChainConfig) -> anyhow::Result<
         name: Some(base_token_info.name.to_string()),
     }];
     // Build hyperchain config
-    Ok(HyperchainConfig {
+    Ok(PortalChainConfig {
         network: NetworkConfig {
             id: chain_config.chain_id.as_u64(),
             key: chain_config.name.clone(),
             name: chain_config.name.clone(),
-            rpc_url: rpc_url.to_string(),
+            rpc_url: l2_rpc_url.to_string(),
             l1_network,
             public_l1_network_id: None,
             block_explorer_url: None,
             block_explorer_api: None,
+            hidden: None,
+            other: serde_json::Value::Null,
         },
         tokens,
     })
 }
 
-async fn create_hyperchains_config(
-    chain_configs: &[ChainConfig],
-) -> anyhow::Result<HyperchainsConfig> {
-    let mut hyperchain_configs = Vec::new();
-    for chain_config in chain_configs {
-        if let Ok(config) = create_hyperchain_config(chain_config).await {
-            hyperchain_configs.push(config)
-        }
-    }
-    Ok(HyperchainsConfig(hyperchain_configs))
-}
-
-pub async fn create_portal_config(
-    ecosystem_config: &EcosystemConfig,
-) -> anyhow::Result<PortalRuntimeConfig> {
-    let chains: Vec<String> = ecosystem_config.list_of_chains();
-    let mut chain_configs = Vec::new();
-    for chain in chains {
-        if let Some(chain_config) = ecosystem_config.load_chain(Some(chain.clone())) {
-            chain_configs.push(chain_config)
-        }
-    }
-    let hyperchains_config = create_hyperchains_config(&chain_configs).await?;
-    if hyperchains_config.is_empty() {
-        anyhow::bail!("Failed to create any valid hyperchain config")
-    }
-    let runtime_config = PortalRuntimeConfig {
-        node_type: "hyperchain".to_string(),
-        hyperchains_config,
-    };
-    Ok(runtime_config)
-}
-
-pub async fn create_and_save_portal_config(
-    ecosystem_config: &EcosystemConfig,
+pub async fn update_portal_config(
     shell: &Shell,
-) -> anyhow::Result<PortalRuntimeConfig> {
-    let portal_config = create_portal_config(ecosystem_config).await?;
-    let config_path = PortalRuntimeConfig::get_config_path(&shell.current_dir());
+    chain_config: &ChainConfig,
+) -> anyhow::Result<PortalConfig> {
+    // Build and append portal chain config to the portal config
+    let portal_chain_config = build_portal_chain_config(chain_config).await?;
+    let mut portal_config = PortalConfig::read_or_create_default(shell)?;
+    portal_config.add_chain_config(&portal_chain_config);
+    // Save portal config
+    let config_path = PortalConfig::get_config_path(&shell.current_dir());
     portal_config.save(shell, config_path)?;
     Ok(portal_config)
 }
 
-pub async fn run(shell: &Shell, args: PortalArgs) -> anyhow::Result<()> {
-    let ecosystem_config: EcosystemConfig = EcosystemConfig::from_file(shell)?;
-    let config_path = PortalRuntimeConfig::get_config_path(&shell.current_dir());
-    logger::info(format!(
-        "Using portal config file at {}",
-        config_path.display()
-    ));
-
-    let portal_config = match PortalRuntimeConfig::read(shell, &config_path) {
-        Ok(config) => config,
-        Err(_) => create_and_save_portal_config(&ecosystem_config, shell)
-            .await
-            .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?,
-    };
-    if portal_config.hyperchains_config.is_empty() {
-        return Err(anyhow!(MSG_PORTAL_CONFIG_IS_EMPTY_ERR));
+/// Validates portal config - appends missing chains and removes unknown chains
+async fn validate_portal_config(
+    portal_config: &mut PortalConfig,
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<()> {
+    let chain_names = ecosystem_config.list_of_chains();
+    for chain_name in &chain_names {
+        if portal_config.contains(chain_name) {
+            continue;
+        }
+        // Append missing chain, chain might not be initialized, so ignoring errors
+        if let Some(chain_config) = ecosystem_config.load_chain(Some(chain_name.clone())) {
+            if let Ok(portal_chain_config) = build_portal_chain_config(&chain_config).await {
+                portal_config.add_chain_config(&portal_chain_config);
+            }
+        }
     }
-
-    logger::info(msg_portal_starting_on("127.0.0.1", args.port));
-    run_portal(shell, &config_path, args.port)?;
+    portal_config.filter(&chain_names);
     Ok(())
 }
 
-fn run_portal(shell: &Shell, config_file_path: &Path, port: u16) -> anyhow::Result<()> {
-    let port_mapping = format!("{}:{}", port, PORTAL_DOCKER_CONTAINER_PORT);
-    let volume_mapping = format!("{}:/usr/src/app/dist/config.js", config_file_path.display());
+pub async fn run(shell: &Shell) -> anyhow::Result<()> {
+    let ecosystem_config: EcosystemConfig = EcosystemConfig::from_file(shell)?;
+    // Get ecosystem level apps.yaml config
+    let apps_config = AppsEcosystemConfig::read_or_create_default(shell)?;
+    // Display all chains, unless --chain is passed
+    let chains_enabled = match global_config().chain_name {
+        Some(ref chain_name) => vec![chain_name.clone()],
+        None => ecosystem_config.list_of_chains(),
+    };
 
-    let mut docker_args: HashMap<String, String> = HashMap::new();
-    docker_args.insert("--platform".to_string(), "linux/amd64".to_string());
-    docker_args.insert("-p".to_string(), port_mapping);
-    docker_args.insert("-v".to_string(), volume_mapping);
+    // Read portal config
+    let config_path = PortalConfig::get_config_path(&shell.current_dir());
+    let mut portal_config = PortalConfig::read_or_create_default(shell)
+        .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?;
+
+    // Validate and update portal config
+    validate_portal_config(&mut portal_config, &ecosystem_config).await?;
+    portal_config.hide_except(&chains_enabled);
+    if portal_config.is_empty() {
+        anyhow::bail!(MSG_PORTAL_FAILED_TO_FIND_ANY_CHAIN_ERR);
+    }
+
+    // Save portal config
+    portal_config.save(shell, &config_path)?;
+
+    let config_js_path = portal_config
+        .save_as_js(shell)
+        .context(MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR)?;
+
+    logger::info(msg_portal_running_with_config(&config_path));
+    logger::info(msg_portal_starting_on(
+        "127.0.0.1",
+        apps_config.portal.http_port,
+    ));
+    let name = portal_app_name(&ecosystem_config.name);
+    run_portal(shell, &config_js_path, &name, apps_config.portal.http_port)?;
+    Ok(())
+}
+
+fn run_portal(shell: &Shell, config_file_path: &Path, name: &str, port: u16) -> anyhow::Result<()> {
+    let port_mapping = format!("{}:{}", port, port);
+    let volume_mapping = format!(
+        "{}:{}",
+        config_file_path.display(),
+        PORTAL_DOCKER_CONFIG_PATH
+    );
+
+    let docker_args: Vec<String> = vec![
+        "--platform".to_string(),
+        "linux/amd64".to_string(),
+        "--name".to_string(),
+        name.to_string(),
+        "-p".to_string(),
+        port_mapping,
+        "-v".to_string(),
+        volume_mapping,
+        "-e".to_string(),
+        format!("PORT={}", port),
+        "--rm".to_string(),
+    ];
 
     docker::run(shell, PORTAL_DOCKER_IMAGE, docker_args)
         .with_context(|| MSG_PORTAL_FAILED_TO_RUN_DOCKER_ERR)?;
     Ok(())
+}
+
+/// Generates a name for the portal app Docker container.
+/// Will be passed as `--name` argument to `docker run`.
+fn portal_app_name(ecosystem_name: &str) -> String {
+    format!("{}-portal-app", ecosystem_name)
 }

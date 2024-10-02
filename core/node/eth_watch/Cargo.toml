@@ -24,6 +24,8 @@ anyhow.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
+async-recursion.workspace = true
 
 [dev-dependencies]
 zksync_concurrency.workspace = true
+test-log.workspace = true

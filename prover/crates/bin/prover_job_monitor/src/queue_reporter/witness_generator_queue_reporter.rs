@@ -35,12 +35,15 @@ impl WitnessGeneratorQueueReporter {
             );
         }
 
-        SERVER_METRICS.witness_generator_jobs_by_round
-            [&("queued", round.to_string(), protocol_version.to_string())]
+        SERVER_METRICS.witness_generator_jobs_by_round[&(
+            "queued",
+            format!("{:?}", round),
+            protocol_version.to_string(),
+        )]
             .set(stats.queued as u64);
         SERVER_METRICS.witness_generator_jobs_by_round[&(
             "in_progress",
-            round.to_string(),
+            format!("{:?}", round),
             protocol_version.to_string(),
         )]
             .set(stats.in_progress as u64);
@@ -55,7 +58,7 @@ impl Task for WitnessGeneratorQueueReporter {
                 .fri_witness_generator_dal()
                 .get_witness_jobs_stats(round)
                 .await;
-            for ((round, semantic_protocol_version), job_stats) in stats {
+            for (semantic_protocol_version, job_stats) in stats {
                 Self::emit_metrics_for_round(round, semantic_protocol_version, &job_stats);
             }
         }

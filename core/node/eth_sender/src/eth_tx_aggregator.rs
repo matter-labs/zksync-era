@@ -317,7 +317,7 @@ impl EthTxAggregator {
     }
 
     /// Loads current verifier config on L1
-    async fn get_recursion_scheduler_level_vk_hash(
+    async fn get_snark_wrapper_vk_hash(
         &mut self,
         verifier_address: Address,
     ) -> Result<H256, EthSenderError> {
@@ -344,15 +344,15 @@ impl EthTxAggregator {
         })?;
         let contracts_are_pre_shared_bridge = protocol_version_id.is_pre_shared_bridge();
 
-        let recursion_scheduler_level_vk_hash = self
-            .get_recursion_scheduler_level_vk_hash(verifier_address)
+        let snark_wrapper_vk_hash = self
+            .get_snark_wrapper_vk_hash(verifier_address)
             .await
             .map_err(|err| {
                 tracing::error!("Failed to get VK hash from the Verifier {err:?}");
                 err
             })?;
         let l1_verifier_config = L1VerifierConfig {
-            recursion_scheduler_level_vk_hash,
+            snark_wrapper_vk_hash,
         };
         if let Some(agg_op) = self
             .aggregator
@@ -383,8 +383,14 @@ impl EthTxAggregator {
                 );
                 return Ok(());
             }
+            let is_gateway = self.settlement_mode.is_gateway();
             let tx = self
-                .save_eth_tx(storage, &agg_op, contracts_are_pre_shared_bridge, false)
+                .save_eth_tx(
+                    storage,
+                    &agg_op,
+                    contracts_are_pre_shared_bridge,
+                    is_gateway,
+                )
                 .await?;
             Self::report_eth_tx_saving(storage, &agg_op, &tx).await;
         }
@@ -556,9 +562,9 @@ impl EthTxAggregator {
         // We may be using a custom sender for commit transactions, so use this
         // var whatever it actually is: a `None` for single-addr operator or `Some`
         // for multi-addr operator in 4844 mode.
-        let sender_addr = match op_type {
-            AggregatedActionType::Commit => self.custom_commit_sender_addr,
-            _ => None,
+        let sender_addr = match (op_type, is_gateway) {
+            (AggregatedActionType::Commit, false) => self.custom_commit_sender_addr,
+            (_, _) => None,
         };
         let nonce = self.get_next_nonce(&mut transaction, sender_addr).await?;
         let encoded_aggregated_op =

@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use serde::Deserialize;
-use zksync_basic_types::basic_fri_types::CircuitIdRoundTuple;
+use zksync_basic_types::basic_fri_types::{AggregationRound, CircuitIdRoundTuple};
 
 /// Configuration for the grouping of specialized provers.
 #[derive(Debug, Deserialize, Clone, PartialEq)]
@@ -81,6 +81,7 @@ impl FriProverGroupConfig {
             .flatten()
             .collect()
     }
+
     /// check all_circuit ids present exactly once
     /// and For each aggregation round, check that the circuit ids are in the correct range.
     /// For example, in aggregation round 0, the circuit ids should be 1 to 15 + 255 (EIP4844).
@@ -89,7 +90,6 @@ impl FriProverGroupConfig {
     /// In aggregation round 3, the circuit ids should be 255.
     /// In aggregation round 4, the circuit ids should be 1.
     pub fn validate(&self) -> anyhow::Result<()> {
-        let mut rounds: Vec<Vec<CircuitIdRoundTuple>> = vec![Vec::new(); 5];
         let groups = [
             &self.group_0,
             &self.group_1,
@@ -107,110 +107,45 @@ impl FriProverGroupConfig {
             &self.group_13,
             &self.group_14,
         ];
-        for group in groups {
-            for circuit_round in group {
-                let round = match rounds.get_mut(circuit_round.aggregation_round as usize) {
-                    Some(round) => round,
-                    None => anyhow::bail!(
-                        "Invalid aggregation round {}.",
-                        circuit_round.aggregation_round
-                    ),
-                };
-                round.push(circuit_round.clone());
+        let mut expected_circuit_ids: HashSet<_> = AggregationRound::ALL_ROUNDS
+            .into_iter()
+            .flat_map(|r| r.circuit_ids())
+            .collect();
+
+        let mut provided_circuit_ids = HashSet::new();
+        for (group_id, group) in groups.iter().enumerate() {
+            for circuit_id_round in group.iter() {
+                // Make sure that it's a known circuit.
+                if !expected_circuit_ids.contains(circuit_id_round) {
+                    anyhow::bail!(
+                        "Group {} contains unexpected circuit id: {:?}",
+                        group_id,
+                        circuit_id_round
+                    );
+                }
+                // Remove this circuit from the expected set: later we will check that all circuits
+                // are present.
+                expected_circuit_ids.remove(circuit_id_round);
+
+                // Make sure that the circuit is not duplicated.
+                if provided_circuit_ids.contains(circuit_id_round) {
+                    anyhow::bail!(
+                        "Group {} contains duplicate circuit id: {:?}",
+                        group_id,
+                        circuit_id_round
+                    );
+                }
+                provided_circuit_ids.insert(circuit_id_round.clone());
             }
         }
-
-        for (round, round_data) in rounds.iter().enumerate() {
-            let circuit_ids: Vec<u8> = round_data.iter().map(|x| x.circuit_id).collect();
-            let unique_circuit_ids: HashSet<u8> = circuit_ids.iter().copied().collect();
-            let duplicates: HashSet<u8> = circuit_ids
-                .iter()
-                .filter(|id| circuit_ids.iter().filter(|x| x == id).count() > 1)
-                .copied()
-                .collect();
-
-            let (missing_ids, not_in_range, expected_circuits_description) = match round {
-                0 => {
-                    let mut expected_range: Vec<_> = (1..=15).collect();
-                    expected_range.push(255);
-                    let missing_ids: Vec<_> = expected_range
-                        .iter()
-                        .copied()
-                        .filter(|id| !circuit_ids.contains(id))
-                        .collect();
-
-                    let not_in_range: Vec<_> = circuit_ids
-                        .iter()
-                        .filter(|&id| !expected_range.contains(id))
-                        .collect();
-                    (missing_ids, not_in_range, "circuit IDs 1 to 15 and 255")
-                }
-                1 => {
-                    let expected_range: Vec<_> = (3..=18).collect();
-                    let missing_ids: Vec<_> = expected_range
-                        .iter()
-                        .copied()
-                        .filter(|id| !circuit_ids.contains(id))
-                        .collect();
-                    let not_in_range: Vec<_> = circuit_ids
-                        .iter()
-                        .filter(|&id| !expected_range.contains(id))
-                        .collect();
-                    (missing_ids, not_in_range, "circuit IDs 3 to 18")
-                }
-                2 => {
-                    let expected_range: Vec<_> = vec![2];
-                    let missing_ids: Vec<_> = expected_range
-                        .iter()
-                        .copied()
-                        .filter(|id| !circuit_ids.contains(id))
-                        .collect();
-                    let not_in_range: Vec<_> = circuit_ids
-                        .iter()
-                        .filter(|&id| !expected_range.contains(id))
-                        .collect();
-                    (missing_ids, not_in_range, "circuit ID 2")
-                }
-                3 => {
-                    let expected_range: Vec<_> = vec![255];
-                    let missing_ids: Vec<_> = expected_range
-                        .iter()
-                        .copied()
-                        .filter(|id| !circuit_ids.contains(id))
-                        .collect();
-                    let not_in_range: Vec<_> = circuit_ids
-                        .iter()
-                        .filter(|&id| !expected_range.contains(id))
-                        .collect();
-                    (missing_ids, not_in_range, "circuit ID 255")
-                }
-                4 => {
-                    let expected_range: Vec<_> = vec![1];
-                    let missing_ids: Vec<_> = expected_range
-                        .iter()
-                        .copied()
-                        .filter(|id| !circuit_ids.contains(id))
-                        .collect();
-                    let not_in_range: Vec<_> = circuit_ids
-                        .iter()
-                        .filter(|&id| !expected_range.contains(id))
-                        .collect();
-                    (missing_ids, not_in_range, "circuit ID 1")
-                }
-                _ => {
-                    anyhow::bail!("Unknown round {}", round);
-                }
-            };
-            if !missing_ids.is_empty() {
-                anyhow::bail!("Circuit IDs for round {round} are missing: {missing_ids:?}");
-            }
-            if circuit_ids.len() != unique_circuit_ids.len() {
-                anyhow::bail!("Circuit IDs: {duplicates:?} should be unique for round {round}.",);
-            }
-            if !not_in_range.is_empty() {
-                anyhow::bail!("Aggregation round {round} should only contain {expected_circuits_description}. Ids out of range: {not_in_range:?}");
-            }
+        // All the circuit IDs should have been removed from the expected set.
+        if !expected_circuit_ids.is_empty() {
+            anyhow::bail!(
+                "Some circuit ids are missing from the groups: {:?}",
+                expected_circuit_ids
+            );
         }
+
         Ok(())
     }
 }
