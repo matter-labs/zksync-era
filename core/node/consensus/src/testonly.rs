@@ -155,8 +155,8 @@ fn make_config(
 ) -> config::ConsensusConfig {
     config::ConsensusConfig {
         port: cfg.server_addr.port(),
-        server_url: *cfg.server_addr,
-        public_url: config::Host(cfg.public_addr.0.clone()),
+        server_addr: *cfg.server_addr,
+        public_addr: config::Host(cfg.public_addr.0.clone()),
         max_payload_size: usize::MAX,
         max_batch_size: usize::MAX,
         gossip_dynamic_inbound_limit: cfg.gossip.dynamic_inbound_limit,
