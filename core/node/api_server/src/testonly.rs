@@ -4,15 +4,22 @@ use std::iter;
 
 use zk_evm_1_5_0::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
 use zksync_contracts::{
-    get_loadnext_contract, load_contract, read_bytecode,
+    eth_contract, get_loadnext_contract, load_contract, read_bytecode,
     test_contracts::LoadnextContractExecutionParams,
 };
 use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
+use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
 use zksync_types::{
-    ethabi::Token, fee::Fee, fee_model::FeeParams, l2::L2Tx, transaction_request::PaymasterParams,
+    ethabi,
+    ethabi::Token,
+    fee::Fee,
+    fee_model::FeeParams,
+    l2::L2Tx,
+    transaction_request::{CallRequest, PaymasterParams},
     Address, K256PrivateKey, L2ChainId, Nonce, ProtocolVersionId, H256, U256,
 };
+use zksync_utils::address_to_u256;
 
 pub(crate) const LOAD_TEST_ADDRESS: Address = Address::repeat_byte(1);
 
@@ -32,6 +39,10 @@ const INFINITE_LOOP_CONTRACT_PATH: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/infinite/infinite.sol/InfiniteLoop.json";
 pub(crate) const INFINITE_LOOP_CONTRACT_ADDRESS: Address = Address::repeat_byte(5);
 
+const MULTICALL3_CONTRACT_PATH: &str =
+    "contracts/l2-contracts/artifacts-zk/contracts/dev-contracts/Multicall3.sol/Multicall3.json";
+pub(crate) const MULTICALL3_ADDRESS: Address = Address::repeat_byte(6);
+
 pub(crate) fn read_expensive_contract_bytecode() -> Vec<u8> {
     read_bytecode(EXPENSIVE_CONTRACT_PATH)
 }
@@ -46,6 +57,10 @@ pub(crate) fn read_counter_contract_bytecode() -> Vec<u8> {
 
 pub(crate) fn read_infinite_loop_contract_bytecode() -> Vec<u8> {
     read_bytecode(INFINITE_LOOP_CONTRACT_PATH)
+}
+
+pub(crate) fn read_multicall3_bytecode() -> Vec<u8> {
+    read_bytecode(MULTICALL3_CONTRACT_PATH)
 }
 
 /// Inflates the provided bytecode by appending the specified amount of NOP instructions at the end.
@@ -64,13 +79,104 @@ fn default_fee() -> Fee {
         1.0,
     );
     let (max_fee_per_gas, gas_per_pubdata_limit) =
-        derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
+        derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::default().into());
     Fee {
         gas_limit: 10_000_000.into(),
         max_fee_per_gas: max_fee_per_gas.into(),
         max_priority_fee_per_gas: 0_u64.into(),
         gas_per_pubdata_limit: gas_per_pubdata_limit.into(),
     }
+}
+
+#[derive(Debug)]
+pub(crate) struct Call3Value {
+    target: Address,
+    allow_failure: bool,
+    value: U256,
+    calldata: Vec<u8>,
+}
+
+impl Call3Value {
+    pub fn allow_failure(mut self) -> Self {
+        self.allow_failure = true;
+        self
+    }
+
+    fn to_token(&self) -> Token {
+        Token::Tuple(vec![
+            Token::Address(self.target),
+            Token::Bool(self.allow_failure),
+            Token::Uint(self.value),
+            Token::Bytes(self.calldata.clone()),
+        ])
+    }
+}
+
+impl From<CallRequest> for Call3Value {
+    fn from(req: CallRequest) -> Self {
+        Self {
+            target: req.to.unwrap(),
+            allow_failure: false,
+            value: req.value.unwrap_or_default(),
+            calldata: req.data.unwrap_or_default().0,
+        }
+    }
+}
+
+impl From<L2Tx> for Call3Value {
+    fn from(tx: L2Tx) -> Self {
+        Self {
+            target: tx.recipient_account().unwrap(),
+            allow_failure: false,
+            value: tx.execute.value,
+            calldata: tx.execute.calldata,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct Call3Result {
+    pub success: bool,
+    pub return_data: Vec<u8>,
+}
+
+impl Call3Result {
+    pub fn parse(raw: &[u8]) -> Vec<Self> {
+        let mut tokens = load_contract(MULTICALL3_CONTRACT_PATH)
+            .function("aggregate3Value")
+            .expect("no `aggregate3Value` function")
+            .decode_output(raw)
+            .expect("failed decoding `aggregate3Value` output");
+        assert_eq!(tokens.len(), 1, "Invalid output length");
+        let Token::Array(results) = tokens.pop().unwrap() else {
+            panic!("Invalid token type, expected an array");
+        };
+        results.into_iter().map(Self::parse_single).collect()
+    }
+
+    fn parse_single(token: Token) -> Self {
+        let Token::Tuple(mut tokens) = token else {
+            panic!("Invalid token type, expected a tuple");
+        };
+        assert_eq!(tokens.len(), 2);
+        let return_data = tokens.pop().unwrap().into_bytes().expect("expected bytes");
+        let success = tokens.pop().unwrap().into_bool().expect("expected bool");
+        Self {
+            success,
+            return_data,
+        }
+    }
+
+    pub fn as_u256(&self) -> U256 {
+        decode_u256_output(&self.return_data)
+    }
+}
+
+pub(crate) fn decode_u256_output(raw_output: &[u8]) -> U256 {
+    let mut tokens = ethabi::decode_whole(&[ethabi::ParamType::Uint(256)], raw_output)
+        .expect("unexpected return data");
+    assert_eq!(tokens.len(), 1);
+    tokens.pop().unwrap().into_uint().unwrap()
 }
 
 pub(crate) trait TestAccount {
@@ -81,6 +187,8 @@ pub(crate) trait TestAccount {
         };
         self.create_transfer_with_fee(value, fee)
     }
+
+    fn query_base_token_balance(&self) -> CallRequest;
 
     fn create_transfer_with_fee(&self, value: U256, fee: Fee) -> L2Tx;
 
@@ -94,7 +202,11 @@ pub(crate) trait TestAccount {
 
     fn create_counter_tx(&self, increment: U256, revert: bool) -> L2Tx;
 
+    fn query_counter_value(&self) -> CallRequest;
+
     fn create_infinite_loop_tx(&self) -> L2Tx;
+
+    fn multicall_with_value(&self, value: U256, calls: &[Call3Value]) -> CallRequest;
 }
 
 impl TestAccount for K256PrivateKey {
@@ -111,6 +223,20 @@ impl TestAccount for K256PrivateKey {
             PaymasterParams::default(),
         )
         .unwrap()
+    }
+
+    fn query_base_token_balance(&self) -> CallRequest {
+        let data = eth_contract()
+            .function("balanceOf")
+            .expect("No `balanceOf` function in contract")
+            .encode_input(&[Token::Uint(address_to_u256(&self.address()))])
+            .expect("failed encoding `balanceOf` function");
+        CallRequest {
+            from: Some(self.address()),
+            to: Some(L2_BASE_TOKEN_ADDRESS),
+            data: Some(data.into()),
+            ..CallRequest::default()
+        }
     }
 
     fn create_load_test_tx(&self, params: LoadnextContractExecutionParams) -> L2Tx {
@@ -215,6 +341,20 @@ impl TestAccount for K256PrivateKey {
         .unwrap()
     }
 
+    fn query_counter_value(&self) -> CallRequest {
+        let calldata = load_contract(COUNTER_CONTRACT_PATH)
+            .function("get")
+            .expect("no `get` function")
+            .encode_input(&[])
+            .expect("failed encoding `get` input");
+        CallRequest {
+            from: Some(self.address()),
+            to: Some(COUNTER_CONTRACT_ADDRESS),
+            data: Some(calldata.into()),
+            ..CallRequest::default()
+        }
+    }
+
     fn create_infinite_loop_tx(&self) -> L2Tx {
         let calldata = load_contract(INFINITE_LOOP_CONTRACT_PATH)
             .function("infiniteLoop")
@@ -233,5 +373,21 @@ impl TestAccount for K256PrivateKey {
             PaymasterParams::default(),
         )
         .unwrap()
+    }
+
+    fn multicall_with_value(&self, value: U256, calls: &[Call3Value]) -> CallRequest {
+        let call_tokens = calls.iter().map(Call3Value::to_token).collect();
+        let calldata = load_contract(MULTICALL3_CONTRACT_PATH)
+            .function("aggregate3Value")
+            .expect("no `aggregate3Value` function")
+            .encode_input(&[Token::Array(call_tokens)])
+            .expect("failed encoding `aggregate3Value` input");
+        CallRequest {
+            from: Some(self.address()),
+            to: Some(MULTICALL3_ADDRESS),
+            value: Some(value),
+            data: Some(calldata.into()),
+            ..CallRequest::default()
+        }
     }
 }

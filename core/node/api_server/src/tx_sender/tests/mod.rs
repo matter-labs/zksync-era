@@ -13,6 +13,7 @@ use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use super::*;
 use crate::{execution_sandbox::BlockStartInfo, web3::testonly::create_test_tx_sender};
 
+mod call;
 mod gas_estimation;
 
 const LOAD_TEST_CASES: TestCases<LoadnextContractExecutionParams> = test_casing::cases! {[
