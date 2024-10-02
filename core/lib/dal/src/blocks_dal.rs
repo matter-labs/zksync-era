@@ -337,7 +337,7 @@ impl BlocksDal<'_, '_> {
                 pubdata_input
             FROM
                 l1_batches
-                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
             WHERE
                 number = $1
             "#,
@@ -597,57 +597,57 @@ impl BlocksDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-                l1_batches (
-                    number,
-                    l1_tx_count,
-                    l2_tx_count,
-                    timestamp,
-                    l2_to_l1_messages,
-                    bloom,
-                    priority_ops_onchain_data,
-                    predicted_commit_gas_cost,
-                    predicted_prove_gas_cost,
-                    predicted_execute_gas_cost,
-                    initial_bootloader_heap_content,
-                    used_contract_hashes,
-                    bootloader_code_hash,
-                    default_aa_code_hash,
-                    evm_simulator_code_hash,
-                    protocol_version,
-                    system_logs,
-                    storage_refunds,
-                    pubdata_costs,
-                    pubdata_input,
-                    predicted_circuits_by_type,
-                    created_at,
-                    updated_at
-                )
+            l1_batches (
+                number,
+                l1_tx_count,
+                l2_tx_count,
+                timestamp,
+                l2_to_l1_messages,
+                bloom,
+                priority_ops_onchain_data,
+                predicted_commit_gas_cost,
+                predicted_prove_gas_cost,
+                predicted_execute_gas_cost,
+                initial_bootloader_heap_content,
+                used_contract_hashes,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                evm_simulator_code_hash,
+                protocol_version,
+                system_logs,
+                storage_refunds,
+                pubdata_costs,
+                pubdata_input,
+                predicted_circuits_by_type,
+                created_at,
+                updated_at
+            )
             VALUES
-                (
-                    $1,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    $8,
-                    $9,
-                    $10,
-                    $11,
-                    $12,
-                    $13,
-                    $14,
-                    $15,
-                    $16,
-                    $17,
-                    $18,
-                    $19,
-                    $20,
-                    $21,
-                    NOW(),
-                    NOW()
-                )
+            (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                $11,
+                $12,
+                $13,
+                $14,
+                $15,
+                $16,
+                $17,
+                $18,
+                $19,
+                $20,
+                $21,
+                NOW(),
+                NOW()
+            )
             "#,
             i64::from(header.number.0),
             i32::from(header.l1_tx_count),
@@ -699,51 +699,51 @@ impl BlocksDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-                miniblocks (
-                    number,
-                    timestamp,
-                    hash,
-                    l1_tx_count,
-                    l2_tx_count,
-                    fee_account_address,
-                    base_fee_per_gas,
-                    l1_gas_price,
-                    l2_fair_gas_price,
-                    gas_per_pubdata_limit,
-                    bootloader_code_hash,
-                    default_aa_code_hash,
-                    evm_simulator_code_hash,
-                    protocol_version,
-                    virtual_blocks,
-                    fair_pubdata_price,
-                    gas_limit,
-                    logs_bloom,
-                    created_at,
-                    updated_at
-                )
+            miniblocks (
+                number,
+                timestamp,
+                hash,
+                l1_tx_count,
+                l2_tx_count,
+                fee_account_address,
+                base_fee_per_gas,
+                l1_gas_price,
+                l2_fair_gas_price,
+                gas_per_pubdata_limit,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                evm_simulator_code_hash,
+                protocol_version,
+                virtual_blocks,
+                fair_pubdata_price,
+                gas_limit,
+                logs_bloom,
+                created_at,
+                updated_at
+            )
             VALUES
-                (
-                    $1,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    $8,
-                    $9,
-                    $10,
-                    $11,
-                    $12,
-                    $13,
-                    $14,
-                    $15,
-                    $16,
-                    $17,
-                    $18,
-                    NOW(),
-                    NOW()
-                )
+            (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                $11,
+                $12,
+                $13,
+                $14,
+                $15,
+                $16,
+                $17,
+                $18,
+                NOW(),
+                NOW()
+            )
             "#,
             i64::from(l2_block_header.number.0),
             l2_block_header.timestamp as i64,
@@ -1004,14 +1004,21 @@ impl BlocksDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment)
+            commitments (
+                l1_batch_number,
+                events_queue_commitment,
+                bootloader_initial_content_commitment
+            )
             VALUES
-                ($1, $2, $3)
+            ($1, $2, $3)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(number.0),
-            commitment_artifacts.aux_commitments.map(|a| a.events_queue_commitment.0.to_vec()),
-            commitment_artifacts.aux_commitments
+            commitment_artifacts
+                .aux_commitments
+                .map(|a| a.events_queue_commitment.0.to_vec()),
+            commitment_artifacts
+                .aux_commitments
                 .map(|a| a.bootloader_initial_content_commitment.0.to_vec()),
         )
         .instrument("save_batch_aux_commitments")
@@ -1061,7 +1068,7 @@ impl BlocksDal<'_, '_> {
                 pubdata_input
             FROM
                 l1_batches
-                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
             WHERE
                 number = 0
                 OR eth_commit_tx_id IS NOT NULL
@@ -1093,7 +1100,9 @@ impl BlocksDal<'_, '_> {
                 number
             FROM
                 l1_batches
-                LEFT JOIN eth_txs_history AS commit_tx ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id)
+            LEFT JOIN
+                eth_txs_history AS commit_tx
+                ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id)
             WHERE
                 commit_tx.confirmed_at IS NOT NULL
             ORDER BY
@@ -1160,7 +1169,9 @@ impl BlocksDal<'_, '_> {
                 number
             FROM
                 l1_batches
-                LEFT JOIN eth_txs_history AS prove_tx ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id)
+            LEFT JOIN
+                eth_txs_history AS prove_tx
+                ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id)
             WHERE
                 prove_tx.confirmed_at IS NOT NULL
             ORDER BY
@@ -1185,7 +1196,9 @@ impl BlocksDal<'_, '_> {
                 number
             FROM
                 l1_batches
-                LEFT JOIN eth_txs_history AS execute_tx ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id)
+            LEFT JOIN
+                eth_txs_history AS execute_tx
+                ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id)
             WHERE
                 execute_tx.confirmed_at IS NOT NULL
             ORDER BY
@@ -1242,7 +1255,7 @@ impl BlocksDal<'_, '_> {
                 pubdata_input
             FROM
                 l1_batches
-                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
             WHERE
                 eth_commit_tx_id IS NOT NULL
                 AND eth_prove_tx_id IS NULL
@@ -1328,7 +1341,7 @@ impl BlocksDal<'_, '_> {
                         ROW_NUMBER() OVER (
                             ORDER BY
                                 number ASC
-                        ) AS ROW_NUMBER
+                        ) AS row_number
                     FROM
                         l1_batches
                     WHERE
@@ -1340,9 +1353,9 @@ impl BlocksDal<'_, '_> {
                     LIMIT
                         $2
                 ) inn
-                LEFT JOIN commitments ON commitments.l1_batch_number = inn.number
+            LEFT JOIN commitments ON commitments.l1_batch_number = inn.number
             WHERE
-                number - ROW_NUMBER = $1
+                number - row_number = $1
             "#,
             last_proved_batch_number.0 as i32,
             limit as i32
@@ -1397,7 +1410,7 @@ impl BlocksDal<'_, '_> {
                         pubdata_input
                     FROM
                         l1_batches
-                        LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
                     WHERE
                         eth_prove_tx_id IS NOT NULL
                         AND eth_execute_tx_id IS NULL
@@ -1469,16 +1482,18 @@ impl BlocksDal<'_, '_> {
                 MAX(l1_batches.number)
             FROM
                 l1_batches
-                JOIN eth_txs ON (l1_batches.eth_commit_tx_id = eth_txs.id)
-                JOIN eth_txs_history AS commit_tx ON (eth_txs.confirmed_eth_tx_history_id = commit_tx.id)
+            JOIN eth_txs ON (l1_batches.eth_commit_tx_id = eth_txs.id)
+            JOIN
+                eth_txs_history AS commit_tx
+                ON (eth_txs.confirmed_eth_tx_history_id = commit_tx.id)
             WHERE
                 commit_tx.confirmed_at IS NOT NULL
                 AND eth_prove_tx_id IS NOT NULL
                 AND eth_execute_tx_id IS NULL
                 AND EXTRACT(
-                    epoch
+                    EPOCH
                     FROM
-                        commit_tx.confirmed_at
+                    commit_tx.confirmed_at
                 ) < $1
             "#,
             max_l1_batch_timestamp_seconds_bd,
@@ -1523,7 +1538,7 @@ impl BlocksDal<'_, '_> {
                     pubdata_input
                 FROM
                     l1_batches
-                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
                 WHERE
                     number BETWEEN $1 AND $2
                 ORDER BY
@@ -1588,8 +1603,8 @@ impl BlocksDal<'_, '_> {
                 pubdata_input
             FROM
                 l1_batches
-                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
-                JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
             WHERE
                 eth_commit_tx_id IS NULL
                 AND number != 0
@@ -1667,9 +1682,11 @@ impl BlocksDal<'_, '_> {
                 pubdata_input
             FROM
                 l1_batches
-                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
-                LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
-                JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            LEFT JOIN
+                data_availability
+                ON data_availability.l1_batch_number = l1_batches.number
+            JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
             WHERE
                 eth_commit_tx_id IS NULL
                 AND number != 0
@@ -1868,7 +1885,7 @@ impl BlocksDal<'_, '_> {
                 bytecode
             FROM
                 factory_deps
-                INNER JOIN miniblocks ON miniblocks.number = factory_deps.miniblock_number
+            INNER JOIN miniblocks ON miniblocks.number = factory_deps.miniblock_number
             WHERE
                 miniblocks.l1_batch_number = $1
             "#,
@@ -2364,7 +2381,7 @@ impl BlocksDal<'_, '_> {
                 value
             FROM
                 l2_to_l1_logs
-                JOIN miniblocks ON l2_to_l1_logs.miniblock_number = miniblocks.number
+            JOIN miniblocks ON l2_to_l1_logs.miniblock_number = miniblocks.number
             WHERE
                 l1_batch_number = $1
             ORDER BY
@@ -2462,8 +2479,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 (
                     SELECT
-                        UNNEST($1::BIGINT[]) AS number,
-                        UNNEST($2::BYTEA[]) AS logs_bloom
+                        UNNEST($1::BIGINT []) AS number,
+                        UNNEST($2::BYTEA []) AS logs_bloom
                 ) AS data
             WHERE
                 miniblocks.number = data.number

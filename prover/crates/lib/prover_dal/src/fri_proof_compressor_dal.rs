@@ -27,17 +27,17 @@ impl FriProofCompressorDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                proof_compression_jobs_fri (
-                    l1_batch_number,
-                    fri_proof_blob_url,
-                    status,
-                    created_at,
-                    updated_at,
-                    protocol_version,
-                    protocol_version_patch
-                )
+            proof_compression_jobs_fri (
+                l1_batch_number,
+                fri_proof_blob_url,
+                status,
+                created_at,
+                updated_at,
+                protocol_version,
+                protocol_version_patch
+            )
             VALUES
-                ($1, $2, $3, NOW(), NOW(), $4, $5)
+            ($1, $2, $3, NOW(), NOW(), $4, $5)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
@@ -80,10 +80,10 @@ impl FriProofCompressorDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                proof_compression_jobs_fri.l1_batch_number
+            proof_compression_jobs_fri.l1_batch_number
             "#,
             ProofCompressionJobStatus::InProgress.to_string(),
             ProofCompressionJobStatus::Queued.to_string(),
@@ -246,11 +246,11 @@ impl FriProofCompressorDal<'_, '_> {
                 protocol_version_patch,
                 COUNT(*) FILTER (
                     WHERE
-                        status = 'queued'
+                    status = 'queued'
                 ) AS queued,
                 COUNT(*) FILTER (
                     WHERE
-                        status = 'in_progress'
+                    status = 'in_progress'
                 ) AS in_progress
             FROM
                 proof_compression_jobs_fri
@@ -328,11 +328,11 @@ impl FriProofCompressorDal<'_, '_> {
                         AND attempts < $2
                     )
                 RETURNING
-                    l1_batch_number,
-                    status,
-                    attempts,
-                    error,
-                    picked_by
+                l1_batch_number,
+                status,
+                attempts,
+                error,
+                picked_by
                 "#,
                 &processing_timeout,
                 max_attempts as i32,
@@ -435,10 +435,10 @@ impl FriProofCompressorDal<'_, '_> {
                         OR status = 'failed'
                     )
                 RETURNING
-                    status,
-                    attempts,
-                    error,
-                    picked_by
+                status,
+                attempts,
+                error,
+                picked_by
                 "#,
                 i64::from(block_number.0),
                 max_attempts as i32,

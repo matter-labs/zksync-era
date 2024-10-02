@@ -51,12 +51,14 @@ The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be ac
 
 > [!NOTE]
 >
-> Those are requirements for nodes that use snapshots recovery and history pruning (the default for docker-compose setup).
+> Those are requirements for nodes that use snapshots recovery and history pruning (the default for docker-compose
+> setup).
 >
-> For requirements for nodes running from DB dump see the [running](03_running.md) section. DB dumps are a way to start ZKsync node with full historical transactions history.
+> For requirements for nodes running from DB dump see the [running](03_running.md) section. DB dumps are a way to start
+> ZKsync node with full historical transactions history.
 >
-> For nodes with pruning disabled, expect the storage requirements on mainnet to grow at 1TB per month. If you want to stop historical DB
-> pruning you can read more about this in the [pruning](08_pruning.md) section.
+> For nodes with pruning disabled, expect the storage requirements on mainnet to grow at 1TB per month. If you want to
+> stop historical DB pruning you can read more about this in the [pruning](08_pruning.md) section.
 
 - 32 GB of RAM and a relatively modern CPU
 - 50 GB of storage for testnet nodes
