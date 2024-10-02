@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use time::Duration;
 
 /// Config used for running ProverAutoscaler (both Scaler and Agent).
@@ -12,7 +12,7 @@ pub struct GeneralConfig {
     pub scaler_config: Option<ProverAutoscalerScalerConfig>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ProverAutoscalerAgentConfig {
     /// Port for prometheus metrics connection.
     pub prometheus_port: u16,
@@ -25,7 +25,7 @@ pub struct ProverAutoscalerAgentConfig {
     pub cluster_name: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct ProverAutoscalerScalerConfig {
     /// Port for prometheus metrics connection.
     pub prometheus_port: u16,
@@ -58,7 +58,7 @@ impl ProverAutoscalerScalerConfig {
         Duration::seconds(10)
     }
 
-    /// Default prover_job_monitor_url -- cluster local URL.
+    /// Default prover_job_monitor_url -- cluster local URL
     pub fn default_prover_job_monitor_url() -> String {
         "http://prover-job-monitor.stage2.svc.cluster.local:3074/queue_report".to_string()
     }
