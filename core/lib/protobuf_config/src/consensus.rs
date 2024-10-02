@@ -147,16 +147,16 @@ impl ProtoRepr for proto::Config {
             }
         };
 
-        let server_url = match required(&self.server_url) {
-            Ok(x) => x.parse().context("server_url")?,
-            Err(_) => required(&self.server_addr)
+        let server_url = match &self.server_url {
+            Some(x) => x.parse().context("server_url")?,
+            None => required(&self.server_addr)
                 .and_then(|x| Ok(x.parse()?))
                 .context("server_url")?,
         };
 
-        let public_url = match required(&self.public_url) {
-            Ok(x) => Host(x.clone()),
-            Err(_) => required(&self.public_addr)
+        let public_url = match &self.public_url {
+            Some(x) => Host(x.clone()),
+            None => required(&self.public_addr)
                 .and_then(|x| Ok(Host(x.clone())))
                 .context("public_url")?,
         };
