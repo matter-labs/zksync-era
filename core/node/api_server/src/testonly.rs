@@ -7,9 +7,11 @@ use zksync_contracts::{
     get_loadnext_contract, load_contract, read_bytecode,
     test_contracts::LoadnextContractExecutionParams,
 };
+use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
-    ethabi::Token, fee::Fee, l2::L2Tx, transaction_request::PaymasterParams, Address,
-    K256PrivateKey, L2ChainId, Nonce, H256, U256,
+    ethabi::Token, fee::Fee, fee_model::FeeParams, l2::L2Tx, transaction_request::PaymasterParams,
+    Address, K256PrivateKey, L2ChainId, Nonce, ProtocolVersionId, H256, U256,
 };
 
 pub(crate) const LOAD_TEST_ADDRESS: Address = Address::repeat_byte(1);
@@ -56,21 +58,26 @@ pub(crate) fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {
 }
 
 fn default_fee() -> Fee {
+    let fee_input = <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
+        FeeParams::sensible_v1_default(),
+        1.0,
+        1.0,
+    );
+    let (max_fee_per_gas, gas_per_pubdata_limit) =
+        derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
     Fee {
-        gas_limit: 200_000.into(),
-        max_fee_per_gas: 55.into(),
+        gas_limit: 10_000_000.into(),
+        max_fee_per_gas: max_fee_per_gas.into(),
         max_priority_fee_per_gas: 0_u64.into(),
-        gas_per_pubdata_limit: 555.into(),
+        gas_per_pubdata_limit: gas_per_pubdata_limit.into(),
     }
 }
 
 pub(crate) trait TestAccount {
-    fn create_transfer(&self, value: U256, fee_per_gas: u64, gas_per_pubdata: u64) -> L2Tx {
+    fn create_transfer(&self, value: U256) -> L2Tx {
         let fee = Fee {
             gas_limit: 200_000.into(),
-            max_fee_per_gas: fee_per_gas.into(),
-            max_priority_fee_per_gas: 0_u64.into(),
-            gas_per_pubdata_limit: gas_per_pubdata.into(),
+            ..default_fee()
         };
         self.create_transfer_with_fee(value, fee)
     }
@@ -85,7 +92,7 @@ pub(crate) trait TestAccount {
 
     fn create_code_oracle_tx(&self, bytecode_hash: H256, expected_keccak_hash: H256) -> L2Tx;
 
-    fn create_reverting_counter_tx(&self) -> L2Tx;
+    fn create_counter_tx(&self, increment: U256, revert: bool) -> L2Tx;
 
     fn create_infinite_loop_tx(&self) -> L2Tx;
 }
@@ -188,11 +195,11 @@ impl TestAccount for K256PrivateKey {
         .unwrap()
     }
 
-    fn create_reverting_counter_tx(&self) -> L2Tx {
+    fn create_counter_tx(&self, increment: U256, revert: bool) -> L2Tx {
         let calldata = load_contract(COUNTER_CONTRACT_PATH)
             .function("incrementWithRevert")
             .expect("no `incrementWithRevert` function")
-            .encode_input(&[Token::Uint(1.into()), Token::Bool(true)])
+            .encode_input(&[Token::Uint(increment), Token::Bool(revert)])
             .expect("failed encoding `incrementWithRevert` input");
         L2Tx::new_signed(
             Some(COUNTER_CONTRACT_ADDRESS),
