@@ -2,15 +2,9 @@ use clap::Subcommand;
 use xshell::Shell;
 
 use self::commands::{
-    config_writer::ConfigWriterArgs,
-    contracts::ContractsArgs,
-    database::DatabaseCommands,
-    lint::LintArgs,
-    prover::ProverCommands,
-    send_transactions::args::SendTransactionsArgs,
-    snapshot::SnapshotCommands,
-    test::TestCommands,
-    {clean::CleanCommands, fmt::FmtArgs},
+    clean::CleanCommands, config_writer::ConfigWriterArgs, contracts::ContractsArgs,
+    database::DatabaseCommands, fmt::FmtArgs, lint::LintArgs, prover::ProverCommands,
+    send_transactions::args::SendTransactionsArgs, snapshot::SnapshotCommands, test::TestCommands,
 };
 use crate::commands::dev::messages::{
     MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT, MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT,
