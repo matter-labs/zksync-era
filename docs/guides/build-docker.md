@@ -1,6 +1,6 @@
 # Build docker images
 
-This document explains how to build docker images.
+This document explains how to build Docker images from the source code, instead of using prebuilt ones we distribute
 
 ## Prerequisites
 
@@ -20,12 +20,12 @@ You will get those images:
 
 ```shell
 contract-verifier:2.0
-contract-server-v2:2.0
+server-v2:2.0
 prover:2.0
 witness-generator:2.0
 ```
 
-Alternativly, you may build only needed components - available targets are
+Alternatively, you may build only needed components - available targets are
 
 ```shell
 make build-contract-verifier
