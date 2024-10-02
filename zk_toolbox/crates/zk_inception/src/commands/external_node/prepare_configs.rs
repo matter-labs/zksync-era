@@ -11,7 +11,7 @@ use config::{
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
 use zksync_config::configs::{
-    consensus::{ConsensusSecrets, NodeSecretKey, Secret},
+    consensus::{ConsensusConfig, ConsensusSecrets, NodeSecretKey, Secret},
     DatabaseSecrets, L1Secrets,
 };
 use zksync_consensus_crypto::TextFmt;
@@ -79,15 +79,11 @@ fn prepare_configs(
         gateway_url: None,
     };
     let mut general_en = general.clone();
+    general_en.consensus_config = None;
 
     let main_node_consensus_config = general
         .consensus_config
         .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
-
-    // TODO: This is a temporary solution. We should allocate consensus port using `EcosystemPorts::allocate_ports_in_yaml`
-    let offset = ((config.id - 1) * 100) as u16;
-    let consensus_port_range = DEFAULT_CONSENSUS_PORT + offset..PORT_RANGE_END;
-    let consensus_port = ports.allocate_port(consensus_port_range, "Consensus".to_string())?;
 
     let mut gossip_static_outbound = BTreeMap::new();
     let main_node_public_key = node_public_key(
@@ -100,10 +96,11 @@ fn prepare_configs(
 
     gossip_static_outbound.insert(main_node_public_key, main_node_consensus_config.public_url);
 
+    // Set a default port for the external node
+    // This is allocated later with `EcosystemPorts::allocate_ports_in_yaml`
+    let consensus_port = main_node_consensus_config.port;
     let en_consensus_config =
         get_consensus_config(config, consensus_port, None, Some(gossip_static_outbound))?;
-    general_en.consensus_config = Some(en_consensus_config.clone());
-    en_consensus_config.save_with_base_path(shell, en_configs_path)?;
 
     // Set secrets config
     let node_key = roles::node::SecretKey::generate().encode();
@@ -124,16 +121,25 @@ fn prepare_configs(
         }),
         data_availability: None,
     };
-    secrets.save_with_base_path(shell, en_configs_path)?;
+
     let dirs = recreate_rocksdb_dirs(shell, &config.rocks_db_path, RocksDBDirOption::ExternalNode)?;
     set_rocks_db_config(&mut general_en, dirs)?;
+
     general_en.save_with_base_path(shell, en_configs_path)?;
     en_config.save_with_base_path(shell, en_configs_path)?;
+    en_consensus_config.save_with_base_path(shell, en_configs_path)?;
+    secrets.save_with_base_path(shell, en_configs_path)?;
 
+    let offset = 0; // This is zero because general_en ports already have a chain offset
     ports.allocate_ports_in_yaml(
         shell,
         &GeneralConfig::get_path_with_base_path(en_configs_path),
-        0, // This is zero because general_en ports already have a chain offset
+        offset,
+    )?;
+    ports.allocate_ports_in_yaml(
+        shell,
+        &ConsensusConfig::get_path_with_base_path(en_configs_path),
+        offset,
     )?;
 
     Ok(())
