@@ -1,6 +1,8 @@
 use std::{collections::HashMap, fmt, mem};
 
-use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
+use zk_evm_1_5_0::{
+    aux_structures::LogQuery, zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION,
+};
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
     l1::is_l1_tx_type,
@@ -67,7 +69,7 @@ struct VmRunResult {
     refunds: Refunds,
     /// This value is used in stats. It's defined in the old VM as the latest value used when computing refunds (see the refunds tracer for `vm_latest`).
     /// This is **not** equal to the pubdata diff before and after VM execution; e.g., when executing a batch tip,
-    /// `pubdata_published` is always 0 (since no refunds are getting computed).
+    /// `pubdata_published` is always 0 (since no refunds are computed).
     pubdata_published: u32,
 }
 
@@ -77,7 +79,7 @@ impl VmRunResult {
             ExecutionResult::Success { .. } => false,
             ExecutionResult::Halt { .. } => true,
             // Logs generated during reverts should only be ignored if the revert has reached the root (bootloader) call frame,
-            // which is only possible with a playground bootloader.
+            // which is only possible with `TxExecutionMode::EthCall`.
             ExecutionResult::Revert { .. } => self.execution_ended,
         }
     }
@@ -478,10 +480,7 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
                     StateDiffRecord {
                         address,
                         key,
-                        derived_key:
-                            zk_evm_1_5_0::aux_structures::LogQuery::derive_final_address_for_params(
-                                &address, &key,
-                            ),
+                        derived_key: LogQuery::derive_final_address_for_params(&address, &key),
                         enumeration_index: storage
                             .get_enumeration_index(&storage_key)
                             .unwrap_or_default(),
