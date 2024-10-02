@@ -5,8 +5,6 @@ BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
 ZKT_DIR=${ZKT_DIR:-"$BASE_DIR/.zkt"}
 ZKT_BIN_DIR="$ZKT_DIR/bin"
 
-ZKUP_INSTALL_SUPERVISOR=0
-ZKUP_INSTALL_INCEPTION=0
 ZKUP_ALIAS=0
 
 BINS=()
@@ -87,8 +85,6 @@ parse_args() {
       shift
       ZKUP_VERSION=$1
       ;;
-    --inception) ZKUP_INSTALL_INCEPTION=1 ;;
-    --supervisor) ZKUP_INSTALL_SUPERVISOR=1 ;;
     -a | --alias) ZKUP_ALIAS=1 ;;
     -h | --help)
       usage
@@ -117,7 +113,6 @@ Options:
   -c, --commit <commit>     Git commit hash to use when installing from a repository. Ignored if --branch or --version is provided.
   -v, --version <version>   Git tag to use when installing from a repository. Ignored if --branch or --commit is provided.
   -a, --alias               Create aliases zki for zk_inception binaries.
-  --inception               Installs the zk_inception binary. Default is to install both zk_inception binary.
   -h, --help                Show this help message and exit.
 
 Examples:
