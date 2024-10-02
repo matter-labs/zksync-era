@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM transactions\n            WHERE\n                in_mempool = TRUE\n                AND initiator_address = ANY($1)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "ByteaArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d43ae07cf1539826363573d121392687cfe890fe89c748f836bad6eb0cc0fcf5"
+}

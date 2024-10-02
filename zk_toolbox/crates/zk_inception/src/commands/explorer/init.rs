@@ -11,7 +11,6 @@ use url::Url;
 use xshell::Shell;
 
 use crate::{
-    commands::chain::args::init::PortOffset,
     consts::L2_BASE_TOKEN_ADDRESS,
     defaults::{generate_explorer_db_name, DATABASE_EXPLORER_URL},
     messages::{
@@ -19,6 +18,7 @@ use crate::{
         msg_explorer_initializing_database_for, MSG_EXPLORER_FAILED_TO_DROP_DATABASE_ERR,
         MSG_EXPLORER_INITIALIZED,
     },
+    utils::ports::{EcosystemPorts, EcosystemPortsScanner},
 };
 
 pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
@@ -28,6 +28,7 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
         Some(ref chain_name) => vec![chain_name.clone()],
         None => ecosystem_config.list_of_chains(),
     };
+    let mut ports = EcosystemPortsScanner::scan(shell)?;
     // Initialize chains one by one
     let mut explorer_config = ExplorerConfig::read_or_create_default(shell)?;
     for chain_name in chains_enabled.iter() {
@@ -36,7 +37,7 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
             .load_chain(Some(chain_name.clone()))
             .context(msg_chain_load_err(chain_name))?;
         // Build backend config - parameters required to create explorer backend services
-        let backend_config = build_backend_config(&chain_config);
+        let backend_config = build_backend_config(&mut ports, &chain_config)?;
         // Initialize explorer database
         initialize_explorer_database(&backend_config.database_url).await?;
         // Create explorer backend docker compose file
@@ -58,16 +59,23 @@ pub(crate) async fn run(shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn build_backend_config(chain_config: &ChainConfig) -> ExplorerBackendConfig {
+fn build_backend_config(
+    ports: &mut EcosystemPorts,
+    chain_config: &ChainConfig,
+) -> anyhow::Result<ExplorerBackendConfig> {
     // Prompt explorer database name
     logger::info(msg_explorer_initializing_database_for(&chain_config.name));
     let db_config = fill_database_values_with_prompt(chain_config);
 
     // Allocate ports for backend services
-    let backend_ports = allocate_explorer_services_ports(chain_config);
+    let mut backend_ports = ExplorerBackendPorts::default();
+    ports.allocate_ports_with_offset_from_defaults(&mut backend_ports, chain_config.id)?;
 
     // Build explorer backend config
-    ExplorerBackendConfig::new(db_config.full_url(), &backend_ports)
+    Ok(ExplorerBackendConfig::new(
+        db_config.full_url(),
+        &backend_ports,
+    ))
 }
 
 async fn initialize_explorer_database(db_url: &Url) -> anyhow::Result<()> {
@@ -90,12 +98,6 @@ fn fill_database_values_with_prompt(config: &ChainConfig) -> db::DatabaseConfig 
         .ask();
     let explorer_db_name = slugify!(&explorer_db_name, separator = "_");
     db::DatabaseConfig::new(explorer_db_url, explorer_db_name)
-}
-
-fn allocate_explorer_services_ports(chain_config: &ChainConfig) -> ExplorerBackendPorts {
-    // Try to allocate intuitive ports with an offset from the defaults
-    let offset: u16 = PortOffset::from_chain_id(chain_config.id as u16).into();
-    ExplorerBackendPorts::default().with_offset(offset)
 }
 
 fn build_explorer_chain_config(

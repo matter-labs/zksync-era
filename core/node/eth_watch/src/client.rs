@@ -47,6 +47,7 @@ pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
 const TOO_MANY_RESULTS_RETH: &str = "query exceeds max block range";
+const TOO_MANY_RESULTS_CHAINSTACK: &str = "range limit exceeded";
 
 /// Implementation of [`EthClient`] based on HTTP JSON-RPC (encapsulated via [`EthInterface`]).
 #[derive(Debug, Clone)]
@@ -148,6 +149,7 @@ impl EthHttpQueryClient {
             if err_message.contains(TOO_MANY_RESULTS_INFURA)
                 || err_message.contains(TOO_MANY_RESULTS_ALCHEMY)
                 || err_message.contains(TOO_MANY_RESULTS_RETH)
+                || err_message.contains(TOO_MANY_RESULTS_CHAINSTACK)
             {
                 // get the numeric block ids
                 let from_number = match from {

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            compiler_versions (version, compiler, created_at, updated_at)\n            SELECT\n                u.version,\n                $2,\n                NOW(),\n                NOW()\n            FROM\n                UNNEST($1::TEXT []) AS u (version)\n            ON CONFLICT (version, compiler) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "TextArray",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d0db89030ed6979ecba6786aef1ac9ff144a09e68db07e4ca1c1de105765711f"
+}

@@ -137,7 +137,7 @@ impl HttpTest for TraceBlockFlatTest {
                         }),
                     )
                     .await?
-                    .unwrap_flatten();
+                    .unwrap_flat();
 
                 // A transaction with 2 nested calls will convert into 3 Flattened calls.
                 // Also in this test, all tx have the same # of nested calls
