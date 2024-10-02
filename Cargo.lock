@@ -9333,7 +9333,6 @@ dependencies = [
  "zksync_concurrency",
  "zksync_consensus_utils",
  "zksync_crypto_primitives",
- "zksync_protobuf",
  "zksync_vlog",
 ]
 

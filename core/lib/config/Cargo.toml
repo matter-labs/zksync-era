@@ -16,7 +16,6 @@ zksync_crypto_primitives.workspace = true
 zksync_consensus_utils.workspace = true
 zksync_concurrency.workspace = true
 zksync_vlog = { workspace = true, optional = true }
-zksync_protobuf.workspace = true
 tracing = { workspace = true, optional = true }
 
 url.workspace = true
