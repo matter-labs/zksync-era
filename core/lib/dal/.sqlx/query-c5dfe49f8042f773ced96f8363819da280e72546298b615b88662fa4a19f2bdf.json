@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            vm_runner_bwip (l1_batch_number, created_at, updated_at, processing_started_at)\n            VALUES\n            ($1, NOW(), NOW(), NOW())\n            ON CONFLICT (l1_batch_number) DO\n            UPDATE\n            SET\n            updated_at = NOW(),\n            processing_started_at = NOW()\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c5dfe49f8042f773ced96f8363819da280e72546298b615b88662fa4a19f2bdf"
+}

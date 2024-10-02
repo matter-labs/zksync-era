@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                number AS batch_number,\n                eth_txs.chain_id AS settlement_layer_id,\n                eth_txs_history.tx_hash AS settlement_layer_tx_hash\n            FROM\n                l1_batches\n            JOIN eth_txs ON l1_batches.eth_execute_tx_id = eth_txs.id\n            JOIN eth_txs_history\n                ON (\n                    eth_txs.id = eth_txs_history.eth_tx_id\n                    AND eth_txs_history.confirmed_at IS NOT NULL\n                )\n            WHERE\n                l1_batches.number = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "batch_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "settlement_layer_id",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "settlement_layer_tx_hash",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "abbe96ba26a046a2c000cd9b9b4e54b2a3ba8db825a3131aa36e17f0f0fadc87"
+}
