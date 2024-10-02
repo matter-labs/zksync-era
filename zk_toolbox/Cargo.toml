@@ -4,7 +4,6 @@ members = [
     "crates/config",
     "crates/types",
     "crates/zk_inception",
-    "crates/zk_supervisor",
     "crates/git_version_macro",
 ]
 resolver = "2"

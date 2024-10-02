@@ -6716,31 +6716,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zk_supervisor"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "clap-markdown",
- "common",
- "config",
- "ethers",
- "futures",
- "human-panic",
- "serde",
- "serde_json",
- "serde_yaml",
- "sqruff-lib",
- "strum",
- "tokio",
- "types",
- "url",
- "xshell",
- "zksync_basic_types",
-]
-
-[[package]]
 name = "zkevm_opcode_defs"
 version = "0.132.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
