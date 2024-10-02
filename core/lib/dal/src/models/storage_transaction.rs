@@ -561,32 +561,38 @@ impl StorageApiTransaction {
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub(crate) struct CallTrace {
     pub call_trace: Vec<u8>,
+    pub tx_hash: Vec<u8>,
+    pub tx_index_in_block: Option<i32>,
 }
 
 impl CallTrace {
     pub(crate) fn into_call(self, protocol_version: ProtocolVersionId) -> Call {
-        if protocol_version.is_pre_1_5_0() {
-            if let Ok(legacy_call_trace) = bincode::deserialize::<LegacyCall>(&self.call_trace) {
-                legacy_call_trace.into()
-            } else {
-                let legacy_mixed_call_trace =
-                    bincode::deserialize::<LegacyMixedCall>(&self.call_trace)
-                        .expect("Failed to deserialize call trace");
-                legacy_mixed_call_trace.into()
-            }
-        } else {
-            bincode::deserialize(&self.call_trace).unwrap()
-        }
+        parse_call_trace(&self.call_trace, protocol_version)
     }
+}
 
-    pub(crate) fn from_call(call: Call, protocol_version: ProtocolVersionId) -> Self {
-        let call_trace = if protocol_version.is_pre_1_5_0() {
-            bincode::serialize(&LegacyCall::try_from(call).unwrap())
+pub(crate) fn parse_call_trace(call_trace: &[u8], protocol_version: ProtocolVersionId) -> Call {
+    if protocol_version.is_pre_1_5_0() {
+        if let Ok(legacy_call_trace) = bincode::deserialize::<LegacyCall>(call_trace) {
+            legacy_call_trace.into()
         } else {
-            bincode::serialize(&call)
+            let legacy_mixed_call_trace = bincode::deserialize::<LegacyMixedCall>(call_trace)
+                .expect("Failed to deserialize call trace");
+            legacy_mixed_call_trace.into()
         }
-        .unwrap();
-
-        Self { call_trace }
+    } else {
+        bincode::deserialize(call_trace).unwrap()
     }
+}
+
+pub(crate) fn serialize_call_into_bytes(
+    call: Call,
+    protocol_version: ProtocolVersionId,
+) -> Vec<u8> {
+    if protocol_version.is_pre_1_5_0() {
+        bincode::serialize(&LegacyCall::try_from(call).unwrap())
+    } else {
+        bincode::serialize(&call)
+    }
+    .unwrap()
 }

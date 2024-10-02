@@ -415,25 +415,35 @@ fn l2_eth_fee_history(
     let from_block = from_block.as_usize();
     let start_block = from_block.saturating_sub(block_count.as_usize() - 1);
 
+    // duplicates last value to follow `feeHistory` response format, it should return `block_count + 1` values
+    let base_fee_per_gas = base_fee_history[start_block..=from_block]
+        .iter()
+        .chain([&base_fee_history[from_block]])
+        .map(|fee| U256::from(fee.base_fee_per_gas))
+        .collect();
+
+    // duplicates last value to follow `feeHistory` response format, it should return `block_count + 1` values
+    let base_fee_per_blob_gas = base_fee_history[start_block..=from_block]
+        .iter()
+        .chain([&base_fee_history[from_block]]) // duplicate last value
+        .map(|fee| fee.base_fee_per_blob_gas)
+        .collect();
+
+    let l2_pubdata_price = base_fee_history[start_block..=from_block]
+        .iter()
+        .map(|fee| fee.l2_pubdata_price)
+        .collect();
+
     FeeHistory {
         inner: web3::FeeHistory {
             oldest_block: start_block.into(),
-            base_fee_per_gas: base_fee_history[start_block..=from_block]
-                .iter()
-                .map(|fee| U256::from(fee.base_fee_per_gas))
-                .collect(),
-            base_fee_per_blob_gas: base_fee_history[start_block..=from_block]
-                .iter()
-                .map(|fee| fee.base_fee_per_blob_gas)
-                .collect(),
+            base_fee_per_gas,
+            base_fee_per_blob_gas,
             gas_used_ratio: vec![],      // not used
             blob_gas_used_ratio: vec![], // not used
             reward: None,
         },
-        l2_pubdata_price: base_fee_history[start_block..=from_block]
-            .iter()
-            .map(|fee| fee.l2_pubdata_price)
-            .collect(),
+        l2_pubdata_price,
     }
 }
 
