@@ -800,8 +800,8 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
         use configs::consensus::{ConsensusConfig, Host, NodePublicKey};
         ConsensusConfig {
             port: self.sample(rng),
-            server_url: self.sample(rng),
-            public_url: Host(self.sample(rng)),
+            server_addr: self.sample(rng),
+            public_addr: Host(self.sample(rng)),
             max_payload_size: self.sample(rng),
             max_batch_size: self.sample(rng),
             gossip_dynamic_inbound_limit: self.sample(rng),

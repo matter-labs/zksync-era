@@ -117,11 +117,11 @@ impl RpcConfig {
 pub struct ConsensusConfig {
     pub port: u16,
     /// Local socket address to listen for the incoming connections.
-    pub server_url: std::net::SocketAddr,
+    pub server_addr: std::net::SocketAddr,
     /// Public address of this node (should forward to `server_addr`)
     /// that will be advertised to peers, so that they can connect to this
     /// node.
-    pub public_url: Host,
+    pub public_addr: Host,
 
     /// Maximal allowed size of the payload in bytes.
     pub max_payload_size: usize,

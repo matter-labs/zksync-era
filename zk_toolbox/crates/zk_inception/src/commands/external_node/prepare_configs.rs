@@ -92,7 +92,7 @@ fn prepare_configs(
             .context(MSG_CONSENSUS_SECRETS_MISSING_ERR)?,
     )?
     .context(MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR)?;
-    gossip_static_outbound.insert(main_node_public_key, main_node_consensus_config.public_url);
+    gossip_static_outbound.insert(main_node_public_key, main_node_consensus_config.public_addr);
     en_consensus_config.gossip_static_outbound = gossip_static_outbound;
 
     // Set secrets config
