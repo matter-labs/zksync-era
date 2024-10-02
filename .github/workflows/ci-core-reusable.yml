@@ -313,6 +313,14 @@ jobs:
           ci_run zk_inception chain migrate-to-gateway --chain era --gateway-chain-name gateway
           ci_run zk_inception chain migrate-to-gateway --chain validium --gateway-chain-name gateway
           ci_run zk_inception chain migrate-to-gateway --chain custom_token --gateway-chain-name gateway
+      
+      - name: Migrate back era
+        run: |
+          ci_run zk_inception chain migrate-from-gateway --chain era --gateway-chain-name gateway
+
+      - name: Migrate to gateway again
+        run: |
+          ci_run zk_inception chain migrate-to-gateway --chain era --gateway-chain-name gateway
 
       - name: Build test dependencies
         run: |

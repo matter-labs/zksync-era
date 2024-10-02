@@ -26,7 +26,6 @@ use types::L1BatchCommitmentMode;
 use xshell::Shell;
 use zksync_basic_types::{settlement::SettlementMode, Address, H256, U256, U64};
 use zksync_config::configs::{eth_sender::PubdataSendingMode, gateway::GatewayChainConfig};
-use zksync_system_constants::L2_BRIDGEHUB_ADDRESS;
 
 use crate::{
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
@@ -91,6 +90,11 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .to_string();
 
     let genesis_config = chain_config.get_genesis_config()?;
+
+    let is_rollup = matches!(
+        genesis_config.l1_batch_commit_data_generator_mode,
+        L1BatchCommitmentMode::Rollup
+    );
 
     // Firstly, deploying gateway contracts
 
@@ -177,6 +181,39 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         l1_url.clone(),
     )
     .await?;
+
+    let mut general_config = chain_config.get_general_config().unwrap();
+
+    let eth_config = general_config.eth.as_mut().context("eth")?;
+    let api_config = general_config.api_config.as_mut().context("api config")?;
+
+    let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
+        &gateway_gateway_config,
+        gateway_chain_config
+            .get_contracts_config()?
+            .l1
+            .diamond_proxy_addr,
+        // TODO: for now we do not use a noraml chain admin
+        Address::zero(),
+        0,
+    );
+    eth_config
+        .gas_adjuster
+        .as_mut()
+        .expect("gas_adjuster")
+        .settlement_mode = SettlementMode::SettlesToL1;
+    if is_rollup {
+        // For rollups, new type of commitment should be used, but
+        // not for validium.
+        eth_config
+            .sender
+            .as_mut()
+            .expect("sender")
+            .pubdata_sending_mode = PubdataSendingMode::Blobs;
+    }
+    gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    api_config.web3_json_rpc.settlement_layer_url = Some(l1_url);
+    general_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
     Ok(())
 }

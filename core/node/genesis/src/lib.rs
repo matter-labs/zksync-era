@@ -99,9 +99,9 @@ impl GenesisParams {
     ) -> Result<GenesisParams, GenesisError> {
         println!(
             "
-                bootloader_hash: \"{:?}\"
-                default_aa_hash: \"{:?}\"
-                genesis_protocol_semantic_version: 0.{:?}.{:?} 
+            bootloader_hash: {:?}
+            default_aa_hash: {:?}
+            genesis_protocol_semantic_version: 0.{:?}.{:?} 
             ",
             base_system_contracts.hashes().bootloader,
             base_system_contracts.hashes().default_aa,
@@ -340,9 +340,9 @@ pub async fn ensure_genesis_state(
     } = insert_genesis_batch(&mut transaction, genesis_params).await?;
     println!(
         "
-            genesis_root: \"{:?}\"
-            genesis_batch_commitment: \"{:?}\"
-            genesis_rollup_leaf_index: \"{:?}\" 
+        genesis_root: {:?}
+        genesis_batch_commitment: {:?}
+        genesis_rollup_leaf_index: {:?} 
         ",
         root_hash, commitment, rollup_last_leaf_index
     );

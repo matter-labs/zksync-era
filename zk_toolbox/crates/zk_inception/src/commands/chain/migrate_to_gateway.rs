@@ -340,6 +340,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         new_diamond_proxy_address,
         // TODO: for now we do not use a noraml chain admin
         Address::zero(),
+        gateway_chain_id,
     );
     gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 

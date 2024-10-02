@@ -26,7 +26,7 @@ use zksync_core_leftovers::{
     temp_config_store::{decode_yaml_repr, TempConfigStore},
     Component, Components,
 };
-use zksync_env_config::{FromEnv, FromEnvVariant};
+use zksync_env_config::{envy_load, FromEnv, FromEnvVariant};
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -150,7 +150,12 @@ fn main() -> anyhow::Result<()> {
         match opt.gateway_contracts_config_path {
             None => ContractsConfig::from_env_variant("GATEWAY_".to_string())
                 .ok()
-                .map(Into::into),
+                .map(|value| {
+                    GatewayChainConfig::from_contracts_config_and_current_settlement_layer(
+                        value,
+                        envy_load::<u64>("GATEWAY_CURRENT_SETTLEMENT_LAYER", "").unwrap(),
+                    )
+                }),
             Some(path) => {
                 let yaml =
                     std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
