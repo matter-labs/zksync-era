@@ -17,7 +17,9 @@ import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
-import { logsTestPath, killPidWithAllChilds } from 'utils/build/logs';
+import { logsTestPath } from 'utils/build/logs';
+import { sleep } from 'utils/build';
+import { killPidWithAllChilds } from 'utils/build/kill';
 import path from 'path';
 import { NodeSpawner, Node, NodeType } from '../src/utils';
 import { sendTransfers } from '../src/context-owner';
@@ -251,9 +253,10 @@ testFees('Test fees', function () {
         const receiver = ethers.Wallet.createRandom().address;
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
 
+        await mainNode.killAndWaitForShutdown();
         await mainNodeSpawner.spawnMainNode({
             newL1GasPrice: l1GasPrice,
-            newPubdataPrice: l1GasPrice,
+            newPubdataPrice: l1GasPrice
         });
 
         const receipt = await (
@@ -290,6 +293,7 @@ testFees('Test fees', function () {
 
         if (isETHBasedChain) return;
 
+        await mainNode.killAndWaitForShutdown();
         await mainNodeSpawner.spawnMainNode({
             newL1GasPrice: l1GasPrice,
             newPubdataPrice: l1GasPrice,
@@ -306,7 +310,7 @@ testFees('Test fees', function () {
         let changedL2 = false;
         let changedL1 = false;
         for (let i = 0; i < 20; i++) {
-            await utils.sleep(0.5);
+            await sleep(0.5);
             const newFeeParams = await alice._providerL2().getFeeParams();
             // we need any as FeeParams is missing existing conversion_ratio field
 
@@ -335,7 +339,7 @@ testFees('Test fees', function () {
                 changedL1 = true;
                 break;
             }
-            await utils.sleep(0.5);
+            await sleep(0.5);
         }
 
         expect(changedL1).toBeTruthy();
@@ -364,8 +368,8 @@ testFees('Test fees', function () {
         await mainNode.killAndWaitForShutdown();
         mainNode = await mainNodeSpawner.spawnMainNode({
             newL1GasPrice: requiredPubdataPrice,
-            newPubdataPrice: requiredPubdataPrice}
-        );
+            newPubdataPrice: requiredPubdataPrice
+        });
 
         const l1Messenger = new ethers.Contract(zksync.utils.L1_MESSENGER_ADDRESS, zksync.utils.L1_MESSENGER, alice);
 

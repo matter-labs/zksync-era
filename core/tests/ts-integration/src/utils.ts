@@ -1,12 +1,11 @@
 import { spawn as _spawn, ChildProcessWithoutNullStreams, type ProcessEnvOptions } from 'child_process';
 import { assert } from 'chai';
-import {FileConfig, getConfigPath} from 'utils/build/file-configs';
+import { FileConfig, getConfigPath } from 'utils/build/file-configs';
 import { killPidWithAllChilds } from 'utils/build/kill';
 import * as utils from 'utils';
 import fs from 'node:fs/promises';
 import * as zksync from 'zksync-ethers';
 import * as fsSync from 'fs';
-
 
 // executes a command in background and returns a child process handle
 // by default pipes data to parent's stdio but this can be overridden
@@ -112,17 +111,18 @@ export class NodeSpawner {
         private env?: ProcessEnvOptions['env']
     ) {
         if (fileConfig.loadFromFile) {
-            const generalConfigPath = getConfigPath({
+            this.generalConfigPath = getConfigPath({
                 pathToHome,
                 chain: fileConfig.chain,
                 configsFolder: 'configs',
                 config: 'general.yaml'
             });
-            this.originalConfig = fsSync.readFileSync(generalConfigPath, 'utf8');
+            this.originalConfig = fsSync.readFileSync(this.generalConfigPath, 'utf8');
         }
     }
 
-    public async spawnMainNode(overrides: {
+    public async spawnMainNode(
+        overrides: {
             newL1GasPrice?: bigint;
             newPubdataPrice?: bigint;
             customBaseToken?: boolean;
@@ -146,36 +146,64 @@ export class NodeSpawner {
 
             if (overrides != null) {
                 if (overrides.newL1GasPrice) {
-                    this.setChildProperty('gas_adjuster','internal_enforced_l1_gas_price', overrides.newL1GasPrice);
+                    this.setChildProperty('gas_adjuster', 'internal_enforced_l1_gas_price', overrides.newL1GasPrice);
                 }
 
                 if (overrides.newPubdataPrice) {
-                    this.setChildProperty('gas_adjuster','internal_enforced_pubdata_price', overrides.newPubdataPrice);
+                    this.setChildProperty('gas_adjuster', 'internal_enforced_pubdata_price', overrides.newPubdataPrice);
                 }
 
                 if (overrides.externalPriceApiClientForcedNumerator !== undefined) {
-                    this.setChildProperty('external_price_api_client','forced_numerator', overrides.externalPriceApiClientForcedNumerator);
+                    this.setChildProperty(
+                        'external_price_api_client',
+                        'forced_numerator',
+                        overrides.externalPriceApiClientForcedNumerator
+                    );
                 }
 
                 if (overrides.externalPriceApiClientForcedDenominator !== undefined) {
-                    this.setChildProperty('external_price_api_client', 'forced_denominator', overrides.externalPriceApiClientForcedDenominator);
+                    this.setChildProperty(
+                        'external_price_api_client',
+                        'forced_denominator',
+                        overrides.externalPriceApiClientForcedDenominator
+                    );
                 }
 
                 if (overrides.externalPriceApiClientForcedFluctuation !== undefined) {
-                    this.setChildProperty('external_price_api_client', 'forced_fluctuation', overrides.externalPriceApiClientForcedFluctuation);
+                    this.setChildProperty(
+                        'external_price_api_client',
+                        'forced_fluctuation',
+                        overrides.externalPriceApiClientForcedFluctuation
+                    );
                 }
 
                 if (overrides.baseTokenPricePollingIntervalMs !== undefined) {
                     const cacheUpdateInterval = overrides.baseTokenPricePollingIntervalMs / 2;
                     // To reduce price polling interval we also need to reduce base token receipt checking and tx sending sleeps as they are blocking the poller. Also cache update needs to be reduced appropriately.
-                    this.setChildProperty('base_token_adjuster', 'l1_receipt_checking_sleep_ms', overrides.baseTokenPricePollingIntervalMs);
-                    this.setChildProperty('base_token_adjuster', 'l1_tx_sending_sleep_ms', overrides.baseTokenPricePollingIntervalMs);
-                    this.setChildProperty('base_token_adjuster', 'price_polling_interval_ms', overrides.baseTokenPricePollingIntervalMs);
-                    this.setChildProperty('base_token_adjuster', 'price_cache_update_interval_ms' , cacheUpdateInterval);
+                    this.setChildProperty(
+                        'base_token_adjuster',
+                        'l1_receipt_checking_sleep_ms',
+                        overrides.baseTokenPricePollingIntervalMs
+                    );
+                    this.setChildProperty(
+                        'base_token_adjuster',
+                        'l1_tx_sending_sleep_ms',
+                        overrides.baseTokenPricePollingIntervalMs
+                    );
+                    this.setChildProperty(
+                        'base_token_adjuster',
+                        'price_polling_interval_ms',
+                        overrides.baseTokenPricePollingIntervalMs
+                    );
+                    this.setChildProperty('base_token_adjuster', 'price_cache_update_interval_ms', cacheUpdateInterval);
                 }
 
                 if (overrides.baseTokenAdjusterL1UpdateDeviationPercentage !== undefined) {
-                    this.setChildProperty('base_token_adjuster', 'l1_update_deviation_percentage', overrides.baseTokenAdjusterL1UpdateDeviationPercentage);
+                    this.setChildProperty(
+                        'base_token_adjuster',
+                        'l1_update_deviation_percentage',
+                        overrides.baseTokenAdjusterL1UpdateDeviationPercentage
+                    );
                 }
             }
         } else {
@@ -183,7 +211,8 @@ export class NodeSpawner {
 
             if (overrides != null) {
                 if (overrides.newPubdataPrice) {
-                    env['ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE'] = overrides.newPubdataPrice.toString();
+                    env['ETH_SENDER_GAS_ADJUSTER_INTERNAL_ENFORCED_PUBDATA_PRICE'] =
+                        overrides.newPubdataPrice.toString();
                 }
 
                 if (overrides.newL1GasPrice) {
@@ -192,28 +221,35 @@ export class NodeSpawner {
                 }
 
                 if (overrides.externalPriceApiClientForcedNumerator !== undefined) {
-                    env['EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR'] = overrides.externalPriceApiClientForcedNumerator.toString();
+                    env['EXTERNAL_PRICE_API_CLIENT_FORCED_NUMERATOR'] =
+                        overrides.externalPriceApiClientForcedNumerator.toString();
                 }
 
                 if (overrides.externalPriceApiClientForcedDenominator !== undefined) {
-                     env['EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR'] = overrides.externalPriceApiClientForcedDenominator.toString();
+                    env['EXTERNAL_PRICE_API_CLIENT_FORCED_DENOMINATOR'] =
+                        overrides.externalPriceApiClientForcedDenominator.toString();
                 }
 
                 if (overrides.externalPriceApiClientForcedFluctuation !== undefined) {
-                    env['EXTERNAL_PRICE_API_CLIENT_FORCED_FLUCTUATION'] = overrides.externalPriceApiClientForcedFluctuation.toString();
+                    env['EXTERNAL_PRICE_API_CLIENT_FORCED_FLUCTUATION'] =
+                        overrides.externalPriceApiClientForcedFluctuation.toString();
                 }
 
                 if (overrides.baseTokenPricePollingIntervalMs !== undefined) {
                     const cacheUpdateInterval = overrides.baseTokenPricePollingIntervalMs / 2;
                     // To reduce price polling interval we also need to reduce base token receipt checking and tx sending sleeps as they are blocking the poller. Also cache update needs to be reduced appropriately.
-                    env['BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS'] = overrides.baseTokenPricePollingIntervalMs.toString();
-                    env['BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS'] = overrides.baseTokenPricePollingIntervalMs.toString();
-                    env['BASE_TOKEN_ADJUSTER_PRICE_POLLING_INTERVAL_MS'] = overrides.baseTokenPricePollingIntervalMs.toString();
+                    env['BASE_TOKEN_ADJUSTER_L1_RECEIPT_CHECKING_SLEEP_MS'] =
+                        overrides.baseTokenPricePollingIntervalMs.toString();
+                    env['BASE_TOKEN_ADJUSTER_L1_TX_SENDING_SLEEP_MS'] =
+                        overrides.baseTokenPricePollingIntervalMs.toString();
+                    env['BASE_TOKEN_ADJUSTER_PRICE_POLLING_INTERVAL_MS'] =
+                        overrides.baseTokenPricePollingIntervalMs.toString();
                     env['BASE_TOKEN_ADJUSTER_PRICE_CACHE_UPDATE_INTERVAL_MS'] = cacheUpdateInterval.toString();
                 }
 
                 if (overrides.baseTokenAdjusterL1UpdateDeviationPercentage !== undefined) {
-                    env['BASE_TOKEN_ADJUSTER_L1_UPDATE_DEVIATION_PERCENTAGE'] = overrides.baseTokenAdjusterL1UpdateDeviationPercentage.toString();
+                    env['BASE_TOKEN_ADJUSTER_L1_UPDATE_DEVIATION_PERCENTAGE'] =
+                        overrides.baseTokenAdjusterL1UpdateDeviationPercentage.toString();
                 }
             }
 
@@ -251,7 +287,7 @@ export class NodeSpawner {
 
     private setChildProperty(parentProperty: string, property: string, value: number | bigint) {
         if (this.generalConfigPath == void 0)
-            throw new Error("Trying to set property in config while not in file mode");
+            throw new Error('Trying to set property in config while not in file mode');
         const generalConfig = fsSync.readFileSync(this.generalConfigPath, 'utf8');
 
         // Define the regex pattern to check if the property already exists
@@ -273,7 +309,7 @@ export class NodeSpawner {
 
     private setPropertyInGeneralConfig(property: string, value: number) {
         if (this.generalConfigPath == void 0)
-            throw new Error("Trying to set property in config while not in file mode");
+            throw new Error('Trying to set property in config while not in file mode');
         const generalConfig = fsSync.readFileSync(this.generalConfigPath, 'utf8');
 
         const regex = new RegExp(`${property}:\\s*\\d+(\\.\\d+)?`, 'g');
