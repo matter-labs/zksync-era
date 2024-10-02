@@ -25,7 +25,7 @@ use crate::{
         MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR, MSG_PREPARING_EN_CONFIGS,
     },
     utils::{
-        consensus::{get_consensus_config, node_public_key},
+        consensus::node_public_key,
         ports::EcosystemPortsScanner,
         rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
     },
@@ -82,6 +82,7 @@ fn prepare_configs(
     let main_node_consensus_config = general
         .consensus_config
         .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
+    let mut en_consensus_config = main_node_consensus_config.clone();
 
     let mut gossip_static_outbound = BTreeMap::new();
     let main_node_public_key = node_public_key(
@@ -91,14 +92,8 @@ fn prepare_configs(
             .context(MSG_CONSENSUS_SECRETS_MISSING_ERR)?,
     )?
     .context(MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR)?;
-
     gossip_static_outbound.insert(main_node_public_key, main_node_consensus_config.public_url);
-
-    // Set a default port for the external node
-    // This is allocated later with `EcosystemPorts::allocate_ports_in_yaml`
-    let consensus_port = main_node_consensus_config.port;
-    let en_consensus_config =
-        get_consensus_config(config, consensus_port, None, Some(gossip_static_outbound))?;
+    en_consensus_config.gossip_static_outbound = gossip_static_outbound;
 
     // Set secrets config
     let node_key = roles::node::SecretKey::generate().encode();
