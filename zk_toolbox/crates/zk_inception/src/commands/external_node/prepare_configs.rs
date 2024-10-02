@@ -85,10 +85,6 @@ fn prepare_configs(
         .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
 
     // TODO: This is a temporary solution. We should allocate consensus port using `EcosystemPorts::allocate_ports_in_yaml`
-    ports.add_port_info(
-        main_node_consensus_config.server_url.port(),
-        "Main node consensus".to_string(),
-    );
     let offset = ((config.id - 1) * 100) as u16;
     let consensus_port_range = DEFAULT_CONSENSUS_PORT + offset..PORT_RANGE_END;
     let consensus_port = ports.allocate_port(consensus_port_range, "Consensus".to_string())?;

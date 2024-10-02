@@ -2,7 +2,7 @@ use anyhow::Context;
 use common::{config::global_config, git, logger, spinner::Spinner};
 use config::{
     copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
-    ChainConfig, EcosystemConfig, DEFAULT_CONSENSUS_PORT,
+    ChainConfig, EcosystemConfig,
 };
 use types::BaseToken;
 use xshell::Shell;
@@ -20,7 +20,6 @@ use crate::{
         },
         portal::update_portal_config,
     },
-    defaults::PORT_RANGE_END,
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
         MSG_CHAIN_NOT_FOUND_ERR, MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_DEPLOYING_PAYMASTER,
@@ -69,7 +68,7 @@ pub async fn init(
         )?;
     }
     let mut general_config = chain_config.get_general_config()?;
-    let mut consensus_config = general_config
+    let consensus_config = general_config
         .consensus_config
         .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
 
