@@ -10,10 +10,7 @@ use zksync_db_connection::{
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
-use crate::{
-    models::storage_tee_proof::StorageTeeProof,
-    tee_verifier_input_producer_dal::TeeVerifierInputProducerJobStatus, Core,
-};
+use crate::{models::storage_tee_proof::StorageTeeProof, Core};
 
 #[derive(Debug)]
 pub struct TeeProofGenerationDal<'a, 'c> {
@@ -53,17 +50,15 @@ impl TeeProofGenerationDal<'_, '_> {
                         proofs.l1_batch_number
                     FROM
                         tee_proof_generation_details AS proofs
-                        JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number
                     WHERE
-                        inputs.status = $3
-                        AND (
-                            proofs.status = $4
+                        (
+                            proofs.status = $3
                             OR (
                                 proofs.status = $1
-                                AND proofs.prover_taken_at < NOW() - $5::INTERVAL
+                                AND proofs.prover_taken_at < NOW() - $4::INTERVAL
                             )
                         )
-                        AND proofs.l1_batch_number >= $6
+                        AND proofs.l1_batch_number >= $5
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
@@ -76,7 +71,6 @@ impl TeeProofGenerationDal<'_, '_> {
             "#,
             TeeProofGenerationJobStatus::PickedByProver.to_string(),
             tee_type.to_string(),
-            TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
             TeeProofGenerationJobStatus::Unpicked.to_string(),
             processing_timeout,
             min_batch_number
@@ -274,16 +268,13 @@ impl TeeProofGenerationDal<'_, '_> {
                 proofs.l1_batch_number
             FROM
                 tee_proof_generation_details AS proofs
-                JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number
             WHERE
-                inputs.status = $1
-                AND proofs.status = $2
+                proofs.status = $1
             ORDER BY
                 proofs.l1_batch_number ASC
             LIMIT
                 1
             "#,
-            TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
             TeeProofGenerationJobStatus::Unpicked.to_string(),
         );
         let batch_number = Instrumented::new("get_oldest_unpicked_batch")

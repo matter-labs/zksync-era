@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE tee_proof_generation_details\n            SET\n                status = $1,\n                updated_at = NOW(),\n                prover_taken_at = NOW()\n            WHERE\n                tee_type = $2\n                AND l1_batch_number = (\n                    SELECT\n                        proofs.l1_batch_number\n                    FROM\n                        tee_proof_generation_details AS proofs\n                    WHERE\n                        (\n                            proofs.status = $3\n                            OR (\n                                proofs.status = $1\n                                AND proofs.prover_taken_at < NOW() - $4::INTERVAL\n                            )\n                        )\n                        AND proofs.l1_batch_number >= $5\n                    ORDER BY\n                        l1_batch_number ASC\n                    LIMIT\n                        1\n                    FOR UPDATE\n                        SKIP LOCKED\n                )\n            RETURNING\n                tee_proof_generation_details.l1_batch_number\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "l1_batch_number",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Interval",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b8de5ca636533f41b4d1ff5dc86d7234fb27352425f922da49e6bde1764a3ab4"
+}

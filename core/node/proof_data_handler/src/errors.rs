@@ -6,6 +6,7 @@ use zksync_dal::DalError;
 use zksync_object_store::ObjectStoreError;
 
 pub(crate) enum RequestProcessorError {
+    GeneralError(String),
     ObjectStore(ObjectStoreError),
     Dal(DalError),
 }
@@ -19,6 +20,13 @@ impl From<DalError> for RequestProcessorError {
 impl IntoResponse for RequestProcessorError {
     fn into_response(self) -> Response {
         let (status_code, message) = match self {
+            RequestProcessorError::GeneralError(err) => {
+                tracing::error!("Error: {:?}", err);
+                (
+                    StatusCode::BAD_GATEWAY,
+                    "An internal error occurred".to_owned(),
+                )
+            }
             RequestProcessorError::ObjectStore(err) => {
                 tracing::error!("GCS error: {:?}", err);
                 (
