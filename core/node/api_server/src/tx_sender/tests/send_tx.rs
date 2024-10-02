@@ -2,7 +2,9 @@
 
 use assert_matches::assert_matches;
 use test_casing::test_casing;
+use zksync_multivm::interface::ExecutionResult;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
+use zksync_node_test_utils::create_l2_transaction;
 use zksync_types::K256PrivateKey;
 
 use super::*;

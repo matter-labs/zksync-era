@@ -1,17 +1,14 @@
 //! Tests for the transaction sender.
 
-use std::time::Duration;
-
 use test_casing::TestCases;
 use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
-use zksync_multivm::interface::ExecutionResult;
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_node_test_utils::{create_l2_block, create_l2_transaction, prepare_recovery_snapshot};
-use zksync_types::{api, get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
+use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
+use zksync_types::{get_nonce_key, L1BatchNumber, L2BlockNumber, StorageLog};
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
 use super::*;
-use crate::{execution_sandbox::BlockStartInfo, web3::testonly::create_test_tx_sender};
+use crate::web3::testonly::create_test_tx_sender;
 
 mod call;
 mod gas_estimation;
@@ -137,50 +134,6 @@ async fn getting_nonce_for_account_after_snapshot_recovery() {
     let missing_address = Address::repeat_byte(0xff);
     let nonce = tx_sender.get_expected_nonce(missing_address).await.unwrap();
     assert_eq!(nonce, Nonce(0));
-}
-
-#[tokio::test]
-async fn eth_call_requires_single_connection() {
-    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
-    let mut storage = pool.connection().await.unwrap();
-    let genesis_params = GenesisParams::mock();
-    insert_genesis_batch(&mut storage, &genesis_params)
-        .await
-        .unwrap();
-    let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
-        .await
-        .unwrap();
-    let block_id = api::BlockId::Number(api::BlockNumber::Latest);
-    let block_args = BlockArgs::new(&mut storage, block_id, &start_info)
-        .await
-        .unwrap();
-    drop(storage);
-
-    let tx = create_l2_transaction(10, 100);
-    let tx_hash = tx.hash();
-
-    let mut tx_executor = MockOneshotExecutor::default();
-    tx_executor.set_call_responses(move |received_tx, _| {
-        assert_eq!(received_tx.hash(), tx_hash);
-        ExecutionResult::Success {
-            output: b"success!".to_vec(),
-        }
-    });
-    let tx_executor = SandboxExecutor::mock(tx_executor).await;
-    let (tx_sender, _) = create_test_tx_sender(
-        pool.clone(),
-        genesis_params.config().l2_chain_id,
-        tx_executor,
-    )
-    .await;
-    let call_overrides = CallOverrides {
-        enforced_base_fee: None,
-    };
-    let output = tx_sender
-        .eth_call(block_args, call_overrides, tx, None)
-        .await
-        .unwrap();
-    assert_eq!(output, b"success!");
 }
 
 async fn create_real_tx_sender(pool: ConnectionPool<Core>) -> TxSender {

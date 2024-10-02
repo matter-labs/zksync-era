@@ -3,12 +3,52 @@
 use std::collections::HashMap;
 
 use assert_matches::assert_matches;
+use zksync_multivm::interface::ExecutionResult;
+use zksync_node_test_utils::create_l2_transaction;
 use zksync_types::{
     api::state_override::OverrideAccount, transaction_request::CallRequest, K256PrivateKey,
 };
 
 use super::*;
 use crate::testonly::{decode_u256_output, Call3Result, Call3Value, StateBuilder, TestAccount};
+
+#[tokio::test]
+async fn eth_call_requires_single_connection() {
+    let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
+    let mut storage = pool.connection().await.unwrap();
+    let genesis_params = GenesisParams::mock();
+    insert_genesis_batch(&mut storage, &genesis_params)
+        .await
+        .unwrap();
+    let block_args = BlockArgs::pending(&mut storage).await.unwrap();
+    drop(storage);
+
+    let tx = create_l2_transaction(10, 100);
+    let tx_hash = tx.hash();
+
+    let mut tx_executor = MockOneshotExecutor::default();
+    tx_executor.set_call_responses(move |received_tx, _| {
+        assert_eq!(received_tx.hash(), tx_hash);
+        ExecutionResult::Success {
+            output: b"success!".to_vec(),
+        }
+    });
+    let tx_executor = SandboxExecutor::mock(tx_executor).await;
+    let (tx_sender, _) = create_test_tx_sender(
+        pool.clone(),
+        genesis_params.config().l2_chain_id,
+        tx_executor,
+    )
+    .await;
+    let call_overrides = CallOverrides {
+        enforced_base_fee: None,
+    };
+    let output = tx_sender
+        .eth_call(block_args, call_overrides, tx, None)
+        .await
+        .unwrap();
+    assert_eq!(output, b"success!");
+}
 
 async fn test_call(
     tx_sender: &TxSender,
