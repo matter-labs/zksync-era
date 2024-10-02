@@ -417,8 +417,8 @@ fn l2_eth_fee_history(
 
     // duplicates last value to follow `feeHistory` response format, it should return `block_count + 1` values
     let base_fee_per_gas = base_fee_history[start_block..=from_block]
-        .chain([&base_fee_history[from_block]])
         .iter()
+        .chain([&base_fee_history[from_block]])
         .map(|fee| U256::from(fee.base_fee_per_gas))
         .collect();
 
