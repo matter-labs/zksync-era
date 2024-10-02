@@ -5,7 +5,7 @@ use chrono::Utc;
 use futures::future::join_all;
 use rand::Rng;
 use tokio::sync::{mpsc, watch::Receiver, Mutex, Notify};
-use zksync_config::DADispatcherConfig;
+use zksync_config::{configs::da_dispatcher::DEFAULT_MAX_CONCURRENT_REQUESTS, DADispatcherConfig};
 use zksync_da_client::{
     types::{DAError, InclusionData},
     DataAvailabilityClient,
@@ -29,7 +29,11 @@ impl DataAvailabilityDispatcher {
         config: DADispatcherConfig,
         client: Box<dyn DataAvailabilityClient>,
     ) -> Self {
-        let request_semaphore = Arc::new(tokio::sync::Semaphore::new(100));
+        let request_semaphore = Arc::new(tokio::sync::Semaphore::new(
+            config
+                .max_concurrent_requests
+                .unwrap_or(DEFAULT_MAX_CONCURRENT_REQUESTS) as usize,
+        ));
         Self {
             pool,
             config,
@@ -59,7 +63,11 @@ impl DataAvailabilityDispatcher {
     }
 
     async fn dispatch_batches(&self, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
-        let (tx, mut rx) = mpsc::channel(100);
+        let (tx, mut rx) = mpsc::channel(
+            self.config
+                .max_concurrent_requests
+                .unwrap_or(DEFAULT_MAX_CONCURRENT_REQUESTS) as usize,
+        );
 
         let next_expected_batch = Arc::new(Mutex::new(None));
 
@@ -210,7 +218,11 @@ impl DataAvailabilityDispatcher {
     }
 
     async fn inclusion_poller(&self, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
-        let (tx, mut rx) = mpsc::channel(100);
+        let (tx, mut rx) = mpsc::channel(
+            self.config
+                .max_concurrent_requests
+                .unwrap_or(DEFAULT_MAX_CONCURRENT_REQUESTS) as usize,
+        );
 
         let stop_receiver_clone = stop_receiver.clone();
         let pool_clone = self.pool.clone();
