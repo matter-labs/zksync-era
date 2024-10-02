@@ -342,9 +342,24 @@ impl DivergenceErrors {
             &shadow_result.statistics.circuit_statistic,
         );
         self.check_match(
-            "gas_remaining",
+            "statistics.pubdata_published",
+            &main_result.statistics.pubdata_published,
+            &shadow_result.statistics.pubdata_published,
+        );
+        self.check_match(
+            "statistics.gas_remaining",
             &main_result.statistics.gas_remaining,
             &shadow_result.statistics.gas_remaining,
+        );
+        self.check_match(
+            "statistics.gas_used",
+            &main_result.statistics.gas_used,
+            &shadow_result.statistics.gas_used,
+        );
+        self.check_match(
+            "statistics.computational_gas_used",
+            &main_result.statistics.computational_gas_used,
+            &shadow_result.statistics.computational_gas_used,
         );
     }
 
