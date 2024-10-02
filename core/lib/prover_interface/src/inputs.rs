@@ -6,7 +6,8 @@ use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::Eip4844Blobs, block::L2BlockExecutionData,
-    witness_block_state::WitnessStorageState, L1BatchNumber, ProtocolVersionId, H256, U256,
+    witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId, ProtocolVersionId, H256,
+    U256,
 };
 
 const HASH_LEN: usize = H256::len_bytes();
@@ -136,7 +137,7 @@ impl WitnessInputMerklePaths {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct VMRunWitnessInputData {
     pub l1_batch_number: L1BatchNumber,
     pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
@@ -147,6 +148,7 @@ pub struct VMRunWitnessInputData {
     pub storage_refunds: Vec<u32>,
     pub pubdata_costs: Vec<i32>,
     pub witness_block_state: WitnessStorageState,
+    pub l2_chain_id: L2ChainId,
 }
 
 impl StoredObject for VMRunWitnessInputData {
@@ -161,7 +163,7 @@ impl StoredObject for VMRunWitnessInputData {
     serialize_using_bincode!();
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct WitnessInputData {
     pub vm_run_data: VMRunWitnessInputData,
     pub merkle_paths: WitnessInputMerklePaths,
@@ -181,37 +183,37 @@ impl StoredObject for WitnessInputData {
     serialize_using_bincode!();
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct L1BatchMetadataHashes {
     pub root_hash: H256,
     pub meta_hash: H256,
     pub aux_hash: H256,
 }
 
-/// Version 1 of the data used as input for the TEE verifier.
+/// Version 2 of the data used as input for the TEE verifier.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct V1TeeVerifierInput {
-    pub witness_input_merkle_paths: WitnessInputMerklePaths,
+    pub vm_run_data: VMRunWitnessInputData,
+    pub merkle_paths: WitnessInputMerklePaths,
     pub l2_blocks_execution_data: Vec<L2BlockExecutionData>,
     pub l1_batch_env: L1BatchEnv,
     pub system_env: SystemEnv,
-    pub used_contracts: Vec<(H256, Vec<u8>)>,
 }
 
 impl V1TeeVerifierInput {
     pub fn new(
-        witness_input_merkle_paths: WitnessInputMerklePaths,
+        vm_run_data: VMRunWitnessInputData,
+        merkle_paths: WitnessInputMerklePaths,
         l2_blocks_execution_data: Vec<L2BlockExecutionData>,
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
-        used_contracts: Vec<(H256, Vec<u8>)>,
     ) -> Self {
         V1TeeVerifierInput {
-            witness_input_merkle_paths,
+            vm_run_data,
+            merkle_paths,
             l2_blocks_execution_data,
             l1_batch_env,
             system_env,
-            used_contracts,
         }
     }
 }
@@ -230,17 +232,6 @@ impl TeeVerifierInput {
     pub fn new(input: V1TeeVerifierInput) -> Self {
         TeeVerifierInput::V1(input)
     }
-}
-
-impl StoredObject for TeeVerifierInput {
-    const BUCKET: Bucket = Bucket::TeeVerifierInput;
-    type Key<'a> = L1BatchNumber;
-
-    fn encode_key(key: Self::Key<'_>) -> String {
-        format!("tee_verifier_input_for_l1_batch_{key}.bin")
-    }
-
-    serialize_using_bincode!();
 }
 
 #[cfg(test)]

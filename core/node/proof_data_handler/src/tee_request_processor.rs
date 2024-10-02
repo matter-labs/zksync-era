@@ -4,11 +4,17 @@ use axum::{extract::Path, Json};
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::api::{
-    RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofResponse,
-    SubmitTeeProofRequest, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
+use zksync_prover_interface::{
+    api::{
+        RegisterTeeAttestationRequest, RegisterTeeAttestationResponse, SubmitProofResponse,
+        SubmitTeeProofRequest, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
+    },
+    inputs::{
+        TeeVerifierInput, V1TeeVerifierInput, VMRunWitnessInputData, WitnessInputMerklePaths,
+    },
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
+use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use crate::errors::RequestProcessorError;
 
@@ -50,9 +56,12 @@ impl TeeRequestProcessor {
                 None => break Ok(Json(TeeProofGenerationDataResponse(None))),
             };
 
-            match self.blob_store.get(l1_batch_number).await {
+            match self
+                .tee_verifier_input_for_existing_batch(l1_batch_number)
+                .await
+            {
                 Ok(input) => break Ok(Json(TeeProofGenerationDataResponse(Some(Box::new(input))))),
-                Err(ObjectStoreError::KeyNotFound(_)) => {
+                Err(RequestProcessorError::ObjectStore(ObjectStoreError::KeyNotFound(_))) => {
                     missing_range = match missing_range {
                         Some((start, _)) => Some((start, l1_batch_number)),
                         None => Some((l1_batch_number, l1_batch_number)),
@@ -62,7 +71,7 @@ impl TeeRequestProcessor {
                 }
                 Err(err) => {
                     self.unlock_batch(l1_batch_number, request.tee_type).await?;
-                    break Err(RequestProcessorError::ObjectStore(err));
+                    break Err(err);
                 }
             }
         };
@@ -76,6 +85,66 @@ impl TeeRequestProcessor {
         }
 
         result
+    }
+
+    #[tracing::instrument(skip(self))]
+    async fn tee_verifier_input_for_existing_batch(
+        &self,
+        l1_batch_number: L1BatchNumber,
+    ) -> Result<TeeVerifierInput, RequestProcessorError> {
+        let vm_run_data: VMRunWitnessInputData = self
+            .blob_store
+            .get(l1_batch_number)
+            .await
+            .map_err(RequestProcessorError::ObjectStore)?;
+
+        let merkle_paths: WitnessInputMerklePaths = self
+            .blob_store
+            .get(l1_batch_number)
+            .await
+            .map_err(RequestProcessorError::ObjectStore)?;
+
+        let mut connection = self
+            .pool
+            .connection()
+            .await
+            .map_err(RequestProcessorError::Dal)?;
+
+        let l2_blocks_execution_data = connection
+            .transactions_dal()
+            .get_l2_blocks_to_execute_for_l1_batch(l1_batch_number)
+            .await
+            .map_err(|err| RequestProcessorError::Dal(err))?;
+
+        let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection)
+            .await
+            .map_err(|err| RequestProcessorError::GeneralError(err.to_string()))?;
+
+        // In the state keeper, this value is used to reject execution.
+        // All batches have already been executed by State Keeper.
+        // This means we don't want to reject any execution, therefore we're using MAX as an allow all.
+        let validation_computational_gas_limit = u32::MAX;
+
+        let (system_env, l1_batch_env) = l1_batch_params_provider
+            .load_l1_batch_env(
+                &mut connection,
+                l1_batch_number,
+                validation_computational_gas_limit,
+                vm_run_data.l2_chain_id,
+            )
+            .await
+            .map_err(|err| RequestProcessorError::GeneralError(err.to_string()))?
+            .ok_or(RequestProcessorError::GeneralError(
+                "system_env, l1_batch_env missing".into(),
+            ))?;
+
+        Ok(TeeVerifierInput::new(V1TeeVerifierInput {
+            vm_run_data,
+            merkle_paths,
+            l2_blocks_execution_data,
+            l1_batch_env,
+            system_env,
+        }))
     }
 
     async fn lock_batch_for_proving(
