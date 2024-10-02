@@ -80,9 +80,9 @@ pub struct StorageView<S> {
 #[derive(Debug, Default, Clone)]
 pub struct StorageViewCache {
     // Used purely for caching
-    read_storage_keys: HashMap<StorageKey, StorageValue>,
+    pub read_storage_keys: HashMap<StorageKey, StorageValue>,
     // Cache for `contains_key()` checks. The cache is only valid within one L1 batch execution.
-    initial_writes: HashMap<StorageKey, bool>,
+    pub initial_writes: HashMap<StorageKey, bool>,
 }
 
 impl StorageViewCache {
@@ -139,6 +139,15 @@ impl<S: ReadStorage> StorageView<S> {
                 read_storage_keys: HashMap::new(),
                 initial_writes: HashMap::new(),
             },
+            stats: StorageViewStats::default(),
+        }
+    }
+
+    pub fn new_with_cache(storage_handle: S, cache: StorageViewCache) -> Self {
+        Self {
+            storage_handle,
+            modified_storage_keys: HashMap::new(),
+            cache,
             stats: StorageViewStats::default(),
         }
     }

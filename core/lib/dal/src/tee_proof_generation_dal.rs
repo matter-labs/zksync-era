@@ -10,10 +10,7 @@ use zksync_db_connection::{
 };
 use zksync_types::{tee_types::TeeType, L1BatchNumber};
 
-use crate::{
-    models::storage_tee_proof::StorageTeeProof,
-    tee_verifier_input_producer_dal::TeeVerifierInputProducerJobStatus, Core,
-};
+use crate::{models::storage_tee_proof::StorageTeeProof, Core};
 
 #[derive(Debug)]
 pub struct TeeProofGenerationDal<'a, 'c> {
@@ -39,44 +36,68 @@ impl TeeProofGenerationDal<'_, '_> {
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = min_batch_number.map_or(0, |num| i64::from(num.0));
+
         let query = sqlx::query!(
             r#"
-            UPDATE tee_proof_generation_details
-            SET
-                status = $1,
-                updated_at = NOW(),
-                prover_taken_at = NOW()
-            WHERE
-                tee_type = $2
-                AND l1_batch_number = (
+            WITH
+                upsert AS (
                     SELECT
-                        proofs.l1_batch_number
+                        proof_generation_details.l1_batch_number
                     FROM
-                        tee_proof_generation_details AS proofs
-                        JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number
+                        proof_generation_details
+                        LEFT JOIN l1_batches ON proof_generation_details.l1_batch_number = l1_batches.number
+                        LEFT JOIN tee_proof_generation_details AS proofs ON proof_generation_details.l1_batch_number = proofs.l1_batch_number
                     WHERE
-                        inputs.status = $3
+                        (
+                            proof_generation_details.vm_run_data_blob_url IS NOT NULL
+                            AND proof_generation_details.proof_gen_data_blob_url IS NOT NULL
+                            AND l1_batches.hash IS NOT NULL
+                            AND l1_batches.aux_data_hash IS NOT NULL
+                            AND l1_batches.meta_parameters_hash IS NOT NULL
+                        )
                         AND (
-                            proofs.status = $4
+                            proofs.tee_type IS NULL
+                            OR proofs.tee_type = $1
+                        )
+                        AND (
+                            proofs.status IS NULL
+                            OR proofs.status = $3
                             OR (
-                                proofs.status = $1
-                                AND proofs.prover_taken_at < NOW() - $5::INTERVAL
+                                proofs.status = $2
+                                AND proofs.prover_taken_at < NOW() - $4::INTERVAL
                             )
                         )
-                        AND proofs.l1_batch_number >= $6
+                        AND (
+                            proofs.l1_batch_number IS NULL
+                            OR proofs.l1_batch_number >= $5
+                        )
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
                         1
-                    FOR UPDATE
-                        SKIP LOCKED
                 )
+            INSERT INTO
+                tee_proof_generation_details (l1_batch_number, tee_type, status, created_at, updated_at, prover_taken_at)
+            SELECT
+                l1_batch_number,
+                $1,
+                $2,
+                NOW(),
+                NOW(),
+                NOW()
+            FROM
+                upsert
+            ON CONFLICT (l1_batch_number, tee_type) DO
+            UPDATE
+            SET
+                status = $2,
+                updated_at = NOW(),
+                prover_taken_at = NOW()
             RETURNING
-                tee_proof_generation_details.l1_batch_number
+                l1_batch_number
             "#,
-            TeeProofGenerationJobStatus::PickedByProver.to_string(),
             tee_type.to_string(),
-            TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
+            TeeProofGenerationJobStatus::PickedByProver.to_string(),
             TeeProofGenerationJobStatus::Unpicked.to_string(),
             processing_timeout,
             min_batch_number
@@ -274,16 +295,13 @@ impl TeeProofGenerationDal<'_, '_> {
                 proofs.l1_batch_number
             FROM
                 tee_proof_generation_details AS proofs
-                JOIN tee_verifier_input_producer_jobs AS inputs ON proofs.l1_batch_number = inputs.l1_batch_number
             WHERE
-                inputs.status = $1
-                AND proofs.status = $2
+                proofs.status = $1
             ORDER BY
                 proofs.l1_batch_number ASC
             LIMIT
                 1
             "#,
-            TeeVerifierInputProducerJobStatus::Successful as TeeVerifierInputProducerJobStatus,
             TeeProofGenerationJobStatus::Unpicked.to_string(),
         );
         let batch_number = Instrumented::new("get_oldest_unpicked_batch")
