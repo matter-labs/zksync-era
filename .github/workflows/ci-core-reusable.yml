@@ -57,14 +57,14 @@ jobs:
         run: |
           ci_run run_retried rustup show
           ci_run ./bin/zkt
-          ci_run zk_supervisor contracts
+          ci_run zk_inception dev contracts
 
       - name: Contracts unit tests
         run: ci_run yarn l1-contracts test
 
       - name: Rust unit tests
         run: |
-          ci_run zk_supervisor test rust
+          ci_run zk_inception dev test rust
           # Benchmarks are not tested by `cargo nextest` unless specified explicitly, and even then `criterion` harness is incompatible
           # with how `cargo nextest` runs tests. Thus, we run criterion-based benchmark tests manually.
           ci_run cargo test --release -p vm-benchmark --bench oneshot --bench batch
@@ -128,17 +128,17 @@ jobs:
             --legacy-bridge
 
           ci_run zk_inception ecosystem init --dev --verbose
-          ci_run zk_supervisor contracts --test-contracts
+          ci_run zk_inception dev contracts --test-contracts
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
         run: |
-          ci_run zk_supervisor config-writer --path ${{ matrix.vm_mode == 'NEW' && 'etc/env/file_based/overrides/tests/loadtest-new.yaml' || 'etc/env/file_based/overrides/tests/loadtest-old.yaml' }} --chain legacy
+          ci_run zk_inception dev config-writer --path ${{ matrix.vm_mode == 'NEW' && 'etc/env/file_based/overrides/tests/loadtest-new.yaml' || 'etc/env/file_based/overrides/tests/loadtest-old.yaml' }} --chain legacy
           ci_run zk_inception server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
 
       - name: Perform loadtest
-        run: ci_run zk_supervisor t loadtest -v --chain=legacy
+        run: ci_run zk_inception dev t loadtest -v --chain=legacy
 
       - name: Show server.log logs
         if: always()
@@ -291,7 +291,7 @@ jobs:
 
           governor_pk=$(awk '/governor:/ {flag=1} flag && /private_key:/ {print $2; exit}' ./configs/wallets.yaml)
 
-          ci_run zk_supervisor send-transactions \
+          ci_run zk_inception dev send-transactions \
           --file ./transactions/chain/offline_chain/register-hyperchain-txns.json \
           --l1-rpc-url http://127.0.0.1:8545 \
           --private-key $governor_pk
@@ -333,7 +333,7 @@ jobs:
 
       - name: Build test dependencies
         run: |
-          ci_run zk_supervisor test build
+          ci_run zk_inception dev test build
 
       - name: Initialize Contract verifier
         run: |
@@ -358,16 +358,16 @@ jobs:
       - name: Run integration tests
         run: |
           PASSED_ENV_VARS="RUN_CONTRACT_VERIFICATION_TEST" \
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/rollup.log &
+          ci_run zk_inception dev test integration --no-deps --ignore-prerequisites --chain era &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain validium &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/validium.log &
+          ci_run zk_inception dev test integration --no-deps --ignore-prerequisites --chain validium &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain custom_token &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/custom_token.log &
+          ci_run zk_inception dev test integration --no-deps --ignore-prerequisites --chain custom_token &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain consensus &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log &
+          ci_run zk_inception dev test integration --no-deps --ignore-prerequisites --chain consensus &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log &
           PID4=$!
 
           wait $PID1
@@ -396,16 +396,16 @@ jobs:
       - name: Run recovery tests (from snapshot)
         run: |
 
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain era &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/rollup.log &
+          ci_run zk_inception dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain era &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain validium &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/validium.log &
+          ci_run zk_inception dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain validium &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/custom_token.log &
+          ci_run zk_inception dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain consensus &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/consensus.log &
+          ci_run zk_inception dev test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain consensus &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/consensus.log &
           PID4=$!
 
           wait $PID1
@@ -415,16 +415,16 @@ jobs:
 
       - name: Run recovery tests (from genesis)
         run: |
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain era &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/rollup.log &
+          ci_run zk_inception dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain era &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain validium &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/validium.log &
+          ci_run zk_inception dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain validium &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain custom_token &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/custom_token.log &
+          ci_run zk_inception dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain custom_token &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain consensus &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/consensus.log &
+          ci_run zk_inception dev test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain consensus &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/consensus.log &
           PID4=$!
 
           wait $PID1
@@ -441,16 +441,16 @@ jobs:
 
       - name: Run integration tests en
         run: |
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain era &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/rollup.log &
+          ci_run zk_inception dev test integration --no-deps --ignore-prerequisites --external-node --chain era &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain validium &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/validium.log &
+          ci_run zk_inception dev test integration --no-deps --ignore-prerequisites --external-node --chain validium &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain custom_token &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/custom_token.log &
+          ci_run zk_inception dev test integration --no-deps --ignore-prerequisites --external-node --chain custom_token &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain consensus &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/consensus.log &
+          ci_run zk_inception dev test integration --no-deps --ignore-prerequisites --external-node --chain consensus &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/consensus.log &
           PID4=$!
 
           wait $PID1
@@ -462,16 +462,16 @@ jobs:
         run: |
           ci_run killall -INT zksync_server || true
           
-          ci_run zk_supervisor test fees --no-deps --no-kill --chain era &> ${{ env.FEES_LOGS_DIR }}/era.log &
+          ci_run zk_inception dev test fees --no-deps --no-kill --chain era &> ${{ env.FEES_LOGS_DIR }}/era.log &
           PID1=$!
           
-          ci_run zk_supervisor test fees --no-deps --no-kill --chain validium &> ${{ env.FEES_LOGS_DIR }}/validium.log &
+          ci_run zk_inception dev test fees --no-deps --no-kill --chain validium &> ${{ env.FEES_LOGS_DIR }}/validium.log &
           PID2=$!
           
-          ci_run zk_supervisor test fees --no-deps --no-kill --chain custom_token &> ${{ env.FEES_LOGS_DIR }}/custom_token.log &
+          ci_run zk_inception dev test fees --no-deps --no-kill --chain custom_token &> ${{ env.FEES_LOGS_DIR }}/custom_token.log &
           PID3=$!
           
-          ci_run zk_supervisor test fees --no-deps --no-kill --chain consensus &> ${{ env.FEES_LOGS_DIR }}/consensus.log &
+          ci_run zk_inception dev test fees --no-deps --no-kill --chain consensus &> ${{ env.FEES_LOGS_DIR }}/consensus.log &
           PID4=$!
           
           wait $PID1
@@ -484,16 +484,16 @@ jobs:
           ci_run killall -INT zksync_server || true
           ci_run killall -INT zksync_external_node || true
 
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain era &> ${{ env.REVERT_LOGS_DIR }}/rollup.log &
+          ci_run zk_inception dev test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain era &> ${{ env.REVERT_LOGS_DIR }}/rollup.log &
           PID1=$!
 
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain validium &> ${{ env.REVERT_LOGS_DIR }}/validium.log &
+          ci_run zk_inception dev test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain validium &> ${{ env.REVERT_LOGS_DIR }}/validium.log &
           PID2=$!
 
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain custom_token &> ${{ env.REVERT_LOGS_DIR }}/custom_token.log &
+          ci_run zk_inception dev test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain custom_token &> ${{ env.REVERT_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain consensus &> ${{ env.REVERT_LOGS_DIR }}/consensus.log &
+          ci_run zk_inception dev test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain consensus &> ${{ env.REVERT_LOGS_DIR }}/consensus.log &
           PID4=$!
 
           wait $PID1
@@ -507,7 +507,7 @@ jobs:
       # TODO make upgrade tests safe to run multiple times
       - name: Run upgrade test
         run: |
-          ci_run zk_supervisor test upgrade --no-deps --chain era
+          ci_run zk_inception dev test upgrade --no-deps --chain era
 
 
       - name: Upload logs

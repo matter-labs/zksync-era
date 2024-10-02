@@ -63,7 +63,7 @@ jobs:
           ci_run zk
           ci_run zkt
           ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zk_supervisor contracts 
+          ci_run zk_inception dev contracts 
 
       - name: update-image
         run: |

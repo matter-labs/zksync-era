@@ -32,18 +32,18 @@ jobs:
           ci_run ./bin/zkt
           ci_run yarn install
           ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run zk_supervisor db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
+          ci_run zk_inception dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
 
 
       - name: Lints
         run: |
-          ci_run zk_supervisor fmt --check
-          ci_run zk_supervisor lint -t md --check
-          ci_run zk_supervisor lint -t sol --check
-          ci_run zk_supervisor lint -t js --check
-          ci_run zk_supervisor lint -t ts --check
-          ci_run zk_supervisor lint -t rs --check
+          ci_run zk_inception dev fmt --check
+          ci_run zk_inception dev lint -t md --check
+          ci_run zk_inception dev lint -t sol --check
+          ci_run zk_inception dev lint -t js --check
+          ci_run zk_inception dev lint -t ts --check
+          ci_run zk_inception dev lint -t rs --check
 
       - name: Check Database
         run: |
-          ci_run zk_supervisor database check-sqlx-data --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
+          ci_run zk_inception dev database check-sqlx-data --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
