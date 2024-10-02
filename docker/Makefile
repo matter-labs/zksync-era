@@ -91,7 +91,7 @@ build-witness-generator: check-tools prepare-keys
 	$(DOCKER_BUILD_CMD) --file witness-generator/Dockerfile --load \
 		--tag witness-generator:$(PROTOCOL_VERSION) $(CONTEXT)
 
-build-external-node: check-tools prepare-contracts prepare-keys
+build-external-node: check-tools prepare-contracts
 	$(DOCKER_BUILD_CMD) --file external-node/Dockerfile --load \
 		--tag external-node:$(PROTOCOL_VERSION) $(CONTEXT)
 
