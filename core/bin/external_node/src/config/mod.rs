@@ -344,6 +344,10 @@ pub(crate) struct OptionalENConfig {
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[serde(default = "OptionalENConfig::default_estimate_gas_acceptable_overestimation")]
     pub estimate_gas_acceptable_overestimation: u32,
+    /// Enables optimizations for the binary search of the gas limit in `eth_estimateGas`. These optimizations are currently
+    /// considered experimental.
+    #[serde(default)]
+    pub estimate_gas_optimize_search: bool,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block.
     #[serde(default = "OptionalENConfig::default_gas_price_scale_factor")]
@@ -575,6 +579,11 @@ impl OptionalENConfig {
                 web3_json_rpc.estimate_gas_acceptable_overestimation,
                 default_estimate_gas_acceptable_overestimation
             ),
+            estimate_gas_optimize_search: general_config
+                .api_config
+                .as_ref()
+                .map(|a| a.web3_json_rpc.estimate_gas_optimize_search)
+                .unwrap_or_default(),
             gas_price_scale_factor: load_config_or_default!(
                 general_config.api_config,
                 web3_json_rpc.gas_price_scale_factor,
@@ -1401,6 +1410,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             estimate_gas_acceptable_overestimation: config
                 .optional
                 .estimate_gas_acceptable_overestimation,
+            estimate_gas_optimize_search: config.optional.estimate_gas_optimize_search,
             bridge_addresses: BridgeAddresses {
                 l1_erc20_default_bridge: config.remote.l1_erc20_bridge_proxy_addr,
                 l2_erc20_default_bridge: config.remote.l2_erc20_bridge_addr,

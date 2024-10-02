@@ -246,7 +246,6 @@ fn sanity_check_shadow_vm() {
     harness.execute_on_vm(&mut vm);
 }
 
-// FIXME: gateway is not supported in fast vm
 // #[test]
 // fn shadow_vm_basics() {
 //     let (vm, harness) = sanity_check_vm::<ShadowedFastVm>();
@@ -256,12 +255,7 @@ fn sanity_check_shadow_vm() {
 //     // Test standard playback functionality.
 //     let replayed_dump = dump.clone().play_back::<ShadowedFastVm<_>>().dump_state();
 //     pretty_assertions::assert_eq!(replayed_dump, dump);
-
-//     // Check that the VM executes identically when reading from the original storage and one restored from the dump.
-//     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
-//     harness.setup_storage(&mut storage);
-//     let storage = StorageView::new(storage).to_rc_ptr();
-
+//
 //     let vm = dump
 //         .clone()
 //         .play_back_custom(|l1_batch_env, system_env, dump_storage| {

@@ -189,6 +189,7 @@ jobs:
           SNAPSHOT_RECOVERY_LOGS_DIR=logs/snapshot_recovery/
           GENESIS_RECOVERY_LOGS_DIR=logs/genesis_recovery/
           EXTERNAL_NODE_LOGS_DIR=logs/external_node
+          FEES_LOGS_DIR=logs/fees
           REVERT_LOGS_DIR=logs/revert
 
           mkdir -p $SERVER_LOGS_DIR
@@ -197,6 +198,7 @@ jobs:
           mkdir -p $SNAPSHOT_RECOVERY_LOGS_DIR
           mkdir -p $GENESIS_RECOVERY_LOGS_DIR
           mkdir -p $EXTERNAL_NODE_LOGS_DIR
+          mkdir -p $FEES_LOGS_DIR
           mkdir -p $REVERT_LOGS_DIR
 
           echo "SERVER_LOGS_DIR=$SERVER_LOGS_DIR" >> $GITHUB_ENV
@@ -205,6 +207,7 @@ jobs:
           echo "SNAPSHOT_RECOVERY_LOGS_DIR=$SNAPSHOT_RECOVERY_LOGS_DIR" >> $GITHUB_ENV
           echo "GENESIS_RECOVERY_LOGS_DIR=$GENESIS_RECOVERY_LOGS_DIR" >> $GITHUB_ENV
           echo "EXTERNAL_NODE_LOGS_DIR=$EXTERNAL_NODE_LOGS_DIR" >> $GITHUB_ENV
+          echo "FEES_LOGS_DIR=$FEES_LOGS_DIR" >> $GITHUB_ENV
           echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
 # FIXME: restore tests for all the various types of chains
       - name: Initialize ecosystem
@@ -224,9 +227,9 @@ jobs:
 
       - name: Read Custom Token address and set as environment variable
         run: |
-          address=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
-          echo "address=$address"
-          echo "address=$address" >> $GITHUB_ENV
+          CUSTOM_TOKEN_ADDRESS=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
+          echo "CUSTOM_TOKEN_ADDRESS=$CUSTOM_TOKEN_ADDRESS"
+          echo "CUSTOM_TOKEN_ADDRESS=$CUSTOM_TOKEN_ADDRESS" >> $GITHUB_ENV
 
       - name: Create and initialize Validium chain
         run: |
@@ -249,7 +252,6 @@ jobs:
           --server-db-name=zksync_server_localhost_validium \
           --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --prover-db-name=zksync_prover_localhost_validium \
-          --port-offset 2000 \
           --chain validium
 
       - name: Create and initialize chain with Custom Token
@@ -260,7 +262,7 @@ jobs:
           --prover-mode no-proofs \
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode rollup \
-          --base-token-address ${{ env.address }} \
+          --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
           --base-token-price-nominator 3 \
           --base-token-price-denominator 2 \
           --set-as-default false \
@@ -273,7 +275,6 @@ jobs:
           --server-db-name=zksync_server_localhost_custom_token \
           --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --prover-db-name=zksync_prover_localhost_custom_token \
-          --port-offset 3000 \
           --chain custom_token
 
       - name: Initialize gateway chain

@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Context};
-use common::config::global_config;
 use config::{EcosystemConfig, SecretsConfig};
 use url::Url;
 use xshell::Shell;
@@ -91,7 +90,7 @@ pub fn get_core_dal(shell: &Shell, url: Option<String>) -> anyhow::Result<Dal> {
 fn get_secrets(shell: &Shell) -> anyhow::Result<SecretsConfig> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
+        .load_current_chain()
         .ok_or(anyhow!(MSG_CHAIN_NOT_FOUND_ERR))?;
     let secrets = chain_config.get_secrets_config()?;
 

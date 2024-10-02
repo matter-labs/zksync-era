@@ -253,7 +253,7 @@ impl StorageWeb3Dal<'_, '_> {
                     LIMIT
                         1
                 ) t
-                JOIN factory_deps ON value = factory_deps.bytecode_hash
+            JOIN factory_deps ON value = factory_deps.bytecode_hash
             WHERE
                 value != $3
             "#,

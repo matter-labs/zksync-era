@@ -47,7 +47,7 @@ impl EthSenderDal<'_, '_> {
                         COALESCE(MAX(eth_tx_id), 0)
                     FROM
                         eth_txs_history
-                        JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
+                    JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
                     WHERE
                         eth_txs_history.sent_at_block IS NOT NULL
                         AND eth_txs.from_addr IS NOT DISTINCT FROM $1
@@ -178,7 +178,7 @@ impl EthSenderDal<'_, '_> {
                         COALESCE(MAX(eth_tx_id), 0)
                     FROM
                         eth_txs_history
-                        JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
+                    JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
                     WHERE
                         eth_txs_history.sent_at_block IS NOT NULL
                         AND eth_txs.from_addr IS NOT DISTINCT FROM $2
@@ -212,7 +212,7 @@ impl EthSenderDal<'_, '_> {
                 eth_txs.nonce
             FROM
                 eth_txs_history
-                JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
+            JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
             WHERE
                 eth_txs_history.sent_at_block IS NULL
                 AND eth_txs.confirmed_eth_tx_history_id IS NULL
@@ -242,22 +242,22 @@ impl EthSenderDal<'_, '_> {
             StorageEthTx,
             r#"
             INSERT INTO
-                eth_txs (
-                    raw_tx,
-                    nonce,
-                    tx_type,
-                    contract_address,
-                    predicted_gas_cost,
-                    created_at,
-                    updated_at,
-                    from_addr,
-                    blob_sidecar,
-                    is_gateway
-                )
+            eth_txs (
+                raw_tx,
+                nonce,
+                tx_type,
+                contract_address,
+                predicted_gas_cost,
+                created_at,
+                updated_at,
+                from_addr,
+                blob_sidecar,
+                is_gateway
+            )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8)
+            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, $8)
             RETURNING
-                *
+            *
             "#,
             raw_tx,
             nonce as i64,
@@ -294,23 +294,23 @@ impl EthSenderDal<'_, '_> {
         Ok(sqlx::query!(
             r#"
             INSERT INTO
-                eth_txs_history (
-                    eth_tx_id,
-                    base_fee_per_gas,
-                    priority_fee_per_gas,
-                    tx_hash,
-                    signed_raw_tx,
-                    created_at,
-                    updated_at,
-                    blob_base_fee_per_gas,
-                    sent_at_block,
-                    sent_at
-                )
+            eth_txs_history (
+                eth_tx_id,
+                base_fee_per_gas,
+                priority_fee_per_gas,
+                tx_hash,
+                signed_raw_tx,
+                created_at,
+                updated_at,
+                blob_base_fee_per_gas,
+                sent_at_block,
+                sent_at
+            )
             VALUES
-                ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, NOW())
+            ($1, $2, $3, $4, $5, NOW(), NOW(), $6, $7, NOW())
             ON CONFLICT (tx_hash) DO NOTHING
             RETURNING
-                id
+            id
             "#,
             eth_tx_id as i32,
             base_fee_per_gas,
@@ -380,8 +380,8 @@ impl EthSenderDal<'_, '_> {
             WHERE
                 tx_hash = $1
             RETURNING
-                id,
-                eth_tx_id
+            id,
+            eth_tx_id
             "#,
             tx_hash,
         )
@@ -555,7 +555,7 @@ impl EthSenderDal<'_, '_> {
                 eth_txs.blob_sidecar
             FROM
                 eth_txs_history
-                LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
+            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
             WHERE
                 eth_tx_id = $1
             ORDER BY
@@ -606,7 +606,7 @@ impl EthSenderDal<'_, '_> {
                 eth_txs.blob_sidecar
             FROM
                 eth_txs_history
-                LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
+            LEFT JOIN eth_txs ON eth_tx_id = eth_txs.id
             WHERE
                 eth_tx_id = $1
             ORDER BY
@@ -640,7 +640,8 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL\
+                -- can't just use equality as NULL != NULL
+                from_addr IS NOT DISTINCT FROM $1
                 AND is_gateway = $2
             ORDER BY
                 id DESC
@@ -764,8 +765,9 @@ impl EthSenderDal<'_, '_> {
                 eth_txs_history.tx_hash AS settlement_layer_tx_hash
             FROM
                 l1_batches
-                JOIN eth_txs ON l1_batches.eth_execute_tx_id = eth_txs.id
-                JOIN eth_txs_history ON (
+            JOIN eth_txs ON l1_batches.eth_execute_tx_id = eth_txs.id
+            JOIN eth_txs_history
+                ON (
                     eth_txs.id = eth_txs_history.eth_tx_id
                     AND eth_txs_history.confirmed_at IS NOT NULL
                 )
