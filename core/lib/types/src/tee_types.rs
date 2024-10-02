@@ -1,6 +1,8 @@
 use std::fmt;
 
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
+use zksync_basic_types::L1BatchNumber;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -15,6 +17,17 @@ impl fmt::Display for TeeType {
             TeeType::Sgx => write!(f, "sgx"),
         }
     }
+}
+
+/// Representation of a locked batch. Used in DAL to fetch details about the locked batch to
+/// determine whether it should be flagged as permanently ignored if it has no corresponding file in
+/// the object store for an extended period.
+#[derive(Clone, Debug)]
+pub struct LockedBatch {
+    /// Locked batch number.
+    pub l1_batch_number: L1BatchNumber,
+    /// The creation time of the job for this batch.
+    pub created_at: NaiveDateTime,
 }
 
 #[cfg(test)]

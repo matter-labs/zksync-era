@@ -140,6 +140,27 @@ impl dyn ObjectStore + '_ {
         V::deserialize(bytes).map_err(ObjectStoreError::Serialization)
     }
 
+    /// Fetches the value for the given key, returning an Option.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the object cannot be accessed or cannot be deserialized.
+    #[tracing::instrument(name = "ObjectStore::get_optional", skip_all, fields(key))]
+    pub async fn get_optional<V: StoredObject>(
+        &self,
+        key: V::Key<'_>,
+    ) -> Result<Option<V>, ObjectStoreError> {
+        let key = V::encode_key(key);
+        tracing::Span::current().record("key", key.as_str());
+        match self.get_raw(V::BUCKET, &key).await {
+            Ok(bytes) => V::deserialize(bytes)
+                .map(Some)
+                .map_err(ObjectStoreError::Serialization),
+            Err(ObjectStoreError::KeyNotFound(_)) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
     /// Fetches the value for the given encoded key if it exists.
     ///
     /// # Errors

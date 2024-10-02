@@ -47,6 +47,7 @@ pub mod pubdata_da;
 pub mod snapshots;
 pub mod storage;
 pub mod system_contracts;
+pub mod tee_types;
 pub mod tokens;
 pub mod tx;
 pub mod zk_evm_types;

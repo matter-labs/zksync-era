@@ -8,11 +8,15 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
     utils::pg_interval_from_duration,
 };
-use zksync_types::{tee_types::TeeType, L1BatchNumber};
+use zksync_types::{
+    tee_types::{LockedBatch, TeeType},
+    L1BatchNumber,
+};
 
 use crate::{
-    models::storage_tee_proof::StorageTeeProof,
-    tee_verifier_input_producer_dal::TeeVerifierInputProducerJobStatus, Core,
+    models::storage_tee_proof::{StorageLockedBatch, StorageTeeProof},
+    tee_verifier_input_producer_dal::TeeVerifierInputProducerJobStatus,
+    Core,
 };
 
 #[derive(Debug)]
@@ -21,13 +25,15 @@ pub struct TeeProofGenerationDal<'a, 'c> {
 }
 
 #[derive(Debug, EnumString, Display)]
-enum TeeProofGenerationJobStatus {
+pub enum TeeProofGenerationJobStatus {
     #[strum(serialize = "unpicked")]
     Unpicked,
     #[strum(serialize = "picked_by_prover")]
     PickedByProver,
     #[strum(serialize = "generated")]
     Generated,
+    #[strum(serialize = "permanently_ignored")]
+    PermanentlyIgnored,
 }
 
 impl TeeProofGenerationDal<'_, '_> {
@@ -36,10 +42,11 @@ impl TeeProofGenerationDal<'_, '_> {
         tee_type: TeeType,
         processing_timeout: Duration,
         min_batch_number: Option<L1BatchNumber>,
-    ) -> DalResult<Option<L1BatchNumber>> {
+    ) -> DalResult<Option<LockedBatch>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = min_batch_number.map_or(0, |num| i64::from(num.0));
-        let query = sqlx::query!(
+        let query = sqlx::query_as!(
+            StorageLockedBatch,
             r#"
             UPDATE tee_proof_generation_details
             SET
@@ -72,7 +79,8 @@ impl TeeProofGenerationDal<'_, '_> {
                         SKIP LOCKED
                 )
             RETURNING
-                tee_proof_generation_details.l1_batch_number
+                tee_proof_generation_details.l1_batch_number,
+                tee_proof_generation_details.created_at
             "#,
             TeeProofGenerationJobStatus::PickedByProver.to_string(),
             tee_type.to_string(),
@@ -82,22 +90,23 @@ impl TeeProofGenerationDal<'_, '_> {
             min_batch_number
         );
 
-        let batch_number = Instrumented::new("lock_batch_for_proving")
+        let locked_batch_details = Instrumented::new("lock_batch_for_proving")
             .with_arg("tee_type", &tee_type)
             .with_arg("processing_timeout", &processing_timeout)
             .with_arg("l1_batch_number", &min_batch_number)
             .with(query)
             .fetch_optional(self.storage)
             .await?
-            .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+            .map(Into::into);
 
-        Ok(batch_number)
+        Ok(locked_batch_details)
     }
 
     pub async fn unlock_batch(
         &mut self,
         l1_batch_number: L1BatchNumber,
         tee_type: TeeType,
+        status: TeeProofGenerationJobStatus,
     ) -> DalResult<()> {
         let batch_number = i64::from(l1_batch_number.0);
         sqlx::query!(
@@ -110,7 +119,7 @@ impl TeeProofGenerationDal<'_, '_> {
                 l1_batch_number = $2
                 AND tee_type = $3
             "#,
-            TeeProofGenerationJobStatus::Unpicked.to_string(),
+            status.to_string(),
             batch_number,
             tee_type.to_string()
         )
