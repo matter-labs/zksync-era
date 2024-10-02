@@ -1,15 +1,10 @@
-use std::{
-    collections::HashSet,
-    future::Future,
-    sync::{atomic::AtomicI64, Arc},
-    time::Duration,
-};
+use std::{collections::HashSet, future::Future, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use chrono::Utc;
 use futures::future::join_all;
 use rand::Rng;
-use tokio::sync::{mpsc, watch::Receiver, Notify};
+use tokio::sync::{mpsc, watch::Receiver, Mutex, Notify};
 use zksync_config::DADispatcherConfig;
 use zksync_da_client::{
     types::{DAError, InclusionData},
@@ -19,8 +14,6 @@ use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_types::L1BatchNumber;
 
 use crate::metrics::METRICS;
-
-const NO_FIRST_BATCH: i64 = -1;
 
 #[derive(Debug)]
 pub struct DataAvailabilityDispatcher {
@@ -68,7 +61,7 @@ impl DataAvailabilityDispatcher {
     async fn dispatch_batches(&self, stop_receiver: Receiver<bool>) -> anyhow::Result<()> {
         let (tx, mut rx) = mpsc::channel(100);
 
-        let next_expected_batch = Arc::new(AtomicI64::new(NO_FIRST_BATCH));
+        let next_expected_batch = Arc::new(Mutex::new(None));
 
         let stop_receiver_clone = stop_receiver.clone();
         let pool_clone = self.pool.clone();
@@ -80,6 +73,7 @@ impl DataAvailabilityDispatcher {
             // let pair = cvar_pair_clone.clone();
             loop {
                 if *stop_receiver_clone.borrow() {
+                    tracing::info!("Stop signal received, da_dispatcher is shutting down");
                     break;
                 }
 
@@ -99,13 +93,9 @@ impl DataAvailabilityDispatcher {
                     // This should only happen once.
                     // We can't assume that the first batch is always 1 because the dispatcher can be restarted
                     // and resume from a different batch.
-                    if next_expected_batch_clone.load(std::sync::atomic::Ordering::Relaxed)
-                        == NO_FIRST_BATCH
-                    {
-                        next_expected_batch_clone.store(
-                            batch.l1_batch_number.0 as i64,
-                            std::sync::atomic::Ordering::Relaxed,
-                        );
+                    let mut next_expected_batch_lock = next_expected_batch_clone.lock().await;
+                    if next_expected_batch_lock.is_none() {
+                        next_expected_batch_lock.replace(batch.l1_batch_number);
                     }
 
                     pending_batches.insert(batch.l1_batch_number.0);
@@ -165,8 +155,12 @@ impl DataAvailabilityDispatcher {
 
                     // Before saving the blob in the database, we need to be sure that we are doing it
                     // in the correct order.
-                    while batch.l1_batch_number.0 as i64
-                        > next_expected_batch.load(std::sync::atomic::Ordering::Relaxed)
+                    while next_expected_batch
+                        .lock()
+                        .await
+                        .map_or(true, |next_expected_batch| {
+                            batch.l1_batch_number > next_expected_batch
+                        })
                     {
                         notifier.clone().notified().await;
                     }
@@ -182,7 +176,10 @@ impl DataAvailabilityDispatcher {
                     drop(conn);
 
                     // Update the next expected batch number
-                    next_expected_batch.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    next_expected_batch
+                        .lock()
+                        .await
+                        .replace(batch.l1_batch_number + 1);
                     notifier.notify_waiters();
 
                     METRICS
