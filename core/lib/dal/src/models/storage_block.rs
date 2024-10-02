@@ -7,7 +7,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
     block::{L1BatchHeader, L2BlockHeader},
-    commitment::{L1BatchMetaParameters, L1BatchMetadata},
+    commitment::{L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, PubdataParams},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
@@ -140,6 +140,9 @@ pub(crate) struct StorageL1Batch {
     pub compressed_initial_writes: Option<Vec<u8>>,
     pub compressed_repeated_writes: Option<Vec<u8>>,
 
+    pub aggregation_root: Option<Vec<u8>>,
+    pub local_root: Option<Vec<u8>>,
+
     pub used_contract_hashes: serde_json::Value,
     pub system_logs: Vec<Vec<u8>>,
     pub compressed_state_diffs: Option<Vec<u8>>,
@@ -147,6 +150,8 @@ pub(crate) struct StorageL1Batch {
     pub events_queue_commitment: Option<Vec<u8>>,
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub state_diff_hash: Option<Vec<u8>>,
+    pub inclusion_data: Option<Vec<u8>>,
 }
 
 impl StorageL1Batch {
@@ -249,6 +254,10 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
             bootloader_initial_content_commitment: batch
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
+            state_diff_hash: batch.state_diff_hash.map(|v| H256::from_slice(&v)),
+            local_root: batch.local_root.map(|v| H256::from_slice(&v)),
+            aggregation_root: batch.aggregation_root.map(|v| H256::from_slice(&v)),
+            da_inclusion_data: batch.inclusion_data,
         })
     }
 }
@@ -418,6 +427,8 @@ pub(crate) struct StorageL2BlockHeader {
     // L2 gas price assumed in the corresponding batch
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub l2_da_validator_address: Vec<u8>,
+    pub pubdata_type: String,
     pub protocol_version: Option<i32>,
 
     pub fair_pubdata_price: Option<i64>,
@@ -472,6 +483,10 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 row.bootloader_code_hash,
                 row.default_aa_code_hash,
             ),
+            pubdata_params: PubdataParams {
+                l2_da_validator_address: Address::from_slice(&row.l2_da_validator_address),
+                pubdata_type: L1BatchCommitmentMode::from_str(&row.pubdata_type).unwrap(),
+            },
             gas_per_pubdata_limit: row.gas_per_pubdata_limit as u64,
             protocol_version,
             virtual_blocks: row.virtual_blocks as u32,

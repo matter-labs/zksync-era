@@ -1,6 +1,6 @@
 use anyhow::Context;
 use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
-use zksync_config::configs::{eth_sender::EthConfig, ContractsConfig};
+use zksync_config::configs::{eth_sender::EthConfig, gateway::GatewayChainConfig, ContractsConfig};
 use zksync_eth_client::BoundEthInterface;
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
 use zksync_types::{commitment::L1BatchCommitmentMode, settlement::SettlementMode, L2ChainId};
@@ -8,9 +8,13 @@ use zksync_types::{commitment::L1BatchCommitmentMode, settlement::SettlementMode
 use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
-        eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
+        eth_interface::{
+            BoundEthInterfaceForBlobsResource, BoundEthInterfaceForL2Resource,
+            BoundEthInterfaceResource,
+        },
         object_store::ObjectStoreResource,
         pools::{MasterPool, PoolResource, ReplicaPool},
+        priority_merkle_tree::PriorityTreeResource,
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -40,6 +44,7 @@ use crate::{
 pub struct EthTxAggregatorLayer {
     eth_sender_config: EthConfig,
     contracts_config: ContractsConfig,
+    gateway_contracts_config: Option<GatewayChainConfig>,
     zksync_network_id: L2ChainId,
     l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     settlement_mode: SettlementMode,
@@ -52,9 +57,11 @@ pub struct Input {
     pub replica_pool: PoolResource<ReplicaPool>,
     pub eth_client: Option<BoundEthInterfaceResource>,
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
+    pub eth_client_gateway: Option<BoundEthInterfaceForL2Resource>,
     pub object_store: ObjectStoreResource,
     #[context(default)]
     pub circuit_breakers: CircuitBreakersResource,
+    pub priority_tree: PriorityTreeResource,
 }
 
 #[derive(Debug, IntoContext)]
@@ -68,6 +75,7 @@ impl EthTxAggregatorLayer {
     pub fn new(
         eth_sender_config: EthConfig,
         contracts_config: ContractsConfig,
+        gateway_contracts_config: Option<GatewayChainConfig>,
         zksync_network_id: L2ChainId,
         l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
         settlement_mode: SettlementMode,
@@ -75,6 +83,7 @@ impl EthTxAggregatorLayer {
         Self {
             eth_sender_config,
             contracts_config,
+            gateway_contracts_config,
             zksync_network_id,
             l1_batch_commit_data_generator_mode,
             settlement_mode,
@@ -92,12 +101,50 @@ impl WiringLayer for EthTxAggregatorLayer {
     }
 
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
+        tracing::info!(
+            "Wiring tx_aggregator in {:?} mode which is {}",
+            self.settlement_mode,
+            self.settlement_mode.is_gateway()
+        );
+        tracing::info!("Contracts: {:?}", self.contracts_config);
+        tracing::info!("Gateway contracts: {:?}", self.gateway_contracts_config);
         // Get resources.
+
+        let (validator_timelock_addr, multicall3_addr, diamond_proxy_addr) =
+            if self.settlement_mode.is_gateway() {
+                (
+                    self.gateway_contracts_config
+                        .clone()
+                        .unwrap()
+                        .validator_timelock_addr,
+                    self.gateway_contracts_config
+                        .clone()
+                        .unwrap()
+                        .multicall3_addr,
+                    self.gateway_contracts_config
+                        .clone()
+                        .unwrap()
+                        .diamond_proxy_addr,
+                )
+            } else {
+                (
+                    self.contracts_config.validator_timelock_addr,
+                    self.contracts_config.l1_multicall3_addr,
+                    self.contracts_config.diamond_proxy_addr,
+                )
+            };
+
+        let eth_client = if self.settlement_mode.is_gateway() {
+            input.eth_client_gateway.unwrap().0
+        } else {
+            input.eth_client.unwrap().0
+        };
         let master_pool = input.master_pool.get().await.unwrap();
         let replica_pool = input.replica_pool.get().await.unwrap();
 
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let object_store = input.object_store.0;
+        let priority_tree = input.priority_tree.0;
 
         // Create and add tasks.
         let eth_client_blobs_addr = eth_client_blobs
@@ -110,16 +157,17 @@ impl WiringLayer for EthTxAggregatorLayer {
             object_store,
             eth_client_blobs_addr.is_some(),
             self.l1_batch_commit_data_generator_mode,
+            priority_tree,
         );
 
         let eth_tx_aggregator = EthTxAggregator::new(
             master_pool.clone(),
             config.clone(),
             aggregator,
-            input.eth_client.unwrap().0,
-            self.contracts_config.validator_timelock_addr,
-            self.contracts_config.l1_multicall3_addr,
-            self.contracts_config.diamond_proxy_addr,
+            eth_client,
+            validator_timelock_addr,
+            multicall3_addr,
+            diamond_proxy_addr,
             self.zksync_network_id,
             eth_client_blobs_addr,
             self.settlement_mode,

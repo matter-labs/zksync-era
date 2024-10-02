@@ -7,8 +7,8 @@ use zksync_multivm::{
     utils::{get_batch_base_fee, StorageWritesDeduplicator},
 };
 use zksync_types::{
-    block::BlockGasCount, fee_model::BatchFeeInput, Address, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, Transaction,
+    block::BlockGasCount, commitment::PubdataParams, fee_model::BatchFeeInput, Address,
+    L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction,
 };
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
@@ -34,6 +34,7 @@ pub struct UpdatesManager {
     batch_fee_input: BatchFeeInput,
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,
+    pubdata_params: PubdataParams,
     protocol_version: ProtocolVersionId,
     storage_view_cache: Option<StorageViewCache>,
     pub l1_batch: L1BatchUpdates,
@@ -51,6 +52,7 @@ impl UpdatesManager {
             base_fee_per_gas: get_batch_base_fee(l1_batch_env, protocol_version.into()),
             protocol_version,
             base_system_contract_hashes: system_env.base_system_smart_contracts.hashes(),
+            pubdata_params: system_env.pubdata_params,
             l1_batch: L1BatchUpdates::new(l1_batch_env.number),
             l2_block: L2BlockUpdates::new(
                 l1_batch_env.first_l2_block.timestamp,
@@ -83,7 +85,7 @@ impl UpdatesManager {
 
     pub(crate) fn seal_l2_block_command(
         &self,
-        l2_shared_bridge_addr: Address,
+        l2_legacy_shared_bridge_addr: Option<Address>,
         pre_insert_txs: bool,
     ) -> L2BlockSealCommand {
         L2BlockSealCommand {
@@ -93,9 +95,10 @@ impl UpdatesManager {
             fee_account_address: self.fee_account_address,
             fee_input: self.batch_fee_input,
             base_fee_per_gas: self.base_fee_per_gas,
+            pubdata_params: self.pubdata_params,
             base_system_contracts_hashes: self.base_system_contract_hashes,
             protocol_version: Some(self.protocol_version),
-            l2_shared_bridge_addr,
+            l2_legacy_shared_bridge_addr,
             pre_insert_txs,
         }
     }
@@ -206,7 +209,8 @@ pub struct L2BlockSealCommand {
     pub base_fee_per_gas: u64,
     pub base_system_contracts_hashes: BaseSystemContractsHashes,
     pub protocol_version: Option<ProtocolVersionId>,
-    pub l2_shared_bridge_addr: Address,
+    pub l2_legacy_shared_bridge_addr: Option<Address>,
+    pub pubdata_params: PubdataParams,
     /// Whether transactions should be pre-inserted to DB.
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
     /// before they are included into L2 blocks.

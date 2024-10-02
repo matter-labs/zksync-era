@@ -7,6 +7,7 @@ use zksync_multivm::{
 use zksync_types::{
     api,
     block::{unpack_block_info, L2BlockHasher},
+    commitment::PubdataParams,
     fee_model::BatchFeeInput,
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -141,6 +142,7 @@ impl BlockInfo {
             l1_batch_timestamp,
             protocol_version,
             is_pending: self.is_pending_l2_block(),
+            pubdata_params: l2_block_header.pubdata_params,
         })
     }
 }
@@ -154,6 +156,7 @@ pub struct ResolvedBlockInfo {
     l1_batch_timestamp: u64,
     protocol_version: ProtocolVersionId,
     is_pending: bool,
+    pubdata_params: PubdataParams,
 }
 
 impl ResolvedBlockInfo {
@@ -219,6 +222,7 @@ impl<T> OneshotEnvParameters<T> {
             execution_mode,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
             chain_id,
+            pubdata_params: resolved_block_info.pubdata_params,
         };
         let l1_batch_env = L1BatchEnv {
             previous_batch_hash: None,

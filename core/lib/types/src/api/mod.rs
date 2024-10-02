@@ -9,6 +9,7 @@ use zksync_basic_types::{
     Bloom, L1BatchNumber, H160, H256, H64, U256, U64,
 };
 use zksync_contracts::BaseSystemContractsHashes;
+use zksync_utils::u256_to_h256;
 
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
@@ -195,6 +196,67 @@ pub struct L2ToL1LogProof {
     pub root: H256,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LeafAggProof {
+    pub leaf_chain_proof: LeafChainProof,
+    pub chain_agg_proof: ChainAggProof,
+    pub local_msg_root: H256,
+    pub sl_batch_number: U256,
+    pub sl_chain_id: U256,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct LeafChainProof {
+    pub batch_leaf_proof: Vec<H256>,
+    pub batch_leaf_proof_mask: U256,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ChainAggProof {
+    pub chain_id_leaf_proof: Vec<H256>,
+    pub chain_id_leaf_proof_mask: U256,
+}
+
+impl LeafAggProof {
+    pub fn encode(self) -> (u32, Vec<H256>) {
+        let mut encoded_result = vec![];
+
+        let LeafAggProof {
+            leaf_chain_proof,
+            chain_agg_proof,
+            sl_batch_number,
+            sl_chain_id,
+            ..
+        } = self;
+
+        let LeafChainProof {
+            batch_leaf_proof,
+            batch_leaf_proof_mask,
+        } = leaf_chain_proof;
+
+        let ChainAggProof {
+            chain_id_leaf_proof: _,
+            chain_id_leaf_proof_mask,
+        } = chain_agg_proof;
+
+        let batch_leaf_proof_len = batch_leaf_proof.len() as u32;
+
+        encoded_result.push(u256_to_h256(batch_leaf_proof_mask));
+        encoded_result.extend(batch_leaf_proof);
+
+        let sl_encoded_data =
+            sl_batch_number * U256::from(2).pow(128.into()) + chain_id_leaf_proof_mask;
+        encoded_result.push(u256_to_h256(sl_encoded_data));
+
+        encoded_result.push(u256_to_h256(sl_chain_id));
+
+        (batch_leaf_proof_len, encoded_result)
+    }
+}
+
 /// A struct with the two default bridge contracts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -205,6 +267,7 @@ pub struct BridgeAddresses {
     pub l2_erc20_default_bridge: Option<Address>,
     pub l1_weth_bridge: Option<Address>,
     pub l2_weth_bridge: Option<Address>,
+    pub l2_legacy_shared_bridge: Option<Address>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -831,6 +894,17 @@ pub struct L1BatchDetails {
     pub number: L1BatchNumber,
     #[serde(flatten)]
     pub base: BlockDetailsBase,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct L1ProcessingDetails {
+    pub commit_tx_hash: Option<H256>,
+    pub committed_at: Option<DateTime<Utc>>,
+    pub prove_tx_hash: Option<H256>,
+    pub proven_at: Option<DateTime<Utc>>,
+    pub execute_tx_hash: Option<H256>,
+    pub executed_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

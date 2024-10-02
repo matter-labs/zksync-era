@@ -93,3 +93,10 @@ pub struct TxHistoryToSend {
     pub signed_raw_tx: Vec<u8>,
     pub nonce: Nonce,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct BatchSettlementInfo {
+    pub batch_number: u32,
+    pub settlement_layer_id: SLChainId,
+    pub settlement_layer_tx_hash: H256,
+}

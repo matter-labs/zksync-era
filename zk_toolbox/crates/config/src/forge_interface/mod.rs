@@ -1,6 +1,8 @@
 pub mod accept_ownership;
 pub mod deploy_ecosystem;
+pub mod deploy_gateway_ctm;
 pub mod deploy_l2_contracts;
+pub mod gateway_preparation;
 pub mod paymaster;
 pub mod register_chain;
 pub mod script_params;

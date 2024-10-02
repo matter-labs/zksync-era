@@ -7,7 +7,7 @@ import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice } from '../src/helpers';
+import { scaledGasPrice, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
 
 const SECONDS = 1000;
 jest.setTimeout(100 * SECONDS);
@@ -168,7 +168,8 @@ describe('base ERC20 contract checks', () => {
         const withdrawalPromise = alice.withdraw({ token: baseTokenDetails.l2Address, amount });
         await expect(withdrawalPromise).toBeAccepted([]);
         const withdrawalTx = await withdrawalPromise;
-        await withdrawalTx.waitFinalize();
+        const l2Receipt = await withdrawalTx.wait();
+        await waitForBlockToBeFinalizedOnL1(alice, l2Receipt!.blockNumber);
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([]);
         const receipt = await alice._providerL2().getTransactionReceipt(withdrawalTx.hash);

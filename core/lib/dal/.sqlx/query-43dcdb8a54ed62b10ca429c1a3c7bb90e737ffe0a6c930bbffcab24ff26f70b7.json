@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE transactions\n            SET\n                l1_block_number = 0\n            WHERE\n                l1_block_number IS NOT NULL;\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "43dcdb8a54ed62b10ca429c1a3c7bb90e737ffe0a6c930bbffcab24ff26f70b7"
+}

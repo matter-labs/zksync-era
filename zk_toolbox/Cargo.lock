@@ -765,6 +765,7 @@ dependencies = [
  "zksync_config",
  "zksync_protobuf",
  "zksync_protobuf_config",
+ "zksync_system_constants",
 ]
 
 [[package]]
@@ -6710,6 +6711,7 @@ dependencies = [
  "zksync_config",
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
+ "zksync_system_constants",
 ]
 
 [[package]]
@@ -6894,6 +6896,7 @@ dependencies = [
 name = "zksync_mini_merkle_tree"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "once_cell",
  "zksync_basic_types",
  "zksync_crypto_primitives",
@@ -6974,6 +6977,7 @@ dependencies = [
  "blake2",
  "chrono",
  "derive_more 1.0.0",
+ "ethabi",
  "hex",
  "itertools 0.10.5",
  "num",

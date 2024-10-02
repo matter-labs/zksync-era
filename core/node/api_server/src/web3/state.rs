@@ -21,7 +21,7 @@ use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
 use zksync_types::{
     api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
-    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
+    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, SLChainId, H256, U256, U64,
 };
 use zksync_web3_decl::{error::Web3Error, types::Filter};
 
@@ -97,7 +97,9 @@ impl BlockStartInfo {
 pub struct InternalApiConfig {
     /// Chain ID of the L1 network. Note, that it may be different from the chain id of the settlement layer.
     pub l1_chain_id: L1ChainId,
+    pub sl_chain_id: SLChainId,
     pub l2_chain_id: L2ChainId,
+    pub settlement_layer_url: Option<String>,
     pub max_tx_size: usize,
     pub estimate_gas_scale_factor: f64,
     pub estimate_gas_acceptable_overestimation: u32,
@@ -106,7 +108,7 @@ pub struct InternalApiConfig {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
-    pub diamond_proxy_addr: Address,
+    pub user_facing_diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
     pub fee_history_limit: u64,
@@ -114,6 +116,7 @@ pub struct InternalApiConfig {
     pub filters_disabled: bool,
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
+    pub user_facing_bridgehub_addr: Option<Address>,
 }
 
 impl InternalApiConfig {
@@ -122,9 +125,19 @@ impl InternalApiConfig {
         contracts_config: &ContractsConfig,
         genesis_config: &GenesisConfig,
     ) -> Self {
+        println!(
+            "contracts_config.user_facing_bridgehub_proxy_addr = {:#?}, 
+            contracts_config.user_facing_diamond_proxy_addr = {:#?}, 
+            contracts_config.diamond_proxy_addr = {:#?}",
+            contracts_config.user_facing_bridgehub_proxy_addr,
+            contracts_config.user_facing_diamond_proxy_addr,
+            contracts_config.diamond_proxy_addr
+        );
         Self {
             l1_chain_id: genesis_config.l1_chain_id,
             l2_chain_id: genesis_config.l2_chain_id,
+            sl_chain_id: genesis_config.settlement_layer_id(),
+            settlement_layer_url: web3_config.settlement_layer_url.clone(),
             max_tx_size: web3_config.max_tx_size,
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config
@@ -145,6 +158,7 @@ impl InternalApiConfig {
                         .l1_weth_bridge_proxy_addr
                         .unwrap_or_default(),
                 ),
+                l2_legacy_shared_bridge: contracts_config.l2_legacy_shared_bridge_addr,
             },
             bridgehub_proxy_addr: contracts_config
                 .ecosystem_contracts
@@ -158,7 +172,9 @@ impl InternalApiConfig {
                 .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
-            diamond_proxy_addr: contracts_config.diamond_proxy_addr,
+            user_facing_diamond_proxy_addr: contracts_config
+                .user_facing_diamond_proxy_addr
+                .unwrap_or(contracts_config.diamond_proxy_addr),
             l2_testnet_paymaster_addr: contracts_config.l2_testnet_paymaster_addr,
             req_entities_limit: web3_config.req_entities_limit(),
             fee_history_limit: web3_config.fee_history_limit(),
@@ -166,6 +182,12 @@ impl InternalApiConfig {
             filters_disabled: web3_config.filters_disabled,
             dummy_verifier: genesis_config.dummy_verifier,
             l1_batch_commit_data_generator_mode: genesis_config.l1_batch_commit_data_generator_mode,
+            user_facing_bridgehub_addr: contracts_config.user_facing_bridgehub_proxy_addr.or(
+                contracts_config
+                    .ecosystem_contracts
+                    .as_ref()
+                    .map(|a| a.bridgehub_proxy_addr),
+            ),
         }
     }
 }

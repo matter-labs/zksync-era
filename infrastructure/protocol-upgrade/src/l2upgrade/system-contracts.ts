@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { Command } from 'commander';
-import { getL2UpgradeFileName, getUpgradePath } from '../utils';
+import { getL2UpgradeFileName, getUpgradePath } from 'utils';
 import { callSystemContractDeployer } from './deployer';
 
 async function publishAllFactoryDeps(

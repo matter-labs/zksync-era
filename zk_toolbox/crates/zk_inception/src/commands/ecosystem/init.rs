@@ -4,7 +4,9 @@ use anyhow::Context;
 use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
-    git, logger,
+    git,
+    hardhat::{build_l1_contracts, build_l2_contracts},
+    logger,
     spinner::Spinner,
     Prompt,
 };
@@ -26,7 +28,7 @@ use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
     common::deploy_l1,
     setup_observability,
-    utils::{build_system_contracts, install_yarn_dependencies},
+    utils::{build_da_contracts, build_system_contracts, install_yarn_dependencies},
 };
 use crate::{
     accept_ownership::{accept_admin, accept_owner},
@@ -137,7 +139,10 @@ async fn init(
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
+    build_da_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l1_contracts(shell, &ecosystem_config.link_to_code)?;
     build_system_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
 
     let contracts = deploy_ecosystem(
@@ -173,7 +178,7 @@ async fn deploy_erc20(
     )
     .save(shell, deploy_config_path)?;
 
-    let mut forge = Forge::new(&ecosystem_config.path_to_foundry())
+    let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
         .script(&DEPLOY_ERC20_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(l1_rpc_url)
@@ -319,16 +324,8 @@ async fn deploy_ecosystem_inner(
     )
     .await?;
 
-    accept_admin(
-        shell,
-        config,
-        contracts_config.l1.chain_admin_addr,
-        config.get_wallets()?.governor_private_key(),
-        contracts_config.bridges.shared.l1_address,
-        &forge_args,
-        l1_rpc_url.clone(),
-    )
-    .await?;
+    // Note, that there is no admin in L1 asset router, so we do
+    // need to accept it
 
     accept_owner(
         shell,
@@ -351,6 +348,19 @@ async fn deploy_ecosystem_inner(
         contracts_config
             .ecosystem_contracts
             .state_transition_proxy_addr,
+        &forge_args,
+        l1_rpc_url.clone(),
+    )
+    .await?;
+
+    accept_owner(
+        shell,
+        config,
+        contracts_config.l1.governance_addr,
+        config.get_wallets()?.governor_private_key(),
+        contracts_config
+            .ecosystem_contracts
+            .stm_deployment_tracker_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
     )

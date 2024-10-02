@@ -7,7 +7,7 @@ use zksync_types::ProtocolVersionId;
 use super::*;
 use crate::storage::ConnectionPool;
 
-/// Test checking that parsing logic matches the abi specified in the json file.
+// Test checking that parsing logic matches the abi specified in the json file.
 #[test]
 fn test_consensus_registry_abi() {
     zksync_concurrency::testonly::abort_on_panic();

@@ -1,6 +1,6 @@
 use zksync_types::{
     commitment::L1BatchWithMetadata,
-    ethabi::{self, Token},
+    ethabi::{self, ParamType, Token},
     web3,
     web3::contract::Error as ContractError,
     H256, U256,
@@ -27,6 +27,19 @@ impl StoredBatchInfo {
         H256(web3::keccak256(&ethabi::encode(&[self
             .clone()
             .into_token()])))
+    }
+
+    pub fn schema() -> ParamType {
+        ParamType::Tuple(vec![
+            ParamType::Uint(64),       // `batch_number`
+            ParamType::FixedBytes(32), // `batch_hash`
+            ParamType::Uint(64),       // `index_repeated_storage_changes`
+            ParamType::Uint(256),      // `number_of_layer1_txs`
+            ParamType::FixedBytes(32), // `priority_operations_hash`
+            ParamType::FixedBytes(32), // `l2_logs_tree_root`
+            ParamType::Uint(256),      // `timestamp`
+            ParamType::FixedBytes(32), // `commitment`
+        ])
     }
 }
 

@@ -18,10 +18,14 @@ fn test_predetermined_refunded_gas() {
     // In this test, we compare the execution of the bootloader with the predefined
     // refunded gas and without them
 
+    // We need to provide the same DA validator to ensure the same logs
+    let rollup_da_validator = Address::random();
+
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
+        .with_rollup_pubdata_params(Some(rollup_da_validator))
         .build();
     let l1_batch = vm.vm.batch_env.clone();
 
@@ -60,6 +64,7 @@ fn test_predetermined_refunded_gas() {
         .with_l1_batch_env(l1_batch.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(vec![account.clone()])
+        .with_rollup_pubdata_params(Some(rollup_da_validator))
         .build();
 
     let tx: TransactionData = tx.into();
@@ -113,6 +118,7 @@ fn test_predetermined_refunded_gas() {
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_rich_accounts(vec![account.clone()])
+        .with_rollup_pubdata_params(Some(rollup_da_validator))
         .build();
 
     let changed_operator_suggested_refund = result.refunds.gas_refunded + 1000;

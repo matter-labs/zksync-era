@@ -58,6 +58,7 @@ pub(crate) fn pending_batch_data(pending_l2_blocks: Vec<L2BlockExecutionData>) -
             execution_mode: TxExecutionMode::VerifyExecute,
             default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             chain_id: L2ChainId::from(270),
+            pubdata_params: Default::default(),
         },
         pending_l2_blocks,
     }
@@ -72,6 +73,7 @@ pub(super) fn default_system_env() -> SystemEnv {
         execution_mode: TxExecutionMode::VerifyExecute,
         default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::from(270),
+        pubdata_params: Default::default(),
     }
 }
 
@@ -453,7 +455,7 @@ async fn load_upgrade_tx() {
 
     // TODO: add one more test case for the shared bridge after it's integrated.
     // If we are processing the 1st batch while using the shared bridge,
-    // we should load the upgrade transaction -- that's the `SetChainIdUpgrade`.
+    // we should load the upgrade transaction -- that's the `GenesisUpgrade`.
 }
 
 /// Unconditionally seal the batch without triggering specific criteria.

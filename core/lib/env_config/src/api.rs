@@ -96,6 +96,7 @@ mod tests {
                 ],
                 api_namespaces: Some(vec!["debug".to_string()]),
                 extended_api_tracing: true,
+                settlement_layer_url: Some("http://127.0.0.1:9011".into()),
             },
             prometheus: PrometheusConfig {
                 listener_port: 3312,
@@ -141,6 +142,7 @@ mod tests {
             API_WEB3_JSON_RPC_WEBSOCKET_REQUESTS_PER_MINUTE_LIMIT=10
             API_WEB3_JSON_RPC_MEMPOOL_CACHE_SIZE=10000
             API_WEB3_JSON_RPC_MEMPOOL_CACHE_UPDATE_INTERVAL=50
+            API_WEB3_JSON_RPC_SETTLEMENT_LAYER_URL="http://127.0.0.1:9011"
             API_CONTRACT_VERIFICATION_PORT="3070"
             API_CONTRACT_VERIFICATION_URL="http://127.0.0.1:3070"
             API_WEB3_JSON_RPC_MAX_RESPONSE_BODY_SIZE_MB=10

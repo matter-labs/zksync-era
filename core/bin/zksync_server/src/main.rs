@@ -10,6 +10,7 @@ use zksync_config::{
             StateKeeperConfig,
         },
         fri_prover_group::FriProverGroupConfig,
+        gateway::GatewayChainConfig,
         house_keeper::HouseKeeperConfig,
         secrets::DataAvailabilitySecrets,
         BasicWitnessInputProducerConfig, ContractsConfig, DatabaseSecrets, ExperimentalVmConfig,
@@ -26,7 +27,7 @@ use zksync_core_leftovers::{
     temp_config_store::{read_yaml_repr, TempConfigStore},
     Component, Components,
 };
-use zksync_env_config::FromEnv;
+use zksync_env_config::{FromEnv, FromEnvVariant};
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -42,6 +43,9 @@ struct Cli {
     /// Generate genesis block for the first contract deployment using temporary DB.
     #[arg(long)]
     genesis: bool,
+    /// FIXME: dangerous option. Should be decided within the team.
+    #[arg(long)]
+    clear_l1_txs_history: bool,
     /// Comma-separated list of components to launch.
     #[arg(
         long,
@@ -57,6 +61,9 @@ struct Cli {
     /// Path to the yaml with contracts. If set, it will be used instead of env vars.
     #[arg(long)]
     contracts_config_path: Option<std::path::PathBuf>,
+    /// Path to the yaml with contracts. If set, it will be used instead of env vars.
+    #[arg(long)]
+    gateway_contracts_config_path: Option<std::path::PathBuf>,
     /// Path to the wallets config. If set, it will be used instead of env vars.
     #[arg(long)]
     wallets_path: Option<std::path::PathBuf>,
@@ -127,6 +134,21 @@ fn main() -> anyhow::Result<()> {
             .context("failed decoding contracts YAML config")?,
     };
 
+    let gateway_contracts_config: Option<GatewayChainConfig> = match opt
+        .gateway_contracts_config_path
+    {
+        None => ContractsConfig::from_env_variant("GATEWAY_".to_string())
+            .ok()
+            .map(Into::into),
+        Some(path) => {
+            let result =
+                read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(&path)
+                    .context("failed decoding contracts YAML config")?;
+
+            Some(result)
+        }
+    };
+
     let genesis = match opt.genesis_path {
         None => GenesisConfig::from_env().context("Genesis config")?,
         Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&path)
@@ -137,7 +159,31 @@ fn main() -> anyhow::Result<()> {
         .clone()
         .context("observability config")?;
 
-    let node = MainNodeBuilder::new(configs, wallets, genesis, contracts_config, secrets)?;
+    // // FIXME: don't merge this into prod
+    // if opt.clear_l1_txs_history {
+    //     println!("Clearing L1 txs history!");
+
+    //     let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
+    //         .enable_all()
+    //         .build()?;
+
+    //     tokio_runtime.block_on(async move {
+    //         let database_secrets = secrets.database.clone().context("DatabaseSecrets").unwrap();
+    //         delete_l1_txs_history(&database_secrets).await.unwrap();
+    //     });
+
+    //     println!("Complete!");
+    //     return Ok(());
+    // }
+
+    let node = MainNodeBuilder::new(
+        configs,
+        wallets,
+        genesis,
+        contracts_config,
+        gateway_contracts_config,
+        secrets,
+    )?;
 
     let observability_guard = {
         // Observability initialization should be performed within tokio context.

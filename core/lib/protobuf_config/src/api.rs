@@ -146,6 +146,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .context("whitelisted_tokens_for_aa")?,
             extended_api_tracing: self.extended_api_tracing.unwrap_or_default(),
             api_namespaces,
+            settlement_layer_url: self.settlement_layer_url.clone(),
         })
     }
 
@@ -211,6 +212,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .collect(),
             extended_api_tracing: Some(this.extended_api_tracing),
             api_namespaces: this.api_namespaces.clone().unwrap_or_default(),
+            settlement_layer_url: this.settlement_layer_url.clone(),
         }
     }
 }

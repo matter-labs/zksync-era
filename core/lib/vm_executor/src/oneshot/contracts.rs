@@ -22,6 +22,8 @@ pub(super) struct MultiVMBaseSystemContracts {
     vm_1_5_0_small_memory: BaseSystemContracts,
     /// Contracts to be used after the 1.5.0 upgrade
     vm_1_5_0_increased_memory: BaseSystemContracts,
+    /// Contracts to be used after the gateway upgrade
+    gateway: BaseSystemContracts,
 }
 
 impl MultiVMBaseSystemContracts {
@@ -51,9 +53,8 @@ impl MultiVMBaseSystemContracts {
             ProtocolVersionId::Version20 => &self.post_1_4_1,
             ProtocolVersionId::Version21 | ProtocolVersionId::Version22 => &self.post_1_4_2,
             ProtocolVersionId::Version23 => &self.vm_1_5_0_small_memory,
-            ProtocolVersionId::Version24 | ProtocolVersionId::Version25 => {
-                &self.vm_1_5_0_increased_memory
-            }
+            ProtocolVersionId::Version24 => &self.vm_1_5_0_increased_memory,
+            ProtocolVersionId::Version25 | ProtocolVersionId::Version26 => &self.gateway,
         }
     }
 
@@ -70,6 +71,7 @@ impl MultiVMBaseSystemContracts {
             vm_1_5_0_small_memory: BaseSystemContracts::estimate_gas_1_5_0_small_memory(),
             vm_1_5_0_increased_memory:
                 BaseSystemContracts::estimate_gas_post_1_5_0_increased_memory(),
+            gateway: BaseSystemContracts::estimate_gas_gateway(),
         }
     }
 
@@ -86,6 +88,7 @@ impl MultiVMBaseSystemContracts {
             vm_1_5_0_small_memory: BaseSystemContracts::playground_1_5_0_small_memory(),
             vm_1_5_0_increased_memory: BaseSystemContracts::playground_post_1_5_0_increased_memory(
             ),
+            gateway: BaseSystemContracts::playground_gateway(),
         }
     }
 }

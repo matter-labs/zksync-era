@@ -3,7 +3,7 @@ use std::str::FromStr;
 use sqlx::types::chrono::NaiveDateTime;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, TxHistory, TxHistoryToSend},
+    eth_sender::{BatchSettlementInfo, EthTx, TxHistory, TxHistoryToSend},
     Address, L1BatchNumber, Nonce, SLChainId, H256,
 };
 
@@ -124,5 +124,26 @@ impl From<StorageTxHistoryToSend> for TxHistoryToSend {
                 .expect("Should rely only on the new txs"),
             nonce: Nonce(history.nonce as u32),
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct StoredBatchSettlementInfo {
+    pub batch_number: i64,
+    pub settlement_layer_id: Option<i64>,
+    pub settlement_layer_tx_hash: Option<String>,
+}
+
+impl From<StoredBatchSettlementInfo> for Option<BatchSettlementInfo> {
+    fn from(info: StoredBatchSettlementInfo) -> Option<BatchSettlementInfo> {
+        let settlement_layer_id = info.settlement_layer_id?;
+        let settlement_layer_tx_hash = info.settlement_layer_tx_hash?;
+
+        Some(BatchSettlementInfo {
+            batch_number: info.batch_number as u32,
+            settlement_layer_id: SLChainId(settlement_layer_id as u64),
+            settlement_layer_tx_hash: H256::from_str(&settlement_layer_tx_hash)
+                .expect("Incorrect hash"),
+        })
     }
 }

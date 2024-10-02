@@ -5,7 +5,9 @@ use zksync_basic_types::{AccountTreeId, Address, U256};
 use zksync_contracts::{read_sys_contract_bytecode, ContractLanguage, SystemContractsRepo};
 use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
-    EVENT_WRITER_ADDRESS, P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS,
+    EVENT_WRITER_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_BRIDGEHUB_ADDRESS,
+    L2_GENESIS_UPGRADE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
+    P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS,
 };
 
 use crate::{
@@ -25,7 +27,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 25] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 30] = [
     (
         "",
         "AccountCodeStorage",
@@ -166,6 +168,36 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 25] = [
         "",
         "Create2Factory",
         CREATE2_FACTORY_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "",
+        "L2GenesisUpgrade",
+        L2_GENESIS_UPGRADE_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../../l1-contracts/artifacts-zk/contracts/bridgehub/",
+        "Bridgehub",
+        L2_BRIDGEHUB_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../../l1-contracts/artifacts-zk/contracts/bridgehub/",
+        "MessageRoot",
+        L2_MESSAGE_ROOT_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../../l1-contracts/artifacts-zk/contracts/bridge/asset-router/",
+        "L2AssetRouter",
+        L2_ASSET_ROUTER_ADDRESS,
+        ContractLanguage::Sol,
+    ),
+    (
+        "../../../l1-contracts/artifacts-zk/contracts/bridge/ntv/",
+        "L2NativeTokenVault",
+        L2_NATIVE_TOKEN_VAULT_ADDRESS,
         ContractLanguage::Sol,
     ),
 ];

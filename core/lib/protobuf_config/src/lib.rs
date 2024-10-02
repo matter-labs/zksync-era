@@ -17,6 +17,7 @@ mod database;
 mod en;
 mod eth;
 mod experimental;
+mod gateway;
 mod general;
 mod genesis;
 mod house_keeper;

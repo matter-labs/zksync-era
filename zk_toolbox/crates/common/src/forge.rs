@@ -69,6 +69,17 @@ impl ForgeScript {
                 return Ok(res?);
             }
         }
+
+        // TODO: This line is very helpful for debugging purposes,
+        // maybe it makes sense to make it conditionally displayed.
+        let command = format!(
+            "forge script {} --legacy {}",
+            script_path.to_str().unwrap(),
+            args_no_resume.join(" ")
+        );
+
+        println!("Command: {}", command);
+
         let mut cmd = Cmd::new(cmd!(
             shell,
             "forge script {script_path} --legacy {args_no_resume...}"
