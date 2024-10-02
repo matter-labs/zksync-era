@@ -65,6 +65,10 @@ struct VmRunResult {
     /// in a batch). Used for `execution_result == Revert { .. }` to understand whether VM logs should be reverted.
     execution_ended: bool,
     refunds: Refunds,
+    /// This value is used in stats. It's defined in the old VM as the latest value used when computing refunds (see the refunds tracer for `vm_latest`).
+    /// This is **not** equal to the pubdata diff before and after VM execution; e.g., when executing a batch tip,
+    /// `pubdata_published` is always 0 (since no refunds are getting computed).
+    pubdata_published: u32,
 }
 
 impl VmRunResult {
@@ -168,6 +172,7 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
         };
         let mut last_tx_result = None;
         let mut pubdata_before = self.inner.pubdata() as u32;
+        let mut pubdata_published = 0;
         let mut execution_ended = false;
 
         let execution_result = loop {
@@ -219,7 +224,8 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
                             )
                             .as_u64();
 
-                        let pubdata_published = self.inner.pubdata() as u32;
+                        let pubdata_after = self.inner.pubdata() as u32;
+                        pubdata_published = pubdata_after.saturating_sub(pubdata_before);
 
                         refunds.operator_suggested_refund = compute_refund(
                             &self.batch_env,
@@ -227,7 +233,7 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
                             gas_spent_on_pubdata.as_u64(),
                             tx_gas_limit,
                             gas_per_pubdata_byte.low_u32(),
-                            pubdata_published.saturating_sub(pubdata_before),
+                            pubdata_published,
                             self.bootloader_state
                                 .last_l2_block()
                                 .txs
@@ -236,7 +242,7 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
                                 .hash,
                         );
 
-                        pubdata_before = pubdata_published;
+                        pubdata_before = pubdata_after;
                         let refund_value = refunds.operator_suggested_refund;
                         self.write_to_bootloader_heap([(
                             OPERATOR_REFUNDS_OFFSET + current_tx_index,
@@ -336,6 +342,7 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
             execution_result,
             execution_ended,
             refunds,
+            pubdata_published,
         }
     }
 
@@ -561,7 +568,6 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
         }
 
         let start = self.inner.world_diff().snapshot();
-        let pubdata_before = self.inner.pubdata();
         let gas_before = self.gas_remaining();
 
         let mut full_tracer = (mem::take(tracer), CircuitsTracer::default());
@@ -620,21 +626,22 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
             }
         };
 
-        let pubdata_after = self.inner.pubdata();
         let gas_remaining = self.gas_remaining();
+        let gas_used = gas_before - gas_remaining;
+
         VmExecutionResultAndLogs {
             result: result.execution_result,
             logs,
             // TODO (PLA-936): Fill statistics; investigate whether they should be zeroed on `Halt`
             statistics: VmExecutionStatistics {
+                gas_used: gas_used.into(),
+                gas_remaining,
+                computational_gas_used: gas_used, // since 1.5.0, this always has the same value as `gas_used`
+                pubdata_published: result.pubdata_published,
+                circuit_statistic: full_tracer.1.circuit_statistic(),
                 contracts_used: 0,
                 cycles_used: 0,
-                gas_used: (gas_before - gas_remaining).into(),
-                gas_remaining,
-                computational_gas_used: 0,
                 total_log_queries: 0,
-                pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
-                circuit_statistic: full_tracer.1.circuit_statistic(),
             },
             refunds: result.refunds,
         }
