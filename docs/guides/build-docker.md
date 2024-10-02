@@ -10,10 +10,12 @@ Install prerequisites: see
 
 ## Build docker files
 
-You may build all images with `Makefile` located in [docker]((../../docker/Makefile)) directory in this repository
+You may build all images with [Makefile](../../docker/Makefile) located in [docker](../../docker) directory in this repository
+
+> All commands should be run from the root directory of the repository
 
 ```shell
-make build-all
+make -C ./docker build-all
 ```
 
 You will get those images:
@@ -28,10 +30,10 @@ witness-generator:2.0
 Alternatively, you may build only needed components - available targets are
 
 ```shell
-make build-contract-verifier
-make build-server-v2
-make build-circuit-prover-gpu
-make build-witness-generator
+make -C ./docker build-contract-verifier
+make -C ./docker build-server-v2
+make -C ./docker build-circuit-prover-gpu
+make -C ./docker build-witness-generator
 ```
 
 ## Building updated images
@@ -39,6 +41,6 @@ make build-witness-generator
 Simply run
 
 ```shell
-make clean-all
-make build-all
+make -C ./docker clean-all
+make -C ./docker build-all
 ```
