@@ -6685,6 +6685,7 @@ name = "zk_inception"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "clap-markdown",
  "cliclack",
@@ -6692,6 +6693,7 @@ dependencies = [
  "config",
  "ethers",
  "eyre",
+ "futures",
  "human-panic",
  "lazy_static",
  "secrecy",
@@ -6699,6 +6701,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "slugify-rs",
+ "sqruff-lib",
  "strum",
  "thiserror",
  "tokio",

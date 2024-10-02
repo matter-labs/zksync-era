@@ -12,30 +12,33 @@ keywords.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+chrono.workspace = true
 clap.workspace = true
+clap-markdown.workspace = true
 cliclack.workspace = true
+common.workspace = true
 config.workspace = true
+ethers.workspace = true
+futures.workspace = true
 human-panic.workspace = true
 lazy_static.workspace = true
-serde_yaml.workspace = true
+secrecy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-xshell.workspace = true
-ethers.workspace = true
-common.workspace = true
-tokio.workspace = true
-types.workspace = true
-strum.workspace = true
-toml.workspace = true
-url.workspace = true
-thiserror.workspace = true
-zksync_config.workspace = true
+serde_yaml.workspace = true
 slugify-rs.workspace = true
+strum.workspace = true
+sqruff-lib = { git = "https://github.com/quarylabs/sqruff", version = "0.18.2" }
+thiserror.workspace = true
+tokio.workspace = true
+toml.workspace = true
+types.workspace = true
+url.workspace = true
+xshell.workspace = true
 zksync_basic_types.workspace = true
-clap-markdown.workspace = true
+zksync_config.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_consensus_crypto.workspace = true
-secrecy.workspace = true
 
 [build-dependencies]
 eyre.workspace = true
