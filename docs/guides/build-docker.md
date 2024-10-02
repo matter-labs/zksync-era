@@ -10,7 +10,7 @@ Install prerequisites: see
 
 ## Build docker files
 
-You may build all images with
+You may build all images with `Makefile` located in [docker]((../../docker/Makefile)) dir in this repository
 
 ```shell
 make build-all

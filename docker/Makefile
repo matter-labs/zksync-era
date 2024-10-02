@@ -1,7 +1,6 @@
 DOCKER_BUILD_CMD=docker build
 PROTOCOL_VERSION=2.0
-DOCKERFILES=docker
-CONTEXT=.
+CONTEXT=../
 # Additional package versions
 DOCKER_VERSION_MIN=27.1.2
 NODE_VERSION_MIN=20.17.0
@@ -56,38 +55,40 @@ check-tools: check-nodejs check-yarn check-rust check-sqlx-cli check-docker chec
 
 # Check that contracts are checkout properly
 check-contracts:
-	@if [ ! -d contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests ] || [ -z "$$(ls -A contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests)" ]; then \
+	@if [ ! -d ../contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests ] || [ -z "$$(ls -A ../contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests)" ]; then \
 		echo "l1-contracts git submodule is missing. Please re-download repo with `git clone --recurse-submodules https://github.com/matter-labs/zksync-era.git`"; \
 		exit 1; \
 	fi
 
 # Build and download needed contracts
 prepare-contracts: check-tools check-contracts
-	@export ZKSYNC_HOME=$$(pwd) && \
+	@cd ../ && \
+	export ZKSYNC_HOME=$$(pwd) && \
 	export PATH=$$PATH:$${ZKSYNC_HOME}/bin && \
 	zkt || true && \
 	zk_supervisor contracts
 
 # Download setup-key
 prepare-keys:
-	@curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+	@cd ../ && \
+	curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
 # Targets for building each container
 build-contract-verifier: check-tools prepare-contracts prepare-keys
-	$(DOCKER_BUILD_CMD) --file $(DOCKERFILES)/contract-verifier/Dockerfile --load \
+	$(DOCKER_BUILD_CMD) --file contract-verifier/Dockerfile --load \
 		--tag contract-verifier:$(PROTOCOL_VERSION) $(CONTEXT)
 
 build-server-v2: check-tools prepare-contracts prepare-keys
-	$(DOCKER_BUILD_CMD) --file $(DOCKERFILES)/server-v2/Dockerfile --load \
+	$(DOCKER_BUILD_CMD) --file server-v2/Dockerfile --load \
 		--tag server-v2:$(PROTOCOL_VERSION) $(CONTEXT)
 
 build-circuit-prover-gpu: check-tools prepare-keys
-	$(DOCKER_BUILD_CMD) --file $(DOCKERFILES)/circuit-prover-gpu/Dockerfile --load \
+	$(DOCKER_BUILD_CMD) --file circuit-prover-gpu/Dockerfile --load \
 		--platform linux/amd64 \
 		--tag prover:$(PROTOCOL_VERSION) $(CONTEXT)
 
 build-witness-generator: check-tools prepare-keys
-	$(DOCKER_BUILD_CMD) --file $(DOCKERFILES)/witness-generator/Dockerfile --load \
+	$(DOCKER_BUILD_CMD) --file witness-generator/Dockerfile --load \
 		--tag witness-generator:$(PROTOCOL_VERSION) $(CONTEXT)
 
 
@@ -101,9 +102,3 @@ clean: clean-all
 	docker rmi server-v2:$(PROTOCOL_VERSION) >/dev/null 2>&1
 	docker rmi prover:$(PROTOCOL_VERSION) >/dev/null 2>&1
 	docker rmi witness-generator:$(PROTOCOL_VERSION) >/dev/null 2>&1
-
-# Clean after build-all
-cleanup:
-	@echo "Running cleanup..." && \
-	docker compose down -v >/dev/null 2>&1 && \
-	rm -rf ./volumes/postgres
