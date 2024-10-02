@@ -156,7 +156,6 @@ impl EthWatch {
             if from_block > finalized_block {
                 continue;
             }
-
             let processor_events = client
                 .get_events(
                     Web3BlockNumber::Number(from_block.into()),

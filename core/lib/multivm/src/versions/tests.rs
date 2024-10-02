@@ -256,6 +256,11 @@ fn sanity_check_shadow_vm() {
 //     let replayed_dump = dump.clone().play_back::<ShadowedFastVm<_>>().dump_state();
 //     pretty_assertions::assert_eq!(replayed_dump, dump);
 //
+//     // Check that the VM executes identically when reading from the original storage and one restored from the dump.
+//     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+//     harness.setup_storage(&mut storage);
+//     let storage = StorageView::new(storage).to_rc_ptr();
+//
 //     let vm = dump
 //         .clone()
 //         .play_back_custom(|l1_batch_env, system_env, dump_storage| {
