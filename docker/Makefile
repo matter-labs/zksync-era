@@ -61,12 +61,14 @@ check-contracts:
 	fi
 
 # Build and download needed contracts
+# TODO Remove mkdir once we use foundry inside contracts repo
 prepare-contracts: check-tools check-contracts
 	@cd ../ && \
 	export ZKSYNC_HOME=$$(pwd) && \
 	export PATH=$$PATH:$${ZKSYNC_HOME}/bin && \
 	zkt || true && \
-	zk_inception dev contracts
+	zk_inception dev contracts && \
+	mkdir -p contracts/l1-contracts/artifacts
 
 # Download setup-key
 prepare-keys:
