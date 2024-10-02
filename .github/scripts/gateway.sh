@@ -8,7 +8,7 @@ zk_inception ecosystem init --deploy-paymaster --deploy-erc20 \
             --prover-db-name=zksync_prover_localhost_era \
             --ignore-prerequisites --observability=false --skip-submodules-checkout \
             --chain era
-        #     --skip-contract-compilation-override \
+            # --skip-contract-compilation-override \
             # --verbose \
 
 zk_inception chain create \

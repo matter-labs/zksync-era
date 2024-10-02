@@ -108,6 +108,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     preparation_config.save(shell, preparation_config_path)?;
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
+    let mut gateway_chain_chain_config = chain_config.get_gateway_chain_config().unwrap();
     let chain_admin_addr = chain_contracts_config.l1.chain_admin_addr;
     let chain_access_control_restriction =
         chain_contracts_config.l1.access_control_restriction_addr;
@@ -182,21 +183,23 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?;
 
+    // let mut chain_secrets_config = chain_config.get_secrets_config().unwrap();
+    // chain_secrets_config.l1.as_mut().unwrap().gateway_url =
+    //     Some(url::Url::parse(&gateway_url).unwrap().into());
+    // chain_secrets_config.save_with_base_path(shell, chain_config.configs.clone())?;
+
+    gateway_chain_chain_config.current_settlement_layer = 0;
+    gateway_chain_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
+
     let mut general_config = chain_config.get_general_config().unwrap();
 
     let eth_config = general_config.eth.as_mut().context("eth")?;
     let api_config = general_config.api_config.as_mut().context("api config")?;
+    let state_keeper = general_config
+        .state_keeper_config
+        .as_mut()
+        .context("state_keeper")?;
 
-    let gateway_chain_config = GatewayChainConfig::from_gateway_and_chain_data(
-        &gateway_gateway_config,
-        gateway_chain_config
-            .get_contracts_config()?
-            .l1
-            .diamond_proxy_addr,
-        // TODO: for now we do not use a noraml chain admin
-        Address::zero(),
-        0,
-    );
     eth_config
         .gas_adjuster
         .as_mut()
@@ -211,10 +214,22 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             .expect("sender")
             .pubdata_sending_mode = PubdataSendingMode::Blobs;
     }
-    gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
+    eth_config
+        .sender
+        .as_mut()
+        .context("sender")?
+        .wait_confirmations = Some(0);
+    // FIXME: do we need to move the following to be u64?
+    eth_config
+        .sender
+        .as_mut()
+        .expect("sender")
+        .max_aggregated_tx_gas = 15000000;
+    // we need to ensure that this value is lower than in blob
+    state_keeper.max_pubdata_per_batch = 500000;
     api_config.web3_json_rpc.settlement_layer_url = Some(l1_url);
-    general_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
+    general_config.save_with_base_path(shell, chain_config.configs.clone())?;
     Ok(())
 }
 
