@@ -4,8 +4,8 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        da_client::DAClient, eth_sender::PubdataSendingMode, wallets::Wallets, GeneralConfig,
-        Secrets,
+        da_client::DAClientConfig, eth_sender::PubdataSendingMode,
+        secrets::DataAvailabilitySecrets, wallets::Wallets, GeneralConfig, Secrets,
     },
     ContractsConfig, GenesisConfig,
 };
@@ -507,11 +507,14 @@ impl MainNodeBuilder {
             return Ok(self);
         };
 
-        match da_client_config.client {
-            DAClient::Avail(config) => {
-                self.node.add_layer(AvailWiringLayer::new(config));
+        let secrets = try_load_config!(self.secrets.data_availability);
+
+        match (da_client_config, secrets) {
+            (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
+                self.node.add_layer(AvailWiringLayer::new(config, secret));
             }
-            DAClient::ObjectStore(config) => {
+
+            (DAClientConfig::ObjectStore(config), _) => {
                 self.node
                     .add_layer(ObjectStorageClientWiringLayer::new(config));
             }

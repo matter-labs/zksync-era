@@ -89,8 +89,18 @@ pub(crate) struct SandboxMetrics {
     pub(super) sandbox_execution_permits: Histogram<usize>,
     #[metrics(buckets = Buckets::LATENCIES)]
     submit_tx: Family<SubmitTxStage, Histogram<Duration>>,
+
+    /// Number of iterations necessary to estimate gas for a transaction.
     #[metrics(buckets = Buckets::linear(0.0..=30.0, 3.0))]
     pub estimate_gas_binary_search_iterations: Histogram<usize>,
+    /// Relative difference between the unscaled final gas estimate and the optimized lower bound. Positive if the lower bound
+    /// is (as expected) lower than the final gas estimate.
+    #[metrics(buckets = Buckets::linear(-0.05..=0.15, 0.01))]
+    pub estimate_gas_lower_bound_relative_diff: Histogram<f64>,
+    /// Relative difference between the optimistic gas limit and the unscaled final gas estimate. Positive if the optimistic gas limit
+    /// is (as expected) greater than the final gas estimate.
+    #[metrics(buckets = Buckets::linear(-0.05..=0.15, 0.01))]
+    pub estimate_gas_optimistic_gas_limit_relative_diff: Histogram<f64>,
 }
 
 impl SandboxMetrics {

@@ -158,11 +158,27 @@ impl From<ValidationError> for SubmitTxError {
     }
 }
 
-pub(crate) trait ApiCallResult {
+pub(crate) trait ApiCallResult: Sized {
+    fn check_api_call_result(&self) -> Result<(), SubmitTxError>;
+
     fn into_api_call_result(self) -> Result<Vec<u8>, SubmitTxError>;
 }
 
 impl ApiCallResult for VmExecutionResultAndLogs {
+    fn check_api_call_result(&self) -> Result<(), SubmitTxError> {
+        match &self.result {
+            ExecutionResult::Success { .. } => Ok(()),
+            ExecutionResult::Revert { output } => Err(SubmitTxError::ExecutionReverted(
+                output.to_user_friendly_string(),
+                output.encoded_data(),
+            )),
+            ExecutionResult::Halt { reason } => {
+                let output: SandboxExecutionError = reason.clone().into();
+                Err(output.into())
+            }
+        }
+    }
+
     fn into_api_call_result(self) -> Result<Vec<u8>, SubmitTxError> {
         match self.result {
             ExecutionResult::Success { output } => Ok(output),

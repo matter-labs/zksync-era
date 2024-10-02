@@ -84,6 +84,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 &self.estimate_gas_acceptable_overestimation,
             )
             .context("acceptable_overestimation")?,
+            estimate_gas_optimize_search: self.estimate_gas_optimize_search.unwrap_or(false),
             max_tx_size: required(&self.max_tx_size)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("max_tx_size")?,
@@ -167,6 +168,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
             estimate_gas_acceptable_overestimation: Some(
                 this.estimate_gas_acceptable_overestimation,
             ),
+            estimate_gas_optimize_search: Some(this.estimate_gas_optimize_search),
             max_tx_size: Some(this.max_tx_size.try_into().unwrap()),
             vm_execution_cache_misses_limit: this
                 .vm_execution_cache_misses_limit
