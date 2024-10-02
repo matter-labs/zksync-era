@@ -28,7 +28,7 @@ use crate::{
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
     utils::{
-        consensus::{generate_consensus_keys, get_consensus_config, get_consensus_secrets},
+        consensus::{generate_consensus_keys, get_consensus_secrets, get_genesis_specs},
         ports::EcosystemPortsScanner,
     },
 };
@@ -67,19 +67,13 @@ pub async fn init(
         )?;
     }
     let mut general_config = chain_config.get_general_config()?;
-    let consensus_config = general_config
+    let mut consensus_config = general_config
         .consensus_config
         .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
 
-    let consensus_port = consensus_config.port;
-
     let consensus_keys = generate_consensus_keys();
-    let consensus_config = get_consensus_config(
-        chain_config,
-        consensus_port,
-        Some(consensus_keys.clone()),
-        None,
-    )?;
+    consensus_config.genesis_spec = Some(get_genesis_specs(chain_config, &consensus_keys));
+
     general_config.consensus_config = Some(consensus_config);
     general_config.save_with_base_path(shell, &chain_config.configs)?;
 
