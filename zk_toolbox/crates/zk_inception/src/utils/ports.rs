@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, ops::Range, path::Path};
+use std::{collections::HashMap, fmt, net::SocketAddr, ops::Range, path::Path};
 
 use anyhow::{bail, Context, Result};
 use config::{
@@ -99,14 +99,37 @@ impl EcosystemPorts {
                 // Update ports in URLs
                 for (key, val) in &mut *map {
                     if key.as_str().map(|s| s.ends_with("url")).unwrap_or(false) {
-                        let mut url = Url::parse(val.as_str().unwrap())?;
-                        if let Some(port) = url.port() {
-                            if let Some(new_port) = updated_ports.get(&port) {
-                                if let Err(()) = url.set_port(Some(*new_port)) {
-                                    bail!("Failed to update port in URL {}", url);
-                                } else {
-                                    *val = Value::String(url.to_string());
+                        let value = val.as_str().unwrap();
+                        match Url::parse(value) {
+                            Ok(mut url) => {
+                                if let Some(port) = url.port() {
+                                    if let Some(new_port) = updated_ports.get(&port) {
+                                        if let Err(()) = url.set_port(Some(*new_port)) {
+                                            bail!("Failed to update port in URL {}", url);
+                                        } else {
+                                            *val = Value::String(url.to_string());
+                                        }
+                                    }
                                 }
+                            }
+                            Err(url::ParseError::RelativeUrlWithoutBase) => {
+                                match value.parse::<SocketAddr>() {
+                                    Ok(socket_addr) => {
+                                        if let Some(new_port) =
+                                            updated_ports.get(&socket_addr.port())
+                                        {
+                                            let new_socket_addr =
+                                                SocketAddr::new(socket_addr.ip(), *new_port);
+                                            *val = Value::String(new_socket_addr.to_string());
+                                        }
+                                    }
+                                    Err(err) => {
+                                        bail!("Failed to parse socket address: {}", err);
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                bail!("Failed to parse URL: {}", err);
                             }
                         }
                     }

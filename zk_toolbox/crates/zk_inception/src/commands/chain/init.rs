@@ -23,8 +23,9 @@ use crate::{
     defaults::PORT_RANGE_END,
     messages::{
         msg_initializing_chain, MSG_ACCEPTING_ADMIN_SPINNER, MSG_CHAIN_INITIALIZED,
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_DEPLOYING_PAYMASTER, MSG_GENESIS_DATABASE_ERR,
-        MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR, MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_DEPLOYING_PAYMASTER,
+        MSG_GENESIS_DATABASE_ERR, MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
+        MSG_REGISTERING_CHAIN_SPINNER, MSG_SELECTED_CONFIG,
         MSG_UPDATING_TOKEN_MULTIPLIER_SETTER_SPINNER, MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND,
     },
     utils::{
@@ -68,12 +69,11 @@ pub async fn init(
         )?;
     }
     let mut general_config = chain_config.get_general_config()?;
+    let mut consensus_config = general_config
+        .consensus_config
+        .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
 
-    // TODO: This is a temporary solution. We should allocate consensus port using `EcosystemPorts::allocate_ports_in_yaml`
-    let offset = ((chain_config.id - 1) * 100) as u16;
-    let consensus_port_range = DEFAULT_CONSENSUS_PORT + offset..PORT_RANGE_END;
-    let consensus_port =
-        ecosystem_ports.allocate_port(consensus_port_range, "Consensus".to_string())?;
+    let consensus_port = consensus_config.port;
 
     let consensus_keys = generate_consensus_keys();
     let consensus_config = get_consensus_config(
