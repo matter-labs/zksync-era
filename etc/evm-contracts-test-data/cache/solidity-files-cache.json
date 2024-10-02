@@ -1,0 +1,217 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "/Users/0xvolosnikov/Desktop/work/zksync-era-2/zksync-era/etc/evm-contracts-test-data/contracts/benchmark/BenchmarkCaller.sol": {
+      "lastModificationDate": 1723745654133,
+      "contentHash": "3c4a6dc990e1ea76b6f305c88ae0246a",
+      "sourceName": "contracts/benchmark/BenchmarkCaller.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "BenchmarkCaller"
+      ]
+    },
+    "/Users/0xvolosnikov/Desktop/work/zksync-era-2/zksync-era/etc/evm-contracts-test-data/contracts/counter/Counter.sol": {
+      "lastModificationDate": 1723745654133,
+      "contentHash": "ee8e753e0ad7c968c95d15ba0e276d38",
+      "sourceName": "contracts/counter/Counter.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "Counter"
+      ]
+    },
+    "/Users/0xvolosnikov/Desktop/work/zksync-era-2/zksync-era/etc/evm-contracts-test-data/contracts/create/Foo.sol": {
+      "lastModificationDate": 1723745654133,
+      "contentHash": "9c5501a6d6a047acf8c95806e8931556",
+      "sourceName": "contracts/create/Foo.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        ">=0.8.1"
+      ],
+      "artifacts": [
+        "Foo"
+      ]
+    },
+    "/Users/0xvolosnikov/Desktop/work/zksync-era-2/zksync-era/etc/evm-contracts-test-data/contracts/create/Import.sol": {
+      "lastModificationDate": 1723745654133,
+      "contentHash": "0f85f885388f8ffb48411d3f7ca6e17e",
+      "sourceName": "contracts/create/Import.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./Foo.sol"
+      ],
+      "versionPragmas": [
+        ">=0.8.1"
+      ],
+      "artifacts": [
+        "Import"
+      ]
+    },
+    "/Users/0xvolosnikov/Desktop/work/zksync-era-2/zksync-era/etc/evm-contracts-test-data/contracts/gas-tester/GasTester.sol": {
+      "lastModificationDate": 1723745654133,
+      "contentHash": "0e84bb8052d4780ae8821ee1922fcefe",
+      "sourceName": "contracts/gas-tester/GasTester.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "GasTester"
+      ]
+    },
+    "/Users/0xvolosnikov/Desktop/work/zksync-era-2/zksync-era/etc/evm-contracts-test-data/contracts/staticcall/StaticCallTester.sol": {
+      "lastModificationDate": 1723745654133,
+      "contentHash": "6c76da2c3ab4b7a3c9b1c2b00b351790",
+      "sourceName": "contracts/staticcall/StaticCallTester.sol",
+      "solcConfig": {
+        "version": "0.8.16",
+        "settings": {
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "StaticCallTester"
+      ]
+    }
+  }
+}

@@ -1,11 +1,11 @@
-genesis_root: 0xabdb766b18a479a5c783a4b80e12686bc8ea3cc2d8a3050491b701d72370ebb5
-genesis_rollup_leaf_index: 54
-genesis_batch_commitment: 0x2d00e5f8d77afcebf58a6b82ae56ba967566fe7dfbcb6760319fb0d215d18ffd
+genesis_root: 0xab8db9ee8d59990d11c1a0de73f965bb20e0e09ab59d98a7d761ea77dfa54c5f
+genesis_rollup_leaf_index: 56
+genesis_batch_commitment: 0x46411a1a51b096d649140276edaede9a6a0bc2af0741ced0bea55e58d226fba4
 genesis_protocol_semantic_version: '0.24.2'
 # deprecated
 genesis_protocol_version: 24
 default_aa_hash: 0x0100058dc26123dc4bea48125357414b0163579dd8e2f313d2ee34cf3e444579
-bootloader_hash: 0x010008e742608b21bf7eb23c1a9d0602047e3618b464c9b59c0fba3b3d7ab66e
+bootloader_hash: 0x010008bbde6fc402ea3a3d6cb15cb97e70245d3d4e48fb74362d4961b74c16b1
 l1_chain_id: 9
 l2_chain_id: 270
 fee_account: '0x0000000000000000000000000000000000000001'
@@ -14,4 +14,4 @@ prover:
   dummy_verifier: true
 l1_batch_commit_data_generator_mode: Rollup
 # Uncomment to enable EVM simulation (requires to run genesis)
- evm_simulator_hash: 0x01000cc9566d1d6e6634f8e79c42e5cd86de12e4b9a9af069ffe49bf10ab0ab6
+evm_simulator_hash: 0x01000cc9566d1d6e6634f8e79c42e5cd86de12e4b9a9af069ffe49bf10ab0ab6
