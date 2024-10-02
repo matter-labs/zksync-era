@@ -55,6 +55,10 @@ export interface TestEnvironment {
      * Mode of the l2 node
      */
     nodeMode: NodeMode;
+    /*
+     * L2 node PID
+     */
+    l2NodePid: number | undefined;
     /**
      * Plaintext name of the L1 network name (i.e. `localhost` or `goerli`).
      */

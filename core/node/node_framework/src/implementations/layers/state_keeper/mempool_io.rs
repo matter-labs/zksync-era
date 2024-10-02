@@ -136,9 +136,7 @@ impl WiringLayer for MempoolIOLayer {
             mempool_db_pool,
             &self.state_keeper_config,
             self.wallets.fee_account.address(),
-            self.contracts_config
-                .l2_da_validator_addr
-                .expect("L2 DA validator address not found"),
+            self.contracts_config.l2_da_validator_addr,
             self.genesis_config.l1_batch_commit_data_generator_mode,
             self.mempool_config.delay_interval(),
             self.zksync_network_id,

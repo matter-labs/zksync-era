@@ -8,7 +8,7 @@ use zksync_types::{
     ethabi::{ParamType, Token},
     pubdata_da::PubdataDA,
     web3::{contract::Error as ContractError, keccak256},
-    ProtocolVersionId, H256, STATE_DIFF_HASH_KEY_PRE_GATEWAY, U256,
+    ProtocolVersionId, H256, U256,
 };
 
 use crate::{
@@ -19,6 +19,7 @@ use crate::{
 /// These are used by the L1 Contracts to indicate what DA layer is used for pubdata
 const PUBDATA_SOURCE_CALLDATA: u8 = 0;
 const PUBDATA_SOURCE_BLOBS: u8 = 1;
+const PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY: u8 = 2;
 
 /// Encoding for `CommitBatchInfo` from `IExecutor.sol` for a contract running in rollup mode.
 #[derive(Debug)]
@@ -215,23 +216,55 @@ impl Tokenizable for CommitBatchInfo<'_> {
                 // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
                 L1BatchCommitmentMode::Validium => vec![],
             }));
+        } else if protocol_version.is_pre_gateway() {
+            tokens.push(Token::Bytes(match (self.mode, self.pubdata_da) {
+                // Here we're not pushing any pubdata on purpose; no pubdata is sent in Validium mode.
+                (
+                    L1BatchCommitmentMode::Validium,
+                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                ) => {
+                    vec![PUBDATA_SOURCE_CALLDATA]
+                }
+                (L1BatchCommitmentMode::Validium, PubdataDA::Blobs) => {
+                    vec![PUBDATA_SOURCE_BLOBS]
+                }
+                (L1BatchCommitmentMode::Rollup, PubdataDA::Custom) => {
+                    panic!("Custom pubdata DA is incompatible with Rollup mode")
+                }
+                (L1BatchCommitmentMode::Validium, PubdataDA::Custom) => {
+                    vec![PUBDATA_SOURCE_CUSTOM_PRE_GATEWAY]
+                }
+                (
+                    L1BatchCommitmentMode::Rollup,
+                    PubdataDA::Calldata | PubdataDA::RelayedL2Calldata,
+                ) => {
+                    // We compute and add the blob commitment to the pubdata payload so that we can verify the proof
+                    // even if we are not using blobs.
+                    let pubdata = self.pubdata_input();
+                    let blob_commitment = KzgInfo::new(&pubdata).to_blob_commitment();
+                    iter::once(PUBDATA_SOURCE_CALLDATA)
+                        .chain(pubdata)
+                        .chain(blob_commitment)
+                        .collect()
+                }
+                (L1BatchCommitmentMode::Rollup, PubdataDA::Blobs) => {
+                    let pubdata = self.pubdata_input();
+                    let pubdata_commitments =
+                        pubdata.chunks(ZK_SYNC_BYTES_PER_BLOB).flat_map(|blob| {
+                            let kzg_info = KzgInfo::new(blob);
+                            kzg_info.to_pubdata_commitment()
+                        });
+                    iter::once(PUBDATA_SOURCE_BLOBS)
+                        .chain(pubdata_commitments)
+                        .collect()
+                }
+            }));
         } else {
-            let state_diff_hash = if protocol_version.is_pre_gateway() {
-                self.l1_batch_with_metadata
-                    .header
-                    .system_logs
-                    .iter()
-                    .find_map(|log| {
-                        (log.0.key == H256::from_low_u64_be(STATE_DIFF_HASH_KEY_PRE_GATEWAY))
-                            .then_some(log.0.value)
-                    })
-                    .expect("Failed to get state_diff_hash from system logs")
-            } else {
-                self.l1_batch_with_metadata
-                    .metadata
-                    .state_diff_hash
-                    .expect("Failed to get state_diff_hash from metadata")
-            };
+            let state_diff_hash = self
+                .l1_batch_with_metadata
+                .metadata
+                .state_diff_hash
+                .expect("Failed to get state_diff_hash from metadata");
             tokens.push(Token::Bytes(match (self.mode, self.pubdata_da) {
                 // Validiums with custom DA need the inclusion data to be part of operator_da_input
                 (L1BatchCommitmentMode::Validium, PubdataDA::Custom) => {

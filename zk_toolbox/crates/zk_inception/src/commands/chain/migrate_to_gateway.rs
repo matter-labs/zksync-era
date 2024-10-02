@@ -212,7 +212,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                     chain_access_control_restriction,
                     U256::from(chain_config.chain_id.0),
                     gateway_da_validator_address,
-                    chain_contracts_config.l2.l2_da_validator_addr,
+                    chain_contracts_config.l2.da_validator_addr,
                     new_diamond_proxy_address,
                 ),
             )

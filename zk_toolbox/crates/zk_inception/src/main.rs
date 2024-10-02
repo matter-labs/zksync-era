@@ -135,7 +135,7 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::Explorer(args) => commands::explorer::run(shell, args).await?,
         InceptionSubcommands::Consensus(cmd) => cmd.run(shell).await?,
         InceptionSubcommands::Portal => commands::portal::run(shell).await?,
-        InceptionSubcommands::Update(args) => commands::update::run(shell, args)?,
+        InceptionSubcommands::Update(args) => commands::update::run(shell, args).await?,
         InceptionSubcommands::Markdown => {
             clap_markdown::print_help_markdown::<Inception>();
         }

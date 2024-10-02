@@ -54,14 +54,6 @@ impl ZksNamespaceServer for ZksNamespace {
         Ok(self.get_testnet_paymaster_impl())
     }
 
-    async fn get_native_token_vault_proxy_addr(&self) -> RpcResult<Option<Address>> {
-        Ok(self.get_native_token_vault_proxy_addr_impl())
-    }
-
-    async fn get_legacy_shared_bridge(&self) -> RpcResult<Option<Address>> {
-        Ok(self.get_legacy_shared_bridge_impl())
-    }
-
     async fn get_bridge_contracts(&self) -> RpcResult<BridgeAddresses> {
         Ok(self.get_bridge_contracts_impl())
     }

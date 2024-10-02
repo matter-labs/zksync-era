@@ -117,7 +117,7 @@ impl SyncBlock {
             virtual_blocks: Some(self.virtual_blocks),
             hash: Some(self.hash),
             protocol_version: self.protocol_version,
-            pubdata_params: self.pubdata_params,
+            pubdata_params: Some(self.pubdata_params),
         }
     }
 
@@ -134,7 +134,7 @@ impl SyncBlock {
             operator_address: self.fee_account_address,
             transactions,
             last_in_batch: self.last_in_batch,
-            pubdata_params: self.pubdata_params,
+            pubdata_params: Some(self.pubdata_params),
         }
     }
 }

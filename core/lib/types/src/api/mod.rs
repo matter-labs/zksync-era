@@ -267,6 +267,7 @@ pub struct BridgeAddresses {
     pub l2_erc20_default_bridge: Option<Address>,
     pub l1_weth_bridge: Option<Address>,
     pub l2_weth_bridge: Option<Address>,
+    pub l2_legacy_shared_bridge: Option<Address>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -816,21 +817,17 @@ pub enum CallTracerBlockResult {
 }
 
 impl CallTracerBlockResult {
-    pub fn unwrap_flatten(self) -> Vec<DebugCallFlat> {
+    pub fn unwrap_flat(self) -> Vec<DebugCallFlat> {
         match self {
-            Self::CallTrace(_) => {
-                panic!("Result is a FlatCallTrace")
-            }
-            Self::FlatCallTrace(a) => a,
+            Self::CallTrace(_) => panic!("Result is a FlatCallTrace"),
+            Self::FlatCallTrace(trace) => trace,
         }
     }
 
     pub fn unwrap_default(self) -> Vec<ResultDebugCall> {
         match self {
-            Self::CallTrace(a) => a,
-            Self::FlatCallTrace(_) => {
-                panic!("Result is a CallTrace")
-            }
+            Self::CallTrace(trace) => trace,
+            Self::FlatCallTrace(_) => panic!("Result is a CallTrace"),
         }
     }
 }
@@ -845,19 +842,15 @@ pub enum CallTracerResult {
 impl CallTracerResult {
     pub fn unwrap_flat(self) -> Vec<DebugCallFlat> {
         match self {
-            Self::CallTrace(_) => {
-                panic!("Result is a FlatCallTrace")
-            }
-            Self::FlatCallTrace(a) => a,
+            Self::CallTrace(_) => panic!("Result is a FlatCallTrace"),
+            Self::FlatCallTrace(trace) => trace,
         }
     }
 
     pub fn unwrap_default(self) -> DebugCall {
         match self {
-            Self::CallTrace(a) => a,
-            Self::FlatCallTrace(_) => {
-                panic!("Result is a CallTrace")
-            }
+            Self::CallTrace(trace) => trace,
+            Self::FlatCallTrace(_) => panic!("Result is a CallTrace"),
         }
     }
 }

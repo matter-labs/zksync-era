@@ -43,7 +43,7 @@ pub struct SyncBlock {
     /// Version of the protocol used for this block.
     pub protocol_version: ProtocolVersionId,
     /// Pubdata params used for this batch
-    pub pubdata_params: PubdataParams,
+    pub pubdata_params: Option<PubdataParams>,
 }
 
 /// Global configuration of the consensus served by the main node to the external nodes.

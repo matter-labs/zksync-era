@@ -148,6 +148,9 @@ pub struct ConsensusConfig {
 
     /// Rate limiting configuration for the p2p RPCs.
     pub rpc: Option<RpcConfig>,
+
+    /// Local socket address to expose the node debug page.
+    pub debug_page_addr: Option<std::net::SocketAddr>,
 }
 
 impl ConsensusConfig {

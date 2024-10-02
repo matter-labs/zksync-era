@@ -90,7 +90,7 @@ impl BlockStartInfo {
 }
 
 /// Configuration values for the API.
-/// This structure is detached from `ZkSyncConfig`, since different node types (main, external, etc)
+/// This structure is detached from `ZkSyncConfig`, since different node types (main, external, etc.)
 /// may require different configuration layouts.
 /// The intention is to only keep the actually used information here.
 #[derive(Debug, Clone)]
@@ -103,6 +103,7 @@ pub struct InternalApiConfig {
     pub max_tx_size: usize,
     pub estimate_gas_scale_factor: f64,
     pub estimate_gas_acceptable_overestimation: u32,
+    pub estimate_gas_optimize_search: bool,
     pub bridge_addresses: api::BridgeAddresses,
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
@@ -116,8 +117,6 @@ pub struct InternalApiConfig {
     pub dummy_verifier: bool,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub user_facing_bridgehub_addr: Option<Address>,
-    pub l2_native_token_vault_proxy_addr: Option<Address>,
-    pub l2_legacy_shared_bridge_addr: Option<Address>,
 }
 
 impl InternalApiConfig {
@@ -143,6 +142,7 @@ impl InternalApiConfig {
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config
                 .estimate_gas_acceptable_overestimation,
+            estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
             bridge_addresses: api::BridgeAddresses {
                 l1_erc20_default_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
                 l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
@@ -158,6 +158,7 @@ impl InternalApiConfig {
                         .l1_weth_bridge_proxy_addr
                         .unwrap_or_default(),
                 ),
+                l2_legacy_shared_bridge: contracts_config.l2_legacy_shared_bridge_addr,
             },
             bridgehub_proxy_addr: contracts_config
                 .ecosystem_contracts
@@ -187,8 +188,6 @@ impl InternalApiConfig {
                     .as_ref()
                     .map(|a| a.bridgehub_proxy_addr),
             ),
-            l2_native_token_vault_proxy_addr: contracts_config.l2_native_token_vault_proxy_addr,
-            l2_legacy_shared_bridge_addr: contracts_config.l2_legacy_shared_bridge_addr,
         }
     }
 }

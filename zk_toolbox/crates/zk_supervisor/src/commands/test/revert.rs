@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{cmd::Cmd, config::global_config, logger, spinner::Spinner};
+use common::{cmd::Cmd, logger, spinner::Spinner};
 use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
@@ -40,7 +40,7 @@ async fn run_test(
     Spinner::new(&msg_revert_tests_run(args.external_node)).freeze();
 
     let chain_config = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
     let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);

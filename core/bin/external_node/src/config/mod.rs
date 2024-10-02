@@ -110,7 +110,11 @@ pub(crate) struct RemoteENConfig {
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
     // a different name, with names adapted only for consistency.
     pub l1_shared_bridge_proxy_addr: Option<Address>,
+    /// Contract address that serves as a shared bridge on L2.
+    /// It is expected that `L2SharedBridge` is used before gateway upgrade, and `L2AssetRouter` is used after.
     pub l2_shared_bridge_addr: Option<Address>,
+    /// Address of `L2SharedBridge` that was used before gateway upgrade.
+    /// `None` if chain genesis used post-gateway protocol version.
     pub l2_legacy_shared_bridge_addr: Option<Address>,
     pub l1_erc20_bridge_proxy_addr: Option<Address>,
     pub l2_erc20_bridge_addr: Option<Address>,
@@ -122,7 +126,6 @@ pub(crate) struct RemoteENConfig {
     pub dummy_verifier: bool,
 
     pub user_facing_bridgehub: Option<Address>,
-    pub l2_native_token_vault_proxy_addr: Option<Address>,
 }
 
 impl RemoteENConfig {
@@ -134,14 +137,6 @@ impl RemoteENConfig {
         let l2_testnet_paymaster_addr = client
             .get_testnet_paymaster()
             .rpc_context("get_testnet_paymaster")
-            .await?;
-        let l2_native_token_vault_proxy_addr = client
-            .get_native_token_vault_proxy_addr()
-            .rpc_context("get_native_token_vault")
-            .await?;
-        let l2_legacy_shared_bridge_addr = client
-            .get_legacy_shared_bridge()
-            .rpc_context("get_legacy_shared_bridge")
             .await?;
         let genesis = client.genesis_config().rpc_context("genesis").await.ok();
         let ecosystem_contracts = client
@@ -208,7 +203,7 @@ impl RemoteENConfig {
             l2_erc20_bridge_addr: l2_erc20_default_bridge,
             l1_shared_bridge_proxy_addr: bridges.l1_shared_default_bridge,
             l2_shared_bridge_addr: l2_erc20_shared_bridge,
-            l2_legacy_shared_bridge_addr,
+            l2_legacy_shared_bridge_addr: bridges.l2_legacy_shared_bridge,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             base_token_addr,
@@ -220,7 +215,6 @@ impl RemoteENConfig {
                 .as_ref()
                 .map(|a| a.dummy_verifier)
                 .unwrap_or_default(),
-            l2_native_token_vault_proxy_addr,
         })
     }
 
@@ -243,7 +237,6 @@ impl RemoteENConfig {
             l2_legacy_shared_bridge_addr: Some(Address::repeat_byte(7)),
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             dummy_verifier: true,
-            l2_native_token_vault_proxy_addr: Some(Address::repeat_byte(7)),
         }
     }
 }
@@ -351,6 +344,10 @@ pub(crate) struct OptionalENConfig {
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[serde(default = "OptionalENConfig::default_estimate_gas_acceptable_overestimation")]
     pub estimate_gas_acceptable_overestimation: u32,
+    /// Enables optimizations for the binary search of the gas limit in `eth_estimateGas`. These optimizations are currently
+    /// considered experimental.
+    #[serde(default)]
+    pub estimate_gas_optimize_search: bool,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block.
     #[serde(default = "OptionalENConfig::default_gas_price_scale_factor")]
@@ -582,6 +579,11 @@ impl OptionalENConfig {
                 web3_json_rpc.estimate_gas_acceptable_overestimation,
                 default_estimate_gas_acceptable_overestimation
             ),
+            estimate_gas_optimize_search: general_config
+                .api_config
+                .as_ref()
+                .map(|a| a.web3_json_rpc.estimate_gas_optimize_search)
+                .unwrap_or_default(),
             gas_price_scale_factor: load_config_or_default!(
                 general_config.api_config,
                 web3_json_rpc.gas_price_scale_factor,
@@ -1408,6 +1410,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             estimate_gas_acceptable_overestimation: config
                 .optional
                 .estimate_gas_acceptable_overestimation,
+            estimate_gas_optimize_search: config.optional.estimate_gas_optimize_search,
             bridge_addresses: BridgeAddresses {
                 l1_erc20_default_bridge: config.remote.l1_erc20_bridge_proxy_addr,
                 l2_erc20_default_bridge: config.remote.l2_erc20_bridge_addr,
@@ -1415,6 +1418,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
                 l2_shared_default_bridge: config.remote.l2_shared_bridge_addr,
                 l1_weth_bridge: config.remote.l1_weth_bridge_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
+                l2_legacy_shared_bridge: config.remote.l2_legacy_shared_bridge_addr,
             },
             bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
             state_transition_proxy_addr: config.remote.state_transition_proxy_addr,
@@ -1428,8 +1432,6 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             filters_disabled: config.optional.filters_disabled,
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
-            l2_native_token_vault_proxy_addr: config.remote.l2_native_token_vault_proxy_addr,
-            l2_legacy_shared_bridge_addr: config.remote.l2_legacy_shared_bridge_addr,
         }
     }
 }
