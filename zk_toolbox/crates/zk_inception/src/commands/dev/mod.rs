@@ -1,17 +1,22 @@
+use clap::Subcommand;
+use xshell::Shell;
+
 use self::commands::{
-    config_writer::ConfigWriterArgs, contracts::ContractsArgs, database::DatabaseCommands,
-    lint::LintArgs, prover::ProverCommands, send_transactions::args::SendTransactionsArgs,
-    snapshot::SnapshotCommands, test::TestCommands,
+    config_writer::ConfigWriterArgs,
+    contracts::ContractsArgs,
+    database::DatabaseCommands,
+    lint::LintArgs,
+    prover::ProverCommands,
+    send_transactions::args::SendTransactionsArgs,
+    snapshot::SnapshotCommands,
+    test::TestCommands,
+    {clean::CleanCommands, fmt::FmtArgs},
 };
 use crate::commands::dev::messages::{
     MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT, MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT,
     MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT,
     MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
-use clap::Subcommand;
-use xshell::Shell;
-
-use self::commands::{clean::CleanCommands, fmt::FmtArgs};
 
 mod commands;
 mod consts;
