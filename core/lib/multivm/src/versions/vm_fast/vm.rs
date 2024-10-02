@@ -37,8 +37,8 @@ use crate::{
         BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
         ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv,
         TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
-        VmExecutionStatistics, VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
-        VmRevertReason, VmTrackingContracts,
+        VmExecutionStatistics, VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
+        VmTrackingContracts,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_fast::{
@@ -668,10 +668,6 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
         self.bootloader_state.start_new_l2_block(l2_block_env)
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        todo!("Unused during batch execution")
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

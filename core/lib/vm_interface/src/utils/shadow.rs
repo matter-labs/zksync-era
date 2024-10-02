@@ -12,7 +12,7 @@ use crate::{
     storage::{ReadStorage, StoragePtr, StorageView},
     BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
     SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
-    VmInterfaceHistoryEnabled, VmMemoryMetrics, VmTrackingContracts,
+    VmInterfaceHistoryEnabled, VmTrackingContracts,
 };
 
 /// Handler for VM divergences.
@@ -231,10 +231,6 @@ where
             }
         }
         (main_bytecodes_result, main_tx_result)
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        self.main.record_vm_memory_metrics()
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
