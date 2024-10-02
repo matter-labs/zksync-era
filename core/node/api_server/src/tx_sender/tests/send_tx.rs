@@ -1,60 +1,12 @@
 //! Tests for sending raw transactions.
 
-use std::collections::HashMap;
-
 use assert_matches::assert_matches;
 use test_casing::test_casing;
-use zksync_contracts::get_loadnext_contract;
 use zksync_node_fee_model::MockBatchFeeParamsProvider;
-use zksync_types::{get_code_key, get_known_code_key, K256PrivateKey, StorageKey};
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
+use zksync_types::K256PrivateKey;
 
 use super::*;
-use crate::testonly::{TestAccount, LOAD_TEST_ADDRESS};
-
-async fn fund_account(storage: &mut Connection<'_, Core>, address: Address) {
-    let balance_key = storage_key_for_eth_balance(&address);
-    let storage_log = StorageLog::new_write_log(balance_key, u256_to_h256(U256::one() << 64));
-    storage
-        .storage_logs_dal()
-        .append_storage_logs(L2BlockNumber(0), &[storage_log])
-        .await
-        .unwrap();
-}
-
-/// Emulates contract deployment in the genesis block.
-async fn deploy_contract(
-    storage: &mut Connection<'_, Core>,
-    bytecode: Vec<u8>,
-    address: Address,
-    state: &[(H256, H256)],
-) {
-    let bytecode_hash = hash_bytecode(&bytecode);
-    let storage_logs = [
-        StorageLog::new_write_log(get_code_key(&address), bytecode_hash),
-        StorageLog::new_write_log(get_known_code_key(&bytecode_hash), H256::from_low_u64_be(1)),
-    ];
-    let contract_state_logs = state.iter().map(|&(key, value)| {
-        let key = StorageKey::new(AccountTreeId::new(address), key);
-        StorageLog::new_write_log(key, value)
-    });
-    let storage_logs: Vec<_> = storage_logs
-        .into_iter()
-        .chain(contract_state_logs)
-        .collect();
-
-    storage
-        .storage_logs_dal()
-        .append_storage_logs(L2BlockNumber(0), &storage_logs)
-        .await
-        .unwrap();
-    let factory_deps = HashMap::from([(bytecode_hash, bytecode)]);
-    storage
-        .factory_deps_dal()
-        .insert_factory_deps(L2BlockNumber(0), &factory_deps)
-        .await
-        .unwrap();
-}
+use crate::testonly::{StateBuilder, TestAccount};
 
 #[tokio::test]
 async fn submitting_tx_requires_one_connection() {
@@ -75,7 +27,10 @@ async fn submitting_tx_requires_one_connection() {
     let tx_hash = tx.hash();
 
     // Manually set sufficient balance for the tx initiator.
-    fund_account(&mut storage, tx.initiator_account()).await;
+    StateBuilder::default()
+        .with_balance(tx.initiator_account(), u64::MAX.into())
+        .apply(&mut storage)
+        .await;
     drop(storage);
 
     let mut tx_executor = MockOneshotExecutor::default();
@@ -111,7 +66,10 @@ async fn sending_transfer() {
         .connection()
         .await
         .unwrap();
-    fund_account(&mut storage, alice.address()).await;
+    StateBuilder::default()
+        .with_balance(alice.address(), u64::MAX.into())
+        .apply(&mut storage)
+        .await;
     drop(storage);
 
     let transfer = alice.create_transfer(1_000_000_000.into());
@@ -149,7 +107,10 @@ async fn sending_transfer_with_incorrect_signature() {
         .connection()
         .await
         .unwrap();
-    fund_account(&mut storage, alice.address()).await;
+    StateBuilder::default()
+        .with_balance(alice.address(), u64::MAX.into())
+        .apply(&mut storage)
+        .await;
     drop(storage);
 
     let mut transfer = alice.create_transfer(transfer_value);
@@ -171,14 +132,11 @@ async fn sending_load_test_transaction(tx_params: LoadnextContractExecutionParam
         .connection()
         .await
         .unwrap();
-    deploy_contract(
-        &mut storage,
-        get_loadnext_contract().bytecode,
-        LOAD_TEST_ADDRESS,
-        &[(H256::zero(), H256::from_low_u64_be(100))],
-    )
-    .await;
-    fund_account(&mut storage, alice.address()).await;
+    StateBuilder::default()
+        .with_load_test_contract()
+        .with_balance(alice.address(), u64::MAX.into())
+        .apply(&mut storage)
+        .await;
     drop(storage);
 
     let tx = alice.create_load_test_tx(tx_params);

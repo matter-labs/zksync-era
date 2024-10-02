@@ -4,10 +4,9 @@ use std::collections::HashMap;
 
 use assert_matches::assert_matches;
 use test_casing::{test_casing, Product};
-use zksync_contracts::get_loadnext_contract;
 use zksync_system_constants::CODE_ORACLE_ADDRESS;
 use zksync_types::{
-    api::state_override::{Bytecode, OverrideAccount, OverrideState},
+    api::state_override::{OverrideAccount, OverrideState},
     web3::keccak256,
     K256PrivateKey,
 };
@@ -15,12 +14,7 @@ use zksync_utils::bytecode::hash_bytecode;
 
 use super::*;
 use crate::{
-    testonly::{
-        inflate_bytecode, read_counter_contract_bytecode, read_expensive_contract_bytecode,
-        read_infinite_loop_contract_bytecode, read_precompiles_contract_bytecode, TestAccount,
-        COUNTER_CONTRACT_ADDRESS, EXPENSIVE_CONTRACT_ADDRESS, INFINITE_LOOP_CONTRACT_ADDRESS,
-        LOAD_TEST_ADDRESS, PRECOMPILES_CONTRACT_ADDRESS,
-    },
+    testonly::{StateBuilder, TestAccount},
     tx_sender::gas_estimation::GasEstimator,
 };
 
@@ -73,14 +67,7 @@ async fn initial_gas_estimation_is_somewhat_accurate() {
 async fn initial_estimate_for_load_test_transaction(tx_params: LoadnextContractExecutionParams) {
     let alice = K256PrivateKey::random();
     // Set the array length in the load test contract to 100, so that reads don't fail.
-    let load_test_state = HashMap::from([(H256::zero(), H256::from_low_u64_be(100))]);
-    let load_test_overrides = OverrideAccount {
-        code: Some(Bytecode::new(get_loadnext_contract().bytecode).unwrap()),
-        state: Some(OverrideState::State(load_test_state)),
-        ..OverrideAccount::default()
-    };
-    let state_override =
-        StateOverride::new(HashMap::from([(LOAD_TEST_ADDRESS, load_test_overrides)]));
+    let state_override = StateBuilder::default().with_load_test_contract().build();
     let tx = alice.create_load_test_tx(tx_params);
 
     test_initial_estimate(state_override, tx, DEFAULT_MULTIPLIER).await;
@@ -90,14 +77,7 @@ async fn initial_estimate_for_load_test_transaction(tx_params: LoadnextContractE
 #[tokio::test]
 async fn initial_estimate_for_deep_recursion(with_reads: bool) {
     let alice = K256PrivateKey::random();
-    let load_test_state = HashMap::from([(H256::zero(), H256::from_low_u64_be(100))]);
-    let load_test_overrides = OverrideAccount {
-        code: Some(Bytecode::new(get_loadnext_contract().bytecode).unwrap()),
-        state: Some(OverrideState::State(load_test_state)),
-        ..OverrideAccount::default()
-    };
-    let state_override =
-        StateOverride::new(HashMap::from([(LOAD_TEST_ADDRESS, load_test_overrides)]));
+    let state_override = StateBuilder::default().with_load_test_contract().build();
 
     // Reads are chosen because they represent the worst case. Reads don't influence the amount of pubdata;
     // i.e., they don't make it easier to execute a transaction because of additional gas reserved for pubdata.
@@ -130,14 +110,10 @@ async fn initial_estimate_for_deep_recursion(with_reads: bool) {
 #[tokio::test]
 async fn initial_estimate_for_deep_recursion_with_large_bytecode() {
     let alice = K256PrivateKey::random();
-    let mut contract_bytecode = get_loadnext_contract().bytecode;
-    inflate_bytecode(&mut contract_bytecode, 50_000);
-    let load_test_overrides = OverrideAccount {
-        code: Some(Bytecode::new(contract_bytecode).unwrap()),
-        ..OverrideAccount::default()
-    };
-    let state_override =
-        StateOverride::new(HashMap::from([(LOAD_TEST_ADDRESS, load_test_overrides)]));
+    let state_override = StateBuilder::default()
+        .with_load_test_contract()
+        .inflate_bytecode(StateBuilder::LOAD_TEST_ADDRESS, 50_000)
+        .build();
     let tx = alice.create_load_test_tx(LoadnextContractExecutionParams {
         recursive_calls: 100,
         ..LoadnextContractExecutionParams::empty()
@@ -189,61 +165,46 @@ async fn test_initial_estimate_error(state_override: StateOverride, tx: L2Tx) ->
 #[tokio::test]
 async fn initial_estimate_for_expensive_contract(write_count: usize) {
     let alice = K256PrivateKey::random();
-    let contract_bytecode = read_expensive_contract_bytecode();
-    let mut contract_overrides = OverrideAccount {
-        code: Some(Bytecode::new(contract_bytecode).unwrap()),
-        ..OverrideAccount::default()
-    };
-    let state_override = StateOverride::new(HashMap::from([(
-        EXPENSIVE_CONTRACT_ADDRESS,
-        contract_overrides.clone(),
-    )]));
+    let mut state_override = StateBuilder::default().with_expensive_contract().build();
     let tx = alice.create_expensive_tx(write_count);
 
-    let vm_result = test_initial_estimate(state_override, tx, DEFAULT_MULTIPLIER).await;
+    let vm_result = test_initial_estimate(state_override.clone(), tx, DEFAULT_MULTIPLIER).await;
 
     let contract_logs = vm_result.logs.storage_logs.into_iter().filter_map(|log| {
-        (*log.log.key.address() == EXPENSIVE_CONTRACT_ADDRESS)
+        (*log.log.key.address() == StateBuilder::EXPENSIVE_CONTRACT_ADDRESS)
             .then_some((*log.log.key.key(), log.log.value))
     });
     let contract_logs: HashMap<_, _> = contract_logs.collect();
     assert!(contract_logs.len() >= write_count, "{contract_logs:?}");
-    contract_overrides.state = Some(OverrideState::StateDiff(contract_logs));
 
-    let state_override = StateOverride::new(HashMap::from([(
-        EXPENSIVE_CONTRACT_ADDRESS,
-        contract_overrides,
-    )]));
+    state_override
+        .get_mut(&StateBuilder::EXPENSIVE_CONTRACT_ADDRESS)
+        .unwrap()
+        .state = Some(OverrideState::StateDiff(contract_logs));
     let tx = alice.create_expensive_cleanup_tx();
-
     test_initial_estimate(state_override, tx, DEFAULT_MULTIPLIER).await;
 }
 
 #[tokio::test]
 async fn initial_estimate_for_code_oracle_tx() {
     let alice = K256PrivateKey::random();
-    let contract_bytecode = read_precompiles_contract_bytecode();
-    let contract_bytecode_hash = hash_bytecode(&contract_bytecode);
-    let contract_keccak_hash = H256(keccak256(&contract_bytecode));
-    let contract_overrides = OverrideAccount {
-        code: Some(Bytecode::new(contract_bytecode).unwrap()),
-        ..OverrideAccount::default()
-    };
-
     // Add another contract that is never executed, but has a large bytecode.
     let huge_contact_address = Address::repeat_byte(23);
     let huge_contract_bytecode = vec![0_u8; 10_001 * 32];
     let huge_contract_bytecode_hash = hash_bytecode(&huge_contract_bytecode);
     let huge_contract_keccak_hash = H256(keccak256(&huge_contract_bytecode));
-    let huge_contract_overrides = OverrideAccount {
-        code: Some(Bytecode::new(huge_contract_bytecode).unwrap()),
-        ..OverrideAccount::default()
-    };
 
-    let state_override = StateOverride::new(HashMap::from([
-        (PRECOMPILES_CONTRACT_ADDRESS, contract_overrides),
-        (huge_contact_address, huge_contract_overrides),
-    ]));
+    let state_override = StateBuilder::default()
+        .with_precompiles_contract()
+        .with_contract(huge_contact_address, huge_contract_bytecode)
+        .build();
+
+    let contract_override = state_override
+        .get(&StateBuilder::PRECOMPILES_CONTRACT_ADDRESS)
+        .unwrap();
+    let contract_bytecode = contract_override.code.as_ref().unwrap();
+    let contract_bytecode_hash = contract_bytecode.hash();
+    let contract_keccak_hash = H256(keccak256(contract_bytecode.as_ref()));
 
     // Test contracts that are already decommitted when requested from the precompiles test contract.
     let genesis_params = GenesisParams::mock();
@@ -285,19 +246,17 @@ async fn initial_estimate_for_code_oracle_tx() {
 #[tokio::test]
 async fn initial_estimate_with_large_free_bytecode() {
     let alice = K256PrivateKey::random();
-    let mut contract_bytecode = read_precompiles_contract_bytecode();
-    inflate_bytecode(&mut contract_bytecode, 50_000);
-    let contract_bytecode_hash = hash_bytecode(&contract_bytecode);
-    let contract_keccak_hash = H256(keccak256(&contract_bytecode));
-    let contract_overrides = OverrideAccount {
-        code: Some(Bytecode::new(contract_bytecode).unwrap()),
-        ..OverrideAccount::default()
-    };
+    let state_override = StateBuilder::default()
+        .with_precompiles_contract()
+        .inflate_bytecode(StateBuilder::PRECOMPILES_CONTRACT_ADDRESS, 50_000)
+        .build();
+    let contract_override = state_override
+        .get(&StateBuilder::PRECOMPILES_CONTRACT_ADDRESS)
+        .unwrap();
+    let contract_bytecode = contract_override.code.as_ref().unwrap();
+    let contract_bytecode_hash = contract_bytecode.hash();
+    let contract_keccak_hash = H256(keccak256(contract_bytecode.as_ref()));
 
-    let state_override = StateOverride::new(HashMap::from([(
-        PRECOMPILES_CONTRACT_ADDRESS,
-        contract_overrides,
-    )]));
     // Ask the test contract to decommit itself. This should refund the decommit costs, but it will be charged at first.
     let tx = alice.create_code_oracle_tx(contract_bytecode_hash, contract_keccak_hash);
     test_initial_estimate(state_override, tx, 1.05).await;
@@ -306,15 +265,7 @@ async fn initial_estimate_with_large_free_bytecode() {
 #[tokio::test]
 async fn revert_during_initial_estimate() {
     let alice = K256PrivateKey::random();
-    let contract_bytecode = read_counter_contract_bytecode();
-    let contract_overrides = OverrideAccount {
-        code: Some(Bytecode::new(contract_bytecode).unwrap()),
-        ..OverrideAccount::default()
-    };
-    let state_override = StateOverride::new(HashMap::from([(
-        COUNTER_CONTRACT_ADDRESS,
-        contract_overrides,
-    )]));
+    let state_override = StateBuilder::default().with_counter_contract(0).build();
 
     let tx = alice.create_counter_tx(1.into(), true);
     let err = test_initial_estimate_error(state_override, tx).await;
@@ -327,15 +278,9 @@ async fn revert_during_initial_estimate() {
 #[tokio::test]
 async fn out_of_gas_during_initial_estimate() {
     let alice = K256PrivateKey::random();
-    let contract_bytecode = read_infinite_loop_contract_bytecode();
-    let contract_overrides = OverrideAccount {
-        code: Some(Bytecode::new(contract_bytecode).unwrap()),
-        ..OverrideAccount::default()
-    };
-    let state_override = StateOverride::new(HashMap::from([(
-        INFINITE_LOOP_CONTRACT_ADDRESS,
-        contract_overrides,
-    )]));
+    let state_override = StateBuilder::default()
+        .with_infinite_loop_contract()
+        .build();
 
     let tx = alice.create_infinite_loop_tx();
     let err = test_initial_estimate_error(state_override, tx).await;
@@ -432,15 +377,7 @@ async fn estimating_gas_for_load_test_tx(
     acceptable_overestimation: u64,
 ) {
     let alice = K256PrivateKey::random();
-    // Set the array length in the load test contract to 100, so that reads don't fail.
-    let load_test_state = HashMap::from([(H256::zero(), H256::from_low_u64_be(100))]);
-    let load_test_overrides = OverrideAccount {
-        code: Some(Bytecode::new(get_loadnext_contract().bytecode).unwrap()),
-        state: Some(OverrideState::State(load_test_state)),
-        ..OverrideAccount::default()
-    };
-    let state_override =
-        StateOverride::new(HashMap::from([(LOAD_TEST_ADDRESS, load_test_overrides)]));
+    let state_override = StateBuilder::default().with_load_test_contract().build();
     let tx = alice.create_load_test_tx(tx_params);
 
     test_estimating_gas(state_override, tx, acceptable_overestimation).await;
@@ -450,15 +387,7 @@ async fn estimating_gas_for_load_test_tx(
 #[tokio::test]
 async fn estimating_gas_for_expensive_txs(write_count: usize) {
     let alice = K256PrivateKey::random();
-    let contract_bytecode = read_expensive_contract_bytecode();
-    let contract_overrides = OverrideAccount {
-        code: Some(Bytecode::new(contract_bytecode).unwrap()),
-        ..OverrideAccount::default()
-    };
-    let state_override = StateOverride::new(HashMap::from([(
-        EXPENSIVE_CONTRACT_ADDRESS,
-        contract_overrides.clone(),
-    )]));
+    let state_override = StateBuilder::default().with_expensive_contract().build();
     let tx = alice.create_expensive_tx(write_count);
 
     test_estimating_gas(state_override, tx, 0).await;
@@ -467,26 +396,16 @@ async fn estimating_gas_for_expensive_txs(write_count: usize) {
 #[tokio::test]
 async fn estimating_gas_for_code_oracle_tx() {
     let alice = K256PrivateKey::random();
-    let contract_bytecode = read_precompiles_contract_bytecode();
-    let contract_overrides = OverrideAccount {
-        code: Some(Bytecode::new(contract_bytecode).unwrap()),
-        ..OverrideAccount::default()
-    };
-
     // Add another contract that is never executed, but has a large bytecode.
     let huge_contact_address = Address::repeat_byte(23);
     let huge_contract_bytecode = vec![0_u8; 10_001 * 32];
     let huge_contract_bytecode_hash = hash_bytecode(&huge_contract_bytecode);
     let huge_contract_keccak_hash = H256(keccak256(&huge_contract_bytecode));
-    let huge_contract_overrides = OverrideAccount {
-        code: Some(Bytecode::new(huge_contract_bytecode).unwrap()),
-        ..OverrideAccount::default()
-    };
 
-    let state_override = StateOverride::new(HashMap::from([
-        (PRECOMPILES_CONTRACT_ADDRESS, contract_overrides),
-        (huge_contact_address, huge_contract_overrides),
-    ]));
+    let state_override = StateBuilder::default()
+        .with_precompiles_contract()
+        .with_contract(huge_contact_address, huge_contract_bytecode)
+        .build();
     let tx = alice.create_code_oracle_tx(huge_contract_bytecode_hash, huge_contract_keccak_hash);
 
     test_estimating_gas(state_override, tx, 0).await;
@@ -495,15 +414,7 @@ async fn estimating_gas_for_code_oracle_tx() {
 #[tokio::test]
 async fn estimating_gas_for_reverting_tx() {
     let alice = K256PrivateKey::random();
-    let contract_bytecode = read_counter_contract_bytecode();
-    let contract_overrides = OverrideAccount {
-        code: Some(Bytecode::new(contract_bytecode).unwrap()),
-        ..OverrideAccount::default()
-    };
-    let state_override = StateOverride::new(HashMap::from([(
-        COUNTER_CONTRACT_ADDRESS,
-        contract_overrides,
-    )]));
+    let state_override = StateBuilder::default().with_counter_contract(0).build();
 
     let tx = alice.create_counter_tx(1.into(), true);
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
@@ -529,15 +440,9 @@ async fn estimating_gas_for_reverting_tx() {
 #[tokio::test]
 async fn estimating_gas_for_infinite_loop_tx() {
     let alice = K256PrivateKey::random();
-    let contract_bytecode = read_infinite_loop_contract_bytecode();
-    let contract_overrides = OverrideAccount {
-        code: Some(Bytecode::new(contract_bytecode).unwrap()),
-        ..OverrideAccount::default()
-    };
-    let state_override = StateOverride::new(HashMap::from([(
-        INFINITE_LOOP_CONTRACT_ADDRESS,
-        contract_overrides,
-    )]));
+    let state_override = StateBuilder::default()
+        .with_infinite_loop_contract()
+        .build();
 
     let tx = alice.create_infinite_loop_tx();
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;

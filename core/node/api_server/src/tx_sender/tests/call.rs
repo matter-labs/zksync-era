@@ -3,19 +3,12 @@
 use std::collections::HashMap;
 
 use assert_matches::assert_matches;
-use zksync_contracts::get_loadnext_contract;
 use zksync_types::{
-    api::state_override::{Bytecode, OverrideAccount, OverrideState},
-    transaction_request::CallRequest,
-    K256PrivateKey,
+    api::state_override::OverrideAccount, transaction_request::CallRequest, K256PrivateKey,
 };
 
 use super::*;
-use crate::testonly::{
-    decode_u256_output, read_counter_contract_bytecode, read_infinite_loop_contract_bytecode,
-    read_multicall3_bytecode, Call3Result, Call3Value, TestAccount, COUNTER_CONTRACT_ADDRESS,
-    INFINITE_LOOP_CONTRACT_ADDRESS, LOAD_TEST_ADDRESS, MULTICALL3_ADDRESS,
-};
+use crate::testonly::{decode_u256_output, Call3Result, Call3Value, StateBuilder, TestAccount};
 
 async fn test_call(
     tx_sender: &TxSender,
@@ -64,18 +57,10 @@ async fn eth_call_with_transfer() {
     let alice = K256PrivateKey::random();
     let transfer_value = 1_000_000_000.into();
     let initial_balance = transfer_value * 5 / 3;
-    let multicall3_overrides = OverrideAccount {
-        code: Some(Bytecode::new(read_multicall3_bytecode()).unwrap()),
-        ..OverrideAccount::default()
-    };
-    let account_overrides = OverrideAccount {
-        balance: Some(initial_balance),
-        ..OverrideAccount::default()
-    };
-    let state_override = StateOverride::new(HashMap::from([
-        (MULTICALL3_ADDRESS, multicall3_overrides),
-        (alice.address(), account_overrides),
-    ]));
+    let state_override = StateBuilder::default()
+        .with_multicall3_contract()
+        .with_balance(alice.address(), initial_balance)
+        .build();
 
     let transfer = alice.create_transfer(transfer_value);
     let multicall = alice.multicall_with_value(
@@ -104,18 +89,7 @@ async fn eth_call_with_transfer() {
 #[tokio::test]
 async fn eth_call_with_counter() {
     let alice = K256PrivateKey::random();
-    let counter_overrides = OverrideAccount {
-        code: Some(Bytecode::new(read_counter_contract_bytecode()).unwrap()),
-        state: Some(OverrideState::State(HashMap::from([(
-            H256::zero(),
-            H256::from_low_u64_be(42),
-        )]))),
-        ..OverrideAccount::default()
-    };
-    let state_override = StateOverride::new(HashMap::from([(
-        COUNTER_CONTRACT_ADDRESS,
-        counter_overrides,
-    )]));
+    let state_override = StateBuilder::default().with_counter_contract(42).build();
 
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
@@ -147,18 +121,10 @@ async fn eth_call_with_counter() {
 #[tokio::test]
 async fn eth_call_with_counter_transactions() {
     let alice = K256PrivateKey::random();
-    let multicall3_overrides = OverrideAccount {
-        code: Some(Bytecode::new(read_multicall3_bytecode()).unwrap()),
-        ..OverrideAccount::default()
-    };
-    let counter_overrides = OverrideAccount {
-        code: Some(Bytecode::new(read_counter_contract_bytecode()).unwrap()),
-        ..OverrideAccount::default()
-    };
-    let state_override = StateOverride::new(HashMap::from([
-        (MULTICALL3_ADDRESS, multicall3_overrides),
-        (COUNTER_CONTRACT_ADDRESS, counter_overrides),
-    ]));
+    let state_override = StateBuilder::default()
+        .with_multicall3_contract()
+        .with_counter_contract(0)
+        .build();
 
     let multicall = alice.multicall_with_value(
         0.into(),
@@ -198,15 +164,9 @@ async fn eth_call_with_counter_transactions() {
 #[tokio::test]
 async fn eth_call_out_of_gas() {
     let alice = K256PrivateKey::random();
-    let contract_bytecode = read_infinite_loop_contract_bytecode();
-    let contract_overrides = OverrideAccount {
-        code: Some(Bytecode::new(contract_bytecode).unwrap()),
-        ..OverrideAccount::default()
-    };
-    let state_override = StateOverride::new(HashMap::from([(
-        INFINITE_LOOP_CONTRACT_ADDRESS,
-        contract_overrides,
-    )]));
+    let state_override = StateBuilder::default()
+        .with_infinite_loop_contract()
+        .build();
 
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
@@ -220,15 +180,7 @@ async fn eth_call_out_of_gas() {
 #[tokio::test]
 async fn eth_call_with_load_test_transactions() {
     let alice = K256PrivateKey::random();
-    // Set the array length in the load test contract to 100, so that reads don't fail.
-    let load_test_state = HashMap::from([(H256::zero(), H256::from_low_u64_be(100))]);
-    let load_test_overrides = OverrideAccount {
-        code: Some(Bytecode::new(get_loadnext_contract().bytecode).unwrap()),
-        state: Some(OverrideState::State(load_test_state)),
-        ..OverrideAccount::default()
-    };
-    let state_override =
-        StateOverride::new(HashMap::from([(LOAD_TEST_ADDRESS, load_test_overrides)]));
+    let state_override = StateBuilder::default().with_load_test_contract().build();
 
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
