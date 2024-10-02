@@ -57,6 +57,12 @@ pub struct InitArgs {
     pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_PORT_OFFSET_HELP)]
     pub port_offset: Option<PortOffset>,
+    #[clap(
+        long,
+        help = "Skip submodules checkout",
+        default_missing_value = "true"
+    )]
+    pub skip_submodules_checkout: bool,
 }
 
 impl InitArgs {
@@ -90,6 +96,7 @@ impl InitArgs {
                 .port_offset
                 .unwrap_or(PortOffset::from_chain_id(config.id as u16))
                 .into(),
+            skip_submodules_checkout: self.skip_submodules_checkout,
         }
     }
 }
@@ -101,4 +108,5 @@ pub struct InitArgsFinal {
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
     pub port_offset: u16,
+    pub skip_submodules_checkout: bool,
 }

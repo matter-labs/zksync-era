@@ -20,7 +20,7 @@ use zksync_config::{
     },
     ContractsConfig, DBConfig, EthConfig, GenesisConfig, PostgresConfig,
 };
-use zksync_core_leftovers::temp_config_store::decode_yaml_repr;
+use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_env_config::{object_store::SnapshotsObjectStoreConfig, FromEnv};
 use zksync_object_store::ObjectStoreFactory;
@@ -127,27 +127,26 @@ async fn main() -> anyhow::Result<()> {
         .build();
 
     let general_config: Option<GeneralConfig> = if let Some(path) = opts.config_path {
-        let yaml = std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-        let config =
-            decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&yaml)
-                .context("failed decoding general YAML config")?;
-        Some(config)
+        Some(
+            read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path)
+                .context("failed decoding general YAML config")?,
+        )
     } else {
         None
     };
     let wallets_config: Option<Wallets> = if let Some(path) = opts.wallets_path {
-        let yaml = std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-        let config = decode_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&yaml)
-            .context("failed decoding wallets YAML config")?;
-        Some(config)
+        Some(
+            read_yaml_repr::<zksync_protobuf_config::proto::wallets::Wallets>(&path)
+                .context("failed decoding wallets YAML config")?,
+        )
     } else {
         None
     };
     let genesis_config: Option<GenesisConfig> = if let Some(path) = opts.genesis_path {
-        let yaml = std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-        let config = decode_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&yaml)
-            .context("failed decoding genesis YAML config")?;
-        Some(config)
+        Some(
+            read_yaml_repr::<zksync_protobuf_config::proto::genesis::Genesis>(&path)
+                .context("failed decoding genesis YAML config")?,
+        )
     } else {
         None
     };
@@ -183,19 +182,15 @@ async fn main() -> anyhow::Result<()> {
             .context("BasicWitnessInputProducerConfig::from_env()")?,
     };
     let contracts = match opts.contracts_config_path {
-        Some(path) => {
-            let yaml =
-                std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-            decode_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(&yaml)
-                .context("failed decoding contracts YAML config")?
-        }
+        Some(path) => read_yaml_repr::<zksync_protobuf_config::proto::contracts::Contracts>(&path)
+            .context("failed decoding contracts YAML config")?,
         None => ContractsConfig::from_env().context("ContractsConfig::from_env()")?,
     };
     let secrets_config = if let Some(path) = opts.secrets_path {
-        let yaml = std::fs::read_to_string(&path).with_context(|| path.display().to_string())?;
-        let config = decode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&yaml)
-            .context("failed decoding secrets YAML config")?;
-        Some(config)
+        Some(
+            read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&path)
+                .context("failed decoding secrets YAML config")?,
+        )
     } else {
         None
     };

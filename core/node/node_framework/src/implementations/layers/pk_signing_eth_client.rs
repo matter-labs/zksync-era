@@ -98,18 +98,26 @@ impl WiringLayer for PKSigningEthClientLayer {
             BoundEthInterfaceForBlobsResource(Box::new(signing_client_for_blobs))
         });
         let signing_client_for_gateway = if input.gateway_client.is_some() {
-            let private_key = self.wallets.operator.private_key();
-            let GatewayEthInterfaceResource(gateway_client) = input.gateway_client.unwrap();
-            let signing_client_for_blobs = PKSigningClient::new_raw(
-                private_key.clone(),
-                self.gateway_contracts_config.unwrap().diamond_proxy_addr,
-                gas_adjuster_config.default_priority_fee_per_gas,
-                self.sl_chain_id,
-                gateway_client,
-            );
-            Some(BoundEthInterfaceForL2Resource(Box::new(
-                signing_client_for_blobs,
-            )))
+            if self
+                .gateway_contracts_config
+                .clone()
+                .is_some_and(|v| v.current_settlement_layer != 0_u64)
+            {
+                let private_key = self.wallets.operator.private_key();
+                let GatewayEthInterfaceResource(gateway_client) = input.gateway_client.unwrap();
+                let signing_client_for_blobs = PKSigningClient::new_raw(
+                    private_key.clone(),
+                    self.gateway_contracts_config.unwrap().diamond_proxy_addr,
+                    gas_adjuster_config.default_priority_fee_per_gas,
+                    self.sl_chain_id,
+                    gateway_client,
+                );
+                Some(BoundEthInterfaceForL2Resource(Box::new(
+                    signing_client_for_blobs,
+                )))
+            } else {
+                None
+            }
         } else {
             None
         };

@@ -203,7 +203,7 @@ impl<S: ReadStorage> Vm<S> {
     }
 }
 
-impl VmTester {
+impl VmTester<()> {
     pub(crate) fn execute_and_verify_txs(
         &mut self,
         txs: &[TransactionTestInfo],

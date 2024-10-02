@@ -75,6 +75,12 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
         .env("TEST_PROVER_DATABASE_URL", test_prover_url);
     cmd.run()?;
 
+    // Run unit tests for zk_toolbox
+    let _dir_guard = shell.push_dir(link_to_code.join("zk_toolbox"));
+    Cmd::new(cmd!(shell, "cargo nextest run --release"))
+        .with_force_run()
+        .run()?;
+
     logger::outro(MSG_UNIT_TESTS_RUN_SUCCESS);
     Ok(())
 }

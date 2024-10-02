@@ -30,7 +30,9 @@ fn test_circuits() {
         None,
     );
     vm.vm.push_transaction(tx);
-    let res = vm.vm.inspect(Default::default(), VmExecutionMode::OneTx);
+    let res = vm
+        .vm
+        .inspect(&mut Default::default(), VmExecutionMode::OneTx);
 
     let s = res.statistics.circuit_statistic;
     // Check `circuit_statistic`.

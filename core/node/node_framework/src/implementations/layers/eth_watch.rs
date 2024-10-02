@@ -1,5 +1,5 @@
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
-use zksync_contracts::{chain_admin_contract, governance_contract};
+use zksync_contracts::chain_admin_contract;
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
 use zksync_types::settlement::SettlementMode;
 
@@ -116,8 +116,6 @@ impl WiringLayer for EthWatchLayer {
         };
 
         let eth_watch = EthWatch::new(
-            sl_diamond_proxy_addr,
-            &governance_contract(),
             &chain_admin_contract(),
             Box::new(l1_client),
             Box::new(sl_client),
