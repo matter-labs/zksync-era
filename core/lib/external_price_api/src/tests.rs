@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use chrono::Utc;
 use httpmock::MockServer;
-use zksync_types::Address;
+use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
 
 use crate::PriceAPIClient;
 
@@ -15,6 +15,10 @@ const TEST_TOKEN_PRICE_ETH: f64 = 0.00269;
 /// you need to multiply by this value. Thus, this should be equal to the ratio.
 const TEST_BASE_PRICE: f64 = 371.74;
 const PRICE_FLOAT_COMPARE_TOLERANCE: f64 = 0.1;
+
+pub(crate) fn approximate_value(api_price: &BaseTokenAPIRatio) -> f64 {
+    api_price.numerator.get() as f64 / api_price.denominator.get() as f64
+}
 
 pub(crate) struct SetupResult {
     pub(crate) client: Box<dyn PriceAPIClient>,

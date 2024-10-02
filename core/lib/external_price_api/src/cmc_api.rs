@@ -169,7 +169,7 @@ struct CryptocurrencyPlatform {
 impl PriceAPIClient for CmcPriceApiClient {
     async fn fetch_ratio(&self, token_address: Address) -> anyhow::Result<BaseTokenAPIRatio> {
         let base_token_in_eth = self.get_token_price_by_address(token_address).await?;
-        let (term_ether, term_base_token) = get_fraction(base_token_in_eth);
+        let (term_ether, term_base_token) = get_fraction(base_token_in_eth)?;
 
         return Ok(BaseTokenAPIRatio {
             numerator: term_base_token,
@@ -181,11 +181,132 @@ impl PriceAPIClient for CmcPriceApiClient {
 
 #[cfg(test)]
 mod tests {
+    use httpmock::prelude::*;
+    use serde_json::json;
+
+    use crate::tests::*;
+
     use super::*;
 
     #[tokio::test]
+    async fn mock_happy() {
+        let server = make_mock_server();
+        let client: &dyn PriceAPIClient = &CmcPriceApiClient::new(ExternalPriceApiClientConfig {
+            source: "coinmarketcap".to_string(),
+            base_url: Some(server.base_url()),
+            api_key: Some("00000000-0000-0000-0000-000000000000".to_string()),
+            client_timeout_ms: 5000,
+            forced: None,
+        });
+
+        let token_address = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"
+            .parse()
+            .unwrap();
+
+        let api_price = client.fetch_ratio(token_address).await.unwrap();
+
+        const REPORTED_PRICE: f64 = 1_f64 / 0.0028306661720164175_f64;
+        const EPSILON: f64 = 0.000001_f64 * REPORTED_PRICE;
+
+        assert!((approximate_value(&api_price) - REPORTED_PRICE).abs() < EPSILON);
+    }
+
+    fn make_mock_server() -> MockServer {
+        let mock_server = MockServer::start();
+        // cryptocurrency map
+        mock_server.mock(|when, then| {
+            when.method(GET).path("/v1/cryptocurrency/map");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(json!({
+                    "status": {
+                        "timestamp": "2024-09-25T11:29:38.440Z",
+                        "error_code": 0,
+                        "error_message": null,
+                        "elapsed": 351,
+                        "credit_count": 1,
+                        "notice": null
+                    },
+                    "data": [
+                        {
+                            "id": 7083,
+                            "rank": 26,
+                            "name": "Uniswap",
+                            "symbol": "UNI",
+                            "slug": "uniswap",
+                            "is_active": 1,
+                            "first_historical_data": "2020-09-17T01:10:00.000Z",
+                            "last_historical_data": "2024-09-25T11:25:00.000Z",
+                            "platform": {
+                                "id": 1,
+                                "name": "Ethereum",
+                                "symbol": "ETH",
+                                "slug": "ethereum",
+                                "token_address": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"
+                            }
+                        }
+                    ]
+                }));
+        });
+
+        // cryptocurrency quote
+        mock_server.mock(|when, then| {
+            // TODO: check for api authentication header
+            when.method(GET)
+                .path("/v2/cryptocurrency/quotes/latest")
+                .query_param("id", "7083") // Uniswap
+                .query_param("convert_id", "1027"); // Ether
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(json!({
+                    "status": {
+                        "timestamp": "2024-10-02T14:15:07.189Z",
+                        "error_code": 0,
+                        "error_message": null,
+                        "elapsed": 39,
+                        "credit_count": 1,
+                        "notice": null
+                    },
+                    "data": {
+                        "7083": {
+                            "id": 7083,
+                            "name": "Uniswap",
+                            "symbol": "UNI",
+                            "slug": "uniswap",
+                            "date_added": "2020-09-17T00:00:00.000Z",
+                            "tags": [],
+                            "max_supply": null,
+                            "circulating_supply": 600294743.71,
+                            "total_supply": 1000000000,
+                            "platform": {
+                                "id": 1027,
+                                "name": "Ethereum",
+                                "symbol": "ETH",
+                                "slug": "ethereum",
+                                "token_address": "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"
+                            },
+                            "is_active": 1,
+                            "infinite_supply": false,
+                            "cmc_rank": 22,
+                            "is_fiat": 0,
+                            "last_updated": "2024-10-02T14:13:00.000Z",
+                            "quote": {
+                                "1027": {
+                                    "price": 0.0028306661720164175,
+                                    "last_updated": "2024-10-02T14:12:00.000Z"
+                                }
+                            }
+                        }
+                    }
+                }));
+        });
+
+        mock_server
+    }
+
+    #[tokio::test]
     #[ignore = "run manually (accesses network); specify CoinMarketCap API key in env var CMC_API_KEY"]
-    async fn cmc_tether_peg() {
+    async fn real_cmc_tether_peg() {
         let client = CmcPriceApiClient::new(ExternalPriceApiClientConfig {
             api_key: Some(std::env::var("CMC_API_KEY").unwrap()),
             base_url: None,

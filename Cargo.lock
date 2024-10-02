@@ -10245,6 +10245,7 @@ dependencies = [
  "rand 0.8.5",
  "reqwest 0.12.7",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "url",
