@@ -96,7 +96,7 @@ build-witness-generator: check-tools prepare-keys
 build-all: build-contract-verifier build-server-v2 build-witness-generator build-circuit-prover-gpu cleanup
 
 # Clean generated images
-clean: clean-all
+clean-all:
 	@git submodule update --recursive
 	docker rmi contract-verifier:$(PROTOCOL_VERSION) >/dev/null 2>&1
 	docker rmi server-v2:$(PROTOCOL_VERSION) >/dev/null 2>&1
