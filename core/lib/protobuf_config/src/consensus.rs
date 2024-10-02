@@ -147,14 +147,26 @@ impl ProtoRepr for proto::Config {
             }
         };
 
+        let server_url = match required(&self.server_url) {
+            Ok(x) => x.parse().context("server_url")?,
+            Err(_) => required(&self.server_addr)
+                .and_then(|x| Ok(x.parse()?))
+                .context("server_url")?,
+        };
+
+        let public_url = match required(&self.public_url) {
+            Ok(x) => Host(x.clone()),
+            Err(_) => required(&self.public_addr)
+                .and_then(|x| Ok(Host(x.clone())))
+                .context("public_url")?,
+        };
+
         Ok(Self::Type {
             port: required(&self.port)
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("port")?,
-            server_url: required(&self.server_url)
-                .and_then(|x| Ok(x.parse()?))
-                .context("server_url")?,
-            public_url: Host(required(&self.public_url).context("public_url")?.clone()),
+            server_url,
+            public_url,
             max_payload_size,
             max_batch_size,
             gossip_dynamic_inbound_limit: required(&self.gossip_dynamic_inbound_limit)
@@ -188,6 +200,8 @@ impl ProtoRepr for proto::Config {
             port: Some(this.port.into()),
             server_url: Some(this.server_url.to_string()),
             public_url: Some(this.public_url.0.clone()),
+            server_addr: None,
+            public_addr: None,
             max_payload_size: Some(this.max_payload_size.try_into().unwrap()),
             max_batch_size: Some(this.max_batch_size.try_into().unwrap()),
             gossip_dynamic_inbound_limit: Some(

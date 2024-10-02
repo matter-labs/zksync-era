@@ -67,10 +67,6 @@ message RpcConfig {
 }
 
 message Config {
-  reserved 1;
-  reserved "server_addr";
-  reserved 2;
-  reserved "public_addr";
   reserved 3;
   reserved "validators";
 
@@ -84,6 +80,12 @@ message Config {
   // Public IP:port to advertise, should forward to server_url.
   // Can be `127.0.0.1:<port>` for local tests.
   optional string public_url = 14; // required; Host
+
+  // deprecated - use server_url instead
+  optional string server_addr = 1;
+
+  // deprecated - use public_url instead
+  optional string public_addr = 2;
 
   // Maximal allowed size of the payload.
   optional uint64 max_payload_size = 4; // required; bytes
