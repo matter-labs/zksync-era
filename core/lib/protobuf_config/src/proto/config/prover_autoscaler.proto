@@ -2,7 +2,6 @@ syntax = "proto3";
 
 package zksync.config.prover_autoscaler;
 
-//import "/usr/include/google/protobuf/duration.proto";
 import "zksync/std.proto";
 
 message GeneralConfig {
@@ -15,7 +14,7 @@ message ProverAutoscalerAgentConfig {
   optional uint32 prometheus_port = 1; // required
   optional uint32 http_port = 2; // required
   repeated string namespaces = 3; // optional
-  // optional string cluster_name = 4; // optional
+  optional string cluster_name = 4; // optional
 }
 
 message ProverAutoscalerScalerConfig {

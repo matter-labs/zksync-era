@@ -45,6 +45,7 @@ impl ProtoRepr for proto::ProverAutoscalerAgentConfig {
             prometheus_port: Some(this.prometheus_port.into()),
             http_port: Some(this.http_port.into()),
             namespaces: this.namespaces.clone(),
+            cluster_name: this.cluster_name.clone(),
         }
     }
 }
