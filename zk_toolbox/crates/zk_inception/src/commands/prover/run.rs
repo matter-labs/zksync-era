@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context};
-use common::{check_prerequisites, cmd::Cmd, config::global_config, logger, GPU_PREREQUISITES};
+use common::{check_prerequisites, cmd::Cmd, logger, GPU_PREREQUISITES};
 use config::{get_link_to_prover, ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
@@ -19,7 +19,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
     let args = args.fill_values_with_prompt()?;
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
+        .load_current_chain()
         .expect(MSG_CHAIN_NOT_FOUND_ERR);
 
     let link_to_prover = get_link_to_prover(&ecosystem_config);

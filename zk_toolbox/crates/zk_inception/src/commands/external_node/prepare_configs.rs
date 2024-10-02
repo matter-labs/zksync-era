@@ -1,12 +1,12 @@
 use std::{collections::BTreeMap, path::Path, str::FromStr};
 
 use anyhow::Context;
-use common::{config::global_config, logger};
+use common::logger;
 use config::{
     external_node::ENConfig,
     set_rocks_db_config,
     traits::{FileConfigWithDefaultName, SaveConfigWithBasePath},
-    ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfig, DEFAULT_CONSENSUS_PORT,
+    ChainConfig, EcosystemConfig, GeneralConfig, SecretsConfig,
 };
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
@@ -19,7 +19,6 @@ use zksync_consensus_roles as roles;
 
 use crate::{
     commands::external_node::args::prepare_configs::{PrepareConfigArgs, PrepareConfigFinal},
-    defaults::PORT_RANGE_END,
     messages::{
         msg_preparing_en_config_is_done, MSG_CHAIN_NOT_INITIALIZED,
         MSG_CONSENSUS_CONFIG_MISSING_ERR, MSG_CONSENSUS_SECRETS_MISSING_ERR,
@@ -34,10 +33,9 @@ use crate::{
 
 pub fn run(shell: &Shell, args: PrepareConfigArgs) -> anyhow::Result<()> {
     logger::info(MSG_PREPARING_EN_CONFIGS);
-    let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let mut chain_config = ecosystem_config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let args = args.fill_values_with_prompt(&chain_config);

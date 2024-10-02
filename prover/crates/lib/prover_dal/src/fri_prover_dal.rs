@@ -93,16 +93,16 @@ impl FriProverDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                prover_jobs_fri.id,
-                prover_jobs_fri.l1_batch_number,
-                prover_jobs_fri.circuit_id,
-                prover_jobs_fri.aggregation_round,
-                prover_jobs_fri.sequence_number,
-                prover_jobs_fri.depth,
-                prover_jobs_fri.is_node_final_proof
+            prover_jobs_fri.id,
+            prover_jobs_fri.l1_batch_number,
+            prover_jobs_fri.circuit_id,
+            prover_jobs_fri.aggregation_round,
+            prover_jobs_fri.sequence_number,
+            prover_jobs_fri.depth,
+            prover_jobs_fri.is_node_final_proof
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -154,16 +154,16 @@ impl FriProverDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                prover_jobs_fri.id,
-                prover_jobs_fri.l1_batch_number,
-                prover_jobs_fri.circuit_id,
-                prover_jobs_fri.aggregation_round,
-                prover_jobs_fri.sequence_number,
-                prover_jobs_fri.depth,
-                prover_jobs_fri.is_node_final_proof
+            prover_jobs_fri.id,
+            prover_jobs_fri.l1_batch_number,
+            prover_jobs_fri.circuit_id,
+            prover_jobs_fri.aggregation_round,
+            prover_jobs_fri.sequence_number,
+            prover_jobs_fri.depth,
+            prover_jobs_fri.is_node_final_proof
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -216,25 +216,25 @@ impl FriProverDal<'_, '_> {
                             SELECT
                                 *
                             FROM
-                                UNNEST($1::SMALLINT[], $2::SMALLINT[])
-                        ) AS tuple (circuit_id, ROUND)
-                        JOIN LATERAL (
-                            SELECT
-                                *
-                            FROM
-                                prover_jobs_fri AS pj
-                            WHERE
-                                pj.status = 'queued'
-                                AND pj.protocol_version = $3
-                                AND pj.protocol_version_patch = $4
-                                AND pj.circuit_id = tuple.circuit_id
-                                AND pj.aggregation_round = tuple.round
-                            ORDER BY
-                                pj.l1_batch_number ASC,
-                                pj.id ASC
-                            LIMIT
-                                1
-                        ) AS pj ON TRUE
+                                UNNEST($1::SMALLINT [], $2::SMALLINT [])
+                        ) AS tuple (circuit_id, round)
+                    JOIN LATERAL (
+                        SELECT
+                            *
+                        FROM
+                            prover_jobs_fri AS pj
+                        WHERE
+                            pj.status = 'queued'
+                            AND pj.protocol_version = $3
+                            AND pj.protocol_version_patch = $4
+                            AND pj.circuit_id = tuple.circuit_id
+                            AND pj.aggregation_round = tuple.round
+                        ORDER BY
+                            pj.l1_batch_number ASC,
+                            pj.id ASC
+                        LIMIT
+                            1
+                    ) AS pj ON TRUE
                     ORDER BY
                         pj.l1_batch_number ASC,
                         pj.aggregation_round DESC,
@@ -242,16 +242,16 @@ impl FriProverDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                prover_jobs_fri.id,
-                prover_jobs_fri.l1_batch_number,
-                prover_jobs_fri.circuit_id,
-                prover_jobs_fri.aggregation_round,
-                prover_jobs_fri.sequence_number,
-                prover_jobs_fri.depth,
-                prover_jobs_fri.is_node_final_proof
+            prover_jobs_fri.id,
+            prover_jobs_fri.l1_batch_number,
+            prover_jobs_fri.circuit_id,
+            prover_jobs_fri.aggregation_round,
+            prover_jobs_fri.sequence_number,
+            prover_jobs_fri.depth,
+            prover_jobs_fri.is_node_final_proof
             "#,
             &circuit_ids[..],
             &aggregation_rounds[..],
@@ -332,13 +332,13 @@ impl FriProverDal<'_, '_> {
             WHERE
                 id = $3
             RETURNING
-                prover_jobs_fri.id,
-                prover_jobs_fri.l1_batch_number,
-                prover_jobs_fri.circuit_id,
-                prover_jobs_fri.aggregation_round,
-                prover_jobs_fri.sequence_number,
-                prover_jobs_fri.depth,
-                prover_jobs_fri.is_node_final_proof
+            prover_jobs_fri.id,
+            prover_jobs_fri.l1_batch_number,
+            prover_jobs_fri.circuit_id,
+            prover_jobs_fri.aggregation_round,
+            prover_jobs_fri.sequence_number,
+            prover_jobs_fri.depth,
+            prover_jobs_fri.is_node_final_proof
             "#,
             duration_to_naive_time(time_taken),
             blob_url,
@@ -394,15 +394,15 @@ impl FriProverDal<'_, '_> {
                                 AND attempts < $2
                             )
                         FOR UPDATE
-                            SKIP LOCKED
+                        SKIP LOCKED
                     )
                 RETURNING
-                    id,
-                    status,
-                    attempts,
-                    circuit_id,
-                    error,
-                    picked_by
+                id,
+                status,
+                attempts,
+                circuit_id,
+                error,
+                picked_by
                 "#,
                 &processing_timeout,
                 max_attempts as i32,
@@ -438,26 +438,28 @@ impl FriProverDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                prover_jobs_fri (
-                    l1_batch_number,
-                    circuit_id,
-                    circuit_blob_url,
-                    aggregation_round,
-                    sequence_number,
-                    depth,
-                    is_node_final_proof,
-                    protocol_version,
-                    status,
-                    created_at,
-                    updated_at,
-                    protocol_version_patch
-                )
+            prover_jobs_fri (
+                l1_batch_number,
+                circuit_id,
+                circuit_blob_url,
+                aggregation_round,
+                sequence_number,
+                depth,
+                is_node_final_proof,
+                protocol_version,
+                status,
+                created_at,
+                updated_at,
+                protocol_version_patch
+            )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9)
-            ON CONFLICT (l1_batch_number, aggregation_round, circuit_id, depth, sequence_number) DO
+            ($1, $2, $3, $4, $5, $6, $7, $8, 'queued', NOW(), NOW(), $9)
+            ON CONFLICT (
+                l1_batch_number, aggregation_round, circuit_id, depth, sequence_number
+            ) DO
             UPDATE
             SET
-                updated_at = NOW()
+            updated_at = NOW()
             "#,
             i64::from(l1_batch_number.0),
             i16::from(circuit_id),
@@ -530,11 +532,11 @@ impl FriProverDal<'_, '_> {
                     protocol_version_patch AS "protocol_version_patch!",
                     COUNT(*) FILTER (
                         WHERE
-                            status = 'queued'
+                        status = 'queued'
                     ) AS queued,
                     COUNT(*) FILTER (
                         WHERE
-                            status = 'in_progress'
+                        status = 'in_progress'
                     ) AS in_progress
                 FROM
                     prover_jobs_fri
@@ -828,12 +830,12 @@ impl FriProverDal<'_, '_> {
                         OR status = 'failed'
                     )
                 RETURNING
-                    id,
-                    status,
-                    attempts,
-                    circuit_id,
-                    error,
-                    picked_by
+                id,
+                status,
+                attempts,
+                circuit_id,
+                error,
+                picked_by
                 "#,
                 i64::from(block_number.0),
                 max_attempts as i32,
