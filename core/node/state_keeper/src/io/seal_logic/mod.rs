@@ -334,8 +334,6 @@ impl L2BlockSealCommand {
     /// that are created after the last processed tx in the L1 batch: after the last transaction is processed,
     /// the bootloader enters the "tip" phase in which it can still generate events (e.g.,
     /// one for sending fees to the operator).
-    ///
-    /// `l2_legacy_shared_bridge_addr` is required to extract the information on newly added tokens.
     async fn seal_inner(
         &self,
         strategy: &mut SealStrategy<'_>,
