@@ -11,6 +11,7 @@ use zksync_merkle_tree::domain::TreeMetadata;
 use zksync_object_store::ObjectStore;
 use zksync_types::{
     block::{L1BatchHeader, L1BatchTreeData},
+    tee_types::TeeType,
     L1BatchNumber,
 };
 
@@ -160,6 +161,10 @@ impl TreeUpdater {
                 storage
                     .proof_generation_dal()
                     .save_merkle_paths_artifacts_metadata(l1_batch_number, object_key)
+                    .await?;
+                storage
+                    .tee_proof_generation_dal()
+                    .insert_tee_proof_generation_job(l1_batch_number, TeeType::Sgx)
                     .await?;
             }
             drop(storage);
