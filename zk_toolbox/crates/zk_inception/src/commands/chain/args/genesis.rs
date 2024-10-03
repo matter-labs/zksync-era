@@ -28,10 +28,7 @@ pub struct GenesisArgs {
 
 impl GenesisArgs {
     pub fn fill_values_with_prompt(self, config: &ChainConfig) -> GenesisArgsFinal {
-        let DBNames {
-            server_name,
-            prover_name: _,
-        } = generate_db_names(config);
+        let DBNames { server_name, .. } = generate_db_names(config);
         let chain_name = config.name.clone();
         if self.use_default {
             GenesisArgsFinal {
