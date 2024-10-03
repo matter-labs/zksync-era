@@ -10,7 +10,7 @@ BINS=()
 main() {
   parse_args "$@"
 
-  zktoolbox_banner
+  zkstack_banner
 
   check_prerequisites
   mkdir -p "$ZKT_BIN_DIR"
@@ -23,7 +23,7 @@ main() {
     install_from_repo
   fi
 
-  zktoolbox_banner
+  zkstack_banner
 
   for bin in "${BINS[@]}"; do
     success "Installed $bin to $ZKT_BIN_DIR/$bin"
@@ -183,7 +183,7 @@ err() {
   echo -e "\033[1;31mERROR: $1\033[0m" >&2
 }
 
-zktoolbox_banner() {
+zkstack_banner() {
   printf '
 
 =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=

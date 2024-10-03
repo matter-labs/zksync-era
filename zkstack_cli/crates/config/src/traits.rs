@@ -8,7 +8,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use url::Url;
 use xshell::Shell;
 
-// Configs that we use only inside zk toolbox, we don't have protobuf implementation for them.
+// Configs that we use only inside ZK Stack CLI, we don't have protobuf implementation for them.
 pub trait ZkToolboxConfig {}
 
 pub trait FileConfigWithDefaultName {

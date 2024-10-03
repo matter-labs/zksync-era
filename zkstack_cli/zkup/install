@@ -52,4 +52,4 @@ fi
 echo
 echo "Added zkup to PATH."
 echo "Run 'source $PROFILE' or start a new terminal session to use zkup."
-echo "Then run 'zkup' to install ZK Toolbox."
+echo "Then run 'zkup' to install ZK Stack CLI."

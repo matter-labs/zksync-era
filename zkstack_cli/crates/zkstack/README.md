@@ -38,7 +38,7 @@ This document contains the help content for the `zk_inception` command-line prog
 
 ## `zk_inception`
 
-ZK Toolbox is a set of tools for working with zk stack.
+ZK Stack CLI is a set of tools for working with zk stack.
 
 **Usage:** `zk_inception [OPTIONS] <COMMAND>`
 

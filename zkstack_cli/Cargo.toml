@@ -16,7 +16,7 @@ license = "MIT OR Apache-2.0"
 authors = ["The Matter Labs Team <hello@matterlabs.dev>"]
 exclude = ["./github"]
 repository = "https://github.com/matter-labs/zksync-era/tree/main/zkstack_cli/"
-description = "ZK Toolbox is a set of tools for working with zk stack."
+description = "ZK Stack CLI is a set of tools for working with zk stack."
 keywords = ["zk", "cryptography", "blockchain", "ZKStack", "ZKsync"]
 
 

@@ -38,7 +38,7 @@ async function proverClippy() {
     await utils.spawn('cargo clippy --tests --locked -- -D warnings');
 }
 
-async function toolboxClippy() {
+async function zkstackClippy() {
     process.chdir(`${process.env.ZKSYNC_HOME}/zkstack_cli`);
     await utils.spawn('cargo clippy --tests --locked -- -D warnings');
 }
@@ -62,7 +62,7 @@ export const command = new Command('lint')
                     await lintContracts(cmd.check);
                     break;
                 case 'toolbox':
-                    await toolboxClippy();
+                    await zkstackClippy();
                     break;
                 default:
                     await lint(extension, cmd.check);
@@ -72,7 +72,7 @@ export const command = new Command('lint')
             promises.push(lintContracts(cmd.check));
             promises.push(clippy());
             promises.push(proverClippy());
-            promises.push(toolboxClippy());
+            promises.push(zkstackClippy());
             await Promise.all(promises);
         }
     });
