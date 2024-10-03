@@ -3,7 +3,7 @@
 use ethabi::Token;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_types::U256;
+use zksync_types::{Execute, H256, U256};
 
 macro_rules! include_contract {
     ($file_name:tt :: $contract_name:tt) => {
@@ -113,6 +113,16 @@ impl TestContract {
             dest.push(deployed.bytecode.clone());
             deployed.insert_factory_deps(dest);
         }
+    }
+
+    pub fn deploy_payload(&self, args: &[Token]) -> Execute {
+        self.deploy_payload_with_salt(H256::zero(), args)
+    }
+
+    pub fn deploy_payload_with_salt(&self, salt: H256, args: &[Token]) -> Execute {
+        let mut execute = Execute::for_deploy(salt, self.bytecode.clone(), args);
+        execute.factory_deps.extend(self.factory_deps());
+        execute
     }
 }
 
