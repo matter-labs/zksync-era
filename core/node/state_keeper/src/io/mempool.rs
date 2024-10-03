@@ -195,7 +195,13 @@ impl StateKeeperIO for MempoolIO {
                 .connection()
                 .await?
                 .blocks_dal()
-                .insert_l1_batch(cursor.l1_batch, timestamp, self.filter.fee_input)
+                .insert_l1_batch(
+                    cursor.l1_batch,
+                    timestamp,
+                    Some(protocol_version),
+                    self.fee_account,
+                    self.filter.fee_input,
+                )
                 .await?;
 
             return Ok(Some(L1BatchParams {

@@ -416,6 +416,8 @@ pub async fn create_genesis_l1_batch(
         .insert_l1_batch(
             genesis_l1_batch_header.number,
             genesis_l1_batch_header.timestamp,
+            genesis_l1_batch_header.protocol_version,
+            genesis_l1_batch_header.fee_address,
             batch_fee_input,
         )
         .await?;

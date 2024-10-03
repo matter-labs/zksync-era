@@ -244,6 +244,8 @@ impl StateKeeperIO for ExternalIO {
                     .insert_l1_batch(
                         cursor.l1_batch,
                         params.first_l2_block.timestamp,
+                        None,
+                        params.operator_address,
                         params.fee_input,
                     )
                     .await?;

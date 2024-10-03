@@ -52,6 +52,7 @@ pub(crate) struct StorageL1BatchHeader {
     // will be exactly 7 (or 8 in the event of a protocol upgrade) system logs.
     pub system_logs: Vec<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub fee_address: Vec<u8>,
 }
 
 impl StorageL1BatchHeader {
@@ -88,6 +89,7 @@ impl StorageL1BatchHeader {
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
             pubdata_input: self.pubdata_input,
+            fee_address: Address::from_slice(&self.fee_address),
         }
     }
 }
@@ -147,6 +149,7 @@ pub(crate) struct StorageL1Batch {
     pub events_queue_commitment: Option<Vec<u8>>,
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub fee_address: Vec<u8>,
 }
 
 impl StorageL1Batch {
@@ -183,6 +186,7 @@ impl StorageL1Batch {
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
             pubdata_input: self.pubdata_input,
+            fee_address: Address::from_slice(&self.fee_address),
         }
     }
 }

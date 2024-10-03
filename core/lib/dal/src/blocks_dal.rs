@@ -340,7 +340,8 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                fee_address
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -376,7 +377,8 @@ impl BlocksDal<'_, '_> {
                 default_aa_code_hash,
                 protocol_version,
                 system_logs,
-                pubdata_input
+                pubdata_input,
+                fee_address
             FROM
                 l1_batches
             WHERE
@@ -574,6 +576,8 @@ impl BlocksDal<'_, '_> {
         &mut self,
         number: L1BatchNumber,
         timestamp: u64,
+        protocol_version: Option<ProtocolVersionId>,
+        fee_address: Address,
         batch_fee_input: BatchFeeInput,
     ) -> DalResult<()> {
         sqlx::query!(
@@ -582,6 +586,8 @@ impl BlocksDal<'_, '_> {
                 l1_batches (
                     number,
                     timestamp,
+                    protocol_version,
+                    fee_address,
                     l1_gas_price,
                     l2_fair_gas_price,
                     fair_pubdata_price,
@@ -602,6 +608,8 @@ impl BlocksDal<'_, '_> {
                     $3,
                     $4,
                     $5,
+                    $6,
+                    $7,
                     0,
                     0,
                     ''::bytea,
@@ -615,6 +623,8 @@ impl BlocksDal<'_, '_> {
             "#,
             i64::from(number.0),
             timestamp as i64,
+            protocol_version.map(|v| v as i32),
+            fee_address.as_bytes(),
             batch_fee_input.l1_gas_price() as i64,
             batch_fee_input.fair_l2_gas_price() as i64,
             batch_fee_input.fair_pubdata_price() as i64,
@@ -1094,7 +1104,8 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                fee_address
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1280,7 +1291,8 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                fee_address
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1360,7 +1372,8 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                fee_address
             FROM
                 (
                     SELECT
@@ -1433,7 +1446,8 @@ impl BlocksDal<'_, '_> {
                         system_logs,
                         events_queue_commitment,
                         bootloader_initial_content_commitment,
-                        pubdata_input
+                        pubdata_input,
+                        fee_address
                     FROM
                         l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1560,7 +1574,8 @@ impl BlocksDal<'_, '_> {
                     system_logs,
                     events_queue_commitment,
                     bootloader_initial_content_commitment,
-                    pubdata_input
+                    pubdata_input,
+                    fee_address
                 FROM
                     l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1624,7 +1639,8 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                fee_address
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -1702,7 +1718,8 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                fee_address
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
@@ -2555,6 +2572,8 @@ impl BlocksDal<'_, '_> {
         self.insert_l1_batch(
             header.number,
             header.timestamp,
+            header.protocol_version,
+            header.fee_address,
             BatchFeeInput::pubdata_independent(100, 100, 100),
         )
         .await?;
@@ -2838,6 +2857,8 @@ mod tests {
             .insert_l1_batch(
                 header.number,
                 header.timestamp,
+                header.protocol_version,
+                header.fee_address,
                 BatchFeeInput::pubdata_independent(100, 100, 100),
             )
             .await
@@ -2854,6 +2875,8 @@ mod tests {
             .insert_l1_batch(
                 header.number,
                 header.timestamp,
+                header.protocol_version,
+                header.fee_address,
                 BatchFeeInput::pubdata_independent(100, 100, 100),
             )
             .await

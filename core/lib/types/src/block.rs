@@ -65,6 +65,7 @@ pub struct L1BatchHeader {
     /// Version of protocol used for the L1 batch.
     pub protocol_version: Option<ProtocolVersionId>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub fee_address: Address,
 }
 
 /// Holder for the L2 block metadata that is not available from transactions themselves.
@@ -132,6 +133,7 @@ impl L1BatchHeader {
             system_logs: vec![],
             protocol_version: Some(protocol_version),
             pubdata_input: Some(vec![]),
+            fee_address: Default::default(),
         }
     }
 

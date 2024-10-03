@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input\n            FROM\n                l1_batches\n            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            WHERE\n                number = 0\n                OR eth_commit_tx_id IS NOT NULL\n                AND commitment IS NOT NULL\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
+  "query": "\n                    SELECT\n                        number,\n                        timestamp,\n                        l1_tx_count,\n                        l2_tx_count,\n                        bloom,\n                        priority_ops_onchain_data,\n                        hash,\n                        commitment,\n                        l2_to_l1_messages,\n                        used_contract_hashes,\n                        compressed_initial_writes,\n                        compressed_repeated_writes,\n                        l2_l1_merkle_root,\n                        rollup_last_leaf_index,\n                        zkporter_is_available,\n                        bootloader_code_hash,\n                        default_aa_code_hash,\n                        aux_data_hash,\n                        pass_through_data_hash,\n                        meta_parameters_hash,\n                        protocol_version,\n                        compressed_state_diffs,\n                        system_logs,\n                        events_queue_commitment,\n                        bootloader_initial_content_commitment,\n                        pubdata_input,\n                        fee_address\n                    FROM\n                        l1_batches\n                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                    WHERE\n                        eth_prove_tx_id IS NOT NULL\n                        AND eth_execute_tx_id IS NULL\n                    ORDER BY\n                        number\n                    LIMIT\n                        $1\n                    ",
   "describe": {
     "columns": [
       {
@@ -132,10 +132,17 @@
         "ordinal": 25,
         "name": "pubdata_input",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 26,
+        "name": "fee_address",
+        "type_info": "Bytea"
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int8"
+      ]
     },
     "nullable": [
       false,
@@ -163,8 +170,9 @@
       false,
       true,
       true,
-      true
+      true,
+      false
     ]
   },
-  "hash": "30268c71e4bd0d08015af6ae130d3ee5d5140714297401b4bde1e950ed6e971e"
+  "hash": "98950ef9f0085089044429b271dd5f335e8279fda50e8b78d559b2af828d9b0a"
 }
