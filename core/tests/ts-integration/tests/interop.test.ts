@@ -127,7 +127,10 @@ describe('Interop checks', () => {
         request.value = mintValue;
         request.from = l2Wallet.address;
 
-        const tx1 = await bridgehub.requestL2TransactionTwoBridges(input, { value: request.value, gasLimit: 100000000 });
+        const tx1 = await bridgehub.requestL2TransactionTwoBridges(input, {
+            value: request.value,
+            gasLimit: 100000000
+        });
 
         let promise = new Promise((resolve) => setTimeout(resolve, 25000));
         await promise;
@@ -137,18 +140,18 @@ describe('Interop checks', () => {
             tx1.hash,
             0
         );
-    //         /// @dev Convert arbitrary-length message to the raw l2 log
-    // function _L2MessageToLog(L2Message calldata _message) internal pure returns (L2Log memory) {
-    //     return
-    //         L2Log({
-    //             l2ShardId: 0,
-    //             isService: true,
-    //             txNumberInBatch: _message.txNumberInBatch,
-    //             sender: L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
-    //             key: bytes32(uint256(uint160(_message.sender))),
-    //             value: keccak256(_message.data)
-    //         });
-    // }
+        //         /// @dev Convert arbitrary-length message to the raw l2 log
+        // function _L2MessageToLog(L2Message calldata _message) internal pure returns (L2Log memory) {
+        //     return
+        //         L2Log({
+        //             l2ShardId: 0,
+        //             isService: true,
+        //             txNumberInBatch: _message.txNumberInBatch,
+        //             sender: L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
+        //             key: bytes32(uint256(uint160(_message.sender))),
+        //             value: keccak256(_message.data)
+        //         });
+        // }
         // console.log('kl todo proof', proof);
         // let proof1 = ethers.ZeroHash + ethers.AbiCoder.defaultAbiCoder().encode(['bytes[]'], [proof]).slice(2);
         // function _proveL2LogInclusion(
@@ -158,9 +161,9 @@ describe('Interop checks', () => {
         //     bytes32[] calldata _proof
         // ) internal view returns (bool) {
         //     bytes32 hashedLog = keccak256(
-            //     // solhint-disable-next-line func-named-parameters
-            //     abi.encodePacked(_log.l2ShardId, _log.isService, _log.txNumberInBatch, _log.sender, _log.key, _log.value)
-            // );
+        //     // solhint-disable-next-line func-named-parameters
+        //     abi.encodePacked(_log.l2ShardId, _log.isService, _log.txNumberInBatch, _log.sender, _log.key, _log.value)
+        // );
         const log = {
             l2ShardId: 0,
             isService: true,
@@ -169,12 +172,17 @@ describe('Interop checks', () => {
             key: ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [alice.address])),
             value: ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['bytes'], [message]))
         };
-        const L2LogString = "tuple(uint8 l2ShardId,bool isService,uint16 txNumberInBatch,address sender,bytes32 key,bytes32 value)";
+        const L2LogString =
+            'tuple(uint8 l2ShardId,bool isService,uint16 txNumberInBatch,address sender,bytes32 key,bytes32 value)';
         const leafHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode([L2LogString], [log]));
         // const proof1 =  ethers.ZeroHash + ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [271]).slice(2);
         // const proof1 = ethers.ZeroHash + ethers.AbiCoder.defaultAbiCoder().encode(['bytes'], [ethers.ZeroHash]).slice(2);
         console.log('kl todo leafHash', leafHash);
-        const proof1 =  ethers.ZeroHash + ethers.AbiCoder.defaultAbiCoder().encode(['uint256', 'uint256', 'uint256', 'bytes32'], [271, l1BatchNumber, l2MessageIndex, leafHash]).slice(2);
+        const proof1 =
+            ethers.ZeroHash +
+            ethers.AbiCoder.defaultAbiCoder()
+                .encode(['uint256', 'uint256', 'uint256', 'bytes32'], [271, l1BatchNumber, l2MessageIndex, leafHash])
+                .slice(2);
 
         // const proof1 =  ethers.ZeroHash + ethers.AbiCoder.defaultAbiCoder().encode(['uint256', 'uint256', 'uint256', 'bytes32', 'bytes32[]'], [271, l1BatchNumber, l2MessageIndex, leafHash, proof]).slice(2);
         console.log(proof1);
@@ -206,7 +214,7 @@ describe('Interop checks', () => {
             to: L2_ASSET_ROUTER_ADDRESS,
             data: zksync.utils.serializeEip712(interopTx),
             gasLimit: 100000000,
-            gasPrice: 100000000,
+            gasPrice: 100000000
         });
 
         console.log('kl todo tx', tx);

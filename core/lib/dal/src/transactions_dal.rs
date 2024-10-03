@@ -638,86 +638,101 @@ impl TransactionsDal<'_, '_> {
         let query_result = sqlx::query!(
             r#"
             INSERT INTO
-                transactions (
-                    hash,
-                    is_priority,
-                    initiator_address,
-                    nonce,
-                    gas_limit,
-                    max_fee_per_gas,
-                    gas_per_pubdata_limit,
-                    input,
-                    data,
-                    tx_format,
-                    contract_address,
-                    value,
-                    paymaster,
-                    paymaster_input,
-                    execution_info,
-                    received_at,
-                    l1_tx_mint,
-                    l1_tx_refund_recipient,
-                    created_at,
-                    updated_at
-                )
+            transactions (
+                hash,
+                is_priority,
+                initiator_address,
+                nonce,
+                gas_limit,
+                max_fee_per_gas,
+                gas_per_pubdata_limit,
+                input,
+                data,
+                tx_format,
+                contract_address,
+                value,
+                paymaster,
+                paymaster_input,
+                execution_info,
+                received_at,
+                l1_tx_mint,
+                l1_tx_refund_recipient,
+                created_at,
+                updated_at
+            )
             VALUES
-                (
-                    $1,
-                    FALSE,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    $8,
-                    $9,
-                    $10,
-                    $11,
-                    $12,
-                    $13,
-                    JSONB_BUILD_OBJECT('gas_used', $14::BIGINT, 'storage_writes', $15::INT, 'contracts_used', $16::INT),
-                    $17,
-                    $18,
-                    $19,
-                    NOW(),
-                    NOW()
-                )
+            (
+                $1,
+                FALSE,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                $11,
+                $12,
+                $13,
+                JSONB_BUILD_OBJECT(
+                    'gas_used',
+                    $14::BIGINT,
+                    'storage_writes',
+                    $15::INT,
+                    'contracts_used',
+                    $16::INT
+                ),
+                $17,
+                $18,
+                $19,
+                NOW(),
+                NOW()
+            )
             ON CONFLICT (initiator_address, nonce) DO
             UPDATE
             SET
-                hash = $1,
-                gas_limit = $4,
-                max_fee_per_gas = $5,
-                gas_per_pubdata_limit = $6,
-                input = $7,
-                data = $8,
-                tx_format = $9,
-                contract_address = $10,
-                value = $11,
-                paymaster = $12,
-                paymaster_input = $13,
-                execution_info = JSONB_BUILD_OBJECT('gas_used', $14::BIGINT, 'storage_writes', $15::INT, 'contracts_used', $16::INT),
-                in_mempool = FALSE,
-                received_at = $17,
-                l1_tx_mint = $18,
-                l1_tx_refund_recipient = $19,
-                created_at = NOW(),
-                updated_at = NOW(),
-                error = NULL
+            hash = $1,
+            gas_limit = $4,
+            max_fee_per_gas = $5,
+            gas_per_pubdata_limit = $6,
+            input = $7,
+            data = $8,
+            tx_format = $9,
+            contract_address = $10,
+            value = $11,
+            paymaster = $12,
+            paymaster_input = $13,
+            execution_info
+            = JSONB_BUILD_OBJECT(
+                'gas_used',
+                $14::BIGINT,
+                'storage_writes',
+                $15::INT,
+                'contracts_used',
+                $16::INT
+            ),
+            in_mempool = FALSE,
+            received_at = $17,
+            l1_tx_mint = $18,
+            l1_tx_refund_recipient = $19,
+            created_at = NOW(),
+            updated_at = NOW(),
+            error = NULL
             WHERE
-                transactions.is_priority = FALSE
-                AND transactions.miniblock_number IS NULL
+            transactions.is_priority = FALSE
+            AND transactions.miniblock_number IS NULL
             RETURNING
-                (
-                    SELECT
-                        hash
-                    FROM
-                        transactions
-                    WHERE
-                        transactions.initiator_address = $2
-                        AND transactions.nonce = $3
-                ) IS NOT NULL AS "is_replaced!"
+            (
+                SELECT
+                    hash
+                FROM
+                    transactions
+                WHERE
+                    transactions.initiator_address = $2
+                    AND transactions.nonce = $3
+            ) IS NOT NULL AS "is_replaced!"
             "#,
             tx_hash.as_bytes(),
             initiator_address.as_bytes(),
@@ -739,7 +754,8 @@ impl TransactionsDal<'_, '_> {
             exec_info.contracts_used as i32,
             received_at,
             to_mint,
-            refund_recipient)
+            refund_recipient
+        )
         .instrument("insert_transaction_xl2")
         .with_arg("tx_hash", &tx_hash)
         .fetch_optional(self.storage)
@@ -1464,31 +1480,31 @@ impl TransactionsDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-                transactions (
-                    hash,
-                    is_priority,
-                    initiator_address,
-                    nonce,
-                    gas_limit,
-                    max_fee_per_gas,
-                    gas_per_pubdata_limit,
-                    input,
-                    data,
-                    tx_format,
-                    contract_address,
-                    value,
-                    paymaster,
-                    paymaster_input,
-                    execution_info,
-                    miniblock_number,
-                    index_in_block,
-                    error,
-                    effective_gas_price,
-                    refunded_gas,
-                    received_at,
-                    created_at,
-                    updated_at
-                )
+            transactions (
+                hash,
+                is_priority,
+                initiator_address,
+                nonce,
+                gas_limit,
+                max_fee_per_gas,
+                gas_per_pubdata_limit,
+                input,
+                data,
+                tx_format,
+                contract_address,
+                value,
+                paymaster,
+                paymaster_input,
+                execution_info,
+                miniblock_number,
+                index_in_block,
+                error,
+                effective_gas_price,
+                refunded_gas,
+                received_at,
+                created_at,
+                updated_at
+            )
             SELECT
                 data_table.hash,
                 FALSE,
@@ -1516,24 +1532,24 @@ impl TransactionsDal<'_, '_> {
             FROM
                 (
                     SELECT
-                        UNNEST($1::bytea[]) AS hash,
-                        UNNEST($2::bytea[]) AS initiator_address,
-                        UNNEST($3::INT[]) AS nonce,
-                        UNNEST($4::NUMERIC[]) AS gas_limit,
-                        UNNEST($5::NUMERIC[]) AS max_fee_per_gas,
-                        UNNEST($6::NUMERIC[]) AS gas_per_pubdata_limit,
-                        UNNEST($7::bytea[]) AS input,
-                        UNNEST($8::jsonb[]) AS data,
-                        UNNEST($9::INT[]) AS tx_format,
-                        UNNEST($10::bytea[]) AS contract_address,
-                        UNNEST($11::NUMERIC[]) AS value,
-                        UNNEST($12::bytea[]) AS paymaster,
-                        UNNEST($13::bytea[]) AS paymaster_input,
-                        UNNEST($14::jsonb[]) AS new_execution_info,
-                        UNNEST($15::INTEGER[]) AS index_in_block,
-                        UNNEST($16::VARCHAR[]) AS error,
-                        UNNEST($17::NUMERIC[]) AS effective_gas_price,
-                        UNNEST($18::BIGINT[]) AS refunded_gas
+                        UNNEST($1::bytea []) AS hash,
+                        UNNEST($2::bytea []) AS initiator_address,
+                        UNNEST($3::int []) AS nonce,
+                        UNNEST($4::numeric []) AS gas_limit,
+                        UNNEST($5::numeric []) AS max_fee_per_gas,
+                        UNNEST($6::numeric []) AS gas_per_pubdata_limit,
+                        UNNEST($7::bytea []) AS input,
+                        UNNEST($8::jsonb []) AS data,
+                        UNNEST($9::int []) AS tx_format,
+                        UNNEST($10::bytea []) AS contract_address,
+                        UNNEST($11::numeric []) AS value,
+                        UNNEST($12::bytea []) AS paymaster,
+                        UNNEST($13::bytea []) AS paymaster_input,
+                        UNNEST($14::jsonb []) AS new_execution_info,
+                        UNNEST($15::integer []) AS index_in_block,
+                        UNNEST($16::varchar []) AS error,
+                        UNNEST($17::numeric []) AS effective_gas_price,
+                        UNNEST($18::bigint []) AS refunded_gas
                 ) AS data_table
             "#,
             &xl2_hashes as &[&[u8]],
@@ -1697,27 +1713,30 @@ impl TransactionsDal<'_, '_> {
                     FROM
                         (
                             SELECT
-                                UNNEST($1::bytea[]) AS initiator_address,
-                                UNNEST($2::INT[]) AS nonce,
-                                UNNEST($3::bytea[]) AS hash,
-                                UNNEST($4::NUMERIC[]) AS gas_limit,
-                                UNNEST($5::NUMERIC[]) AS max_fee_per_gas,
-                                UNNEST($6::NUMERIC[]) AS gas_per_pubdata_limit,
-                                UNNEST($7::INT[]) AS tx_format,
-                                UNNEST($8::INTEGER[]) AS index_in_block,
-                                UNNEST($9::VARCHAR[]) AS error,
-                                UNNEST($10::NUMERIC[]) AS effective_gas_price,
-                                UNNEST($11::jsonb[]) AS new_execution_info,
-                                UNNEST($12::bytea[]) AS input,
-                                UNNEST($13::jsonb[]) AS data,
-                                UNNEST($14::BIGINT[]) AS refunded_gas,
-                                UNNEST($15::NUMERIC[]) AS value,
-                                UNNEST($16::bytea[]) AS contract_address,
-                                UNNEST($17::bytea[]) AS paymaster,
-                                UNNEST($18::bytea[]) AS paymaster_input
+                                UNNEST($1::bytea []) AS initiator_address,
+                                UNNEST($2::int []) AS nonce,
+                                UNNEST($3::bytea []) AS hash,
+                                UNNEST($4::numeric []) AS gas_limit,
+                                UNNEST($5::numeric []) AS max_fee_per_gas,
+                                UNNEST($6::numeric []) AS gas_per_pubdata_limit,
+                                UNNEST($7::int []) AS tx_format,
+                                UNNEST($8::integer []) AS index_in_block,
+                                UNNEST($9::varchar []) AS error,
+                                UNNEST($10::numeric []) AS effective_gas_price,
+                                UNNEST($11::jsonb []) AS new_execution_info,
+                                UNNEST($12::bytea []) AS input,
+                                UNNEST($13::jsonb []) AS data,
+                                UNNEST($14::bigint []) AS refunded_gas,
+                                UNNEST($15::numeric []) AS value,
+                                UNNEST($16::bytea []) AS contract_address,
+                                UNNEST($17::bytea []) AS paymaster,
+                                UNNEST($18::bytea []) AS paymaster_input
                         ) AS data_table_temp
-                        JOIN transactions ON transactions.initiator_address = data_table_temp.initiator_address
-                        AND transactions.nonce = data_table_temp.nonce
+                    JOIN transactions
+                        ON
+                            transactions.initiator_address
+                            = data_table_temp.initiator_address
+                            AND transactions.nonce = data_table_temp.nonce
                     ORDER BY
                         transactions.hash
                 ) AS data_table

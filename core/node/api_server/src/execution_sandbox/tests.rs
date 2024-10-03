@@ -274,7 +274,10 @@ async fn validating_transaction(set_balance: bool) {
         .execute_in_sandbox(
             vm_permit,
             connection,
-            SandboxAction::Execution { tx: ExternalTx::L2Tx(transaction.clone()), fee_input },
+            SandboxAction::Execution {
+                tx: ExternalTx::L2Tx(transaction.clone()),
+                fee_input,
+            },
             &block_args,
             Some(state_override),
         )

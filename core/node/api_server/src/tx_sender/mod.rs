@@ -25,9 +25,9 @@ use zksync_types::{
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
-    AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction,     xl2::XL2Tx,
-    ExternalTx, H160, H256,
-    MAX_NEW_FACTORY_DEPS, U256,
+    xl2::XL2Tx,
+    AccountTreeId, Address, ExternalTx, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160,
+    H256, MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
 use zksync_vm_executor::oneshot::{CallOrExecute, EstimateGas, OneshotEnvParameters};

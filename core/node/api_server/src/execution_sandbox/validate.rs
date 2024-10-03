@@ -8,7 +8,7 @@ use zksync_multivm::interface::{
     tracer::{ValidationError as RawValidationError, ValidationParams},
 };
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, ExternalTx, Address,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, Address, ExternalTx,
     TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS,
 };
 
