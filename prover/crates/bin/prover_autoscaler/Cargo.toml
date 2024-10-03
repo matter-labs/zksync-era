@@ -20,14 +20,13 @@ zksync_protobuf_config.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
-axum = "0.7.5"
-axum-macros = "0.4.1"
+axum.workspace = true
 chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 ctrlc = { workspace = true, features = ["termination"] }
 futures.workspace = true
-k8s-openapi = { version = "0.22.0", features = ["v1_30"] }
-kube = { version = "0.93.1", features = ["runtime", "derive"] }
+k8s-openapi = { version = "0.23.0", features = ["v1_30"] }
+kube = { version = "0.95.0", features = ["runtime", "derive"] }
 reqwest.workspace = true
 ring = "0.17.8"
 rustls = { version = "0.23.12", features = ["ring"] }
@@ -42,4 +41,4 @@ url = "2.5.2"
 regex.workspace = true
 strum.workspace = true
 debug-map-sorted = "0.1.1"
-time = "0.3.36"
+time.workspace = true

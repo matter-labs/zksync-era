@@ -93,7 +93,7 @@ impl Watcher {
                     dep.running = nums.available_replicas.unwrap_or_default();
                     dep.desired = nums.replicas.unwrap_or_default();
 
-                    println!(
+                    tracing::info!(
                         "Got deployment: {}, size: {}/{} un {}",
                         d.name_any(),
                         nums.available_replicas.unwrap_or_default(),
@@ -128,7 +128,7 @@ impl Watcher {
                     }
                     pod.status = phase;
 
-                    println!("Got pod: {}", p.name_any())
+                    tracing::info!("Got pod: {}", p.name_any())
                 }
             }
         }

@@ -81,7 +81,7 @@ impl Scaler {
         }
     }
 
-    fn convert2gpu_pool(&self, namespace: &String, cluster: &Cluster) -> Vec<GPUPool> {
+    fn convert_to_gpu_pool(&self, namespace: &String, cluster: &Cluster) -> Vec<GPUPool> {
         let mut gp_map = HashMap::new(); // <GPU, GPUPool>
 
         let Some(nv) = &cluster.namespaces.get(namespace) else {
@@ -125,11 +125,11 @@ impl Scaler {
             {
                 status = PodStatus::LongPending;
             }
-            println!("pod {}: status: {}, real status: {}", pn, status, pv.status);
+            tracing::info!("pod {}: status: {}, real status: {}", pn, status, pv.status);
             e.provers.entry(status).and_modify(|n| *n += 1).or_insert(1);
         }
 
-        println!("From pods {:?}", gp_map.sorted_debug());
+        tracing::info!("From pods {:?}", gp_map.sorted_debug());
 
         gp_map.into_values().collect()
     }
@@ -138,7 +138,7 @@ impl Scaler {
         let mut gpu_pools: Vec<GPUPool> = clusters
             .clusters
             .values()
-            .flat_map(|c| self.convert2gpu_pool(namespace, c))
+            .flat_map(|c| self.convert_to_gpu_pool(namespace, c))
             .collect();
 
         gpu_pools.sort_by(|a, b| {
@@ -176,7 +176,7 @@ impl Scaler {
         self.speed(gpu) * n as u64
     }
 
-    fn normilize_queue(&self, gpu: GPU, q: u64) -> u64 {
+    fn normalize_queue(&self, gpu: GPU, q: u64) -> u64 {
         let speed = self.speed(gpu);
         // Divide and round up if there's any remainder.
         (q + speed - 1) / speed * speed
@@ -184,7 +184,7 @@ impl Scaler {
 
     fn run(&self, namespace: &String, q: u64, clusters: &Clusters) -> HashMap<GPUPoolKey, u32> {
         let sc = self.sorted_clusters(namespace, clusters);
-        dbg!("run, sorted_clusters", namespace, &sc);
+        tracing::debug!("Sorted clusters for namespace {}: {:?}", namespace, &sc);
 
         let mut total: i64 = 0;
         let mut provers: HashMap<GPUPoolKey, u32> = HashMap::new();
@@ -203,10 +203,10 @@ impl Scaler {
             }
         }
 
-        // Remove unneeded.
-        if (total as u64) > self.normilize_queue(GPU::L4, q) {
+        // Remove unneeded pods.
+        if (total as u64) > self.normalize_queue(GPU::L4, q) {
             for c in sc.iter().rev() {
-                let mut excess_queue = total as u64 - self.normilize_queue(c.gpu, q);
+                let mut excess_queue = total as u64 - self.normalize_queue(c.gpu, q);
                 let mut excess_provers = (excess_queue / self.speed(c.gpu)) as u32;
                 let p = provers.entry(c.to_key()).or_default();
                 if *p < excess_provers {
@@ -231,13 +231,13 @@ impl Scaler {
             }
         }
 
-        dbg!(total);
+        tracing::debug!("Queue coverd with provers: {}", total);
         // Add required provers.
         if (total as u64) < q {
             for c in &sc {
                 let mut required_queue = q - total as u64;
                 let mut required_provers =
-                    (self.normilize_queue(c.gpu, required_queue) / self.speed(c.gpu)) as u32;
+                    (self.normalize_queue(c.gpu, required_queue) / self.speed(c.gpu)) as u32;
                 let p = provers.entry(c.to_key()).or_default();
                 if *p + required_provers > c.max_pool_size {
                     required_provers = c.max_pool_size - *p;
@@ -248,7 +248,7 @@ impl Scaler {
             }
         }
 
-        dbg!("run result:", &provers, total);
+        tracing::debug!("run result: provers {:?}, total: {}", &provers, total);
 
         provers
     }
@@ -269,7 +269,6 @@ impl Task for Scaler {
                     AUTOSCALER_METRICS.provers[&(k.cluster.clone(), ns.clone(), k.gpu)]
                         .set(*num as u64);
                 }
-                dbg!(provers);
                 // TODO: compare before and desired, send commands [cluster,namespace,deployment] -> provers
             }
         }

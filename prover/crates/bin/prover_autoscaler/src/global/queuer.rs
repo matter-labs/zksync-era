@@ -5,8 +5,6 @@ use reqwest::Method;
 use zksync_prover_job_monitor::autoscaler_queue_reporter::VersionedQueueReport;
 use zksync_utils::http_with_retries::send_request_with_retries;
 
-// TODO use zksync_types::protocol_version::ProtocolSemanticVersion;
-
 #[derive(Debug)]
 pub struct Queue {
     pub queue: HashMap<String, u64>,

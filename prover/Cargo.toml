@@ -1,8 +1,5 @@
 [workspace]
-members = [
-    "crates/bin/*",
-    "crates/lib/*",
-]
+members = ["crates/bin/*", "crates/lib/*"]
 
 resolver = "2"
 
@@ -50,6 +47,7 @@ sqlx = { version = "0.8.1", default-features = false }
 structopt = "0.3.26"
 strum = { version = "0.26" }
 tempfile = "3"
+time = "0.3.36"
 tokio = "1"
 tokio-util = "0.7.11"
 toml_edit = "0.14.4"
@@ -92,7 +90,7 @@ zksync_prover_fri_types = { path = "crates/lib/prover_fri_types" }
 zksync_prover_fri_utils = { path = "crates/lib/prover_fri_utils" }
 zksync_prover_keystore = { path = "crates/lib/keystore" }
 zksync_vk_setup_data_generator_server_fri = { path = "crates/bin/vk_setup_data_generator_server_fri" }
-zksync_prover_job_monitor = {path = "crates/bin/prover_job_monitor" }
+zksync_prover_job_monitor = { path = "crates/bin/prover_job_monitor" }
 
 # for `perf` profiling
 [profile.perf]

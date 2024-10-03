@@ -19,7 +19,7 @@ impl Scaler {
             }
         });
         let pp = PatchParams::default();
-        let _patched = deployments.patch(name, &pp, &Patch::Merge(patch)).await?;
+        deployments.patch(name, &pp, &Patch::Merge(patch)).await?;
         tracing::info!("Scaled deployment/{} to {} replica(s).", name, size);
 
         Ok(())
