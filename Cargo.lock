@@ -10151,8 +10151,8 @@ dependencies = [
  "async-trait",
  "rlp",
  "thiserror",
- "tokio",
- "zksync_types",
+ "zksync_basic_types",
+ "zksync_crypto_primitives",
 ]
 
 [[package]]
@@ -10473,7 +10473,6 @@ dependencies = [
  "once_cell",
  "pretty_assertions",
  "thiserror",
- "tokio",
  "tracing",
  "vise",
  "zk_evm 0.131.0-rc.2",
