@@ -314,7 +314,7 @@ Tools for developing ZKsync.
 Commands for database manipulation:
 
 ```bash
-zk_supervisor db
+zkstack dev db
 ```
 
 Possible commands:
@@ -332,7 +332,7 @@ Possible commands:
 Clean artifacts:
 
 ```bash
-zk_supervisor clean
+zkstack dev clean
 ```
 
 Possible commands:
@@ -346,7 +346,7 @@ Possible commands:
 Run ZKsync tests:
 
 ```bash
-zk_supervisor test
+zkstack dev test
 ```
 
 Possible commands:
