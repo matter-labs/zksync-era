@@ -48,18 +48,18 @@ export function runExternalNodeInBackground({
     stdio,
     cwd,
     env,
-    useZkInception,
+    useZkStack,
     chain
 }: {
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
     env?: Parameters<typeof background>[0]['env'];
-    useZkInception?: boolean;
+    useZkStack?: boolean;
     chain?: string;
 }): ChildProcessWithoutNullStreams {
     let command = '';
-    if (useZkInception) {
+    if (useZkStack) {
         command = 'zkstack external-node run';
         command += chain ? ` --chain ${chain}` : '';
     } else {

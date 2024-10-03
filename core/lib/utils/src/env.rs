@@ -19,7 +19,7 @@ pub enum Workspace<'a> {
     Core(&'a Path),
     /// `prover` folder.
     Prover(&'a Path),
-    /// `toolbox` folder.
+    /// ZK Stack CLI folder.
     Toolbox(&'a Path),
 }
 
@@ -154,7 +154,7 @@ mod tests {
         let workspace = Workspace::locate();
         assert_matches!(workspace, Workspace::Core(_));
         let core_path = workspace.core();
-        // Check if prover and toolbox directories exist.
+        // Check if prover and ZK Stack CLI directories exist.
         assert!(workspace.prover().exists());
         assert_matches!(
             Workspace::from(workspace.prover().as_path()),
@@ -187,7 +187,7 @@ mod tests {
             Workspace::Toolbox(_)
         );
 
-        // Toolbox.
+        // ZK Stack CLI
         std::env::set_current_dir(workspace.toolbox()).unwrap();
         let workspace_path = locate_workspace_inner().unwrap();
         let workspace = Workspace::from(workspace_path.as_path());

@@ -78,7 +78,7 @@ export async function getExternalNodeHealth(url: string) {
         }
         console.log(
             `Request to EN health check server failed: ${displayedError}. In CI, you can see more details ` +
-                'in "Show * logs" steps'
+            'in "Show * logs" steps'
         );
         return null;
     }
@@ -176,7 +176,7 @@ export class NodeProcess {
         logsFile: FileHandle | string,
         pathToHome: string,
         components: NodeComponents = NodeComponents.STANDARD,
-        useZkInception?: boolean,
+        useZkStack?: boolean,
         chain?: string
     ) {
         const logs = typeof logsFile === 'string' ? await fs.open(logsFile, 'a') : logsFile;
@@ -186,14 +186,14 @@ export class NodeProcess {
             stdio: ['ignore', logs.fd, logs.fd],
             cwd: pathToHome,
             env,
-            useZkInception,
+            useZkStack,
             chain
         });
 
         return new NodeProcess(childProcess, logs);
     }
 
-    private constructor(private childProcess: ChildProcess, readonly logs: FileHandle) {}
+    private constructor(private childProcess: ChildProcess, readonly logs: FileHandle) { }
 
     exitCode() {
         return this.childProcess.exitCode;
@@ -243,7 +243,7 @@ export class FundedWallet {
         return new FundedWallet(wallet);
     }
 
-    private constructor(private readonly wallet: zksync.Wallet) {}
+    private constructor(private readonly wallet: zksync.Wallet) { }
 
     /** Ensure that this wallet is funded on L2, depositing funds from L1 if necessary. */
     async ensureIsFunded() {

@@ -20,20 +20,20 @@ export function runServerInBackground({
     stdio,
     cwd,
     env,
-    useZkInception,
+    useZkStack,
     chain
 }: {
     components?: string[];
     stdio: any;
     cwd?: ProcessEnvOptions['cwd'];
     env?: ProcessEnvOptions['env'];
-    useZkInception?: boolean;
+    useZkStack?: boolean;
     newL1GasPrice?: string;
     newPubdataPrice?: string;
     chain?: string;
 }): ChildProcessWithoutNullStreams {
     let command = '';
-    if (useZkInception) {
+    if (useZkStack) {
         command = 'zkstack server';
         if (chain) {
             command += ` --chain ${chain}`;
@@ -62,7 +62,7 @@ export enum NodeType {
 }
 
 export class Node<TYPE extends NodeType> {
-    constructor(public proc: ChildProcessWithoutNullStreams, public l2NodeUrl: string, private readonly type: TYPE) {}
+    constructor(public proc: ChildProcessWithoutNullStreams, public l2NodeUrl: string, private readonly type: TYPE) { }
 
     public async terminate() {
         try {
@@ -112,7 +112,7 @@ export class NodeSpawner {
         private readonly fileConfig: FileConfig,
         private readonly options: MainNodeSpawnOptions,
         private env?: ProcessEnvOptions['env']
-    ) {}
+    ) { }
 
     public async spawnMainNode(newL1GasPrice?: string, newPubdataPrice?: string): Promise<Node<NodeType.MAIN>> {
         const env = this.env ?? process.env;
@@ -167,7 +167,7 @@ export class NodeSpawner {
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
             env: env,
-            useZkInception: fileConfig.loadFromFile,
+            useZkStack: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
 
