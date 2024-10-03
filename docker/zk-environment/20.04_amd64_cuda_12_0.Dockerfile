@@ -112,7 +112,7 @@ ENV CI=1
 ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
 ENV DEBIAN_FRONTEND noninteractive
 
-# Setup nvidia-cuda env
+# Setup nvidia-cuda envs
 ENV NVARCH x86_64
 
 ENV NVIDIA_REQUIRE_CUDA "cuda>=12.0 brand=tesla,driver>=450,driver<451 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471"
