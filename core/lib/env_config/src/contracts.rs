@@ -22,6 +22,10 @@ impl FromEnvVariant for EcosystemContracts {
                 "{variant}CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR"
             ))?
             .parse()?,
+            l1_bytecodes_supplier_addr: std::env::var(format!(
+                "{variant}CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR"
+            ))?
+            .parse()?,
         })
     }
 }
@@ -87,6 +91,7 @@ mod tests {
                 bridgehub_proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
                 state_transition_proxy_addr: addr("0xd90f1c081c6117241624e97cb6147257c3cb2097"),
                 transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
+                l1_bytecodes_supplier_addr: addr("0x36ea7f92f4c5f433efe15284e99c040110cf6297"),
             }),
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
             user_facing_bridgehub_proxy_addr: Some(addr(
@@ -122,6 +127,7 @@ CONTRACTS_L2_CONSENSUS_REGISTRY_ADDR="D64e136566a9E04eb05B30184fF577F52682D182"
 CONTRACTS_L1_MULTICALL3_ADDR="0xcA11bde05977b3631167028862bE2a173976CA11"
 CONTRACTS_L1_SHARED_BRIDGE_PROXY_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
 CONTRACTS_L2_SHARED_BRIDGE_ADDR="0x8656770FA78c830456B00B4fFCeE6b1De0e1b888"
+CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR="0x36ea7f92f4c5f433efe15284e99c040110cf6297"
 CONTRACTS_BRIDGEHUB_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
 CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0xd90f1c081c6117241624e97cb6147257c3cb2097"
 CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"

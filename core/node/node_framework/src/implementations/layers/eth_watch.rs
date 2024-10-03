@@ -1,7 +1,7 @@
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
 use zksync_contracts::chain_admin_contract;
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
-use zksync_types::settlement::SettlementMode;
+use zksync_types::{settlement::SettlementMode, web3::contract};
 
 use crate::{
     implementations::resources::{
@@ -94,6 +94,10 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config.diamond_proxy_addr,
             self.contracts_config
                 .ecosystem_contracts
+                .as_ref()
+                .map(|a| a.l1_bytecodes_supplier_addr),
+            self.contracts_config
+                .ecosystem_contracts
                 .map(|a| a.state_transition_proxy_addr),
             self.contracts_config.chain_admin_addr,
             self.contracts_config.governance_addr,
@@ -106,6 +110,7 @@ impl WiringLayer for EthWatchLayer {
             EthHttpQueryClient::new(
                 gateway_client,
                 contracts_config.diamond_proxy_addr,
+                None,
                 Some(contracts_config.state_transition_proxy_addr),
                 contracts_config.chain_admin_addr,
                 contracts_config.governance_addr,

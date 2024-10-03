@@ -35,6 +35,7 @@ pub struct DeployL1DeployedAddressesOutput {
     pub rollup_l1_da_validator_addr: Address,
     pub validium_l1_da_validator_addr: Address,
     pub native_token_vault_addr: Address,
+    pub bytecodes_supplier: Address,
 }
 
 impl ZkToolboxConfig for DeployL1Output {}

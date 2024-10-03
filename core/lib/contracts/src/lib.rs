@@ -38,6 +38,8 @@ const STATE_TRANSITION_CONTRACT_FILE: (&str, &str) = (
     "state-transition",
     "IChainTypeManager.sol/IChainTypeManager.json",
 );
+const BYTECODE_SUPPLIER_CONTRACT_FILE: (&str, &str) =
+    ("upgrades", "BytecodesSupplier.sol/BytecodesSupplier.json");
 const ZKSYNC_HYPERCHAIN_CONTRACT_FILE: (&str, &str) = (
     "state-transition/chain-interfaces",
     "IZKChain.sol/IZKChain.json",
@@ -152,6 +154,10 @@ pub fn getters_facet_contract() -> Contract {
 
 pub fn state_transition_manager_contract() -> Contract {
     load_contract_for_both_compilers(STATE_TRANSITION_CONTRACT_FILE)
+}
+
+pub fn bytecode_supplier_contract() -> Contract {
+    load_contract_for_both_compilers(BYTECODE_SUPPLIER_CONTRACT_FILE)
 }
 
 pub fn hyperchain_contract() -> Contract {

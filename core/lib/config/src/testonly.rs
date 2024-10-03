@@ -758,6 +758,7 @@ impl Distribution<configs::EcosystemContracts> for EncodeDist {
             bridgehub_proxy_addr: rng.gen(),
             state_transition_proxy_addr: rng.gen(),
             transparent_proxy_admin_addr: rng.gen(),
+            l1_bytecodes_supplier_addr: rng.gen(),
         }
     }
 }

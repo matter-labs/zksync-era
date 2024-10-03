@@ -30,6 +30,11 @@ impl ProtoRepr for proto::Contracts {
                 )
                 .and_then(|x| parse_h160(x))
                 .context("transparent_proxy_admin_addr")?,
+                l1_bytecodes_supplier_addr: required(
+                    &ecosystem_contracts.l1_bytecodes_supplier_addr,
+                )
+                .and_then(|x| parse_h160(x))
+                .context("l1_bytecodes_supplier_addr")?,
             })
         } else {
             None
@@ -156,6 +161,10 @@ impl ProtoRepr for proto::Contracts {
                 transparent_proxy_admin_addr: Some(format!(
                     "{:?}",
                     ecosystem_contracts.transparent_proxy_admin_addr,
+                )),
+                l1_bytecodes_supplier_addr: Some(format!(
+                    "{:?}",
+                    ecosystem_contracts.l1_bytecodes_supplier_addr
                 )),
             });
         Self {

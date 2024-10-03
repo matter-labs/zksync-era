@@ -57,6 +57,8 @@ impl ContractsConfig {
         self.ecosystem_contracts.transparent_proxy_admin_addr = deploy_l1_output
             .deployed_addresses
             .transparent_proxy_admin_addr;
+        self.ecosystem_contracts.l1_bytecodes_supplier_addr =
+            deploy_l1_output.deployed_addresses.bytecodes_supplier;
         self.ecosystem_contracts.stm_deployment_tracker_proxy_addr = deploy_l1_output
             .deployed_addresses
             .bridgehub
@@ -171,6 +173,7 @@ pub struct EcosystemContracts {
     pub diamond_cut_data: String,
     pub force_deployments_data: String,
     pub native_token_vault_addr: Address,
+    pub l1_bytecodes_supplier_addr: Address,
 }
 
 impl ZkToolboxConfig for EcosystemContracts {}

@@ -6,6 +6,7 @@ message EcosystemContracts {
   optional string bridgehub_proxy_addr = 1; // optional; h160
   optional string state_transition_proxy_addr = 2; // optional; h160
   optional string transparent_proxy_admin_addr = 3; // optional; h160
+  optional string l1_bytecodes_supplier_addr = 4; // optional; h160
 }
 
 message L1 {

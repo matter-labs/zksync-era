@@ -12,7 +12,7 @@ use zksync_contracts::{
     BaseSystemContractsHashes, ADMIN_EXECUTE_UPGRADE_FUNCTION,
     ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION, DIAMOND_CUT,
 };
-use zksync_utils::h256_to_u256;
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
     abi,
@@ -94,18 +94,38 @@ impl From<abi::VerifierParams> for VerifierParams {
     }
 }
 
+/// Protocol upgrade transactions do not contain preimages within them.
+/// Instead, they are expected to be known and need to be fetched, typically from L1.
+#[async_trait::async_trait]
+pub trait ProtocolUpgradePreimageOracle: Send + Sync {
+    // At the time of the protocol upgrade, it is expected that all of the
+    // preimages are somehow available and so implementation should potentially unwrap the result.
+    async fn get_protocol_upgrade_preimages(&self, hash: Vec<H256>)
+        -> anyhow::Result<Vec<Vec<u8>>>;
+}
+
 impl ProtocolUpgrade {
-    pub fn try_from_diamond_cut(diamond_cut_data: &[u8]) -> anyhow::Result<Self> {
+    pub async fn try_from_diamond_cut(
+        diamond_cut_data: &[u8],
+        preimage_oracle: &dyn ProtocolUpgradePreimageOracle,
+    ) -> anyhow::Result<Self> {
         // Unwraps are safe because we have validated the input against the function signature.
         let diamond_cut_tokens = DIAMOND_CUT.decode_input(diamond_cut_data)?[0]
             .clone()
             .into_tuple()
             .unwrap();
-        Self::try_from_init_calldata(&diamond_cut_tokens[2].clone().into_bytes().unwrap())
+        Self::try_from_init_calldata(
+            &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
+            preimage_oracle,
+        )
+        .await
     }
 
     /// `l1-contracts/contracts/state-transition/libraries/diamond.sol:DiamondCutData.initCalldata`
-    fn try_from_init_calldata(init_calldata: &[u8]) -> anyhow::Result<Self> {
+    async fn try_from_init_calldata(
+        init_calldata: &[u8],
+        preimage_oracle: &dyn ProtocolUpgradePreimageOracle,
+    ) -> anyhow::Result<Self> {
         let upgrade = ethabi::decode(
             &[abi::ProposedUpgrade::schema()],
             init_calldata.get(4..).context("need >= 4 bytes")?,
@@ -114,6 +134,33 @@ impl ProtocolUpgrade {
         let upgrade = abi::ProposedUpgrade::decode(upgrade.into_iter().next().unwrap()).unwrap();
         let bootloader_hash = H256::from_slice(&upgrade.bootloader_hash);
         let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
+
+        let tx = if upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero() {
+            let factory_deps = preimage_oracle
+                .get_protocol_upgrade_preimages(
+                    upgrade
+                        .l2_protocol_upgrade_tx
+                        .factory_deps
+                        .iter()
+                        .map(|&x| u256_to_h256(x))
+                        .collect(),
+                )
+                .await?;
+
+            Some(
+                Transaction::try_from(abi::Transaction::L1 {
+                    tx: upgrade.l2_protocol_upgrade_tx,
+                    factory_deps,
+                    eth_block: 0,
+                })
+                .context("Transaction::try_from()")?
+                .try_into()
+                .map_err(|err| anyhow::format_err!("try_into::<ProtocolUpgradeTx>(): {err}"))?,
+            )
+        } else {
+            None
+        };
+
         Ok(Self {
             version: ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
                 .map_err(|err| anyhow::format_err!("Version is not supported: {err}"))?,
@@ -124,18 +171,7 @@ impl ProtocolUpgrade {
                 .then_some(upgrade.verifier_params.into()),
             verifier_address: (upgrade.verifier != Address::zero()).then_some(upgrade.verifier),
             timestamp: upgrade.upgrade_timestamp.try_into().unwrap(),
-            tx: (upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero())
-                .then(|| {
-                    Transaction::try_from(abi::Transaction::L1 {
-                        tx: upgrade.l2_protocol_upgrade_tx,
-                        factory_deps: upgrade.factory_deps,
-                        eth_block: 0,
-                    })
-                    .context("Transaction::try_from()")?
-                    .try_into()
-                    .map_err(|err| anyhow::format_err!("try_into::<ProtocolUpgradeTx>(): {err}"))
-                })
-                .transpose()?,
+            tx,
         })
     }
 }
@@ -183,49 +219,49 @@ pub fn decode_genesis_upgrade_event(
     ))
 }
 
-impl TryFrom<Call> for ProtocolUpgrade {
-    type Error = anyhow::Error;
+// impl TryFrom<Call> for ProtocolUpgrade {
+//     type Error = anyhow::Error;
 
-    fn try_from(call: Call) -> Result<Self, Self::Error> {
-        anyhow::ensure!(call.data.len() >= 4);
-        let (signature, data) = call.data.split_at(4);
+//     fn try_from(call: Call) -> Result<Self, Self::Error> {
+//         anyhow::ensure!(call.data.len() >= 4);
+//         let (signature, data) = call.data.split_at(4);
 
-        let diamond_cut_tokens =
-            if signature.to_vec() == ADMIN_EXECUTE_UPGRADE_FUNCTION.short_signature().to_vec() {
-                // Unwraps are safe, because we validate the input against the function signature.
-                ADMIN_EXECUTE_UPGRADE_FUNCTION
-                    .decode_input(data)?
-                    .pop()
-                    .unwrap()
-                    .into_tuple()
-                    .unwrap()
-            } else if signature.to_vec()
-                == ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION
-                    .short_signature()
-                    .to_vec()
-            {
-                let mut data = ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION.decode_input(data)?;
+//         let diamond_cut_tokens =
+//             if signature.to_vec() == ADMIN_EXECUTE_UPGRADE_FUNCTION.short_signature().to_vec() {
+//                 // Unwraps are safe, because we validate the input against the function signature.
+//                 ADMIN_EXECUTE_UPGRADE_FUNCTION
+//                     .decode_input(data)?
+//                     .pop()
+//                     .unwrap()
+//                     .into_tuple()
+//                     .unwrap()
+//             } else if signature.to_vec()
+//                 == ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION
+//                     .short_signature()
+//                     .to_vec()
+//             {
+//                 let mut data = ADMIN_UPGRADE_CHAIN_FROM_VERSION_FUNCTION.decode_input(data)?;
 
-                assert_eq!(
-                    data.len(),
-                    2,
-                    "The second method is expected to accept exactly 2 arguments"
-                );
+//                 assert_eq!(
+//                     data.len(),
+//                     2,
+//                     "The second method is expected to accept exactly 2 arguments"
+//                 );
 
-                // The second item must be a tuple of diamond cut data
-                // Unwraps are safe, because we validate the input against the function signature.
-                data.pop().unwrap().into_tuple().unwrap()
-            } else {
-                anyhow::bail!("unknown function");
-            };
+//                 // The second item must be a tuple of diamond cut data
+//                 // Unwraps are safe, because we validate the input against the function signature.
+//                 data.pop().unwrap().into_tuple().unwrap()
+//             } else {
+//                 anyhow::bail!("unknown function");
+//             };
 
-        ProtocolUpgrade::try_from_init_calldata(
-            // Unwrap is safe because we have validated the input against the function signature.
-            &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
-        )
-        .context("ProtocolUpgrade::try_from_init_calldata()")
-    }
-}
+//         ProtocolUpgrade::try_from_init_calldata(
+//             // Unwrap is safe because we have validated the input against the function signature.
+//             &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
+//         )
+//         .context("ProtocolUpgrade::try_from_init_calldata()")
+//     }
+// }
 
 impl TryFrom<Log> for GovernanceOperation {
     type Error = crate::ethabi::Error;

@@ -107,6 +107,7 @@ pub struct InternalApiConfig {
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
+    pub l1_bytecodes_supplier_addr: Option<Address>,
     pub user_facing_diamond_proxy_addr: Address,
     pub l2_testnet_paymaster_addr: Option<Address>,
     pub req_entities_limit: usize,
@@ -171,6 +172,10 @@ impl InternalApiConfig {
                 .ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
+            l1_bytecodes_supplier_addr: contracts_config
+                .ecosystem_contracts
+                .as_ref()
+                .map(|a| a.l1_bytecodes_supplier_addr),
             user_facing_diamond_proxy_addr: contracts_config
                 .user_facing_diamond_proxy_addr
                 .unwrap_or(contracts_config.diamond_proxy_addr),

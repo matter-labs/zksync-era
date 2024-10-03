@@ -159,6 +159,13 @@ impl EthClient for MockEthClient {
             .collect())
     }
 
+    async fn get_published_preimages(
+        &self,
+        _hashes: Vec<H256>,
+    ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
+        Ok(vec![])
+    }
+
     async fn scheduler_vk_hash(
         &self,
         _verifier_address: Address,

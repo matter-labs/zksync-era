@@ -8,6 +8,7 @@ pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
+    pub l1_bytecodes_supplier_addr: Address,
 }
 
 impl EcosystemContracts {
@@ -16,6 +17,7 @@ impl EcosystemContracts {
             bridgehub_proxy_addr: Address::repeat_byte(0x14),
             state_transition_proxy_addr: Address::repeat_byte(0x15),
             transparent_proxy_admin_addr: Address::repeat_byte(0x15),
+            l1_bytecodes_supplier_addr: Address::repeat_byte(0x16),
         }
     }
 }

@@ -1,8 +1,9 @@
-use std::fmt;
+use std::{collections::HashMap, fmt};
 
 use anyhow::Context;
 use zksync_contracts::{
-    getters_facet_contract, state_transition_manager_contract, verifier_contract,
+    bytecode_supplier_contract, getters_facet_contract, state_transition_manager_contract,
+    verifier_contract,
 };
 use zksync_eth_client::{
     clients::{DynClient, L1},
@@ -40,9 +41,15 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         packed_version: H256,
     ) -> EnrichedClientResult<Option<Vec<u8>>>;
 
+    async fn get_published_preimages(
+        &self,
+        hashes: Vec<H256>,
+    ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>>;
+
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId>;
 }
 
+const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
 pub const RETRY_LIMIT: usize = 5;
 const TOO_MANY_RESULTS_INFURA: &str = "query returned more than";
 const TOO_MANY_RESULTS_ALCHEMY: &str = "response size exceeded";
@@ -56,6 +63,8 @@ pub struct EthHttpQueryClient {
     diamond_proxy_addr: Address,
     governance_address: Address,
     new_upgrade_cut_data_signature: H256,
+    bytecode_published_signature: H256,
+    bytecode_supplier_addr: Option<Address>,
     // Only present for post-shared bridge chains.
     state_transition_manager_address: Option<Address>,
     chain_admin_address: Option<Address>,
@@ -68,6 +77,7 @@ impl EthHttpQueryClient {
     pub fn new(
         client: Box<DynClient<L1>>,
         diamond_proxy_addr: Address,
+        bytecode_supplier_addr: Option<Address>,
         state_transition_manager_address: Option<Address>,
         chain_admin_address: Option<Address>,
         governance_address: Address,
@@ -84,9 +94,15 @@ impl EthHttpQueryClient {
             state_transition_manager_address,
             chain_admin_address,
             governance_address,
+            bytecode_supplier_addr: bytecode_supplier_addr,
             new_upgrade_cut_data_signature: state_transition_manager_contract()
                 .event("NewUpgradeCutData")
                 .context("NewUpgradeCutData event is missing in ABI")
+                .unwrap()
+                .signature(),
+            bytecode_published_signature: bytecode_supplier_contract()
+                .event("BytecodePublished")
+                .context("BytecodePublished event is missing in ABI")
                 .unwrap()
                 .signature(),
             verifier_contract_abi: verifier_contract(),
@@ -230,8 +246,6 @@ impl EthClient for EthHttpQueryClient {
         &self,
         packed_version: H256,
     ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        const LOOK_BACK_BLOCK_RANGE: u64 = 1_000_000;
-
         let Some(state_transition_manager_address) = self.state_transition_manager_address else {
             return Ok(None);
         };
@@ -251,6 +265,41 @@ impl EthClient for EthHttpQueryClient {
             .await?;
 
         Ok(logs.into_iter().next().map(|log| log.data.0))
+    }
+
+    async fn get_published_preimages(
+        &self,
+        hashes: Vec<H256>,
+    ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
+        let Some(bytecode_supplier_addr) = self.bytecode_supplier_addr else {
+            return Ok(vec![None; hashes.len()]);
+        };
+
+        let to_block = self.client.block_number().await?;
+        let from_block = to_block.saturating_sub((LOOK_BACK_BLOCK_RANGE - 1).into());
+
+        let logs = self
+            .get_events_inner(
+                from_block.into(),
+                to_block.into(),
+                Some(vec![self.bytecode_published_signature]),
+                Some(hashes.clone()),
+                Some(vec![bytecode_supplier_addr]),
+                RETRY_LIMIT,
+            )
+            .await?;
+
+        let mut preimages = HashMap::new();
+        for log in logs {
+            let hash = log.topics[1];
+            let preimage = log.data.0;
+            preimages.insert(hash, preimage);
+        }
+
+        Ok(hashes
+            .into_iter()
+            .map(|hash| preimages.get(&hash).cloned())
+            .collect())
     }
 
     async fn get_events(
