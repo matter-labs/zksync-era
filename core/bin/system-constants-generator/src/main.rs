@@ -3,7 +3,9 @@ use std::fs;
 use codegen::{Block, Scope};
 use serde::{Deserialize, Serialize};
 use zksync_multivm::{
-    utils::{get_bootloader_encoding_space, get_bootloader_max_txs_in_batch, get_max_new_factory_deps},
+    utils::{
+        get_bootloader_encoding_space, get_bootloader_max_txs_in_batch, get_max_new_factory_deps,
+    },
     vm_latest::constants::MAX_VM_PUBDATA_PER_BATCH,
     zk_evm_latest::zkevm_opcode_defs::{
         circuit_prices::{

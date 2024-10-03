@@ -221,7 +221,8 @@ impl BootloaderState {
     /// Get offset of tx description
     pub(crate) fn get_tx_description_offset(&self, tx_index: usize) -> usize {
         // FIXME
-        get_tx_description_offset(crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory) + self.find_tx(tx_index).offset
+        get_tx_description_offset(crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory)
+            + self.find_tx(tx_index).offset
     }
 
     pub(crate) fn insert_fictive_l2_block(&mut self) -> &BootloaderL2Block {

@@ -62,7 +62,9 @@ const CURRENT_L2_TX_HASHES_SLOTS: usize = 2;
 
 pub(crate) const fn get_max_new_factory_deps(subversion: MultiVMSubversion) -> usize {
     match subversion {
-        MultiVMSubversion::SmallBootloaderMemory | MultiVMSubversion::IncreasedBootloaderMemory => 32,
+        MultiVMSubversion::SmallBootloaderMemory | MultiVMSubversion::IncreasedBootloaderMemory => {
+            32
+        }
         // With gateway upgrade we increased max number of factory dependencies
         MultiVMSubversion::Gateway => 64,
     }

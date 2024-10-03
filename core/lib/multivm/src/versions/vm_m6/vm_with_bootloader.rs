@@ -37,7 +37,6 @@ use crate::{
     },
 };
 
-
 pub(crate) const MAX_NEW_FACTORY_DEPS: usize = 32;
 
 // TODO (SMA-1703): move these to config and make them programmatically generable.

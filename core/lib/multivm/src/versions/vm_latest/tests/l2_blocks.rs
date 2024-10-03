@@ -21,8 +21,12 @@ use crate::{
     },
     vm_latest::{
         constants::{
-            get_tx_operator_l2_block_info_offset, BOOTLOADER_HEAP_PAGE, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO
-        }, tests::tester::{default_l1_batch, VmTesterBuilder}, utils::l2_blocks::get_l2_block_hash_key, HistoryEnabled, MultiVMSubversion, Vm
+            get_tx_operator_l2_block_info_offset, BOOTLOADER_HEAP_PAGE,
+            TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
+        },
+        tests::tester::{default_l1_batch, VmTesterBuilder},
+        utils::l2_blocks::get_l2_block_hash_key,
+        HistoryEnabled, MultiVMSubversion, Vm,
     },
     HistoryMode,
 };
@@ -408,7 +412,8 @@ fn set_manual_l2_block_info<S: WriteStorage, H: HistoryMode>(
     timestamp: Timestamp,
 ) {
     let fictive_miniblock_position =
-        get_tx_operator_l2_block_info_offset(MultiVMSubversion::latest()) + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
+        get_tx_operator_l2_block_info_offset(MultiVMSubversion::latest())
+            + TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO * tx_number;
 
     vm.state.memory.populate_page(
         BOOTLOADER_HEAP_PAGE as usize,

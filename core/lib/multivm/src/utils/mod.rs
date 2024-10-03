@@ -531,9 +531,11 @@ pub fn get_max_new_factory_deps(version: VmVersion) -> usize {
         VmVersion::Vm1_4_2 => crate::vm_1_4_2::constants::MAX_NEW_FACTORY_DEPS,
         version @ VmVersion::Vm1_5_0SmallBootloaderMemory
         | version @ VmVersion::Vm1_5_0IncreasedBootloaderMemory
-        | version @ VmVersion::VmGateway => crate::vm_latest::constants::get_max_new_factory_deps(version.try_into().unwrap()),
+        | version @ VmVersion::VmGateway => {
+            crate::vm_latest::constants::get_max_new_factory_deps(version.try_into().unwrap())
+        }
     }
-} 
+}
 
 /// Holds information about number of cycles used per circuit type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

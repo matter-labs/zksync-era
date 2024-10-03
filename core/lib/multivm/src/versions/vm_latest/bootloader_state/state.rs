@@ -14,7 +14,11 @@ use crate::{
             l2_block::BootloaderL2Block,
             snapshot::BootloaderStateSnapshot,
             utils::{apply_l2_block, apply_tx_to_memory},
-        }, constants::get_tx_description_offset, types::internals::{PubdataInput, TransactionData}, utils::l2_blocks::assert_next_block, MultiVMSubversion
+        },
+        constants::get_tx_description_offset,
+        types::internals::{PubdataInput, TransactionData},
+        utils::l2_blocks::assert_next_block,
+        MultiVMSubversion,
     },
 };
 
@@ -133,7 +137,7 @@ impl BootloaderState {
             self.compressed_bytecodes_encoding,
             self.execution_mode,
             self.last_l2_block().txs.is_empty(),
-            self.subversion
+            self.subversion,
         );
         self.compressed_bytecodes_encoding += compressed_bytecode_size;
         self.free_tx_offset = tx_offset + bootloader_tx.encoded_len();
@@ -190,7 +194,7 @@ impl BootloaderState {
                     compressed_bytecodes_offset,
                     self.execution_mode,
                     num == 0,
-                    self.subversion
+                    self.subversion,
                 );
                 offset += tx.encoded_len();
                 compressed_bytecodes_offset += compressed_bytecodes_size;
