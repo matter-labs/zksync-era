@@ -209,7 +209,8 @@ pub async fn deploy_l2_contracts(
             contracts_config.set_default_l2_upgrade(&DefaultL2UpgradeOutput::read(shell, out)?)?;
             contracts_config.set_consensus_registry(&ConsensusRegistryOutput::read(shell, out)?)?;
             contracts_config.set_multicall3(&Multicall3Output::read(shell, out)?)?;
-            contracts_config.set_timestamp_asserter(&TimestampAsserterOutput::read(shell, out)?)?;
+            contracts_config
+                .set_timestamp_asserter_addr(&TimestampAsserterOutput::read(shell, out)?)?;
             Ok(())
         },
     )

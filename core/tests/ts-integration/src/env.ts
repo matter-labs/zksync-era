@@ -165,6 +165,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
     const maxLogsLimit = parseInt(generalConfig.api.web3_json_rpc.req_entities_limit);
 
     const healthcheckPort = generalConfig.api.healthcheck.port;
+    const timestampAsserterAddress = contracts.l2.timestamp_asserter_addr;
     return {
         maxLogsLimit,
         pathToHome,
@@ -195,7 +196,8 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
             decimals: baseToken?.decimals || token.decimals,
             l1Address: baseToken?.address || token.address,
             l2Address: baseTokenAddressL2
-        }
+        },
+        timestampAsserterAddress
     };
 }
 
@@ -282,6 +284,10 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     );
 
     const healthcheckPort = process.env.API_HEALTHCHECK_PORT ?? '3071';
+    if (!process.env.CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR) {
+        throw new Error('CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR is not defined');
+    }
+    const timestampAsserterAddress = process.env.CONTRACTS_L2_TIMESTAMP_ASSERTER.toString();
     return {
         maxLogsLimit,
         pathToHome,
@@ -312,7 +318,8 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
             decimals: baseToken?.decimals || token.decimals,
             l1Address: baseToken?.address || token.address,
             l2Address: baseTokenAddressL2
-        }
+        },
+        timestampAsserterAddress
     };
 }
 

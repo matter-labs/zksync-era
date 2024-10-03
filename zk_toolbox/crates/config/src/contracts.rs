@@ -109,11 +109,11 @@ impl ContractsConfig {
         Ok(())
     }
 
-    pub fn set_timestamp_asserter(
+    pub fn set_timestamp_asserter_addr(
         &mut self,
         timestamp_asserter_output: &TimestampAsserterOutput,
     ) -> anyhow::Result<()> {
-        self.l2.timestamp_asserter = Some(timestamp_asserter_output.timestamp_asserter);
+        self.l2.timestamp_asserter_addr = Some(timestamp_asserter_output.timestamp_asserter);
         Ok(())
     }
 }
@@ -167,5 +167,5 @@ pub struct L2Contracts {
     pub default_l2_upgrader: Address,
     pub consensus_registry: Option<Address>,
     pub multicall3: Option<Address>,
-    pub timestamp_asserter: Option<Address>,
+    pub timestamp_asserter_addr: Option<Address>,
 }

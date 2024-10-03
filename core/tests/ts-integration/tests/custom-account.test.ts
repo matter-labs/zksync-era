@@ -25,11 +25,13 @@ describe('Tests for the custom account behavior', () => {
     let customAccount: zksync.Contract;
     let erc20Address: string;
     let erc20: zksync.Contract;
+    let timestampAsserterAddress: string;
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         erc20Address = testMaster.environment().erc20Token.l2Address;
+        timestampAsserterAddress = testMaster.environment().timestampAsserterAddress;
         erc20 = new zksync.Contract(
             erc20Address,
             zksync.utils.IERC20,
@@ -40,7 +42,12 @@ describe('Tests for the custom account behavior', () => {
 
     test('Should deploy custom account', async () => {
         const violateRules = false;
-        customAccount = await deployContract(alice, contracts.customAccount, [violateRules], 'createAccount');
+        customAccount = await deployContract(
+            alice,
+            contracts.customAccount,
+            [violateRules, timestampAsserterAddress],
+            'createAccount'
+        );
 
         // Now we need to check that it was correctly marked as an account:
         const contractAccountInfo = await alice.provider.getContractAccountInfo(await customAccount.getAddress());
@@ -112,7 +119,12 @@ describe('Tests for the custom account behavior', () => {
     test('Should not allow violating validation rules', async () => {
         // We configure account to violate storage access rules during tx validation.
         const violateRules = true;
-        const badCustomAccount = await deployContract(alice, contracts.customAccount, [violateRules], 'createAccount');
+        const badCustomAccount = await deployContract(
+            alice,
+            contracts.customAccount,
+            [violateRules, timestampAsserterAddress],
+            'createAccount'
+        );
         const badCustomAccountAddress = await badCustomAccount.getAddress();
 
         // Fund the account.
@@ -145,7 +157,12 @@ describe('Tests for the custom account behavior', () => {
         // Note that we supply "create" instead of "createAccount" here -- the code is the same, but it'll
         // be treated as a common contract.
         const violateRules = false;
-        const nonAccount = await deployContract(alice, contracts.customAccount, [violateRules], 'create');
+        const nonAccount = await deployContract(
+            alice,
+            contracts.customAccount,
+            [violateRules, timestampAsserterAddress],
+            'create'
+        );
         const nonAccountAddress = await nonAccount.getAddress();
 
         // Fund the account.
@@ -203,7 +220,7 @@ describe('Tests for the custom account behavior', () => {
         const badCustomAccount = await deployContract(
             alice,
             contracts.customAccount,
-            [violateStorageRules],
+            [violateStorageRules, timestampAsserterAddress],
             'createAccount'
         );
         const badCustomAccountAddress = await badCustomAccount.getAddress();
@@ -244,7 +261,7 @@ describe('Tests for the custom account behavior', () => {
         const badCustomAccount = await deployContract(
             alice,
             contracts.customAccount,
-            [violateStorageRules],
+            [violateStorageRules, timestampAsserterAddress],
             'createAccount'
         );
         const badCustomAccountAddress = await badCustomAccount.getAddress();
