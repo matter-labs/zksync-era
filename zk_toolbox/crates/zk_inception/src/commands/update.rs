@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::{Context, Ok};
 use common::{
+    db::migrate_db,
     git, logger,
     spinner::Spinner,
     yaml::{merge_yaml, ConfigDiff},
@@ -13,15 +14,18 @@ use config::{
 use xshell::Shell;
 
 use super::args::UpdateArgs;
-use crate::messages::{
-    msg_diff_contracts_config, msg_diff_genesis_config, msg_diff_secrets, msg_updating_chain,
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_DIFF_EN_CONFIG, MSG_DIFF_EN_GENERAL_CONFIG,
-    MSG_DIFF_GENERAL_CONFIG, MSG_PULLING_ZKSYNC_CODE_SPINNER,
-    MSG_UPDATING_ERA_OBSERVABILITY_SPINNER, MSG_UPDATING_SUBMODULES_SPINNER, MSG_UPDATING_ZKSYNC,
-    MSG_ZKSYNC_UPDATED,
+use crate::{
+    consts::{PROVER_MIGRATIONS, SERVER_MIGRATIONS},
+    messages::{
+        msg_diff_contracts_config, msg_diff_genesis_config, msg_diff_secrets, msg_updating_chain,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DIFF_EN_CONFIG, MSG_DIFF_EN_GENERAL_CONFIG,
+        MSG_DIFF_GENERAL_CONFIG, MSG_PULLING_ZKSYNC_CODE_SPINNER,
+        MSG_UPDATING_ERA_OBSERVABILITY_SPINNER, MSG_UPDATING_SUBMODULES_SPINNER,
+        MSG_UPDATING_ZKSYNC, MSG_ZKSYNC_UPDATED,
+    },
 };
 
-pub fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
+pub async fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
     logger::info(MSG_UPDATING_ZKSYNC);
     let ecosystem = EcosystemConfig::from_file(shell)?;
 
@@ -48,7 +52,8 @@ pub fn run(shell: &Shell, args: UpdateArgs) -> anyhow::Result<()> {
             &genesis_config_path,
             &contracts_config_path,
             &secrets_path,
-        )?;
+        )
+        .await?;
     }
 
     let path_to_era_observability = shell.current_dir().join(ERA_OBSERBAVILITY_DIR);
@@ -114,7 +119,7 @@ fn update_config(
     Ok(())
 }
 
-fn update_chain(
+async fn update_chain(
     shell: &Shell,
     chain: &ChainConfig,
     general: &Path,
@@ -177,5 +182,17 @@ fn update_chain(
         )?;
     }
 
+    let secrets = chain.get_secrets_config()?;
+
+    if let Some(db) = secrets.database {
+        if let Some(url) = db.server_url {
+            let path_to_migration = chain.link_to_code.join(SERVER_MIGRATIONS);
+            migrate_db(shell, path_to_migration, url.expose_url()).await?;
+        }
+        if let Some(url) = db.prover_url {
+            let path_to_migration = chain.link_to_code.join(PROVER_MIGRATIONS);
+            migrate_db(shell, path_to_migration, url.expose_url()).await?;
+        }
+    }
     Ok(())
 }

@@ -1,3 +1,4 @@
+use anyhow::Context;
 use clap::Parser;
 use common::{db::DatabaseConfig, Prompt};
 use config::ChainConfig;
@@ -76,6 +77,46 @@ impl GenesisArgs {
                 dont_drop: self.dont_drop,
             }
         }
+    }
+
+    pub fn fill_values_with_secrets(
+        mut self,
+        chain_config: &ChainConfig,
+    ) -> anyhow::Result<GenesisArgsFinal> {
+        let secrets = chain_config.get_secrets_config()?;
+        let database = secrets
+            .database
+            .context("Database secrets must be present")?;
+
+        let (server_db_url, server_db_name) = if let Some(db_full_url) = database.server_url {
+            let db_config = DatabaseConfig::from_url(db_full_url.expose_url())
+                .context("Invalid server database URL")?;
+            (Some(db_config.url), Some(db_config.name))
+        } else {
+            (None, None)
+        };
+
+        let (prover_db_url, prover_db_name) = if let Some(db_full_url) = database.prover_url {
+            let db_config = DatabaseConfig::from_url(db_full_url.expose_url())
+                .context("Invalid prover database URL")?;
+            (Some(db_config.url), Some(db_config.name))
+        } else {
+            (None, None)
+        };
+
+        self.server_db_url = self.server_db_url.or(server_db_url);
+        self.server_db_name = self.server_db_name.or(server_db_name);
+        self.prover_db_url = self.prover_db_url.or(prover_db_url);
+        self.prover_db_name = self.prover_db_name.or(prover_db_name);
+
+        Ok(self.fill_values_with_prompt(chain_config))
+    }
+
+    pub fn reset_db_names(&mut self) {
+        self.prover_db_name = None;
+        self.prover_db_url = None;
+        self.server_db_name = None;
+        self.server_db_url = None;
     }
 }
 
