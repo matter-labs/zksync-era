@@ -4,8 +4,9 @@ use async_trait::async_trait;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_types::{
-    block::L2BlockExecutionData, fee_model::BatchFeeInput, protocol_upgrade::ProtocolUpgradeTx,
-    Address, L1BatchNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+    block::L2BlockExecutionData, commitment::PubdataParams, fee_model::BatchFeeInput,
+    protocol_upgrade::ProtocolUpgradeTx, Address, L1BatchNumber, L2ChainId, ProtocolVersionId,
+    Transaction, H256,
 };
 use zksync_vm_executor::storage::l1_batch_params;
 
@@ -70,6 +71,8 @@ pub struct L1BatchParams {
     pub fee_input: BatchFeeInput,
     /// Parameters of the first L2 block in the batch.
     pub first_l2_block: L2BlockParams,
+    /// Params related to how the pubdata should be processed by the bootloader in the batch.
+    pub pubdata_params: PubdataParams,
 }
 
 impl L1BatchParams {
@@ -93,6 +96,7 @@ impl L1BatchParams {
             self.protocol_version,
             self.first_l2_block.virtual_blocks,
             chain_id,
+            self.pubdata_params,
         )
     }
 }

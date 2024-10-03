@@ -1,9 +1,12 @@
 use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
-use zksync_types::{L2ChainId, U256};
+use zksync_types::{commitment::PubdataParams, L2ChainId, U256};
 
-use super::{tx::BootloaderTx, utils::apply_pubdata_to_memory};
+use super::{
+    tx::BootloaderTx,
+    utils::{apply_pubdata_to_memory, get_encoded_pubdata},
+};
 use crate::{
     interface::{BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv, TxExecutionMode},
     vm_latest::{
@@ -15,6 +18,7 @@ use crate::{
         constants::TX_DESCRIPTION_OFFSET,
         types::internals::{PubdataInput, TransactionData},
         utils::l2_blocks::assert_next_block,
+        MultiVMSubversion,
     },
 };
 
@@ -45,6 +49,10 @@ pub struct BootloaderState {
     free_tx_offset: usize,
     /// Information about the the pubdata that will be needed to supply to the L1Messenger
     pubdata_information: OnceCell<PubdataInput>,
+    /// Params related to how the pubdata should be processed by the bootloader in the batch
+    pubdata_params: PubdataParams,
+    /// VM subversion
+    subversion: MultiVMSubversion,
 }
 
 impl BootloaderState {
@@ -52,6 +60,8 @@ impl BootloaderState {
         execution_mode: TxExecutionMode,
         initial_memory: BootloaderMemory,
         first_l2_block: L2BlockEnv,
+        pubdata_params: PubdataParams,
+        subversion: MultiVMSubversion,
     ) -> Self {
         let l2_block = BootloaderL2Block::new(first_l2_block, 0);
         Self {
@@ -62,6 +72,8 @@ impl BootloaderState {
             execution_mode,
             free_tx_offset: 0,
             pubdata_information: Default::default(),
+            pubdata_params,
+            subversion,
         }
     }
 
@@ -135,10 +147,29 @@ impl BootloaderState {
     pub(crate) fn last_l2_block(&self) -> &BootloaderL2Block {
         self.l2_blocks.last().unwrap()
     }
+
     pub(crate) fn get_pubdata_information(&self) -> &PubdataInput {
         self.pubdata_information
             .get()
             .expect("Pubdata information is not set")
+    }
+
+    pub(crate) fn get_encoded_pubdata(&self) -> Vec<u8> {
+        let pubdata_information = self
+            .pubdata_information
+            .get()
+            .expect("Pubdata information is not set")
+            .clone();
+
+        match self.subversion {
+            MultiVMSubversion::SmallBootloaderMemory
+            | MultiVMSubversion::IncreasedBootloaderMemory => {
+                pubdata_information.build_pubdata_pre_gateway(false)
+            }
+            MultiVMSubversion::Gateway => {
+                get_encoded_pubdata(pubdata_information, self.pubdata_params, false)
+            }
+        }
     }
 
     fn last_mut_l2_block(&mut self) -> &mut BootloaderL2Block {
@@ -178,7 +209,12 @@ impl BootloaderState {
             .into_inner()
             .expect("Empty pubdata information");
 
-        apply_pubdata_to_memory(&mut initial_memory, pubdata_information);
+        apply_pubdata_to_memory(
+            &mut initial_memory,
+            pubdata_information,
+            self.pubdata_params,
+            self.subversion,
+        );
         initial_memory
     }
 
@@ -290,5 +326,13 @@ impl BootloaderState {
                 "Snapshot with no pubdata can not rollback to snapshot with one"
             );
         }
+    }
+
+    pub(crate) fn get_pubdata_params(&self) -> PubdataParams {
+        self.pubdata_params
+    }
+
+    pub(crate) fn get_vm_subversion(&self) -> MultiVMSubversion {
+        self.subversion
     }
 }

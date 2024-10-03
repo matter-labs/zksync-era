@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
 use zksync_contracts::BaseSystemContracts;
-use zksync_types::{L2ChainId, ProtocolVersionId};
+use zksync_types::{commitment::PubdataParams, L2ChainId, ProtocolVersionId};
 
 /// Params related to the execution process, not batch it self
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
@@ -15,6 +15,7 @@ pub struct SystemEnv {
     pub execution_mode: TxExecutionMode,
     pub default_validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
+    pub pubdata_params: PubdataParams,
 }
 
 impl Debug for SystemEnv {
@@ -33,6 +34,7 @@ impl Debug for SystemEnv {
             )
             .field("execution_mode", &self.execution_mode)
             .field("chain_id", &self.chain_id)
+            .field("pubdata_params", &self.pubdata_params)
             .finish()
     }
 }

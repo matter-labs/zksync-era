@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use zksync_contracts::BaseSystemContracts;
 use zksync_types::{
     block::L2BlockHasher,
+    commitment::PubdataParams,
     fee_model::BatchFeeInput,
     get_code_key, get_is_account_key,
     helpers::unix_timestamp_ms,
@@ -146,6 +147,7 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 chain_id: L2ChainId::from(270),
+                pubdata_params: Default::default(),
             },
             deployer: None,
             rich_accounts: vec![],
@@ -213,6 +215,11 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
 
     pub(crate) fn with_custom_contracts(mut self, contracts: Vec<ContractsToDeploy>) -> Self {
         self.custom_contracts = contracts;
+        self
+    }
+
+    pub(crate) fn with_custom_pubdata_params(mut self, pubdata_params: PubdataParams) -> Self {
+        self.system_env.pubdata_params = pubdata_params;
         self
     }
 

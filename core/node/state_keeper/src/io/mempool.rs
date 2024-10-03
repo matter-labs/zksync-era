@@ -14,8 +14,10 @@ use zksync_mempool::L2TxFilter;
 use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
-    protocol_upgrade::ProtocolUpgradeTx, utils::display_timestamp, Address, L1BatchNumber,
-    L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
+    commitment::{L1BatchCommitmentMode, PubdataParams},
+    protocol_upgrade::ProtocolUpgradeTx,
+    utils::display_timestamp,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
@@ -55,6 +57,8 @@ pub struct MempoolIO {
     // Used to keep track of gas prices to set accepted price per pubdata byte in blocks.
     batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
     chain_id: L2ChainId,
+    l2_da_validator_address: Option<Address>,
+    pubdata_type: L1BatchCommitmentMode,
 }
 
 impl IoSealCriteria for MempoolIO {
@@ -191,6 +195,18 @@ impl StateKeeperIO for MempoolIO {
                 continue;
             }
 
+            let pubdata_params = match (
+                protocol_version.is_pre_gateway(),
+                self.l2_da_validator_address,
+            ) {
+                (true, _) => PubdataParams::default(),
+                (false, Some(l2_da_validator_address)) => PubdataParams {
+                    l2_da_validator_address,
+                    pubdata_type: self.pubdata_type,
+                },
+                (false, None) => anyhow::bail!("L2 DA validator address not found"),
+            };
+
             return Ok(Some(L1BatchParams {
                 protocol_version,
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
@@ -201,6 +217,7 @@ impl StateKeeperIO for MempoolIO {
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
                 },
+                pubdata_params,
             }));
         }
         Ok(None)
@@ -408,6 +425,7 @@ async fn sleep_past(timestamp: u64, l2_block: L2BlockNumber) -> u64 {
 }
 
 impl MempoolIO {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         mempool: MempoolGuard,
         batch_fee_input_provider: Arc<dyn BatchFeeModelInputProvider>,
@@ -416,6 +434,8 @@ impl MempoolIO {
         fee_account: Address,
         delay_interval: Duration,
         chain_id: L2ChainId,
+        l2_da_validator_address: Option<Address>,
+        pubdata_type: L1BatchCommitmentMode,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             mempool,
@@ -431,6 +451,8 @@ impl MempoolIO {
             delay_interval,
             batch_fee_input_provider,
             chain_id,
+            l2_da_validator_address,
+            pubdata_type,
         })
     }
 }

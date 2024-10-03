@@ -19,7 +19,10 @@ use zksync_utils::h256_to_u256;
 
 use crate::{
     metrics::{CommitmentStage, METRICS},
-    utils::{convert_vm_events_to_log_queries, CommitmentComputer, RealCommitmentComputer},
+    utils::{
+        convert_vm_events_to_log_queries, pubdata_to_blob_linear_hashes, read_aggregation_root,
+        CommitmentComputer, RealCommitmentComputer,
+    },
 };
 
 mod metrics;
@@ -262,15 +265,33 @@ impl CommitmentGenerator {
             }
             state_diffs.sort_unstable_by_key(|rec| (rec.address, rec.key));
 
-            let blob_commitments = if protocol_version.is_post_1_4_2() {
+            let (blob_commitments, blob_linear_hashes) = if protocol_version.is_post_1_4_2() {
                 let pubdata_input = header.pubdata_input.with_context(|| {
                     format!("`pubdata_input` is missing for L1 batch #{l1_batch_number}")
                 })?;
 
-                pubdata_to_blob_commitments(num_blobs_required(&protocol_version), &pubdata_input)
+                let commitments = pubdata_to_blob_commitments(
+                    num_blobs_required(&protocol_version),
+                    &pubdata_input,
+                );
+                let linear_hashes = pubdata_to_blob_linear_hashes(
+                    num_blobs_required(&protocol_version),
+                    pubdata_input,
+                );
+
+                (commitments, linear_hashes)
             } else {
-                vec![H256::zero(); num_blobs_required(&protocol_version)]
+                (
+                    vec![H256::zero(); num_blobs_required(&protocol_version)],
+                    vec![H256::zero(); num_blobs_required(&protocol_version)],
+                )
             };
+
+            let mut connection = self
+                .connection_pool
+                .connection_tagged("commitment_generator")
+                .await?;
+            let aggregated_root = read_aggregation_root(&mut connection, l1_batch_number).await?;
 
             CommitmentInput::PostBoojum {
                 common,
@@ -278,6 +299,8 @@ impl CommitmentGenerator {
                 state_diffs,
                 aux_commitments,
                 blob_commitments,
+                blob_linear_hashes,
+                aggregated_root,
             }
         };
 
@@ -356,7 +379,6 @@ impl CommitmentGenerator {
             (L1BatchCommitmentMode::Rollup, _) => {
                 // Do nothing
             }
-
             (
                 L1BatchCommitmentMode::Validium,
                 CommitmentInput::PostBoojum {

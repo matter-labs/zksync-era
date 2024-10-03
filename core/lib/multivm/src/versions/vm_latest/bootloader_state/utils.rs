@@ -1,4 +1,7 @@
-use zksync_types::{ethabi, U256};
+use zksync_types::{
+    commitment::{L1BatchCommitmentMode, PubdataParams},
+    ethabi, U256,
+};
 use zksync_utils::{bytes_to_be_words, h256_to_u256};
 
 use super::tx::BootloaderTx;
@@ -14,7 +17,11 @@ use crate::{
             TX_DESCRIPTION_OFFSET, TX_OPERATOR_L2_BLOCK_INFO_OFFSET,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO, TX_OVERHEAD_OFFSET, TX_TRUSTED_GAS_LIMIT_OFFSET,
         },
-        types::internals::PubdataInput,
+        types::internals::{
+            pubdata::{PubdataBuilder, RollupPubdataBuilder, ValidiumPubdataBuilder},
+            PubdataInput,
+        },
+        MultiVMSubversion,
     },
 };
 
@@ -124,26 +131,71 @@ fn apply_l2_block_inner(
     ])
 }
 
+pub(crate) fn get_encoded_pubdata(
+    pubdata_information: PubdataInput,
+    pubdata_params: PubdataParams,
+    l2_version: bool,
+) -> Vec<u8> {
+    let pubdata_bytes: Vec<u8> = if pubdata_params.pubdata_type == L1BatchCommitmentMode::Rollup {
+        RollupPubdataBuilder.build_pubdata(pubdata_information, l2_version)
+    } else {
+        ValidiumPubdataBuilder.build_pubdata(pubdata_information, l2_version)
+    };
+
+    if l2_version {
+        ethabi::encode(&[
+            ethabi::Token::Address(pubdata_params.l2_da_validator_address),
+            ethabi::Token::Bytes(pubdata_bytes),
+        ])
+        .to_vec()
+    } else {
+        pubdata_bytes
+    }
+}
+
 pub(crate) fn apply_pubdata_to_memory(
     memory: &mut BootloaderMemory,
     pubdata_information: PubdataInput,
+    pubdata_params: PubdataParams,
+    subversion: MultiVMSubversion,
 ) {
-    // Skipping two slots as they will be filled by the bootloader itself:
-    // - One slot is for the selector of the call to the L1Messenger.
-    // - The other slot is for the 0x20 offset for the calldata.
-    let l1_messenger_pubdata_start_slot = OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + 2;
+    let (l1_messenger_pubdata_start_slot, pubdata) = match subversion {
+        MultiVMSubversion::SmallBootloaderMemory | MultiVMSubversion::IncreasedBootloaderMemory => {
+            // Skipping two slots as they will be filled by the bootloader itself:
+            // - One slot is for the selector of the call to the L1Messenger.
+            // - The other slot is for the 0x20 offset for the calldata.
+            let l1_messenger_pubdata_start_slot = OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + 2;
 
-    // Need to skip first word as it represents array offset
-    // while bootloader expects only [len || data]
-    let pubdata = ethabi::encode(&[ethabi::Token::Bytes(
-        pubdata_information.build_pubdata(true),
-    )])[32..]
-        .to_vec();
+            // Need to skip first word as it represents array offset
+            // while bootloader expects only [len || data]
+            let pubdata = ethabi::encode(&[ethabi::Token::Bytes(
+                pubdata_information.build_pubdata_pre_gateway(true),
+            )])[32..]
+                .to_vec();
 
-    assert!(
-        pubdata.len() / 32 <= OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS - 2,
-        "The encoded pubdata is too big"
-    );
+            assert!(
+                pubdata.len() / 32 <= OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS - 2,
+                "The encoded pubdata is too big"
+            );
+
+            (l1_messenger_pubdata_start_slot, pubdata)
+        }
+        MultiVMSubversion::Gateway => {
+            // Skipping the first slot as it will be filled by the bootloader itself:
+            // It is for the selector of the call to the L1Messenger.
+            let l1_messenger_pubdata_start_slot = OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + 1;
+
+            let pubdata = get_encoded_pubdata(pubdata_information, pubdata_params, true);
+
+            assert!(
+                // Note that unlike the previous version, the difference is `1`, since now it also includes the offset
+                pubdata.len() / 32 < OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
+                "The encoded pubdata is too big"
+            );
+
+            (l1_messenger_pubdata_start_slot, pubdata)
+        }
+    };
 
     pubdata
         .chunks(32)

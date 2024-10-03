@@ -402,6 +402,7 @@ pub async fn create_genesis_l1_batch(
         virtual_blocks: 0,
         gas_limit: 0,
         logs_bloom: Bloom::zero(),
+        pubdata_params: Default::default(),
     };
 
     let mut transaction = storage.start_transaction().await?;
