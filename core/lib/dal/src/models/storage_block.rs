@@ -4,10 +4,9 @@ use bigdecimal::{BigDecimal, ToPrimitive};
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use thiserror::Error;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_types::block::UnsealedL1BatchHeader;
 use zksync_types::{
     api,
-    block::{L1BatchHeader, L2BlockHeader},
+    block::{L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},

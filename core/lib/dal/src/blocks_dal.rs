@@ -13,12 +13,11 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
     interpolate_query, match_query_as,
 };
-use zksync_types::block::UnsealedL1BatchHeader;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{
         BlockGasCount, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
-        StorageOracleInfo,
+        StorageOracleInfo, UnsealedL1BatchHeader,
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
     fee_model::BatchFeeInput,
@@ -28,12 +27,13 @@ use zksync_types::{
 };
 use zksync_vm_interface::CircuitStatistic;
 
-use crate::models::storage_block::UnsealedStorageL1Batch;
 pub use crate::models::storage_block::{L1BatchMetadataError, L1BatchWithOptionalMetadata};
 use crate::{
     models::{
         parse_protocol_version,
-        storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader},
+        storage_block::{
+            StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader, UnsealedStorageL1Batch,
+        },
         storage_event::StorageL2ToL1Log,
         storage_oracle_info::DbStorageOracleInfo,
     },
@@ -585,43 +585,43 @@ impl BlocksDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                l1_batches (
-                    number,
-                    timestamp,
-                    protocol_version,
-                    fee_address,
-                    l1_gas_price,
-                    l2_fair_gas_price,
-                    fair_pubdata_price,
-                    l1_tx_count,
-                    l2_tx_count,
-                    bloom,
-                    priority_ops_onchain_data,
-                    initial_bootloader_heap_content,
-                    used_contract_hashes,
-                    created_at,
-                    updated_at,
-                    is_sealed
-                )
+            l1_batches (
+                number,
+                timestamp,
+                protocol_version,
+                fee_address,
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price,
+                l1_tx_count,
+                l2_tx_count,
+                bloom,
+                priority_ops_onchain_data,
+                initial_bootloader_heap_content,
+                used_contract_hashes,
+                created_at,
+                updated_at,
+                is_sealed
+            )
             VALUES
-                (
-                    $1,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    0,
-                    0,
-                    ''::bytea,
-                    '{}'::bytea[],
-                    '{}'::jsonb,
-                    '{}'::jsonb,
-                    NOW(),
-                    NOW(),
-                    FALSE
-                )
+            (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                0,
+                0,
+                ''::bytea,
+                '{}'::bytea [],
+                '{}'::jsonb,
+                '{}'::jsonb,
+                NOW(),
+                NOW(),
+                FALSE
+            )
             "#,
             i64::from(number.0),
             timestamp as i64,

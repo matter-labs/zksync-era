@@ -37,22 +37,24 @@ impl VmRunnerDal<'_, '_> {
         let row = sqlx::query!(
             r#"
             WITH
-                available_batches AS (
-                    SELECT
-                        MAX(number) AS "last_batch"
-                    FROM
-                        l1_batches
-                    WHERE
-                        is_sealed
-                ),
-                processed_batches AS (
-                    SELECT
-                        COALESCE(MAX(l1_batch_number), $1) + $2 AS "last_ready_batch"
-                    FROM
-                        vm_runner_protective_reads
-                    WHERE
-                        time_taken IS NOT NULL
-                )
+            available_batches AS (
+                SELECT
+                    MAX(number) AS "last_batch"
+                FROM
+                    l1_batches
+                WHERE
+                    is_sealed
+            ),
+            
+            processed_batches AS (
+                SELECT
+                    COALESCE(MAX(l1_batch_number), $1) + $2 AS "last_ready_batch"
+                FROM
+                    vm_runner_protective_reads
+                WHERE
+                    time_taken IS NOT NULL
+            )
+            
             SELECT
                 LEAST(last_batch, last_ready_batch) AS "last_ready_batch!"
             FROM
@@ -200,22 +202,24 @@ impl VmRunnerDal<'_, '_> {
         let row = sqlx::query!(
             r#"
             WITH
-                available_batches AS (
-                    SELECT
-                        MAX(number) AS "last_batch"
-                    FROM
-                        l1_batches
-                    WHERE
-                        is_sealed
-                ),
-                processed_batches AS (
-                    SELECT
-                        COALESCE(MAX(l1_batch_number), $1) + $2 AS "last_ready_batch"
-                    FROM
-                        vm_runner_bwip
-                    WHERE
-                        time_taken IS NOT NULL
-                )
+            available_batches AS (
+                SELECT
+                    MAX(number) AS "last_batch"
+                FROM
+                    l1_batches
+                WHERE
+                    is_sealed
+            ),
+            
+            processed_batches AS (
+                SELECT
+                    COALESCE(MAX(l1_batch_number), $1) + $2 AS "last_ready_batch"
+                FROM
+                    vm_runner_bwip
+                WHERE
+                    time_taken IS NOT NULL
+            )
+            
             SELECT
                 LEAST(last_batch, last_ready_batch) AS "last_ready_batch!"
             FROM
