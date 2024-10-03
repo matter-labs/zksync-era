@@ -2,7 +2,6 @@ use std::path::Path;
 
 use anyhow::Context;
 use common::{
-    config::global_config,
     contracts::build_l2_contracts,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
