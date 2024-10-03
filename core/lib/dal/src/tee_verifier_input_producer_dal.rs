@@ -74,9 +74,63 @@ impl TeeVerifierInputProducerDal<'_, '_> {
         Ok(())
     }
 
+    pub async fn get_new_l1_batch(&mut self) -> DalResult<Option<L1BatchNumber>> {
+        // Since we depend on Merkle paths, we use the proof_generation_details table to inform us of newly available to-be-proven batches.
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MAX(l1_batch_number) AS "number"
+            FROM
+                proof_generation_details
+            WHERE
+                proof_gen_data_blob_url IS NOT NULL
+            "#
+        )
+        .instrument("get_sealed_l1_batch_number")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?
+        .number;
+
+        let max_sealed = match row {
+            Some(number) => number,
+            None => return Ok(None),
+        };
+
+        let row = sqlx::query!(
+            r#"
+            SELECT
+                MAX(l1_batch_number) AS "number"
+            FROM
+                tee_verifier_input_producer_jobs
+            "#
+        )
+        .instrument("get_latest_tee_verifier_input_producer_jobs")
+        .report_latency()
+        .fetch_one(self.storage)
+        .await?
+        .number;
+
+        match row {
+            // If no batches have been processed by TEE so far, i.e., table is empty, we start with the most recent L1 batch.
+            None => Ok(Some(L1BatchNumber(max_sealed as u32))),
+            Some(max_tee_batch_number) => {
+                if max_sealed > max_tee_batch_number {
+                    Ok(Some(L1BatchNumber(max_tee_batch_number as u32 + 1)))
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    }
+
     pub async fn get_next_tee_verifier_input_producer_job(
         &mut self,
     ) -> DalResult<Option<L1BatchNumber>> {
+        if let Some(n) = self.get_new_l1_batch().await? {
+            self.create_tee_verifier_input_producer_job(n).await?;
+        }
+
         let l1_batch_number = sqlx::query!(
             r#"
             UPDATE tee_verifier_input_producer_jobs
