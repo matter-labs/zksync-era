@@ -111,14 +111,13 @@ impl TeeRequestProcessor {
         let chain_id_key = get_system_context_key(SYSTEM_CONTEXT_CHAIN_ID_POSITION);
 
         let l2_chain_id = L2ChainId::from(h256_to_u32(
-            vm_run_data
+            *vm_run_data
                 .witness_block_state
                 .read_storage_key
                 .get(&chain_id_key)
                 .ok_or(RequestProcessorError::GeneralError(
                     "Failed to get L2ChainId from witness inputs".into(),
-                ))?
-                .clone(),
+                ))?,
         ));
 
         let mut connection = self
@@ -131,7 +130,7 @@ impl TeeRequestProcessor {
             .transactions_dal()
             .get_l2_blocks_to_execute_for_l1_batch(l1_batch_number)
             .await
-            .map_err(|err| RequestProcessorError::Dal(err))?;
+            .map_err(RequestProcessorError::Dal)?;
 
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection)
             .await
