@@ -51,6 +51,7 @@ jobs:
 
           ci_run zk_inception ecosystem init --dev --verbose
           ci_run zk_inception prover init --dev
+          ci_run zk_inception prover init-bellman-cuda --clone
           
           ci_run zk_inception prover setup-keys --mode=download --region=us
       - name: Run server
@@ -61,16 +62,53 @@ jobs:
         run: |
           ci_run zk_inception prover run --component=gateway --docker=false
           ci_run sleep 60
-      - name: Run Prover
-        run: |
-          ci_run zk_inception prover run --component=prover --docker=false
-          ci_run sleep 60
       - name: Run Witness Generator
         run: |
           ci_run zk_inception prover run --component=witness-generator --rounds=all-rounds --docker=false
           ci_run sleep 60
-      - name: Run WVG
+      - name: Run Witness Vector Generator
         run: |
           ci_run zk_inception prover run --component=witness-vector-generator --docker=false
           ci_run sleep 60
+      - name: Run Prover
+        run: |
+          ci_run zk_inception prover run --component=prover --docker=false
+          
+          # Capture the PID of the prover run process
+          PROVER_PID=$!
+          echo "Prover started with PID: $PROVER_PID"
+          
+          # Store the PID in a file to reference later if needed
+          echo $PROVER_PID > prover_pid.txt
+          
+          ci_run sleep 60
 
+      - name: Wait for prover jobs to finish
+        run: |
+          echo "DATABASE_URL=postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_legacy" >> .env
+          echo "BATCH_NUMBER=1" >> .env
+          echo "INTERVAL=30" >> .env
+          # 15 minutes
+          echo "TIMEOUT=900" >> .env
+          
+          PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
+          ci_run ./bin/prover_jobs_status_checker
+
+      - name: Kill prover & start compressor
+        run: |
+          # Read the PID from the file
+          PROVER_PID=$(cat prover_pid.txt)
+          echo "Killing prover with PID: $PROVER_PID"
+          kill $PROVER_PID
+          
+          ci_run zk_inception prover run --component=compressor --docker=false
+          ci_run sleep 60
+      - name: Wait for batch to be executed on L1
+        run: |
+          echo "URL=http://127.0.0.1:3052/" >> .env
+          echo "INTERVAL=30" >> .env
+          # 5 minutes
+          echo "TIMEOUT=300" >> .env
+          
+          PASSED_ENV_VARS="URL,INTERVAL,TIMEOUT" \
+          ci_run ./bin/batch_l1_status_checker

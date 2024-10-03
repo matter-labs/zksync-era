@@ -297,7 +297,7 @@ pub fn load_setup_data_cache(
                 .context("FriProverGroupConfig::from_env()")?
                 .get_circuit_ids_for_group_id(config.specialized_group_id)
                 .expect(
-                    "At least one circuit should be configured for group when running in FromMemory mode",
+                    "At least two circuit should be configured for group when running in FromMemory mode", //todo: changed in testing purposes, remove after
                 );
             tracing::info!(
                 "for group {} configured setup metadata are {:?}",

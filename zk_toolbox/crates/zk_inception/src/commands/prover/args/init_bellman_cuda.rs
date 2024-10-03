@@ -10,7 +10,9 @@ use crate::messages::{
 
 #[derive(Debug, Clone, Parser, Default, Serialize, Deserialize)]
 pub struct InitBellmanCudaArgs {
-    #[clap(long)]
+    #[clap(long, conflicts_with_all(["bellman_cuda_dir"]))]
+    pub clone: bool,
+    #[clap(long, conflicts_with_all(["clone"]))]
     pub bellman_cuda_dir: Option<String>,
 }
 
@@ -31,19 +33,26 @@ impl std::fmt::Display for BellmanCudaPathSelection {
 
 impl InitBellmanCudaArgs {
     pub fn fill_values_with_prompt(self) -> InitBellmanCudaArgs {
-        let bellman_cuda_dir = self.bellman_cuda_dir.unwrap_or_else(|| {
-            match PromptSelect::new(
-                MSG_BELLMAN_CUDA_ORIGIN_SELECT,
-                BellmanCudaPathSelection::iter(),
-            )
-            .ask()
-            {
-                BellmanCudaPathSelection::Clone => "".to_string(),
-                BellmanCudaPathSelection::Path => Prompt::new(MSG_BELLMAN_CUDA_DIR_PROMPT).ask(),
-            }
-        });
+        let bellman_cuda_dir = if self.clone {
+            "".to_string()
+        } else {
+            self.bellman_cuda_dir.unwrap_or_else(|| {
+                match PromptSelect::new(
+                    MSG_BELLMAN_CUDA_ORIGIN_SELECT,
+                    BellmanCudaPathSelection::iter(),
+                )
+                .ask()
+                {
+                    BellmanCudaPathSelection::Clone => "".to_string(),
+                    BellmanCudaPathSelection::Path => {
+                        Prompt::new(MSG_BELLMAN_CUDA_DIR_PROMPT).ask()
+                    }
+                }
+            })
+        };
 
         InitBellmanCudaArgs {
+            clone: self.clone,
             bellman_cuda_dir: Some(bellman_cuda_dir),
         }
     }
