@@ -123,7 +123,7 @@ describe('Upgrade test', function () {
             await utils.exec('pkill zksync_server');
             // It may take some time for witness generator to stop.
             await utils.sleep(10);
-        } catch (_) { }
+        } catch (_) {}
 
         // Set small timeouts.
         process.env.ETH_SENDER_SENDER_AGGREGATED_BLOCK_COMMIT_DEADLINE = '1';
@@ -373,7 +373,7 @@ describe('Upgrade test', function () {
 
         try {
             await utils.exec('pkill zksync_server');
-        } catch (_) { }
+        } catch (_) {}
     });
 
     async function sendGovernanceOperation(data: string) {
