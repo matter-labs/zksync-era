@@ -550,7 +550,7 @@ impl ProverInitArgs {
                     .ask()
             });
 
-            if !self.use_default.unwrap_or_else(|| {
+            if self.use_default.unwrap_or_else(|| {
                 PromptConfirm::new(MSG_USE_DEFAULT_DATABASES_HELP)
                     .default(true)
                     .ask()
