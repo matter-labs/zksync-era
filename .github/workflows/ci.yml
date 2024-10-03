@@ -97,7 +97,7 @@ jobs:
   e2e-for-prover:
     name: E2E Test for Prover Components
     needs: changed_files
-    if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    if: ${{!contains(github.ref_name, 'release-please--branches') }} #  (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') &&
     uses: ./.github/workflows/ci-prover-e2e.yml
 
   ci-for-docs:
