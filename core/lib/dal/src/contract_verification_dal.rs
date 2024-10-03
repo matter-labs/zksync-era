@@ -67,25 +67,25 @@ impl ContractVerificationDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                contract_verification_requests (
-                    contract_address,
-                    source_code,
-                    contract_name,
-                    zk_compiler_version,
-                    compiler_version,
-                    optimization_used,
-                    optimizer_mode,
-                    constructor_arguments,
-                    is_system,
-                    force_evmla,
-                    status,
-                    created_at,
-                    updated_at
-                )
+            contract_verification_requests (
+                contract_address,
+                source_code,
+                contract_name,
+                zk_compiler_version,
+                compiler_version,
+                optimization_used,
+                optimizer_mode,
+                constructor_arguments,
+                is_system,
+                force_evmla,
+                status,
+                created_at,
+                updated_at
+            )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'queued', NOW(), NOW())
+            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'queued', NOW(), NOW())
             RETURNING
-                id
+            id
             "#,
             query.contract_address.as_bytes(),
             // Serialization should always succeed.
@@ -143,20 +143,20 @@ impl ContractVerificationDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                id,
-                contract_address,
-                source_code,
-                contract_name,
-                zk_compiler_version,
-                compiler_version,
-                optimization_used,
-                optimizer_mode,
-                constructor_arguments,
-                is_system,
-                force_evmla
+            id,
+            contract_address,
+            source_code,
+            contract_name,
+            zk_compiler_version,
+            compiler_version,
+            optimization_used,
+            optimizer_mode,
+            constructor_arguments,
+            is_system,
+            force_evmla
             "#,
             &processing_timeout
         )
@@ -198,13 +198,13 @@ impl ContractVerificationDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                contracts_verification_info (address, verification_info)
+            contracts_verification_info (address, verification_info)
             VALUES
-                ($1, $2)
+            ($1, $2)
             ON CONFLICT (address) DO
             UPDATE
             SET
-                verification_info = $2
+            verification_info = $2
             "#,
             address.as_bytes(),
             &verification_info_json
@@ -313,8 +313,8 @@ impl ContractVerificationDal<'_, '_> {
                     LIMIT
                         1
                 ) deploy_event
-                JOIN factory_deps ON factory_deps.bytecode_hash = deploy_event.topic3
-                LEFT JOIN transactions ON transactions.hash = deploy_event.tx_hash
+            JOIN factory_deps ON factory_deps.bytecode_hash = deploy_event.topic3
+            LEFT JOIN transactions ON transactions.hash = deploy_event.tx_hash
             WHERE
                 deploy_event.miniblock_number <= (
                     SELECT
@@ -375,9 +375,9 @@ impl ContractVerificationDal<'_, '_> {
             SELECT
                 VERSION
             FROM
-                compiler_versions
+                COMPILER_VERSIONS
             WHERE
-                compiler = $1
+                COMPILER = $1
             ORDER BY
                 VERSION
             "#,
@@ -433,15 +433,15 @@ impl ContractVerificationDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                compiler_versions (VERSION, compiler, created_at, updated_at)
+            compiler_versions (version, compiler, created_at, updated_at)
             SELECT
                 u.version,
                 $2,
                 NOW(),
                 NOW()
             FROM
-                UNNEST($1::TEXT[]) AS u (VERSION)
-            ON CONFLICT (VERSION, compiler) DO NOTHING
+                UNNEST($1::TEXT []) AS u (version)
+            ON CONFLICT (version, compiler) DO NOTHING
             "#,
             &versions,
             &compiler,

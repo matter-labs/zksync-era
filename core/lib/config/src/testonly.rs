@@ -79,6 +79,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             gas_price_scale_factor: self.sample(rng),
             estimate_gas_scale_factor: self.sample(rng),
             estimate_gas_acceptable_overestimation: self.sample(rng),
+            estimate_gas_optimize_search: self.sample(rng),
             max_tx_size: self.sample(rng),
             vm_execution_cache_misses_limit: self.sample(rng),
             vm_concurrency_limit: self.sample(rng),

@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::Context;
-use common::{config::global_config, docker};
+use common::docker;
 use config::{explorer_compose::ExplorerBackendComposeConfig, EcosystemConfig};
 use xshell::Shell;
 
@@ -13,7 +13,7 @@ use crate::messages::{
 pub(crate) fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let chain_name = chain_config.name.clone();
     // Read chain-level explorer backend docker compose file

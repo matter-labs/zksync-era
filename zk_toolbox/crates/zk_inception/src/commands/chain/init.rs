@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{config::global_config, git, logger, spinner::Spinner};
+use common::{git, logger, spinner::Spinner};
 use config::{
     copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
     ChainConfig, EcosystemConfig, DEFAULT_CONSENSUS_PORT,
@@ -34,10 +34,9 @@ use crate::{
 };
 
 pub(crate) async fn run(args: InitArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
     let config = EcosystemConfig::from_file(shell)?;
     let chain_config = config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let mut args = args.fill_values_with_prompt(&chain_config);
 
