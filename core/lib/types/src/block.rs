@@ -68,6 +68,15 @@ pub struct L1BatchHeader {
     pub fee_address: Address,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct UnsealedL1BatchHeader {
+    pub number: L1BatchNumber,
+    pub timestamp: u64,
+    pub protocol_version: Option<ProtocolVersionId>,
+    pub fee_address: Address,
+    pub fee_input: BatchFeeInput,
+}
+
 /// Holder for the L2 block metadata that is not available from transactions themselves.
 #[derive(Debug, Clone, PartialEq)]
 pub struct L2BlockHeader {

@@ -13,6 +13,7 @@ use zksync_db_connection::{
     instrument::{InstrumentExt, Instrumented},
     interpolate_query, match_query_as,
 };
+use zksync_types::block::UnsealedL1BatchHeader;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{
@@ -27,6 +28,7 @@ use zksync_types::{
 };
 use zksync_vm_interface::CircuitStatistic;
 
+use crate::models::storage_block::UnsealedStorageL1Batch;
 pub use crate::models::storage_block::{L1BatchMetadataError, L1BatchWithOptionalMetadata};
 use crate::{
     models::{
@@ -731,6 +733,31 @@ impl BlocksDal<'_, '_> {
         }
 
         Ok(())
+    }
+
+    pub async fn get_unsealed_l1_batch(&mut self) -> DalResult<Option<UnsealedL1BatchHeader>> {
+        let batch = sqlx::query_as!(
+            UnsealedStorageL1Batch,
+            r#"
+            SELECT
+                number,
+                timestamp,
+                protocol_version,
+                fee_address,
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price
+            FROM
+                l1_batches
+            WHERE
+                NOT is_sealed
+            "#,
+        )
+        .instrument("get_last_committed_to_eth_l1_batch")
+        .fetch_optional(self.storage)
+        .await?;
+
+        Ok(batch.map(|b| b.into()))
     }
 
     pub async fn insert_l2_block(&mut self, l2_block_header: &L2BlockHeader) -> DalResult<()> {
