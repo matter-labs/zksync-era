@@ -10,8 +10,8 @@ Generally, you don't always need a VM to work on prover. You typically need it t
 to them, and you can't store sensitive data (like SSH keys) there, so they can't be used as primary workstations.
 Finally, the VMs with GPU aren't cheap, so we expect you to use them when you really need them.
 
-A typical workflow so far is to instantiate a new VM when you need it, and remove once you're done. Remember: even if
-the VM is stopped, the SSD is persisted, so it's not free.
+A typical workflow so far is to instantiate a new VM when you need it, and remove it once you're done. Remember: even if
+the VM is stopped, the SSD persists, so it's not free.
 
 ## Create a VM
 
@@ -95,7 +95,7 @@ Native `tmux` may be hard to use, so you may also want to install some configura
 - [oh-my-tmux](https://github.com/gpakosz/.tmux) or
 - [tmux-sensible](https://github.com/tmux-plugins/tmux-sensible).
 
-Finally, it is recommended to choose a different terminal theme or prompt than what you use locally, so that you can
+Finally, it is recommended to choose a different terminal theme or prompt from what you use locally, so that you can
 easily see whether you're running in the VM or locally.
 
 ## Connecting via VS Code
@@ -135,7 +135,7 @@ Host gcp_vm
 ```
 
 Once you've configured the host, you can click on "Connect to" again, then "Connect to Host", and your VM should be
-listed there. On the first connect you'll have to confirm that you want to connect to it, and then choose the operating
+listed there. On the first connection you'll have to confirm that you want to connect to it, and then choose the operating
 system (Linux).
 
 ## On security

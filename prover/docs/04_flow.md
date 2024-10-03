@@ -16,7 +16,7 @@ After that, we will touch on how this flow is mapped on the actual production in
 Core and prover subsystem are built in such a way that they are mostly isolated from each other. Each side has its own
 database and GCS buckets, and both have "gateway" components they use for interaction.
 
-The only exception here is the `house_keeper`: it's a component that exists as a part of the server, it's main purpose
+The only exception here is the `house_keeper`: it's a component that exists as a part of the server, its main purpose
 is to manage jobs (and emit metrics for job management) in the prover workspace, but at the same time it has access to
 both core and prover databases. The component will probably be split in the future and most of it will be moved to the
 prover workspace.
@@ -72,7 +72,7 @@ sources. Then this data is given to the prover together with the batch number.
 ## Prover pipeline
 
 Once job is received by the prover, it has to go through several different stages. Consider this a mental model of the
-pipeline, since in reality some stages happen in parallel, and some have different degree of sequencing.
+pipeline, since in reality some stages happen in parallel, and some have different degrees of sequencing.
 
 ```mermaid
 sequenceDiagram
@@ -113,14 +113,14 @@ which are processed as follows:
 
 - On round 0, we also emit 10000 jobs. We aren't doing "actual" aggregation here.
 - On round 1, we're turning 10000 jobs into 100.
-- On round 2, we should turn these 100 jobs into at most 16. Depending on the batch parameters, it may required
+- On round 2, we should turn these 100 jobs into at most 16. Depending on the batch parameters, it may require
   additional "iterations" of the stage. For example, after we processed the initial 100 jobs, we may get 35 proofs.
   Then, additional node level jobs will be created, until we reduce the number to at most 16.
 - On round 3, we're turning 16 jobs into 1.
 - On round 4, we already have just 1 job, and we produce a single aggregated proof.
 - Finally, the proof is processed by the proof compressor and sent back to the core.
 
-Once again, these numbers are just for example, and don't necessarily represent the actual state of affairs. The exact
+Once again, these numbers are just for examples, and don't necessarily represent the actual state of affairs. The exact
 number of jobs depend on number of txs in a batch (and what's done inside those txs) while the aggregation split
 (mapping of `N circuits of level X` to `M circuits of level X + 1`) is determined by the config geometry.
 
@@ -175,7 +175,7 @@ information on that in the [further reading](99_further_reading.md) section.
 ## Prover groups
 
 The next problem you would meet once you start proving in production environment is that different
-`(aggregation_round, circuit_id)` pairs have different load. For some, you need a lot of machines, while for some a few
+`(aggregation_round, circuit_id)` pairs have different loads. For some, you need a lot of machines, while for some a few
 is enough.
 
 To help with that, we spread the machines into 15 different groups, based on how "busy" they are, and configure each
@@ -213,7 +213,7 @@ For the first two cases, there will be changes in circuits, and there will be ne
 proving process will be different. The latter has no implications for L2 behavior.
 
 As a result, after upgrade, we may need to generate different proofs. But given that upgrades happen asynchronously, we
-cannot guarantee that all the "old" batched will be proven at the time of upgrade.
+cannot guarantee that all the "old" batches will be proven at the time of upgrade.
 
 Because of that, prover is protocol version aware. Each binary that participates in proving is designed to only generate
 proofs for a single protocol version. Once the upgrade happens, "old" provers continue working on the "old" unproven

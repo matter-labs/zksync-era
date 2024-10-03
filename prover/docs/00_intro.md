@@ -15,7 +15,7 @@ follows:
 While not technically a part of the prover workspace, the following components are essential for it:
 
 - [Proof data handler][pdh]: API on the core side which Prover gateway interacts with.
-- [House keeper][hk]: Metrics exporter and job rescheduler. In it's absence, jobs would not be rescheduled and metrics
+- [House keeper][hk]: Metrics exporter and job rescheduler. In its absence, jobs would not be rescheduled and metrics
   used for autoscaling would not exist, rendering internal autoscaling infrastructure useless.
 
 Finally, the prover workspace has several CLI tools:
@@ -68,7 +68,7 @@ the availability of machines with required specs.
 
 ## How to develop
 
-Different parts of the subsystem have different hardware requirement, but the aggregated summary to be able to run
+Different parts of the subsystem have different hardware requirements, but the aggregated summary to be able to run
 everything on a single machine is as follows:
 
 - CPU with 16+ physical cores.
