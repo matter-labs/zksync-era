@@ -40,6 +40,9 @@ pub enum ChainCommands {
     /// Deploy L2 consensus registry
     #[command(alias = "consensus")]
     DeployConsensusRegistry(ForgeScriptArgs),
+    /// Deploy L2 multicall3
+    #[command(alias = "multicall3")]
+    DeployMulticall3(ForgeScriptArgs),
     /// Deploy Default Upgrader
     Upgrader(ForgeScriptArgs),
     /// Deploy paymaster smart contract
@@ -60,6 +63,9 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         }
         ChainCommands::DeployConsensusRegistry(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::ConsensusRegistry).await
+        }
+        ChainCommands::DeployMulticall3(args) => {
+            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Multicall3).await
         }
         ChainCommands::Upgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await
