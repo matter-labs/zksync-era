@@ -1,12 +1,15 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, mem};
 
 use zk_evm_1_5_0::{
     aux_structures::Timestamp,
-    zkevm_opcode_defs::{FatPointer, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER},
+    tracing::{AfterExecutionData, VmLocalStateData},
+    zkevm_opcode_defs::{
+        FarCallOpcode, FatPointer, Opcode, CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER,
+    },
 };
-use zksync_contracts::known_codes_contract;
 use zksync_types::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
 use zksync_utils::{bytes_to_be_words, h256_to_u256};
+use zksync_vm_interface::storage::StoragePtr;
 
 use super::{traits::VmTracer, utils::read_pointer};
 use crate::{
@@ -19,20 +22,68 @@ use crate::{
 
 /// Tracer responsible for collecting information about EVM deploys and providing those
 /// to the code decommitter.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct EvmDeployTracer<S> {
+    tracked_signature: [u8; 4],
+    pending_bytecodes: Vec<Vec<u8>>,
     _phantom: PhantomData<S>,
 }
 
 impl<S> EvmDeployTracer<S> {
     pub(crate) fn new() -> Self {
+        let tracked_signature =
+            ethabi::short_signature("publishEVMBytecode", &[ethabi::ParamType::Bytes]);
+
         Self {
+            tracked_signature,
+            pending_bytecodes: vec![],
             _phantom: PhantomData,
         }
     }
 }
 
-impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDeployTracer<S> {}
+impl<S, H: HistoryMode> DynTracer<S, SimpleMemory<H>> for EvmDeployTracer<S> {
+    fn after_execution(
+        &mut self,
+        state: VmLocalStateData<'_>,
+        data: AfterExecutionData,
+        memory: &SimpleMemory<H>,
+        _storage: StoragePtr<S>,
+    ) {
+        if !matches!(
+            data.opcode.variant.opcode,
+            Opcode::FarCall(FarCallOpcode::Normal)
+        ) {
+            return;
+        };
+
+        let current = state.vm_local_state.callstack.current;
+        let from = current.msg_sender;
+        let to = current.this_address;
+        if from != CONTRACT_DEPLOYER_ADDRESS || to != KNOWN_CODES_STORAGE_ADDRESS {
+            return;
+        }
+
+        let calldata_ptr =
+            state.vm_local_state.registers[usize::from(CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER)];
+        let data = read_pointer(memory, FatPointer::from_u256(calldata_ptr.value));
+        if data.len() < 4 {
+            return;
+        }
+        let (signature, data) = data.split_at(4);
+        if signature != self.tracked_signature {
+            return;
+        }
+
+        match ethabi::decode(&[ethabi::ParamType::Bytes], data) {
+            Ok(decoded) => {
+                let published_bytecode = decoded.into_iter().next().unwrap().into_bytes().unwrap();
+                self.pending_bytecodes.push(published_bytecode);
+            }
+            Err(err) => tracing::error!("Unable to decode `publishEVMBytecode` call: {err}"),
+        }
+    }
+}
 
 impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer<S> {
     fn finish_cycle(
@@ -40,66 +91,15 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for EvmDeployTracer<S> {
         state: &mut ZkSyncVmState<S, H>,
         _bootloader_state: &mut BootloaderState,
     ) -> TracerExecutionStatus {
-        // We check if ContractDeployer was called with provided evm bytecode.
-        // It is assumed that by that time the user has already paid for its size.
-        // So even if we do not revert the addition of the this bytecode it is not a ddos vector, since
-        // the payment is the same as if the bytecode publication was reverted.
-        let current_callstack = &state.local_state.callstack.current;
+        for published_bytecode in mem::take(&mut self.pending_bytecodes) {
+            let hash = hash_evm_bytecode(&published_bytecode);
+            let as_words = bytes_to_be_words(published_bytecode);
 
-        // Here we assume that the only case when PC is 0 at the start of the execution of the contract.
-        let known_code_storage_call = current_callstack.this_address == KNOWN_CODES_STORAGE_ADDRESS
-            && current_callstack.pc == 0
-            && current_callstack.msg_sender == CONTRACT_DEPLOYER_ADDRESS;
-
-        if !known_code_storage_call {
-            // Just continue executing
-            return TracerExecutionStatus::Continue;
+            state.decommittment_processor.populate(
+                vec![(h256_to_u256(hash), as_words)],
+                Timestamp(state.local_state.timestamp),
+            );
         }
-
-        // Now, we need to check whether it is indeed a call to publish EVM code.
-        let calldata_ptr =
-            state.local_state.registers[CALL_IMPLICIT_CALLDATA_FAT_PTR_REGISTER as usize];
-
-        let data = read_pointer(&state.memory, FatPointer::from_u256(calldata_ptr.value));
-
-        let contract = known_codes_contract();
-
-        if data.len() < 4 {
-            // Not interested
-            return TracerExecutionStatus::Continue;
-        }
-
-        let (signature, data) = data.split_at(4);
-
-        if signature
-            != contract
-                .function("publishEVMBytecode")
-                .unwrap()
-                .short_signature()
-        {
-            // Not interested
-            return TracerExecutionStatus::Continue;
-        }
-
-        let Ok(call_params) = contract
-            .function("publishEVMBytecode")
-            .unwrap()
-            .decode_input(data)
-        else {
-            // Not interested
-            return TracerExecutionStatus::Continue;
-        };
-
-        let published_bytecode = call_params[0].clone().into_bytes().unwrap();
-
-        let hash = hash_evm_bytecode(&published_bytecode);
-        let as_words = bytes_to_be_words(published_bytecode);
-
-        state.decommittment_processor.populate(
-            vec![(h256_to_u256(hash), as_words)],
-            Timestamp(state.local_state.timestamp),
-        );
-
         TracerExecutionStatus::Continue
     }
 }
