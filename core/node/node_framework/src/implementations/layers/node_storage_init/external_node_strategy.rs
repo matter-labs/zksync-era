@@ -74,6 +74,7 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
             client: client.clone(),
             pool: pool.clone(),
         });
+
         let snapshot_recovery = match self.snapshot_recovery_config {
             Some(recovery_config) => {
                 // Add a connection for checking whether the storage is initialized.
