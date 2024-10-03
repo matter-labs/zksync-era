@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Configuration
+DATABASE_URL="<your_database_url>"
+BATCH_NUMBER="<your_batch_number>"
+INTERVAL=10 # Time interval in seconds
+
+# Loop to query periodically
+while true; do
+    # Run the SQL query and capture the result
+    RESULT=$(psql $DATABASE_URL -c "SELECT count(*) FROM prover_jobs_fri WHERE l1_batch_number = $BATCH_NUMBER AND aggregation_round = 4 AND status = 'successful';" -t -A)
+
+    # Check if the result is 1
+    if [ "$RESULT" -eq 1 ]; then
+        echo "true"
+        break
+    else
+        echo "Query result is not 1, retrying in $INTERVAL seconds..."
+    fi
+
+    # Wait for the next interval
+    sleep $INTERVAL
+done

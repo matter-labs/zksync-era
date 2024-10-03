@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# Configuration
+URL="http://127.0.0.1:3052/"
+INTERVAL=10 # Time interval in seconds
+
+# Loop to query periodically
+while true; do
+    # Run the curl request and capture the response
+    RESPONSE=$(curl --silent --request POST \
+        --url $URL \
+        --header 'Content-Type: application/json' \
+        --data '{
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "zks_getBlockDetails",
+            "params": [1]
+        }')
+
+    # Parse the executedAt field using jq
+    EXECUTED_AT=$(echo $RESPONSE | jq -r '.result.executedAt')
+
+    # Check if executedAt is not null
+    if [ "$EXECUTED_AT" != "null" ] && [ -n "$EXECUTED_AT" ]; then
+        echo "executedAt is not null: $EXECUTED_AT"
+        echo "true"
+        break
+    else
+        echo "executedAt is null, retrying in $INTERVAL seconds..."
+    fi
+
+    # Wait for the next interval
+    sleep $INTERVAL
+done
