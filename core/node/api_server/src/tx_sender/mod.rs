@@ -1076,7 +1076,7 @@ impl TxSender {
             (value, false) => {
                 if value > max_gas_limit {
                     return Err(SubmitTxError::ExecutionReverted(
-                        "exceeds block gas limit".to_string(),
+                        "exceeds block gas limit 1".to_string(),
                         vec![],
                     ));
                 }
@@ -1085,7 +1085,7 @@ impl TxSender {
             }
             (_, true) => {
                 return Err(SubmitTxError::ExecutionReverted(
-                    "exceeds block gas limit".to_string(),
+                    "exceeds block gas limit 2".to_string(),
                     vec![],
                 ));
             }

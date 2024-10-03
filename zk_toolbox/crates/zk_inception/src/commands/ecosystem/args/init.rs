@@ -92,9 +92,17 @@ pub struct EcosystemInitArgs {
     pub dev: bool,
     #[clap(long, short = 'o', help = MSG_OBSERVABILITY_HELP, default_missing_value = "true", num_args = 0..=1)]
     pub observability: Option<bool>,
-    #[clap(long, help = "Skip submodules checkout", default_missing_value = "true")]
+    #[clap(
+        long,
+        help = "Skip submodules checkout",
+        default_missing_value = "true"
+    )]
     pub skip_submodules_checkout: bool,
-    #[clap(long, help = "Skip contract compilation override", default_missing_value = "true")]
+    #[clap(
+        long,
+        help = "Skip contract compilation override",
+        default_missing_value = "true"
+    )]
     pub skip_contract_compilation_override: bool,
 }
 

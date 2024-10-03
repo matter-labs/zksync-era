@@ -46,6 +46,7 @@ pub async fn run(shell: &Shell, args: IntegrationArgs) -> anyhow::Result<()> {
     )
     .env("CHAIN_NAME", ecosystem_config.current_chain())
     .env("MASTER_WALLET_PK", wallets.get_test_pk(&chain_config)?);
+    // .env("ZKSYNC_HOME", ecosystem_config.link_to_code);
 
     if args.external_node {
         command = command.env("EXTERNAL_NODE", format!("{:?}", args.external_node))
