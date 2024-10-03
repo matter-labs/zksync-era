@@ -1,12 +1,10 @@
+use zksync_test_account::TestContract;
 use zksync_types::{get_code_key, H256, SYSTEM_CONTEXT_ADDRESS};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_latest::{
-        tests::{
-            tester::{get_empty_storage, DeployContractsTx, TxType, VmTesterBuilder},
-            utils::read_test_contract,
-        },
+        tests::tester::{get_empty_storage, DeployContractsTx, TxType, VmTesterBuilder},
         HistoryEnabled,
     },
 };
@@ -31,8 +29,8 @@ fn test_migration_for_system_context_aa_interaction() {
     // The bootloader should be able to update system context regardless of whether
     // the upgrade transaction is there or not.
     let account = &mut vm.rich_accounts[0];
-    let counter = read_test_contract();
-    let DeployContractsTx { tx, .. } = account.get_deploy_tx(&counter, None, TxType::L2);
+    let DeployContractsTx { tx, .. } =
+        account.get_deploy_tx(&TestContract::counter().bytecode, None, TxType::L2);
 
     vm.vm.push_transaction(tx);
     let result = vm.vm.execute(VmExecutionMode::OneTx);

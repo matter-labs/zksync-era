@@ -12,9 +12,8 @@ use crate::{
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
-        tests::{
-            tester::{DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder},
-            utils::read_test_contract,
+        tests::tester::{
+            DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder,
         },
         types::internals::ZkSyncVmState,
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, VmTracer,
@@ -30,10 +29,10 @@ fn test_vm_rollbacks() {
         .build();
 
     let mut account = vm.rich_accounts[0].clone();
-    let counter = read_test_contract();
-    let tx_0 = account.get_deploy_tx(&counter, None, TxType::L2).tx;
-    let tx_1 = account.get_deploy_tx(&counter, None, TxType::L2).tx;
-    let tx_2 = account.get_deploy_tx(&counter, None, TxType::L2).tx;
+    let counter = &TestContract::counter().bytecode;
+    let tx_0 = account.get_deploy_tx(counter, None, TxType::L2).tx;
+    let tx_1 = account.get_deploy_tx(counter, None, TxType::L2).tx;
+    let tx_2 = account.get_deploy_tx(counter, None, TxType::L2).tx;
 
     let result_without_rollbacks = vm.execute_and_verify_txs(&vec![
         TransactionTestInfo::new_processed(tx_0.clone(), false),

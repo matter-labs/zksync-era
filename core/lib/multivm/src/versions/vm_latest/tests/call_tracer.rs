@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
+use zksync_test_account::TestContract;
 use zksync_types::{Address, Execute};
 
 use crate::{
@@ -8,10 +9,7 @@ use crate::{
     tracers::CallTracer,
     vm_latest::{
         constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
-        tests::{
-            tester::VmTesterBuilder,
-            utils::{read_max_depth_contract, read_test_contract},
-        },
+        tests::{tester::VmTesterBuilder, utils::read_max_depth_contract},
         HistoryEnabled, ToTracerPointer,
     },
 };
@@ -54,7 +52,7 @@ fn test_max_depth() {
 
 #[test]
 fn test_basic_behavior() {
-    let contarct = read_test_contract();
+    let contract = TestContract::counter().bytecode.clone();
     let address = Address::random();
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
@@ -62,7 +60,7 @@ fn test_basic_behavior() {
         .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_custom_contracts(vec![(contarct, address, true)])
+        .with_custom_contracts(vec![(contract, address, true)])
         .build();
 
     let increment_by_6_calldata =

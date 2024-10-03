@@ -1,19 +1,18 @@
 use zk_evm_1_5_0::zk_evm_abstractions::precompiles::PrecompileAddress;
+use zksync_test_account::TestContract;
 use zksync_types::{Address, Execute};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface},
     vm_latest::{
-        constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
-        tests::{tester::VmTesterBuilder, utils::read_precompiles_contract},
-        HistoryEnabled,
+        constants::BATCH_COMPUTATIONAL_GAS_LIMIT, tests::tester::VmTesterBuilder, HistoryEnabled,
     },
 };
 
 #[test]
 fn test_keccak() {
     // Execute special transaction and check that at least 1000 keccak calls were made.
-    let contract = read_precompiles_contract();
+    let contract = TestContract::precompiles().bytecode.clone();
     let address = Address::random();
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
@@ -59,7 +58,7 @@ fn test_keccak() {
 #[test]
 fn test_sha256() {
     // Execute special transaction and check that at least 1000 `sha256` calls were made.
-    let contract = read_precompiles_contract();
+    let contract = TestContract::precompiles().bytecode.clone();
     let address = Address::random();
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()

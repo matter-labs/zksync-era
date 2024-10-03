@@ -18,6 +18,8 @@ macro_rules! include_contract {
     };
 }
 
+const COMPLEX_UPGRADE_CONTRACT: &str =
+    include_contract!("complex-upgrade/complex-upgrade"::ComplexUpgrade);
 const CONTEXT_CONTRACT: &str = include_contract!("context/context"::Context);
 const COUNTER_CONTRACT: &str = include_contract!("counter/counter"::Counter);
 const EXPENSIVE_CONTRACT: &str = include_contract!("expensive/expensive"::Expensive);
@@ -25,8 +27,20 @@ const FAILED_CALL_CONTRACT: &str = include_contract!("failed-call/failed_call"::
 const INFINITE_LOOP_CONTRACT: &str = include_contract!("infinite/infinite"::InfiniteLoop);
 const LOAD_TEST_CONTRACT: &str = include_contract!("loadnext/loadnext_contract"::LoadnextContract);
 const LOAD_TEST_DEPLOYED_CONTRACT: &str = include_contract!("loadnext/loadnext_contract"::Foo);
+const MANY_OWNERS_CONTRACT: &str =
+    include_contract!("custom-account/many-owners-custom-account"::ManyOwnersCustomAccount);
+const NONCE_HOLDER_CONTRACT: &str =
+    include_contract!("custom-account/nonce-holder-test"::NonceHolderTest);
 const PRECOMPILES_CONTRACT: &str = include_contract!("precompiles/precompiles"::Precompiles);
+const PROXY_COUNTER_CONTRACT: &str = include_contract!("counter/proxy_counter"::ProxyCounter);
+const SIMPLE_TRANSFER_CONTRACT: &str =
+    include_contract!("simple-transfer/simple-transfer"::SimpleTransfer);
+const REENTRANT_RECIPIENT_CONTRACT: &str =
+    include_contract!("transfer/transfer"::ReentrantRecipient);
+const REQUIRE_CONTRACT: &str = include_contract!("error/error"::SimpleRequire);
 const STORAGE_TEST_CONTRACT: &str = include_contract!("storage/storage"::StorageTester);
+const TRANSFER_RECIPIENT_CONTRACT: &str = include_contract!("transfer/transfer"::Recipient);
+const TRANSFER_TEST_CONTRACT: &str = include_contract!("transfer/transfer"::TransferTest);
 
 #[derive(Debug, Clone)]
 pub struct TestContract {
@@ -54,6 +68,12 @@ impl TestContract {
             bytecode,
             deployed: vec![],
         }
+    }
+
+    pub fn complex_upgrade() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(COMPLEX_UPGRADE_CONTRACT));
+        &CONTRACT
     }
 
     pub fn context() -> &'static Self {
@@ -91,14 +111,60 @@ impl TestContract {
         &CONTRACT
     }
 
+    pub fn many_owners() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> = Lazy::new(|| TestContract::new(MANY_OWNERS_CONTRACT));
+        &CONTRACT
+    }
+
+    pub fn nonce_holder() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(NONCE_HOLDER_CONTRACT));
+        &CONTRACT
+    }
+
     pub fn precompiles() -> &'static Self {
         static CONTRACT: Lazy<TestContract> = Lazy::new(|| TestContract::new(PRECOMPILES_CONTRACT));
+        &CONTRACT
+    }
+
+    pub fn proxy_counter() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(PROXY_COUNTER_CONTRACT));
+        &CONTRACT
+    }
+
+    pub fn reentrant_recipient() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(REENTRANT_RECIPIENT_CONTRACT));
+        &CONTRACT
+    }
+
+    pub fn require() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> = Lazy::new(|| TestContract::new(REQUIRE_CONTRACT));
+        &CONTRACT
+    }
+
+    pub fn simple_transfer() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(SIMPLE_TRANSFER_CONTRACT));
         &CONTRACT
     }
 
     pub fn storage_test() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
             Lazy::new(|| TestContract::new(STORAGE_TEST_CONTRACT));
+        &CONTRACT
+    }
+
+    pub fn transfer_test() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(TRANSFER_TEST_CONTRACT));
+        &CONTRACT
+    }
+
+    pub fn transfer_recipient() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(TRANSFER_RECIPIENT_CONTRACT));
         &CONTRACT
     }
 

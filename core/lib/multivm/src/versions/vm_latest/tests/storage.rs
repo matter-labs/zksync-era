@@ -1,6 +1,5 @@
 use ethabi::Token;
-use zksync_contracts::{load_contract, read_bytecode};
-use zksync_test_account::Account;
+use zksync_test_account::{Account, TestContract};
 use zksync_types::{fee::Fee, Address, Execute, U256};
 
 use crate::{
@@ -19,10 +18,7 @@ struct TestTxInfo {
 }
 
 fn test_storage(txs: Vec<TestTxInfo>) -> u32 {
-    let bytecode = read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
-    );
-
+    let bytecode = TestContract::storage_test().bytecode.clone();
     let test_contract_address = Address::random();
 
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
@@ -87,9 +83,7 @@ fn test_storage_one_tx(second_tx_calldata: Vec<u8>) -> u32 {
 
 #[test]
 fn test_storage_behavior() {
-    let contract = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
-    );
+    let contract = &TestContract::storage_test().abi;
 
     // In all of the tests below we provide the first tx to ensure that the tracers will not include
     // the statistics from the start of the bootloader and will only include those for the transaction itself.
@@ -124,9 +118,7 @@ fn test_storage_behavior() {
 
 #[test]
 fn test_transient_storage_behavior() {
-    let contract = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
-    );
+    let contract = &TestContract::storage_test().abi;
 
     let first_tstore_test = contract
         .function("testTransientStore")
@@ -154,9 +146,7 @@ fn test_transient_storage_behavior() {
 
 #[test]
 fn test_transient_storage_behavior_panic() {
-    let contract = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
-    );
+    let contract = &TestContract::storage_test().abi;
 
     let basic_tstore_test = contract
         .function("tStoreAndRevert")

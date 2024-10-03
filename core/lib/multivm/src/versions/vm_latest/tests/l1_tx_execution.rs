@@ -1,7 +1,7 @@
 use ethabi::Token;
 use zksync_contracts::l1_messenger_contract;
 use zksync_system_constants::{BOOTLOADER_ADDRESS, L1_MESSENGER_ADDRESS};
-use zksync_test_account::Account;
+use zksync_test_account::{Account, TestContract};
 use zksync_types::{
     get_code_key, get_known_code_key,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
@@ -15,7 +15,7 @@ use crate::{
     vm_latest::{
         tests::{
             tester::{TxType, VmTesterBuilder},
-            utils::{read_test_contract, verify_required_storage, BASE_SYSTEM_CONTRACTS},
+            utils::{verify_required_storage, BASE_SYSTEM_CONTRACTS},
         },
         types::internals::TransactionData,
         HistoryEnabled,
@@ -49,9 +49,12 @@ fn test_l1_tx_execution() {
         .with_random_rich_accounts(1)
         .build();
 
-    let contract_code = read_test_contract();
     let account = &mut vm.rich_accounts[0];
-    let deploy_tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 1 });
+    let deploy_tx = account.get_deploy_tx(
+        &TestContract::counter().bytecode,
+        None,
+        TxType::L1 { serial_id: 1 },
+    );
     let tx_data: TransactionData = deploy_tx.tx.clone().into();
 
     let required_l2_to_l1_logs: Vec<_> = vec![L2ToL1Log {

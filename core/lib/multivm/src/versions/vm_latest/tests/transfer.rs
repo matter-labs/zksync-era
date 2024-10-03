@@ -1,6 +1,6 @@
 use ethabi::Token;
-use zksync_contracts::{load_contract, read_bytecode};
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
+use zksync_test_account::TestContract;
 use zksync_types::{utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, U256};
 use zksync_utils::u256_to_h256;
 
@@ -21,16 +21,7 @@ enum TestOptions {
 }
 
 fn test_send_or_transfer(test_option: TestOptions) {
-    let test_bytecode = read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/TransferTest.json",
-    );
-    let recipeint_bytecode = read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/Recipient.json",
-    );
-    let test_abi = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/TransferTest.json",
-    );
-
+    let test_abi = &TestContract::transfer_test().abi;
     let test_contract_address = Address::random();
     let recipient_address = Address::random();
 
@@ -65,8 +56,16 @@ fn test_send_or_transfer(test_option: TestOptions) {
         .with_deployer()
         .with_random_rich_accounts(1)
         .with_custom_contracts(vec![
-            (test_bytecode, test_contract_address, false),
-            (recipeint_bytecode, recipient_address, false),
+            (
+                TestContract::transfer_test().bytecode.clone(),
+                test_contract_address,
+                false,
+            ),
+            (
+                TestContract::transfer_recipient().bytecode.clone(),
+                recipient_address,
+                false,
+            ),
         ])
         .build();
 
@@ -109,18 +108,8 @@ fn test_send_and_transfer() {
 }
 
 fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
-    let test_bytecode = read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/TransferTest.json",
-    );
-    let reentrant_recipeint_bytecode = read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/ReentrantRecipient.json",
-    );
-    let test_abi = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/TransferTest.json",
-    );
-    let reentrant_recipient_abi = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/ReentrantRecipient.json",
-    );
+    let test_abi = &TestContract::transfer_test().abi;
+    let reentrant_recipient_abi = &TestContract::reentrant_recipient().abi;
 
     let test_contract_address = Address::random();
     let reentrant_recipeint_address = Address::random();
@@ -156,9 +145,13 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
         .with_deployer()
         .with_random_rich_accounts(1)
         .with_custom_contracts(vec![
-            (test_bytecode, test_contract_address, false),
             (
-                reentrant_recipeint_bytecode,
+                TestContract::transfer_test().bytecode.clone(),
+                test_contract_address,
+                false,
+            ),
+            (
+                TestContract::reentrant_recipient().bytecode.clone(),
                 reentrant_recipeint_address,
                 false,
             ),

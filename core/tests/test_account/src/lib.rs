@@ -1,8 +1,7 @@
 use ethabi::Token;
 use zksync_eth_signer::{PrivateKeySigner, TransactionParameters};
 use zksync_system_constants::{
-    CONTRACT_DEPLOYER_ADDRESS, DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE,
-    REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
+    DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE, REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_types::{
     abi, fee::Fee, l2::L2Tx, utils::deployed_address_create, Address, Execute, K256PrivateKey,
@@ -110,25 +109,13 @@ impl Account {
         &mut self,
         code: &[u8],
         calldata: Option<&[Token]>,
-        mut factory_deps: Vec<Vec<u8>>,
+        factory_deps: Vec<Vec<u8>>,
         tx_type: TxType,
     ) -> DeployContractsTx {
-        let calldata = calldata.map(ethabi::encode);
+        let calldata = calldata.unwrap_or_default();
         let code_hash = hash_bytecode(code);
-        let params = [
-            Token::FixedBytes(vec![0u8; 32]),
-            Token::FixedBytes(code_hash.0.to_vec()),
-            Token::Bytes(calldata.unwrap_or_default().to_vec()),
-        ];
-        factory_deps.push(code.to_vec());
-        let calldata = ethabi::encode(&params);
-
-        let execute = Execute {
-            contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
-            calldata,
-            factory_deps,
-            value: U256::zero(),
-        };
+        let mut execute = Execute::for_deploy(H256::zero(), code.to_vec(), calldata);
+        execute.factory_deps.extend(factory_deps);
 
         let tx = match tx_type {
             TxType::L2 => self.get_l2_tx_for_execute(execute, None),

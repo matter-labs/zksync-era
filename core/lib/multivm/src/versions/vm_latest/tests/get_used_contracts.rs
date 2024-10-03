@@ -14,7 +14,7 @@ use zk_evm_1_5_0::{
     zkevm_opcode_defs::{VersionedHashHeader, VersionedHashNormalizedPreimage},
 };
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_test_account::Account;
+use zksync_test_account::{Account, TestContract};
 use zksync_types::{Address, Execute, U256};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 use zksync_vm_interface::VmExecutionResultAndLogs;
@@ -27,7 +27,7 @@ use crate::{
     vm_latest::{
         tests::{
             tester::{TxType, VmTester, VmTesterBuilder},
-            utils::{read_proxy_counter_contract, read_test_contract, BASE_SYSTEM_CONTRACTS},
+            utils::BASE_SYSTEM_CONTRACTS,
         },
         HistoryDisabled, Vm,
     },
@@ -45,9 +45,9 @@ fn test_get_used_contracts() {
 
     // create and push and execute some not-empty factory deps transaction with success status
     // to check that `get_used_contracts()` updates
-    let contract_code = read_test_contract();
+    let contract_code = &TestContract::counter().bytecode;
     let mut account = Account::random();
-    let tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 0 });
+    let tx = account.get_deploy_tx(contract_code, None, TxType::L1 { serial_id: 0 });
     vm.vm.push_transaction(tx.tx.clone());
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed());
@@ -165,7 +165,7 @@ fn known_bytecodes_without_aa_code<S: WriteStorage, H: HistoryMode>(
 /// Counter test contract bytecode inflated by appending lots of `NOP` opcodes at the end. This leads to non-trivial
 /// decommitment cost (>10,000 gas).
 fn inflated_counter_bytecode() -> Vec<u8> {
-    let mut counter_bytecode = read_test_contract();
+    let mut counter_bytecode = TestContract::counter().bytecode.clone();
     counter_bytecode.extend(
         iter::repeat(EncodingModeProduction::nop_encoding().to_be_bytes())
             .take(10_000)
@@ -186,10 +186,9 @@ fn execute_proxy_counter(gas: u32) -> (VmTester<HistoryDisabled>, U256, VmExecut
         .with_random_rich_accounts(1)
         .build();
 
-    let (proxy_counter_bytecode, proxy_counter_abi) = read_proxy_counter_contract();
     let account = &mut vm.rich_accounts[0];
     let deploy_tx = account.get_deploy_tx(
-        &proxy_counter_bytecode,
+        &TestContract::proxy_counter().bytecode,
         Some(&[Token::Address(counter_address)]),
         TxType::L2,
     );
@@ -205,7 +204,10 @@ fn execute_proxy_counter(gas: u32) -> (VmTester<HistoryDisabled>, U256, VmExecut
         "{decommitted_hashes:?}"
     );
 
-    let increment = proxy_counter_abi.function("increment").unwrap();
+    let increment = TestContract::proxy_counter()
+        .abi
+        .function("increment")
+        .unwrap();
     let increment_tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(deploy_tx.address),

@@ -7,13 +7,13 @@ use zksync_contracts::load_sys_contract;
 use zksync_system_constants::{
     CONTRACT_FORCE_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
 };
+use zksync_test_account::TestContract;
 use zksync_types::{
     commitment::SerializeCommitment, fee_model::BatchFeeInput, get_code_key,
     l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address, Execute, H256, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
-use super::utils::{get_complex_upgrade_abi, read_complex_upgrade};
 use crate::{
     interface::{L1BatchEnv, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_latest::{
@@ -46,7 +46,7 @@ struct MimicCallInfo {
 
 const CALLS_PER_TX: usize = 1_000;
 fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<Vec<u8>> {
-    let complex_upgrade = get_complex_upgrade_abi();
+    let complex_upgrade = &TestContract::complex_upgrade().abi;
     let l1_messenger = load_sys_contract("L1Messenger");
 
     let logs_mimic_calls = (0..data.l2_to_l1_logs).map(|_| MimicCallInfo {
@@ -118,7 +118,7 @@ struct StatisticsTagged {
 
 fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
     let mut storage = get_empty_storage();
-    let complex_upgrade_code = read_complex_upgrade();
+    let complex_upgrade_code = TestContract::complex_upgrade().bytecode.clone();
 
     // For this test we'll just put the bytecode onto the force deployer address
     storage.borrow_mut().set_value(

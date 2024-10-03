@@ -1,3 +1,4 @@
+use zksync_test_account::TestContract;
 use zksync_types::{Execute, H160};
 
 use crate::{
@@ -5,7 +6,7 @@ use crate::{
     vm_latest::{
         tests::{
             tester::{ExpectedError, TransactionTestInfo, VmTesterBuilder},
-            utils::{get_execute_error_calldata, read_error_contract, BASE_SYSTEM_CONTRACTS},
+            utils::BASE_SYSTEM_CONTRACTS,
         },
         HistoryEnabled,
     },
@@ -14,21 +15,25 @@ use crate::{
 #[test]
 fn test_tracing_of_execution_errors() {
     let contract_address = H160::random();
+    let bytecode = TestContract::require().bytecode.clone();
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
-        .with_custom_contracts(vec![(read_error_contract(), contract_address, false)])
+        .with_custom_contracts(vec![(bytecode, contract_address, false)])
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()
         .with_random_rich_accounts(1)
         .build();
 
     let account = &mut vm.rich_accounts[0];
-
+    let require_fn = TestContract::require()
+        .abi
+        .function("require_short")
+        .unwrap();
     let tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(contract_address),
-            calldata: get_execute_error_calldata(),
+            calldata: require_fn.encode_input(&[]).unwrap(),
             value: Default::default(),
             factory_deps: vec![],
         },
