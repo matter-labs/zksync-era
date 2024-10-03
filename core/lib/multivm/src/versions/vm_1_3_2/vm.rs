@@ -36,7 +36,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn inspect(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         if let Some(storage_invocations) = tracer.storage_invocations {
@@ -80,7 +80,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {

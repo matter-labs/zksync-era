@@ -181,7 +181,7 @@ pub(super) async fn write_storage_logs(pool: ConnectionPool<Core>, insert_protec
         .await
         .unwrap();
     let loader = Arc::new(loader);
-    let batch_executor = MainBatchExecutorFactory::new(false, false);
+    let batch_executor = MainBatchExecutorFactory::<()>::new(false);
     let vm_runner = VmRunner::new(pool, io.clone(), loader, io, Box::new(batch_executor));
     let (stop_sender, stop_receiver) = watch::channel(false);
     let vm_runner_handle = tokio::spawn(async move { vm_runner.run(&stop_receiver).await });
@@ -239,7 +239,7 @@ async fn storage_writer_works(insert_protective_reads: bool) {
     let (output_factory, output_factory_task) =
         ConcurrentOutputHandlerFactory::new(pool.clone(), io.clone(), TestOutputFactory::default());
     let output_factory_handle = tokio::spawn(output_factory_task.run(stop_receiver.clone()));
-    let batch_executor = MainBatchExecutorFactory::new(false, false);
+    let batch_executor = MainBatchExecutorFactory::<()>::new(false);
     let vm_runner = VmRunner::new(
         pool,
         io.clone(),

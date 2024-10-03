@@ -3,7 +3,7 @@ use zksync_types::SLChainId;
 
 use crate::Core;
 
-pub struct ProcessedEventsDal<'a, 'c> {
+pub struct EthWatcherDal<'a, 'c> {
     pub(crate) storage: &'a mut Connection<'c, Core>,
 }
 
@@ -12,10 +12,11 @@ pub struct ProcessedEventsDal<'a, 'c> {
 pub enum EventType {
     ProtocolUpgrades,
     PriorityTransactions,
-    GovernanceUpgrades,
 }
 
-impl ProcessedEventsDal<'_, '_> {
+impl EthWatcherDal<'_, '_> {
+    // Returns last set value of next_block_to_process for given event_type and chain_id.
+    // If the value was missing, initializes it with provided next_block_to_process value
     pub async fn get_or_set_next_block_to_process(
         &mut self,
         event_type: EventType,
@@ -29,8 +30,8 @@ impl ProcessedEventsDal<'_, '_> {
             FROM
                 processed_events
             WHERE
-            TYPE = $1
-            AND chain_id = $2
+                type = $1
+                AND chain_id = $2
             "#,
             event_type as EventType,
             chain_id.0 as i64
@@ -47,13 +48,13 @@ impl ProcessedEventsDal<'_, '_> {
             sqlx::query!(
                 r#"
                 INSERT INTO
-                    processed_events (
-                        TYPE,
-                        chain_id,
-                        next_block_to_process
-                    )
+                processed_events (
+                    type,
+                    chain_id,
+                    next_block_to_process
+                )
                 VALUES
-                    ($1, $2, $3)
+                ($1, $2, $3)
                 "#,
                 event_type as EventType,
                 chain_id.0 as i64,
@@ -81,8 +82,8 @@ impl ProcessedEventsDal<'_, '_> {
             SET
                 next_block_to_process = $3
             WHERE
-            TYPE = $1
-            AND chain_id = $2
+                type = $1
+                AND chain_id = $2
             "#,
             event_type as EventType,
             chain_id.0 as i64,
@@ -106,7 +107,7 @@ mod tests {
     async fn test_get_or_set_next_block_to_process_with_different_event_types() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
-        let mut dal = conn.processed_events_dal();
+        let mut dal = conn.eth_watcher_dal();
 
         // Test with ProtocolUpgrades
         let next_block = dal

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                bytecode\n            FROM\n                (\n                    SELECT\n                        *\n                    FROM\n                        storage_logs\n                    WHERE\n                        storage_logs.hashed_key = $1\n                        AND storage_logs.miniblock_number <= $2\n                    ORDER BY\n                        storage_logs.miniblock_number DESC,\n                        storage_logs.operation_number DESC\n                    LIMIT\n                        1\n                ) t\n            JOIN factory_deps ON value = factory_deps.bytecode_hash\n            WHERE\n                value != $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bytecode",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Int8",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "369f8f652335176ab22ee45fd6f1717e73c5e6b063be3553d82bfecb98334980"
+}

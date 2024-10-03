@@ -9,7 +9,8 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     commitment::SerializeCommitment, fee_model::BatchFeeInput, get_code_key,
-    l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address, Execute, H256, U256,
+    l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address, Execute, ProtocolVersionId, H256,
+    U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
@@ -193,10 +194,11 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
         VmExecutionMode::Batch,
         test_data.state_diffs.clone(),
         crate::vm_latest::MultiVMSubversion::latest(),
+        ProtocolVersionId::Version25,
     );
 
     let result = vm.vm.inspect_inner(
-        TracerDispatcher::default(),
+        &mut TracerDispatcher::default(),
         VmExecutionMode::Batch,
         Some(pubdata_tracer),
     );

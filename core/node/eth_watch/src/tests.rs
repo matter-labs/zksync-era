@@ -1,28 +1,35 @@
 use std::{collections::HashMap, convert::TryInto, sync::Arc};
 
 use tokio::sync::RwLock;
-use zksync_contracts::{chain_admin_contract, governance_contract, hyperchain_contract};
+use zksync_contracts::{
+    chain_admin_contract, hyperchain_contract, state_transition_manager_contract,
+};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
 use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_types::{
-    abi, ethabi,
+    abi,
+    abi::ProposedUpgrade,
+    ethabi,
     ethabi::Token,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
-    web3::{BlockNumber, Log},
+    web3::{contract::Tokenizable, BlockNumber, Log},
     Address, Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion,
-    ProtocolVersionId, SLChainId, Transaction, H256, U256,
+    ProtocolVersionId, SLChainId, Transaction, H256, U256, U64,
 };
 
-use crate::{client::EthClient, EthWatch};
+use crate::{
+    client::{EthClient, RETRY_LIMIT},
+    EthWatch,
+};
 
 #[derive(Debug)]
 struct FakeEthClientData {
     transactions: HashMap<u64, Vec<Log>>,
     diamond_upgrades: HashMap<u64, Vec<Log>>,
-    governance_upgrades: HashMap<u64, Vec<Log>>,
+    upgrade_timestamp: HashMap<u64, Vec<Log>>,
     last_finalized_block_number: u64,
     chain_id: SLChainId,
     processed_priority_transactions_count: u64,
@@ -33,7 +40,7 @@ impl FakeEthClientData {
         Self {
             transactions: Default::default(),
             diamond_upgrades: Default::default(),
-            governance_upgrades: Default::default(),
+            upgrade_timestamp: Default::default(),
             last_finalized_block_number: 0,
             chain_id,
             processed_priority_transactions_count: 0,
@@ -51,12 +58,16 @@ impl FakeEthClientData {
         }
     }
 
-    fn add_governance_upgrades(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
+    fn add_upgrade_timestamp(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
         for (upgrade, eth_block) in upgrades {
-            self.governance_upgrades
+            self.upgrade_timestamp
                 .entry(*eth_block)
                 .or_default()
-                .push(upgrade_into_governor_log(upgrade.clone(), *eth_block));
+                .push(upgrade_timestamp_log(*eth_block));
+            self.diamond_upgrades
+                .entry(*eth_block)
+                .or_default()
+                .push(diamond_upgrade_log(upgrade.clone(), *eth_block));
         }
     }
 
@@ -85,8 +96,8 @@ impl MockEthClient {
         self.inner.write().await.add_transactions(transactions);
     }
 
-    async fn add_governance_upgrades(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
-        self.inner.write().await.add_governance_upgrades(upgrades);
+    async fn add_upgrade_timestamp(&mut self, upgrades: &[(ProtocolUpgrade, u64)]) {
+        self.inner.write().await.add_upgrade_timestamp(upgrades);
     }
 
     async fn set_last_finalized_block_number(&mut self, number: u64) {
@@ -121,8 +132,8 @@ impl EthClient for MockEthClient {
         &self,
         from: BlockNumber,
         to: BlockNumber,
-        topics1: Vec<H256>,
-        topics2: Vec<H256>,
+        topic1: H256,
+        topic2: Option<H256>,
         _retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>> {
         let from = self.block_to_number(from).await;
@@ -135,16 +146,15 @@ impl EthClient for MockEthClient {
             if let Some(ops) = self.inner.read().await.diamond_upgrades.get(&number) {
                 logs.extend_from_slice(ops);
             }
-            if let Some(ops) = self.inner.read().await.governance_upgrades.get(&number) {
+            if let Some(ops) = self.inner.read().await.upgrade_timestamp.get(&number) {
                 logs.extend_from_slice(ops);
             }
         }
         Ok(logs
             .into_iter()
             .filter(|log| {
-                log.topics
-                    .iter()
-                    .any(|topic| topics1.contains(topic) || topics2.contains(topic))
+                log.topics.first() == Some(&topic1)
+                    && (topic2.is_none() || log.topics.get(1) == topic2.as_ref())
             })
             .collect())
     }
@@ -162,9 +172,39 @@ impl EthClient for MockEthClient {
 
     async fn diamond_cut_by_version(
         &self,
-        _packed_version: H256,
+        packed_version: H256,
     ) -> EnrichedClientResult<Option<Vec<u8>>> {
-        unimplemented!()
+        let from_block = *self
+            .inner
+            .read()
+            .await
+            .diamond_upgrades
+            .keys()
+            .min()
+            .unwrap_or(&0);
+        let to_block = *self
+            .inner
+            .read()
+            .await
+            .diamond_upgrades
+            .keys()
+            .max()
+            .unwrap_or(&0);
+
+        let logs = self
+            .get_events(
+                U64::from(from_block).into(),
+                U64::from(to_block).into(),
+                state_transition_manager_contract()
+                    .event("NewUpgradeCutData")
+                    .unwrap()
+                    .signature(),
+                Some(packed_version),
+                RETRY_LIMIT,
+            )
+            .await?;
+
+        Ok(logs.into_iter().next().map(|log| log.data.0))
     }
 
     async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
@@ -250,8 +290,6 @@ async fn create_test_watcher(
         l1_client.clone()
     };
     let watcher = EthWatch::new(
-        Address::default(),
-        &governance_contract(),
         &chain_admin_contract(),
         Box::new(l1_client.clone()),
         Box::new(sl_client.clone()),
@@ -318,14 +356,14 @@ async fn test_normal_operation_l1_txs() {
 }
 
 #[test_log::test(tokio::test)]
-async fn test_gap_in_governance_upgrades() {
+async fn test_gap_in_upgrade_timestamp() {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
     let (mut watcher, mut client) = create_l1_test_watcher(connection_pool.clone()).await;
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
-        .add_governance_upgrades(&[(
+        .add_upgrade_timestamp(&[(
             ProtocolUpgrade {
                 version: ProtocolSemanticVersion {
                     minor: ProtocolVersionId::next(),
@@ -351,15 +389,13 @@ async fn test_gap_in_governance_upgrades() {
 }
 
 #[test_log::test(tokio::test)]
-async fn test_normal_operation_governance_upgrades() {
+async fn test_normal_operation_upgrade_timestamp() {
     zksync_concurrency::testonly::abort_on_panic();
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     setup_db(&connection_pool).await;
 
     let mut client = MockEthClient::new(SLChainId(42));
     let mut watcher = EthWatch::new(
-        Address::default(),
-        &governance_contract(),
         &chain_admin_contract(),
         Box::new(client.clone()),
         Box::new(client.clone()),
@@ -372,7 +408,7 @@ async fn test_normal_operation_governance_upgrades() {
 
     let mut storage = connection_pool.connection().await.unwrap();
     client
-        .add_governance_upgrades(&[
+        .add_upgrade_timestamp(&[
             (
                 ProtocolUpgrade {
                     tx: None,
@@ -625,37 +661,69 @@ fn tx_into_log(tx: L1Tx) -> Log {
     }
 }
 
-fn upgrade_into_governor_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
-    let diamond_cut = upgrade_into_diamond_cut(upgrade);
+fn init_calldata(protocol_upgrade: ProtocolUpgrade) -> Vec<u8> {
+    let upgrade_token = upgrade_into_diamond_cut(protocol_upgrade);
+
+    let encoded_params = ethabi::encode(&[upgrade_token]);
+
     let execute_upgrade_selector = hyperchain_contract()
         .function("executeUpgrade")
         .unwrap()
         .short_signature();
-    let diamond_upgrade_calldata = execute_upgrade_selector
-        .iter()
-        .copied()
-        .chain(ethabi::encode(&[diamond_cut]))
-        .collect();
-    let governance_call = Token::Tuple(vec![
-        Token::Address(Default::default()),
-        Token::Uint(U256::default()),
-        Token::Bytes(diamond_upgrade_calldata),
-    ]);
-    let governance_operation = Token::Tuple(vec![
-        Token::Array(vec![governance_call]),
-        Token::FixedBytes(vec![0u8; 32]),
-        Token::FixedBytes(vec![0u8; 32]),
-    ]);
-    let final_data = ethabi::encode(&[Token::FixedBytes(vec![0u8; 32]), governance_operation]);
+
+    // Concatenate the function selector with the encoded parameters
+    let mut calldata = Vec::with_capacity(4 + encoded_params.len());
+    calldata.extend_from_slice(&execute_upgrade_selector);
+    calldata.extend_from_slice(&encoded_params);
+
+    calldata
+}
+
+fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
+    // struct DiamondCutData {
+    //     FacetCut[] facetCuts;
+    //     address initAddress;
+    //     bytes initCalldata;
+    // }
+    let final_data = ethabi::encode(&[Token::Tuple(vec![
+        Token::Array(vec![]),
+        Token::Address(Address::zero()),
+        Token::Bytes(init_calldata(upgrade.clone())),
+    ])]);
+    tracing::info!("{:?}", Token::Bytes(init_calldata(upgrade)));
 
     Log {
         address: Address::repeat_byte(0x1),
         topics: vec![
-            governance_contract()
-                .event("TransparentOperationScheduled")
-                .expect("TransparentOperationScheduled event is missing in abi")
+            state_transition_manager_contract()
+                .event("NewUpgradeCutData")
+                .unwrap()
                 .signature(),
-            Default::default(),
+            H256::from_low_u64_be(eth_block),
+        ],
+        data: final_data.into(),
+        block_hash: Some(H256::repeat_byte(0x11)),
+        block_number: Some(eth_block.into()),
+        transaction_hash: Some(H256::random()),
+        transaction_index: Some(0u64.into()),
+        log_index: Some(0u64.into()),
+        transaction_log_index: Some(0u64.into()),
+        log_type: None,
+        removed: None,
+        block_timestamp: None,
+    }
+}
+fn upgrade_timestamp_log(eth_block: u64) -> Log {
+    let final_data = ethabi::encode(&[U256::from(12345).into_token()]);
+
+    Log {
+        address: Address::repeat_byte(0x1),
+        topics: vec![
+            chain_admin_contract()
+                .event("UpdateUpgradeTimestamp")
+                .expect("UpdateUpgradeTimestamp event is missing in ABI")
+                .signature(),
+            H256::from_low_u64_be(eth_block),
         ],
         data: final_data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
@@ -684,7 +752,7 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
     else {
         unreachable!()
     };
-    let upgrade_token = abi::ProposedUpgrade {
+    ProposedUpgrade {
         l2_protocol_upgrade_tx: tx,
         factory_deps,
         bootloader_hash: upgrade.bootloader_code_hash.unwrap_or_default().into(),
@@ -696,17 +764,7 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
         upgrade_timestamp: upgrade.timestamp.into(),
         new_protocol_version: upgrade.version.pack(),
     }
-    .encode();
-    Token::Tuple(vec![
-        Token::Array(vec![]),
-        Token::Address(Default::default()),
-        Token::Bytes(
-            vec![0u8; 4]
-                .into_iter()
-                .chain(ethabi::encode(&[upgrade_token]))
-                .collect(),
-        ),
-    ])
+    .encode()
 }
 
 async fn setup_db(connection_pool: &ConnectionPool<Core>) {

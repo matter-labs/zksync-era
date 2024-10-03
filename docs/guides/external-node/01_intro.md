@@ -5,28 +5,27 @@ This documentation explains the basics of the ZKsync Node.
 ## Disclaimers
 
 - The ZKsync node is in the alpha phase, and should be used with caution.
-- The ZKsync node is a read-only replica of the main node. We are currently working on decentralizing our infrastructure
-  by creating a consensus node. The ZKsync node is not going to be the consensus node.
+- The ZKsync node is a read-only replica of the main node.
 
 ## What is the ZKsync node
 
 The ZKsync node is a read-replica of the main (centralized) node that can be run by external parties. It functions by
-fetching data from the ZKsync API and re-applying transactions locally, starting from the genesis block. The ZKsync node
-shares most of its codebase with the main node. Consequently, when it re-applies transactions, it does so exactly as the
-main node did in the past.
+receiving blocks from the ZKsync network and re-applying transactions locally, starting from the genesis block. The
+ZKsync node shares most of its codebase with the main node. Consequently, when it re-applies transactions, it does so
+exactly as the main node did in the past.
 
 **It has two modes of initialization:**
 
 - recovery from a DB dump, in Ethereum terms this corresponds to archival node
 - recovery from a snapshot, in Ethereum terms this corresponds to light node, such nodes will only have access to
-  transactions data from after the node was initialized. The database is currently not pruned on such nodes.
+  transactions data from after the node was initialized. The database can be pruned on such nodes.
 
 ## High-level overview
 
 At a high level, the ZKsync node can be seen as an application that has the following modules:
 
 - API server that provides the publicly available Web3 interface.
-- Synchronization layer that interacts with the main node and retrieves transactions and blocks to re-execute.
+- Consensus layer that interacts with the peer network and retrieves transactions and blocks to re-execute.
 - Sequencer component that actually executes and persists transactions received from the synchronization layer.
 - Several checker modules that ensure the consistency of the ZKsync node state.
 
@@ -44,7 +43,7 @@ With the EN, you _can not_:
 - Generate proofs.
 - Submit data to L1.
 
-A more detailed overview of the EN's components is provided in the [components](./06_components.md) section.
+A more detailed overview of the EN's components is provided in the [components](06_components.md) section.
 
 ## API overview
 

@@ -50,7 +50,9 @@ describe('ETH token checks', () => {
             ? await shouldChangeETHBalances([{ wallet: alice, change: amount }], {
                   l1ToL2: true
               })
-            : await shouldChangeTokenBalances(l2EthTokenAddressNonBase, [{ wallet: alice, change: amount }]);
+            : await shouldChangeTokenBalances(l2EthTokenAddressNonBase, [{ wallet: alice, change: amount }], {
+                  ignoreUndeployedToken: true
+              });
 
         // Variables used only for base token implementation
         const l1BaseTokenBalanceBefore = await alice.getBalanceL1(baseTokenAddress);

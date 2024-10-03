@@ -94,7 +94,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
                 .into_iter()
                 .map(FetchedTransaction::new)
                 .collect(),
-            pubdata_params: block.pubdata_params,
+            pubdata_params: block.pubdata_params.unwrap_or_default(),
         })
     }
 }

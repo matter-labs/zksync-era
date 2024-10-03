@@ -21,6 +21,7 @@ use crate::{
             pubdata::{PubdataBuilder, RollupPubdataBuilder, ValidiumPubdataBuilder},
             PubdataInput,
         },
+        MultiVMSubversion,
     },
 };
 
@@ -157,19 +158,45 @@ pub(crate) fn apply_pubdata_to_memory(
     memory: &mut BootloaderMemory,
     pubdata_information: PubdataInput,
     pubdata_params: PubdataParams,
+    subversion: MultiVMSubversion,
 ) {
-    // Skipping two slots as they will be filled by the bootloader itself:
-    // - One slot is for the selector of the call to the L1Messenger.
-    // - The other slot is for the 0x20 offset for the calldata.
-    let l1_messenger_pubdata_start_slot = OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + 1;
+    let (l1_messenger_pubdata_start_slot, pubdata) = match subversion {
+        MultiVMSubversion::SmallBootloaderMemory | MultiVMSubversion::IncreasedBootloaderMemory => {
+            // Skipping two slots as they will be filled by the bootloader itself:
+            // - One slot is for the selector of the call to the L1Messenger.
+            // - The other slot is for the 0x20 offset for the calldata.
+            let l1_messenger_pubdata_start_slot = OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + 2;
 
-    let pubdata = get_encoded_pubdata(pubdata_information, pubdata_params, true);
+            // Need to skip first word as it represents array offset
+            // while bootloader expects only [len || data]
+            let pubdata = ethabi::encode(&[ethabi::Token::Bytes(
+                pubdata_information.build_pubdata_legacy(true),
+            )])[32..]
+                .to_vec();
 
-    assert!(
-        // Note that unlike the previous version, the difference is `1`, since now it also includes the offset
-        pubdata.len() / 32 < OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
-        "The encoded pubdata is too big"
-    );
+            assert!(
+                pubdata.len() / 32 <= OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS - 2,
+                "The encoded pubdata is too big"
+            );
+
+            (l1_messenger_pubdata_start_slot, pubdata)
+        }
+        MultiVMSubversion::Gateway => {
+            // Skipping the first slot as it will be filled by the bootloader itself:
+            // It is for the selector of the call to the L1Messenger.
+            let l1_messenger_pubdata_start_slot = OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + 1;
+
+            let pubdata = get_encoded_pubdata(pubdata_information, pubdata_params, true);
+
+            assert!(
+                // Note that unlike the previous version, the difference is `1`, since now it also includes the offset
+                pubdata.len() / 32 < OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_SLOTS,
+                "The encoded pubdata is too big"
+            );
+
+            (l1_messenger_pubdata_start_slot, pubdata)
+        }
+    };
 
     pubdata
         .chunks(32)

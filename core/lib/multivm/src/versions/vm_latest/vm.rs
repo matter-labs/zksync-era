@@ -36,13 +36,14 @@ pub(crate) enum MultiVMSubversion {
     SmallBootloaderMemory,
     /// The final correct version of v1.5.0
     IncreasedBootloaderMemory,
-    SyncLayer,
+    /// Version for protocol v25
+    Gateway,
 }
 
 impl MultiVMSubversion {
     #[cfg(test)]
     pub(crate) fn latest() -> Self {
-        Self::IncreasedBootloaderMemory
+        Self::Gateway
     }
 }
 
@@ -54,7 +55,7 @@ impl TryFrom<VmVersion> for MultiVMSubversion {
         match value {
             VmVersion::Vm1_5_0SmallBootloaderMemory => Ok(Self::SmallBootloaderMemory),
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
-            VmVersion::VmSyncLayer => Ok(Self::SyncLayer),
+            VmVersion::VmGateway => Ok(Self::Gateway),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }
@@ -128,7 +129,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     /// Execute VM with custom tracers.
     fn inspect(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         self.inspect_inner(tracer, execution_mode, None)
@@ -141,7 +142,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     /// Inspect transaction with optional bytecode compression.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
@@ -168,7 +169,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.inspect(TracerDispatcher::default(), VmExecutionMode::Batch);
+        let result = self.inspect(&mut TracerDispatcher::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {
@@ -205,7 +206,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         storage: StoragePtr<S>,
         subversion: MultiVMSubversion,
     ) -> Self {
-        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
+        let (state, bootloader_state) =
+            new_vm_state(storage.clone(), &system_env, &batch_env, subversion);
         Self {
             bootloader_state,
             state,

@@ -90,10 +90,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let genesis_config = chain_config.get_genesis_config()?;
 
-    if genesis_config.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium {
-        panic!("Validium is not supported yet!");
-    }
-
     // Firstly, deploying gateway contracts
 
     let preparation_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
@@ -195,6 +191,17 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
 
+    let is_rollup = matches!(
+        genesis_config.l1_batch_commit_data_generator_mode,
+        L1BatchCommitmentMode::Rollup
+    );
+
+    let gateway_da_validator_address = if is_rollup {
+        gateway_gateway_config.relayed_sl_da_validator
+    } else {
+        gateway_gateway_config.validium_da_validator
+    };
+
     println!("Setting DA validator pair...");
     let hash = call_script(
         shell,
@@ -206,8 +213,8 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                     chain_admin_addr,
                     chain_access_control_restriction,
                     U256::from(chain_config.chain_id.0),
-                    gateway_gateway_config.relayed_sl_da_validator,
-                    chain_contracts_config.l2.l2_da_validator_addr,
+                    gateway_da_validator_address,
+                    chain_contracts_config.l2.da_validator_addr,
                     new_diamond_proxy_address,
                 ),
             )
@@ -352,12 +359,15 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .as_mut()
         .expect("gas_adjuster")
         .settlement_mode = SettlementMode::Gateway;
-    // FIXME: for now only rollups are supported
-    eth_config
-        .sender
-        .as_mut()
-        .expect("sender")
-        .pubdata_sending_mode = PubdataSendingMode::RelayedL2Calldata;
+    if is_rollup {
+        // For rollups, new type of commitment should be used, but
+        // not for validium.
+        eth_config
+            .sender
+            .as_mut()
+            .expect("sender")
+            .pubdata_sending_mode = PubdataSendingMode::RelayedL2Calldata;
+    }
     eth_config
         .sender
         .as_mut()
@@ -434,38 +444,3 @@ async fn call_script(
 
     Ok(gateway_preparation_script_output.governance_l2_tx_hash)
 }
-
-// TODO(EVM-751): we need to set token multiplier setter on L2
-// pub async fn set_token_multiplier_setter(
-//     shell: &Shell,
-//     ecosystem_config: &EcosystemConfig,
-//     governor: Option<H256>,
-//     chain_admin_address: Address,
-//     target_address: Address,
-//     forge_args: &ForgeScriptArgs,
-//     l1_rpc_url: String,
-// ) -> anyhow::Result<()> {
-//     // Resume for accept admin doesn't work properly. Foundry assumes that if signature of the function is the same,
-//     // then it's the same call, but because we are calling this function multiple times during the init process,
-//     // code assumes that doing only once is enough, but actually we need to accept admin multiple times
-//     let mut forge_args = forge_args.clone();
-//     forge_args.resume = false;
-
-//     let calldata = SET_TOKEN_MULTIPLIER_SETTER
-//         .encode(
-//             "chainSetTokenMultiplierSetter",
-//             (chain_admin_address, target_address),
-//         )
-//         .unwrap();
-//     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
-//     let forge = Forge::new(&foundry_contracts_path)
-//         .script(
-//             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
-//             forge_args.clone(),
-//         )
-//         .with_ffi()
-//         .with_rpc_url(l1_rpc_url)
-//         .with_broadcast()
-//         .with_calldata(&calldata);
-//     update_token_multiplier_setter(shell, governor, forge).await
-// }

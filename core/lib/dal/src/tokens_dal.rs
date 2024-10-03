@@ -110,7 +110,7 @@ impl TokensDal<'_, '_> {
             r#"
             DELETE FROM tokens
             WHERE
-                l2_address = ANY ($1)
+                l2_address = ANY($1)
             "#,
             &token_addresses_to_be_removed as &[_]
         )

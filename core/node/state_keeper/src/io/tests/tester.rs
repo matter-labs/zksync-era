@@ -134,7 +134,7 @@ impl Tester {
             pool,
             &config,
             wallets.state_keeper.unwrap().fee_account.address(),
-            Default::default(),
+            Some(Default::default()),
             Default::default(),
             Duration::from_secs(1),
             L2ChainId::from(270),

@@ -4,6 +4,7 @@ use ethers::{
     types::{H160, U256},
     utils::format_ether,
 };
+use zksync_consensus_roles::attester;
 
 pub(super) const MSG_SETUP_KEYS_DOWNLOAD_SELECTION_PROMPT: &str =
     "Do you want to download the setup keys or generate them?";
@@ -51,7 +52,7 @@ pub(super) fn msg_path_to_zksync_does_not_exist_err(path: &str) -> String {
 
 /// Ecosystem and chain init related messages
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
-pub(super) const MSG_PORT_OFFSET_HELP: &str = "Add a costant offset to the ports exposed by the components. Useful when running multiple chains on the same machine";
+pub(super) const MSG_NO_PORT_REALLOCATION_HELP: &str = "Do not reallocate ports";
 pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
 pub(super) const MSG_DEV_ARG_HELP: &str =
     "Deploy ecosystem  using all defaults. Suitable for local development";
@@ -330,8 +331,6 @@ pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is m
 pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
 pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
 
-pub(super) const MSG_PORTS_CONFIG_ERR: &str = "Failed to get ports config";
-
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 
 /// Prover related messages
@@ -481,4 +480,23 @@ pub(super) fn msg_diff_secrets(
 
 pub(super) fn msg_updating_chain(chain: &str) -> String {
     format!("Updating chain: {}", chain)
+}
+
+/// consensus command messages
+pub(super) const MSG_RECEIPT_MISSING: &str = "receipt missing";
+pub(super) const MSG_STATUS_MISSING: &str = "status missing";
+pub(super) const MSG_TRANSACTION_FAILED: &str = "transaction failed";
+pub(super) const MSG_API_CONFIG_MISSING: &str = "api config missing";
+pub(super) const MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED: &str =
+    "multicall3 contract not configured";
+pub(super) const MSG_GOVERNOR_PRIVATE_KEY_NOT_SET: &str = "governor private key not set";
+pub(super) const MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED: &str =
+    "consensus registry address not configured";
+pub(super) const MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML: &str =
+    "consensus.genesis_spec.attesters missing in general.yaml";
+pub(super) fn msg_setting_attester_committee_failed(
+    got: &attester::Committee,
+    want: &attester::Committee,
+) -> String {
+    format!("setting attester committee failed: got {got:?}, want {want:?}")
 }

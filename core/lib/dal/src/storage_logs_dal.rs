@@ -186,7 +186,8 @@ impl StorageLogsDal<'_, '_> {
     ) -> DalResult<Vec<H256>> {
         let rows = sqlx::query!(
             r#"
-            SELECT DISTINCT
+            SELECT
+                DISTINCT
                 hashed_key
             FROM
                 storage_logs
@@ -290,13 +291,14 @@ impl StorageLogsDal<'_, '_> {
         let rows = sqlx::query!(
             r#"
             SELECT DISTINCT
-                ON (hashed_key) hashed_key,
+            ON (hashed_key)
+                hashed_key,
                 miniblock_number,
                 value
             FROM
                 storage_logs
             WHERE
-                hashed_key = ANY ($1)
+                hashed_key = ANY($1)
                 AND miniblock_number <= $2
                 AND miniblock_number <= COALESCE(
                     (
@@ -539,11 +541,11 @@ impl StorageLogsDal<'_, '_> {
             SELECT
                 hashed_key,
                 l1_batch_number,
-                INDEX
+                index
             FROM
                 initial_writes
             WHERE
-                hashed_key = ANY ($1::bytea[])
+                hashed_key = ANY($1::bytea [])
             "#,
             &hashed_keys as &[&[u8]],
         )
@@ -621,7 +623,7 @@ impl StorageLogsDal<'_, '_> {
                         1
                 ) AS "value?"
             FROM
-                UNNEST($1::bytea[]) AS u (hashed_key)
+                UNNEST($1::bytea []) AS u (hashed_key)
             "#,
             &hashed_keys as &[&[u8]],
             i64::from(l2_block_number.0)
@@ -688,9 +690,9 @@ impl StorageLogsDal<'_, '_> {
             SELECT
                 COUNT(*) AS COUNT
             FROM
-                storage_logs
+                STORAGE_LOGS
             WHERE
-                miniblock_number <= $1
+                MINIBLOCK_NUMBER <= $1
             "#,
             i64::from(at_l2_block.0)
         )
@@ -717,32 +719,33 @@ impl StorageLogsDal<'_, '_> {
         let rows = sqlx::query!(
             r#"
             WITH
-                sl AS (
-                    SELECT
-                        (
-                            SELECT
-                                ARRAY[hashed_key, value] AS kv
-                            FROM
-                                storage_logs
-                            WHERE
-                                storage_logs.miniblock_number = $1
-                                AND storage_logs.hashed_key >= u.start_key
-                                AND storage_logs.hashed_key <= u.end_key
-                            ORDER BY
-                                storage_logs.hashed_key
-                            LIMIT
-                                1
-                        )
-                    FROM
-                        UNNEST($2::bytea[], $3::bytea[]) AS u (start_key, end_key)
-                )
+            sl AS (
+                SELECT
+                    (
+                        SELECT
+                            ARRAY[hashed_key, value] AS kv
+                        FROM
+                            storage_logs
+                        WHERE
+                            storage_logs.miniblock_number = $1
+                            AND storage_logs.hashed_key >= u.start_key
+                            AND storage_logs.hashed_key <= u.end_key
+                        ORDER BY
+                            storage_logs.hashed_key
+                        LIMIT
+                            1
+                    )
+                FROM
+                    UNNEST($2::bytea [], $3::bytea []) AS u (start_key, end_key)
+            )
+            
             SELECT
                 sl.kv[1] AS "hashed_key?",
                 sl.kv[2] AS "value?",
                 initial_writes.index
             FROM
                 sl
-                LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]
+            LEFT OUTER JOIN initial_writes ON initial_writes.hashed_key = sl.kv[1]
             "#,
             i64::from(l2_block_number.0),
             &start_keys as &[&[u8]],
@@ -779,7 +782,7 @@ impl StorageLogsDal<'_, '_> {
                 initial_writes.index
             FROM
                 storage_logs
-                INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key
+            INNER JOIN initial_writes ON storage_logs.hashed_key = initial_writes.hashed_key
             WHERE
                 storage_logs.miniblock_number = $1
                 AND storage_logs.hashed_key >= $2::bytea

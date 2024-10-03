@@ -11,16 +11,13 @@ use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     ethabi::Contract, l1::L1Tx, protocol_version::ProtocolSemanticVersion,
-    web3::BlockNumber as Web3BlockNumber, Address, PriorityOpId,
+    web3::BlockNumber as Web3BlockNumber, PriorityOpId,
 };
 
 pub use self::client::EthHttpQueryClient;
 use self::{
     client::{EthClient, RETRY_LIMIT},
-    event_processors::{
-        EventProcessor, EventProcessorError, GovernanceUpgradesEventProcessor,
-        PriorityOpsEventProcessor,
-    },
+    event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},
     metrics::METRICS,
 };
 use crate::event_processors::{DecentralizedUpgradesEventProcessor, EventsSource};
@@ -50,8 +47,6 @@ pub struct EthWatch {
 impl EthWatch {
     #[allow(clippy::too_many_arguments)]
     pub async fn new(
-        sl_diamond_proxy_addr: Address,
-        governance_contract: &Contract,
         chain_admin_contract: &Contract,
         l1_client: Box<dyn EthClient>,
         sl_client: Box<dyn EthClient>,
@@ -66,18 +61,12 @@ impl EthWatch {
 
         let priority_ops_processor =
             PriorityOpsEventProcessor::new(state.next_expected_priority_id, priority_merkle_tree)?;
-        let governance_upgrades_processor = GovernanceUpgradesEventProcessor::new(
-            sl_diamond_proxy_addr,
-            state.last_seen_protocol_version,
-            governance_contract,
-        );
         let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
             state.last_seen_protocol_version,
             chain_admin_contract,
         );
         let event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
-            Box::new(governance_upgrades_processor),
             Box::new(decentralized_upgrades_processor),
         ];
 
@@ -154,7 +143,7 @@ impl EthWatch {
             let finalized_block = client.finalized_block_number().await?;
 
             let from_block = storage
-                .processed_events_dal()
+                .eth_watcher_dal()
                 .get_or_set_next_block_to_process(
                     processor.event_type(),
                     chain_id,
@@ -163,12 +152,16 @@ impl EthWatch {
                 .await
                 .map_err(DalError::generalize)?;
 
+            // There are no new blocks so there is nothing to be done
+            if from_block > finalized_block {
+                continue;
+            }
             let processor_events = client
                 .get_events(
                     Web3BlockNumber::Number(from_block.into()),
                     Web3BlockNumber::Number(finalized_block.into()),
-                    vec![processor.relevant_topic()],
-                    vec![],
+                    processor.relevant_topic(),
+                    None,
                     RETRY_LIMIT,
                 )
                 .await?;
@@ -177,7 +170,7 @@ impl EthWatch {
                 .await?;
 
             let next_block_to_process = if processed_events_count == processor_events.len() {
-                finalized_block
+                finalized_block + 1
             } else if processed_events_count == 0 {
                 //nothing was processed
                 from_block
@@ -190,7 +183,7 @@ impl EthWatch {
             };
 
             storage
-                .processed_events_dal()
+                .eth_watcher_dal()
                 .update_next_block_to_process(
                     processor.event_type(),
                     chain_id,

@@ -66,7 +66,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn inspect(
         &mut self,
-        _tracer: Self::TracerDispatcher,
+        _tracer: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         match execution_mode {
@@ -90,7 +90,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        _tracer: Self::TracerDispatcher,
+        _tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         _with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
@@ -100,7 +100,10 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
             self.system_env.execution_mode.glue_into(),
         );
         // Bytecode compression isn't supported
-        (Ok(vec![].into()), self.inspect((), VmExecutionMode::OneTx))
+        (
+            Ok(vec![].into()),
+            self.inspect(&mut (), VmExecutionMode::OneTx),
+        )
     }
 
     fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {

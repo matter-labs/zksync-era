@@ -1,0 +1,34 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE transactions\n            SET\n                hash = data_table.hash,\n                signature = data_table.signature,\n                gas_limit = data_table.gas_limit,\n                max_fee_per_gas = data_table.max_fee_per_gas,\n                max_priority_fee_per_gas = data_table.max_priority_fee_per_gas,\n                gas_per_pubdata_limit = data_table.gas_per_pubdata_limit,\n                input = data_table.input,\n                data = data_table.data,\n                tx_format = data_table.tx_format,\n                miniblock_number = $21,\n                index_in_block = data_table.index_in_block,\n                error = NULLIF(data_table.error, ''),\n                effective_gas_price = data_table.effective_gas_price,\n                execution_info = data_table.new_execution_info,\n                refunded_gas = data_table.refunded_gas,\n                value = data_table.value,\n                contract_address = data_table.contract_address,\n                paymaster = data_table.paymaster,\n                paymaster_input = data_table.paymaster_input,\n                in_mempool = FALSE,\n                updated_at = NOW()\n            FROM\n                (\n                    SELECT\n                        data_table_temp.*\n                    FROM\n                        (\n                            SELECT\n                                UNNEST($1::bytea []) AS initiator_address,\n                                UNNEST($2::int []) AS nonce,\n                                UNNEST($3::bytea []) AS hash,\n                                UNNEST($4::bytea []) AS signature,\n                                UNNEST($5::numeric []) AS gas_limit,\n                                UNNEST($6::numeric []) AS max_fee_per_gas,\n                                UNNEST($7::numeric []) AS max_priority_fee_per_gas,\n                                UNNEST($8::numeric []) AS gas_per_pubdata_limit,\n                                UNNEST($9::int []) AS tx_format,\n                                UNNEST($10::integer []) AS index_in_block,\n                                UNNEST($11::varchar []) AS error,\n                                UNNEST($12::numeric []) AS effective_gas_price,\n                                UNNEST($13::jsonb []) AS new_execution_info,\n                                UNNEST($14::bytea []) AS input,\n                                UNNEST($15::jsonb []) AS data,\n                                UNNEST($16::bigint []) AS refunded_gas,\n                                UNNEST($17::numeric []) AS value,\n                                UNNEST($18::bytea []) AS contract_address,\n                                UNNEST($19::bytea []) AS paymaster,\n                                UNNEST($20::bytea []) AS paymaster_input\n                        ) AS data_table_temp\n                    JOIN transactions\n                        ON\n                            transactions.initiator_address\n                            = data_table_temp.initiator_address\n                            AND transactions.nonce = data_table_temp.nonce\n                    ORDER BY\n                        transactions.hash\n                ) AS data_table\n            WHERE\n                transactions.initiator_address = data_table.initiator_address\n                AND transactions.nonce = data_table.nonce\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "ByteaArray",
+        "Int4Array",
+        "ByteaArray",
+        "ByteaArray",
+        "NumericArray",
+        "NumericArray",
+        "NumericArray",
+        "NumericArray",
+        "Int4Array",
+        "Int4Array",
+        "VarcharArray",
+        "NumericArray",
+        "JsonbArray",
+        "ByteaArray",
+        "JsonbArray",
+        "Int8Array",
+        "NumericArray",
+        "ByteaArray",
+        "ByteaArray",
+        "ByteaArray",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9badf9f287fd5f8a11cc855b230d23f83a260adf56000748c4b19752e2948ab5"
+}

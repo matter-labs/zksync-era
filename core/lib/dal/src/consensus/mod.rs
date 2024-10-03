@@ -143,7 +143,7 @@ pub struct Payload {
     pub fair_pubdata_price: Option<u64>,
     pub virtual_blocks: u32,
     pub operator_address: Address,
-    pub pubdata_params: PubdataParams,
+    pub pubdata_params: Option<PubdataParams>,
     pub transactions: Vec<Transaction>,
     pub last_in_batch: bool,
 }
@@ -181,9 +181,19 @@ impl ProtoFmt for Payload {
             }
         }
 
-        let pubdata_params = required(&r.pubdata_params)
-            .context("pubdata_params")?
-            .clone();
+        let pubdata_params = if let Some(pubdata_params) = &r.pubdata_params {
+            Some(PubdataParams {
+                l2_da_validator_address: required(&pubdata_params.l2_da_validator_address)
+                    .and_then(|a| parse_h160(a))
+                    .context("operator_address")?,
+                pubdata_type: required(&pubdata_params.pubdata_type)
+                    .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
+                    .context("l1_batch_commit_data_generator_mode")?
+                    .parse(),
+            })
+        } else {
+            None
+        };
 
         Ok(Self {
             protocol_version,
@@ -203,15 +213,7 @@ impl ProtoFmt for Payload {
                 .context("operator_address")?,
             transactions,
             last_in_batch: *required(&r.last_in_batch).context("last_in_batch")?,
-            pubdata_params: PubdataParams {
-                l2_da_validator_address: required(&pubdata_params.l2_da_validator_address)
-                    .and_then(|a| parse_h160(a))
-                    .context("operator_address")?,
-                pubdata_type: required(&pubdata_params.pubdata_type)
-                    .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
-                    .context("l1_batch_commit_data_generator_mode")?
-                    .parse(),
-            },
+            pubdata_params,
         })
     }
 
@@ -230,17 +232,16 @@ impl ProtoFmt for Payload {
             transactions: vec![],
             transactions_v25: vec![],
             last_in_batch: Some(self.last_in_batch),
-            pubdata_params: Some(proto::PubdataParams {
-                l2_da_validator_address: Some(
-                    self.pubdata_params
-                        .l2_da_validator_address
-                        .as_bytes()
-                        .into(),
-                ),
-                pubdata_type: Some(proto::L1BatchCommitDataGeneratorMode::new(
-                    &self.pubdata_params.pubdata_type,
-                ) as i32),
-            }),
+            pubdata_params: self
+                .pubdata_params
+                .map(|pubdata_params| proto::PubdataParams {
+                    l2_da_validator_address: Some(
+                        pubdata_params.l2_da_validator_address.as_bytes().into(),
+                    ),
+                    pubdata_type: Some(proto::L1BatchCommitDataGeneratorMode::new(
+                        &pubdata_params.pubdata_type,
+                    ) as i32),
+                }),
         };
         match self.protocol_version {
             v if v >= ProtocolVersionId::Version25 => {

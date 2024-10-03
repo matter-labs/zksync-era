@@ -106,13 +106,8 @@ impl StateKeeperHandles {
         assert!(tx_hashes.iter().all(|tx_hashes| !tx_hashes.is_empty()));
 
         let sync_state = SyncState::default();
-        let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
-            pool.clone(),
-            Address::repeat_byte(1),
-            Address::default(),
-            Address::repeat_byte(13),
-            5,
-        );
+        let (persistence, l2_block_sealer) =
+            StateKeeperPersistence::new(pool.clone(), Some(Address::repeat_byte(1)), 5);
         let tree_writes_persistence = TreeWritesPersistence::new(pool.clone());
         let output_handler = OutputHandler::new(Box::new(persistence.with_tx_insertion()))
             .with_handler(Box::new(tree_writes_persistence))

@@ -1,7 +1,10 @@
 //! Tests for the `debug` Web3 namespace.
 
 use zksync_multivm::interface::{Call, TransactionExecutionResult};
-use zksync_types::BOOTLOADER_ADDRESS;
+use zksync_types::{
+    api::{CallTracerConfig, SupportedTracers, TracerConfig},
+    BOOTLOADER_ADDRESS,
+};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     namespaces::DebugNamespaceClient,
@@ -58,18 +61,19 @@ impl HttpTest for TraceBlockTest {
             let block_traces = match block_id {
                 api::BlockId::Number(number) => client.trace_block_by_number(number, None).await?,
                 api::BlockId::Hash(hash) => client.trace_block_by_hash(hash, None).await?,
-            };
+            }
+            .unwrap_default();
 
             assert_eq!(block_traces.len(), tx_results.len()); // equals to the number of transactions in the block
             for (trace, tx_result) in block_traces.iter().zip(&tx_results) {
-                let api::ResultDebugCall { result } = trace;
+                let result = &trace.result;
                 assert_eq!(result.from, Address::zero());
                 assert_eq!(result.to, BOOTLOADER_ADDRESS);
                 assert_eq!(result.gas, tx_result.transaction.gas_limit());
                 let expected_calls: Vec<_> = tx_result
                     .call_traces
                     .iter()
-                    .map(|call| DebugNamespace::map_call(call.clone(), false))
+                    .map(|call| DebugNamespace::map_default_call(call.clone(), false))
                     .collect();
                 assert_eq!(result.calls, expected_calls);
             }
@@ -122,7 +126,18 @@ impl HttpTest for TraceBlockFlatTest {
 
         for block_id in block_ids {
             if let api::BlockId::Number(number) = block_id {
-                let block_traces = client.trace_block_by_number_flat(number, None).await?;
+                let block_traces = client
+                    .trace_block_by_number(
+                        number,
+                        Some(TracerConfig {
+                            tracer: SupportedTracers::FlatCallTracer,
+                            tracer_config: CallTracerConfig {
+                                only_top_call: false,
+                            },
+                        }),
+                    )
+                    .await?
+                    .unwrap_flat();
 
                 // A transaction with 2 nested calls will convert into 3 Flattened calls.
                 // Also in this test, all tx have the same # of nested calls
@@ -133,10 +148,10 @@ impl HttpTest for TraceBlockFlatTest {
 
                 // First tx has 2 nested calls, thus 2 sub-traces
                 assert_eq!(block_traces[0].subtraces, 2);
-                assert_eq!(block_traces[0].traceaddress, [0]);
+                assert_eq!(block_traces[0].trace_address, [0]);
                 // Second flat-call (fist nested call) do not have nested calls
                 assert_eq!(block_traces[1].subtraces, 0);
-                assert_eq!(block_traces[1].traceaddress, [0, 0]);
+                assert_eq!(block_traces[1].trace_address, [0, 0]);
 
                 let top_level_call_indexes = [0, 3, 6];
                 let top_level_traces = top_level_call_indexes
@@ -157,7 +172,15 @@ impl HttpTest for TraceBlockFlatTest {
 
         let missing_block_number = api::BlockNumber::from(*self.0 + 100);
         let error = client
-            .trace_block_by_number_flat(missing_block_number, None)
+            .trace_block_by_number(
+                missing_block_number,
+                Some(TracerConfig {
+                    tracer: SupportedTracers::FlatCallTracer,
+                    tracer_config: CallTracerConfig {
+                        only_top_call: false,
+                    },
+                }),
+            )
             .await
             .unwrap_err();
         if let ClientError::Call(error) = error {
@@ -198,13 +221,14 @@ impl HttpTest for TraceTransactionTest {
         let expected_calls: Vec<_> = tx_results[0]
             .call_traces
             .iter()
-            .map(|call| DebugNamespace::map_call(call.clone(), false))
+            .map(|call| DebugNamespace::map_default_call(call.clone(), false))
             .collect();
 
         let result = client
             .trace_transaction(tx_results[0].hash, None)
             .await?
-            .context("no transaction traces")?;
+            .context("no transaction traces")?
+            .unwrap_default();
         assert_eq!(result.from, Address::zero());
         assert_eq!(result.to, BOOTLOADER_ADDRESS);
         assert_eq!(result.gas, tx_results[0].transaction.gas_limit());

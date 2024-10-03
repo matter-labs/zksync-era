@@ -6,7 +6,8 @@ use zk_evm_1_5_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
 use zksync_types::{
-    writes::StateDiffRecord, AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS, U256,
+    l2_to_l1_log::l2_to_l1_logs_tree_size, writes::StateDiffRecord, AccountTreeId,
+    ProtocolVersionId, StorageKey, L1_MESSENGER_ADDRESS,
 };
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
@@ -43,6 +44,7 @@ pub(crate) struct PubdataTracer<S> {
     // to the L1Messenger.
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
     subversion: MultiVMSubversion,
+    protocol_version: ProtocolVersionId,
     _phantom_data: PhantomData<S>,
 }
 
@@ -51,6 +53,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
         l1_batch_env: L1BatchEnv,
         execution_mode: VmExecutionMode,
         subversion: MultiVMSubversion,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         Self {
             l1_batch_env,
@@ -58,6 +61,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             execution_mode,
             enforced_state_diffs: None,
             subversion,
+            protocol_version,
             _phantom_data: Default::default(),
         }
     }
@@ -70,6 +74,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
         execution_mode: VmExecutionMode,
         forced_state_diffs: Vec<StateDiffRecord>,
         subversion: MultiVMSubversion,
+        protocol_version: ProtocolVersionId,
     ) -> Self {
         Self {
             l1_batch_env,
@@ -77,6 +82,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             execution_mode,
             enforced_state_diffs: Some(forced_state_diffs),
             subversion,
+            protocol_version,
             _phantom_data: Default::default(),
         }
     }
@@ -160,7 +166,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
         .into_iter()
         .filter(|log| log.rw_flag)
         .filter(|log| log.read_value != log.written_value)
-        .filter(|log| log.address != L1_MESSENGER_ADDRESS || log.key == U256::from(4u32))
+        .filter(|log| log.address != L1_MESSENGER_ADDRESS)
         .map(|log| StateDiffRecord {
             address: log.address,
             key: log.key,
@@ -186,6 +192,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             l2_to_l1_messages: self.get_total_l1_messenger_messages(state),
             published_bytecodes: self.get_total_published_bytecodes(state),
             state_diffs: self.get_state_diffs(&state.storage),
+            l2_to_l1_logs_tree_size: l2_to_l1_logs_tree_size(self.protocol_version),
         }
     }
 }
@@ -232,7 +239,8 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
             apply_pubdata_to_memory(
                 &mut memory_to_apply,
                 pubdata_input,
-                bootloader_state.pubdata_params,
+                bootloader_state.get_pubdata_params(),
+                bootloader_state.get_vm_subversion(),
             );
             state.memory.populate_page(
                 BOOTLOADER_HEAP_PAGE as usize,

@@ -62,7 +62,10 @@ impl VmDump {
     }
 
     /// Plays back this dump on the specified VM.
-    pub fn play_back<Vm: VmFactory<StorageView<StorageSnapshot>>>(self) -> Vm {
+    pub fn play_back<Vm>(self) -> Vm
+    where
+        Vm: VmFactory<StorageView<StorageSnapshot>>,
+    {
         self.play_back_custom(Vm::new)
     }
 
@@ -146,7 +149,7 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
 
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher,
+        dispatcher: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         self.inner.inspect(dispatcher, execution_mode)
@@ -165,7 +168,7 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult, VmExecutionResultAndLogs) {

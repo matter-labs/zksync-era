@@ -12,7 +12,7 @@ use zksync_config::{
     PostgresConfig,
 };
 use zksync_metadata_calculator::{MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig};
-use zksync_node_api_server::{tx_sender::ApiContracts, web3::Namespace};
+use zksync_node_api_server::web3::Namespace;
 use zksync_node_framework::{
     implementations::layers::{
         batch_status_updater::BatchStatusUpdaterLayer,
@@ -192,18 +192,7 @@ impl ExternalNodeBuilder {
         const OPTIONAL_BYTECODE_COMPRESSION: bool = true;
 
         let persistence_layer = OutputHandlerLayer::new(
-            self.config
-                .remote
-                .l2_shared_bridge_addr
-                .expect("L2 shared bridge address is not set"),
-            self.config
-                .remote
-                .l2_native_token_vault_proxy_addr
-                .expect("L2 native token vault proxy address is not set"),
-            self.config
-                .remote
-                .l2_legacy_shared_bridge_addr
-                .expect("L2 legacy shared bridge address is not set"),
+            self.config.remote.l2_legacy_shared_bridge_addr,
             self.config.optional.l2_block_seal_queue_capacity,
         )
         .with_pre_insert_txs(true) // EN requires txs to be pre-inserted.
@@ -387,12 +376,10 @@ impl ExternalNodeBuilder {
             latest_values_cache_size: self.config.optional.latest_values_cache_size() as u64,
         };
         let max_vm_concurrency = self.config.optional.vm_concurrency_limit;
-        let api_contracts = ApiContracts::load_from_disk_blocking(); // TODO (BFT-138): Allow to dynamically reload API contracts;
         let tx_sender_layer = TxSenderLayer::new(
             (&self.config).into(),
             postgres_storage_config,
             max_vm_concurrency,
-            api_contracts,
         )
         .with_whitelisted_tokens_for_aa_cache(true);
 
