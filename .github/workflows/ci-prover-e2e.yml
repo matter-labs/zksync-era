@@ -1,6 +1,7 @@
 name: Workflow for testing prover component end-to-end
 on:
   workflow_call:
+    
 jobs:
   e2e-test:
     runs-on: [ matterlabs-ci-gpu-runner ]
