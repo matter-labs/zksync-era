@@ -39,7 +39,7 @@ jobs:
           ci_run zk_inception chain create \
             --chain-name legacy \
             --chain-id sequential \
-            --prover-mode no-proofs \
+            --prover-mode gpu \
             --wallet-creation localhost \
             --l1-batch-commit-data-generator-mode rollup \
             --base-token-address 0x0000000000000000000000000000000000000001 \
@@ -50,4 +50,25 @@ jobs:
             --legacy-bridge
 
           ci_run zk_inception ecosystem init --dev --verbose
-          ci_run zk_inception prover init
+          ci_run zk_inception  prover init --shall-save-to-public-bucket=false --setup-database=false --setup-keys=false --cloud-type=local --setup-compressor-keys=true --bellman-cuda=true  
+          ci_run zk_inception prover setup-keys --mode=download --region=us
+      - name: Run server
+        run: |
+          ci_run zk_inception server --uring --chain=legacy --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>server.log &
+          ci_run sleep 60
+      - name: Run Gateway
+        run: |
+          ci_run zk_inception prover run --component=gateway --docker=false
+          ci_run sleep 60
+      - name: Run Prover
+        run: |
+          ci_run zk_inception prover run --component=prover --docker=false
+          ci_run sleep 60
+      - name: Run Witness Generator
+        run: |
+          ci_run zk_inception prover run --component=witness-generator --rounds=all-rounds --docker=false
+          ci_run sleep 60
+      - name: Run WVG
+        run: |
+          ci_run zk_inception prover run --component=witness-vector-generator --docker=false
+          ci_run sleep 60
