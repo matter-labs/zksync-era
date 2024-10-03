@@ -55,7 +55,7 @@ impl ProofGenerationDal<'_, '_> {
                         l1_batch_number
                     FROM
                         proof_generation_details
-                        LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
+                    LEFT JOIN l1_batches ON l1_batch_number = l1_batches.number
                     WHERE
                         (
                             vm_run_data_blob_url IS NOT NULL
@@ -75,7 +75,7 @@ impl ProofGenerationDal<'_, '_> {
                         1
                 )
             RETURNING
-                proof_generation_details.l1_batch_number
+            proof_generation_details.l1_batch_number
             "#,
             &processing_timeout,
         )
@@ -254,9 +254,9 @@ impl ProofGenerationDal<'_, '_> {
         let result = sqlx::query!(
             r#"
             INSERT INTO
-                proof_generation_details (l1_batch_number, status, created_at, updated_at)
+            proof_generation_details (l1_batch_number, status, created_at, updated_at)
             VALUES
-                ($1, 'unpicked', NOW(), NOW())
+            ($1, 'unpicked', NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(l1_batch_number.0),

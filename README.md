@@ -16,6 +16,7 @@ The following questions will be answered by the following resources:
 | What do I need to develop the project locally?          | [development.md](docs/guides/development.md)   |
 | How can I set up my dev environment?                    | [setup-dev.md](docs/guides/setup-dev.md)       |
 | How can I run the project?                              | [launch.md](docs/guides/launch.md)             |
+| How can I build Docker images?                          | [build-docker.md](docs/guides/build-docker.md) |
 | What is the logical project structure and architecture? | [architecture.md](docs/guides/architecture.md) |
 | Where can I find protocol specs?                        | [specs.md](docs/specs/README.md)               |
 | Where can I find developer docs?                        | [docs](https://docs.zksync.io)                 |
