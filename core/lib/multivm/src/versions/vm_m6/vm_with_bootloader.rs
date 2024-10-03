@@ -15,7 +15,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
     fee_model::L1PeggedBatchFeeModelInput, Address, Transaction, BOOTLOADER_ADDRESS,
-    L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 use zksync_utils::{
     address_to_u256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, misc::ceil_div,
@@ -36,6 +36,9 @@ use crate::{
         OracleTools, VmInstance,
     },
 };
+
+
+pub(crate) const MAX_NEW_FACTORY_DEPS: usize = 32;
 
 // TODO (SMA-1703): move these to config and make them programmatically generable.
 // fill these values in the similar fashion as other overhead-related constants

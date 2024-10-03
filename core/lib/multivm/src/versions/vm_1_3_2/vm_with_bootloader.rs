@@ -16,7 +16,7 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::MAX_L2_TX_GAS_LIMIT;
 use zksync_types::{
     fee_model::L1PeggedBatchFeeModelInput, l1::is_l1_tx_type, Address, Transaction,
-    BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, MAX_NEW_FACTORY_DEPS, U256,
+    BOOTLOADER_ADDRESS, L1_GAS_PER_PUBDATA_BYTE, U256,
 };
 use zksync_utils::{
     address_to_u256, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, misc::ceil_div,
@@ -131,6 +131,8 @@ impl From<BlockContext> for DerivedBlockContext {
         DerivedBlockContext { context, base_fee }
     }
 }
+
+pub(crate) const MAX_NEW_FACTORY_DEPS: usize = 32;
 
 /// The size of the bootloader memory in bytes which is used by the protocol.
 /// While the maximal possible size is a lot higher, we restrict ourselves to a certain limit to reduce

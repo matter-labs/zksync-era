@@ -47,8 +47,7 @@ use crate::{
     },
     vm_latest::{
         constants::{
-            get_vm_hook_params_start_position, get_vm_hook_position, OPERATOR_REFUNDS_OFFSET,
-            TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
+            get_operator_refunds_offset, get_vm_hook_params_start_position, get_vm_hook_position, TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT
         },
         MultiVMSubversion,
     },
@@ -212,7 +211,7 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
                         pubdata_before = pubdata_published;
                         let refund_value = refunds.operator_suggested_refund;
                         self.write_to_bootloader_heap([(
-                            OPERATOR_REFUNDS_OFFSET + current_tx_index,
+                            get_operator_refunds_offset(crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory) + current_tx_index,
                             refund_value.into(),
                         )]);
                         self.bootloader_state

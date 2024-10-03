@@ -12,7 +12,7 @@ use super::{
 use crate::{
     interface::{BootloaderMemory, CompressedBytecodeInfo, L2BlockEnv, TxExecutionMode},
     versions::vm_fast::{pubdata::PubdataInput, transaction_data::TransactionData},
-    vm_latest::{constants::TX_DESCRIPTION_OFFSET, utils::l2_blocks::assert_next_block},
+    vm_latest::{constants::get_tx_description_offset, utils::l2_blocks::assert_next_block},
 };
 
 /// Intermediate bootloader-related VM state.
@@ -220,7 +220,8 @@ impl BootloaderState {
 
     /// Get offset of tx description
     pub(crate) fn get_tx_description_offset(&self, tx_index: usize) -> usize {
-        TX_DESCRIPTION_OFFSET + self.find_tx(tx_index).offset
+        // FIXME
+        get_tx_description_offset(crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory) + self.find_tx(tx_index).offset
     }
 
     pub(crate) fn insert_fictive_l2_block(&mut self) -> &BootloaderL2Block {
