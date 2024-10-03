@@ -14,9 +14,9 @@ use common::{
 use config::EcosystemConfig;
 use messages::{
     msg_global_chain_does_not_exist, MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT,
-    MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT, MSG_SUBCOMMAND_CLEAN,
-    MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT,
-    MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
+    MSG_GENERATE_GENESIS_ABOUT, MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT,
+    MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT,
+    MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 use xshell::Shell;
 
@@ -58,6 +58,8 @@ enum SupervisorSubcommands {
     Markdown,
     #[command(subcommand, about = MSG_PROVER_VERSION_ABOUT)]
     Prover(ProverCommands),
+    #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
+    GenerateGenesis,
     #[command(about = MSG_CONTRACTS_ABOUT)]
     Contracts(ContractsArgs),
     #[command(about = MSG_CONFIG_WRITER_ABOUT, alias = "o")]
@@ -123,6 +125,7 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
         SupervisorSubcommands::Lint(args) => commands::lint::run(shell, args)?,
         SupervisorSubcommands::Fmt(args) => commands::fmt::run(shell.clone(), args).await?,
         SupervisorSubcommands::Prover(command) => commands::prover::run(shell, command).await?,
+        SupervisorSubcommands::GenerateGenesis => commands::genesis::run(shell).await?,
         SupervisorSubcommands::Contracts(args) => commands::contracts::run(shell, args)?,
         SupervisorSubcommands::ConfigWriter(args) => commands::config_writer::run(shell, args)?,
         SupervisorSubcommands::SendTransactions(args) => {

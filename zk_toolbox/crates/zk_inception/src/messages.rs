@@ -246,9 +246,6 @@ pub(super) const MSG_SERVER_ADDITIONAL_ARGS_HELP: &str =
 pub(super) const MSG_SERVER_BUILD_HELP: &str = "Build server but don't run it";
 pub(super) const MSG_SERVER_URING_HELP: &str = "Enables uring support for RocksDB";
 
-/// Accept ownership related messages
-pub(super) const MSG_ACCEPTING_GOVERNANCE_SPINNER: &str = "Accepting governance...";
-
 /// Containers related messages
 pub(super) const MSG_STARTING_CONTAINERS: &str = "Starting containers";
 pub(super) const MSG_STARTING_DOCKER_CONTAINERS_SPINNER: &str =

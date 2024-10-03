@@ -1,5 +1,3 @@
-use std::fmt;
-
 use zksync_types::{ExecuteTransactionCommon, Nonce, Transaction, H160, U256};
 use zksync_vm2::interface::{Event, StateInterface};
 
@@ -194,7 +192,7 @@ impl<S: PartialEq> PartialEq for VmStateDump<S> {
 }
 
 impl<S: ReadStorage> Vm<S> {
-    fn dump_state(&self) -> VmStateDump<impl PartialEq + fmt::Debug> {
+    fn dump_state(&self) -> VmStateDump<impl PartialEq + std::fmt::Debug> {
         VmStateDump {
             state: self.inner.dump_state(),
             storage_writes: self.inner.get_storage_state().collect(),

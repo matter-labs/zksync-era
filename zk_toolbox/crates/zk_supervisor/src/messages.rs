@@ -8,6 +8,8 @@ pub(super) fn msg_global_chain_does_not_exist(chain: &str, available_chains: &st
 }
 
 // Subcommands help
+pub(super) const MSG_GENERATE_GENESIS_ABOUT: &str =
+    "Generate new genesis file based on current contracts";
 pub(super) const MSG_PROVER_VERSION_ABOUT: &str = "Protocol version used by provers";
 pub(super) const MSG_SUBCOMMAND_DATABASE_ABOUT: &str = "Database related commands";
 pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
@@ -110,7 +112,6 @@ pub(super) const MSG_RESETTING_TEST_DATABASES: &str = "Resetting test databases"
 // Contract building related messages
 pub(super) const MSG_NOTHING_TO_BUILD_MSG: &str = "Nothing to build!";
 pub(super) const MSG_BUILDING_CONTRACTS: &str = "Building contracts";
-pub(super) const MSG_CONTRACTS_DEPS_SPINNER: &str = "Installing dependencies..";
 pub(super) const MSG_BUILDING_L2_CONTRACTS_SPINNER: &str = "Building L2 contracts..";
 pub(super) const MSG_BUILDING_L1_CONTRACTS_SPINNER: &str = "Building L1 contracts..";
 pub(super) const MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER: &str = "Building system contracts..";
@@ -228,3 +229,6 @@ pub(super) const MSG_UNABLE_TO_WRITE_FILE_ERR: &str = "Unable to write data to f
 pub(super) const MSG_UNABLE_TO_READ_PARSE_JSON_ERR: &str = "Unable to parse JSON";
 pub(super) const MSG_FAILED_TO_SEND_TXN_ERR: &str = "Failed to send transaction";
 pub(super) const MSG_INVALID_L1_RPC_URL_ERR: &str = "Invalid L1 RPC URL";
+
+// Genesis
+pub(super) const MSG_GENESIS_FILE_GENERATION_STARTED: &str = "Regenerate genesis file";
