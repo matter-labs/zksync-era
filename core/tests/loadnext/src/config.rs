@@ -2,7 +2,7 @@ use std::{path::PathBuf, time::Duration};
 
 use serde::Deserialize;
 use tokio::sync::Semaphore;
-use zksync_contracts::test_contracts::LoadnextContractExecutionParams;
+use zksync_test_account::LoadnextContractExecutionParams;
 use zksync_types::{network::Network, Address, L2ChainId, H160};
 use zksync_utils::env::Workspace;
 
@@ -281,8 +281,9 @@ impl ExecutionConfig {
     pub fn from_env() -> Self {
         let transaction_weights =
             TransactionWeights::from_env().unwrap_or_else(default_transaction_weights);
-        let contract_execution_params = LoadnextContractExecutionParams::from_env()
-            .unwrap_or_else(default_contract_execution_params);
+        let contract_execution_params = envy::prefixed("CONTRACT_EXECUTION_PARAMS_")
+            .from_env()
+            .unwrap_or_else(|_| default_contract_execution_params());
         Self {
             transaction_weights,
             contract_execution_params,

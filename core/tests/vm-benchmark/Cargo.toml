@@ -6,7 +6,8 @@ license.workspace = true
 publish = false
 
 [dependencies]
-zksync_contracts.workspace = true
+zksync_contracts.workspace = true # FIXME: remove?
+zksync_test_account.workspace = true
 zksync_multivm.workspace = true
 zksync_types.workspace = true
 zksync_utils.workspace = true

@@ -6,10 +6,6 @@ use std::{collections::HashMap, fmt::Debug, sync::Arc};
 use tempfile::TempDir;
 use tokio::{sync::watch, task::JoinHandle};
 use zksync_config::configs::chain::StateKeeperConfig;
-use zksync_contracts::{
-    get_loadnext_contract, load_contract, read_bytecode,
-    test_contracts::LoadnextContractExecutionParams, TestContract,
-};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_multivm::{
     interface::{
@@ -22,7 +18,9 @@ use zksync_multivm::{
 use zksync_node_genesis::{create_genesis_l1_batch, GenesisParams};
 use zksync_node_test_utils::{recover, Snapshot};
 use zksync_state::{OwnedStorage, ReadStorageFactory, RocksdbStorageOptions};
-use zksync_test_account::{Account, DeployContractsTx, TxType};
+use zksync_test_account::{
+    Account, DeployContractsTx, LoadnextContractExecutionParams, TestContract, TxType,
+};
 use zksync_types::{
     block::L2BlockHasher,
     ethabi::Token,
@@ -352,26 +350,18 @@ pub trait AccountFailedCall {
 
 impl AccountFailedCall for Account {
     fn deploy_failedcall_tx(&mut self) -> DeployContractsTx {
-        let bytecode = read_bytecode(
-            "etc/contracts-test-data/artifacts-zk/contracts/failed-call/failed_call.sol/FailedCall.json");
-        let failedcall_contract = TestContract {
-            bytecode,
-            contract: load_contract("etc/contracts-test-data/artifacts-zk/contracts/failed-call/failed_call.sol/FailedCall.json"),
-            factory_deps: vec![],
-        };
-
-        self.get_deploy_tx(&failedcall_contract.bytecode, None, TxType::L2)
+        self.get_deploy_tx(&TestContract::failed_call().bytecode, None, TxType::L2)
     }
 }
 
 impl AccountLoadNextExecutable for Account {
     fn deploy_loadnext_tx(&mut self) -> DeployContractsTx {
-        let loadnext_contract = get_loadnext_contract();
+        let loadnext_contract = TestContract::load_test();
         let loadnext_constructor_data = &[Token::Uint(U256::from(100))];
         self.get_deploy_tx_with_factory_deps(
             &loadnext_contract.bytecode,
             Some(loadnext_constructor_data),
-            loadnext_contract.factory_deps.clone(),
+            loadnext_contract.factory_deps(),
             TxType::L2,
         )
     }
@@ -463,8 +453,7 @@ impl AccountLoadNextExecutable for Account {
 }
 
 pub fn mock_loadnext_gas_burn_calldata(gas: u32) -> Vec<u8> {
-    let loadnext_contract = get_loadnext_contract();
-    let contract_function = loadnext_contract.contract.function("burnGas").unwrap();
+    let contract_function = TestContract::load_test().abi.function("burnGas").unwrap();
     let params = vec![Token::Uint(U256::from(gas))];
     contract_function
         .encode_input(&params)

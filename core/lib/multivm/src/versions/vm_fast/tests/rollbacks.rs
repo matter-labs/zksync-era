@@ -1,6 +1,6 @@
 use assert_matches::assert_matches;
 use ethabi::Token;
-use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
+use zksync_test_account::{LoadnextContractExecutionParams, TestContract};
 use zksync_types::{Address, Execute, U256};
 use zksync_vm_interface::VmInterfaceExt;
 
@@ -71,7 +71,7 @@ fn test_vm_loadnext_rollbacks() {
         .build();
     let mut account = vm.rich_accounts[0].clone();
 
-    let loadnext_contract = get_loadnext_contract();
+    let loadnext_contract = TestContract::load_test();
     let loadnext_constructor_data = &[Token::Uint(U256::from(100))];
     let DeployContractsTx {
         tx: loadnext_deploy_tx,
@@ -80,7 +80,7 @@ fn test_vm_loadnext_rollbacks() {
     } = account.get_deploy_tx_with_factory_deps(
         &loadnext_contract.bytecode,
         Some(loadnext_constructor_data),
-        loadnext_contract.factory_deps.clone(),
+        loadnext_contract.factory_deps(),
         TxType::L2,
     );
 

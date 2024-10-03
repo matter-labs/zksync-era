@@ -1,7 +1,8 @@
 use once_cell::sync::Lazy;
-pub use zksync_contracts::test_contracts::LoadnextContractExecutionParams as LoadTestParams;
-use zksync_contracts::{deployer_contract, TestContract};
+use zksync_contracts::deployer_contract;
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
+pub use zksync_test_account::LoadnextContractExecutionParams as LoadTestParams;
+use zksync_test_account::TestContract;
 use zksync_types::{
     ethabi::{encode, Token},
     fee::Fee,
@@ -18,8 +19,6 @@ pub(crate) static PRIVATE_KEY: Lazy<K256PrivateKey> =
     Lazy::new(|| K256PrivateKey::from_bytes(H256([42; 32])).expect("invalid key bytes"));
 static LOAD_TEST_CONTRACT_ADDRESS: Lazy<Address> =
     Lazy::new(|| deployed_address_create(PRIVATE_KEY.address(), 0.into()));
-
-static LOAD_TEST_CONTRACT: Lazy<TestContract> = Lazy::new(zksync_contracts::get_loadnext_contract);
 
 static CREATE_FUNCTION_SIGNATURE: Lazy<[u8; 4]> = Lazy::new(|| {
     deployer_contract()
@@ -96,7 +95,11 @@ pub fn get_load_test_deploy_tx() -> Transaction {
     let calldata = [Token::Uint(LOAD_TEST_MAX_READS.into())];
     let params = [
         Token::FixedBytes(vec![0_u8; 32]),
-        Token::FixedBytes(hash_bytecode(&LOAD_TEST_CONTRACT.bytecode).0.to_vec()),
+        Token::FixedBytes(
+            hash_bytecode(&TestContract::load_test().bytecode)
+                .0
+                .to_vec(),
+        ),
         Token::Bytes(encode(&calldata)),
     ];
     let create_calldata = CREATE_FUNCTION_SIGNATURE
@@ -105,8 +108,8 @@ pub fn get_load_test_deploy_tx() -> Transaction {
         .chain(encode(&params))
         .collect();
 
-    let mut factory_deps = LOAD_TEST_CONTRACT.factory_deps.clone();
-    factory_deps.push(LOAD_TEST_CONTRACT.bytecode.clone());
+    let mut factory_deps: Vec<_> = TestContract::load_test().factory_deps();
+    factory_deps.push(TestContract::load_test().bytecode.clone());
 
     let mut signed = L2Tx::new_signed(
         Some(CONTRACT_DEPLOYER_ADDRESS),
@@ -131,8 +134,8 @@ pub fn get_load_test_tx(nonce: u32, gas_limit: u32, params: LoadTestParams) -> T
         "Too many reads: {params:?}, should be <={LOAD_TEST_MAX_READS}"
     );
 
-    let execute_function = LOAD_TEST_CONTRACT
-        .contract
+    let execute_function = TestContract::load_test()
+        .abi
         .function("execute")
         .expect("no `execute` function in load test contract");
     let calldata = execute_function
@@ -154,7 +157,7 @@ pub fn get_load_test_tx(nonce: u32, gas_limit: u32, params: LoadTestParams) -> T
         U256::zero(),
         L2ChainId::from(270),
         &PRIVATE_KEY,
-        LOAD_TEST_CONTRACT.factory_deps.clone(),
+        TestContract::load_test().factory_deps(),
         Default::default(),
     )
     .expect("should create a signed execute transaction");

@@ -18,8 +18,6 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, env::Workspace};
 
-pub mod test_contracts;
-
 #[derive(Debug, Clone)]
 pub enum ContractLanguage {
     Sol,
@@ -60,10 +58,6 @@ const _IERC20_CONTRACT_FILE: &str =
     "contracts/l1-contracts/artifacts/contracts/common/interfaces/IERC20.sol/IERC20.json";
 const _FAIL_ON_RECEIVE_CONTRACT_FILE:  &str  =
     "contracts/l1-contracts/artifacts/contracts/zksync/dev-contracts/FailOnReceive.sol/FailOnReceive.json";
-const LOADNEXT_CONTRACT_FILE: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json";
-const LOADNEXT_SIMPLE_CONTRACT_FILE: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/Foo.json";
 
 fn home_path() -> PathBuf {
     Workspace::locate().core()
@@ -161,33 +155,6 @@ pub fn multicall_contract() -> Contract {
 
 pub fn verifier_contract() -> Contract {
     load_contract_for_both_compilers(VERIFIER_CONTRACT_FILE)
-}
-
-#[derive(Debug, Clone)]
-pub struct TestContract {
-    /// Contract bytecode to be used for sending deploy transaction.
-    pub bytecode: Vec<u8>,
-    /// Contract ABI.
-    pub contract: Contract,
-
-    pub factory_deps: Vec<Vec<u8>>,
-}
-
-/// Reads test contract bytecode and its ABI.
-pub fn get_loadnext_contract() -> TestContract {
-    let bytecode = read_bytecode(LOADNEXT_CONTRACT_FILE);
-    let dep = read_bytecode(LOADNEXT_SIMPLE_CONTRACT_FILE);
-
-    TestContract {
-        bytecode,
-        contract: loadnext_contract(),
-        factory_deps: vec![dep],
-    }
-}
-
-// Returns loadnext contract and its factory dependencies
-fn loadnext_contract() -> Contract {
-    load_contract("etc/contracts-test-data/artifacts-zk/contracts/loadnext/loadnext_contract.sol/LoadnextContract.json")
 }
 
 pub fn deployer_contract() -> Contract {
