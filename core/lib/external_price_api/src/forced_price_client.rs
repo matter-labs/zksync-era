@@ -7,7 +7,7 @@ use zksync_types::{base_token_ratio::BaseTokenAPIRatio, Address};
 
 use crate::PriceAPIClient;
 
-// Struct for a a forced price "client" (conversion ratio is always a configured "forced" ratio).
+// Struct for a forced price "client" (conversion ratio is always a configured "forced" ratio).
 #[derive(Debug, Clone)]
 pub struct ForcedPriceClient {
     ratio: BaseTokenAPIRatio,
