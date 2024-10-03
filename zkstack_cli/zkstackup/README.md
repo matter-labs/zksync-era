@@ -1,26 +1,26 @@
-# zkup - ZK Stack CLI Installer
+# zkstackup - ZK Stack CLI Installer
 
-`zkup` is a script designed to simplify the installation of
+`zkstackup` is a script designed to simplify the installation of
 [ZK Stack CLI](https://github.com/matter-labs/zksync-era/tree/main/zkstack_cli). It allows you to install the tool from
 a local directory or directly from a GitHub repository.
 
 ## Getting Started
 
-To install `zkup`, run the following command:
+To install `zkstackup`, run the following command:
 
 ```bash
-curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkup/install | bash
+curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkstackup/install | bash
 ```
 
-After installing `zkup`, you can use it to install `zkstack_cli` with:
+After installing `zkstackup`, you can use it to install `zkstack_cli` with:
 
 ```bash
-zkup
+zkstackup
 ```
 
 ## Usage
 
-The `zkup` script provides various options for installing ZK Stack CLI:
+The `zkstackup` script provides various options for installing ZK Stack CLI:
 
 ### Options
 
@@ -40,22 +40,22 @@ The `zkup` script provides various options for installing ZK Stack CLI:
   Git tag to use when installing from a repository. Ignored if `--branch` or `--commit` is provided.
 
 - `--inception`  
-  Installs `zk_inception` from the repository. By default, `zkup` installs `zk_inception` and `zk_supervisor`.
+  Installs `zk_inception` from the repository. By default, `zkstackup` installs `zk_inception` and `zk_supervisor`.
 
 - `--supervisor`  
   Installs `zk_supervisor` from the repository.
 
 ### Local Installation
 
-If you provide a local path using the `-p` or `--path` option, `zkup` will install ZK Stack CLI from that directory.
+If you provide a local path using the `-p` or `--path` option, `zkstackup` will install ZK Stack CLI from that directory.
 Note that repository-specific arguments (`--repo`, `--branch`, `--commit`, `--version`) will be ignored in this case to
 preserve git state.
 
 ### Repository Installation
 
-By default, `zkup` installs ZK Stack CLI from the "matter-labs/zksync-era" GitHub repository. You can specify a
+By default, `zkstackup` installs ZK Stack CLI from the "matter-labs/zksync-era" GitHub repository. You can specify a
 different repository, branch, commit, or version using the respective options. If multiple arguments are provided,
-`zkup` will prioritize them as follows:
+`zkstackup` will prioritize them as follows:
 
 - `--version`
 - `--commit`
@@ -66,11 +66,11 @@ different repository, branch, commit, or version using the respective options. I
 **Install from a GitHub repository with a specific version:**
 
 ```bash
-zkup --repo matter-labs/zksync-era --version 0.1.1
+zkstackup --repo matter-labs/zksync-era --version 0.1.1
 ```
 
-**Install from a local path, only installing `zk_inception`:**
+**Install from a local path:**
 
 ```bash
-zkup --path /path/to/local/zkstack_cli --inception
+zkstackup --path /path/to/local/zkstack_cli
 ```

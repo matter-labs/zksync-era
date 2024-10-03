@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
+ZKT_DIR=${ZKT_DIR:-"$BASE_DIR/.zkt"}
+ZKT_BIN_DIR="$ZKT_DIR/bin"
+
+BIN_URL="https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkstackup/zkstackup"
+BIN_PATH="$ZKT_BIN_DIR/zkstackup"
+
+mkdir -p "$ZKT_BIN_DIR"
+curl -sSfL "$BIN_URL" -o "$BIN_PATH"
+chmod +x "$BIN_PATH"
+
+if [[ ":$PATH:" == *":${ZKT_BIN_DIR}:"* ]]; then
+  echo "zkstackup: found ${ZKT_BIN_DIR} in PATH"
+  exit 0
+fi
+
+case $SHELL in
+*/zsh)
+  PROFILE="${ZDOTDIR-"$HOME"}/.zshenv"
+  ;;
+*/bash)
+  PROFILE="$HOME/.bashrc"
+  ;;
+*/fish)
+  PROFILE="$HOME/.config/fish/config.fish"
+  ;;
+*/ash)
+  PROFILE="$HOME/.profile"
+  ;;
+*)
+  echo "zkstackup: could not detect shell, manually add ${ZKT_BIN_DIR} to your PATH."
+  exit 1
+  ;;
+esac
+
+if [[ ! -f "$PROFILE" ]]; then
+  echo "zkstackup: Profile file $PROFILE does not exist, creating it."
+  touch "$PROFILE"
+fi
+
+if [[ "$SHELL" == *"/fish"* ]]; then
+  echo -e "\n# Added by zkstackup\nfish_add_path -a $ZKT_BIN_DIR" >>"$PROFILE"
+  echo "zkstackup: Added $ZKT_BIN_DIR to PATH in $PROFILE using fish_add_path."
+else
+  echo -e "\n# Added by zkstackup\nexport PATH=\"\$PATH:$ZKT_BIN_DIR\"" >>"$PROFILE"
+  echo "zkstackup: Added $ZKT_BIN_DIR to PATH in $PROFILE."
+fi
+
+echo
+echo "Added zkstackup to PATH."
+echo "Run 'source $PROFILE' or start a new terminal session to use zkstackup."
+echo "Then run 'zkstackup' to install ZK Stack CLI."

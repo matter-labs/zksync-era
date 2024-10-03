@@ -17,7 +17,7 @@ main() {
 
   BINS+=(zkstack)
 
-  if [ -n "$ZKUP_PATH" ]; then
+  if [ -n "$ZKSTACKUP_PATH" ]; then
     install_local
   else
     install_from_repo
@@ -61,23 +61,23 @@ parse_args() {
 
     -p | --path)
       shift
-      ZKUP_PATH=$1
+      ZKSTACKUP_PATH=$1
       ;;
     -r | --repo)
       shift
-      ZKUP_REPO=$1
+      ZKSTACKUP_REPO=$1
       ;;
     -b | --branch)
       shift
-      ZKUP_BRANCH=$1
+      ZKSTACKUP_BRANCH=$1
       ;;
     -c | --commit)
       shift
-      ZKUP_COMMIT=$1
+      ZKSTACKUP_COMMIT=$1
       ;;
     -v | --version)
       shift
-      ZKUP_VERSION=$1
+      ZKSTACKUP_VERSION=$1
       ;;
     -h | --help)
       usage
@@ -95,7 +95,7 @@ parse_args() {
 
 usage() {
   cat <<EOF
-zkup - A tool for managing ZK Stack CLI installation.
+zkstackup - A tool for managing ZK Stack CLI installation.
 
 Usage: $(basename "$0") [OPTIONS]
 
@@ -113,17 +113,17 @@ EOF
 }
 
 install_local() {
-  if [ ! -d "$ZKUP_PATH/zkstack_cli" ]; then
-    err "Path $ZKUP_PATH does not contain zkstack_cli"
+  if [ ! -d "$ZKSTACKUP_PATH/zkstack_cli" ]; then
+    err "Path $ZKSTACKUP_PATH does not contain zkstack_cli"
     exit 1
   fi
 
-  if [ -n "$ZKUP_BRANCH" ] || [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_VERSION" ] || [ -n "$ZKUP_REPO" ]; then
+  if [ -n "$ZKSTACKUP_BRANCH" ] || [ -n "$ZKSTACKUP_COMMIT" ] || [ -n "$ZKSTACKUP_VERSION" ] || [ -n "$ZKSTACKUP_REPO" ]; then
     warn "Ignoring --repo, --branch, --commit and --version arguments when installing from local path"
   fi
 
-  say "Installing ZK Stack CLI from $ZKUP_PATH"
-  ensure cd "$ZKUP_PATH"/zkstack_cli
+  say "Installing ZK Stack CLI from $ZKSTACKUP_PATH"
+  ensure cd "$ZKSTACKUP_PATH"/zkstack_cli
 
   for bin in "${BINS[@]}"; do
     say "Installing $bin"
@@ -132,28 +132,28 @@ install_local() {
 }
 
 install_from_repo() {
-  if [ -n "$ZKUP_PATH" ]; then
+  if [ -n "$ZKSTACKUP_PATH" ]; then
     warn "Ignoring --path argument when installing from repository"
   fi
 
-  ZKUP_REPO=${ZKUP_REPO:-"matter-labs/zksync-era"}
+  ZKSTACKUP_REPO=${ZKSTACKUP_REPO:-"matter-labs/zksync-era"}
 
-  say "Installing ZK Stack CLI from $ZKUP_REPO"
+  say "Installing ZK Stack CLI from $ZKSTACKUP_REPO"
 
-  if [ -n "$ZKUP_VERSION" ]; then
-    if [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_BRANCH" ]; then
+  if [ -n "$ZKSTACKUP_VERSION" ]; then
+    if [ -n "$ZKSTACKUP_COMMIT" ] || [ -n "$ZKSTACKUP_BRANCH" ]; then
       warn "Ignoring --commit and --branch arguments when installing by version"
     fi
-    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --tag "zkstack_cli-v$ZKUP_VERSION" --locked "${BINS[@]}" --force
-  elif [ -n "$ZKUP_COMMIT" ]; then
-    if [ -n "$ZKUP_BRANCH" ]; then
+    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKSTACKUP_REPO" --tag "zkstack_cli-v$ZKSTACKUP_VERSION" --locked "${BINS[@]}" --force
+  elif [ -n "$ZKSTACKUP_COMMIT" ]; then
+    if [ -n "$ZKSTACKUP_BRANCH" ]; then
       warn "Ignoring --branch argument when installing by commit"
     fi
-    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --rev "$ZKUP_COMMIT" --locked "${BINS[@]}" --force
-  elif [ -n "$ZKUP_BRANCH" ]; then
-    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --branch "$ZKUP_BRANCH" --locked "${BINS[@]}" --force
+    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKSTACKUP_REPO" --rev "$ZKSTACKUP_COMMIT" --locked "${BINS[@]}" --force
+  elif [ -n "$ZKSTACKUP_BRANCH" ]; then
+    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKSTACKUP_REPO" --branch "$ZKSTACKUP_BRANCH" --locked "${BINS[@]}" --force
   else
-    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --locked "${BINS[@]}" --force
+    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKSTACKUP_REPO" --locked "${BINS[@]}" --force
   fi
 }
 
