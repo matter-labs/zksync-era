@@ -208,19 +208,19 @@ jobs:
           submodules: "recursive"
 
       - name: Log in to US GAR
-        if: steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch')
         run: |
           gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
 
       - name: Log in to Docker Hub
-        if: steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch')
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GitHub Container Registry
-        if: steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch')
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ghcr.io
@@ -240,7 +240,7 @@ jobs:
         uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
         with:
           file: docker/zk-environment/20.04_amd64_cuda_${{ matrix.cuda_version }}.Dockerfile
-          push: ${{ github.ref == 'refs/heads/main' }}
+          push: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch') }}
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zk-environment-cuda-${{ matrix.cuda_version }}:latest
             matterlabs/zk-environment:cuda-${{ matrix.cuda_version }}-latest
