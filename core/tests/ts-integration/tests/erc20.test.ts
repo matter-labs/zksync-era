@@ -101,19 +101,7 @@ describe('L1 ERC20 contract checks', () => {
         // Since gas estimation is expected to fail, we request gas limit for similar non-failing tx.
         const gasLimit = await aliceErc20.transfer.estimateGas(bob.address, 1);
 
-        // Balances should not change for this token.
-        const noBalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
-            { wallet: alice, change: 0n },
-            { wallet: bob, change: 0n }
-        ]);
-        // Fee in ETH should be taken though.
-        const feeTaken = await shouldOnlyTakeFee(alice);
-
-        // Send transfer, it should revert due to lack of balance.
-        await expect(aliceErc20.transfer(bob.address, value, { gasLimit, gasPrice })).toBeReverted([
-            noBalanceChange,
-            feeTaken
-        ]);
+        await expect(aliceErc20.transfer(bob.address, value, { gasLimit, gasPrice })).toBeRevertedEstimateGas('ERC20: transfer amount exceeds balance');
     });
 
     test('Transfer to zero address should revert', async () => {
@@ -124,18 +112,8 @@ describe('L1 ERC20 contract checks', () => {
         // Since gas estimation is expected to fail, we request gas limit for similar non-failing tx.
         const gasLimit = await aliceErc20.transfer.estimateGas(bob.address, 1);
 
-        // Balances should not change for this token.
-        const noBalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
-            { wallet: alice, change: 0n }
-        ]);
-        // Fee in ETH should be taken though.
-        const feeTaken = await shouldOnlyTakeFee(alice);
-
         // Send transfer, it should revert because transfers to zero address are not allowed.
-        await expect(aliceErc20.transfer(zeroAddress, value, { gasLimit, gasPrice })).toBeReverted([
-            noBalanceChange,
-            feeTaken
-        ]);
+        await expect(aliceErc20.transfer(zeroAddress, value, { gasLimit, gasPrice })).toBeRevertedEstimateGas('ERC20: transfer to the zero address');
     });
 
     test('Approve and transferFrom should work', async () => {

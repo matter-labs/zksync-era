@@ -7,13 +7,12 @@ zk_inception ecosystem init --deploy-paymaster --deploy-erc20 \
             --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
             --prover-db-name=zksync_prover_localhost_era \
             --ignore-prerequisites --observability=false --skip-submodules-checkout \
-            --chain era
+            --chain era \
             # --skip-contract-compilation-override \
-            # --verbose \
 
 zk_inception chain create \
         --chain-name gateway \
-        --chain-id 506 \
+        --chain-id 505 \
         --prover-mode no-proofs \
         --wallet-creation localhost \
         --l1-batch-commit-data-generator-mode rollup \
@@ -30,7 +29,6 @@ zk_inception chain init \
             --server-db-name=zksync_server_localhost_gateway \
             --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
             --prover-db-name=zksync_prover_localhost_gateway \
-            --port-offset 4000 \
             --chain gateway --skip-submodules-checkout
 
 zk_inception chain convert-to-gateway --chain gateway --ignore-prerequisites

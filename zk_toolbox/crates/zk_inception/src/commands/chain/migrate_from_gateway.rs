@@ -24,8 +24,8 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use types::L1BatchCommitmentMode;
 use xshell::Shell;
-use zksync_basic_types::{settlement::SettlementMode, Address, H256, U256, U64};
-use zksync_config::configs::{eth_sender::PubdataSendingMode, gateway::GatewayChainConfig};
+use zksync_basic_types::{settlement::SettlementMode, H256, U256, U64};
+use zksync_config::configs::eth_sender::PubdataSendingMode;
 
 use crate::{
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
