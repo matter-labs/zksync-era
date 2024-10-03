@@ -426,7 +426,7 @@ impl L1BatchAuxiliaryOutput {
                         );
                         assert_eq!(
                             blob_linear_hashes, blob_linear_hashes_from_logs,
-                            "State diff hash mismatch"
+                            "Blob linear hashes mismatch"
                         );
                     }
 

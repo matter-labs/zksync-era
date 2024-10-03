@@ -51,7 +51,7 @@ pub struct MempoolIO {
     filter: L2TxFilter,
     l1_batch_params_provider: L1BatchParamsProvider,
     fee_account: Address,
-    l2_da_validator_address: Address,
+    l2_da_validator_address: Option<Address>,
     pubdata_type: L1BatchCommitmentMode,
     validation_computational_gas_limit: u32,
     max_allowed_tx_gas_limit: U256,
@@ -195,6 +195,18 @@ impl StateKeeperIO for MempoolIO {
                 continue;
             }
 
+            let pubdata_params = match (
+                protocol_version.is_pre_gateway(),
+                self.l2_da_validator_address,
+            ) {
+                (true, _) => PubdataParams::default(),
+                (false, Some(l2_da_validator_address)) => PubdataParams {
+                    l2_da_validator_address,
+                    pubdata_type: self.pubdata_type,
+                },
+                (false, None) => anyhow::bail!("L2 DA validator address not found"),
+            };
+
             return Ok(Some(L1BatchParams {
                 protocol_version,
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
@@ -205,10 +217,7 @@ impl StateKeeperIO for MempoolIO {
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
                 },
-                pubdata_params: PubdataParams {
-                    l2_da_validator_address: self.l2_da_validator_address,
-                    pubdata_type: self.pubdata_type,
-                },
+                pubdata_params,
             }));
         }
         Ok(None)
@@ -423,7 +432,7 @@ impl MempoolIO {
         pool: ConnectionPool<Core>,
         config: &StateKeeperConfig,
         fee_account: Address,
-        l2_da_validator_address: Address,
+        l2_da_validator_address: Option<Address>,
         pubdata_type: L1BatchCommitmentMode,
         delay_interval: Duration,
         chain_id: L2ChainId,

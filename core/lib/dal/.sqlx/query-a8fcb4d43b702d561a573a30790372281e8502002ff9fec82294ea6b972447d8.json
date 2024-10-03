@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            factory_deps (bytecode_hash, bytecode, miniblock_number, created_at, updated_at)\n            SELECT\n                u.bytecode_hash,\n                u.bytecode,\n                $3,\n                NOW(),\n                NOW()\n            FROM\n                UNNEST($1::bytea [], $2::bytea []) AS u (bytecode_hash, bytecode)\n            ON CONFLICT (bytecode_hash) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "ByteaArray",
+        "ByteaArray",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a8fcb4d43b702d561a573a30790372281e8502002ff9fec82294ea6b972447d8"
+}

@@ -115,7 +115,7 @@ impl ContractsConfig {
         self.l1.access_control_restriction_addr =
             register_chain_output.access_control_restriction_addr;
         self.l1.chain_proxy_admin_addr = register_chain_output.chain_proxy_admin_addr;
-        self.l2.l2_legacy_shared_bridge_addr = register_chain_output.l2_legacy_shared_bridge_addr;
+        self.l2.legacy_shared_bridge_addr = register_chain_output.l2_legacy_shared_bridge_addr;
 
         self.user_facing_diamond_proxy = register_chain_output.diamond_proxy_addr;
     }
@@ -127,7 +127,7 @@ impl ContractsConfig {
         self.bridges.shared.l2_address = Some(L2_ASSET_ROUTER_ADDRESS);
         self.bridges.erc20.l2_address = Some(L2_ASSET_ROUTER_ADDRESS);
         self.l2.l2_native_token_vault_proxy_addr = L2_NATIVE_TOKEN_VAULT_ADDRESS;
-        self.l2.l2_da_validator_addr = initialize_bridges_output.l2_da_validator_address;
+        self.l2.da_validator_addr = initialize_bridges_output.l2_da_validator_address;
         Ok(())
     }
 
@@ -214,9 +214,9 @@ pub struct L1Contracts {
 pub struct L2Contracts {
     pub testnet_paymaster_addr: Address,
     pub default_l2_upgrader: Address,
-    pub l2_da_validator_addr: Address,
+    pub da_validator_addr: Address,
     pub l2_native_token_vault_proxy_addr: Address,
-    pub l2_legacy_shared_bridge_addr: Address,
+    pub legacy_shared_bridge_addr: Address,
     pub consensus_registry: Option<Address>,
     pub multicall3: Option<Address>,
 }
