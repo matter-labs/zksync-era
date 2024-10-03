@@ -4,13 +4,13 @@ use std::{
         atomic::{AtomicU32, Ordering},
         Arc,
     },
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use anyhow::Context as _;
 use futures::TryFutureExt;
 use lru::LruCache;
-use tokio::sync::{watch, Mutex, RwLock};
+use tokio::sync::{Mutex, RwLock};
 use vise::GaugeGuard;
 use zksync_config::{
     configs::{api::Web3JsonRpcConfig, ContractsConfig},
@@ -24,12 +24,7 @@ use zksync_types::{
     transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
     H256, U256, U64,
 };
-use zksync_web3_decl::{
-    client::{DynClient, L2},
-    error::Web3Error,
-    namespaces::ZksNamespaceClient,
-    types::Filter,
-};
+use zksync_web3_decl::{error::Web3Error, types::Filter};
 
 use super::{
     backend_jsonrpsee::MethodTracer,
@@ -177,55 +172,20 @@ impl InternalApiConfig {
 /// Thread-safe updatable information about the last sealed L2 block number.
 ///
 /// The information may be temporarily outdated and thus should only be used where this is OK
-/// (e.g., for metrics reporting). The value is updated by [`Self::diff()`] and [`Self::diff_with_block_args()`]
-/// and on an interval specified when creating an instance.
+/// (e.g., for metrics reporting). The value is updated by [`Self::diff()`] and [`Self::diff_with_block_args()`].
 #[derive(Debug, Clone)]
-pub(crate) struct SealedL2BlockNumber(Arc<AtomicU32>);
+pub struct SealedL2BlockNumber(Arc<AtomicU32>);
 
 impl SealedL2BlockNumber {
-    /// Creates a handle to the last sealed L2 block number together with a task that will update
-    /// it on a schedule.
-    pub fn new(
-        connection_pool: ConnectionPool<Core>,
-        update_interval: Duration,
-        mut stop_receiver: watch::Receiver<bool>,
-    ) -> (Self, impl Future<Output = anyhow::Result<()>>) {
-        let this = Self(Arc::default());
-        let number_updater = this.clone();
-
-        let update_task = async move {
-            while !*stop_receiver.borrow_and_update() {
-                let mut connection = connection_pool.connection_tagged("api").await.unwrap();
-                let Some(last_sealed_l2_block) =
-                    connection.blocks_dal().get_sealed_l2_block_number().await?
-                else {
-                    tokio::time::sleep(update_interval).await;
-                    continue;
-                };
-                drop(connection);
-
-                number_updater.update(last_sealed_l2_block);
-
-                if tokio::time::timeout(update_interval, stop_receiver.changed())
-                    .await
-                    .is_ok()
-                {
-                    break;
-                }
-            }
-
-            tracing::debug!("Stopping latest sealed L2 block updates");
-            Ok(())
-        };
-
-        (this, update_task)
+    pub fn new() -> Self {
+        Self(Arc::default())
     }
 
     /// Potentially updates the last sealed L2 block number by comparing it to the provided
     /// sealed L2 block number (not necessarily the last one).
     ///
     /// Returns the last sealed L2 block number after the update.
-    fn update(&self, maybe_newer_l2_block_number: L2BlockNumber) -> L2BlockNumber {
+    pub fn update(&self, maybe_newer_l2_block_number: L2BlockNumber) -> L2BlockNumber {
         let prev_value = self
             .0
             .fetch_max(maybe_newer_l2_block_number.0, Ordering::Relaxed);
@@ -239,7 +199,7 @@ impl SealedL2BlockNumber {
 
     /// Returns the difference between the latest L2 block number and the resolved L2 block number
     /// from `block_args`.
-    pub fn diff_with_block_args(&self, block_args: &BlockArgs) -> u32 {
+    pub(crate) fn diff_with_block_args(&self, block_args: &BlockArgs) -> u32 {
         // We compute the difference in any case, since it may update the stored value.
         let diff = self.diff(block_args.resolved_block_number());
 
@@ -251,48 +211,22 @@ impl SealedL2BlockNumber {
     }
 }
 
+impl Default for SealedL2BlockNumber {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone)]
-pub(crate) struct BridgeAddressesHandle(Arc<RwLock<BridgeAddresses>>);
+pub struct BridgeAddressesHandle(Arc<RwLock<BridgeAddresses>>);
 
 impl BridgeAddressesHandle {
     pub fn new(bridge_addresses: BridgeAddresses) -> Self {
         Self(Arc::new(RwLock::new(bridge_addresses)))
     }
 
-    /// Creates a handle to the bridge addresses together with a task that will update them on a schedule.
-    pub fn new_with_updater(
-        main_node_client: Box<DynClient<L2>>,
-        initial_value: BridgeAddresses,
-        update_interval: Duration,
-        mut stop_receiver: watch::Receiver<bool>,
-    ) -> (Self, impl Future<Output = anyhow::Result<()>>) {
-        let this = Self(Arc::new(RwLock::new(initial_value)));
-        let updater = this.clone();
-
-        let update_task = async move {
-            while !*stop_receiver.borrow_and_update() {
-                match main_node_client.get_bridge_contracts().await {
-                    Ok(bridge_addresses) => {
-                        *updater.0.write().await = bridge_addresses;
-                    }
-                    Err(err) => {
-                        tracing::error!("Failed to query `get_bridge_contracts`, error: {err:?}");
-                    }
-                }
-
-                if tokio::time::timeout(update_interval, stop_receiver.changed())
-                    .await
-                    .is_ok()
-                {
-                    break;
-                }
-            }
-
-            tracing::debug!("Stopping bridge addresses updates");
-            Ok(())
-        };
-
-        (this, update_task)
+    pub async fn update(&self, bridge_addresses: BridgeAddresses) {
+        *self.0.write().await = bridge_addresses;
     }
 
     pub async fn read(&self) -> BridgeAddresses {
