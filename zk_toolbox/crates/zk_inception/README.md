@@ -450,7 +450,7 @@ contracts to be deployed.
 
 ###### **Options:**
 
-- `--from-genesis` — Set attester committee to `consensus.genesis\_spec.attesters` in general.yaml Mutually exclusive
+- `--from-genesis` — Set attester committee to `consensus.genesis_spec.attesters` in general.yaml Mutually exclusive
   with `--from-file`.
 - `--from-file <PATH>` — Set attester committee to committee specified in yaml file at `PATH`.  
   Mutually exclusive with `--from-genesis`. File format is specified in
