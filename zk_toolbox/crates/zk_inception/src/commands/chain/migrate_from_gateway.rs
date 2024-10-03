@@ -156,7 +156,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         await_for_tx_to_complete(&gateway_provider, hash).await?;
         await_for_withdrawal_to_finalize(&gateway_provider, hash).await?;
     }
-    tokio::time::sleep(tokio::time::Duration::from_millis(20000)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(60000)).await;
 
     let params = ZKSProvider::get_finalize_withdrawal_params(&gateway_provider, hash, 0).await?;
 
