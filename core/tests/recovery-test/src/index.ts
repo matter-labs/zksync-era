@@ -78,7 +78,7 @@ export async function getExternalNodeHealth(url: string) {
         }
         console.log(
             `Request to EN health check server failed: ${displayedError}. In CI, you can see more details ` +
-                'in "Show * logs" steps'
+            'in "Show * logs" steps'
         );
         return null;
     }
@@ -86,7 +86,7 @@ export async function getExternalNodeHealth(url: string) {
 
 export async function dropNodeData(env: { [key: string]: string }, useZkSupervisor?: boolean, chain?: string) {
     if (useZkSupervisor) {
-        let cmd = 'zk_inception external-node init';
+        let cmd = 'zkstack external-node init';
         cmd += chain ? ` --chain ${chain}` : '';
         await executeNodeCommand(env, cmd);
     } else {
@@ -193,7 +193,7 @@ export class NodeProcess {
         return new NodeProcess(childProcess, logs);
     }
 
-    private constructor(private childProcess: ChildProcess, readonly logs: FileHandle) {}
+    private constructor(private childProcess: ChildProcess, readonly logs: FileHandle) { }
 
     exitCode() {
         return this.childProcess.exitCode;
@@ -243,7 +243,7 @@ export class FundedWallet {
         return new FundedWallet(wallet);
     }
 
-    private constructor(private readonly wallet: zksync.Wallet) {}
+    private constructor(private readonly wallet: zksync.Wallet) { }
 
     /** Ensure that this wallet is funded on L2, depositing funds from L1 if necessary. */
     async ensureIsFunded() {

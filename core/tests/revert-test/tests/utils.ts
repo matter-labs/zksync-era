@@ -63,7 +63,7 @@ export function runServerInBackground({
 }): ChildProcessWithoutNullStreams {
     let command = '';
     if (useZkInception) {
-        command = 'zk_inception server';
+        command = 'zkstack server';
         if (chain) {
             command += ` --chain ${chain}`;
         }
@@ -90,7 +90,7 @@ export function runExternalNodeInBackground({
 }): ChildProcessWithoutNullStreams {
     let command = '';
     if (useZkInception) {
-        command = 'zk_inception external-node run';
+        command = 'zkstack external-node run';
         command += chain ? ` --chain ${chain}` : '';
     } else {
         command = 'zk external-node';
@@ -153,12 +153,12 @@ async function runBlockReverter(
 
     const options = env
         ? {
-              cwd: env.ZKSYNC_HOME,
-              env: {
-                  ...env,
-                  PATH: process.env.PATH
-              }
-          }
+            cwd: env.ZKSYNC_HOME,
+            env: {
+                ...env,
+                PATH: process.env.PATH
+            }
+        }
         : {};
     const executedProcess = await exec(cmd, options);
     return executedProcess.stdout;
@@ -229,7 +229,7 @@ export class Node<TYPE extends NodeType> {
         public readonly tester: Tester,
         private readonly proc: ChildProcessWithoutNullStreams,
         private readonly type: TYPE
-    ) {}
+    ) { }
 
     public async terminate() {
         try {
@@ -308,7 +308,7 @@ export class NodeSpawner {
         private readonly fileConfig: FileConfig,
         private readonly options: MainNodeSpawnOptions,
         private readonly env?: ProcessEnvOptions['env']
-    ) {}
+    ) { }
 
     public async spawnMainNode(enableExecute: boolean): Promise<Node<NodeType.MAIN>> {
         const env = this.env ?? process.env;

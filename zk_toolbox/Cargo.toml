@@ -3,7 +3,7 @@ members = [
     "crates/common",
     "crates/config",
     "crates/types",
-    "crates/zk_inception",
+    "crates/zkstack",
     "crates/git_version_macro",
 ]
 resolver = "2"

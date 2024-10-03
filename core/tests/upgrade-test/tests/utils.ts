@@ -19,7 +19,7 @@ export function runServerInBackground({
     let command = '';
 
     if (useZkInception) {
-        command = 'zk_inception server';
+        command = 'zkstack server';
         command += chain ? ` --chain ${chain}` : '';
     } else {
         command = 'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release --';

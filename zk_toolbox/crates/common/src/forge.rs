@@ -280,7 +280,7 @@ pub struct ForgeScriptArgs {
     pub resume: bool,
     /// List of additional arguments that can be passed through the CLI.
     ///
-    /// e.g.: `zk_inception init -a --private-key=<PRIVATE_KEY>`
+    /// e.g.: `zkstack init -a --private-key=<PRIVATE_KEY>`
     #[clap(long, short)]
     #[arg(trailing_var_arg = true, allow_hyphen_values = true, hide = false)]
     additional_args: Vec<String>,

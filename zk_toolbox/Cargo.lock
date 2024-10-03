@@ -6681,7 +6681,22 @@ dependencies = [
 ]
 
 [[package]]
-name = "zk_inception"
+name = "zkevm_opcode_defs"
+version = "0.132.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0769f7b27d8fb06e715da3290c575cac5d04d10a557faef180e847afce50ac4"
+dependencies = [
+ "bitflags 2.6.0",
+ "blake2",
+ "ethereum-types",
+ "k256 0.11.6",
+ "lazy_static",
+ "sha2_ce",
+ "sha3_ce",
+]
+
+[[package]]
+name = "zkstack"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -6713,21 +6728,6 @@ dependencies = [
  "zksync_config",
  "zksync_consensus_crypto",
  "zksync_consensus_roles",
-]
-
-[[package]]
-name = "zkevm_opcode_defs"
-version = "0.132.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0769f7b27d8fb06e715da3290c575cac5d04d10a557faef180e847afce50ac4"
-dependencies = [
- "bitflags 2.6.0",
- "blake2",
- "ethereum-types",
- "k256 0.11.6",
- "lazy_static",
- "sha2_ce",
- "sha3_ce",
 ]
 
 [[package]]

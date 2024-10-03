@@ -60,7 +60,7 @@ export function runExternalNodeInBackground({
 }): ChildProcessWithoutNullStreams {
     let command = '';
     if (useZkInception) {
-        command = 'zk_inception external-node run';
+        command = 'zkstack external-node run';
         command += chain ? ` --chain ${chain}` : '';
     } else {
         command = 'zk external-node --';

@@ -5,8 +5,6 @@ BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
 ZKT_DIR=${ZKT_DIR:-"$BASE_DIR/.zkt"}
 ZKT_BIN_DIR="$ZKT_DIR/bin"
 
-ZKUP_ALIAS=0
-
 BINS=()
 
 main() {
@@ -17,7 +15,7 @@ main() {
   check_prerequisites
   mkdir -p "$ZKT_BIN_DIR"
 
-  BINS+=(zk_inception)
+  BINS+=(zkstack)
 
   if [ -n "$ZKUP_PATH" ]; then
     install_local
@@ -30,10 +28,6 @@ main() {
   for bin in "${BINS[@]}"; do
     success "Installed $bin to $ZKT_BIN_DIR/$bin"
   done
-
-  if [ $ZKUP_ALIAS -eq 1 ]; then
-    create_alias
-  fi
 }
 
 PREREQUISITES=(cargo git)
@@ -85,7 +79,6 @@ parse_args() {
       shift
       ZKUP_VERSION=$1
       ;;
-    -a | --alias) ZKUP_ALIAS=1 ;;
     -h | --help)
       usage
       exit 0
@@ -112,12 +105,10 @@ Options:
   -b, --branch <branch>     Git branch to use when installing from a repository. Ignored if --commit or --version is provided.
   -c, --commit <commit>     Git commit hash to use when installing from a repository. Ignored if --branch or --version is provided.
   -v, --version <version>   Git tag to use when installing from a repository. Ignored if --branch or --commit is provided.
-  -a, --alias               Create aliases zki for zk_inception binaries.
   -h, --help                Show this help message and exit.
 
 Examples:
   $(basename "$0") --repo matter-labs/zksync-era --version 0.1.1
-  $(basename "$0") --path /path/to/local/zk_toolbox --inception
 EOF
 }
 
@@ -163,13 +154,6 @@ install_from_repo() {
     ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --branch "$ZKUP_BRANCH" --locked "${BINS[@]}" --force
   else
     ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --locked "${BINS[@]}" --force
-  fi
-}
-
-create_alias() {
-  if [[ "${BINS[@]}" =~ "zk_inception" ]]; then
-    say "Creating alias 'zki' for zk_inception"
-    ensure ln -sf "$ZKT_BIN_DIR/zk_inception" "$ZKT_BIN_DIR/zki"
   fi
 }
 
