@@ -174,7 +174,7 @@ jobs:
         run: |
           ci_localnet_up
 
-      - name: Build zk_toolbox
+      - name: Build ZK Stack CLI
         run: ci_run bash -c "./bin/zkt"
 
       - name: Create log directories

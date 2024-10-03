@@ -48,7 +48,7 @@ impl Workspace<'static> {
 
 impl<'a> Workspace<'a> {
     const PROVER_DIRECTORY_NAME: &'static str = "prover";
-    const TOOLBOX_DIRECTORY_NAME: &'static str = "zk_toolbox";
+    const TOOLBOX_DIRECTORY_NAME: &'static str = "zkstack_cli";
 
     /// Returns the path of the core workspace.
     /// For `Workspace::None`, considers the current directory to represent core workspace.
@@ -68,7 +68,7 @@ impl<'a> Workspace<'a> {
         }
     }
 
-    /// Returns the path of the `zk_toolbox`` workspace.
+    /// Returns the path of the ZK Stack CLI workspace.
     pub fn toolbox(self) -> PathBuf {
         match self {
             Self::Toolbox(path) => path.into(),

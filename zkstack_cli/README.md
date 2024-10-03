@@ -1,4 +1,4 @@
-# zk_toolbox
+# ZK Stack CLI
 
 Toolkit for creating and managing ZK Stack chains.
 

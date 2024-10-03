@@ -39,7 +39,7 @@ async function proverClippy() {
 }
 
 async function toolboxClippy() {
-    process.chdir(`${process.env.ZKSYNC_HOME}/zk_toolbox`);
+    process.chdir(`${process.env.ZKSYNC_HOME}/zkstack_cli`);
     await utils.spawn('cargo clippy --tests --locked -- -D warnings');
 }
 

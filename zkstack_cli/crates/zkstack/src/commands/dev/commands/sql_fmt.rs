@@ -138,7 +138,7 @@ pub async fn format_sql(shell: Shell, check: bool) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_RUNNING_SQL_FMT_SPINNER);
     let ignored_data = Some(IgnoredData {
         files: vec![],
-        dirs: vec!["zk_toolbox".to_string()],
+        dirs: vec!["zkstack_cli".to_string()],
     });
     let rust_files = get_unignored_files(&shell, &Target::Rs, ignored_data)?;
     for file in rust_files {

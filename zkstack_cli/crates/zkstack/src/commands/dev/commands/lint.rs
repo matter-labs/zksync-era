@@ -55,7 +55,7 @@ fn lint_rs(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> anyhow::R
 
     let link_to_code = &ecosystem.link_to_code;
     let lint_to_prover = &ecosystem.link_to_code.join("prover");
-    let link_to_toolbox = &ecosystem.link_to_code.join("zk_toolbox");
+    let link_to_toolbox = &ecosystem.link_to_code.join("zkstack_cli");
     let paths = vec![link_to_code, lint_to_prover, link_to_toolbox];
 
     spinner.freeze();

@@ -14,6 +14,6 @@ if which zkstack >/dev/null; then
       exit 1
   fi
 else
-  echo "Please install zk_toolbox using zkup from https://github.com/matter-labs/zksync-era/tree/main/zk_toolbox/zkup, and then run ./bin/zkt from the zksync-era repository."
+  echo "Please install ZK Stack CLI using zkup from https://github.com/matter-labs/zksync-era/tree/main/zkstack_cli/zkup, and then run ./bin/zkt from the zksync-era repository."
   exit 1
 fi

@@ -1,18 +1,18 @@
-# zkup - zk_toolbox Installer
+# zkup - ZK Stack CLI Installer
 
 `zkup` is a script designed to simplify the installation of
-[zk_toolbox](https://github.com/matter-labs/zksync-era/tree/main/zk_toolbox). It allows you to install the tool from a
-local directory or directly from a GitHub repository.
+[ZK Stack CLI](https://github.com/matter-labs/zksync-era/tree/main/zkstack_cli). It allows you to install the tool from
+a local directory or directly from a GitHub repository.
 
 ## Getting Started
 
 To install `zkup`, run the following command:
 
 ```bash
-curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/zk_toolbox/zkup/install | bash
+curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkup/install | bash
 ```
 
-After installing `zkup`, you can use it to install `zk_toolbox` with:
+After installing `zkup`, you can use it to install `zkstack_cli` with:
 
 ```bash
 zkup
@@ -20,12 +20,12 @@ zkup
 
 ## Usage
 
-The `zkup` script provides various options for installing `zk_toolbox`:
+The `zkup` script provides various options for installing ZK Stack CLI:
 
 ### Options
 
 - `-p, --path <path>`  
-  Specify a local path to install `zk_toolbox` from. This option is ignored if `--repo` is provided.
+  Specify a local path to install ZK Stack CLI from. This option is ignored if `--repo` is provided.
 
 - `-r, --repo <repo>`  
   GitHub repository to install from (e.g., "matter-labs/zksync-era"). Defaults to "matter-labs/zksync-era".
@@ -47,13 +47,13 @@ The `zkup` script provides various options for installing `zk_toolbox`:
 
 ### Local Installation
 
-If you provide a local path using the `-p` or `--path` option, `zkup` will install `zk_toolbox` from that directory.
+If you provide a local path using the `-p` or `--path` option, `zkup` will install ZK Stack CLI from that directory.
 Note that repository-specific arguments (`--repo`, `--branch`, `--commit`, `--version`) will be ignored in this case to
 preserve git state.
 
 ### Repository Installation
 
-By default, `zkup` installs `zk_toolbox` from the "matter-labs/zksync-era" GitHub repository. You can specify a
+By default, `zkup` installs ZK Stack CLI from the "matter-labs/zksync-era" GitHub repository. You can specify a
 different repository, branch, commit, or version using the respective options. If multiple arguments are provided,
 `zkup` will prioritize them as follows:
 
@@ -72,5 +72,5 @@ zkup --repo matter-labs/zksync-era --version 0.1.1
 **Install from a local path, only installing `zk_inception`:**
 
 ```bash
-zkup --path /path/to/local/zk_toolbox --inception
+zkup --path /path/to/local/zkstack_cli --inception
 ```

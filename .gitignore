@@ -30,7 +30,7 @@ Cargo.lock
 !/Cargo.lock
 !/infrastructure/zksync-crypto/Cargo.lock
 !/prover/Cargo.lock
-!/zk_toolbox/Cargo.lock
+!/zkstack_cli/Cargo.lock
 
 /etc/env/target/*
 /etc/env/.current

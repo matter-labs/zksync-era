@@ -95,12 +95,12 @@ parse_args() {
 
 usage() {
   cat <<EOF
-zkup - A tool for managing zk_toolbox installation.
+zkup - A tool for managing ZK Stack CLI installation.
 
 Usage: $(basename "$0") [OPTIONS]
 
 Options:
-  -p, --path <path>         Specify a local path to install zk_toolbox from. Ignored if --repo is provided.
+  -p, --path <path>         Specify a local path to install ZK Stack CLI from. Ignored if --repo is provided.
   -r, --repo <repo>         GitHub repository to install from (e.g., "matter-labs/zksync-era"). Defaults to "matter-labs/zksync-era".
   -b, --branch <branch>     Git branch to use when installing from a repository. Ignored if --commit or --version is provided.
   -c, --commit <commit>     Git commit hash to use when installing from a repository. Ignored if --branch or --version is provided.
@@ -113,8 +113,8 @@ EOF
 }
 
 install_local() {
-  if [ ! -d "$ZKUP_PATH/zk_toolbox" ]; then
-    err "Path $ZKUP_PATH does not contain zk_toolbox"
+  if [ ! -d "$ZKUP_PATH/zkstack_cli" ]; then
+    err "Path $ZKUP_PATH does not contain zkstack_cli"
     exit 1
   fi
 
@@ -122,8 +122,8 @@ install_local() {
     warn "Ignoring --repo, --branch, --commit and --version arguments when installing from local path"
   fi
 
-  say "Installing zk_toolbox from $ZKUP_PATH"
-  ensure cd "$ZKUP_PATH"/zk_toolbox
+  say "Installing ZK Stack CLI from $ZKUP_PATH"
+  ensure cd "$ZKUP_PATH"/zkstack_cli
 
   for bin in "${BINS[@]}"; do
     say "Installing $bin"
@@ -138,13 +138,13 @@ install_from_repo() {
 
   ZKUP_REPO=${ZKUP_REPO:-"matter-labs/zksync-era"}
 
-  say "Installing zk_toolbox from $ZKUP_REPO"
+  say "Installing ZK Stack CLI from $ZKUP_REPO"
 
   if [ -n "$ZKUP_VERSION" ]; then
     if [ -n "$ZKUP_COMMIT" ] || [ -n "$ZKUP_BRANCH" ]; then
       warn "Ignoring --commit and --branch arguments when installing by version"
     fi
-    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --tag "zk_toolbox-v$ZKUP_VERSION" --locked "${BINS[@]}" --force
+    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKUP_REPO" --tag "zkstack_cli-v$ZKUP_VERSION" --locked "${BINS[@]}" --force
   elif [ -n "$ZKUP_COMMIT" ]; then
     if [ -n "$ZKUP_BRANCH" ]; then
       warn "Ignoring --branch argument when installing by commit"

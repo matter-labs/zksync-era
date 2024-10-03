@@ -93,13 +93,13 @@ zkstack dev prover info
 Example output:
 
 ```shell
-=============================== 
+===============================
 
-Current prover setup information: 
+Current prover setup information:
 
-Protocol version: 0.24.2 
+Protocol version: 0.24.2
 
-Snark wrapper: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2 
+Snark wrapper: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
 
 Database URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_era
 
