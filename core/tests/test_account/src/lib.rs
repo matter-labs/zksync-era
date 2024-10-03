@@ -1,7 +1,4 @@
 use ethabi::Token;
-use zksync_contracts::{
-    deployer_contract, load_contract, test_contracts::LoadnextContractExecutionParams,
-};
 use zksync_eth_signer::{PrivateKeySigner, TransactionParameters};
 use zksync_system_constants::{
     CONTRACT_DEPLOYER_ADDRESS, DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE,
@@ -12,6 +9,10 @@ use zksync_types::{
     L2ChainId, Nonce, Transaction, H256, PRIORITY_OPERATION_L2_TX_TYPE, U256,
 };
 use zksync_utils::{address_to_u256, bytecode::hash_bytecode, h256_to_u256};
+
+pub use self::contracts::{LoadnextContractExecutionParams, TestContract};
+
+mod contracts;
 
 pub const L1_TEST_GAS_PER_PUBDATA_BYTE: u32 = 800;
 const BASE_FEE: u64 = 2_000_000_000;
@@ -112,10 +113,6 @@ impl Account {
         mut factory_deps: Vec<Vec<u8>>,
         tx_type: TxType,
     ) -> DeployContractsTx {
-        let deployer = deployer_contract();
-
-        let contract_function = deployer.function("create").unwrap();
-
         let calldata = calldata.map(ethabi::encode);
         let code_hash = hash_bytecode(code);
         let params = [
@@ -124,9 +121,7 @@ impl Account {
             Token::Bytes(calldata.unwrap_or_default().to_vec()),
         ];
         factory_deps.push(code.to_vec());
-        let calldata = contract_function
-            .encode_input(&params)
-            .expect("failed to encode parameters");
+        let calldata = ethabi::encode(&params);
 
         let execute = Execute {
             contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),
@@ -199,16 +194,15 @@ impl Account {
         payable: bool,
         tx_type: TxType,
     ) -> Transaction {
-        let test_contract = load_contract(
-            "etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json",
-        );
+        let test_contract = TestContract::counter();
 
         let function = if payable {
             test_contract
+                .abi
                 .function("incrementWithRevertPayable")
                 .unwrap()
         } else {
-            test_contract.function("incrementWithRevert").unwrap()
+            test_contract.abi.function("incrementWithRevert").unwrap()
         };
 
         let calldata = function

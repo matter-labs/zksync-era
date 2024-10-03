@@ -15,8 +15,10 @@ zksync_types.workspace = true
 zksync_system_constants.workspace = true
 zksync_utils.workspace = true
 zksync_eth_signer.workspace = true
-zksync_contracts.workspace = true
 
 hex.workspace = true
+once_cell.workspace = true
 ethabi.workspace = true
 rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
