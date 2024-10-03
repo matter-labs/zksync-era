@@ -65,8 +65,7 @@ services:
     entrypoint:
       [
       "/usr/bin/entrypoint.sh",
-      # Uncomment the following line to enable consensus
-      # "--enable-consensus",
+      "--enable-consensus",
       ]
     restart: always
     depends_on:
@@ -79,6 +78,7 @@ services:
       - "127.0.0.1:3060:3060"
       - "127.0.0.1:3061:3061"
       - "127.0.0.1:3081:3081"
+      - "127.0.0.1:5000:5000"
     volumes:
       - rocksdb:/db
       - ./configs:/configs
@@ -96,7 +96,7 @@ services:
       EN_MAIN_NODE_URL: https://zksync2-mainnet.zksync.io
       EN_L1_CHAIN_ID: 1
       EN_L2_CHAIN_ID: 324
-      # EN_PRUNING_ENABLED: true
+      EN_PRUNING_ENABLED: true
 
       EN_STATE_CACHE_PATH: "./db/ext-node/state_keeper"
       EN_MERKLE_TREE_PATH: "./db/ext-node/lightweight"

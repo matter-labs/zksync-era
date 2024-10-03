@@ -1,10 +1,12 @@
 use anyhow::Context as _;
+use zksync_dal::{Core, CoreDal};
+use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_node_framework_derive::FromContext;
 use zksync_state_keeper::{
     io::seal_logic::l2_block_seal_subtasks::L2BlockSealProcess, L2BlockSealerTask, OutputHandler,
     StateKeeperPersistence, TreeWritesPersistence,
 };
-use zksync_types::Address;
+use zksync_types::{Address, ProtocolVersionId};
 
 use crate::{
     implementations::resources::{
@@ -35,10 +37,8 @@ use crate::{
 /// - `L2BlockSealerTask`
 #[derive(Debug)]
 pub struct OutputHandlerLayer {
-    l2_shared_bridge_addr: Address,
+    l2_legacy_shared_bridge_addr: Option<Address>,
     l2_block_seal_queue_capacity: usize,
-    l2_native_token_vault_proxy_addr: Address,
-    l2_legacy_shared_bridge_addr: Address,
     /// Whether transactions should be pre-inserted to DB.
     /// Should be set to `true` for EN's IO as EN doesn't store transactions in DB
     /// before they are included into L2 blocks.
@@ -66,16 +66,12 @@ pub struct Output {
 
 impl OutputHandlerLayer {
     pub fn new(
-        l2_shared_bridge_addr: Address,
-        l2_native_token_vault_proxy_addr: Address,
-        l2_legacy_shared_bridge_addr: Address,
+        l2_legacy_shared_bridge_addr: Option<Address>,
         l2_block_seal_queue_capacity: usize,
     ) -> Self {
         Self {
-            l2_shared_bridge_addr,
-            l2_block_seal_queue_capacity,
-            l2_native_token_vault_proxy_addr,
             l2_legacy_shared_bridge_addr,
+            l2_block_seal_queue_capacity,
             pre_insert_txs: false,
             protective_reads_persistence_enabled: false,
         }
@@ -92,6 +88,38 @@ impl OutputHandlerLayer {
     ) -> Self {
         self.protective_reads_persistence_enabled = protective_reads_persistence_enabled;
         self
+    }
+
+    async fn validate_l2_legacy_shared_bridge_addr(
+        &self,
+        pool: &ConnectionPool<Core>,
+    ) -> Result<(), WiringError> {
+        let mut connection = pool.connection().await.context("Get DB connection")?;
+
+        if let Some(l2_block) = connection
+            .blocks_dal()
+            .get_earliest_l2_block_number()
+            .await
+            .context("failed to load earliest l2 block number")?
+        {
+            let header = connection
+                .blocks_dal()
+                .get_l2_block_header(l2_block)
+                .await
+                .context("failed to load L2 block header")?
+                .context("missing L2 block header")?;
+            let protocol_version = header
+                .protocol_version
+                .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+
+            if protocol_version.is_pre_gateway() && self.l2_legacy_shared_bridge_addr.is_none() {
+                return Err(WiringError::Configuration(
+                    "Missing `l2_legacy_shared_bridge_addr` for chain that was initialized before gateway upgrade".to_string()
+                ));
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -112,10 +140,11 @@ impl WiringLayer for OutputHandlerLayer {
             .get_custom(L2BlockSealProcess::subtasks_len())
             .await
             .context("Get master pool")?;
+        self.validate_l2_legacy_shared_bridge_addr(&persistence_pool)
+            .await?;
+
         let (mut persistence, l2_block_sealer) = StateKeeperPersistence::new(
             persistence_pool.clone(),
-            self.l2_shared_bridge_addr,
-            self.l2_native_token_vault_proxy_addr,
             self.l2_legacy_shared_bridge_addr,
             self.l2_block_seal_queue_capacity,
         );

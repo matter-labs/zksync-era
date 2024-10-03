@@ -120,8 +120,8 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version25 => VmVersion::VmSyncLayer,
-            ProtocolVersionId::Version26 => VmVersion::VmSyncLayer,
+            ProtocolVersionId::Version25 => VmVersion::VmGateway,
+            ProtocolVersionId::Version26 => VmVersion::VmGateway,
         }
     }
 
@@ -280,8 +280,8 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version22 => VmVersion::Vm1_4_2,
             ProtocolVersionId::Version23 => VmVersion::Vm1_5_0SmallBootloaderMemory,
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
-            ProtocolVersionId::Version25 => VmVersion::VmSyncLayer,
-            ProtocolVersionId::Version26 => VmVersion::VmSyncLayer,
+            ProtocolVersionId::Version25 => VmVersion::VmGateway,
+            ProtocolVersionId::Version26 => VmVersion::VmGateway,
         }
     }
 }

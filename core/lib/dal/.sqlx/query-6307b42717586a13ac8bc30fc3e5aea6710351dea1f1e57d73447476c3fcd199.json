@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO\n            tee_verifier_input_producer_jobs (\n                l1_batch_number, status, created_at, updated_at\n            )\n            VALUES\n            ($1, $2, NOW(), NOW())\n            ON CONFLICT (l1_batch_number) DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        {
+          "Custom": {
+            "name": "tee_verifier_input_producer_job_status",
+            "kind": {
+              "Enum": [
+                "Queued",
+                "ManuallySkipped",
+                "InProgress",
+                "Successful",
+                "Failed"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6307b42717586a13ac8bc30fc3e5aea6710351dea1f1e57d73447476c3fcd199"
+}

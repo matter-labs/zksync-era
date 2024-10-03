@@ -20,7 +20,7 @@ use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_metadata_calculator::{
     LazyAsyncTreeReader, MetadataCalculator, MetadataCalculatorConfig,
 };
-use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::spawn_http_server};
+use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
     fetcher::{FetchedTransaction, IoCursorExt as _},
@@ -178,6 +178,7 @@ fn make_config(
         // genesis generator for zksync-era tests.
         genesis_spec,
         rpc: None,
+        debug_page_addr: None,
     }
 }
 
@@ -568,9 +569,7 @@ impl StateKeeperRunner {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
                 self.pool.0.clone(),
-                ethabi::Address::repeat_byte(11),
-                ethabi::Address::repeat_byte(12),
-                ethabi::Address::repeat_byte(13),
+                Some(ethabi::Address::repeat_byte(11)),
                 5,
             );
 
@@ -649,14 +648,9 @@ impl StateKeeperRunner {
                     &configs::contracts::ContractsConfig::for_tests(),
                     &configs::GenesisConfig::for_tests(),
                 );
-                let mut server = spawn_http_server(
-                    cfg,
-                    self.pool.0.clone(),
-                    Default::default(),
-                    Arc::default(),
-                    stop_recv,
-                )
-                .await;
+                let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
+                    .build_http(stop_recv)
+                    .await;
                 if let Ok(addr) = ctx.wait(server.wait_until_ready()).await {
                     self.addr.send_replace(Some(addr));
                     tracing::info!("API server ready!");
@@ -682,9 +676,7 @@ impl StateKeeperRunner {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
                 self.pool.0.clone(),
-                ethabi::Address::repeat_byte(11),
-                ethabi::Address::repeat_byte(12),
-                ethabi::Address::repeat_byte(13),
+                Some(ethabi::Address::repeat_byte(11)),
                 5,
             );
             let tree_writes_persistence = TreeWritesPersistence::new(self.pool.0.clone());
@@ -736,14 +728,9 @@ impl StateKeeperRunner {
                     &configs::contracts::ContractsConfig::for_tests(),
                     &configs::GenesisConfig::for_tests(),
                 );
-                let mut server = spawn_http_server(
-                    cfg,
-                    self.pool.0.clone(),
-                    Default::default(),
-                    Arc::default(),
-                    stop_recv,
-                )
-                .await;
+                let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
+                    .build_http(stop_recv)
+                    .await;
                 if let Ok(addr) = ctx.wait(server.wait_until_ready()).await {
                     self.addr.send_replace(Some(addr));
                     tracing::info!("API server ready!");

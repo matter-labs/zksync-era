@@ -36,8 +36,6 @@ COPY contracts/system-contracts/contracts-preprocessed/artifacts/ /contracts/sys
 COPY contracts/system-contracts/contracts-preprocessed/precompiles/artifacts/ /contracts/system-contracts/contracts-preprocessed/precompiles/artifacts/
 COPY contracts/system-contracts/artifacts-zk /contracts/system-contracts/artifacts-zk
 COPY contracts/l1-contracts/out/ /contracts/l1-contracts/out/
-# TODO Remove once we use foundry inside contracts repo
-COPY contracts/l1-contracts/artifacts/ /contracts/l1-contracts/artifacts/
 COPY contracts/l2-contracts/artifacts-zk/ /contracts/l2-contracts/artifacts-zk/
 COPY etc/tokens/ /etc/tokens/
 COPY etc/ERC20/ /etc/ERC20/

@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                miniblocks.hash AS \"block_hash\",\n                miniblocks.number AS \"block_number\",\n                prev_miniblock.hash AS \"parent_hash?\",\n                miniblocks.timestamp AS \"block_timestamp\",\n                miniblocks.base_fee_per_gas AS \"base_fee_per_gas\",\n                miniblocks.gas_limit AS \"block_gas_limit?\",\n                miniblocks.logs_bloom AS \"block_logs_bloom?\",\n                transactions.gas_limit AS \"transaction_gas_limit?\",\n                transactions.refunded_gas AS \"transaction_refunded_gas?\"\n            FROM\n                miniblocks\n            LEFT JOIN\n                miniblocks prev_miniblock\n                ON prev_miniblock.number = miniblocks.number - 1\n            LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number\n            WHERE\n                miniblocks.number > $1\n            ORDER BY\n                miniblocks.number ASC,\n                transactions.index_in_block ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "block_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 1,
+        "name": "block_number",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "parent_hash?",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "block_timestamp",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "base_fee_per_gas",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 5,
+        "name": "block_gas_limit?",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "block_logs_bloom?",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 7,
+        "name": "transaction_gas_limit?",
+        "type_info": "Numeric"
+      },
+      {
+        "ordinal": 8,
+        "name": "transaction_refunded_gas?",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "ee50258050e7a08be67335cddf258ed14ea4ed363db1501e7268909bc18f2043"
+}
