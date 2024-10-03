@@ -160,7 +160,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let params = ZKSProvider::get_finalize_withdrawal_params(&gateway_provider, hash, 0).await?;
 
-    let hash2 = call_script(
+    call_script(
         shell,
         args.forge_args,
         &GATEWAY_PREPARATION_INTERFACE
