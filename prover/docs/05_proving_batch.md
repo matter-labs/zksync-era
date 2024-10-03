@@ -14,8 +14,8 @@ GPU, which requires an NVIDIA A100 80GB GPU.
 
 ### Prerequisites
 
-First of all, you need to install CUDA drivers, all other things will be dealt with by `zkstack` and `prover_cli`
-tools. For that, check the following [guide](./02_setup.md)(you can skip bellman-cuda step).
+First of all, you need to install CUDA drivers, all other things will be dealt with by `zkstack` and `prover_cli` tools.
+For that, check the following [guide](./02_setup.md)(you can skip bellman-cuda step).
 
 Install the prerequisites, which you can find
 [here](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/setup-dev.md). Note, that if you are not using
