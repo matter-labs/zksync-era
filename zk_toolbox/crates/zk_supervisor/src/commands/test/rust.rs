@@ -1,19 +1,19 @@
-use std::{path::Path, str::FromStr};
+use std::str::FromStr;
 
 use anyhow::Context;
-use common::{cmd::Cmd, db::wait_for_db, logger};
+use common::{cmd::Cmd, logger};
 use config::EcosystemConfig;
 use url::Url;
 use xshell::{cmd, Shell};
 
 use super::args::rust::RustArgs;
 use crate::{
-    commands::database,
+    commands::test::db::reset_test_databases,
     dals::{Dal, CORE_DAL_PATH, PROVER_DAL_PATH},
     defaults::{TEST_DATABASE_PROVER_URL, TEST_DATABASE_SERVER_URL},
     messages::{
-        MSG_CHAIN_NOT_FOUND_ERR, MSG_POSTGRES_CONFIG_NOT_FOUND_ERR, MSG_RESETTING_TEST_DATABASES,
-        MSG_UNIT_TESTS_RUN_SUCCESS, MSG_USING_CARGO_NEXTEST,
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_POSTGRES_CONFIG_NOT_FOUND_ERR, MSG_UNIT_TESTS_RUN_SUCCESS,
+        MSG_USING_CARGO_NEXTEST,
     },
 };
 
@@ -75,34 +75,12 @@ pub async fn run(shell: &Shell, args: RustArgs) -> anyhow::Result<()> {
         .env("TEST_PROVER_DATABASE_URL", test_prover_url);
     cmd.run()?;
 
+    // Run unit tests for zk_toolbox
+    let _dir_guard = shell.push_dir(link_to_code.join("zk_toolbox"));
+    Cmd::new(cmd!(shell, "cargo nextest run --release"))
+        .with_force_run()
+        .run()?;
+
     logger::outro(MSG_UNIT_TESTS_RUN_SUCCESS);
-    Ok(())
-}
-
-async fn reset_test_databases(
-    shell: &Shell,
-    link_to_code: &Path,
-    dals: Vec<Dal>,
-) -> anyhow::Result<()> {
-    logger::info(MSG_RESETTING_TEST_DATABASES);
-
-    Cmd::new(cmd!(
-        shell,
-        "docker compose -f docker-compose-unit-tests.yml down"
-    ))
-    .run()?;
-    Cmd::new(cmd!(
-        shell,
-        "docker compose -f docker-compose-unit-tests.yml up -d"
-    ))
-    .run()?;
-
-    for dal in dals {
-        let mut url = dal.url.clone();
-        url.set_path("");
-        wait_for_db(&url, 3).await?;
-        database::reset::reset_database(shell, link_to_code, dal.clone()).await?;
-    }
-
     Ok(())
 }

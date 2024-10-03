@@ -20,7 +20,7 @@ use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_metadata_calculator::{
     LazyAsyncTreeReader, MetadataCalculator, MetadataCalculatorConfig,
 };
-use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::spawn_http_server};
+use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
     fetcher::{FetchedTransaction, IoCursorExt as _},
@@ -91,11 +91,8 @@ impl ConfigSet {
     }
 }
 
-pub(super) fn new_configs(
-    rng: &mut impl Rng,
-    setup: &Setup,
-    gossip_peers: usize,
-) -> Vec<ConfigSet> {
+pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) -> Vec<ConfigSet> {
+    let net_cfgs = network::testonly::new_configs(rng, setup, 0);
     let genesis_spec = config::GenesisSpec {
         chain_id: setup.genesis.chain_id.0.try_into().unwrap(),
         protocol_version: config::ProtocolVersion(setup.genesis.protocol_version.0),
@@ -117,8 +114,17 @@ pub(super) fn new_configs(
             .collect(),
         leader: config::ValidatorPublicKey(setup.validator_keys[0].public().encode()),
         registry_address: None,
+        seed_peers: net_cfgs[..seed_peers]
+            .iter()
+            .map(|c| {
+                (
+                    config::NodePublicKey(c.gossip.key.public().encode()),
+                    config::Host(c.public_addr.0.clone()),
+                )
+            })
+            .collect(),
     };
-    network::testonly::new_configs(rng, setup, gossip_peers)
+    net_cfgs
         .into_iter()
         .enumerate()
         .map(|(i, net)| ConfigSet {
@@ -172,6 +178,7 @@ fn make_config(
         // genesis generator for zksync-era tests.
         genesis_spec,
         rpc: None,
+        debug_page_addr: None,
     }
 }
 
@@ -615,7 +622,7 @@ impl StateKeeperRunner {
             });
 
             s.spawn_bg({
-                let executor_factory = MainBatchExecutorFactory::new(false, false);
+                let executor_factory = MainBatchExecutorFactory::<()>::new(false);
                 let stop_recv = stop_recv.clone();
                 async {
                     ZkSyncStateKeeper::new(
@@ -640,14 +647,9 @@ impl StateKeeperRunner {
                     &configs::contracts::ContractsConfig::for_tests(),
                     &configs::GenesisConfig::for_tests(),
                 );
-                let mut server = spawn_http_server(
-                    cfg,
-                    self.pool.0.clone(),
-                    Default::default(),
-                    Arc::default(),
-                    stop_recv,
-                )
-                .await;
+                let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
+                    .build_http(stop_recv)
+                    .await;
                 if let Ok(addr) = ctx.wait(server.wait_until_ready()).await {
                     self.addr.send_replace(Some(addr));
                     tracing::info!("API server ready!");
@@ -725,14 +727,9 @@ impl StateKeeperRunner {
                     &configs::contracts::ContractsConfig::for_tests(),
                     &configs::GenesisConfig::for_tests(),
                 );
-                let mut server = spawn_http_server(
-                    cfg,
-                    self.pool.0.clone(),
-                    Default::default(),
-                    Arc::default(),
-                    stop_recv,
-                )
-                .await;
+                let mut server = TestServerBuilder::new(self.pool.0.clone(), cfg)
+                    .build_http(stop_recv)
+                    .await;
                 if let Ok(addr) = ctx.wait(server.wait_until_ready()).await {
                     self.addr.send_replace(Some(addr));
                     tracing::info!("API server ready!");

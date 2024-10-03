@@ -89,35 +89,29 @@ pub async fn mint_token(
     chain_id: u64,
     amount: u128,
 ) -> anyhow::Result<()> {
-    let client = Arc::new(create_ethers_client(
-        main_wallet.private_key.unwrap(),
-        l1_rpc,
-        Some(chain_id),
-    )?);
+    let client = Arc::new(
+        create_ethers_client(main_wallet.private_key.unwrap(), l1_rpc, Some(chain_id))?
+            .nonce_manager(main_wallet.address),
+    );
 
     let contract = TokenContract::new(token_address, client);
-    // contract
+
+    let mut pending_calls = vec![];
     for address in addresses {
-        if let Err(err) = mint(&contract, address, amount).await {
-            logger::warn(format!("Failed to mint {err}"))
+        pending_calls.push(contract.mint(address, amount.into()));
+    }
+
+    let mut pending_txs = vec![];
+    for call in &pending_calls {
+        let call = call.send().await;
+        match call {
+            // It's safe to set such low number of confirmations and low interval for localhost
+            Ok(call) => pending_txs.push(call.confirmations(3).interval(Duration::from_millis(30))),
+            Err(e) => logger::error(format!("Minting is not successful {e}")),
         }
     }
 
-    Ok(())
-}
+    futures::future::join_all(pending_txs).await;
 
-async fn mint<T: Middleware + 'static>(
-    contract: &TokenContract<T>,
-    address: Address,
-    amount: u128,
-) -> anyhow::Result<()> {
-    contract
-        .mint(address, amount.into())
-        .send()
-        .await?
-        // It's safe to set such low number of confirmations and low interval for localhost
-        .confirmations(1)
-        .interval(Duration::from_millis(30))
-        .await?;
     Ok(())
 }

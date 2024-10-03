@@ -1,11 +1,7 @@
-use std::{
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{path::PathBuf, str::FromStr};
 
 use anyhow::Context;
 use common::{
-    cmd::Cmd,
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
     git, logger,
@@ -15,38 +11,34 @@ use common::{
 use config::{
     forge_interface::{
         deploy_ecosystem::{
-            input::{
-                DeployErc20Config, DeployL1Config, Erc20DeploymentConfig, InitialDeploymentConfig,
-            },
-            output::{DeployL1Output, ERC20Tokens},
+            input::{DeployErc20Config, Erc20DeploymentConfig, InitialDeploymentConfig},
+            output::ERC20Tokens,
         },
-        script_params::{DEPLOY_ECOSYSTEM_SCRIPT_PARAMS, DEPLOY_ERC20_SCRIPT_PARAMS},
+        script_params::DEPLOY_ERC20_SCRIPT_PARAMS,
     },
-    traits::{
-        FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
-        SaveConfigWithBasePath,
-    },
-    ContractsConfig, EcosystemConfig, GenesisConfig,
+    traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, SaveConfigWithBasePath},
+    ContractsConfig, EcosystemConfig,
 };
-use types::{L1Network, ProverMode};
-use xshell::{cmd, Shell};
+use types::L1Network;
+use xshell::Shell;
 
 use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
+    common::deploy_l1,
     setup_observability,
+    utils::{build_system_contracts, install_yarn_dependencies},
 };
 use crate::{
     accept_ownership::{accept_admin, accept_owner},
     commands::{
-        chain::{self, args::init::PortOffset},
+        chain::{self},
         ecosystem::create_configs::{
             create_erc20_deployment_config, create_initial_deployments_config,
         },
     },
     messages::{
-        msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
-        msg_initializing_chain, MSG_CHAIN_NOT_INITIALIZED,
-        MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
+        msg_chain_load_err, msg_ecosystem_initialized, msg_ecosystem_no_found_preexisting_contract,
+        msg_initializing_chain, MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER, MSG_DEPLOYING_ERC20,
         MSG_DEPLOYING_ERC20_SPINNER, MSG_ECOSYSTEM_CONTRACTS_PATH_INVALID_ERR,
         MSG_ECOSYSTEM_CONTRACTS_PATH_PROMPT, MSG_INITIALIZING_ECOSYSTEM,
         MSG_INTALLING_DEPS_SPINNER,
@@ -64,11 +56,9 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         Err(_) => create_initial_deployments_config(shell, &ecosystem_config.config)?,
     };
 
-    let mut genesis_args = args.genesis_args.clone();
-    if args.dev {
-        genesis_args.use_default = true;
-    }
-    let mut final_ecosystem_args = args.fill_values_with_prompt(ecosystem_config.l1_network);
+    let mut final_ecosystem_args = args
+        .clone()
+        .fill_values_with_prompt(ecosystem_config.l1_network);
 
     logger::info(MSG_INITIALIZING_ECOSYSTEM);
 
@@ -76,7 +66,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         setup_observability::run(shell)?;
     }
 
-    let contracts_config = init(
+    let contracts_config = init_ecosystem(
         &mut final_ecosystem_args,
         shell,
         &ecosystem_config,
@@ -101,42 +91,17 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
         .await?;
     }
 
-    // If the name of chain passed then we deploy exactly this chain otherwise deploy all chains
-    let list_of_chains = if let Some(name) = global_config().chain_name.clone() {
-        vec![name]
-    } else {
-        ecosystem_config.list_of_chains()
-    };
-
-    for chain_name in &list_of_chains {
-        logger::info(msg_initializing_chain(chain_name));
-        let chain_config = ecosystem_config
-            .load_chain(Some(chain_name.clone()))
-            .context(MSG_CHAIN_NOT_INITIALIZED)?;
-
-        let mut chain_init_args = chain::args::init::InitArgsFinal {
-            forge_args: final_ecosystem_args.forge_args.clone(),
-            genesis_args: genesis_args.clone().fill_values_with_prompt(&chain_config),
-            deploy_paymaster: final_ecosystem_args.deploy_paymaster,
-            l1_rpc_url: final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
-            port_offset: PortOffset::from_chain_id(chain_config.id as u16).into(),
-        };
-
-        chain::init::init(
-            &mut chain_init_args,
-            shell,
-            &ecosystem_config,
-            &chain_config,
-        )
-        .await?;
+    // Initialize chain(s)
+    let mut chains: Vec<String> = vec![];
+    if !final_ecosystem_args.ecosystem_only {
+        chains = init_chains(&args, &final_ecosystem_args, shell, &ecosystem_config).await?;
     }
-
-    logger::outro(msg_ecosystem_initialized(&list_of_chains.join(",")));
+    logger::outro(msg_ecosystem_initialized(&chains.join(",")));
 
     Ok(())
 }
 
-async fn init(
+async fn init_ecosystem(
     init_args: &mut EcosystemInitArgsFinal,
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
@@ -280,47 +245,19 @@ async fn deploy_ecosystem_inner(
     initial_deployment_config: &InitialDeploymentConfig,
     l1_rpc_url: String,
 ) -> anyhow::Result<ContractsConfig> {
-    let deploy_config_path = DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.input(&config.link_to_code);
-
-    let default_genesis_config =
-        GenesisConfig::read_with_base_path(shell, config.get_default_configs_path())
-            .context("Context")?;
-
-    let wallets_config = config.get_wallets()?;
-    // For deploying ecosystem we only need genesis batch params
-    let deploy_config = DeployL1Config::new(
-        &default_genesis_config,
-        &wallets_config,
-        initial_deployment_config,
-        config.era_chain_id,
-        config.prover_version == ProverMode::NoProofs,
-    );
-    deploy_config.save(shell, deploy_config_path)?;
-
-    let mut forge = Forge::new(&config.path_to_foundry())
-        .script(&DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.script(), forge_args.clone())
-        .with_ffi()
-        .with_rpc_url(l1_rpc_url.clone())
-        .with_broadcast();
-
-    if config.l1_network == L1Network::Localhost {
-        // It's a kludge for reth, just because it doesn't behave properly with large amount of txs
-        forge = forge.with_slow();
-    }
-
-    forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
-
     let spinner = Spinner::new(MSG_DEPLOYING_ECOSYSTEM_CONTRACTS_SPINNER);
-    check_the_balance(&forge).await?;
-    forge.run(shell)?;
+    let contracts_config = deploy_l1(
+        shell,
+        &forge_args,
+        config,
+        initial_deployment_config,
+        &l1_rpc_url,
+        None,
+        true,
+    )
+    .await?;
     spinner.finish();
 
-    let script_output = DeployL1Output::read(
-        shell,
-        DEPLOY_ECOSYSTEM_SCRIPT_PARAMS.output(&config.link_to_code),
-    )?;
-    let mut contracts_config = ContractsConfig::default();
-    contracts_config.update_from_l1_output(&script_output);
     accept_owner(
         shell,
         config,
@@ -394,12 +331,52 @@ async fn deploy_ecosystem_inner(
     Ok(contracts_config)
 }
 
-fn install_yarn_dependencies(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code);
-    Ok(Cmd::new(cmd!(shell, "yarn install")).run()?)
-}
+async fn init_chains(
+    init_args: &EcosystemInitArgs,
+    final_init_args: &EcosystemInitArgsFinal,
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+) -> anyhow::Result<Vec<String>> {
+    // If the name of chain passed then we deploy exactly this chain otherwise deploy all chains
+    let list_of_chains = if let Some(name) = global_config().chain_name.clone() {
+        vec![name]
+    } else {
+        ecosystem_config.list_of_chains()
+    };
+    // Set default values for dev mode
+    let mut deploy_paymaster = init_args.deploy_paymaster;
+    let mut genesis_args = init_args.genesis_args.clone();
+    if final_init_args.dev {
+        deploy_paymaster = Some(true);
+        genesis_args.use_default = true;
+    }
+    // Can't initialize multiple chains with the same DB
+    if list_of_chains.len() > 1 {
+        genesis_args.reset_db_names();
+    }
+    // Initialize chains
+    for chain_name in &list_of_chains {
+        logger::info(msg_initializing_chain(chain_name));
+        let chain_config = ecosystem_config
+            .load_chain(Some(chain_name.clone()))
+            .context(msg_chain_load_err(chain_name))?;
 
-fn build_system_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Ok(Cmd::new(cmd!(shell, "yarn sc build")).run()?)
+        let chain_init_args = chain::args::init::InitArgs {
+            forge_args: final_init_args.forge_args.clone(),
+            genesis_args: genesis_args.clone(),
+            deploy_paymaster,
+            l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
+            no_port_reallocation: final_init_args.no_port_reallocation
+        };
+        let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
+
+        chain::init::init(
+            &final_chain_init_args,
+            shell,
+            ecosystem_config,
+            &chain_config,
+        )
+        .await?;
+    }
+    Ok(list_of_chains)
 }

@@ -90,7 +90,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     /// Execute VM with custom tracers.
     fn inspect(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         self.inspect_inner(tracer, execution_mode)
@@ -103,7 +103,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     /// Inspect transaction with optional bytecode compression.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
@@ -130,7 +130,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.inspect(TracerDispatcher::default(), VmExecutionMode::Batch);
+        let result = self.inspect(&mut TracerDispatcher::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {

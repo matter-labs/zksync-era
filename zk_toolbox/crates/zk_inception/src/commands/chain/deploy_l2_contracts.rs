@@ -3,7 +3,6 @@ use std::path::Path;
 use anyhow::Context;
 use common::{
     cmd::Cmd,
-    config::global_config,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
@@ -11,7 +10,10 @@ use config::{
     forge_interface::{
         deploy_l2_contracts::{
             input::DeployL2ContractsInput,
-            output::{ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput},
+            output::{
+                ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
+                Multicall3Output,
+            },
         },
         script_params::DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS,
     },
@@ -40,10 +42,9 @@ pub async fn run(
     shell: &Shell,
     deploy_option: Deploy2ContractsOption,
 ) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let mut contracts = chain_config.get_contracts_config()?;
@@ -205,6 +206,7 @@ pub async fn deploy_l2_contracts(
             contracts_config.set_l2_shared_bridge(&InitializeBridgeOutput::read(shell, out)?)?;
             contracts_config.set_default_l2_upgrade(&DefaultL2UpgradeOutput::read(shell, out)?)?;
             contracts_config.set_consensus_registry(&ConsensusRegistryOutput::read(shell, out)?)?;
+            contracts_config.set_multicall3(&Multicall3Output::read(shell, out)?)?;
             Ok(())
         },
     )

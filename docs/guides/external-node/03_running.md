@@ -2,10 +2,10 @@
 
 > [!NOTE]
 >
-> If you want to just run node with recommended default setting, please see directory docker-compose-examples
+> If you want to just run node with recommended default setting, please see the [quick start](00_quick_start.md) page.
 
 This section assumes that you have prepared a configuration file as described on the
-[previous page](./02_configuration.md).
+[previous page](02_configuration.md).
 
 ## System Requirements for nodes started from DB dumps
 
@@ -80,4 +80,4 @@ If you've been running the ZKsync node for some time and are going to redeploy i
 - Start the EN
 
 Monitoring the node behavior and analyzing the state it's in is covered in the
-[observability section](./04_observability.md).
+[observability section](04_observability.md).

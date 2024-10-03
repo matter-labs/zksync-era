@@ -7,7 +7,7 @@
 RUST_LOG="""\
 zksync_node_framework=info,\
 zksync_block_reverter=info,\
-zksync_commitment_generator=info,\
+zksync_commitment_generator=debug,\
 zksync_node_db_pruner=info,\
 zksync_eth_sender=info,\
 zksync_node_fee_model=info,\

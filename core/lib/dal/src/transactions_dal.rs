@@ -20,7 +20,9 @@ use zksync_vm_interface::{
 };
 
 use crate::{
-    models::storage_transaction::{CallTrace, StorageTransaction},
+    models::storage_transaction::{
+        parse_call_trace, serialize_call_into_bytes, StorageTransaction,
+    },
     Core, CoreDal,
 };
 
@@ -58,7 +60,8 @@ impl TransactionsDal<'_, '_> {
         tx: &L1Tx,
         l1_block_number: L1BlockNumber,
     ) -> DalResult<()> {
-        let contract_address = tx.execute.contract_address.as_bytes();
+        let contract_address = tx.execute.contract_address;
+        let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
         let tx_hash = tx.hash();
         let tx_hash_bytes = tx_hash.as_bytes();
         let json_data = serde_json::to_value(&tx.execute)
@@ -85,53 +88,53 @@ impl TransactionsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                transactions (
-                    hash,
-                    is_priority,
-                    initiator_address,
-                    gas_limit,
-                    max_fee_per_gas,
-                    gas_per_pubdata_limit,
-                    data,
-                    priority_op_id,
-                    full_fee,
-                    layer_2_tip_fee,
-                    contract_address,
-                    l1_block_number,
-                    value,
-                    paymaster,
-                    paymaster_input,
-                    tx_format,
-                    l1_tx_mint,
-                    l1_tx_refund_recipient,
-                    received_at,
-                    created_at,
-                    updated_at
-                )
+            transactions (
+                hash,
+                is_priority,
+                initiator_address,
+                gas_limit,
+                max_fee_per_gas,
+                gas_per_pubdata_limit,
+                data,
+                priority_op_id,
+                full_fee,
+                layer_2_tip_fee,
+                contract_address,
+                l1_block_number,
+                value,
+                paymaster,
+                paymaster_input,
+                tx_format,
+                l1_tx_mint,
+                l1_tx_refund_recipient,
+                received_at,
+                created_at,
+                updated_at
+            )
             VALUES
-                (
-                    $1,
-                    TRUE,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    $8,
-                    $9,
-                    $10,
-                    $11,
-                    $12,
-                    $13,
-                    $14,
-                    $15,
-                    $16,
-                    $17,
-                    $18,
-                    NOW(),
-                    NOW()
-                )
+            (
+                $1,
+                TRUE,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                $11,
+                $12,
+                $13,
+                $14,
+                $15,
+                $16,
+                $17,
+                $18,
+                NOW(),
+                NOW()
+            )
             ON CONFLICT (hash) DO NOTHING
             "#,
             tx_hash_bytes,
@@ -143,7 +146,7 @@ impl TransactionsDal<'_, '_> {
             serial_id,
             full_fee,
             layer_2_tip_fee,
-            contract_address,
+            contract_address_as_bytes,
             l1_block_number.0 as i32,
             value,
             empty_address.as_bytes(),
@@ -161,7 +164,8 @@ impl TransactionsDal<'_, '_> {
     }
 
     pub async fn insert_system_transaction(&mut self, tx: &ProtocolUpgradeTx) -> DalResult<()> {
-        let contract_address = tx.execute.contract_address.as_bytes().to_vec();
+        let contract_address = tx.execute.contract_address;
+        let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
         let tx_hash = tx.common_data.hash().0.to_vec();
         let json_data = serde_json::to_value(&tx.execute)
             .unwrap_or_else(|_| panic!("cannot serialize tx {:?} to json", tx.common_data.hash()));
@@ -186,49 +190,49 @@ impl TransactionsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                transactions (
-                    hash,
-                    is_priority,
-                    initiator_address,
-                    gas_limit,
-                    max_fee_per_gas,
-                    gas_per_pubdata_limit,
-                    data,
-                    upgrade_id,
-                    contract_address,
-                    l1_block_number,
-                    value,
-                    paymaster,
-                    paymaster_input,
-                    tx_format,
-                    l1_tx_mint,
-                    l1_tx_refund_recipient,
-                    received_at,
-                    created_at,
-                    updated_at
-                )
+            transactions (
+                hash,
+                is_priority,
+                initiator_address,
+                gas_limit,
+                max_fee_per_gas,
+                gas_per_pubdata_limit,
+                data,
+                upgrade_id,
+                contract_address,
+                l1_block_number,
+                value,
+                paymaster,
+                paymaster_input,
+                tx_format,
+                l1_tx_mint,
+                l1_tx_refund_recipient,
+                received_at,
+                created_at,
+                updated_at
+            )
             VALUES
-                (
-                    $1,
-                    TRUE,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    $8,
-                    $9,
-                    $10,
-                    $11,
-                    $12,
-                    $13,
-                    $14,
-                    $15,
-                    $16,
-                    NOW(),
-                    NOW()
-                )
+            (
+                $1,
+                TRUE,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                $11,
+                $12,
+                $13,
+                $14,
+                $15,
+                $16,
+                NOW(),
+                NOW()
+            )
             ON CONFLICT (hash) DO NOTHING
             "#,
             tx_hash,
@@ -238,7 +242,7 @@ impl TransactionsDal<'_, '_> {
             gas_per_pubdata_limit,
             json_data,
             upgrade_id,
-            contract_address,
+            contract_address_as_bytes,
             l1_block_number,
             value,
             &Address::default().0.to_vec(),
@@ -284,7 +288,8 @@ impl TransactionsDal<'_, '_> {
         }
 
         let initiator_address = tx.initiator_account();
-        let contract_address = tx.execute.contract_address.as_bytes();
+        let contract_address = tx.execute.contract_address;
+        let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
         let json_data = serde_json::to_value(&tx.execute)
             .unwrap_or_else(|_| panic!("cannot serialize tx {:?} to json", tx.hash()));
         let gas_limit = u256_to_big_decimal(tx.common_data.fee.gas_limit);
@@ -321,86 +326,101 @@ impl TransactionsDal<'_, '_> {
         let query_result = sqlx::query!(
             r#"
             INSERT INTO
-                transactions (
-                    hash,
-                    is_priority,
-                    initiator_address,
-                    nonce,
-                    signature,
-                    gas_limit,
-                    max_fee_per_gas,
-                    max_priority_fee_per_gas,
-                    gas_per_pubdata_limit,
-                    input,
-                    data,
-                    tx_format,
-                    contract_address,
-                    value,
-                    paymaster,
-                    paymaster_input,
-                    execution_info,
-                    received_at,
-                    created_at,
-                    updated_at
-                )
+            transactions (
+                hash,
+                is_priority,
+                initiator_address,
+                nonce,
+                signature,
+                gas_limit,
+                max_fee_per_gas,
+                max_priority_fee_per_gas,
+                gas_per_pubdata_limit,
+                input,
+                data,
+                tx_format,
+                contract_address,
+                value,
+                paymaster,
+                paymaster_input,
+                execution_info,
+                received_at,
+                created_at,
+                updated_at
+            )
             VALUES
-                (
-                    $1,
-                    FALSE,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    $8,
-                    $9,
-                    $10,
-                    $11,
-                    $12,
-                    $13,
-                    $14,
-                    $15,
-                    JSONB_BUILD_OBJECT('gas_used', $16::BIGINT, 'storage_writes', $17::INT, 'contracts_used', $18::INT),
-                    $19,
-                    NOW(),
-                    NOW()
-                )
+            (
+                $1,
+                FALSE,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                $11,
+                $12,
+                $13,
+                $14,
+                $15,
+                JSONB_BUILD_OBJECT(
+                    'gas_used',
+                    $16::BIGINT,
+                    'storage_writes',
+                    $17::INT,
+                    'contracts_used',
+                    $18::INT
+                ),
+                $19,
+                NOW(),
+                NOW()
+            )
             ON CONFLICT (initiator_address, nonce) DO
             UPDATE
             SET
-                hash = $1,
-                signature = $4,
-                gas_limit = $5,
-                max_fee_per_gas = $6,
-                max_priority_fee_per_gas = $7,
-                gas_per_pubdata_limit = $8,
-                input = $9,
-                data = $10,
-                tx_format = $11,
-                contract_address = $12,
-                value = $13,
-                paymaster = $14,
-                paymaster_input = $15,
-                execution_info = JSONB_BUILD_OBJECT('gas_used', $16::BIGINT, 'storage_writes', $17::INT, 'contracts_used', $18::INT),
-                in_mempool = FALSE,
-                received_at = $19,
-                created_at = NOW(),
-                updated_at = NOW(),
-                error = NULL
+            hash = $1,
+            signature = $4,
+            gas_limit = $5,
+            max_fee_per_gas = $6,
+            max_priority_fee_per_gas = $7,
+            gas_per_pubdata_limit = $8,
+            input = $9,
+            data = $10,
+            tx_format = $11,
+            contract_address = $12,
+            value = $13,
+            paymaster = $14,
+            paymaster_input = $15,
+            execution_info
+            = JSONB_BUILD_OBJECT(
+                'gas_used',
+                $16::BIGINT,
+                'storage_writes',
+                $17::INT,
+                'contracts_used',
+                $18::INT
+            ),
+            in_mempool = FALSE,
+            received_at = $19,
+            created_at = NOW(),
+            updated_at = NOW(),
+            error = NULL
             WHERE
-                transactions.is_priority = FALSE
-                AND transactions.miniblock_number IS NULL
+            transactions.is_priority = FALSE
+            AND transactions.miniblock_number IS NULL
             RETURNING
-                (
-                    SELECT
-                        hash
-                    FROM
-                        transactions
-                    WHERE
-                        transactions.initiator_address = $2
-                        AND transactions.nonce = $3
-                ) IS NOT NULL AS "is_replaced!"
+            (
+                SELECT
+                    hash
+                FROM
+                    transactions
+                WHERE
+                    transactions.initiator_address = $2
+                    AND transactions.nonce = $3
+            ) IS NOT NULL AS "is_replaced!"
             "#,
             tx_hash.as_bytes(),
             initiator_address.as_bytes(),
@@ -413,7 +433,7 @@ impl TransactionsDal<'_, '_> {
             input_data,
             &json_data,
             tx_format,
-            contract_address,
+            contract_address_as_bytes,
             value,
             &paymaster,
             &paymaster_input,
@@ -484,8 +504,8 @@ impl TransactionsDal<'_, '_> {
             FROM
                 (
                     SELECT
-                        UNNEST($1::INT[]) AS l1_batch_tx_index,
-                        UNNEST($2::bytea[]) AS hash
+                        UNNEST($1::INT []) AS l1_batch_tx_index,
+                        UNNEST($2::BYTEA []) AS hash
                 ) AS data_table
             WHERE
                 transactions.hash = data_table.hash
@@ -518,8 +538,7 @@ impl TransactionsDal<'_, '_> {
         let mut bytea_call_traces = Vec::with_capacity(transactions.len());
         for tx_res in transactions {
             if let Some(call_trace) = tx_res.call_trace() {
-                bytea_call_traces
-                    .push(CallTrace::from_call(call_trace, protocol_version).call_trace);
+                bytea_call_traces.push(serialize_call_into_bytes(call_trace, protocol_version));
                 call_traces_tx_hashes.push(tx_res.hash.as_bytes());
             }
         }
@@ -531,7 +550,7 @@ impl TransactionsDal<'_, '_> {
                 r#"
                 DELETE FROM transactions
                 WHERE
-                    hash = ANY ($1)
+                    hash = ANY($1)
                 "#,
                 &tx_hashes as &[&[u8]],
             )
@@ -600,12 +619,12 @@ impl TransactionsDal<'_, '_> {
             sqlx::query!(
                 r#"
                 INSERT INTO
-                    call_traces (tx_hash, call_trace)
+                call_traces (tx_hash, call_trace)
                 SELECT
                     u.tx_hash,
                     u.call_trace
                 FROM
-                    UNNEST($1::bytea[], $2::bytea[]) AS u (tx_hash, call_trace)
+                    UNNEST($1::bytea [], $2::bytea []) AS u (tx_hash, call_trace)
                 "#,
                 &call_traces_tx_hashes as &[&[u8]],
                 &bytea_call_traces
@@ -697,8 +716,10 @@ impl TransactionsDal<'_, '_> {
                     .arg_error(&format!("transactions[{index_in_block}].refunded_gas"), err)
             })?;
 
+            let contract_address = transaction.execute.contract_address;
+            let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
             l2_values.push(u256_to_big_decimal(transaction.execute.value));
-            l2_contract_addresses.push(transaction.execute.contract_address.as_bytes());
+            l2_contract_addresses.push(contract_address_as_bytes);
             l2_paymaster_input.push(&common_data.paymaster_params.paymaster_input[..]);
             l2_paymaster.push(common_data.paymaster_params.paymaster.as_bytes());
             l2_hashes.push(tx_res.hash.as_bytes());
@@ -729,33 +750,33 @@ impl TransactionsDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-                transactions (
-                    hash,
-                    is_priority,
-                    initiator_address,
-                    nonce,
-                    signature,
-                    gas_limit,
-                    max_fee_per_gas,
-                    max_priority_fee_per_gas,
-                    gas_per_pubdata_limit,
-                    input,
-                    data,
-                    tx_format,
-                    contract_address,
-                    value,
-                    paymaster,
-                    paymaster_input,
-                    execution_info,
-                    miniblock_number,
-                    index_in_block,
-                    error,
-                    effective_gas_price,
-                    refunded_gas,
-                    received_at,
-                    created_at,
-                    updated_at
-                )
+            transactions (
+                hash,
+                is_priority,
+                initiator_address,
+                nonce,
+                signature,
+                gas_limit,
+                max_fee_per_gas,
+                max_priority_fee_per_gas,
+                gas_per_pubdata_limit,
+                input,
+                data,
+                tx_format,
+                contract_address,
+                value,
+                paymaster,
+                paymaster_input,
+                execution_info,
+                miniblock_number,
+                index_in_block,
+                error,
+                effective_gas_price,
+                refunded_gas,
+                received_at,
+                created_at,
+                updated_at
+            )
             SELECT
                 data_table.hash,
                 FALSE,
@@ -785,26 +806,26 @@ impl TransactionsDal<'_, '_> {
             FROM
                 (
                     SELECT
-                        UNNEST($1::bytea[]) AS hash,
-                        UNNEST($2::bytea[]) AS initiator_address,
-                        UNNEST($3::INT[]) AS nonce,
-                        UNNEST($4::bytea[]) AS signature,
-                        UNNEST($5::NUMERIC[]) AS gas_limit,
-                        UNNEST($6::NUMERIC[]) AS max_fee_per_gas,
-                        UNNEST($7::NUMERIC[]) AS max_priority_fee_per_gas,
-                        UNNEST($8::NUMERIC[]) AS gas_per_pubdata_limit,
-                        UNNEST($9::bytea[]) AS input,
-                        UNNEST($10::jsonb[]) AS data,
-                        UNNEST($11::INT[]) AS tx_format,
-                        UNNEST($12::bytea[]) AS contract_address,
-                        UNNEST($13::NUMERIC[]) AS value,
-                        UNNEST($14::bytea[]) AS paymaster,
-                        UNNEST($15::bytea[]) AS paymaster_input,
-                        UNNEST($16::jsonb[]) AS new_execution_info,
-                        UNNEST($17::INTEGER[]) AS index_in_block,
-                        UNNEST($18::VARCHAR[]) AS error,
-                        UNNEST($19::NUMERIC[]) AS effective_gas_price,
-                        UNNEST($20::BIGINT[]) AS refunded_gas
+                        UNNEST($1::bytea []) AS hash,
+                        UNNEST($2::bytea []) AS initiator_address,
+                        UNNEST($3::int []) AS nonce,
+                        UNNEST($4::bytea []) AS signature,
+                        UNNEST($5::numeric []) AS gas_limit,
+                        UNNEST($6::numeric []) AS max_fee_per_gas,
+                        UNNEST($7::numeric []) AS max_priority_fee_per_gas,
+                        UNNEST($8::numeric []) AS gas_per_pubdata_limit,
+                        UNNEST($9::bytea []) AS input,
+                        UNNEST($10::jsonb []) AS data,
+                        UNNEST($11::int []) AS tx_format,
+                        UNNEST($12::bytea []) AS contract_address,
+                        UNNEST($13::numeric []) AS value,
+                        UNNEST($14::bytea []) AS paymaster,
+                        UNNEST($15::bytea []) AS paymaster_input,
+                        UNNEST($16::jsonb []) AS new_execution_info,
+                        UNNEST($17::integer []) AS index_in_block,
+                        UNNEST($18::varchar []) AS error,
+                        UNNEST($19::numeric []) AS effective_gas_price,
+                        UNNEST($20::bigint []) AS refunded_gas
                 ) AS data_table
             "#,
             &l2_hashes as &[&[u8]],
@@ -818,7 +839,7 @@ impl TransactionsDal<'_, '_> {
             &l2_inputs as &[&[u8]],
             &l2_datas,
             &l2_tx_formats,
-            &l2_contract_addresses as &[&[u8]],
+            &l2_contract_addresses as &[Option<Vec<u8>>],
             &l2_values,
             &l2_paymaster as &[&[u8]],
             &l2_paymaster_input as &[&[u8]],
@@ -901,8 +922,10 @@ impl TransactionsDal<'_, '_> {
                     .arg_error(&format!("transactions[{index_in_block}].refunded_gas"), err)
             })?;
 
+            let contract_address = transaction.execute.contract_address;
+            let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
             l2_values.push(u256_to_big_decimal(transaction.execute.value));
-            l2_contract_addresses.push(transaction.execute.contract_address.as_bytes());
+            l2_contract_addresses.push(contract_address_as_bytes);
             l2_paymaster_input.push(&common_data.paymaster_params.paymaster_input[..]);
             l2_paymaster.push(common_data.paymaster_params.paymaster.as_bytes());
             l2_hashes.push(tx_res.hash.as_bytes());
@@ -966,29 +989,32 @@ impl TransactionsDal<'_, '_> {
                     FROM
                         (
                             SELECT
-                                UNNEST($1::bytea[]) AS initiator_address,
-                                UNNEST($2::INT[]) AS nonce,
-                                UNNEST($3::bytea[]) AS hash,
-                                UNNEST($4::bytea[]) AS signature,
-                                UNNEST($5::NUMERIC[]) AS gas_limit,
-                                UNNEST($6::NUMERIC[]) AS max_fee_per_gas,
-                                UNNEST($7::NUMERIC[]) AS max_priority_fee_per_gas,
-                                UNNEST($8::NUMERIC[]) AS gas_per_pubdata_limit,
-                                UNNEST($9::INT[]) AS tx_format,
-                                UNNEST($10::INTEGER[]) AS index_in_block,
-                                UNNEST($11::VARCHAR[]) AS error,
-                                UNNEST($12::NUMERIC[]) AS effective_gas_price,
-                                UNNEST($13::jsonb[]) AS new_execution_info,
-                                UNNEST($14::bytea[]) AS input,
-                                UNNEST($15::jsonb[]) AS data,
-                                UNNEST($16::BIGINT[]) AS refunded_gas,
-                                UNNEST($17::NUMERIC[]) AS value,
-                                UNNEST($18::bytea[]) AS contract_address,
-                                UNNEST($19::bytea[]) AS paymaster,
-                                UNNEST($20::bytea[]) AS paymaster_input
+                                UNNEST($1::bytea []) AS initiator_address,
+                                UNNEST($2::int []) AS nonce,
+                                UNNEST($3::bytea []) AS hash,
+                                UNNEST($4::bytea []) AS signature,
+                                UNNEST($5::numeric []) AS gas_limit,
+                                UNNEST($6::numeric []) AS max_fee_per_gas,
+                                UNNEST($7::numeric []) AS max_priority_fee_per_gas,
+                                UNNEST($8::numeric []) AS gas_per_pubdata_limit,
+                                UNNEST($9::int []) AS tx_format,
+                                UNNEST($10::integer []) AS index_in_block,
+                                UNNEST($11::varchar []) AS error,
+                                UNNEST($12::numeric []) AS effective_gas_price,
+                                UNNEST($13::jsonb []) AS new_execution_info,
+                                UNNEST($14::bytea []) AS input,
+                                UNNEST($15::jsonb []) AS data,
+                                UNNEST($16::bigint []) AS refunded_gas,
+                                UNNEST($17::numeric []) AS value,
+                                UNNEST($18::bytea []) AS contract_address,
+                                UNNEST($19::bytea []) AS paymaster,
+                                UNNEST($20::bytea []) AS paymaster_input
                         ) AS data_table_temp
-                        JOIN transactions ON transactions.initiator_address = data_table_temp.initiator_address
-                        AND transactions.nonce = data_table_temp.nonce
+                    JOIN transactions
+                        ON
+                            transactions.initiator_address
+                            = data_table_temp.initiator_address
+                            AND transactions.nonce = data_table_temp.nonce
                     ORDER BY
                         transactions.hash
                 ) AS data_table
@@ -1013,7 +1039,7 @@ impl TransactionsDal<'_, '_> {
             &l2_datas,
             &l2_refunded_gas,
             &l2_values,
-            &l2_contract_addresses as &[&[u8]],
+            &l2_contract_addresses as &[Option<Vec<u8>>],
             &l2_paymaster as &[&[u8]],
             &l2_paymaster_input as &[&[u8]],
             l2_block_number.0 as i32,
@@ -1083,6 +1109,8 @@ impl TransactionsDal<'_, '_> {
                     .arg_error(&format!("transactions[{index_in_block}].refunded_gas"), err)
             })?;
 
+            let contract_address = transaction.execute.contract_address;
+            let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
             let tx = &tx_res.transaction;
             l1_hashes.push(tx_res.hash.as_bytes());
             l1_initiator_address.push(common_data.sender.as_bytes());
@@ -1096,7 +1124,7 @@ impl TransactionsDal<'_, '_> {
             l1_priority_op_id.push(common_data.serial_id.0 as i64);
             l1_full_fee.push(u256_to_big_decimal(common_data.full_fee));
             l1_layer_2_tip_fee.push(u256_to_big_decimal(common_data.layer_2_tip_fee));
-            l1_contract_address.push(tx.execute.contract_address.as_bytes());
+            l1_contract_address.push(contract_address_as_bytes);
             l1_l1_block_number.push(common_data.eth_block as i32);
             l1_value.push(u256_to_big_decimal(tx.execute.value));
             l1_tx_format.push(common_data.tx_format() as i32);
@@ -1112,35 +1140,35 @@ impl TransactionsDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-                transactions (
-                    hash,
-                    is_priority,
-                    initiator_address,
-                    gas_limit,
-                    max_fee_per_gas,
-                    gas_per_pubdata_limit,
-                    data,
-                    priority_op_id,
-                    full_fee,
-                    layer_2_tip_fee,
-                    contract_address,
-                    l1_block_number,
-                    value,
-                    paymaster,
-                    paymaster_input,
-                    tx_format,
-                    l1_tx_mint,
-                    l1_tx_refund_recipient,
-                    miniblock_number,
-                    index_in_block,
-                    error,
-                    execution_info,
-                    refunded_gas,
-                    effective_gas_price,
-                    received_at,
-                    created_at,
-                    updated_at
-                )
+            transactions (
+                hash,
+                is_priority,
+                initiator_address,
+                gas_limit,
+                max_fee_per_gas,
+                gas_per_pubdata_limit,
+                data,
+                priority_op_id,
+                full_fee,
+                layer_2_tip_fee,
+                contract_address,
+                l1_block_number,
+                value,
+                paymaster,
+                paymaster_input,
+                tx_format,
+                l1_tx_mint,
+                l1_tx_refund_recipient,
+                miniblock_number,
+                index_in_block,
+                error,
+                execution_info,
+                refunded_gas,
+                effective_gas_price,
+                received_at,
+                created_at,
+                updated_at
+            )
             SELECT
                 data_table.hash,
                 TRUE,
@@ -1172,26 +1200,26 @@ impl TransactionsDal<'_, '_> {
             FROM
                 (
                     SELECT
-                        UNNEST($1::BYTEA[]) AS hash,
-                        UNNEST($2::BYTEA[]) AS initiator_address,
-                        UNNEST($3::NUMERIC[]) AS gas_limit,
-                        UNNEST($4::NUMERIC[]) AS max_fee_per_gas,
-                        UNNEST($5::NUMERIC[]) AS gas_per_pubdata_limit,
-                        UNNEST($6::JSONB[]) AS data,
-                        UNNEST($7::BIGINT[]) AS priority_op_id,
-                        UNNEST($8::NUMERIC[]) AS full_fee,
-                        UNNEST($9::NUMERIC[]) AS layer_2_tip_fee,
-                        UNNEST($10::BYTEA[]) AS contract_address,
-                        UNNEST($11::INT[]) AS l1_block_number,
-                        UNNEST($12::NUMERIC[]) AS value,
-                        UNNEST($13::INTEGER[]) AS tx_format,
-                        UNNEST($14::NUMERIC[]) AS l1_tx_mint,
-                        UNNEST($15::BYTEA[]) AS l1_tx_refund_recipient,
-                        UNNEST($16::INT[]) AS index_in_block,
-                        UNNEST($17::VARCHAR[]) AS error,
-                        UNNEST($18::JSONB[]) AS execution_info,
-                        UNNEST($19::BIGINT[]) AS refunded_gas,
-                        UNNEST($20::NUMERIC[]) AS effective_gas_price
+                        UNNEST($1::bytea []) AS hash,
+                        UNNEST($2::bytea []) AS initiator_address,
+                        UNNEST($3::numeric []) AS gas_limit,
+                        UNNEST($4::numeric []) AS max_fee_per_gas,
+                        UNNEST($5::numeric []) AS gas_per_pubdata_limit,
+                        UNNEST($6::jsonb []) AS data,
+                        UNNEST($7::bigint []) AS priority_op_id,
+                        UNNEST($8::numeric []) AS full_fee,
+                        UNNEST($9::numeric []) AS layer_2_tip_fee,
+                        UNNEST($10::bytea []) AS contract_address,
+                        UNNEST($11::int []) AS l1_block_number,
+                        UNNEST($12::numeric []) AS value,
+                        UNNEST($13::integer []) AS tx_format,
+                        UNNEST($14::numeric []) AS l1_tx_mint,
+                        UNNEST($15::bytea []) AS l1_tx_refund_recipient,
+                        UNNEST($16::int []) AS index_in_block,
+                        UNNEST($17::varchar []) AS error,
+                        UNNEST($18::jsonb []) AS execution_info,
+                        UNNEST($19::bigint []) AS refunded_gas,
+                        UNNEST($20::numeric []) AS effective_gas_price
                 ) AS data_table
             "#,
             &l1_hashes as &[&[u8]],
@@ -1203,7 +1231,7 @@ impl TransactionsDal<'_, '_> {
             &l1_priority_op_id,
             &l1_full_fee,
             &l1_layer_2_tip_fee,
-            &l1_contract_address as &[&[u8]],
+            &l1_contract_address as &[Option<Vec<u8>>],
             &l1_l1_block_number,
             &l1_value,
             &l1_tx_format,
@@ -1290,12 +1318,12 @@ impl TransactionsDal<'_, '_> {
             FROM
                 (
                     SELECT
-                        UNNEST($2::bytea[]) AS hash,
-                        UNNEST($3::INTEGER[]) AS index_in_block,
-                        UNNEST($4::VARCHAR[]) AS error,
-                        UNNEST($5::jsonb[]) AS new_execution_info,
-                        UNNEST($6::BIGINT[]) AS refunded_gas,
-                        UNNEST($7::NUMERIC[]) AS effective_gas_price
+                        UNNEST($2::bytea []) AS hash,
+                        UNNEST($3::integer []) AS index_in_block,
+                        UNNEST($4::varchar []) AS error,
+                        UNNEST($5::jsonb []) AS new_execution_info,
+                        UNNEST($6::bigint []) AS refunded_gas,
+                        UNNEST($7::numeric []) AS effective_gas_price
                 ) AS data_table
             WHERE
                 transactions.hash = data_table.hash
@@ -1373,6 +1401,8 @@ impl TransactionsDal<'_, '_> {
                     .arg_error(&format!("transactions[{index_in_block}].refunded_gas"), err)
             })?;
 
+            let contract_address = transaction.execute.contract_address;
+            let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
             let tx = &tx_res.transaction;
             upgrade_hashes.push(tx_res.hash.as_bytes());
             upgrade_initiator_address.push(common_data.sender.as_bytes());
@@ -1385,7 +1415,7 @@ impl TransactionsDal<'_, '_> {
                     .unwrap_or_else(|_| panic!("cannot serialize tx {:?} to json", tx.hash())),
             );
             upgrade_upgrade_id.push(common_data.upgrade_id as i32);
-            upgrade_contract_address.push(tx.execute.contract_address.as_bytes());
+            upgrade_contract_address.push(contract_address_as_bytes);
             upgrade_l1_block_number.push(common_data.eth_block as i32);
             upgrade_value.push(u256_to_big_decimal(tx.execute.value));
             upgrade_tx_format.push(common_data.tx_format() as i32);
@@ -1401,33 +1431,33 @@ impl TransactionsDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-                transactions (
-                    hash,
-                    is_priority,
-                    initiator_address,
-                    gas_limit,
-                    max_fee_per_gas,
-                    gas_per_pubdata_limit,
-                    data,
-                    upgrade_id,
-                    contract_address,
-                    l1_block_number,
-                    value,
-                    paymaster,
-                    paymaster_input,
-                    tx_format,
-                    l1_tx_mint,
-                    l1_tx_refund_recipient,
-                    miniblock_number,
-                    index_in_block,
-                    error,
-                    execution_info,
-                    refunded_gas,
-                    effective_gas_price,
-                    received_at,
-                    created_at,
-                    updated_at
-                )
+            transactions (
+                hash,
+                is_priority,
+                initiator_address,
+                gas_limit,
+                max_fee_per_gas,
+                gas_per_pubdata_limit,
+                data,
+                upgrade_id,
+                contract_address,
+                l1_block_number,
+                value,
+                paymaster,
+                paymaster_input,
+                tx_format,
+                l1_tx_mint,
+                l1_tx_refund_recipient,
+                miniblock_number,
+                index_in_block,
+                error,
+                execution_info,
+                refunded_gas,
+                effective_gas_price,
+                received_at,
+                created_at,
+                updated_at
+            )
             SELECT
                 data_table.hash,
                 TRUE,
@@ -1457,24 +1487,24 @@ impl TransactionsDal<'_, '_> {
             FROM
                 (
                     SELECT
-                        UNNEST($1::BYTEA[]) AS hash,
-                        UNNEST($2::BYTEA[]) AS initiator_address,
-                        UNNEST($3::NUMERIC[]) AS gas_limit,
-                        UNNEST($4::NUMERIC[]) AS max_fee_per_gas,
-                        UNNEST($5::NUMERIC[]) AS gas_per_pubdata_limit,
-                        UNNEST($6::JSONB[]) AS data,
-                        UNNEST($7::INT[]) AS upgrade_id,
-                        UNNEST($8::BYTEA[]) AS contract_address,
-                        UNNEST($9::INT[]) AS l1_block_number,
-                        UNNEST($10::NUMERIC[]) AS value,
-                        UNNEST($11::INTEGER[]) AS tx_format,
-                        UNNEST($12::NUMERIC[]) AS l1_tx_mint,
-                        UNNEST($13::BYTEA[]) AS l1_tx_refund_recipient,
-                        UNNEST($14::INT[]) AS index_in_block,
-                        UNNEST($15::VARCHAR[]) AS error,
-                        UNNEST($16::JSONB[]) AS execution_info,
-                        UNNEST($17::BIGINT[]) AS refunded_gas,
-                        UNNEST($18::NUMERIC[]) AS effective_gas_price
+                        UNNEST($1::bytea []) AS hash,
+                        UNNEST($2::bytea []) AS initiator_address,
+                        UNNEST($3::numeric []) AS gas_limit,
+                        UNNEST($4::numeric []) AS max_fee_per_gas,
+                        UNNEST($5::numeric []) AS gas_per_pubdata_limit,
+                        UNNEST($6::jsonb []) AS data,
+                        UNNEST($7::int []) AS upgrade_id,
+                        UNNEST($8::bytea []) AS contract_address,
+                        UNNEST($9::int []) AS l1_block_number,
+                        UNNEST($10::numeric []) AS value,
+                        UNNEST($11::integer []) AS tx_format,
+                        UNNEST($12::numeric []) AS l1_tx_mint,
+                        UNNEST($13::bytea []) AS l1_tx_refund_recipient,
+                        UNNEST($14::int []) AS index_in_block,
+                        UNNEST($15::varchar []) AS error,
+                        UNNEST($16::jsonb []) AS execution_info,
+                        UNNEST($17::bigint []) AS refunded_gas,
+                        UNNEST($18::numeric []) AS effective_gas_price
                 ) AS data_table
             "#,
             &upgrade_hashes as &[&[u8]],
@@ -1484,7 +1514,7 @@ impl TransactionsDal<'_, '_> {
             &upgrade_gas_per_pubdata_limit,
             &upgrade_data,
             &upgrade_upgrade_id,
-            &upgrade_contract_address as &[&[u8]],
+            &upgrade_contract_address as &[Option<Vec<u8>>],
             &upgrade_l1_block_number,
             &upgrade_value,
             &upgrade_tx_format,
@@ -1573,12 +1603,12 @@ impl TransactionsDal<'_, '_> {
             FROM
                 (
                     SELECT
-                        UNNEST($2::bytea[]) AS hash,
-                        UNNEST($3::INTEGER[]) AS index_in_block,
-                        UNNEST($4::VARCHAR[]) AS error,
-                        UNNEST($5::jsonb[]) AS new_execution_info,
-                        UNNEST($6::BIGINT[]) AS refunded_gas,
-                        UNNEST($7::NUMERIC[]) AS effective_gas_price
+                        UNNEST($2::bytea []) AS hash,
+                        UNNEST($3::integer []) AS index_in_block,
+                        UNNEST($4::varchar []) AS error,
+                        UNNEST($5::jsonb []) AS new_execution_info,
+                        UNNEST($6::bigint []) AS refunded_gas,
+                        UNNEST($7::numeric []) AS effective_gas_price
                 ) AS data_table
             WHERE
                 transactions.hash = data_table.hash
@@ -1639,7 +1669,7 @@ impl TransactionsDal<'_, '_> {
             WHERE
                 miniblock_number > $1
             RETURNING
-                hash
+            hash
             "#,
             i64::from(l2_block_number.0)
         )
@@ -1653,7 +1683,7 @@ impl TransactionsDal<'_, '_> {
             r#"
             DELETE FROM call_traces
             WHERE
-                tx_hash = ANY ($1)
+                tx_hash = ANY($1)
             "#,
             &tx_hashes as &[&[u8]]
         )
@@ -1676,7 +1706,7 @@ impl TransactionsDal<'_, '_> {
                 AND is_priority = FALSE
                 AND error IS NULL
             RETURNING
-                hash
+            hash
             "#,
             stuck_tx_timeout
         )
@@ -1705,7 +1735,7 @@ impl TransactionsDal<'_, '_> {
             SET
                 in_mempool = FALSE
             FROM
-                UNNEST($1::bytea[]) AS s (address)
+                UNNEST($1::bytea []) AS s (address)
             WHERE
                 transactions.in_mempool = TRUE
                 AND transactions.initiator_address = s.address
@@ -1723,7 +1753,7 @@ impl TransactionsDal<'_, '_> {
             DELETE FROM transactions
             WHERE
                 in_mempool = TRUE
-                AND initiator_address = ANY ($1)
+                AND initiator_address = ANY($1)
             "#,
             &purged_addresses as &[&[u8]]
         )
@@ -1774,7 +1804,7 @@ impl TransactionsDal<'_, '_> {
             WHERE
                 transactions.hash = subquery2.hash
             RETURNING
-                transactions.*
+            transactions.*
             "#,
             limit as i32,
             BigDecimal::from(fee_per_gas),
@@ -2101,14 +2131,15 @@ impl TransactionsDal<'_, '_> {
         Ok(data)
     }
 
-    pub async fn get_call_trace(&mut self, tx_hash: H256) -> DalResult<Option<Call>> {
+    pub async fn get_call_trace(&mut self, tx_hash: H256) -> DalResult<Option<(Call, usize)>> {
         let row = sqlx::query!(
             r#"
             SELECT
-                protocol_version
+                protocol_version,
+                index_in_block
             FROM
                 transactions
-                INNER JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
+            INNER JOIN miniblocks ON transactions.miniblock_number = miniblocks.number
             WHERE
                 transactions.hash = $1
             "#,
@@ -2128,8 +2159,7 @@ impl TransactionsDal<'_, '_> {
             .map(|v| (v as u16).try_into().unwrap())
             .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
-        Ok(sqlx::query_as!(
-            CallTrace,
+        Ok(sqlx::query!(
             r#"
             SELECT
                 call_trace
@@ -2144,7 +2174,12 @@ impl TransactionsDal<'_, '_> {
         .with_arg("tx_hash", &tx_hash)
         .fetch_optional(self.storage)
         .await?
-        .map(|call_trace| call_trace.into_call(protocol_version)))
+        .map(|call_trace| {
+            (
+                parse_call_trace(&call_trace.call_trace, protocol_version),
+                row.index_in_block.unwrap_or_default() as usize,
+            )
+        }))
     }
 
     pub(crate) async fn get_tx_by_hash(&mut self, hash: H256) -> DalResult<Option<Transaction>> {
@@ -2216,7 +2251,7 @@ mod tests {
             .await
             .unwrap();
 
-        let call_trace = conn
+        let (call_trace, _) = conn
             .transactions_dal()
             .get_call_trace(tx_hash)
             .await

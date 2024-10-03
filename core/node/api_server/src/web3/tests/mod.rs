@@ -58,11 +58,12 @@ use zksync_web3_decl::{
 };
 
 use super::*;
-use crate::web3::testonly::{spawn_http_server, spawn_ws_server};
+use crate::web3::testonly::TestServerBuilder;
 
 mod debug;
 mod filters;
 mod snapshots;
+mod unstable;
 mod vm;
 mod ws;
 
@@ -244,14 +245,11 @@ async fn test_http_server(test: impl HttpTest) {
     let genesis = GenesisConfig::for_tests();
     let mut api_config = InternalApiConfig::new(&web3_config, &contracts_config, &genesis);
     api_config.filters_disabled = test.filters_disabled();
-    let mut server_handles = spawn_http_server(
-        api_config,
-        pool.clone(),
-        test.transaction_executor(),
-        test.method_tracer(),
-        stop_receiver,
-    )
-    .await;
+    let mut server_handles = TestServerBuilder::new(pool.clone(), api_config)
+        .with_tx_executor(test.transaction_executor())
+        .with_method_tracer(test.method_tracer())
+        .build_http(stop_receiver)
+        .await;
 
     let local_addr = server_handles.wait_until_ready().await;
     let client = Client::http(format!("http://{local_addr}/").parse().unwrap())
@@ -305,6 +303,17 @@ async fn store_l2_block(
     number: L2BlockNumber,
     transaction_results: &[TransactionExecutionResult],
 ) -> anyhow::Result<L2BlockHeader> {
+    let header = create_l2_block(number.0);
+    store_custom_l2_block(storage, &header, transaction_results).await?;
+    Ok(header)
+}
+
+async fn store_custom_l2_block(
+    storage: &mut Connection<'_, Core>,
+    header: &L2BlockHeader,
+    transaction_results: &[TransactionExecutionResult],
+) -> anyhow::Result<()> {
+    let number = header.number;
     for result in transaction_results {
         let l2_tx = result.transaction.clone().try_into().unwrap();
         let tx_submission_result = storage
@@ -327,19 +336,18 @@ async fn store_l2_block(
         .append_storage_logs(number, &[l2_block_log])
         .await?;
 
-    let new_l2_block = create_l2_block(number.0);
-    storage.blocks_dal().insert_l2_block(&new_l2_block).await?;
+    storage.blocks_dal().insert_l2_block(header).await?;
     storage
         .transactions_dal()
         .mark_txs_as_executed_in_l2_block(
-            new_l2_block.number,
+            number,
             transaction_results,
             1.into(),
             ProtocolVersionId::latest(),
             false,
         )
         .await?;
-    Ok(new_l2_block)
+    Ok(())
 }
 
 async fn seal_l1_batch(

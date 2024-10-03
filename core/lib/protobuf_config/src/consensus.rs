@@ -71,6 +71,13 @@ impl ProtoRepr for proto::GenesisSpec {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("registry_address")?,
+            seed_peers: self
+                .seed_peers
+                .iter()
+                .enumerate()
+                .map(|(i, e)| e.read().context(i))
+                .collect::<Result<_, _>>()
+                .context("seed_peers")?,
         })
     }
     fn build(this: &Self::Type) -> Self {
@@ -81,6 +88,11 @@ impl ProtoRepr for proto::GenesisSpec {
             attesters: this.attesters.iter().map(ProtoRepr::build).collect(),
             leader: Some(this.leader.0.clone()),
             registry_address: this.registry_address.map(|a| format!("{:?}", a)),
+            seed_peers: this
+                .seed_peers
+                .iter()
+                .map(|(k, v)| proto::NodeAddr::build(&(k.clone(), v.clone())))
+                .collect(),
         }
     }
 }
@@ -99,15 +111,25 @@ impl ProtoRepr for proto::RpcConfig {
     }
 }
 
+impl ProtoRepr for proto::NodeAddr {
+    type Type = (NodePublicKey, Host);
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok((
+            NodePublicKey(required(&self.key).context("key")?.clone()),
+            Host(required(&self.addr).context("addr")?.clone()),
+        ))
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            key: Some(this.0 .0.clone()),
+            addr: Some(this.1 .0.clone()),
+        }
+    }
+}
+
 impl ProtoRepr for proto::Config {
     type Type = ConsensusConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
-        let read_addr = |e: &proto::NodeAddr| {
-            let key = NodePublicKey(required(&e.key).context("key")?.clone());
-            let addr = Host(required(&e.addr).context("addr")?.clone());
-            anyhow::Ok((key, addr))
-        };
-
         let max_payload_size = required(&self.max_payload_size)
             .and_then(|x| Ok((*x).try_into()?))
             .context("max_payload_size")?;
@@ -144,10 +166,17 @@ impl ProtoRepr for proto::Config {
                 .gossip_static_outbound
                 .iter()
                 .enumerate()
-                .map(|(i, e)| read_addr(e).context(i))
-                .collect::<Result<_, _>>()?,
+                .map(|(i, e)| e.read().context(i))
+                .collect::<Result<_, _>>()
+                .context("gossip_static_outbound")?,
             genesis_spec: read_optional_repr(&self.genesis_spec),
             rpc: read_optional_repr(&self.rpc_config),
+            debug_page_addr: self
+                .debug_page_addr
+                .as_ref()
+                .map(|x| Ok::<_, anyhow::Error>(x.parse()?))
+                .transpose()
+                .context("debug_page_addr")?,
         })
     }
 
@@ -168,13 +197,11 @@ impl ProtoRepr for proto::Config {
             gossip_static_outbound: this
                 .gossip_static_outbound
                 .iter()
-                .map(|x| proto::NodeAddr {
-                    key: Some(x.0 .0.clone()),
-                    addr: Some(x.1 .0.clone()),
-                })
+                .map(|(k, v)| proto::NodeAddr::build(&(k.clone(), v.clone())))
                 .collect(),
             genesis_spec: this.genesis_spec.as_ref().map(ProtoRepr::build),
             rpc_config: this.rpc.as_ref().map(ProtoRepr::build),
+            debug_page_addr: this.debug_page_addr.as_ref().map(|x| x.to_string()),
         }
     }
 }

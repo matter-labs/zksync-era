@@ -1,7 +1,9 @@
 use std::{
+    collections::HashMap,
     fs::{self, File},
     io::Read,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use anyhow::Context as _;
@@ -14,7 +16,7 @@ use circuit_definitions::{
     },
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
 use zksync_basic_types::basic_fri_types::AggregationRound;
 use zksync_prover_fri_types::ProverServiceDataKey;
@@ -24,6 +26,7 @@ use zksync_utils::env::Workspace;
 use crate::GoldilocksGpuProverSetupData;
 use crate::{GoldilocksProverSetupData, VkCommitments};
 
+#[derive(Debug, Clone, Copy)]
 pub enum ProverServiceDataType {
     VerificationKey,
     SetupData,
@@ -209,7 +212,7 @@ impl Keystore {
         key: ProverServiceDataKey,
         hint: &FinalizationHintsForProver,
     ) -> anyhow::Result<()> {
-        let filepath = self.get_file_path(key.clone(), ProverServiceDataType::FinalizationHints);
+        let filepath = self.get_file_path(key, ProverServiceDataType::FinalizationHints);
 
         tracing::info!("saving finalization hints for {:?} to: {:?}", key, filepath);
         let serialized =
@@ -267,7 +270,7 @@ impl Keystore {
         &self,
         key: ProverServiceDataKey,
     ) -> anyhow::Result<GoldilocksProverSetupData> {
-        let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
+        let filepath = self.get_file_path(key, ProverServiceDataType::SetupData);
 
         let mut file = File::open(filepath.clone())
             .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
@@ -286,7 +289,7 @@ impl Keystore {
         &self,
         key: ProverServiceDataKey,
     ) -> anyhow::Result<GoldilocksGpuProverSetupData> {
-        let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
+        let filepath = self.get_file_path(key, ProverServiceDataType::SetupData);
 
         let mut file = File::open(filepath.clone())
             .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
@@ -301,7 +304,7 @@ impl Keystore {
     }
 
     pub fn is_setup_data_present(&self, key: &ProverServiceDataKey) -> bool {
-        Path::new(&self.get_file_path(key.clone(), ProverServiceDataType::SetupData)).exists()
+        Path::new(&self.get_file_path(*key, ProverServiceDataType::SetupData)).exists()
     }
 
     pub fn save_setup_data_for_circuit_type(
@@ -309,7 +312,7 @@ impl Keystore {
         key: ProverServiceDataKey,
         serialized_setup_data: &Vec<u8>,
     ) -> anyhow::Result<()> {
-        let filepath = self.get_file_path(key.clone(), ProverServiceDataType::SetupData);
+        let filepath = self.get_file_path(key, ProverServiceDataType::SetupData);
         tracing::info!("saving {:?} setup data to: {:?}", key, filepath);
         std::fs::write(filepath.clone(), serialized_setup_data)
             .with_context(|| format!("Failed saving setup-data at path: {filepath:?}"))
@@ -464,5 +467,50 @@ impl Keystore {
 
     pub fn save_commitments(&self, commitments: &VkCommitments) -> anyhow::Result<()> {
         Self::save_json_pretty(self.get_base_path().join("commitments.json"), &commitments)
+    }
+
+    /// Async loads mapping of all circuits to setup key, if successful
+    pub async fn load_all_setup_key_mapping(
+        &self,
+    ) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>> {
+        self.load_key_mapping(ProverServiceDataType::SetupData)
+            .await
+    }
+
+    /// Async loads mapping of all circuits to finalization hints, if successful
+    pub async fn load_all_finalization_hints_mapping(
+        &self,
+    ) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>> {
+        self.load_key_mapping(ProverServiceDataType::FinalizationHints)
+            .await
+    }
+
+    /// Async function that loads mapping from disk.
+    /// Whilst IO is not parallelizable, ser/de is.
+    async fn load_key_mapping<T: DeserializeOwned + Send + Sync + 'static>(
+        &self,
+        data_type: ProverServiceDataType,
+    ) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<T>>> {
+        let mut mapping: HashMap<ProverServiceDataKey, Arc<T>> = HashMap::new();
+
+        // Load each file in parallel. Note that FS access is not necessarily parallel, but
+        // deserialization is. For larger files, it makes a big difference.
+        // Note: `collect` is important, because iterators are lazy, and otherwise we won't actually
+        // spawn threads.
+        let handles: Vec<_> = ProverServiceDataKey::all()
+            .into_iter()
+            .map(|key| {
+                let filepath = self.get_file_path(key, data_type);
+                tokio::task::spawn_blocking(move || {
+                    let data = Self::load_bincode_from_file(filepath)?;
+                    anyhow::Ok((key, Arc::new(data)))
+                })
+            })
+            .collect();
+        for handle in futures::future::join_all(handles).await {
+            let (key, setup_data) = handle.context("future loading key panicked")??;
+            mapping.insert(key, setup_data);
+        }
+        Ok(mapping)
     }
 }
