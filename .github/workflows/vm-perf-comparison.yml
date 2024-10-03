@@ -49,7 +49,7 @@ jobs:
         shell: bash
         run: |
           ci_run zkt
-          ci_run zk_inception dev contracts --system-contracts
+          ci_run zk_supervisor contracts --system-contracts || ci_run zk_inception dev contracts --system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
           ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee base-opcodes || touch base-opcodes
 
