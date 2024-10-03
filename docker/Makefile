@@ -56,7 +56,7 @@ check-tools: check-nodejs check-yarn check-rust check-sqlx-cli check-docker chec
 # Check that contracts are checkout properly
 check-contracts:
 	@if [ ! -d ../contracts/l1-contracts/lib/forge-std/foundry.toml ] || [ -z "$$(ls -A ../contracts/l1-contracts/lib/forge-std/foundry.toml)" ]; then \
-		echo "l1-contracts git submodule is missing. Please re-download repo with `git clone --recurse-submodules https://github.com/matter-labs/zksync-era.git`"; \
+		echo "l1-contracts git submodule is missing. Please re-download repo with 'git clone --recurse-submodules https://github.com/matter-labs/zksync-era.git'"; \
 		exit 1; \
 	fi
 
@@ -93,9 +93,12 @@ build-witness-generator: check-tools prepare-keys
 	$(DOCKER_BUILD_CMD) --file witness-generator/Dockerfile --load \
 		--tag witness-generator:$(PROTOCOL_VERSION) $(CONTEXT)
 
+build-external-node: check-tools prepare-contracts
+	$(DOCKER_BUILD_CMD) --file external-node/Dockerfile --load \
+		--tag external-node:$(PROTOCOL_VERSION) $(CONTEXT)
 
 # Build all containers
-build-all: build-contract-verifier build-server-v2 build-witness-generator build-circuit-prover-gpu cleanup
+build-all: build-contract-verifier build-server-v2 build-witness-generator build-circuit-prover-gpu build-external-node cleanup
 
 # Clean generated images
 clean-all:
@@ -104,3 +107,4 @@ clean-all:
 	docker rmi server-v2:$(PROTOCOL_VERSION) >/dev/null 2>&1
 	docker rmi prover:$(PROTOCOL_VERSION) >/dev/null 2>&1
 	docker rmi witness-generator:$(PROTOCOL_VERSION) >/dev/null 2>&1
+	docker rmi external-node:$(PROTOCOL_VERSION) >/dev/null 2>&1
