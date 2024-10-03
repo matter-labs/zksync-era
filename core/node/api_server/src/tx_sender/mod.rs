@@ -189,6 +189,7 @@ impl TxSenderBuilder {
             executor_options,
             storage_caches,
             missed_storage_invocation_limit,
+            self.config.timestamp_asserter_addr,
         );
 
         TxSender(Arc::new(TxSenderInner {
@@ -218,6 +219,7 @@ pub struct TxSenderConfig {
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
     pub whitelisted_tokens_for_aa: Vec<Address>,
+    pub timestamp_asserter_addr: Option<Address>,
 }
 
 impl TxSenderConfig {
@@ -226,6 +228,7 @@ impl TxSenderConfig {
         web3_json_config: &Web3JsonRpcConfig,
         fee_account_addr: Address,
         chain_id: L2ChainId,
+        timestamp_asserter_addr: Option<Address>,
     ) -> Self {
         Self {
             fee_account_addr,
@@ -237,6 +240,7 @@ impl TxSenderConfig {
                 .validation_computational_gas_limit,
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
+            timestamp_asserter_addr,
         }
     }
 }

@@ -319,6 +319,7 @@ impl MainNodeBuilder {
                     .fee_account
                     .address(),
                 self.genesis_config.l2_chain_id,
+                self.contracts_config.l1_erc20_bridge_proxy_addr,
             ),
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),

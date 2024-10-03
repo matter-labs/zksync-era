@@ -24,6 +24,8 @@ contract CustomAccount is IAccount {
 	bytes4 constant EIP1271_SUCCESS_RETURN_VALUE = 0x1626ba7e;
 
 	function validateTransaction(bytes32 _txHash, bytes32 _suggestedSignedTxHash, Transaction calldata _transaction) external payable override returns (bytes4 magic) {
+		require(block.timestamp > 0, "Hello");
+
 		// By default we consider the transaction as successful
         magic = VALIDATION_SUCCESS_MAGIC;
 

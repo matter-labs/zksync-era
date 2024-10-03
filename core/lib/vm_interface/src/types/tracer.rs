@@ -57,6 +57,9 @@ pub struct ValidationParams {
     pub trusted_address_slots: HashSet<(Address, U256)>,
     /// Number of computational gas that validation step is allowed to use.
     pub computational_gas_limit: u32,
+    /// Address of the timestamp asserter. This contract is allowed to touch block.timestamp regardless
+    /// of the calling context.
+    pub timestamp_asserter_address: Option<Address>,
 }
 
 /// Rules that can be violated when validating a transaction.

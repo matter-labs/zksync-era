@@ -15,7 +15,7 @@ use zksync_multivm::interface::{
 };
 use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Transaction,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Address, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
@@ -100,6 +100,7 @@ pub(crate) struct SandboxExecutor {
     engine: SandboxExecutorEngine,
     pub(super) options: SandboxExecutorOptions,
     storage_caches: Option<PostgresStorageCaches>,
+    pub(super) timestamp_asserter_address: Option<Address>,
 }
 
 impl SandboxExecutor {
@@ -107,6 +108,7 @@ impl SandboxExecutor {
         options: SandboxExecutorOptions,
         caches: PostgresStorageCaches,
         missed_storage_invocation_limit: usize,
+        timestamp_asserter_address: Option<Address>,
     ) -> Self {
         let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
         executor
@@ -115,6 +117,7 @@ impl SandboxExecutor {
             engine: SandboxExecutorEngine::Real(executor),
             options,
             storage_caches: Some(caches),
+            timestamp_asserter_address,
         }
     }
 
@@ -123,6 +126,7 @@ impl SandboxExecutor {
             engine: SandboxExecutorEngine::Mock(executor),
             options: SandboxExecutorOptions::mock().await,
             storage_caches: None,
+            timestamp_asserter_address: None,
         }
     }
 

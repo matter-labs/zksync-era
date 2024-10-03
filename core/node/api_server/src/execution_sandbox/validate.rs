@@ -46,6 +46,7 @@ impl SandboxExecutor {
             &tx,
             self.options.eth_call.validation_computational_gas_limit(),
             whitelisted_tokens_for_aa,
+            self.timestamp_asserter_address,
         )
         .await
         .context("failed getting validation params")?;
@@ -80,6 +81,7 @@ pub(super) async fn get_validation_params(
     tx: &L2Tx,
     computational_gas_limit: u32,
     whitelisted_tokens_for_aa: &[Address],
+    timestamp_asserter_address: Option<Address>,
 ) -> anyhow::Result<ValidationParams> {
     let method_latency = EXECUTION_METRICS.get_validation_params.start();
     let user_address = tx.common_data.initiator_address;
@@ -126,5 +128,6 @@ pub(super) async fn get_validation_params(
         trusted_addresses,
         trusted_address_slots,
         computational_gas_limit,
+        timestamp_asserter_address,
     })
 }

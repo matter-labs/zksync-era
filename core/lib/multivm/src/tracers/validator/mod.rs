@@ -43,6 +43,7 @@ pub struct ValidationTracer<H> {
     trusted_address_slots: HashSet<(Address, U256)>,
     computational_gas_used: u32,
     computational_gas_limit: u32,
+    timestamp_asserter_address: Option<Address>,
     vm_version: VmVersion,
     pub result: Arc<OnceCell<ViolatedValidationRule>>,
     _marker: PhantomData<fn(H) -> H>,
@@ -69,6 +70,7 @@ impl<H> ValidationTracer<H> {
                 trusted_address_slots: params.trusted_address_slots,
                 computational_gas_used: 0,
                 computational_gas_limit: params.computational_gas_limit,
+                timestamp_asserter_address: params.timestamp_asserter_address,
                 vm_version,
                 result: result.clone(),
                 _marker: Default::default(),
@@ -142,6 +144,11 @@ impl<H> ValidationTracer<H> {
             return true;
         }
 
+        // Allow to read any storage slot from the timesttamp asserter contract
+        if self.timestamp_asserter_address == Some(msg_sender) {
+            return true;
+        }
+
         false
     }
 
@@ -189,6 +196,7 @@ impl<H> ValidationTracer<H> {
             trusted_addresses: self.trusted_addresses.clone(),
             trusted_address_slots: self.trusted_address_slots.clone(),
             computational_gas_limit: self.computational_gas_limit,
+            timestamp_asserter_address: self.timestamp_asserter_address,
         }
     }
 }
