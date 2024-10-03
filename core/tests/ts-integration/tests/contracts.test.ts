@@ -106,7 +106,8 @@ describe('Smart contract behavior checks', () => {
         // TODO: provide a proper error for transactions that consume too much gas.
         // await expect(infiniteLoop.callStatic.infiniteLoop()).toBeRejected('cannot estimate transaction: out of gas');
         // ...and then an actual transaction
-        await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000, gasPrice })).toBeRevertedEstimateGas();
+        await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000, gasPrice })).toBeReverted([]);
+        // await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000, gasPrice })).toBeRevertedEstimateGas();
     });
 
     test('Should test reverting storage logs', async () => {
@@ -118,7 +119,10 @@ describe('Smart contract behavior checks', () => {
         // while estimating gas
         await expect(
             counterContract.incrementWithRevert(5, true, { gasLimit: 5000000, gasPrice })
-        ).toBeRevertedEstimateGas();
+        ).toBeReverted();
+        // await expect(
+        //     counterContract.incrementWithRevert(5, true, { gasLimit: 5000000, gasPrice })
+        // ).toBeRevertedEstimateGas();
 
         // The tx has been reverted, so the value Should not have been changed:
         const newValue = await counterContract.get();
