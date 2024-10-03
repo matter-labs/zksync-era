@@ -5,10 +5,7 @@ use std::collections::HashMap;
 use assert_matches::assert_matches;
 use test_casing::test_casing;
 use zksync_dal::ConnectionPool;
-use zksync_multivm::{
-    interface::{ExecutionResult, Halt},
-    utils::derive_base_fee_and_gas_per_pubdata,
-};
+use zksync_multivm::{interface::ExecutionResult, utils::derive_base_fee_and_gas_per_pubdata};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
 use zksync_state::PostgresStorageCaches;
