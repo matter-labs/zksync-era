@@ -51,7 +51,7 @@ jobs:
 
   get_short_sha:
     if: ${{ (needs.changed_files.outputs.zk_environment == 'true') || (github.event_name == 'workflow_dispatch') }}
-    needs: [changed_files]
+    needs: [ changed_files ]
     runs-on: ubuntu-latest
     outputs:
       short_sha: ${{ steps.set_short_sha.outputs.short_sha }}
@@ -70,7 +70,7 @@ jobs:
     permissions:
       packages: write
       contents: read
-    needs: [changed_files, get_short_sha]
+    needs: [ changed_files, get_short_sha ]
     name: Build and optionally push zk-environment Docker images to Docker Hub
     strategy:
       fail-fast: false
@@ -128,9 +128,9 @@ jobs:
     permissions:
       packages: write
       contents: read
-    needs: [changed_files, get_short_sha, zk_environment]
+    needs: [ changed_files, get_short_sha, zk_environment ]
     # TODO: After migraton switch to CI
-    runs-on: [matterlabs-default-infra-runners]
+    runs-on: [ matterlabs-default-infra-runners ]
     steps:
       - name: Login to DockerHub
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
@@ -189,10 +189,10 @@ jobs:
       packages: write
       contents: read
     needs: changed_files
-    runs-on: [matterlabs-ci-runner-high-performance]
+    runs-on: [ matterlabs-ci-runner-high-performance ]
     strategy:
       matrix:
-        cuda_version: ['11_8', '12_0']
+        cuda_version: [ '11_8', '12_0' ]
     steps:
       - name: Evaluate condition
         id: condition
@@ -240,7 +240,7 @@ jobs:
         uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
         with:
           file: docker/zk-environment/20.04_amd64_cuda_${{ matrix.cuda_version }}.Dockerfile
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          push: ${{ github.ref == 'refs/heads/main' }}
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zk-environment-cuda-${{ matrix.cuda_version }}:latest
             matterlabs/zk-environment:cuda-${{ matrix.cuda_version }}-latest
