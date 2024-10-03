@@ -14,16 +14,16 @@
 
 // // import ZkSyncERC20 from '../../../etc/ERC20/artifacts-zk/contracts/ZkSyncERC20.sol/ZkSyncERC20.json';
 
-// describe('L2 native ERC20 contract checks', () => {
-//     let testMaster: TestMaster;
-//     let alice: zksync.Wallet;
-//     let bob: zksync.Wallet;
-//     let isETHBasedChain: boolean;
-//     let baseTokenAddress: string;
-//     let tokenDetails: Token;
-//     let aliceErc20: zksync.Contract;
+describe('L2 native ERC20 contract checks', () => {
+    // let testMaster: TestMaster;
+    // let alice: zksync.Wallet;
+    // let bob: zksync.Wallet;
+    // let isETHBasedChain: boolean;
+    // let baseTokenAddress: string;
+    // let tokenDetails: Token;
+    // let aliceErc20: zksync.Contract;
 
-//     beforeAll(async () => {
+    beforeAll(async () => {
 //         testMaster = TestMaster.getInstance(__filename);
 //         alice = testMaster.mainAccount();
 //         bob = testMaster.newEmptyAccount();
@@ -50,14 +50,14 @@
 //         await mintTx.wait();
 //         const mintTx2 = await aliceErc20.mint('0x36615Cf349d7F6344891B1e7CA7C72883F5dc049', 100n);
 //         await mintTx2.wait();
-//     });
+    });
 
-//     test('Token properties are correct', async () => {
+    test('Token properties are correct', async () => {
 //         await expect(aliceErc20.name()).resolves.toBe(tokenDetails.name);
 //         await expect(aliceErc20.decimals()).resolves.toBe(tokenDetails.decimals);
 //         await expect(aliceErc20.symbol()).resolves.toBe(tokenDetails.symbol);
 //         await expect(aliceErc20.balanceOf(alice.address)).resolves.toBeGreaterThan(0n); // 'Alice should have non-zero balance'
-//     });
+    });
 
 //     test('Can perform a withdrawal', async () => {
 //         if (testMaster.isFastMode()) {
@@ -299,4 +299,4 @@
 //     afterAll(async () => {
 //         await testMaster.deinitialize();
 //     });
-// });
+});
