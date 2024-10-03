@@ -30,7 +30,7 @@ mod wallet;
 pub enum TestCommands {
     #[clap(about = MSG_INTEGRATION_TESTS_ABOUT, alias = "i")]
     Integration(IntegrationArgs),
-    #[clap(about = "Run fees test", alias = "i")]
+    #[clap(about = "Run fees test", alias = "f")]
     Fees(FeesArgs),
     #[clap(about = MSG_REVERT_TEST_ABOUT, alias = "r")]
     Revert(RevertArgs),

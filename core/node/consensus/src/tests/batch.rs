@@ -7,6 +7,7 @@ use zksync_types::{L1BatchNumber, ProtocolVersionId};
 use super::{FROM_SNAPSHOT, VERSIONS};
 use crate::{storage::ConnectionPool, testonly};
 
+/*
 #[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
 #[tokio::test]
 async fn test_connection_get_batch(from_snapshot: bool, version: ProtocolVersionId) {
@@ -42,7 +43,8 @@ async fn test_connection_get_batch(from_snapshot: bool, version: ProtocolVersion
     scope::run!(ctx, |ctx, _s| async {
         let mut conn = pool.connection(ctx).await?;
         let batches = conn.batches_range(ctx).await?;
-        let last = batches.last.expect("last is set");
+        assert!(batches.start<batches.end);
+        let last = batches.end-1;
         let (min, max) = conn
             .get_l2_block_range_of_l1_batch(ctx, last)
             .await?
@@ -76,7 +78,7 @@ async fn test_connection_get_batch(from_snapshot: bool, version: ProtocolVersion
     })
     .await
     .unwrap();
-}
+}*/
 
 /// Tests that generated L1 batch witnesses can be verified successfully.
 /// TODO: add tests for verification failures.

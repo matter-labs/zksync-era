@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use tokio::sync::watch::Sender;
 use tracing::Instrument;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
-use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
-use zksync_consensus_storage::{self as storage, BatchStoreState};
+use zksync_consensus_roles::{validator};
+use zksync_consensus_storage::{self as storage};
 use zksync_dal::consensus_dal::{self, Payload};
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
 use zksync_types::L2BlockNumber;
@@ -46,7 +45,7 @@ fn to_fetched_block(
 }
 
 /// Wrapper of `ConnectionPool` implementing `ReplicaStore`, `PayloadManager`,
-/// `PersistentBlockStore` and `PersistentBatchStore`.
+/// `PersistentBlockStore`.
 ///
 /// Contains queues to save Quorum Certificates received over gossip to the store
 /// as and when the payload they are over becomes available.
@@ -59,8 +58,6 @@ pub(crate) struct Store {
     block_certificates: ctx::channel::UnboundedSender<validator::CommitQC>,
     /// Range of L2 blocks for which we have a QC persisted.
     blocks_persisted: sync::watch::Receiver<storage::BlockStoreState>,
-    /// Range of L1 batches we have persisted.
-    batches_persisted: sync::watch::Receiver<storage::BatchStoreState>,
 }
 
 struct PersistedBlockState(sync::watch::Sender<storage::BlockStoreState>);
@@ -69,7 +66,6 @@ struct PersistedBlockState(sync::watch::Sender<storage::BlockStoreState>);
 pub struct StoreRunner {
     pool: ConnectionPool,
     blocks_persisted: PersistedBlockState,
-    batches_persisted: sync::watch::Sender<storage::BatchStoreState>,
     block_certificates: ctx::channel::UnboundedReceiver<validator::CommitQC>,
 }
 
@@ -86,14 +82,9 @@ impl Store {
             .block_certificates_range(ctx)
             .await
             .wrap("block_certificates_range()")?;
-
-        // Initial state of persisted batches
-        let batches_persisted = conn.batches_range(ctx).await.wrap("batches_range()")?;
-
         drop(conn);
 
         let blocks_persisted = sync::watch::channel(blocks_persisted).0;
-        let batches_persisted = sync::watch::channel(batches_persisted).0;
         let (block_certs_send, block_certs_recv) = ctx::channel::unbounded();
 
         Ok((
@@ -102,12 +93,10 @@ impl Store {
                 block_certificates: block_certs_send,
                 block_payloads: Arc::new(sync::Mutex::new(payload_queue)),
                 blocks_persisted: blocks_persisted.subscribe(),
-                batches_persisted: batches_persisted.subscribe(),
             },
             StoreRunner {
                 pool,
                 blocks_persisted: PersistedBlockState(blocks_persisted),
-                batches_persisted,
                 block_certificates: block_certs_recv,
             },
         ))
@@ -125,7 +114,7 @@ impl PersistedBlockState {
     /// If `persisted.first` is moved forward, it means that blocks have been pruned.
     /// If `persisted.last` is moved forward, it means that new blocks with certificates have been
     /// persisted.
-    #[tracing::instrument(skip_all, fields(first = %new.first, last = ?new.last.as_ref().map(|l| l.message.proposal.number)))]
+    #[tracing::instrument(skip_all, fields(first = %new.first, next = ?new.next()))]
     fn update(&self, new: storage::BlockStoreState) {
         self.0.send_if_modified(|p| {
             if &new == p {
@@ -152,7 +141,7 @@ impl PersistedBlockState {
             if p.next() != cert.header().number {
                 return false;
             }
-            p.last = Some(cert);
+            p.last = Some(storage::Last::Final(cert));
             true
         });
     }
@@ -163,7 +152,6 @@ impl StoreRunner {
         let StoreRunner {
             pool,
             blocks_persisted,
-            batches_persisted,
             mut block_certificates,
         } = self;
 
@@ -192,60 +180,6 @@ impl StoreRunner {
                 // Loop updating `blocks_persisted` whenever blocks get pruned.
                 loop {
                     update_blocks_persisted_iteration(ctx, &pool, &blocks_persisted).await?;
-                }
-            });
-
-            #[tracing::instrument(skip_all, fields(l1_batch = %next_batch_number))]
-            async fn gossip_sync_batches_iteration(
-                ctx: &ctx::Ctx,
-                pool: &ConnectionPool,
-                next_batch_number: &mut BatchNumber,
-                batches_persisted: &Sender<BatchStoreState>,
-            ) -> ctx::Result<()> {
-                const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
-
-                let mut conn = pool.connection(ctx).await?;
-                if let Some(last_batch_number) = conn
-                    .get_last_batch_number(ctx)
-                    .await
-                    .wrap("last_batch_number()")?
-                {
-                    if last_batch_number >= *next_batch_number {
-                        let range = conn.batches_range(ctx).await.wrap("batches_range()")?;
-                        *next_batch_number = last_batch_number.next();
-                        tracing::info_span!("batches_persisted_send").in_scope(|| {
-                            batches_persisted.send_replace(range);
-                        });
-                    }
-                }
-                ctx.sleep(POLL_INTERVAL).await?;
-
-                Ok(())
-            }
-
-            // NOTE: Running this update loop will trigger the gossip of `SyncBatches` which is currently
-            // pointless as there is no proof and we have to ignore them. We can disable it, but bear in
-            // mind that any node which gossips the availability will cause pushes and pulls in the consensus.
-            s.spawn::<()>(async {
-                // Loop updating `batches_persisted` whenever a new L1 batch is available in the database.
-                // We have to do this because the L1 batch is produced as L2 blocks are executed,
-                // which can happen on a different machine or in a different process, so we can't rely on some
-                // DAL method updating this memory construct. However I'm not sure that `BatchStoreState`
-                // really has to contain the full blown last batch, or whether it could have for example
-                // just the number of it. We can't just use the `attester::BatchQC`, which would make it
-                // analogous to the `BlockStoreState`, because the `SyncBatch` mechanism is for catching
-                // up with L1 batches from peers _without_ the QC, based on L1 inclusion proofs instead.
-                // Nevertheless since the `SyncBatch` contains all transactions for all L2 blocks,
-                // we can try to make it less frequent by querying just the last batch number first.
-                let mut next_batch_number = { batches_persisted.borrow().next() };
-                loop {
-                    gossip_sync_batches_iteration(
-                        ctx,
-                        &pool,
-                        &mut next_batch_number,
-                        &batches_persisted,
-                    )
-                    .await?;
                 }
             });
 
@@ -339,13 +273,17 @@ impl storage::PersistentBlockStore for Store {
         &self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
-    ) -> ctx::Result<validator::FinalBlock> {
+    ) -> ctx::Result<validator::Block> {
         Ok(self
             .conn(ctx)
             .await?
             .block(ctx, number)
             .await?
             .context("not found")?)
+    }
+
+    async fn verify_pregenesis_block(&self, _ctx: &ctx::Ctx, _block: &validator::PreGenesisBlock) -> ctx::Result<()> {
+        Err(anyhow::format_err!("pre-genesis block verification is not supported").into())
     }
 
     /// If actions queue is set (and the block has not been stored yet),
@@ -359,17 +297,24 @@ impl storage::PersistentBlockStore for Store {
     async fn queue_next_block(
         &self,
         ctx: &ctx::Ctx,
-        block: validator::FinalBlock,
+        block: validator::Block,
     ) -> ctx::Result<()> {
-        let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
-        if let Some(payloads) = &mut *payloads {
-            payloads
-                .send(to_fetched_block(block.number(), &block.payload).context("to_fetched_block")?)
-                .await
-                .context("payload_queue.send()")?;
+        match block {
+            validator::Block::Final(block) => {
+                let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
+                if let Some(payloads) = &mut *payloads {
+                    payloads
+                        .send(to_fetched_block(block.number(), &block.payload).context("to_fetched_block")?)
+                        .await
+                        .context("payload_queue.send()")?;
+                }
+                self.block_certificates.send(block.justification);
+                Ok(())
+            }
+            validator::Block::PreGenesis(_block) => {
+                return Err(anyhow::format_err!("pre-genesis block is not supported").into());
+            }
         }
-        self.block_certificates.send(block.justification);
-        Ok(())
     }
 }
 
@@ -452,46 +397,6 @@ impl PayloadManager for Store {
                 );
             }
         }
-        Ok(())
-    }
-}
-
-#[async_trait::async_trait]
-impl storage::PersistentBatchStore for Store {
-    /// Range of batches persisted in storage.
-    fn persisted(&self) -> sync::watch::Receiver<BatchStoreState> {
-        self.batches_persisted.clone()
-    }
-
-    /// Returns the batch with the given number.
-    async fn get_batch(
-        &self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-    ) -> ctx::Result<Option<attester::SyncBatch>> {
-        self.conn(ctx)
-            .await?
-            .get_batch(ctx, number)
-            .await
-            .wrap("get_batch")
-    }
-
-    /// Queue the batch to be persisted in storage.
-    ///
-    /// The caller [BatchStore] ensures that this is only called when the batch is the next expected one.
-    async fn queue_next_batch(
-        &self,
-        _ctx: &ctx::Ctx,
-        _batch: attester::SyncBatch,
-    ) -> ctx::Result<()> {
-        // Currently the gossiping of `SyncBatch` and the `BatchStoreState` is unconditionally started by the `Network::run_stream` in consensus,
-        // and as long as any node reports new batches available by updating the `PersistentBatchStore::persisted` here, the other nodes
-        // will start pulling the corresponding batches, which will end up being passed to this method.
-        // If we return an error here or panic, it will stop the whole consensus task tree due to the way scopes work, so instead just return immediately.
-        // In the future we have to validate the proof agains the L1 state root hash, which IIUC we can't do just yet.
-
-        // Err(anyhow::format_err!("unimplemented: queue_next_batch should not be called until we have the stateless L1 batch story completed.").into())
-
         Ok(())
     }
 }

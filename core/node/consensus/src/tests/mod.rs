@@ -45,7 +45,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
         pool.wait_for_payload(ctx, sk.last_block()).await?;
         let mut setup = SetupSpec::new(rng, 3);
         setup.first_block = validator::BlockNumber(4);
-        let mut setup = Setup::from(setup);
+        let mut setup = Setup::from_spec(rng, setup);
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
         conn.try_update_global_config(
             ctx,

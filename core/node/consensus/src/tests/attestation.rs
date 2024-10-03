@@ -40,7 +40,7 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
         let mut setup = SetupSpec::new(rng, 3);
         setup.first_block = sk.last_block();
         let first_batch = sk.last_batch();
-        let setup = Setup::from(setup);
+        let setup = Setup::from_spec(rng, setup);
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
         conn.try_update_global_config(
             ctx,

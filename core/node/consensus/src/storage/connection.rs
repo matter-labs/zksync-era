@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_crypto::keccak256::Keccak256;
 use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
-use zksync_consensus_storage::{self as storage, BatchStoreState};
+use zksync_consensus_storage as storage;
 use zksync_dal::{consensus_dal, consensus_dal::Payload, Core, CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
@@ -334,7 +334,7 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
-    ) -> ctx::Result<Option<validator::FinalBlock>> {
+    ) -> ctx::Result<Option<validator::Block>> {
         let Some(justification) = self
             .block_certificate(ctx, number)
             .await
@@ -352,7 +352,7 @@ impl<'a> Connection<'a> {
         Ok(Some(validator::FinalBlock {
             payload: payload.encode(),
             justification,
-        }))
+        }.into()))
     }
 
     /// Wrapper for `blocks_dal().get_sealed_l1_batch_number()`.
@@ -388,39 +388,9 @@ impl<'a> Connection<'a> {
         }))
     }
 
-    /// Construct the [attester::SyncBatch] for a given batch number.
-    pub async fn get_batch(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-    ) -> ctx::Result<Option<attester::SyncBatch>> {
-        let Some((min, max)) = self
-            .get_l2_block_range_of_l1_batch(ctx, number)
-            .await
-            .context("get_l2_block_range_of_l1_batch()")?
-        else {
-            return Ok(None);
-        };
-
-        let payloads = self.payloads(ctx, min..max).await.wrap("payloads()")?;
-        let payloads = payloads.into_iter().map(|p| p.encode()).collect();
-
-        // TODO: Fill out the proof when we have the stateless L1 batch validation story finished.
-        // It is supposed to be a Merkle proof that the rolling hash of the batch has been included
-        // in the L1 system contract state tree. It is *not* the Ethereum state root hash, so producing
-        // it can be done without an L1 client, which is only required for validation.
-        let batch = attester::SyncBatch {
-            number,
-            payloads,
-            proof: Vec::new(),
-        };
-
-        Ok(Some(batch))
-    }
-
     /// Construct the [storage::BatchStoreState] which contains the earliest batch and the last available [attester::SyncBatch].
     #[tracing::instrument(skip_all)]
-    pub async fn batches_range(&mut self, ctx: &ctx::Ctx) -> ctx::Result<storage::BatchStoreState> {
+    pub async fn batches_range(&mut self, ctx: &ctx::Ctx) -> ctx::Result<std::ops::Range<attester::BatchNumber>> {
         let first = self
             .0
             .blocks_dal()
@@ -452,12 +422,10 @@ impl<'a> Connection<'a> {
             .await
             .context("get_last_batch_number()")?;
 
-        Ok(BatchStoreState {
-            first: first
-                .map(|n| attester::BatchNumber(n.0 as u64))
-                .unwrap_or(attester::BatchNumber(0)),
-            last,
-        })
+        let first = first
+            .map(|n| attester::BatchNumber(n.0 as u64))
+            .unwrap_or(attester::BatchNumber(0));
+        Ok(first..last.map_or(first,|last|last+1))
     }
 
     /// Wrapper for `consensus_dal().attestation_status()`.

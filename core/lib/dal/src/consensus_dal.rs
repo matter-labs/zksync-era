@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use zksync_consensus_roles::{attester, validator};
-use zksync_consensus_storage::{BlockStoreState, ReplicaState};
+use zksync_consensus_storage::{Last, BlockStoreState, ReplicaState};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalError, DalResult, SqlxContext},
@@ -338,14 +338,10 @@ impl ConsensusDal<'_, '_> {
         .await?;
         Ok(BlockStoreState {
             first: start,
-            last: row
-                .map(|row| {
-                    zksync_protobuf::serde::Deserialize {
-                        deny_unknown_fields: true,
-                    }
-                    .proto_fmt(row.certificate)
-                })
-                .transpose()?,
+            last: match row {
+                None => None,
+                Some(row) => Some(Last::Final(zksync_protobuf::serde::Deserialize { deny_unknown_fields: true }.proto_fmt(row.certificate)?)),
+            },
         })
     }
 

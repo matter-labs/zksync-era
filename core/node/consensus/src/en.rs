@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
-use zksync_consensus_storage::{BatchStore, BlockStore};
+use zksync_consensus_storage::{BlockStore};
 use zksync_dal::consensus_dal;
 use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender, SyncState};
 use zksync_types::L2BlockNumber;
@@ -112,11 +112,6 @@ impl EN {
                 .wrap("BlockStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
 
-            let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
-                .await
-                .wrap("BatchStore::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
-
             let attestation = Arc::new(attestation::Controller::new(attester));
             s.spawn_bg(self.run_attestation_controller(
                 ctx,
@@ -127,7 +122,6 @@ impl EN {
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets, &global_config, build_version)?,
                 block_store,
-                batch_store,
                 validator: config::validator_key(&secrets)
                     .context("validator_key")?
                     .map(|key| executor::Validator {
