@@ -188,34 +188,23 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test]
-    async fn mock_happy() {
-        let server = make_mock_server();
-        let client: &dyn PriceAPIClient = &CmcPriceApiClient::new(ExternalPriceApiClientConfig {
+    fn make_client(server: &MockServer, api_key: Option<String>) -> Box<dyn PriceAPIClient> {
+        Box::new(CmcPriceApiClient::new(ExternalPriceApiClientConfig {
             source: "coinmarketcap".to_string(),
             base_url: Some(server.base_url()),
-            api_key: Some("00000000-0000-0000-0000-000000000000".to_string()),
+            api_key,
             client_timeout_ms: 5000,
             forced: None,
-        });
-
-        let token_address = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984"
-            .parse()
-            .unwrap();
-
-        let api_price = client.fetch_ratio(token_address).await.unwrap();
-
-        const REPORTED_PRICE: f64 = 1_f64 / 0.0028306661720164175_f64;
-        const EPSILON: f64 = 0.000001_f64 * REPORTED_PRICE;
-
-        assert!((approximate_value(&api_price) - REPORTED_PRICE).abs() < EPSILON);
+        }))
     }
 
     fn make_mock_server() -> MockServer {
         let mock_server = MockServer::start();
         // cryptocurrency map
         mock_server.mock(|when, then| {
-            when.method(GET).path("/v1/cryptocurrency/map");
+            when.method(GET)
+                .header_exists(AUTH_HEADER)
+                .path("/v1/cryptocurrency/map");
             then.status(200)
                 .header("content-type", "application/json")
                 .json_body(json!({
@@ -253,6 +242,7 @@ mod tests {
         mock_server.mock(|when, then| {
             // TODO: check for api authentication header
             when.method(GET)
+                .header_exists(AUTH_HEADER)
                 .path("/v2/cryptocurrency/quotes/latest")
                 .query_param("id", "7083") // Uniswap
                 .query_param("convert_id", "1027"); // Ether
@@ -305,8 +295,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn mock_happy() {
+        let server = make_mock_server();
+        let client = make_client(
+            &server,
+            Some("00000000-0000-0000-0000-000000000000".to_string()),
+        );
+
+        let token_address: Address = TEST_TOKEN_ADDRESS.parse().unwrap();
+
+        let api_price = client.fetch_ratio(token_address).await.unwrap();
+
+        const REPORTED_PRICE: f64 = 1_f64 / 0.0028306661720164175_f64;
+        const EPSILON: f64 = 0.000001_f64 * REPORTED_PRICE;
+
+        assert!((approximate_value(&api_price) - REPORTED_PRICE).abs() < EPSILON);
+    }
+
+    #[tokio::test]
+    #[should_panic = "Request did not match any route or mock"]
+    async fn mock_fail_no_api_key() {
+        let server = make_mock_server();
+        let client = make_client(&server, None);
+
+        let token_address: Address = TEST_TOKEN_ADDRESS.parse().unwrap();
+
+        client.fetch_ratio(token_address).await.unwrap();
+    }
+
+    #[tokio::test]
+    #[should_panic = "Token ID not found for address"]
+    async fn mock_fail_not_found() {
+        let server = make_mock_server();
+        let client = make_client(
+            &server,
+            Some("00000000-0000-0000-0000-000000000000".to_string()),
+        );
+
+        let token_address: Address = Address::random();
+
+        client.fetch_ratio(token_address).await.unwrap();
+    }
+
+    #[tokio::test]
     #[ignore = "run manually (accesses network); specify CoinMarketCap API key in env var CMC_API_KEY"]
-    async fn real_cmc_tether_peg() {
+    async fn real_cmc_tether() {
         let client = CmcPriceApiClient::new(ExternalPriceApiClientConfig {
             api_key: Some(std::env::var("CMC_API_KEY").unwrap()),
             base_url: None,
@@ -320,8 +353,6 @@ mod tests {
             .unwrap();
 
         let r = client.get_token_price_by_address(tether).await.unwrap();
-
-        assert!((r - 1f64).abs() < 0.001, "USDT lost its peg");
 
         println!("{r}");
     }

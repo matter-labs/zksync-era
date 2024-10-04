@@ -8,7 +8,7 @@ use crate::PriceAPIClient;
 
 const TIME_TOLERANCE_MS: i64 = 100;
 /// Uniswap (UNI)
-const TEST_TOKEN_ADDRESS: &str = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984";
+pub const TEST_TOKEN_ADDRESS: &str = "0x1f9840a85d5af5bf1d1762f925bdaddc4201f984";
 /// 1UNI = 0.00269ETH
 const TEST_TOKEN_PRICE_ETH: f64 = 0.00269;
 /// 1ETH = 371.74UNI; When converting gas price from ETH to UNI
