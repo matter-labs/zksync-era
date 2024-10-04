@@ -9998,7 +9998,7 @@ dependencies = [
  "http 1.1.0",
  "jsonrpsee 0.23.2",
  "parity-scale-codec",
- "reqwest 0.12.5",
+ "reqwest 0.12.7",
  "scale-encode",
  "serde",
  "serde_json",
