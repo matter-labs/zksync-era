@@ -49,10 +49,6 @@ lazy_static! {
         parse_abi(&[
             "function startMigrateChainFromGateway(address chainAdmin,address accessControlRestriction,uint256 chainId) public",
             "function finishMigrateChainFromGateway(uint256 migratingChainId,uint256 gatewayChainId,uint256 l2BatchNumber,uint256 l2MessageIndex,uint16 l2TxNumberInBatch,bytes memory message,bytes32[] memory merkleProof) public",
-            // "function setDAValidatorPair(address chainAdmin,address accessControlRestriction,uint256 chainId,address l1DAValidator,address l2DAValidator,address chainDiamondProxyOnGateway)",
-            // "function supplyGatewayWallet(address addr, uint256 addr) public",
-            // "function enableValidator(address chainAdmin,address accessControlRestriction,uint256 chainId,address validatorAddress,address gatewayValidatorTimelock) public",
-            // "function grantWhitelist(address filtererProxy, address[] memory addr) public"
         ])
         .unwrap(),
     );
@@ -96,8 +92,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         L1BatchCommitmentMode::Rollup
     );
 
-    // Firstly, deploying gateway contracts
-
     let preparation_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
     let preparation_config = GatewayPreparationConfig::new(
         &gateway_chain_config,
@@ -114,10 +108,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         chain_contracts_config.l1.access_control_restriction_addr;
 
     println!("Migrating the chain to L1...");
-    // println!("gateway_url: {}", gateway_url.clone());
-    // let mut forge_args = args.forge_args.clone();
-    // forge_args.with_zksync();
-    // let hash = H256::from_slice(&hex::decode("18f1005ed5ee9b1a5032808cc304994c29833075e134e8af59cd9e1849972a5c").expect("Invalid hash"));
     let hash = call_script(
         shell,
         args.forge_args.clone(),
@@ -146,8 +136,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             .web3_json_rpc
             .http_url,
     )?;
-
-    // let gateway_provider = ZKSProvider(gateway_provider_pre);
 
     if hash == H256::zero() {
         println!("Chain already migrated!");
@@ -182,11 +170,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         l1_url.clone(),
     )
     .await?;
-
-    // let mut chain_secrets_config = chain_config.get_secrets_config().unwrap();
-    // chain_secrets_config.l1.as_mut().unwrap().gateway_url =
-    //     Some(url::Url::parse(&gateway_url).unwrap().into());
-    // chain_secrets_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
     gateway_chain_chain_config.current_settlement_layer = 0;
     gateway_chain_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;

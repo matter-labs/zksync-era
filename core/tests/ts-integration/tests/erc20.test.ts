@@ -114,10 +114,6 @@ describe('L1 ERC20 contract checks', () => {
             noBalanceChange,
             feeTaken
         ]);
-
-        // await expect(aliceErc20.transfer(bob.address, value, { gasLimit, gasPrice })).toBeRevertedEstimateGas(
-        //     'ERC20: transfer amount exceeds balance'
-        // );
     });
 
     test('Transfer to zero address should revert', async () => {
@@ -140,10 +136,6 @@ describe('L1 ERC20 contract checks', () => {
             noBalanceChange,
             feeTaken
         ]);
-        // Send transfer, it should revert because transfers to zero address are not allowed.
-        // await expect(aliceErc20.transfer(zeroAddress, value, { gasLimit, gasPrice })).toBeRevertedEstimateGas(
-        //     'ERC20: transfer to the zero address'
-        // );
     });
 
     test('Approve and transferFrom should work', async () => {
