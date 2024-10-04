@@ -1,7 +1,7 @@
 name: Workflow for testing prover component end-to-end
 on:
   workflow_call:
-    
+
 jobs:
   e2e-test:
     runs-on: [ matterlabs-ci-gpu-runner ]
@@ -26,7 +26,7 @@ jobs:
       - name: Start services
         run: |
           run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
-          mkdir -p ./volumes/postgres
+          mkdir -p ./volumes/postgres ./volumes/reth/data
           docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
 
       - name: Init
