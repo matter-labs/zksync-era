@@ -48,8 +48,8 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts/lib/erc4626-tests
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/forge-std
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/forge-std/lib/ds-test
+          сi_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std
+          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test
           
           ci_run ./bin/zkt
           ci_run zk_inception chain create \
