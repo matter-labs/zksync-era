@@ -6,6 +6,8 @@
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+source ~/.bashrc
+
 # Check that prettier formatting rules are not violated.
 if which zk_supervisor >/dev/null; then
   if ! zk_supervisor fmt --check; then
