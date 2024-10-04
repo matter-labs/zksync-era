@@ -65,7 +65,7 @@ jobs:
             --ignore-prerequisites \
             --legacy-bridge
 
-          ci_run zk_inception containers
+          ci_run zk_inception containers --verbose
           ci_run zk_inception ecosystem init --dev --verbose
           ci_run zk_inception prover init --dev --verbose
           ci_run zk_inception prover init-bellman-cuda --clone --verbose
