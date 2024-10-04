@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE transactions\n            SET\n                l1_batch_number = NULL,\n                miniblock_number = NULL,\n                error = NULL,\n                index_in_block = NULL,\n                execution_info = '{}'\n            WHERE\n                miniblock_number > $1\n            RETURNING\n            hash\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "hash",
+        "type_info": "Bytea"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "499571f0484f4a54541450f935853bb67bd12f2b635af783897f9d2a4f4ead2e"
+}

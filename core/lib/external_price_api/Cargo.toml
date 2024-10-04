@@ -24,3 +24,4 @@ rand.workspace = true
 zksync_config.workspace = true
 zksync_types.workspace = true
 tokio.workspace = true
+httpmock.workspace = true

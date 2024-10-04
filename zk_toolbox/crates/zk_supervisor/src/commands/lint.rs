@@ -92,7 +92,7 @@ fn lint(
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(&msg_running_linter_for_extension_spinner(target));
     let _dir_guard = shell.push_dir(&ecosystem.link_to_code);
-    let files = get_unignored_files(shell, target)?;
+    let files = get_unignored_files(shell, target, None)?;
     let cmd = cmd!(shell, "yarn");
     let config_path = ecosystem.link_to_code.join(CONFIG_PATH);
     let config_path = config_path.join(format!("{}.js", target));

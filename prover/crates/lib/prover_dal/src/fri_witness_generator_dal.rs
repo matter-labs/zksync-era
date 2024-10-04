@@ -49,17 +49,17 @@ impl FriWitnessGeneratorDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                witness_inputs_fri (
-                    l1_batch_number,
-                    witness_inputs_blob_url,
-                    protocol_version,
-                    status,
-                    created_at,
-                    updated_at,
-                    protocol_version_patch
-                )
+            witness_inputs_fri (
+                l1_batch_number,
+                witness_inputs_blob_url,
+                protocol_version,
+                status,
+                created_at,
+                updated_at,
+                protocol_version_patch
+            )
             VALUES
-                ($1, $2, $3, 'queued', NOW(), NOW(), $4)
+            ($1, $2, $3, 'queued', NOW(), NOW(), $4)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
@@ -103,10 +103,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                witness_inputs_fri.l1_batch_number
+            witness_inputs_fri.l1_batch_number
             "#,
             protocol_version.minor as i32,
             picked_by,
@@ -207,11 +207,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     AND attempts < $2
                 )
             RETURNING
-                l1_batch_number,
-                status,
-                attempts,
-                error,
-                picked_by
+            l1_batch_number,
+            status,
+            attempts,
+            error,
+            picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -256,23 +256,23 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 sqlx::query!(
                     r#"
                     INSERT INTO
-                        leaf_aggregation_witness_jobs_fri (
-                            l1_batch_number,
-                            circuit_id,
-                            closed_form_inputs_blob_url,
-                            number_of_basic_circuits,
-                            protocol_version,
-                            status,
-                            created_at,
-                            updated_at,
-                            protocol_version_patch
-                        )
+                    leaf_aggregation_witness_jobs_fri (
+                        l1_batch_number,
+                        circuit_id,
+                        closed_form_inputs_blob_url,
+                        number_of_basic_circuits,
+                        protocol_version,
+                        status,
+                        created_at,
+                        updated_at,
+                        protocol_version_patch
+                    )
                     VALUES
-                        ($1, $2, $3, $4, $5, 'waiting_for_proofs', NOW(), NOW(), $6)
+                    ($1, $2, $3, $4, $5, 'waiting_for_proofs', NOW(), NOW(), $6)
                     ON CONFLICT (l1_batch_number, circuit_id) DO
                     UPDATE
                     SET
-                        updated_at = NOW()
+                    updated_at = NOW()
                     "#,
                     i64::from(block_number.0),
                     i16::from(*circuit_id),
@@ -299,21 +299,21 @@ impl FriWitnessGeneratorDal<'_, '_> {
             sqlx::query!(
                 r#"
                 INSERT INTO
-                    recursion_tip_witness_jobs_fri (
-                        l1_batch_number,
-                        status,
-                        number_of_final_node_jobs,
-                        protocol_version,
-                        created_at,
-                        updated_at,
-                        protocol_version_patch
-                    )
+                recursion_tip_witness_jobs_fri (
+                    l1_batch_number,
+                    status,
+                    number_of_final_node_jobs,
+                    protocol_version,
+                    created_at,
+                    updated_at,
+                    protocol_version_patch
+                )
                 VALUES
-                    ($1, 'waiting_for_proofs', $2, $3, NOW(), NOW(), $4)
+                ($1, 'waiting_for_proofs', $2, $3, NOW(), NOW(), $4)
                 ON CONFLICT (l1_batch_number) DO
                 UPDATE
                 SET
-                    updated_at = NOW()
+                updated_at = NOW()
                 "#,
                 block_number.0 as i64,
                 closed_form_inputs_and_urls.len() as i32,
@@ -327,21 +327,21 @@ impl FriWitnessGeneratorDal<'_, '_> {
             sqlx::query!(
                 r#"
                 INSERT INTO
-                    scheduler_witness_jobs_fri (
-                        l1_batch_number,
-                        scheduler_partial_input_blob_url,
-                        protocol_version,
-                        status,
-                        created_at,
-                        updated_at,
-                        protocol_version_patch
-                    )
+                scheduler_witness_jobs_fri (
+                    l1_batch_number,
+                    scheduler_partial_input_blob_url,
+                    protocol_version,
+                    status,
+                    created_at,
+                    updated_at,
+                    protocol_version_patch
+                )
                 VALUES
-                    ($1, $2, $3, 'waiting_for_proofs', NOW(), NOW(), $4)
+                ($1, $2, $3, 'waiting_for_proofs', NOW(), NOW(), $4)
                 ON CONFLICT (l1_batch_number) DO
                 UPDATE
                 SET
-                    updated_at = NOW()
+                updated_at = NOW()
                 "#,
                 i64::from(block_number.0),
                 scheduler_partial_input_blob_url,
@@ -386,10 +386,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                leaf_aggregation_witness_jobs_fri.*
+            leaf_aggregation_witness_jobs_fri.*
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -464,8 +464,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         prover_jobs_fri.circuit_id
                     FROM
                         prover_jobs_fri
-                        JOIN leaf_aggregation_witness_jobs_fri lawj ON prover_jobs_fri.l1_batch_number = lawj.l1_batch_number
-                        AND prover_jobs_fri.circuit_id = lawj.circuit_id
+                    JOIN leaf_aggregation_witness_jobs_fri lawj
+                        ON
+                            prover_jobs_fri.l1_batch_number = lawj.l1_batch_number
+                            AND prover_jobs_fri.circuit_id = lawj.circuit_id
                     WHERE
                         lawj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
@@ -478,8 +480,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         COUNT(*) = lawj.number_of_basic_circuits
                 )
             RETURNING
-                l1_batch_number,
-                circuit_id;
+            l1_batch_number,
+            circuit_id;
             "#,
         )
         .fetch_all(self.storage.conn())
@@ -552,10 +554,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                node_aggregation_witness_jobs_fri.*
+            node_aggregation_witness_jobs_fri.*
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -617,24 +619,24 @@ impl FriWitnessGeneratorDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                node_aggregation_witness_jobs_fri (
-                    l1_batch_number,
-                    circuit_id,
-                    depth,
-                    aggregations_url,
-                    number_of_dependent_jobs,
-                    protocol_version,
-                    status,
-                    created_at,
-                    updated_at,
-                    protocol_version_patch
-                )
+            node_aggregation_witness_jobs_fri (
+                l1_batch_number,
+                circuit_id,
+                depth,
+                aggregations_url,
+                number_of_dependent_jobs,
+                protocol_version,
+                status,
+                created_at,
+                updated_at,
+                protocol_version_patch
+            )
             VALUES
-                ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7)
+            ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7)
             ON CONFLICT (l1_batch_number, circuit_id, depth) DO
             UPDATE
             SET
-                updated_at = NOW()
+            updated_at = NOW()
             "#,
             i64::from(block_number.0),
             i16::from(circuit_id),
@@ -663,9 +665,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         prover_jobs_fri.depth
                     FROM
                         prover_jobs_fri
-                        JOIN node_aggregation_witness_jobs_fri nawj ON prover_jobs_fri.l1_batch_number = nawj.l1_batch_number
-                        AND prover_jobs_fri.circuit_id = nawj.circuit_id
-                        AND prover_jobs_fri.depth = nawj.depth
+                    JOIN node_aggregation_witness_jobs_fri nawj
+                        ON
+                            prover_jobs_fri.l1_batch_number = nawj.l1_batch_number
+                            AND prover_jobs_fri.circuit_id = nawj.circuit_id
+                            AND prover_jobs_fri.depth = nawj.depth
                     WHERE
                         nawj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
@@ -680,9 +684,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         COUNT(*) = nawj.number_of_dependent_jobs
                 )
             RETURNING
-                l1_batch_number,
-                circuit_id,
-                depth;
+            l1_batch_number,
+            circuit_id,
+            depth;
             "#,
         )
         .fetch_all(self.storage.conn())
@@ -707,9 +711,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         prover_jobs_fri.depth
                     FROM
                         prover_jobs_fri
-                        JOIN node_aggregation_witness_jobs_fri nawj ON prover_jobs_fri.l1_batch_number = nawj.l1_batch_number
-                        AND prover_jobs_fri.circuit_id = nawj.circuit_id
-                        AND prover_jobs_fri.depth = nawj.depth
+                    JOIN node_aggregation_witness_jobs_fri nawj
+                        ON
+                            prover_jobs_fri.l1_batch_number = nawj.l1_batch_number
+                            AND prover_jobs_fri.circuit_id = nawj.circuit_id
+                            AND prover_jobs_fri.depth = nawj.depth
                     WHERE
                         nawj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
@@ -723,9 +729,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         COUNT(*) = nawj.number_of_dependent_jobs
                 )
             RETURNING
-                l1_batch_number,
-                circuit_id,
-                depth;
+            l1_batch_number,
+            circuit_id,
+            depth;
             "#,
         )
         .fetch_all(self.storage.conn())
@@ -748,7 +754,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         prover_jobs_fri.l1_batch_number
                     FROM
                         prover_jobs_fri
-                        JOIN recursion_tip_witness_jobs_fri rtwj ON prover_jobs_fri.l1_batch_number = rtwj.l1_batch_number
+                    JOIN
+                        recursion_tip_witness_jobs_fri rtwj
+                        ON prover_jobs_fri.l1_batch_number = rtwj.l1_batch_number
                     WHERE
                         rtwj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
@@ -761,7 +769,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         COUNT(*) = rtwj.number_of_final_node_jobs
                 )
             RETURNING
-                l1_batch_number;
+            l1_batch_number;
             "#,
             AggregationRound::NodeAggregation as i64,
         )
@@ -785,14 +793,16 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         prover_jobs_fri.l1_batch_number
                     FROM
                         prover_jobs_fri
-                        JOIN scheduler_witness_jobs_fri swj ON prover_jobs_fri.l1_batch_number = swj.l1_batch_number
+                    JOIN
+                        scheduler_witness_jobs_fri swj
+                        ON prover_jobs_fri.l1_batch_number = swj.l1_batch_number
                     WHERE
                         swj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
                         AND prover_jobs_fri.aggregation_round = $1
                 )
             RETURNING
-                l1_batch_number;
+            l1_batch_number;
             "#,
             AggregationRound::RecursionTip as i64,
         )
@@ -828,12 +838,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     AND attempts < $2
                 )
             RETURNING
-                id,
-                status,
-                attempts,
-                circuit_id,
-                error,
-                picked_by
+            id,
+            status,
+            attempts,
+            circuit_id,
+            error,
+            picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -877,12 +887,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     AND attempts < $2
                 )
             RETURNING
-                id,
-                status,
-                attempts,
-                circuit_id,
-                error,
-                picked_by
+            id,
+            status,
+            attempts,
+            circuit_id,
+            error,
+            picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -926,11 +936,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     AND attempts < $2
                 )
             RETURNING
-                l1_batch_number,
-                status,
-                attempts,
-                error,
-                picked_by
+            l1_batch_number,
+            status,
+            attempts,
+            error,
+            picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -979,11 +989,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                recursion_tip_witness_jobs_fri.l1_batch_number,
-                recursion_tip_witness_jobs_fri.number_of_final_node_jobs
+            recursion_tip_witness_jobs_fri.l1_batch_number,
+            recursion_tip_witness_jobs_fri.number_of_final_node_jobs
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -1042,11 +1052,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     AND attempts < $2
                 )
             RETURNING
-                l1_batch_number,
-                status,
-                attempts,
-                error,
-                picked_by
+            l1_batch_number,
+            status,
+            attempts,
+            error,
+            picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1095,10 +1105,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                scheduler_witness_jobs_fri.*
+            scheduler_witness_jobs_fri.*
             "#,
             protocol_version.minor as i32,
             picked_by,
@@ -1586,11 +1596,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     OR status = 'failed'
                 )
             RETURNING
-                l1_batch_number,
-                status,
-                attempts,
-                error,
-                picked_by
+            l1_batch_number,
+            status,
+            attempts,
+            error,
+            picked_by
             "#,
             i64::from(block_number.0),
             max_attempts as i64
@@ -1656,11 +1666,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     OR status = 'failed'
                 )
             RETURNING
-                l1_batch_number,
-                status,
-                attempts,
-                error,
-                picked_by
+            l1_batch_number,
+            status,
+            attempts,
+            error,
+            picked_by
             "#,
             i64::from(block_number.0),
             max_attempts as i64
@@ -1700,11 +1710,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     OR status = 'failed'
                 )
             RETURNING
-                l1_batch_number,
-                status,
-                attempts,
-                error,
-                picked_by
+            l1_batch_number,
+            status,
+            attempts,
+            error,
+            picked_by
             "#,
             i64::from(block_number.0),
             max_attempts as i64
@@ -1793,7 +1803,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 wit.created_at
             FROM
                 proof_compression_jobs_fri AS comp
-                JOIN witness_inputs_fri AS wit ON comp.l1_batch_number = wit.l1_batch_number
+            JOIN witness_inputs_fri AS wit ON comp.l1_batch_number = wit.l1_batch_number
             WHERE
                 wit.created_at > $1
             ORDER BY

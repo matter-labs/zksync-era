@@ -51,20 +51,20 @@ impl CliTestDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                leaf_aggregation_witness_jobs_fri (
-                    l1_batch_number,
-                    circuit_id,
-                    status,
-                    number_of_basic_circuits,
-                    created_at,
-                    updated_at
-                )
+            leaf_aggregation_witness_jobs_fri (
+                l1_batch_number,
+                circuit_id,
+                status,
+                number_of_basic_circuits,
+                created_at,
+                updated_at
+            )
             VALUES
-                ($1, $2, 'waiting_for_proofs', 2, NOW(), NOW())
+            ($1, $2, 'waiting_for_proofs', 2, NOW(), NOW())
             ON CONFLICT (l1_batch_number, circuit_id) DO
             UPDATE
             SET
-                status = $3
+            status = $3
             "#,
             batch_number.0 as i64,
             circuit_id as i16,
@@ -84,13 +84,15 @@ impl CliTestDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                node_aggregation_witness_jobs_fri (l1_batch_number, circuit_id, status, created_at, updated_at)
+            node_aggregation_witness_jobs_fri (
+                l1_batch_number, circuit_id, status, created_at, updated_at
+            )
             VALUES
-                ($1, $2, 'waiting_for_proofs', NOW(), NOW())
+            ($1, $2, 'waiting_for_proofs', NOW(), NOW())
             ON CONFLICT (l1_batch_number, circuit_id, depth) DO
             UPDATE
             SET
-                status = $3
+            status = $3
             "#,
             batch_number.0 as i64,
             circuit_id as i16,
@@ -105,13 +107,15 @@ impl CliTestDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                recursion_tip_witness_jobs_fri (l1_batch_number, status, number_of_final_node_jobs, created_at, updated_at)
+            recursion_tip_witness_jobs_fri (
+                l1_batch_number, status, number_of_final_node_jobs, created_at, updated_at
+            )
             VALUES
-                ($1, 'waiting_for_proofs', 1, NOW(), NOW())
+            ($1, 'waiting_for_proofs', 1, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO
             UPDATE
             SET
-                status = $2
+            status = $2
             "#,
             batch_number.0 as i64,
             status.to_string(),
@@ -129,19 +133,19 @@ impl CliTestDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                scheduler_witness_jobs_fri (
-                    l1_batch_number,
-                    scheduler_partial_input_blob_url,
-                    status,
-                    created_at,
-                    updated_at
-                )
+            scheduler_witness_jobs_fri (
+                l1_batch_number,
+                scheduler_partial_input_blob_url,
+                status,
+                created_at,
+                updated_at
+            )
             VALUES
-                ($1, '', 'waiting_for_proofs', NOW(), NOW())
+            ($1, '', 'waiting_for_proofs', NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO
             UPDATE
             SET
-                status = $2
+            status = $2
             "#,
             batch_number.0 as i64,
             status.to_string(),
@@ -159,13 +163,13 @@ impl CliTestDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                proof_compression_jobs_fri (l1_batch_number, status, created_at, updated_at)
+            proof_compression_jobs_fri (l1_batch_number, status, created_at, updated_at)
             VALUES
-                ($1, $2, NOW(), NOW())
+            ($1, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO
             UPDATE
             SET
-                status = $2
+            status = $2
             "#,
             batch_number.0 as i64,
             status.to_string(),

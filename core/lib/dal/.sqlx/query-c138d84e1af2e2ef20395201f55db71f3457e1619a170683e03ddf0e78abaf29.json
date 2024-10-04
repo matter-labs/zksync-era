@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                MAX(l1_batches.number)\n            FROM\n                l1_batches\n            JOIN eth_txs ON (l1_batches.eth_commit_tx_id = eth_txs.id)\n            JOIN\n                eth_txs_history AS commit_tx\n                ON (eth_txs.confirmed_eth_tx_history_id = commit_tx.id)\n            WHERE\n                commit_tx.confirmed_at IS NOT NULL\n                AND eth_prove_tx_id IS NOT NULL\n                AND eth_execute_tx_id IS NULL\n                AND EXTRACT(\n                    EPOCH\n                    FROM\n                    commit_tx.confirmed_at\n                ) < $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "max",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Numeric"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c138d84e1af2e2ef20395201f55db71f3457e1619a170683e03ddf0e78abaf29"
+}

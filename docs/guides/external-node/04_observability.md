@@ -38,6 +38,5 @@ memory leaking.
 | `api_web3_call`                                | Histogram | `method`                              | Duration of Web3 API calls                                         |
 | `sql_connection_acquire`                       | Histogram | -                                     | Time to get an SQL connection from the connection pool             |
 
-
 Metrics can be used to detect anomalies in configuration, which is described in more detail in the
 [next section](05_troubleshooting.md).

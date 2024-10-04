@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH\n            new_logs AS MATERIALIZED (\n                SELECT DISTINCT\n                ON (hashed_key)\n                    hashed_key,\n                    miniblock_number,\n                    operation_number\n                FROM\n                    storage_logs\n                WHERE\n                    miniblock_number BETWEEN $1 AND $2\n                ORDER BY\n                    hashed_key,\n                    miniblock_number DESC,\n                    operation_number DESC\n            )\n            \n            DELETE FROM storage_logs USING new_logs\n            WHERE\n                storage_logs.hashed_key = new_logs.hashed_key\n                AND storage_logs.miniblock_number <= $2\n                AND (storage_logs.miniblock_number, storage_logs.operation_number)\n                < (new_logs.miniblock_number, new_logs.operation_number)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "05891e039a54b70ac406a63b73b6f5521c888c5bc9050333dd18a88c098b2d12"
+}

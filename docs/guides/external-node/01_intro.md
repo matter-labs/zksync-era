@@ -10,9 +10,9 @@ This documentation explains the basics of the ZKsync Node.
 ## What is the ZKsync node
 
 The ZKsync node is a read-replica of the main (centralized) node that can be run by external parties. It functions by
-receiving blocks from the ZKsync network and re-applying transactions locally, starting from the genesis block. The ZKsync node
-shares most of its codebase with the main node. Consequently, when it re-applies transactions, it does so exactly as the
-main node did in the past.
+receiving blocks from the ZKsync network and re-applying transactions locally, starting from the genesis block. The
+ZKsync node shares most of its codebase with the main node. Consequently, when it re-applies transactions, it does so
+exactly as the main node did in the past.
 
 **It has two modes of initialization:**
 

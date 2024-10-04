@@ -18,20 +18,20 @@ impl SnapshotRecoveryDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                snapshot_recovery (
-                    l1_batch_number,
-                    l1_batch_timestamp,
-                    l1_batch_root_hash,
-                    miniblock_number,
-                    miniblock_timestamp,
-                    miniblock_hash,
-                    protocol_version,
-                    storage_logs_chunks_processed,
-                    updated_at,
-                    created_at
-                )
+            snapshot_recovery (
+                l1_batch_number,
+                l1_batch_timestamp,
+                l1_batch_root_hash,
+                miniblock_number,
+                miniblock_timestamp,
+                miniblock_hash,
+                protocol_version,
+                storage_logs_chunks_processed,
+                updated_at,
+                created_at
+            )
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+            ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
             "#,
             i64::from(status.l1_batch_number.0),
             status.l1_batch_timestamp as i64,

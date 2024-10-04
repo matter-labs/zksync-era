@@ -7,8 +7,13 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Check that prettier formatting rules are not violated.
-if ! zk fmt --check; then
-    echo -e "${RED}Push error!${NC}"
-    echo "Please format the code via 'zk fmt', cannot push unformatted code"
-    exit 1
+if which zk_supervisor >/dev/null; then
+  if ! zk_supervisor fmt --check; then
+      echo -e "${RED}Push error!${NC}"
+      echo "Please format the code via 'zks fmt', cannot push unformatted code"
+      exit 1
+  fi
+else
+  echo "Please install zk_toolbox using zkup from https://github.com/matter-labs/zksync-era/tree/main/zk_toolbox/zkup, and then run ./bin/zkt from the zksync-era repository."
+  exit 1
 fi

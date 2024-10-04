@@ -12,17 +12,15 @@ use crate::{
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig},
 };
 
-pub fn set_databases(
+pub fn set_server_database(
     secrets: &mut SecretsConfig,
     server_db_config: &DatabaseConfig,
-    prover_db_config: &DatabaseConfig,
 ) -> anyhow::Result<()> {
     let database = secrets
         .database
         .as_mut()
-        .context("Databases must be presented")?;
+        .context("Server database must be presented")?;
     database.server_url = Some(SensitiveUrl::from(server_db_config.full_url()));
-    database.prover_url = Some(SensitiveUrl::from(prover_db_config.full_url()));
     Ok(())
 }
 
@@ -33,7 +31,7 @@ pub fn set_prover_database(
     let database = secrets
         .database
         .as_mut()
-        .context("Databases must be presented")?;
+        .context("Prover database must be presented")?;
     database.prover_url = Some(SensitiveUrl::from(prover_db_config.full_url()));
     Ok(())
 }

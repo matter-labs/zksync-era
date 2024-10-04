@@ -126,7 +126,7 @@ pub async fn migrate_db(
                 let text = if skip { "Skipped" } else { "Applied" };
 
                 if global_config().verbose {
-                    logger::step(&format!(
+                    logger::step(format!(
                         "    {} {}/{} {} ({elapsed:?})",
                         text,
                         migration.version,

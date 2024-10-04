@@ -31,7 +31,7 @@ impl FactoryDepsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                factory_deps (bytecode_hash, bytecode, miniblock_number, created_at, updated_at)
+            factory_deps (bytecode_hash, bytecode, miniblock_number, created_at, updated_at)
             SELECT
                 u.bytecode_hash,
                 u.bytecode,
@@ -39,7 +39,7 @@ impl FactoryDepsDal<'_, '_> {
                 NOW(),
                 NOW()
             FROM
-                UNNEST($1::bytea[], $2::bytea[]) AS u (bytecode_hash, bytecode)
+                UNNEST($1::bytea [], $2::bytea []) AS u (bytecode_hash, bytecode)
             ON CONFLICT (bytecode_hash) DO NOTHING
             "#,
             &bytecode_hashes as &[&[u8]],
@@ -136,7 +136,7 @@ impl FactoryDepsDal<'_, '_> {
             FROM
                 factory_deps
             WHERE
-                bytecode_hash = ANY ($1)
+                bytecode_hash = ANY($1)
             "#,
             &hashes_as_bytes as &[&[u8]],
         )

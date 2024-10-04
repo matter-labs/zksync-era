@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
 use common::{check_prerequisites, cmd::Cmd, logger, GPU_PREREQUISITES};
@@ -22,6 +22,8 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
         .load_current_chain()
         .expect(MSG_CHAIN_NOT_FOUND_ERR);
 
+    let path_to_ecosystem = shell.current_dir();
+
     let link_to_prover = get_link_to_prover(&ecosystem_config);
     shell.change_dir(link_to_prover.clone());
 
@@ -29,7 +31,8 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
     let in_docker = args.docker.unwrap_or(false);
 
     let application_args = component.get_application_args(in_docker)?;
-    let additional_args = component.get_additional_args(in_docker, args, &chain)?;
+    let additional_args =
+        component.get_additional_args(in_docker, args, &chain, &path_to_ecosystem)?;
 
     let (message, error) = match component {
         ProverComponent::WitnessGenerator => (
@@ -79,6 +82,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
             error,
             &path_to_configs,
             &path_to_prover,
+            &path_to_ecosystem,
         )?
     } else {
         update_setup_data_path(&chain, "data/keys".to_string())?;
@@ -105,8 +109,11 @@ fn run_dockerized_component(
     error: &'static str,
     path_to_configs: &PathBuf,
     path_to_prover: &PathBuf,
+    path_to_ecosystem: &Path,
 ) -> anyhow::Result<()> {
     logger::info(message);
+
+    let path_to_configs = path_to_ecosystem.join(path_to_configs);
 
     let mut cmd = Cmd::new(cmd!(
         shell,

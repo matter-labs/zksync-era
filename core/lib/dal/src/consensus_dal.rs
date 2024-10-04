@@ -165,9 +165,9 @@ impl ConsensusDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                consensus_replica_state (fake_key, global_config, genesis, state)
+            consensus_replica_state (fake_key, global_config, genesis, state)
             VALUES
-                (TRUE, $1, $2, $3)
+            (TRUE, $1, $2, $3)
             "#,
             global_config,
             genesis,
@@ -479,9 +479,9 @@ impl ConsensusDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                miniblocks_consensus (number, certificate)
+            miniblocks_consensus (number, certificate)
             VALUES
-                ($1, $2)
+            ($1, $2)
             "#,
             i64::try_from(header.number.0).context("overflow")?,
             zksync_protobuf::serde::Serialize
@@ -507,15 +507,15 @@ impl ConsensusDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                l1_batches_consensus_committees (l1_batch_number, attesters, updated_at)
+            l1_batches_consensus_committees (l1_batch_number, attesters, updated_at)
             VALUES
-                ($1, $2, NOW())
+            ($1, $2, NOW())
             ON CONFLICT (l1_batch_number) DO
             UPDATE
             SET
-                l1_batch_number = $1,
-                attesters = $2,
-                updated_at = NOW()
+            l1_batch_number = $1,
+            attesters = $2,
+            updated_at = NOW()
             "#,
             i64::try_from(number.0).context("overflow")?,
             committee
@@ -582,9 +582,9 @@ impl ConsensusDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                l1_batches_consensus (l1_batch_number, certificate, updated_at, created_at)
+            l1_batches_consensus (l1_batch_number, certificate, updated_at, created_at)
             VALUES
-                ($1, $2, NOW(), NOW())
+            ($1, $2, NOW(), NOW())
             "#,
             i64::try_from(cert.message.number.0).context("overflow")?,
             // Unwrap is ok, because serialization should always succeed.

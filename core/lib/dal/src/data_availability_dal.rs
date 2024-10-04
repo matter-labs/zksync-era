@@ -28,9 +28,9 @@ impl DataAvailabilityDal<'_, '_> {
         let update_result = sqlx::query!(
             r#"
             INSERT INTO
-                data_availability (l1_batch_number, blob_id, sent_at, created_at, updated_at)
+            data_availability (l1_batch_number, blob_id, sent_at, created_at, updated_at)
             VALUES
-                ($1, $2, $3, NOW(), NOW())
+            ($1, $2, $3, NOW(), NOW())
             ON CONFLICT DO NOTHING
             "#,
             i64::from(number.0),
@@ -187,7 +187,9 @@ impl DataAvailabilityDal<'_, '_> {
                 pubdata_input
             FROM
                 l1_batches
-                LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
+            LEFT JOIN
+                data_availability
+                ON data_availability.l1_batch_number = l1_batches.number
             WHERE
                 eth_commit_tx_id IS NULL
                 AND number != 0
