@@ -7,7 +7,7 @@ use xshell::Shell;
 use crate::{
     commands::chain::{
         args::genesis::{GenesisArgs, GenesisArgsFinal},
-        genesis::{self, database::initialize_databases, server::run_server_genesis},
+        genesis::{self, database::initialize_server_database, server::run_server_genesis},
     },
     messages::{
         MSG_CHAIN_NOT_INITIALIZED, MSG_GENESIS_COMPLETED, MSG_INITIALIZING_DATABASES_SPINNER,
@@ -70,16 +70,14 @@ pub async fn genesis(
         logger::object_to_string(serde_json::json!({
             "chain_config": config,
             "server_db_config": args.server_db,
-            "prover_db_config": args.prover_db,
         })),
     );
     logger::info(MSG_STARTING_GENESIS);
 
     let spinner = Spinner::new(MSG_INITIALIZING_DATABASES_SPINNER);
-    initialize_databases(
+    initialize_server_database(
         shell,
         &args.server_db,
-        &args.prover_db,
         config.link_to_code.clone(),
         args.dont_drop,
     )
