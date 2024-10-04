@@ -2,13 +2,11 @@ use assert_matches::assert_matches;
 use zksync_types::U256;
 use zksync_vm2::interface::HeapId;
 
-use crate::{
-    interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterfaceExt},
-    versions::vm_fast::tests::{
-        tester::VmTesterBuilder,
-        utils::{get_bootloader, verify_required_memory, BASE_SYSTEM_CONTRACTS},
-    },
+use super::{
+    tester::VmTesterBuilder,
+    utils::{get_bootloader, verify_required_memory, BASE_SYSTEM_CONTRACTS},
 };
+use crate::interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterfaceExt};
 
 #[test]
 fn test_dummy_bootloader() {

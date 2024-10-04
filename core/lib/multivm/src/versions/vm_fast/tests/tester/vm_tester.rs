@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use zksync_contracts::BaseSystemContracts;
-use zksync_test_account::{Account, TxType};
+use zksync_test_account::{Account, TestContract, TxType};
 use zksync_types::{
     block::L2BlockHasher, utils::deployed_address_create, AccountTreeId, Address, L1BatchNumber,
     L2BlockNumber, Nonce, StorageKey,
@@ -16,7 +16,7 @@ use crate::{
     },
     versions::{
         testonly::{default_l1_batch, default_system_env, make_account_rich, ContractToDeploy},
-        vm_fast::{tests::utils::read_test_contract, vm::Vm},
+        vm_fast::vm::Vm,
     },
     vm_latest::utils::l2_blocks::load_last_l2_block,
 };
@@ -33,12 +33,12 @@ pub(crate) struct VmTester<Tr> {
 
 impl<Tr: Tracer + Default + 'static> VmTester<Tr> {
     pub(crate) fn deploy_test_contract(&mut self) {
-        let contract = read_test_contract();
+        let contract = &TestContract::counter().bytecode;
         let tx = self
             .deployer
             .as_mut()
             .expect("You have to initialize builder with deployer")
-            .get_deploy_tx(&contract, None, TxType::L2)
+            .get_deploy_tx(contract, None, TxType::L2)
             .tx;
         let nonce = tx.nonce().unwrap().0.into();
         self.vm.push_transaction(tx);

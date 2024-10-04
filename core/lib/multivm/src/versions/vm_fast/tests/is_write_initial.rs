@@ -1,13 +1,11 @@
+use zksync_test_account::TestContract;
 use zksync_types::get_nonce_key;
 
 use crate::{
     interface::{
         storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
     },
-    vm_fast::tests::{
-        tester::{Account, TxType, VmTesterBuilder},
-        utils::read_test_contract,
-    },
+    vm_fast::tests::tester::{Account, TxType, VmTesterBuilder},
 };
 
 #[test]
@@ -31,9 +29,9 @@ fn test_is_write_initial_behaviour() {
         .borrow_mut()
         .is_write_initial(&nonce_key));
 
-    let contract_code = read_test_contract();
-    let tx = account.get_deploy_tx(&contract_code, None, TxType::L2).tx;
-
+    let tx = account
+        .get_deploy_tx(&TestContract::counter().bytecode, None, TxType::L2)
+        .tx;
     vm.vm.push_transaction(tx);
     vm.vm.execute(VmExecutionMode::OneTx);
 

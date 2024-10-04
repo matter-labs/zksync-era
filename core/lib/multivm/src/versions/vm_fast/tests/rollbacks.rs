@@ -7,9 +7,8 @@ use zksync_vm_interface::VmInterfaceExt;
 use crate::{
     interface::{ExecutionResult, TxExecutionMode},
     versions::testonly::ContractToDeploy,
-    vm_fast::tests::{
-        tester::{DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder},
-        utils::read_test_contract,
+    vm_fast::tests::tester::{
+        DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder,
     },
 };
 
@@ -22,10 +21,10 @@ fn test_vm_rollbacks() {
         .build();
 
     let mut account = vm.rich_accounts[0].clone();
-    let counter = read_test_contract();
-    let tx_0 = account.get_deploy_tx(&counter, None, TxType::L2).tx;
-    let tx_1 = account.get_deploy_tx(&counter, None, TxType::L2).tx;
-    let tx_2 = account.get_deploy_tx(&counter, None, TxType::L2).tx;
+    let counter = &TestContract::counter().bytecode;
+    let tx_0 = account.get_deploy_tx(counter, None, TxType::L2).tx;
+    let tx_1 = account.get_deploy_tx(counter, None, TxType::L2).tx;
+    let tx_2 = account.get_deploy_tx(counter, None, TxType::L2).tx;
 
     let result_without_rollbacks = vm.execute_and_verify_txs(&vec![
         TransactionTestInfo::new_processed(tx_0.clone(), false),
@@ -148,7 +147,7 @@ fn test_vm_loadnext_rollbacks() {
 
 #[test]
 fn rollback_in_call_mode() {
-    let counter_bytecode = read_test_contract();
+    let counter_bytecode = TestContract::counter().bytecode.clone();
     let counter_address = Address::repeat_byte(1);
 
     let mut vm = VmTesterBuilder::new()

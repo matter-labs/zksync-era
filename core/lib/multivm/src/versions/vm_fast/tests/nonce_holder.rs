@@ -1,3 +1,4 @@
+use zksync_test_account::TestContract;
 use zksync_types::{Execute, ExecuteTransactionCommon, Nonce};
 
 use crate::{
@@ -6,10 +7,7 @@ use crate::{
         VmRevertReason,
     },
     versions::testonly::ContractToDeploy,
-    vm_fast::tests::{
-        tester::{Account, VmTesterBuilder},
-        utils::read_nonce_holder_tester,
-    },
+    vm_fast::tests::tester::{Account, VmTesterBuilder},
 };
 
 pub enum NonceHolderTestMode {
@@ -43,7 +41,7 @@ fn test_nonce_holder() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()
         .with_custom_contracts(vec![ContractToDeploy::account(
-            read_nonce_holder_tester().to_vec(),
+            TestContract::nonce_holder().bytecode.clone(),
             account.address,
         )])
         .with_rich_accounts(vec![account.clone()])

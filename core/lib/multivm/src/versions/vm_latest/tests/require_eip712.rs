@@ -26,11 +26,10 @@ impl VmTester<HistoryDisabled> {
     }
 }
 
-// TODO refactor this test it use too much internal details of the VM
-#[test]
 /// This test deploys 'buggy' account abstraction code, and then tries accessing it both with legacy
 /// and EIP712 transactions.
-/// Currently we support both, but in the future, we should allow only EIP712 transactions to access the AA accounts.
+/// Currently, we support both, but in the future, we should allow only EIP712 transactions to access the AA accounts.
+#[test]
 fn test_require_eip712() {
     // Use 3 accounts:
     // - `private_address` - EOA account, where we have the key

@@ -29,6 +29,8 @@ const LOAD_TEST_CONTRACT: &str = include_contract!("loadnext/loadnext_contract":
 const LOAD_TEST_DEPLOYED_CONTRACT: &str = include_contract!("loadnext/loadnext_contract"::Foo);
 const MANY_OWNERS_CONTRACT: &str =
     include_contract!("custom-account/many-owners-custom-account"::ManyOwnersCustomAccount);
+const MSG_SENDER_TEST_CONTRACT: &str =
+    include_contract!("complex-upgrade/msg-sender"::MsgSenderTest);
 const NONCE_HOLDER_CONTRACT: &str =
     include_contract!("custom-account/nonce-holder-test"::NonceHolderTest);
 const PRECOMPILES_CONTRACT: &str = include_contract!("precompiles/precompiles"::Precompiles);
@@ -113,6 +115,12 @@ impl TestContract {
 
     pub fn many_owners() -> &'static Self {
         static CONTRACT: Lazy<TestContract> = Lazy::new(|| TestContract::new(MANY_OWNERS_CONTRACT));
+        &CONTRACT
+    }
+
+    pub fn msg_sender_test() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(MSG_SENDER_TEST_CONTRACT));
         &CONTRACT
     }
 

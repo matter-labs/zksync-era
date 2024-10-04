@@ -110,7 +110,6 @@ fn test_send_and_transfer() {
 fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
     let test_abi = &TestContract::transfer_test().abi;
     let reentrant_recipient_abi = &TestContract::reentrant_recipient().abi;
-
     let test_contract_address = Address::random();
     let reentrant_recipeint_address = Address::random();
 

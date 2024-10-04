@@ -1,5 +1,5 @@
 use zk_evm_1_5_0::aux_structures::Timestamp;
-use zksync_contracts::{deployer_contract, load_sys_contract, read_bytecode};
+use zksync_contracts::{deployer_contract, load_sys_contract};
 use zksync_test_account::{TestContract, TxType};
 use zksync_types::{
     ethabi::{Contract, Token},
@@ -179,7 +179,7 @@ fn test_complex_upgrader() {
     let storage_view = vm.storage.clone();
     let upgrade_bytecode = TestContract::complex_upgrade().bytecode.clone();
     let bytecode_hash = hash_bytecode(&upgrade_bytecode);
-    let msg_sender_test_hash = hash_bytecode(&read_msg_sender_test());
+    let msg_sender_test_hash = hash_bytecode(&TestContract::msg_sender_test().bytecode);
 
     // Let's assume that the bytecode for the implementation of the complex upgrade
     // is already deployed in some address in user space
@@ -206,7 +206,7 @@ fn test_complex_upgrader() {
             ),
             (
                 h256_to_u256(msg_sender_test_hash),
-                bytes_to_be_words(read_msg_sender_test()),
+                bytes_to_be_words(TestContract::msg_sender_test().bytecode.clone()),
             ),
         ],
         Timestamp(0),
@@ -342,10 +342,6 @@ fn get_complex_upgrade_tx(
         received_timestamp_ms: 0,
         raw_bytes: None,
     }
-}
-
-fn read_msg_sender_test() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/msg-sender.sol/MsgSenderTest.json")
 }
 
 fn get_complex_upgrader_abi() -> Contract {

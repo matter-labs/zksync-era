@@ -1,6 +1,7 @@
 use ethabi::Token;
 use zksync_eth_signer::TransactionParameters;
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
+use zksync_test_account::TestContract;
 use zksync_types::{
     fee::Fee, l2::L2Tx, transaction_request::TransactionRequest,
     utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Eip712Domain, Execute,
@@ -13,10 +14,7 @@ use crate::{
         storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
     },
     versions::testonly::ContractToDeploy,
-    vm_fast::tests::{
-        tester::{Account, VmTester, VmTesterBuilder},
-        utils::read_many_owners_custom_account_contract,
-    },
+    vm_fast::tests::tester::{Account, VmTester, VmTesterBuilder},
 };
 
 impl VmTester<()> {
@@ -48,7 +46,7 @@ fn test_require_eip712() {
     let mut private_account = Account::random();
     let beneficiary = Account::random();
 
-    let (bytecode, contract) = read_many_owners_custom_account_contract();
+    let bytecode = TestContract::many_owners().bytecode.clone();
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_custom_contracts(vec![ContractToDeploy::account(
@@ -65,7 +63,10 @@ fn test_require_eip712() {
 
     // First, let's set the owners of the AA account to the `private_address`.
     // (so that messages signed by `private_address`, are authorized to act on behalf of the AA account).
-    let set_owners_function = contract.function("setOwners").unwrap();
+    let set_owners_function = TestContract::many_owners()
+        .abi
+        .function("setOwners")
+        .unwrap();
     let encoded_input = set_owners_function
         .encode_input(&[Token::Array(vec![Token::Address(private_account.address)])])
         .unwrap();

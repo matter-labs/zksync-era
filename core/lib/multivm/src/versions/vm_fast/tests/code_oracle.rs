@@ -1,4 +1,5 @@
 use ethabi::Token;
+use zksync_test_account::TestContract;
 use zksync_types::{
     get_known_code_key, web3::keccak256, Address, Execute, StorageLogWithPreviousValue, U256,
 };
@@ -8,10 +9,7 @@ use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     versions::testonly::ContractToDeploy,
     vm_fast::{
-        tests::{
-            tester::{get_empty_storage, VmTesterBuilder},
-            utils::{load_precompiles_contract, read_precompiles_contract, read_test_contract},
-        },
+        tests::tester::{get_empty_storage, VmTesterBuilder},
         CircuitsTracer,
     },
 };
@@ -24,12 +22,12 @@ fn generate_large_bytecode() -> Vec<u8> {
 #[test]
 fn test_code_oracle() {
     let precompiles_contract_address = Address::random();
-    let precompile_contract_bytecode = read_precompiles_contract();
+    let precompile_contract_bytecode = TestContract::precompiles().bytecode.clone();
 
     // Filling the zkevm bytecode
-    let normal_zkevm_bytecode = read_test_contract();
-    let normal_zkevm_bytecode_hash = hash_bytecode(&normal_zkevm_bytecode);
-    let normal_zkevm_bytecode_keccak_hash = keccak256(&normal_zkevm_bytecode);
+    let normal_zkevm_bytecode = &TestContract::counter().bytecode;
+    let normal_zkevm_bytecode_hash = hash_bytecode(normal_zkevm_bytecode);
+    let normal_zkevm_bytecode_keccak_hash = keccak256(normal_zkevm_bytecode);
     let mut storage = get_empty_storage();
     storage.set_value(
         get_known_code_key(&normal_zkevm_bytecode_hash),
@@ -49,7 +47,7 @@ fn test_code_oracle() {
         .with_storage(storage)
         .build();
 
-    let precompile_contract = load_precompiles_contract();
+    let precompile_contract = &TestContract::precompiles().abi;
     let call_code_oracle_function = precompile_contract.function("callCodeOracle").unwrap();
 
     vm.vm.insert_bytecodes([normal_zkevm_bytecode.as_slice()]);
@@ -116,7 +114,7 @@ fn find_code_oracle_cost_log(
 #[test]
 fn test_code_oracle_big_bytecode() {
     let precompiles_contract_address = Address::random();
-    let precompile_contract_bytecode = read_precompiles_contract();
+    let precompile_contract_bytecode = TestContract::precompiles().bytecode.clone();
 
     let big_zkevm_bytecode = generate_large_bytecode();
     let big_zkevm_bytecode_hash = hash_bytecode(&big_zkevm_bytecode);
@@ -141,7 +139,7 @@ fn test_code_oracle_big_bytecode() {
         .with_storage(storage)
         .build();
 
-    let precompile_contract = load_precompiles_contract();
+    let precompile_contract = &TestContract::precompiles().abi;
     let call_code_oracle_function = precompile_contract.function("callCodeOracle").unwrap();
 
     vm.vm.insert_bytecodes([big_zkevm_bytecode.as_slice()]);
@@ -175,18 +173,17 @@ fn test_code_oracle_big_bytecode() {
 #[test]
 fn refunds_in_code_oracle() {
     let precompiles_contract_address = Address::random();
-    let precompile_contract_bytecode = read_precompiles_contract();
 
-    let normal_zkevm_bytecode = read_test_contract();
-    let normal_zkevm_bytecode_hash = hash_bytecode(&normal_zkevm_bytecode);
-    let normal_zkevm_bytecode_keccak_hash = keccak256(&normal_zkevm_bytecode);
+    let normal_zkevm_bytecode = &TestContract::counter().bytecode;
+    let normal_zkevm_bytecode_hash = hash_bytecode(normal_zkevm_bytecode);
+    let normal_zkevm_bytecode_keccak_hash = keccak256(normal_zkevm_bytecode);
     let mut storage = get_empty_storage();
     storage.set_value(
         get_known_code_key(&normal_zkevm_bytecode_hash),
         u256_to_h256(U256::one()),
     );
 
-    let precompile_contract = load_precompiles_contract();
+    let precompile_contract = &TestContract::precompiles().abi;
     let call_code_oracle_function = precompile_contract.function("callCodeOracle").unwrap();
 
     // Execute code oracle twice with identical VM state that only differs in that the queried bytecode
@@ -198,7 +195,7 @@ fn refunds_in_code_oracle() {
             .with_execution_mode(TxExecutionMode::VerifyExecute)
             .with_random_rich_accounts(1)
             .with_custom_contracts(vec![ContractToDeploy::new(
-                precompile_contract_bytecode.clone(),
+                TestContract::precompiles().bytecode.clone(),
                 precompiles_contract_address,
             )])
             .with_storage(storage.clone())

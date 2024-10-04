@@ -261,7 +261,7 @@ fn test_layered_rollback() {
 
 #[test]
 fn rollback_in_call_mode() {
-    let counter_bytecode = read_test_contract();
+    let counter_bytecode = TestContract::counter().bytecode.clone();
     let counter_address = Address::repeat_byte(1);
 
     let mut vm = VmTesterBuilder::new(HistoryEnabled)

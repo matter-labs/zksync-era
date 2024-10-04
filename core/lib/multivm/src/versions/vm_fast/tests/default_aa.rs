@@ -1,4 +1,5 @@
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
+use zksync_test_account::TestContract;
 use zksync_types::{
     get_code_key, get_known_code_key, get_nonce_key,
     system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
@@ -10,7 +11,7 @@ use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_fast::tests::{
         tester::{DeployContractsTx, TxType, VmTesterBuilder},
-        utils::{get_balance, read_test_contract, verify_required_storage},
+        utils::{get_balance, verify_required_storage},
     },
     vm_latest::utils::fee::get_batch_base_fee,
 };
@@ -25,13 +26,13 @@ fn test_default_aa_interaction() {
         .with_random_rich_accounts(1)
         .build();
 
-    let counter = read_test_contract();
+    let counter = &TestContract::counter().bytecode;
     let account = &mut vm.rich_accounts[0];
     let DeployContractsTx {
         tx,
         bytecode_hash,
         address,
-    } = account.get_deploy_tx(&counter, None, TxType::L2);
+    } = account.get_deploy_tx(counter, None, TxType::L2);
     let maximal_fee = tx.gas_limit() * get_batch_base_fee(&vm.vm.batch_env);
 
     vm.vm.push_transaction(tx);
@@ -39,7 +40,6 @@ fn test_default_aa_interaction() {
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
     vm.vm.execute(VmExecutionMode::Batch);
-
     vm.vm.get_current_execution_state();
 
     // Both deployment and ordinary nonce should be incremented by one.

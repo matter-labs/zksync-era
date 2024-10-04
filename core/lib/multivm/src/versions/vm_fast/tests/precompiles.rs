@@ -1,7 +1,8 @@
 use circuit_sequencer_api_1_5_0::geometry_config::get_geometry_config;
+use zksync_test_account::TestContract;
 use zksync_types::{Address, Execute};
 
-use super::{tester::VmTesterBuilder, utils::read_precompiles_contract};
+use super::tester::VmTesterBuilder;
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     versions::testonly::ContractToDeploy,
@@ -11,7 +12,7 @@ use crate::{
 #[test]
 fn test_keccak() {
     // Execute special transaction and check that at least 1000 keccak calls were made.
-    let contract = read_precompiles_contract();
+    let contract = TestContract::precompiles().bytecode.clone();
     let address = Address::random();
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
@@ -49,7 +50,7 @@ fn test_keccak() {
 #[test]
 fn test_sha256() {
     // Execute special transaction and check that at least 1000 `sha256` calls were made.
-    let contract = read_precompiles_contract();
+    let contract = TestContract::precompiles().bytecode.clone();
     let address = Address::random();
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
