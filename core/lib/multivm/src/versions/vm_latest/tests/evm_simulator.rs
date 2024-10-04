@@ -1,23 +1,18 @@
 use ethabi::Token;
 use zksync_contracts::read_bytecode;
 use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
-use zksync_test_account::TxType;
-use zksync_types::{get_code_key, get_known_code_key, H256};
-use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
+use zksync_types::{get_code_key, get_known_code_key, Execute, H256};
+use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256};
 use zksync_vm_interface::VmInterfaceExt;
 
 use crate::{
     interface::{storage::InMemoryStorage, TxExecutionMode},
     versions::testonly::default_system_env,
-    vm_latest::{
-        tests::{tester::VmTesterBuilder, utils::read_test_contract},
-        utils::hash_evm_bytecode,
-        HistoryEnabled,
-    },
+    vm_latest::{tests::tester::VmTesterBuilder, utils::hash_evm_bytecode, HistoryEnabled},
 };
 
-const MOCK_DEPLOYER_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm//mock-evm.sol/MockContractDeployer.json";
-const MOCK_KNOWN_CODE_STORAGE_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm//mock-evm.sol/MockKnownCodeStorage.json";
+const MOCK_DEPLOYER_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockContractDeployer.json";
+const MOCK_KNOWN_CODE_STORAGE_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockKnownCodeStorage.json";
 
 #[test]
 fn tracing_evm_contract_deployment() {
@@ -57,24 +52,25 @@ fn tracing_evm_contract_deployment() {
     let account = &mut vm.rich_accounts[0];
 
     let args = [Token::Bytes((0..=u8::MAX).collect())];
-    let encoded_args = bytes_to_be_words(ethabi::encode(&args));
-    let deploy_tx = account
-        .get_deploy_tx(&read_test_contract(), Some(&args), TxType::L2)
-        .tx;
+    let evm_bytecode = ethabi::encode(&args);
+    let expected_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
+    let execute = Execute::for_deploy(expected_bytecode_hash, vec![0; 32], &args);
+    let deploy_tx = account.get_l2_tx_for_execute(execute, None);
     let (_, vm_result) = vm
         .vm
         .execute_transaction_with_bytecode_compression(deploy_tx, true);
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
 
-    // Check that the surrogate bytecode was added to the decommitter.
+    // Check that the surrogate EVM bytecode was added to the decommitter.
     let known_bytecodes = vm.vm.state.decommittment_processor.known_bytecodes.inner();
-    let (&evm_bytecode_hash, evm_bytecode) = known_bytecodes
-        .iter()
-        .find(|(_, bytecode)| bytecode.ends_with(&encoded_args))
-        .unwrap();
-    let evm_bytecode = be_words_to_bytes(evm_bytecode);
+    let known_evm_bytecode =
+        be_words_to_bytes(&known_bytecodes[&h256_to_u256(expected_bytecode_hash)]);
+    assert_eq!(known_evm_bytecode, evm_bytecode);
+
+    let new_known_factory_deps = vm_result.new_known_factory_deps.unwrap();
+    assert_eq!(new_known_factory_deps.len(), 2); // the deployed EraVM contract + EVM contract
     assert_eq!(
-        evm_bytecode_hash,
-        h256_to_u256(hash_evm_bytecode(&evm_bytecode))
+        new_known_factory_deps[&expected_bytecode_hash],
+        evm_bytecode
     );
 }
