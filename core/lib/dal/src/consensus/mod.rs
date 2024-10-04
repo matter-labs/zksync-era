@@ -10,9 +10,10 @@ use std::collections::BTreeMap;
 use anyhow::{anyhow, Context as _};
 use zksync_concurrency::net;
 use zksync_consensus_roles::{attester, node, validator};
-use zksync_protobuf::{read_required, required, ProtoFmt, ProtoRepr};
+use zksync_protobuf::{read_required, read_required_repr, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi, ethabi,
+    api,
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
@@ -108,6 +109,156 @@ impl ProtoFmt for AttestationStatus {
         Self::Proto {
             genesis: Some(self.genesis.build()),
             next_batch_to_attest: Some(self.next_batch_to_attest.0),
+        }
+    }
+}
+
+/// Commitment to a batch.
+pub struct BatchCommit {
+    /// Hash of the `StoredBatchInfo` which is stored on L1.
+    /// The hashed `StoredBatchInfo` contains a `root_hash` of the L2 state,
+    /// which contains state of the `SystemContext` contract,
+    /// which contains enough data to reconstruct the hash
+    /// of the last L2 block of the batch.
+    pub info_hash: H256,
+
+    /// Other data that should have been committed to the batch,
+    /// but is currently not, and is served by the main node instead.
+    pub protocol_version: ProtocolVersionId,
+    pub l1_gas_price: u64,
+    pub l2_fair_gas_price: u64,
+    pub fair_pubdata_price: Option<u64>,
+    pub virtual_blocks: u32,
+    pub operator_address: Address,
+    /// First block of the batch.
+    pub first_block: validator::BlockNumber,
+}
+
+/// RLP encoded i_executor::structureds::StoredBatchInfo.
+/// We can't import it, because it would cause cyclic dependency.
+pub struct StoredBatchInfo(pub Vec<u8>);
+
+pub struct BlockDigest {
+    pub rolling_txs_hash: H256,
+    pub timestamp: u64,
+}
+
+pub struct BatchProof {
+    pub info: StoredBatchInfo,
+    
+    pub current_l2_block_info: api::StorageProof,
+    pub tx_rolling_hash: api::StorageProof,
+    pub l2_block_hash_entry: api::StorageProof,
+
+    pub initial_hash: H256,
+    pub blocks: Vec<BlockDigest>,
+}
+
+impl ProtoFmt for BatchCommit {
+    type Proto = proto::BatchCommit;
+
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        Ok(Self {
+            info_hash: required(&r.info_hash)
+                .and_then(|x| parse_h256(x))
+                .context("info_hash")?,
+            protocol_version: required(&r.protocol_version)
+                .and_then(|x| Ok(ProtocolVersionId::try_from(u16::try_from(*x)?)?))
+                .context("protocol_version")?,
+            l1_gas_price: *required(&r.l1_gas_price).context("l1_gas_price")?,
+            l2_fair_gas_price: *required(&r.l2_fair_gas_price).context("l2_fair_gas_price")?,
+            fair_pubdata_price: r.fair_pubdata_price,
+            virtual_blocks: *required(&r.virtual_blocks).context("virtual_blocks")?,
+            operator_address: required(&r.operator_address)
+                .and_then(|x| parse_h160(x))
+                .context("operator_address")?,
+            first_block: validator::BlockNumber(
+                *required(&r.first_block).context("first_block")?,
+            ),
+        })
+    }
+
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            info_hash: Some(self.info_hash.as_bytes().into()),
+            protocol_version: Some((self.protocol_version as u16).into()),
+            l1_gas_price: Some(self.l1_gas_price),
+            l2_fair_gas_price: Some(self.l2_fair_gas_price),
+            fair_pubdata_price: self.fair_pubdata_price,
+            virtual_blocks: Some(self.virtual_blocks),
+            operator_address: Some(self.operator_address.as_bytes().into()),
+            first_block: Some(self.first_block.0),
+        }
+    }
+}
+
+impl ProtoRepr for proto::StorageProof {
+    type Type = api::StorageProof;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            key: required(&self.key).and_then(|x|parse_h256(x)).context("key")?,
+            value: required(&self.value).and_then(|x|parse_h256(x)).context("value")?,
+            index: *required(&self.index).context("index")?,
+            proof: self.proof.iter().map(|x|parse_h256(x)).collect::<Result<_, _>>().context("proof")?,
+        })
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            key: Some(this.key.as_bytes().into()),
+            value: Some(this.value.as_bytes().into()),
+            index: Some(this.index),
+            proof: this.proof.iter().map(|x|x.as_bytes().into()).collect(),
+        }
+    }
+}
+
+impl ProtoFmt for BlockDigest {
+    type Proto = proto::BlockDigest;
+
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        Ok(Self {
+            rolling_txs_hash: required(&r.rolling_txs_hash)
+                .and_then(|x| parse_h256(x))
+                .context("rolling_txs_hash")?,
+            timestamp: *required(&r.timestamp).context("timestamp")?,
+        })
+    }
+
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            rolling_txs_hash: Some(self.rolling_txs_hash.as_bytes().into()),
+            timestamp: Some(self.timestamp),
+        }
+    }
+}
+
+impl ProtoFmt for BatchProof {
+    type Proto = proto::BatchProof;
+
+    fn read(r: &Self::Proto) -> anyhow::Result<Self> {
+        Ok(Self {
+            info: StoredBatchInfo(required(&r.info).context("info")?.to_vec()),
+            current_l2_block_info: read_required_repr(&r.current_l2_block_info)
+                .context("current_l2_block_info")?,
+            tx_rolling_hash: read_required_repr(&r.tx_rolling_hash)
+                .context("tx_rolling_hash")?,
+            l2_block_hash_entry: read_required_repr(&r.l2_block_hash_entry)
+                .context("l2_block_hash_entry")?,
+            initial_hash: required(&r.initial_hash).and_then(|x| parse_h256(x)).context("initial_hash")?,
+            blocks: r.blocks.iter().map(ProtoFmt::read).collect::<Result<_, _>>().context("blocks")?,
+        })
+    }
+
+    fn build(&self) -> Self::Proto {
+        Self::Proto {
+            info: Some(self.info.0.clone()),
+            current_l2_block_info: Some(ProtoRepr::build(&self.current_l2_block_info)),
+            tx_rolling_hash: Some(ProtoRepr::build(&self.tx_rolling_hash)),
+            l2_block_hash_entry: Some(ProtoRepr::build(&self.l2_block_hash_entry)),
+            initial_hash: Some(self.initial_hash.as_bytes().into()),
+            blocks: self.blocks.iter().map(|x|x.build()).collect(),
         }
     }
 }

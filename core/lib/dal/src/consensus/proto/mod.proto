@@ -6,6 +6,38 @@ import "zksync/roles/validator.proto";
 import "zksync/roles/attester.proto";
 import "zksync/roles/node.proto";
 
+message BatchCommit {
+  optional bytes info_hash = 1; // required; H256
+  optional uint32 protocol_version = 2; // required; ProtocolVersionId
+  optional uint64 l1_gas_price = 3; // required
+  optional uint64 l2_fair_gas_price = 4; // required
+  optional uint64 fair_pubdata_price = 5; // optional
+  optional uint32 virtual_blocks = 6;
+  optional bytes operator_address = 7; // required; H160
+  optional uint64 first_block = 8; // required;  
+}
+
+message BatchProof {
+  optional bytes info = 1; // required; RLP-encoded StoredBatchInfo
+  optional StorageProof current_l2_block_info = 2; // required
+  optional StorageProof tx_rolling_hash = 3; // required
+  optional StorageProof l2_block_hash_entry = 4; // required
+  optional bytes initial_hash = 5; // required; H526
+  repeated BlockDigest blocks = 6;
+}
+
+message StorageProof {
+  optional bytes key = 1; // required; H256
+  optional bytes value = 2; // required; H256 
+  optional uint64 index = 3; // required
+  repeated bytes proof = 4; // H256[]
+}
+
+message BlockDigest {
+  optional bytes rolling_txs_hash = 1; // required; H256
+  optional uint64 timestamp = 2; // required;
+}
+
 message Payload {
   // zksync-era ProtocolVersionId
   optional uint32 protocol_version = 9; // required; u16

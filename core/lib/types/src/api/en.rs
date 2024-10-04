@@ -64,3 +64,6 @@ pub struct ConsensusGenesis(pub serde_json::Value);
 /// The wrapped JSON value corresponds to `zksync_dal::consensus::AttestationStatus`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttestationStatus(pub serde_json::Value);
+
+/// Commitment to a batch.
+pub struct BatchCommit(pub serde_json::Value);

@@ -16,19 +16,9 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::storage::ConnectionPool;
 
-/// Commitment to the last block of a batch.
-pub(crate) struct LastBlockCommit {
-    /// Hash of the `StoredBatchInfo` which is stored on L1.
-    /// The hashed `StoredBatchInfo` contains a `root_hash` of the L2 state,
-    /// which contains state of the `SystemContext` contract,
-    /// which contains enough data to reconstruct the hash
-    /// of the last L2 block of the batch.
-    pub(crate) info: H256,
-}
-
-/// Witness proving what is the last block of a batch.
+/// Proof proving what is the last block of a batch.
 /// Contains the hash and the number of the last block.
-pub(crate) struct LastBlockWitness {
+pub(crate) struct BatchWitness {
     info: i_executor::structures::StoredBatchInfo,
     protocol_version: ProtocolVersionId,
 
@@ -37,22 +27,7 @@ pub(crate) struct LastBlockWitness {
     l2_block_hash_entry: TreeEntryWithProof,
 }
 
-/// Commitment to an L1 batch.
-pub(crate) struct L1BatchCommit {
-    pub(crate) number: L1BatchNumber,
-    pub(crate) this_batch: LastBlockCommit,
-    pub(crate) prev_batch: LastBlockCommit,
-}
-
-/// L1Batch with witness that can be
-/// verified against `L1BatchCommit`.
-pub struct L1BatchWithWitness {
-    pub(crate) blocks: Vec<Payload>,
-    pub(crate) this_batch: LastBlockWitness,
-    pub(crate) prev_batch: LastBlockWitness,
-}
-
-impl LastBlockWitness {
+impl LastBlockProof {
     /// Address of the SystemContext contract.
     fn system_context_addr() -> AccountTreeId {
         AccountTreeId::new(constants::SYSTEM_CONTEXT_ADDRESS)
@@ -84,7 +59,11 @@ impl LastBlockWitness {
         StorageKey::new(Self::system_context_addr(), u256_to_h256(key)).hashed_key_u256()
     }
 
-    /// Loads a `LastBlockWitness` from storage.
+    async fn number(&self) -> attester::BatchNumber {
+        attester::BatchNumber(self.info.batch_number)
+    }
+
+    /// Loads a `LastBlockProof` from storage.
     async fn load(
         ctx: &ctx::Ctx,
         n: L1BatchNumber,
@@ -196,23 +175,45 @@ impl LastBlockWitness {
     }
 }
 
-impl L1BatchWithWitness {
-    /// Loads an `L1BatchWithWitness` from storage.
-    pub(crate) async fn load(
+fn rolling_txs_hash(txs: &[Transaction]) -> H256 {
+    let h = H256::default();
+    for tx in txs {
+        h = concat_and_hash(h,tx.hash());
+    }
+    h
+}
+
+/// Commitment to an L1 batch.
+pub(crate) struct L1BatchCommit {
+    pub(crate) number: attester::BatchNumber,
+    pub(crate) this_batch: LastBlockCommit,
+    pub(crate) prev_batch: LastBlockCommit,
+}
+
+/// Proof that can be verified against `L1BatchCommit`.
+pub struct L1BatchProof {
+    /// rolling tx hash for each block in the batch.
+    pub(crate) rolling_txs_hashes: Vec<H256>,
+    pub(crate) this_batch: LastBlockProof,
+    pub(crate) prev_batch: LastBlockProof,
+}
+
+impl L1BatchProof {
+    /// Loads an `L1BatchWithProof` from storage.
+    pub(crate) async fn build(
         ctx: &ctx::Ctx,
         number: L1BatchNumber,
         pool: &ConnectionPool,
         tree: &dyn TreeApiClient,
     ) -> ctx::Result<Self> {
-        let prev_batch = LastBlockWitness::load(ctx, number - 1, pool, tree)
+        let prev_batch = LastBlockProof::load(ctx, number - 1, pool, tree)
             .await
-            .with_wrap(|| format!("LastBlockWitness::make({})", number - 1))?;
-        let this_batch = LastBlockWitness::load(ctx, number, pool, tree)
+            .with_wrap(|| format!("LastBlockProof::make({})", number - 1))?;
+        let this_batch = LastBlockProof::load(ctx, number, pool, tree)
             .await
-            .with_wrap(|| format!("LastBlockWitness::make({number})"))?;
+            .with_wrap(|| format!("LastBlockProof::make({number})"))?;
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
-        let this = Self {
-            blocks: conn
+        let payloads = conn
                 .payloads(
                     ctx,
                     std::ops::Range {
@@ -221,11 +222,12 @@ impl L1BatchWithWitness {
                     },
                 )
                 .await
-                .wrap("payloads()")?,
+                .wrap("payloads()")?;
+        Ok(Self {
+            rolling_txs_hashes: payloads.map(|p| rolling_txs_hash(&p.transactions)).collect(), 
             prev_batch,
             this_batch,
-        };
-        Ok(this)
+        })
     }
 
     /// Verifies the L1Batch and witness against the commitment.
@@ -240,20 +242,17 @@ impl L1BatchWithWitness {
         let (last_number, last_hash) = self.this_batch.verify(&comm.this_batch)?;
         let (mut prev_number, mut prev_hash) = self.prev_batch.verify(&comm.prev_batch)?;
         anyhow::ensure!(
-            self.prev_batch
-                .info
-                .batch_number
-                .checked_add(1)
-                .context("batch_number overflow")?
-                == u64::from(comm.number.0)
+            self.prev_batch.number() == comm.number.prev().context("batch 0 unsupported")?
         );
-        anyhow::ensure!(self.this_batch.info.batch_number == u64::from(comm.number.0));
+        anyhow::ensure!(self.this_batch.number() == comm.number);
         for (i, b) in self.blocks.iter().enumerate() {
             anyhow::ensure!(b.l1_batch_number == comm.number);
             anyhow::ensure!(b.protocol_version == self.this_batch.protocol_version);
             anyhow::ensure!(b.last_in_batch == (i + 1 == self.blocks.len()));
             prev_number += 1;
-            let mut hasher = L2BlockHasher::new(prev_number, b.timestamp, prev_hash);
+            let mut hasher = L2BlockHasher {
+                number: prev_number,
+                timestamp: b.timestamp, prev_hash);
             for t in &b.transactions {
                 // Reconstruct transaction by converting it back and forth to `abi::Transaction`.
                 // This allows us to verify that the transaction actually matches the transaction
