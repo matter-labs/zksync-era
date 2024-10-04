@@ -315,7 +315,7 @@ impl Tester {
     }
 }
 
-pub trait AccountLoadNextExecutable {
+pub(super) trait AccountExt {
     fn deploy_loadnext_tx(&mut self) -> DeployContractsTx;
 
     fn l1_execute(&mut self, serial_id: PriorityOpId) -> Transaction;
@@ -342,19 +342,26 @@ pub trait AccountLoadNextExecutable {
         gas_to_burn: u32,
         gas_limit: u32,
     ) -> Transaction;
+
+    fn deploy_failed_call_tx(&mut self) -> DeployContractsTx;
+
+    fn deploy_storage_tester(&mut self) -> DeployContractsTx;
+
+    fn test_transient_store(&mut self, address: Address) -> Transaction;
+
+    fn assert_transient_value(&mut self, address: Address, expected: U256) -> Transaction;
+
+    fn deploy_precompiles_test(&mut self) -> DeployContractsTx;
+
+    fn test_decommit(
+        &mut self,
+        address: Address,
+        bytecode_hash: H256,
+        expected_keccak_hash: H256,
+    ) -> Transaction;
 }
 
-pub trait AccountFailedCall {
-    fn deploy_failedcall_tx(&mut self) -> DeployContractsTx;
-}
-
-impl AccountFailedCall for Account {
-    fn deploy_failedcall_tx(&mut self) -> DeployContractsTx {
-        self.get_deploy_tx(&TestContract::failed_call().bytecode, None, TxType::L2)
-    }
-}
-
-impl AccountLoadNextExecutable for Account {
+impl AccountExt for Account {
     fn deploy_loadnext_tx(&mut self) -> DeployContractsTx {
         let loadnext_contract = TestContract::load_test();
         let loadnext_constructor_data = &[Token::Uint(U256::from(100))];
@@ -444,10 +451,81 @@ impl AccountLoadNextExecutable for Account {
             Execute {
                 contract_address: Some(address),
                 calldata,
-                value: Default::default(),
+                value: 0.into(),
                 factory_deps: vec![],
             },
             Some(fee),
+        )
+    }
+
+    fn deploy_failed_call_tx(&mut self) -> DeployContractsTx {
+        self.get_deploy_tx(&TestContract::failed_call().bytecode, None, TxType::L2)
+    }
+
+    fn deploy_storage_tester(&mut self) -> DeployContractsTx {
+        self.get_deploy_tx(&TestContract::storage_test().bytecode, None, TxType::L2)
+    }
+
+    fn test_transient_store(&mut self, address: Address) -> Transaction {
+        let test_fn = TestContract::storage_test()
+            .abi
+            .function("testTransientStore")
+            .unwrap();
+        let calldata = test_fn.encode_input(&[]).unwrap();
+        self.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Some(address),
+                calldata,
+                value: 0.into(),
+                factory_deps: vec![],
+            },
+            None,
+        )
+    }
+
+    fn assert_transient_value(&mut self, address: Address, expected: U256) -> Transaction {
+        let assert_fn = TestContract::storage_test()
+            .abi
+            .function("assertTValue")
+            .unwrap();
+        let calldata = assert_fn.encode_input(&[Token::Uint(expected)]).unwrap();
+        self.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Some(address),
+                calldata,
+                value: 0.into(),
+                factory_deps: vec![],
+            },
+            None,
+        )
+    }
+
+    fn deploy_precompiles_test(&mut self) -> DeployContractsTx {
+        self.get_deploy_tx(&TestContract::precompiles_test().bytecode, None, TxType::L2)
+    }
+
+    fn test_decommit(
+        &mut self,
+        address: Address,
+        bytecode_hash: H256,
+        expected_keccak_hash: H256,
+    ) -> Transaction {
+        let assert_fn = TestContract::precompiles_test()
+            .abi
+            .function("callCodeOracle")
+            .unwrap();
+        let calldata = assert_fn.encode_input(&[
+            Token::FixedBytes(bytecode_hash.0.to_vec()),
+            Token::FixedBytes(expected_keccak_hash.0.to_vec()),
+        ]);
+        self.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Some(address),
+                calldata: calldata.unwrap(),
+                value: 0.into(),
+                factory_deps: vec![],
+            },
+            None,
         )
     }
 }
