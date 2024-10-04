@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use zksync_multivm::interface::{
     executor::{OneshotExecutor, TransactionValidator},
     storage::ReadStorage,
-    tracer::{ValidationError, ValidationParams},
+    tracer::{ValidationError, ValidationParams, ValidationTraces},
     ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
     TxExecutionArgs, TxExecutionMode, VmExecutionResultAndLogs,
 };
@@ -122,14 +122,16 @@ where
         env: OneshotEnv,
         tx: L2Tx,
         _validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<(), ValidationError>> {
+    ) -> anyhow::Result<Result<ValidationTraces, ValidationError>> {
         Ok(
             match self
                 .mock_inspect(env, TxExecutionArgs::for_validation(tx))
                 .result
             {
                 ExecutionResult::Halt { reason } => Err(ValidationError::FailedTx(reason)),
-                ExecutionResult::Success { .. } | ExecutionResult::Revert { .. } => Ok(()),
+                ExecutionResult::Success { .. } | ExecutionResult::Revert { .. } => {
+                    Ok(ValidationTraces::default())
+                }
             },
         )
     }

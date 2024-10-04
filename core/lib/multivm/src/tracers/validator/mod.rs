@@ -1,4 +1,4 @@
-use std::{collections::HashSet, marker::PhantomData, sync::Arc};
+use std::{cell::RefCell, collections::HashSet, marker::PhantomData, sync::Arc};
 
 use once_cell::sync::OnceCell;
 use zksync_system_constants::{
@@ -9,6 +9,7 @@ use zksync_types::{
     vm::VmVersion, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
 };
 use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};
+use zksync_vm_interface::tracer::ValidationTraces;
 
 use self::types::{NewTrustedValidationItems, ValidationTracerMode};
 use crate::{
@@ -46,6 +47,7 @@ pub struct ValidationTracer<H> {
     timestamp_asserter_address: Option<Address>,
     vm_version: VmVersion,
     pub result: Arc<OnceCell<ViolatedValidationRule>>,
+    pub traces: Arc<RefCell<ValidationTraces>>,
     _marker: PhantomData<fn(H) -> H>,
 }
 
@@ -55,8 +57,13 @@ impl<H> ValidationTracer<H> {
     pub fn new(
         params: ValidationParams,
         vm_version: VmVersion,
-    ) -> (Self, Arc<OnceCell<ViolatedValidationRule>>) {
+    ) -> (
+        Self,
+        Arc<OnceCell<ViolatedValidationRule>>,
+        Arc<RefCell<ValidationTraces>>,
+    ) {
         let result = Arc::new(OnceCell::new());
+        let traces = Arc::new(RefCell::new(ValidationTraces::default()));
         (
             Self {
                 validation_mode: ValidationTracerMode::NoValidation,
@@ -73,9 +80,11 @@ impl<H> ValidationTracer<H> {
                 timestamp_asserter_address: params.timestamp_asserter_address,
                 vm_version,
                 result: result.clone(),
+                traces: traces.clone(),
                 _marker: Default::default(),
             },
             result,
+            traces,
         )
     }
 

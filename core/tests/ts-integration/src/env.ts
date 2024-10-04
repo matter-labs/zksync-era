@@ -287,7 +287,7 @@ export async function loadTestEnvironmentFromEnv(): Promise<TestEnvironment> {
     if (!process.env.CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR) {
         throw new Error('CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR is not defined');
     }
-    const timestampAsserterAddress = process.env.CONTRACTS_L2_TIMESTAMP_ASSERTER.toString();
+    const timestampAsserterAddress = process.env.CONTRACTS_L2_TIMESTAMP_ASSERTER_ADDR.toString();
     return {
         maxLogsLimit,
         pathToHome,

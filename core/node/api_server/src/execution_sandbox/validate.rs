@@ -5,7 +5,7 @@ use tracing::Instrument;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::interface::{
     executor::TransactionValidator,
-    tracer::{ValidationError as RawValidationError, ValidationParams},
+    tracer::{ValidationError as RawValidationError, ValidationParams, ValidationTraces},
 };
 use zksync_types::{
     api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Address,
@@ -39,7 +39,7 @@ impl SandboxExecutor {
         block_args: BlockArgs,
         fee_input: BatchFeeInput,
         whitelisted_tokens_for_aa: &[Address],
-    ) -> Result<(), ValidationError> {
+    ) -> Result<ValidationTraces, ValidationError> {
         let total_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
         let validation_params = get_validation_params(
             &mut connection,

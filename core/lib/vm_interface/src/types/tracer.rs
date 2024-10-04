@@ -107,6 +107,16 @@ pub enum ValidationError {
     ViolatedRule(ViolatedValidationRule),
 }
 
+/// Traces the validation of a transaction, providing visibility into the aspects the transaction interacts with.
+/// For instance, the `range_start` and `range_end` fields represent the range within which the transaction might make
+/// assertions on `block.timestamp`. This information is crucial for the caller, as expired transactions should
+/// be excluded from the mempool.
+#[derive(Debug, Clone, Default)]
+pub struct ValidationTraces {
+    pub range_start: Option<U256>,
+    pub range_end: Option<U256>,
+}
+
 impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
