@@ -48,6 +48,7 @@ impl EthTxManager {
         let fees_oracle = GasAdjusterFeesOracle {
             gas_adjuster,
             max_acceptable_priority_fee_in_gwei: config.max_acceptable_priority_fee_in_gwei,
+            time_in_mempool_cap: config.time_in_mempool_cap,
         };
         let l1_interface = Box::new(RealL1Interface {
             ethereum_gateway,

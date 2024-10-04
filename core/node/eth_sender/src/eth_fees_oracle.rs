@@ -32,6 +32,7 @@ pub(crate) trait EthFeesOracle: 'static + Sync + Send + fmt::Debug {
 pub(crate) struct GasAdjusterFeesOracle {
     pub gas_adjuster: Arc<dyn TxParamsProvider>,
     pub max_acceptable_priority_fee_in_gwei: u64,
+    pub time_in_mempool_cap: u32,
 }
 
 impl GasAdjusterFeesOracle {
@@ -83,7 +84,7 @@ impl GasAdjusterFeesOracle {
         time_in_mempool: u32,
     ) -> Result<EthFees, EthSenderError> {
         // cap it at 6h to not allow nearly infinite values when a tx is stuck for a long time
-        let capped_time_in_mempool = min(time_in_mempool, 1800);
+        let capped_time_in_mempool = min(time_in_mempool, self.time_in_mempool_cap);
         let mut base_fee_per_gas = self.gas_adjuster.get_base_fee(capped_time_in_mempool);
         self.assert_fee_is_not_zero(base_fee_per_gas, "base");
         if let Some(previous_sent_tx) = previous_sent_tx {
