@@ -2,8 +2,8 @@ use std::env;
 
 use zksync_config::configs::{
     da_client::{
-        avail::AvailSecrets, DAClientConfig, AVAIL_CLIENT_CONFIG_NAME,
-        OBJECT_STORE_CLIENT_CONFIG_NAME, EIGENDA_CLIENT_CONFIG_NAME
+        avail::AvailSecrets, DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, EIGENDA_CLIENT_CONFIG_NAME,
+        OBJECT_STORE_CLIENT_CONFIG_NAME,
     },
     secrets::DataAvailabilitySecrets,
 };

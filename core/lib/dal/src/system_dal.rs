@@ -30,8 +30,8 @@ impl SystemDal<'_, '_> {
                 EXTRACT(
                     seconds
                     FROM
-                    NOW() - PG_LAST_XACT_REPLAY_TIMESTAMP()
-                )::INT AS lag
+                        NOW() - PG_LAST_XACT_REPLAY_TIMESTAMP()
+                )::INT AS LAG
             "#
         )
         .instrument("get_replication_lag")
@@ -49,18 +49,10 @@ impl SystemDal<'_, '_> {
             r#"
             SELECT
                 table_name,
-                PG_TABLE_SIZE(
-                    ('public.' || QUOTE_IDENT(table_name))::regclass
-                ) AS table_size,
-                PG_INDEXES_SIZE(
-                    ('public.' || QUOTE_IDENT(table_name))::regclass
-                ) AS indexes_size,
-                PG_RELATION_SIZE(
-                    ('public.' || QUOTE_IDENT(table_name))::regclass
-                ) AS relation_size,
-                PG_TOTAL_RELATION_SIZE(
-                    ('public.' || QUOTE_IDENT(table_name))::regclass
-                ) AS total_size
+                PG_TABLE_SIZE(('public.' || QUOTE_IDENT(table_name))::regclass) AS table_size,
+                PG_INDEXES_SIZE(('public.' || QUOTE_IDENT(table_name))::regclass) AS indexes_size,
+                PG_RELATION_SIZE(('public.' || QUOTE_IDENT(table_name))::regclass) AS relation_size,
+                PG_TOTAL_RELATION_SIZE(('public.' || QUOTE_IDENT(table_name))::regclass) AS total_size
             FROM
                 information_schema.tables
             WHERE

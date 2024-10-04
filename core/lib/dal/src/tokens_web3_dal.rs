@@ -43,7 +43,7 @@ impl TokensWeb3Dal<'_, '_> {
             SELECT
                 l1_address,
                 l2_address,
-                name,
+                NAME,
                 symbol,
                 decimals
             FROM
@@ -95,7 +95,7 @@ impl TokensWeb3Dal<'_, '_> {
             SELECT
                 l1_address,
                 l2_address,
-                name,
+                NAME,
                 symbol,
                 decimals
             FROM

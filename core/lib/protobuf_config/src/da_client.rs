@@ -1,8 +1,10 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        da_client::eigen_da::EigenDAConfig,
-        da_client::DAClientConfig::{Avail, ObjectStore, EigenDA},
+        da_client::{
+            eigen_da::EigenDAConfig,
+            DAClientConfig::{Avail, EigenDA, ObjectStore},
+        },
         {self},
     },
     AvailConfig,
