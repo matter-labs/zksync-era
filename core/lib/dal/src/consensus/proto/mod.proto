@@ -6,15 +6,14 @@ import "zksync/roles/validator.proto";
 import "zksync/roles/attester.proto";
 import "zksync/roles/node.proto";
 
-message BatchCommit {
-  optional bytes info_hash = 1; // required; H256
+message BlockMetadata {
+  optional uint32 batch_number = 1;
   optional uint32 protocol_version = 2; // required; ProtocolVersionId
   optional uint64 l1_gas_price = 3; // required
   optional uint64 l2_fair_gas_price = 4; // required
   optional uint64 fair_pubdata_price = 5; // optional
   optional uint32 virtual_blocks = 6;
   optional bytes operator_address = 7; // required; H160
-  optional uint64 first_block = 8; // required;  
 }
 
 message BatchProof {

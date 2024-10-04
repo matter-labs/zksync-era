@@ -4,12 +4,12 @@ use zksync_consensus_crypto::keccak256::Keccak256;
 use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
 use zksync_consensus_storage as storage;
 use zksync_dal::{consensus_dal, consensus_dal::Payload, Core, CoreDal, DalError};
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
 use zksync_types::{
     commitment::L1BatchWithMetadata, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber,
 };
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
 use super::{InsertCertificateError, PayloadQueue};
@@ -203,35 +203,15 @@ impl<'a> Connection<'a> {
             .context("sqlx")?)
     }
 
-    /// Wrapper for `consensus_dal().batch_hash()`.
-    pub async fn batch_hash(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-    ) -> ctx::Result<Option<attester::BatchHash>> {
-        let n = L1BatchNumber(number.0.try_into().context("overflow")?);
-        let Some(meta) = ctx
-            .wait(self.0.blocks_dal().get_l1_batch_metadata(n))
-            .await?
-            .context("get_l1_batch_metadata()")?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(attester::BatchHash(Keccak256::from_bytes(
-            StoredBatchInfo::from(&meta).hash().0,
-        ))))
-    }
-
-    /// Wrapper for `blocks_dal().get_l1_batch_metadata()`.
+    /// Wrapper for `consensus_dal().batch()`.
     pub async fn batch(
         &mut self,
         ctx: &ctx::Ctx,
         number: L1BatchNumber,
-    ) -> ctx::Result<Option<L1BatchWithMetadata>> {
+    ) -> ctx::Result<Option<StoredBatchInfo>> {
         Ok(ctx
-            .wait(self.0.blocks_dal().get_l1_batch_metadata(number))
-            .await?
-            .context("get_l1_batch_metadata()")?)
+            .wait(self.0.consensus_dal().batch(number))
+            .await??)
     }
 
     /// Wrapper for `FetcherCursor::new()`.

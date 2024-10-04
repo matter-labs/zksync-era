@@ -6,10 +6,16 @@ use zksync_db_connection::{
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::L2BlockNumber;
+use zksync_types::{L1BatchNumber,L2BlockNumber};
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
+use zksync_consensus_crypto::keccak256::Keccak256;
 
-pub use crate::consensus::{proto, AttestationStatus, GlobalConfig, Payload};
+pub use crate::consensus::{proto, BatchProof, BatchCommit, AttestationStatus, GlobalConfig, Payload};
 use crate::{Core, CoreDal};
+
+pub fn batch_hash(info: &StoredBatchInfo) -> attester::BatchHash {
+    attester::BatchHash(Keccak256::from_bytes(info.hash().0))
+}
 
 /// Storage access methods for `zksync_core::consensus` module.
 #[derive(Debug)]
@@ -554,11 +560,34 @@ impl ConsensusDal<'_, '_> {
         ))
     }
 
+    /// Wrapper for `consensus_dal().batch_hash()`.
+    pub async fn batch(&mut self, number: attester::BatchNumber) -> anyhow::Result<Option<StoredBatchInfo>> {
+        let n = L1BatchNumber(number.0.try_into().context("overflow")?);
+        Ok(self.storage.blocks_dal().get_l1_batch_metadata(n).await.context("get_l1_batch_metadata()")?.map(|x|StoredBatchInfo::from(&x)))
+    }
+  
+    pub async fn insert_batch_proof(&mut self, proof: &BatchProof) -> anyhow::Result<()> {
+        // TODO:
+    }
+
+    pub async fn batch_proof(&mut self, number: attester::BatchNumber) -> anyhow::Result<Option<BatchProof>> {
+        let n = L1BatchNumber(number.0.try_into().context("overflow")?);
+        // TODO:
+    }
+
+    pub async fn batch_commit(&mut self, number: attester::BatchNumber) -> anyhow::Result<Option<BatchCommit>> {
+        let n = L1BatchNumber(number.0.try_into().context("overflow")?);
+        let Some(batch) = self.batch().await.context("batch()")? else { return Ok(None) };
+        // TODO:  
+        Ok(Some(BatchCommit {
+
+        }))
+    }
+
     /// Inserts a certificate for the L1 batch.
     /// Noop if a certificate for the same L1 batch is already present.
     /// Verification against previously stored attester committee is performed.
-    /// Batch hash is not verified - it cannot be performed due to circular dependency on
-    /// `zksync_l1_contract_interface`.
+    /// Batch hash verification is performed.
     pub async fn insert_batch_certificate(
         &mut self,
         cert: &attester::BatchQC,
@@ -573,6 +602,8 @@ impl ConsensusDal<'_, '_> {
             .await
             .context("attester_committee()")?
             .context("attester committee is missing")?;
+        let hash = batch_hash(&self.batch(cert.message.number).await.context("batch()")?.context("batch is missing")?);
+        anyhow::ensure!(cert.message.hash==hash, "batch hash mismatch, got {:?}, want {hash:?}", cert.message.hash);
         cert.verify(cfg.genesis.hash(), &committee)
             .context("cert.verify()")?;
         sqlx::query!(

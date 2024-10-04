@@ -12,6 +12,7 @@ use zksync_concurrency::net;
 use zksync_consensus_roles::{attester, node, validator};
 use zksync_protobuf::{read_required, read_required_repr, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
+    parse_h160, parse_h256,
     abi, ethabi,
     api,
     fee::Fee,
@@ -23,8 +24,7 @@ use zksync_types::{
     L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
-
-use crate::models::{parse_h160, parse_h256};
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 
 /// Global config of the consensus.
 #[derive(Debug, PartialEq, Clone)]
@@ -134,10 +134,6 @@ pub struct BatchCommit {
     pub first_block: validator::BlockNumber,
 }
 
-/// RLP encoded i_executor::structureds::StoredBatchInfo.
-/// We can't import it, because it would cause cyclic dependency.
-pub struct StoredBatchInfo(pub Vec<u8>);
-
 pub struct BlockDigest {
     pub rolling_txs_hash: H256,
     pub timestamp: u64,
@@ -239,7 +235,7 @@ impl ProtoFmt for BatchProof {
 
     fn read(r: &Self::Proto) -> anyhow::Result<Self> {
         Ok(Self {
-            info: StoredBatchInfo(required(&r.info).context("info")?.to_vec()),
+            info: required(&r.info).and_then(|x|StoredBatchInfo::decode(x)).context("info")?,
             current_l2_block_info: read_required_repr(&r.current_l2_block_info)
                 .context("current_l2_block_info")?,
             tx_rolling_hash: read_required_repr(&r.tx_rolling_hash)
@@ -253,7 +249,7 @@ impl ProtoFmt for BatchProof {
 
     fn build(&self) -> Self::Proto {
         Self::Proto {
-            info: Some(self.info.0.clone()),
+            info: Some(self.info.encode()),
             current_l2_block_info: Some(ProtoRepr::build(&self.current_l2_block_info)),
             tx_rolling_hash: Some(ProtoRepr::build(&self.tx_rolling_hash)),
             l2_block_hash_entry: Some(ProtoRepr::build(&self.l2_block_hash_entry)),

@@ -10034,10 +10034,12 @@ dependencies = [
  "tracing",
  "vise",
  "zksync_concurrency",
+ "zksync_consensus_crypto",
  "zksync_consensus_roles",
  "zksync_consensus_storage",
  "zksync_contracts",
  "zksync_db_connection",
+ "zksync_l1_contract_interface",
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",
@@ -10332,8 +10334,10 @@ dependencies = [
 name = "zksync_l1_contract_interface"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "hex",
  "once_cell",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "serde_with",

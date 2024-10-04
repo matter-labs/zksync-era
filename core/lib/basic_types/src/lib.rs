@@ -20,6 +20,7 @@ pub use ethabi::{
     },
 };
 use serde::{de, Deserialize, Deserializer, Serialize};
+use anyhow::Context as _;
 
 #[macro_use]
 mod macros;
@@ -34,6 +35,21 @@ pub mod tee_types;
 pub mod url;
 pub mod vm;
 pub mod web3;
+
+/// Parses H256 from a slice of bytes.
+pub fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {
+    Ok(<[u8; 32]>::try_from(bytes).context("invalid size")?.into())
+}
+
+/// Parses H256 from an optional slice of bytes.
+pub fn parse_h256_opt(bytes: Option<&[u8]>) -> anyhow::Result<H256> {
+    parse_h256(bytes.context("missing data")?)
+}
+
+/// Parses H160 from a slice of bytes.
+pub fn parse_h160(bytes: &[u8]) -> anyhow::Result<H160> {
+    Ok(<[u8; 20]>::try_from(bytes).context("invalid size")?.into())
+}
 
 /// Account place in the global state tree is uniquely identified by its address.
 /// Binary this type is represented by 160 bit big-endian representation of account address.
