@@ -47,9 +47,9 @@ The `zkstackup` script provides various options for installing ZK Stack CLI:
 
 ### Local Installation
 
-If you provide a local path using the `-p` or `--path` option, `zkstackup` will install ZK Stack CLI from that directory.
-Note that repository-specific arguments (`--repo`, `--branch`, `--commit`, `--version`) will be ignored in this case to
-preserve git state.
+If you provide a local path using the `-p` or `--path` option, `zkstackup` will install ZK Stack CLI from that
+directory. Note that repository-specific arguments (`--repo`, `--branch`, `--commit`, `--version`) will be ignored in
+this case to preserve git state.
 
 ### Repository Installation
 

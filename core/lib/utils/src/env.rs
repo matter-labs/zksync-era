@@ -20,7 +20,7 @@ pub enum Workspace<'a> {
     /// `prover` folder.
     Prover(&'a Path),
     /// ZK Stack CLI folder.
-    Toolbox(&'a Path),
+    ZkStackCli(&'a Path),
 }
 
 impl Workspace<'static> {
@@ -48,7 +48,7 @@ impl Workspace<'static> {
 
 impl<'a> Workspace<'a> {
     const PROVER_DIRECTORY_NAME: &'static str = "prover";
-    const TOOLBOX_DIRECTORY_NAME: &'static str = "zkstack_cli";
+    const ZKSTACK_CLI_DIRECTORY_NAME: &'static str = "zkstack_cli";
 
     /// Returns the path of the core workspace.
     /// For `Workspace::None`, considers the current directory to represent core workspace.
@@ -56,7 +56,7 @@ impl<'a> Workspace<'a> {
         match self {
             Self::None => PathBuf::from("."),
             Self::Core(path) => path.into(),
-            Self::Prover(path) | Self::Toolbox(path) => path.parent().unwrap().into(),
+            Self::Prover(path) | Self::ZkStackCli(path) => path.parent().unwrap().into(),
         }
     }
 
@@ -69,10 +69,10 @@ impl<'a> Workspace<'a> {
     }
 
     /// Returns the path of the ZK Stack CLI workspace.
-    pub fn toolbox(self) -> PathBuf {
+    pub fn zkstack_cli(self) -> PathBuf {
         match self {
-            Self::Toolbox(path) => path.into(),
-            _ => self.core().join(Self::TOOLBOX_DIRECTORY_NAME),
+            Self::ZkStackCli(path) => path.into(),
+            _ => self.core().join(Self::ZKSTACK_CLI_DIRECTORY_NAME),
         }
     }
 }
@@ -81,8 +81,8 @@ impl<'a> From<&'a Path> for Workspace<'a> {
     fn from(path: &'a Path) -> Self {
         if path.ends_with(Self::PROVER_DIRECTORY_NAME) {
             Self::Prover(path)
-        } else if path.ends_with(Self::TOOLBOX_DIRECTORY_NAME) {
-            Self::Toolbox(path)
+        } else if path.ends_with(Self::ZKSTACK_CLI_DIRECTORY_NAME) {
+            Self::ZkStackCli(path)
         } else {
             Self::Core(path)
         }
@@ -160,10 +160,10 @@ mod tests {
             Workspace::from(workspace.prover().as_path()),
             Workspace::Prover(_)
         );
-        assert!(workspace.toolbox().exists());
+        assert!(workspace.zkstack_cli().exists());
         assert_matches!(
-            Workspace::from(workspace.toolbox().as_path()),
-            Workspace::Toolbox(_)
+            Workspace::from(workspace.zkstack_cli().as_path()),
+            Workspace::ZkStackCli(_)
         );
 
         // Prover.
@@ -181,17 +181,17 @@ mod tests {
             Workspace::from(workspace.core().as_path()),
             Workspace::Core(_)
         );
-        assert!(workspace.toolbox().exists());
+        assert!(workspace.zkstack_cli().exists());
         assert_matches!(
-            Workspace::from(workspace.toolbox().as_path()),
-            Workspace::Toolbox(_)
+            Workspace::from(workspace.zkstack_cli().as_path()),
+            Workspace::ZkStackCli(_)
         );
 
         // ZK Stack CLI
-        std::env::set_current_dir(workspace.toolbox()).unwrap();
+        std::env::set_current_dir(workspace.zkstack_cli()).unwrap();
         let workspace_path = locate_workspace_inner().unwrap();
         let workspace = Workspace::from(workspace_path.as_path());
-        assert_matches!(workspace, Workspace::Toolbox(_));
+        assert_matches!(workspace, Workspace::ZkStackCli(_));
         assert_eq!(workspace.core(), core_path);
         assert_matches!(
             Workspace::from(workspace.core().as_path()),

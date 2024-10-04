@@ -43,7 +43,7 @@ async function zkstackClippy() {
     await utils.spawn('cargo clippy --tests --locked -- -D warnings');
 }
 
-const ARGS = [...EXTENSIONS, 'rust', 'prover', 'contracts', 'toolbox'] as const;
+const ARGS = [...EXTENSIONS, 'rust', 'prover', 'contracts', 'zkstack_cli'] as const;
 
 export const command = new Command('lint')
     .description('lint code')
@@ -61,7 +61,7 @@ export const command = new Command('lint')
                 case 'contracts':
                     await lintContracts(cmd.check);
                     break;
-                case 'toolbox':
+                case 'zkstack_cli':
                     await zkstackClippy();
                     break;
                 default:
