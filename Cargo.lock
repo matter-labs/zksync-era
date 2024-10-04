@@ -186,6 +186,121 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5ad32ce52e4161730f7098c077cd2ed6229b5804ccf99e5366be1ab72a98b4e1"
 
 [[package]]
+name = "ark-bn254"
+version = "0.4.0"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-std",
+]
+
+[[package]]
+name = "ark-ec"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "ahash 0.8.7",
+ "ark-ff",
+ "ark-poly",
+ "ark-serialize",
+ "ark-std",
+ "educe",
+ "fnv",
+ "hashbrown 0.14.5",
+ "itertools 0.13.0",
+ "num-bigint 0.4.6",
+ "num-integer",
+ "num-traits",
+ "zeroize",
+]
+
+[[package]]
+name = "ark-ff"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "ark-ff-asm",
+ "ark-ff-macros",
+ "ark-serialize",
+ "ark-std",
+ "arrayvec 0.7.4",
+ "digest 0.10.7",
+ "educe",
+ "itertools 0.13.0",
+ "num-bigint 0.4.6",
+ "num-traits",
+ "paste",
+ "zeroize",
+]
+
+[[package]]
+name = "ark-ff-asm"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "quote 1.0.36",
+ "syn 2.0.72",
+]
+
+[[package]]
+name = "ark-ff-macros"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "num-bigint 0.4.6",
+ "num-traits",
+ "proc-macro2 1.0.86",
+ "quote 1.0.36",
+ "syn 2.0.72",
+]
+
+[[package]]
+name = "ark-poly"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "ahash 0.8.7",
+ "ark-ff",
+ "ark-serialize",
+ "ark-std",
+ "educe",
+ "fnv",
+ "hashbrown 0.14.5",
+]
+
+[[package]]
+name = "ark-serialize"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "ark-serialize-derive",
+ "ark-std",
+ "arrayvec 0.7.4",
+ "digest 0.10.7",
+ "num-bigint 0.4.6",
+]
+
+[[package]]
+name = "ark-serialize-derive"
+version = "0.4.2"
+source = "git+https://github.com/arkworks-rs/algebra.git#b33df5cce2d54cf4c9248e4b229c7d6708fa9375"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.36",
+ "syn 2.0.72",
+]
+
+[[package]]
+name = "ark-std"
+version = "0.4.0"
+source = "git+https://github.com/arkworks-rs/std/#9bd198f5efa116441da68035c7b54c55c49f68e1"
+dependencies = [
+ "num-traits",
+ "rand 0.8.5",
+]
+
+[[package]]
 name = "arr_macro"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -601,6 +716,51 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7bfc506e7a2370ec239e1d072507b2a80c833083699d3c6fa176fbb4de8448c6"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "basic_bootloader"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=ad-oracle-interface#865fc1f4947d594ad6395e5ecb8244d59cfa88eb"
+dependencies = [
+ "arrayvec 0.7.4",
+ "basic_system",
+ "blake2 0.10.6",
+ "either",
+ "evm_interpreter",
+ "hex",
+ "iwasm",
+ "iwasm_ee",
+ "ruint",
+ "seq-macro",
+ "sha3 0.10.8",
+ "zk_ee",
+]
+
+[[package]]
+name = "basic_system"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=ad-oracle-interface#865fc1f4947d594ad6395e5ecb8244d59cfa88eb"
+dependencies = [
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff",
+ "ark-serialize",
+ "arrayvec 0.7.4",
+ "blake2 0.10.6",
+ "either",
+ "evm_interpreter",
+ "iwasm",
+ "iwasm_ee",
+ "k256 0.13.3",
+ "miniz_nostd_compression",
+ "p256",
+ "ruint",
+ "seq-macro",
+ "sha2 0.10.8",
+ "sha3 0.10.8",
+ "storage_models",
+ "zk_ee",
 ]
 
 [[package]]
@@ -2070,6 +2230,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "educe"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d7bc049e1bd8cdeb31b68bbd586a9464ecf9f3944af3958a7a9d0f8b9799417"
+dependencies = [
+ "enum-ordinalize",
+ "proc-macro2 1.0.86",
+ "quote 1.0.36",
+ "syn 2.0.72",
+]
+
+[[package]]
 name = "either"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2140,6 +2312,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7268b386296a025e474d5140678f75d6de9493ae55a5d709eeb9dd08149945e1"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "enum-ordinalize"
+version = "4.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fea0dcfa4e54eeb516fe454635a95753ddd39acda650ce703031c6973e315dd5"
+dependencies = [
+ "enum-ordinalize-derive",
+]
+
+[[package]]
+name = "enum-ordinalize-derive"
+version = "4.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0d28318a75d4aead5c4db25382e8ef717932d0346600cacae6357eb5941bc5ff"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.36",
+ "syn 2.0.72",
 ]
 
 [[package]]
@@ -2294,6 +2486,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "evm_interpreter"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=ad-oracle-interface#865fc1f4947d594ad6395e5ecb8244d59cfa88eb"
+dependencies = [
+ "arrayvec 0.7.4",
+ "either",
+ "ruint",
+ "sha3 0.10.8",
+ "zk_ee",
+]
+
+[[package]]
 name = "fastrand"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2428,6 +2632,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e13624c2627564efccf4934284bdd98cbaa14e79b0b5a141218e507b3a823456"
 dependencies = [
  "percent-encoding",
+]
+
+[[package]]
+name = "forward_system"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=ad-oracle-interface#865fc1f4947d594ad6395e5ecb8244d59cfa88eb"
+dependencies = [
+ "arrayvec 0.7.4",
+ "basic_bootloader",
+ "basic_system",
+ "blake2 0.10.6",
+ "either",
+ "evm_interpreter",
+ "hex",
+ "ruint",
+ "seq-macro",
+ "sha3 0.10.8",
+ "zk_ee",
 ]
 
 [[package]]
@@ -3069,6 +3291,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "host_specification"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/iwasm.git#ea4efebe5ccdc8023cea375b94ea1bb4e08b8c2c"
+
+[[package]]
 name = "hostname"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3477,10 +3704,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af150ab688ff2122fcef229be89cb50dd66af9e01a4ff320cc137eecc9bacc38"
+
+[[package]]
+name = "iwasm"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/iwasm.git#ea4efebe5ccdc8023cea375b94ea1bb4e08b8c2c"
+dependencies = [
+ "arrayvec 0.7.4",
+]
+
+[[package]]
+name = "iwasm_ee"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=ad-oracle-interface#865fc1f4947d594ad6395e5ecb8244d59cfa88eb"
+dependencies = [
+ "arrayvec 0.7.4",
+ "blake2 0.10.6",
+ "host_specification",
+ "iwasm",
+ "ruint",
+ "sha3 0.10.8",
+ "zk_ee",
+]
 
 [[package]]
 name = "jni"
@@ -4207,6 +4465,14 @@ name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
+
+[[package]]
+name = "miniz_nostd_compression"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=ad-oracle-interface#865fc1f4947d594ad6395e5ecb8244d59cfa88eb"
+dependencies = [
+ "adler",
+]
 
 [[package]]
 name = "miniz_oxide"
@@ -5793,6 +6059,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "ruint"
+version = "1.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f308135fef9fc398342da5472ce7c484529df23743fb7c734e0f3d472971e62"
+dependencies = [
+ "ruint-macro",
+]
+
+[[package]]
+name = "ruint-macro"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48fd7bd8a6377e15ad9d42a8ec25371b94ddc67abe7c8b9127bec79bebaaae18"
+
+[[package]]
 name = "rust_decimal"
 version = "1.33.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7203,6 +7484,17 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "storage_models"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=ad-oracle-interface#865fc1f4947d594ad6395e5ecb8244d59cfa88eb"
+dependencies = [
+ "arrayvec 0.4.12",
+ "either",
+ "ruint",
+ "zk_ee",
+]
 
 [[package]]
 name = "stringprep"
@@ -8936,6 +9228,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "zk_ee"
+version = "0.1.0"
+source = "git+https://github.com/matter-labs/zk_ee.git?branch=ad-oracle-interface#865fc1f4947d594ad6395e5ecb8244d59cfa88eb"
+dependencies = [
+ "arrayvec 0.7.4",
+ "bitflags 2.6.0",
+ "blake2 0.10.6",
+ "cfg-if",
+ "derivative",
+ "ruint",
+ "sha3 0.10.8",
+]
+
+[[package]]
 name = "zk_evm"
 version = "0.131.0-rc.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10144,6 +10450,7 @@ dependencies = [
  "circuit_sequencer_api 0.142.2",
  "circuit_sequencer_api 0.150.5",
  "ethabi",
+ "forward_system",
  "hex",
  "itertools 0.10.5",
  "once_cell",

@@ -11,6 +11,7 @@ use crate::{
     tracers::TracerDispatcher,
     versions::shadow::ShadowVm,
 };
+use crate::versions::vm_zk_os::VmZkOs;
 
 pub type ShadowedFastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, H>>;
 
@@ -27,6 +28,7 @@ pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
     Vm1_5_0(crate::vm_latest::Vm<StorageView<S>, H>),
     VmFast(crate::vm_fast::Vm<ImmutableStorageView<S>>),
     ShadowedVmFast(ShadowedFastVm<S, H>),
+    ZkOs(VmZkOs),
 }
 
 macro_rules! dispatch_vm {
@@ -43,6 +45,7 @@ macro_rules! dispatch_vm {
             VmInstance::Vm1_5_0(vm) => vm.$function($($params)*),
             VmInstance::VmFast(vm) => vm.$function($($params)*),
             VmInstance::ShadowedVmFast(vm) => vm.$function($($params)*),
+            VmInstance::ZkOs(vm) => vm.$function($($params)*),
         }
     };
 }
@@ -205,6 +208,10 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
                 );
                 VmInstance::Vm1_5_0(vm)
+            }
+            VmVersion::ZkOs => {
+                let vm = VmZkOs {};
+                VmInstance::ZkOs(vm)
             }
         }
     }
