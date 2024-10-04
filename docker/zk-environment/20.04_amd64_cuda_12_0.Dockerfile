@@ -81,6 +81,11 @@ RUN rustup default stable
 RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install cargo-nextest
 
+RUN git clone https://github.com/matter-labs/foundry-zksync
+RUN cd foundry-zksync && cargo build --release --bins
+RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
+RUN mv ./foundry-zksync/target/release/cast /usr/local/cargo/bin/
+
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20.
 RUN wget -c https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.20%2Bcommit.a1b79de6 \
@@ -112,7 +117,7 @@ ENV CI=1
 ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
 ENV DEBIAN_FRONTEND noninteractive
 
-# Setup nvidia-cuda envs
+# Setup nvidia-cuda env
 ENV NVARCH x86_64
 
 ENV NVIDIA_REQUIRE_CUDA "cuda>=12.0 brand=tesla,driver>=450,driver<451 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471"
