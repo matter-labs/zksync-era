@@ -117,7 +117,7 @@ describe('Smart contract behavior checks', () => {
 
         // We manually provide a constant, since otherwise the exception would be thrown
         // while estimating gas
-        await expect(counterContract.incrementWithRevert(5, true, { gasLimit: 5000000, gasPrice })).toBeReverted([]);
+        await expect(counterContract.incrementWithRevert(5, true, { gasLimit: 5000000, gasPrice })).toBeReverted();
 
         // The tx has been reverted, so the value Should not have been changed:
         const newValue = await counterContract.get();

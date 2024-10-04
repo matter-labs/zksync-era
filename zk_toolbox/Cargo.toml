@@ -36,6 +36,7 @@ zksync_system_constants = { path = "../core/lib/constants" }
 zksync_consensus_roles = "=0.3.0"
 zksync_consensus_crypto = "=0.3.0"
 zksync_protobuf = "=0.3.0"
+zksync_types = { path = "../core/lib/types" }
 
 # External dependencies
 anyhow = "1.0.82"

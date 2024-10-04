@@ -30,6 +30,10 @@ export function getContractSource(relativePath: string): string {
     return source;
 }
 
+export function readContract(path: string, fileName: string) {
+    return JSON.parse(fs.readFileSync(`${path}/${fileName}.sol/${fileName}.json`, { encoding: 'utf-8' }));
+}
+
 /**
  * Performs a contract deployment
  *

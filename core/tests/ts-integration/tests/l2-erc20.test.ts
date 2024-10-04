@@ -6,32 +6,89 @@ import { TestMaster } from '../src';
 import { Token } from '../src/types';
 import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/balance-checker';
 
-// import * as zksync from 'zksync-ethers';
-import * as zksync from 'zksync-ethers-interop-support';
+import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
+import { Provider, Wallet } from 'ethers';
+import { scaledGasPrice, waitUntilBlockFinalized, deployContract, readContract } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { sleep } from 'zksync-ethers/build/utils';
 
-describe('L1 ERC20 contract checks', () => {
+// import ZkSyncERC20 from '../../../etc/ERC20/artifacts-zk/contracts/ZkSyncERC20.sol/ZkSyncERC20.json';
+
+describe('L2 native ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
     let bob: zksync.Wallet;
     let isETHBasedChain: boolean;
     let baseTokenAddress: string;
+    let zkTokenAssetId: string;
     let tokenDetails: Token;
     let aliceErc20: zksync.Contract;
+    let l1NativeTokenVault: ethers.Contract;
+    let l1Wallet: Wallet;
+    let l2Wallet: Wallet;
+    let l1Provider: Provider;
+    let l2Provider: Provider;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         bob = testMaster.newEmptyAccount();
+        const bridgeContracts = await alice.getL1BridgeContracts();
+        const assetRouter = bridgeContracts.shared;
+        l2Provider = alice._providerL2();
+        l1Provider = alice._providerL1();
+        l2Wallet = new Wallet(alice.privateKey, l2Provider);
+        l1Wallet = new Wallet(alice.privateKey, l1Provider);
+        const L2_NATIVE_TOKEN_VAULT_ADDRESS = '0x0000000000000000000000000000000000010004';
+        const l2NtvInterface = readContract(
+            '../../../contracts/l1-contracts/artifacts/contracts/bridge/ntv',
+            'L2NativeTokenVault'
+        ).abi;
+        const l2NativeTokenVault = new ethers.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, l2NtvInterface, l2Wallet);
+        const l1AssetRouterInterface = readContract(
+            '../../../contracts/l1-contracts/artifacts/contracts/bridge/asset-router',
+            'L1AssetRouter'
+        ).abi;
+        const l1NativeTokenVaultInterface = readContract(
+            '../../../contracts/l1-contracts/artifacts/contracts/bridge/ntv',
+            'L1NativeTokenVault'
+        ).abi;
+        const l1AssetRouter = new ethers.Contract(await assetRouter.getAddress(), l1AssetRouterInterface, l1Wallet);
+        l1NativeTokenVault = new ethers.Contract(
+            await l1AssetRouter.nativeTokenVault(),
+            l1NativeTokenVaultInterface,
+            l1Wallet
+        );
 
         // Get the information about base token address directly from the L2.
         baseTokenAddress = await alice._providerL2().getBaseTokenContractAddress();
         isETHBasedChain = baseTokenAddress == zksync.utils.ETH_ADDRESS_IN_CONTRACTS;
 
-        tokenDetails = testMaster.environment().erc20Token;
-        aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);
+        tokenDetails;
+        const ZkSyncERC20 = await readContract(
+            '../../../contracts/l1-contracts/artifacts-zk/contracts/dev-contracts',
+            'TestnetERC20Token'
+        );
+
+        aliceErc20 = await deployContract(alice, ZkSyncERC20, ['ZKsync', 'ZK', 18]);
+        const l2TokenAddress = await aliceErc20.getAddress();
+        tokenDetails = {
+            name: 'ZKsync',
+            symbol: 'ZK',
+            decimals: 18n,
+            l1Address: ethers.ZeroAddress,
+            l2Address: l2TokenAddress
+        };
+        const mintTx = await aliceErc20.mint(alice.address, 1000n);
+        await mintTx.wait();
+        const mintTx2 = await aliceErc20.mint('0x36615Cf349d7F6344891B1e7CA7C72883F5dc049', 1000n);
+        await mintTx2.wait();
+        const registerZKTx = await l2NativeTokenVault.registerToken(tokenDetails.l2Address);
+        await registerZKTx.wait();
+        zkTokenAssetId = await l2NativeTokenVault.assetId(l2TokenAddress);
+        const tokenApprovalTx = await aliceErc20.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 100n);
+        await tokenApprovalTx.wait();
     });
 
     test('Token properties are correct', async () => {
@@ -41,36 +98,41 @@ describe('L1 ERC20 contract checks', () => {
         await expect(aliceErc20.balanceOf(alice.address)).resolves.toBeGreaterThan(0n); // 'Alice should have non-zero balance'
     });
 
-    test('Can perform a deposit', async () => {
-        const amount = 1n; // 1 wei is enough.
-        const gasPrice = await scaledGasPrice(alice);
+    test('Can perform a withdrawal', async () => {
+        if (testMaster.isFastMode()) {
+            return;
+        }
+        const amount = 10n;
 
-        // Note: for L1 we should use L1 token address.
-        const l1BalanceChange = await shouldChangeTokenBalances(
-            tokenDetails.l1Address,
-            [{ wallet: alice, change: -amount }],
-            {
-                l1: true
-            }
-        );
         const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
-            { wallet: alice, change: amount }
+            { wallet: alice, change: -amount }
         ]);
-        const feeCheck = await shouldOnlyTakeFee(alice, true);
-        await expect(
-            alice.deposit({
-                token: tokenDetails.l1Address,
-                amount,
-                approveERC20: true,
-                approveBaseERC20: true,
-                approveOverrides: {
-                    gasPrice
-                },
-                overrides: {
-                    gasPrice
-                }
-            })
-        ).toBeAccepted([l1BalanceChange, l2BalanceChange, feeCheck]);
+        const feeCheck = await shouldOnlyTakeFee(alice);
+        const withdrawalPromise = alice.withdraw({
+            token: tokenDetails.l2Address,
+            amount
+        });
+        await expect(withdrawalPromise).toBeAccepted([l2BalanceChange, feeCheck]);
+        const withdrawalTx = await withdrawalPromise;
+        const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+        await waitUntilBlockFinalized(alice, l2TxReceipt!.blockNumber);
+        await withdrawalTx.waitFinalize();
+
+        await sleep(60000);
+
+        await alice.finalizeWithdrawalParams(withdrawalTx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
+        await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
+
+        tokenDetails.l1Address = await l1NativeTokenVault.tokenAddress(zkTokenAssetId);
+        const balanceAfterBridging = await alice.getBalanceL1(tokenDetails.l1Address);
+        expect(balanceAfterBridging).toEqual(10n);
+    });
+
+    test('Token properties are correct', async () => {
+        await expect(aliceErc20.name()).resolves.toBe(tokenDetails.name);
+        await expect(aliceErc20.decimals()).resolves.toBe(tokenDetails.decimals);
+        await expect(aliceErc20.symbol()).resolves.toBe(tokenDetails.symbol);
+        await expect(aliceErc20.balanceOf(alice.address)).resolves.toBeGreaterThan(0n); // 'Alice should have non-zero balance'
     });
 
     test('Can perform a transfer', async () => {
@@ -159,35 +221,37 @@ describe('L1 ERC20 contract checks', () => {
         await expect(aliceErc20.allowance(alice.address, bob.address)).resolves.toEqual(0n);
     });
 
-    test('Can perform a withdrawal', async () => {
-        if (testMaster.isFastMode()) {
-            return;
-        }
-        const amount = 1n;
+    test('Can perform a deposit', async () => {
+        const amount = 1n; // 1 wei is enough.
+        const gasPrice = await scaledGasPrice(alice);
 
-        const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
-            { wallet: alice, change: -amount }
-        ]);
-        const feeCheck = await shouldOnlyTakeFee(alice);
-        const withdrawalPromise = alice.withdraw({
-            token: tokenDetails.l2Address,
-            amount
-        });
-        await expect(withdrawalPromise).toBeAccepted([l2BalanceChange, feeCheck]);
-        const withdrawalTx = await withdrawalPromise;
-        const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
-        await waitForBlockToBeFinalizedOnL1(alice, l2TxReceipt!.blockNumber);
-
-        // Note: For L1 we should use L1 token address.
+        // Note: for L1 we should use L1 token address.
         const l1BalanceChange = await shouldChangeTokenBalances(
             tokenDetails.l1Address,
-            [{ wallet: alice, change: amount }],
+            [{ wallet: alice, change: -amount }],
             {
                 l1: true
             }
         );
+        const l2BalanceChange = await shouldChangeTokenBalances(tokenDetails.l2Address, [
+            { wallet: alice, change: amount }
+        ]);
+        const feeCheck = await shouldOnlyTakeFee(alice, true);
 
-        await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
+        await expect(
+            alice.deposit({
+                token: tokenDetails.l1Address,
+                amount,
+                approveERC20: true,
+                approveBaseERC20: true,
+                approveOverrides: {
+                    gasPrice
+                },
+                overrides: {
+                    gasPrice
+                }
+            })
+        ).toBeAccepted([l1BalanceChange, l2BalanceChange, feeCheck]);
     });
 
     test('Should claim failed deposit', async () => {
@@ -217,7 +281,8 @@ describe('L1 ERC20 contract checks', () => {
         // It throws once it gets status == 0 in the receipt and doesn't wait for the finalization.
         const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
         const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
-        await waitForBlockToBeFinalizedOnL1(alice, l2TxReceipt!.blockNumber);
+        await waitUntilBlockFinalized(alice, l2TxReceipt!.blockNumber);
+        await sleep(50000);
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance);
