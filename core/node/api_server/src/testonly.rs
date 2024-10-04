@@ -412,7 +412,7 @@ impl TestAccount for K256PrivateKey {
     }
 
     fn create_code_oracle_tx(&self, bytecode_hash: H256, expected_keccak_hash: H256) -> L2Tx {
-        let calldata = TestContract::precompiles()
+        let calldata = TestContract::precompiles_test()
             .abi
             .function("callCodeOracle")
             .expect("no `callCodeOracle` function")

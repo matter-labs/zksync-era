@@ -22,7 +22,7 @@ fn generate_large_bytecode() -> Vec<u8> {
 #[test]
 fn test_code_oracle() {
     let precompiles_contract_address = Address::random();
-    let precompile_contract_bytecode = TestContract::precompiles().bytecode.clone();
+    let precompile_contract_bytecode = TestContract::precompiles_test().bytecode.clone();
 
     // Filling the zkevm bytecode
     let normal_zkevm_bytecode = &TestContract::counter().bytecode;
@@ -47,7 +47,7 @@ fn test_code_oracle() {
         .with_storage(storage)
         .build();
 
-    let precompile_contract = &TestContract::precompiles().abi;
+    let precompile_contract = &TestContract::precompiles_test().abi;
     let call_code_oracle_function = precompile_contract.function("callCodeOracle").unwrap();
 
     vm.vm.insert_bytecodes([normal_zkevm_bytecode.as_slice()]);
@@ -114,7 +114,7 @@ fn find_code_oracle_cost_log(
 #[test]
 fn test_code_oracle_big_bytecode() {
     let precompiles_contract_address = Address::random();
-    let precompile_contract_bytecode = TestContract::precompiles().bytecode.clone();
+    let precompile_contract_bytecode = TestContract::precompiles_test().bytecode.clone();
 
     let big_zkevm_bytecode = generate_large_bytecode();
     let big_zkevm_bytecode_hash = hash_bytecode(&big_zkevm_bytecode);
@@ -139,7 +139,7 @@ fn test_code_oracle_big_bytecode() {
         .with_storage(storage)
         .build();
 
-    let precompile_contract = &TestContract::precompiles().abi;
+    let precompile_contract = &TestContract::precompiles_test().abi;
     let call_code_oracle_function = precompile_contract.function("callCodeOracle").unwrap();
 
     vm.vm.insert_bytecodes([big_zkevm_bytecode.as_slice()]);
@@ -183,7 +183,7 @@ fn refunds_in_code_oracle() {
         u256_to_h256(U256::one()),
     );
 
-    let precompile_contract = &TestContract::precompiles().abi;
+    let precompile_contract = &TestContract::precompiles_test().abi;
     let call_code_oracle_function = precompile_contract.function("callCodeOracle").unwrap();
 
     // Execute code oracle twice with identical VM state that only differs in that the queried bytecode
@@ -195,7 +195,7 @@ fn refunds_in_code_oracle() {
             .with_execution_mode(TxExecutionMode::VerifyExecute)
             .with_random_rich_accounts(1)
             .with_custom_contracts(vec![ContractToDeploy::new(
-                TestContract::precompiles().bytecode.clone(),
+                TestContract::precompiles_test().bytecode.clone(),
                 precompiles_contract_address,
             )])
             .with_storage(storage.clone())

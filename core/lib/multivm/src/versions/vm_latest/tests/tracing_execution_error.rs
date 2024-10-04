@@ -15,7 +15,7 @@ use crate::{
 #[test]
 fn test_tracing_of_execution_errors() {
     let contract_address = H160::random();
-    let bytecode = TestContract::require().bytecode.clone();
+    let bytecode = TestContract::reverts_test().bytecode.clone();
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
@@ -26,7 +26,7 @@ fn test_tracing_of_execution_errors() {
         .build();
 
     let account = &mut vm.rich_accounts[0];
-    let require_fn = TestContract::require()
+    let require_fn = TestContract::reverts_test()
         .abi
         .function("require_short")
         .unwrap();

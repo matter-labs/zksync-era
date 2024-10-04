@@ -12,7 +12,7 @@ use crate::{
 #[test]
 fn test_keccak() {
     // Execute special transaction and check that at least 1000 keccak calls were made.
-    let contract = TestContract::precompiles().bytecode.clone();
+    let contract = TestContract::precompiles_test().bytecode.clone();
     let address = Address::random();
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
@@ -58,7 +58,7 @@ fn test_keccak() {
 #[test]
 fn test_sha256() {
     // Execute special transaction and check that at least 1000 `sha256` calls were made.
-    let contract = TestContract::precompiles().bytecode.clone();
+    let contract = TestContract::precompiles_test().bytecode.clone();
     let address = Address::random();
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
