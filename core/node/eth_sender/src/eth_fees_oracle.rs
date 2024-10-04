@@ -35,13 +35,24 @@ pub(crate) struct GasAdjusterFeesOracle {
 }
 
 impl GasAdjusterFeesOracle {
+    fn assert_fee_is_not_zero(&self, value: u64, fee_type: &'static str) {
+        if value == 0 {
+            panic!(
+                "L1 RPC incorrectly reported {fee_type} prices, either it doesn't return them at \
+            all or returns 0's, eth-sender cannot continue without proper {fee_type} prices!"
+            );
+        }
+    }
     fn calculate_fees_with_blob_sidecar(
         &self,
         previous_sent_tx: &Option<TxHistory>,
     ) -> Result<EthFees, EthSenderError> {
         let base_fee_per_gas = self.gas_adjuster.get_blob_tx_base_fee();
+        self.assert_fee_is_not_zero(base_fee_per_gas, "base");
         let priority_fee_per_gas = self.gas_adjuster.get_blob_tx_priority_fee();
-        let blob_base_fee_per_gas = Some(self.gas_adjuster.get_blob_tx_blob_base_fee());
+        let blob_base_fee_per_gas = self.gas_adjuster.get_blob_tx_blob_base_fee();
+        self.assert_fee_is_not_zero(blob_base_fee_per_gas, "blob");
+        let blob_base_fee_per_gas = Some(blob_base_fee_per_gas);
 
         if let Some(previous_sent_tx) = previous_sent_tx {
             // for blob transactions on re-sending need to double all gas prices
@@ -71,7 +82,10 @@ impl GasAdjusterFeesOracle {
         previous_sent_tx: &Option<TxHistory>,
         time_in_mempool: u32,
     ) -> Result<EthFees, EthSenderError> {
-        let mut base_fee_per_gas = self.gas_adjuster.get_base_fee(time_in_mempool);
+        // cap it at 6h to not allow nearly infinite values when a tx is stuck for a long time
+        let capped_time_in_mempool = min(time_in_mempool, 1800);
+        let mut base_fee_per_gas = self.gas_adjuster.get_base_fee(capped_time_in_mempool);
+        self.assert_fee_is_not_zero(base_fee_per_gas, "base");
         if let Some(previous_sent_tx) = previous_sent_tx {
             self.verify_base_fee_not_too_low_on_resend(
                 previous_sent_tx.id,

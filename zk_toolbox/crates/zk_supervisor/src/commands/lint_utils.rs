@@ -17,14 +17,28 @@ pub enum Target {
 }
 
 #[derive(Deserialize, Serialize, Debug)]
-struct IgnoredData {
-    files: Vec<String>,
-    dirs: Vec<String>,
+pub struct IgnoredData {
+    pub files: Vec<String>,
+    pub dirs: Vec<String>,
 }
 
-pub fn get_unignored_files(shell: &Shell, target: &Target) -> anyhow::Result<Vec<String>> {
+impl IgnoredData {
+    pub fn merge(&mut self, other: &IgnoredData) {
+        self.files.extend(other.files.clone());
+        self.dirs.extend(other.dirs.clone());
+    }
+}
+
+pub fn get_unignored_files(
+    shell: &Shell,
+    target: &Target,
+    ignored_data: Option<IgnoredData>,
+) -> anyhow::Result<Vec<String>> {
     let mut files = Vec::new();
-    let ignored_files: IgnoredData = serde_yaml::from_str(&shell.read_file(IGNORE_FILE)?)?;
+    let mut ignored_files: IgnoredData = serde_yaml::from_str(&shell.read_file(IGNORE_FILE)?)?;
+    if let Some(ignored_data) = ignored_data {
+        ignored_files.merge(&ignored_data);
+    }
     let output = cmd!(shell, "git ls-files --recurse-submodules").read()?;
 
     for line in output.lines() {

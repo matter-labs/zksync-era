@@ -49,17 +49,17 @@ impl FriWitnessGeneratorDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                witness_inputs_fri (
-                    l1_batch_number,
-                    witness_inputs_blob_url,
-                    protocol_version,
-                    status,
-                    created_at,
-                    updated_at,
-                    protocol_version_patch
-                )
+            witness_inputs_fri (
+                l1_batch_number,
+                witness_inputs_blob_url,
+                protocol_version,
+                status,
+                created_at,
+                updated_at,
+                protocol_version_patch
+            )
             VALUES
-                ($1, $2, $3, 'queued', NOW(), NOW(), $4)
+            ($1, $2, $3, 'queued', NOW(), NOW(), $4)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(block_number.0),
@@ -76,7 +76,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
     /// The blobs arrive from core via prover gateway, as pubdata, this method loads the blobs.
     pub async fn get_next_basic_circuit_witness_job(
         &mut self,
-        last_l1_batch_to_process: u32,
         protocol_version: ProtocolSemanticVersion,
         picked_by: &str,
     ) -> Option<L1BatchNumber> {
@@ -88,7 +87,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 attempts = attempts + 1,
                 updated_at = NOW(),
                 processing_started_at = NOW(),
-                picked_by = $3
+                picked_by = $2
             WHERE
                 l1_batch_number = (
                     SELECT
@@ -96,21 +95,19 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     FROM
                         witness_inputs_fri
                     WHERE
-                        l1_batch_number <= $1
-                        AND status = 'queued'
-                        AND protocol_version = $2
-                        AND protocol_version_patch = $4
+                        status = 'queued'
+                        AND protocol_version = $1
+                        AND protocol_version_patch = $3
                     ORDER BY
                         l1_batch_number ASC
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                witness_inputs_fri.l1_batch_number
+            witness_inputs_fri.l1_batch_number
             "#,
-            i64::from(last_l1_batch_to_process),
             protocol_version.minor as i32,
             picked_by,
             protocol_version.patch.0 as i32,
@@ -119,28 +116,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .await
         .unwrap()
         .map(|row| L1BatchNumber(row.l1_batch_number as u32))
-    }
-
-    pub async fn get_basic_circuit_witness_job_attempts(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Option<u32>> {
-        let attempts = sqlx::query!(
-            r#"
-            SELECT
-                attempts
-            FROM
-                witness_inputs_fri
-            WHERE
-                l1_batch_number = $1
-            "#,
-            i64::from(l1_batch_number.0)
-        )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|row| row.attempts as u32);
-
-        Ok(attempts)
     }
 
     pub async fn mark_witness_job(
@@ -183,46 +158,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
             "#,
             duration_to_naive_time(time_taken),
             i64::from(block_number.0)
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
-
-    pub async fn mark_witness_job_failed(&mut self, error: &str, block_number: L1BatchNumber) {
-        sqlx::query!(
-            r#"
-            UPDATE witness_inputs_fri
-            SET
-                status = 'failed',
-                error = $1,
-                updated_at = NOW()
-            WHERE
-                l1_batch_number = $2
-                AND status != 'successful'
-            "#,
-            error,
-            i64::from(block_number.0)
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
-
-    pub async fn mark_leaf_aggregation_job_failed(&mut self, error: &str, id: u32) {
-        sqlx::query!(
-            r#"
-            UPDATE leaf_aggregation_witness_jobs_fri
-            SET
-                status = 'failed',
-                error = $1,
-                updated_at = NOW()
-            WHERE
-                id = $2
-                AND status != 'successful'
-            "#,
-            error,
-            i64::from(id)
         )
         .execute(self.storage.conn())
         .await
@@ -272,11 +207,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     AND attempts < $2
                 )
             RETURNING
-                l1_batch_number,
-                status,
-                attempts,
-                error,
-                picked_by
+            l1_batch_number,
+            status,
+            attempts,
+            error,
+            picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -321,23 +256,23 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 sqlx::query!(
                     r#"
                     INSERT INTO
-                        leaf_aggregation_witness_jobs_fri (
-                            l1_batch_number,
-                            circuit_id,
-                            closed_form_inputs_blob_url,
-                            number_of_basic_circuits,
-                            protocol_version,
-                            status,
-                            created_at,
-                            updated_at,
-                            protocol_version_patch
-                        )
+                    leaf_aggregation_witness_jobs_fri (
+                        l1_batch_number,
+                        circuit_id,
+                        closed_form_inputs_blob_url,
+                        number_of_basic_circuits,
+                        protocol_version,
+                        status,
+                        created_at,
+                        updated_at,
+                        protocol_version_patch
+                    )
                     VALUES
-                        ($1, $2, $3, $4, $5, 'waiting_for_proofs', NOW(), NOW(), $6)
+                    ($1, $2, $3, $4, $5, 'waiting_for_proofs', NOW(), NOW(), $6)
                     ON CONFLICT (l1_batch_number, circuit_id) DO
                     UPDATE
                     SET
-                        updated_at = NOW()
+                    updated_at = NOW()
                     "#,
                     i64::from(block_number.0),
                     i16::from(*circuit_id),
@@ -364,21 +299,21 @@ impl FriWitnessGeneratorDal<'_, '_> {
             sqlx::query!(
                 r#"
                 INSERT INTO
-                    recursion_tip_witness_jobs_fri (
-                        l1_batch_number,
-                        status,
-                        number_of_final_node_jobs,
-                        protocol_version,
-                        created_at,
-                        updated_at,
-                        protocol_version_patch
-                    )
+                recursion_tip_witness_jobs_fri (
+                    l1_batch_number,
+                    status,
+                    number_of_final_node_jobs,
+                    protocol_version,
+                    created_at,
+                    updated_at,
+                    protocol_version_patch
+                )
                 VALUES
-                    ($1, 'waiting_for_proofs', $2, $3, NOW(), NOW(), $4)
+                ($1, 'waiting_for_proofs', $2, $3, NOW(), NOW(), $4)
                 ON CONFLICT (l1_batch_number) DO
                 UPDATE
                 SET
-                    updated_at = NOW()
+                updated_at = NOW()
                 "#,
                 block_number.0 as i64,
                 closed_form_inputs_and_urls.len() as i32,
@@ -392,21 +327,21 @@ impl FriWitnessGeneratorDal<'_, '_> {
             sqlx::query!(
                 r#"
                 INSERT INTO
-                    scheduler_witness_jobs_fri (
-                        l1_batch_number,
-                        scheduler_partial_input_blob_url,
-                        protocol_version,
-                        status,
-                        created_at,
-                        updated_at,
-                        protocol_version_patch
-                    )
+                scheduler_witness_jobs_fri (
+                    l1_batch_number,
+                    scheduler_partial_input_blob_url,
+                    protocol_version,
+                    status,
+                    created_at,
+                    updated_at,
+                    protocol_version_patch
+                )
                 VALUES
-                    ($1, $2, $3, 'waiting_for_proofs', NOW(), NOW(), $4)
+                ($1, $2, $3, 'waiting_for_proofs', NOW(), NOW(), $4)
                 ON CONFLICT (l1_batch_number) DO
                 UPDATE
                 SET
-                    updated_at = NOW()
+                updated_at = NOW()
                 "#,
                 i64::from(block_number.0),
                 scheduler_partial_input_blob_url,
@@ -451,10 +386,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                leaf_aggregation_witness_jobs_fri.*
+            leaf_aggregation_witness_jobs_fri.*
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -479,29 +414,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
             circuit_id: row.circuit_id as u8,
             prover_job_ids_for_proofs: proof_job_ids,
         })
-    }
-
-    pub async fn get_leaf_aggregation_job_attempts(
-        &mut self,
-        id: u32,
-    ) -> sqlx::Result<Option<u32>> {
-        let attempts = sqlx::query!(
-            r#"
-            SELECT
-                attempts
-            FROM
-                leaf_aggregation_witness_jobs_fri
-            WHERE
-                id = $1
-            "#,
-            i64::from(id)
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| row.attempts as u32);
-
-        Ok(attempts)
     }
 
     async fn prover_job_ids_for(
@@ -552,8 +464,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         prover_jobs_fri.circuit_id
                     FROM
                         prover_jobs_fri
-                        JOIN leaf_aggregation_witness_jobs_fri lawj ON prover_jobs_fri.l1_batch_number = lawj.l1_batch_number
-                        AND prover_jobs_fri.circuit_id = lawj.circuit_id
+                    JOIN leaf_aggregation_witness_jobs_fri lawj
+                        ON
+                            prover_jobs_fri.l1_batch_number = lawj.l1_batch_number
+                            AND prover_jobs_fri.circuit_id = lawj.circuit_id
                     WHERE
                         lawj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
@@ -566,8 +480,8 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         COUNT(*) = lawj.number_of_basic_circuits
                 )
             RETURNING
-                l1_batch_number,
-                circuit_id;
+            l1_batch_number,
+            circuit_id;
             "#,
         )
         .fetch_all(self.storage.conn())
@@ -640,10 +554,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                node_aggregation_witness_jobs_fri.*
+            node_aggregation_witness_jobs_fri.*
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -672,49 +586,6 @@ impl FriWitnessGeneratorDal<'_, '_> {
             depth,
             prover_job_ids_for_proofs: prover_job_ids,
         })
-    }
-
-    pub async fn get_node_aggregation_job_attempts(
-        &mut self,
-        id: u32,
-    ) -> sqlx::Result<Option<u32>> {
-        let attempts = sqlx::query!(
-            r#"
-            SELECT
-                attempts
-            FROM
-                node_aggregation_witness_jobs_fri
-            WHERE
-                id = $1
-            "#,
-            i64::from(id)
-        )
-        .fetch_optional(self.storage.conn())
-        .await
-        .unwrap()
-        .map(|row| row.attempts as u32);
-
-        Ok(attempts)
-    }
-
-    pub async fn mark_node_aggregation_job_failed(&mut self, error: &str, id: u32) {
-        sqlx::query!(
-            r#"
-            UPDATE node_aggregation_witness_jobs_fri
-            SET
-                status = 'failed',
-                error = $1,
-                updated_at = NOW()
-            WHERE
-                id = $2
-                AND status != 'successful'
-            "#,
-            error,
-            i64::from(id)
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
     }
 
     pub async fn mark_node_aggregation_as_successful(&mut self, id: u32, time_taken: Duration) {
@@ -748,24 +619,24 @@ impl FriWitnessGeneratorDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                node_aggregation_witness_jobs_fri (
-                    l1_batch_number,
-                    circuit_id,
-                    depth,
-                    aggregations_url,
-                    number_of_dependent_jobs,
-                    protocol_version,
-                    status,
-                    created_at,
-                    updated_at,
-                    protocol_version_patch
-                )
+            node_aggregation_witness_jobs_fri (
+                l1_batch_number,
+                circuit_id,
+                depth,
+                aggregations_url,
+                number_of_dependent_jobs,
+                protocol_version,
+                status,
+                created_at,
+                updated_at,
+                protocol_version_patch
+            )
             VALUES
-                ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7)
+            ($1, $2, $3, $4, $5, $6, 'waiting_for_proofs', NOW(), NOW(), $7)
             ON CONFLICT (l1_batch_number, circuit_id, depth) DO
             UPDATE
             SET
-                updated_at = NOW()
+            updated_at = NOW()
             "#,
             i64::from(block_number.0),
             i16::from(circuit_id),
@@ -794,9 +665,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         prover_jobs_fri.depth
                     FROM
                         prover_jobs_fri
-                        JOIN node_aggregation_witness_jobs_fri nawj ON prover_jobs_fri.l1_batch_number = nawj.l1_batch_number
-                        AND prover_jobs_fri.circuit_id = nawj.circuit_id
-                        AND prover_jobs_fri.depth = nawj.depth
+                    JOIN node_aggregation_witness_jobs_fri nawj
+                        ON
+                            prover_jobs_fri.l1_batch_number = nawj.l1_batch_number
+                            AND prover_jobs_fri.circuit_id = nawj.circuit_id
+                            AND prover_jobs_fri.depth = nawj.depth
                     WHERE
                         nawj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
@@ -811,9 +684,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         COUNT(*) = nawj.number_of_dependent_jobs
                 )
             RETURNING
-                l1_batch_number,
-                circuit_id,
-                depth;
+            l1_batch_number,
+            circuit_id,
+            depth;
             "#,
         )
         .fetch_all(self.storage.conn())
@@ -838,9 +711,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         prover_jobs_fri.depth
                     FROM
                         prover_jobs_fri
-                        JOIN node_aggregation_witness_jobs_fri nawj ON prover_jobs_fri.l1_batch_number = nawj.l1_batch_number
-                        AND prover_jobs_fri.circuit_id = nawj.circuit_id
-                        AND prover_jobs_fri.depth = nawj.depth
+                    JOIN node_aggregation_witness_jobs_fri nawj
+                        ON
+                            prover_jobs_fri.l1_batch_number = nawj.l1_batch_number
+                            AND prover_jobs_fri.circuit_id = nawj.circuit_id
+                            AND prover_jobs_fri.depth = nawj.depth
                     WHERE
                         nawj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
@@ -854,9 +729,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         COUNT(*) = nawj.number_of_dependent_jobs
                 )
             RETURNING
-                l1_batch_number,
-                circuit_id,
-                depth;
+            l1_batch_number,
+            circuit_id,
+            depth;
             "#,
         )
         .fetch_all(self.storage.conn())
@@ -879,7 +754,9 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         prover_jobs_fri.l1_batch_number
                     FROM
                         prover_jobs_fri
-                        JOIN recursion_tip_witness_jobs_fri rtwj ON prover_jobs_fri.l1_batch_number = rtwj.l1_batch_number
+                    JOIN
+                        recursion_tip_witness_jobs_fri rtwj
+                        ON prover_jobs_fri.l1_batch_number = rtwj.l1_batch_number
                     WHERE
                         rtwj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
@@ -892,7 +769,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         COUNT(*) = rtwj.number_of_final_node_jobs
                 )
             RETURNING
-                l1_batch_number;
+            l1_batch_number;
             "#,
             AggregationRound::NodeAggregation as i64,
         )
@@ -916,14 +793,16 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         prover_jobs_fri.l1_batch_number
                     FROM
                         prover_jobs_fri
-                        JOIN scheduler_witness_jobs_fri swj ON prover_jobs_fri.l1_batch_number = swj.l1_batch_number
+                    JOIN
+                        scheduler_witness_jobs_fri swj
+                        ON prover_jobs_fri.l1_batch_number = swj.l1_batch_number
                     WHERE
                         swj.status = 'waiting_for_proofs'
                         AND prover_jobs_fri.status = 'successful'
                         AND prover_jobs_fri.aggregation_round = $1
                 )
             RETURNING
-                l1_batch_number;
+            l1_batch_number;
             "#,
             AggregationRound::RecursionTip as i64,
         )
@@ -959,12 +838,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     AND attempts < $2
                 )
             RETURNING
-                id,
-                status,
-                attempts,
-                circuit_id,
-                error,
-                picked_by
+            id,
+            status,
+            attempts,
+            circuit_id,
+            error,
+            picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1008,12 +887,12 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     AND attempts < $2
                 )
             RETURNING
-                id,
-                status,
-                attempts,
-                circuit_id,
-                error,
-                picked_by
+            id,
+            status,
+            attempts,
+            circuit_id,
+            error,
+            picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1057,11 +936,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     AND attempts < $2
                 )
             RETURNING
-                l1_batch_number,
-                status,
-                attempts,
-                error,
-                picked_by
+            l1_batch_number,
+            status,
+            attempts,
+            error,
+            picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1110,11 +989,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                recursion_tip_witness_jobs_fri.l1_batch_number,
-                recursion_tip_witness_jobs_fri.number_of_final_node_jobs
+            recursion_tip_witness_jobs_fri.l1_batch_number,
+            recursion_tip_witness_jobs_fri.number_of_final_node_jobs
             "#,
             protocol_version.minor as i32,
             protocol_version.patch.0 as i32,
@@ -1173,11 +1052,11 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     AND attempts < $2
                 )
             RETURNING
-                l1_batch_number,
-                status,
-                attempts,
-                error,
-                picked_by
+            l1_batch_number,
+            status,
+            attempts,
+            error,
+            picked_by
             "#,
             &processing_timeout,
             max_attempts as i32,
@@ -1226,10 +1105,10 @@ impl FriWitnessGeneratorDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                scheduler_witness_jobs_fri.*
+            scheduler_witness_jobs_fri.*
             "#,
             protocol_version.minor as i32,
             picked_by,
@@ -1241,46 +1120,42 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .map(|row| L1BatchNumber(row.l1_batch_number as u32))
     }
 
-    pub async fn get_recursion_tip_witness_job_attempts(
+    pub async fn get_witness_job_attempts(
         &mut self,
-        l1_batch_number: L1BatchNumber,
+        job_id: u32,
+        aggregation_round: AggregationRound,
     ) -> sqlx::Result<Option<u32>> {
-        let attempts = sqlx::query!(
+        let table = match aggregation_round {
+            AggregationRound::BasicCircuits => "witness_inputs_fri",
+            AggregationRound::LeafAggregation => "leaf_aggregation_witness_jobs_fri",
+            AggregationRound::NodeAggregation => "node_aggregation_witness_jobs_fri",
+            AggregationRound::RecursionTip => "recursion_tip_witness_jobs_fri",
+            AggregationRound::Scheduler => "scheduler_witness_jobs_fri",
+        };
+
+        let job_id_column = match aggregation_round {
+            AggregationRound::BasicCircuits => "l1_batch_number",
+            AggregationRound::LeafAggregation => "id",
+            AggregationRound::NodeAggregation => "id",
+            AggregationRound::RecursionTip => "l1_batch_number",
+            AggregationRound::Scheduler => "l1_batch_number ",
+        };
+
+        let query = format!(
             r#"
             SELECT
                 attempts
             FROM
-                recursion_tip_witness_jobs_fri
+                {table}
             WHERE
-                l1_batch_number = $1
+                {job_id_column} = {job_id}
             "#,
-            l1_batch_number.0 as i64
-        )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|row| row.attempts as u32);
+        );
 
-        Ok(attempts)
-    }
-
-    pub async fn get_scheduler_witness_job_attempts(
-        &mut self,
-        l1_batch_number: L1BatchNumber,
-    ) -> sqlx::Result<Option<u32>> {
-        let attempts = sqlx::query!(
-            r#"
-            SELECT
-                attempts
-            FROM
-                scheduler_witness_jobs_fri
-            WHERE
-                l1_batch_number = $1
-            "#,
-            i64::from(l1_batch_number.0)
-        )
-        .fetch_optional(self.storage.conn())
-        .await?
-        .map(|row| row.attempts as u32);
+        let attempts = sqlx::query(&query)
+            .fetch_optional(self.storage.conn())
+            .await?
+            .map(|row| row.get::<i16, &str>("attempts") as u32);
 
         Ok(attempts)
     }
@@ -1331,54 +1206,51 @@ impl FriWitnessGeneratorDal<'_, '_> {
         .unwrap();
     }
 
-    pub async fn mark_recursion_tip_job_failed(
+    pub async fn mark_witness_job_failed(
         &mut self,
         error: &str,
-        l1_batch_number: L1BatchNumber,
+        job_id: u32,
+        aggregation_round: AggregationRound,
     ) {
-        sqlx::query!(
-            r#"
-            UPDATE recursion_tip_witness_jobs_fri
-            SET
-                status = 'failed',
-                error = $1,
-                updated_at = NOW()
-            WHERE
-                l1_batch_number = $2
-                AND status != 'successful'
-            "#,
-            error,
-            l1_batch_number.0 as i64
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
-    }
+        let table = match aggregation_round {
+            AggregationRound::BasicCircuits => "witness_inputs_fri",
+            AggregationRound::LeafAggregation => "leaf_aggregation_witness_jobs_fri",
+            AggregationRound::NodeAggregation => "node_aggregation_witness_jobs_fri",
+            AggregationRound::RecursionTip => "recursion_tip_witness_jobs_fri",
+            AggregationRound::Scheduler => "scheduler_witness_jobs_fri",
+        };
 
-    pub async fn mark_scheduler_job_failed(&mut self, error: &str, block_number: L1BatchNumber) {
-        sqlx::query!(
+        let job_id_column = match aggregation_round {
+            AggregationRound::BasicCircuits => "l1_batch_number",
+            AggregationRound::LeafAggregation => "id",
+            AggregationRound::NodeAggregation => "id",
+            AggregationRound::RecursionTip => "l1_batch_number",
+            AggregationRound::Scheduler => "l1_batch_number ",
+        };
+
+        let query = format!(
             r#"
-            UPDATE scheduler_witness_jobs_fri
+            UPDATE {table}
             SET
                 status = 'failed',
-                error = $1,
+                error = {error},
                 updated_at = NOW()
             WHERE
-                l1_batch_number = $2
-                AND status != 'successful'
+                {job_id_column} = {job_id}
+                AND status != 'successful
             "#,
-            error,
-            i64::from(block_number.0)
-        )
-        .execute(self.storage.conn())
-        .await
-        .unwrap();
+        );
+
+        sqlx::query(&query)
+            .execute(self.storage.conn())
+            .await
+            .unwrap();
     }
 
     pub async fn get_witness_jobs_stats(
         &mut self,
         aggregation_round: AggregationRound,
-    ) -> HashMap<(AggregationRound, ProtocolSemanticVersion), JobCountStatistics> {
+    ) -> HashMap<ProtocolSemanticVersion, JobCountStatistics> {
         let table_name = Self::input_table_name_for(aggregation_round);
         let sql = format!(
             r#"
@@ -1407,7 +1279,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                         .unwrap(),
                     VersionPatch(row.get::<i32, &str>("protocol_version_patch") as u32),
                 );
-                let key = (aggregation_round, protocol_semantic_version);
+                let key = protocol_semantic_version;
                 let value = JobCountStatistics {
                     queued: row.get::<i64, &str>("queued") as usize,
                     in_progress: row.get::<i64, &str>("in_progress") as usize,
@@ -1709,7 +1581,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
-        let query = format!(
+        sqlx::query!(
             r#"
             UPDATE witness_inputs_fri
             SET
@@ -1717,33 +1589,35 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
-                l1_batch_number = {}
-                AND attempts >= {}
-                AND (status = 'in_progress' OR status = 'failed')
+                l1_batch_number = $1
+                AND attempts >= $2
+                AND (
+                    status = 'in_progress'
+                    OR status = 'failed'
+                )
             RETURNING
-                l1_batch_number,
-                status,
-                attempts,
-                error,
-                picked_by
+            l1_batch_number,
+            status,
+            attempts,
+            error,
+            picked_by
             "#,
             i64::from(block_number.0),
-            max_attempts
-        );
-        sqlx::query(&query)
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| StuckJobs {
-                id: row.get::<i64, &str>("l1_batch_number") as u64,
-                status: row.get("status"),
-                attempts: row.get::<i16, &str>("attempts") as u64,
-                circuit_id: None,
-                error: row.get("error"),
-                picked_by: row.get("picked_by"),
-            })
-            .collect()
+            max_attempts as i64
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| StuckJobs {
+            id: row.l1_batch_number as u64,
+            status: row.status,
+            attempts: row.attempts as u64,
+            circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
+        })
+        .collect()
     }
 
     pub async fn requeue_stuck_leaf_aggregation_jobs_for_batch(
@@ -1777,7 +1651,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
-        let query = format!(
+        sqlx::query!(
             r#"
             UPDATE recursion_tip_witness_jobs_fri
             SET
@@ -1785,33 +1659,35 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
-                l1_batch_number = {}
-                AND attempts >= {}
-                AND (status = 'in_progress' OR status = 'failed')
+                l1_batch_number = $1
+                AND attempts >= $2
+                AND (
+                    status = 'in_progress'
+                    OR status = 'failed'
+                )
             RETURNING
-                l1_batch_number,
-                status,
-                attempts,
-                error,
-                picked_by
+            l1_batch_number,
+            status,
+            attempts,
+            error,
+            picked_by
             "#,
             i64::from(block_number.0),
-            max_attempts
-        );
-        sqlx::query(&query)
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| StuckJobs {
-                id: row.get::<i64, &str>("l1_batch_number") as u64,
-                status: row.get("status"),
-                attempts: row.get::<i16, &str>("attempts") as u64,
-                circuit_id: None,
-                error: row.get("error"),
-                picked_by: row.get("picked_by"),
-            })
-            .collect()
+            max_attempts as i64
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| StuckJobs {
+            id: row.l1_batch_number as u64,
+            status: row.status,
+            attempts: row.attempts as u64,
+            circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
+        })
+        .collect()
     }
 
     pub async fn requeue_stuck_scheduler_jobs_for_batch(
@@ -1819,7 +1695,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
         block_number: L1BatchNumber,
         max_attempts: u32,
     ) -> Vec<StuckJobs> {
-        let query = format!(
+        sqlx::query!(
             r#"
             UPDATE scheduler_witness_jobs_fri
             SET
@@ -1827,33 +1703,35 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 updated_at = NOW(),
                 processing_started_at = NOW()
             WHERE
-                l1_batch_number = {}
-                AND attempts >= {}
-                AND (status = 'in_progress' OR status = 'failed')
+                l1_batch_number = $1
+                AND attempts >= $2
+                AND (
+                    status = 'in_progress'
+                    OR status = 'failed'
+                )
             RETURNING
-                l1_batch_number,
-                status,
-                attempts,
-                error,
-                picked_by
+            l1_batch_number,
+            status,
+            attempts,
+            error,
+            picked_by
             "#,
             i64::from(block_number.0),
-            max_attempts
-        );
-        sqlx::query(&query)
-            .fetch_all(self.storage.conn())
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|row| StuckJobs {
-                id: row.get::<i64, &str>("l1_batch_number") as u64,
-                status: row.get("status"),
-                attempts: row.get::<i16, &str>("attempts") as u64,
-                circuit_id: None,
-                error: row.get("error"),
-                picked_by: row.get("picked_by"),
-            })
-            .collect()
+            max_attempts as i64
+        )
+        .fetch_all(self.storage.conn())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|row| StuckJobs {
+            id: row.l1_batch_number as u64,
+            status: row.status,
+            attempts: row.attempts as u64,
+            circuit_id: None,
+            error: row.error,
+            picked_by: row.picked_by,
+        })
+        .collect()
     }
 
     async fn requeue_stuck_jobs_for_batch_in_aggregation_round(
@@ -1925,7 +1803,7 @@ impl FriWitnessGeneratorDal<'_, '_> {
                 wit.created_at
             FROM
                 proof_compression_jobs_fri AS comp
-                JOIN witness_inputs_fri AS wit ON comp.l1_batch_number = wit.l1_batch_number
+            JOIN witness_inputs_fri AS wit ON comp.l1_batch_number = wit.l1_batch_number
             WHERE
                 wit.created_at > $1
             ORDER BY

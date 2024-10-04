@@ -77,7 +77,10 @@ pub fn decode_yaml_repr<T: ProtoRepr>(
 ) -> anyhow::Result<T::Type> {
     let yaml = std::fs::read_to_string(path).with_context(|| path.display().to_string())?;
     let d = serde_yaml::Deserializer::from_str(&yaml);
-    let this: T = zksync_protobuf::serde::deserialize_proto_with_options(d, deny_unknown_fields)?;
+    let this: T = zksync_protobuf::serde::Deserialize {
+        deny_unknown_fields,
+    }
+    .proto(d)?;
     this.read()
 }
 

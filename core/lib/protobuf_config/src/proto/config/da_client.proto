@@ -7,10 +7,10 @@ import "zksync/config/object_store.proto";
 message AvailConfig {
   optional string api_node_url = 1;
   optional string bridge_api_url = 2;
-  optional string seed = 3;
   optional uint32 app_id = 4;
   optional uint64 timeout = 5;
   optional uint64 max_retries = 6;
+  reserved 3; reserved "seed";
 }
 
 message EigenDaConfig {

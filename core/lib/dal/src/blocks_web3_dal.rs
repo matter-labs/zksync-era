@@ -52,9 +52,11 @@ impl BlocksWeb3Dal<'_, '_> {
                 transactions.hash AS "tx_hash?"
             FROM
                 miniblocks
-                LEFT JOIN miniblocks prev_miniblock ON prev_miniblock.number = miniblocks.number - 1
-                LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
-                LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
+            LEFT JOIN
+                miniblocks prev_miniblock
+                ON prev_miniblock.number = miniblocks.number - 1
+            LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
+            LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
             WHERE
                 miniblocks.number = $1
             ORDER BY
@@ -184,8 +186,10 @@ impl BlocksWeb3Dal<'_, '_> {
                 transactions.refunded_gas AS "transaction_refunded_gas?"
             FROM
                 miniblocks
-                LEFT JOIN miniblocks prev_miniblock ON prev_miniblock.number = miniblocks.number - 1
-                LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
+            LEFT JOIN
+                miniblocks prev_miniblock
+                ON prev_miniblock.number = miniblocks.number - 1
+            LEFT JOIN transactions ON transactions.miniblock_number = miniblocks.number
             WHERE
                 miniblocks.number > $1
             ORDER BY
@@ -527,7 +531,7 @@ impl BlocksWeb3Dal<'_, '_> {
     pub async fn get_traces_for_l2_block(
         &mut self,
         block_number: L2BlockNumber,
-    ) -> DalResult<Vec<Call>> {
+    ) -> DalResult<Vec<(Call, H256, usize)>> {
         let protocol_version = sqlx::query!(
             r#"
             SELECT
@@ -554,10 +558,12 @@ impl BlocksWeb3Dal<'_, '_> {
             CallTrace,
             r#"
             SELECT
+                transactions.hash AS tx_hash,
+                transactions.index_in_block AS tx_index_in_block,
                 call_trace
             FROM
                 call_traces
-                INNER JOIN transactions ON tx_hash = transactions.hash
+            INNER JOIN transactions ON tx_hash = transactions.hash
             WHERE
                 transactions.miniblock_number = $1
             ORDER BY
@@ -570,7 +576,11 @@ impl BlocksWeb3Dal<'_, '_> {
         .fetch_all(self.storage)
         .await?
         .into_iter()
-        .map(|call_trace| call_trace.into_call(protocol_version))
+        .map(|call_trace| {
+            let hash = H256::from_slice(&call_trace.tx_hash);
+            let index = call_trace.tx_index_in_block.unwrap_or_default() as usize;
+            (call_trace.into_call(protocol_version), hash, index)
+        })
         .collect())
     }
 
@@ -667,16 +677,19 @@ impl BlocksWeb3Dal<'_, '_> {
                 miniblocks.fee_account_address
             FROM
                 miniblocks
-                LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
-                LEFT JOIN eth_txs_history AS commit_tx ON (
+            LEFT JOIN l1_batches ON miniblocks.l1_batch_number = l1_batches.number
+            LEFT JOIN eth_txs_history AS commit_tx
+                ON (
                     l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
                     AND commit_tx.confirmed_at IS NOT NULL
                 )
-                LEFT JOIN eth_txs_history AS prove_tx ON (
+            LEFT JOIN eth_txs_history AS prove_tx
+                ON (
                     l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
                     AND prove_tx.confirmed_at IS NOT NULL
                 )
-                LEFT JOIN eth_txs_history AS execute_tx ON (
+            LEFT JOIN eth_txs_history AS execute_tx
+                ON (
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
                 )
@@ -702,18 +715,19 @@ impl BlocksWeb3Dal<'_, '_> {
             StorageL1BatchDetails,
             r#"
             WITH
-                mb AS (
-                    SELECT
-                        l1_gas_price,
-                        l2_fair_gas_price,
-                        fair_pubdata_price
-                    FROM
-                        miniblocks
-                    WHERE
-                        l1_batch_number = $1
-                    LIMIT
-                        1
-                )
+            mb AS (
+                SELECT
+                    l1_gas_price,
+                    l2_fair_gas_price,
+                    fair_pubdata_price
+                FROM
+                    miniblocks
+                WHERE
+                    l1_batch_number = $1
+                LIMIT
+                    1
+            )
+            
             SELECT
                 l1_batches.number,
                 l1_batches.timestamp,
@@ -733,16 +747,19 @@ impl BlocksWeb3Dal<'_, '_> {
                 l1_batches.default_aa_code_hash
             FROM
                 l1_batches
-                INNER JOIN mb ON TRUE
-                LEFT JOIN eth_txs_history AS commit_tx ON (
+            INNER JOIN mb ON TRUE
+            LEFT JOIN eth_txs_history AS commit_tx
+                ON (
                     l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
                     AND commit_tx.confirmed_at IS NOT NULL
                 )
-                LEFT JOIN eth_txs_history AS prove_tx ON (
+            LEFT JOIN eth_txs_history AS prove_tx
+                ON (
                     l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
                     AND prove_tx.confirmed_at IS NOT NULL
                 )
-                LEFT JOIN eth_txs_history AS execute_tx ON (
+            LEFT JOIN eth_txs_history AS execute_tx
+                ON (
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
                 )
@@ -1084,8 +1101,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(traces.len(), 2);
-        for (trace, tx_result) in traces.iter().zip(&tx_results) {
+        for ((trace, hash, _index), tx_result) in traces.iter().zip(&tx_results) {
             let expected_trace = tx_result.call_trace().unwrap();
+            assert_eq!(&tx_result.hash, hash);
             assert_eq!(*trace, expected_trace);
         }
     }
