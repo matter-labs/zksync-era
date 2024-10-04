@@ -175,14 +175,10 @@ impl InternalApiConfig {
 ///
 /// The information may be temporarily outdated and thus should only be used where this is OK
 /// (e.g., for metrics reporting). The value is updated by [`Self::diff()`] and [`Self::diff_with_block_args()`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct SealedL2BlockNumber(Arc<AtomicU32>);
 
 impl SealedL2BlockNumber {
-    pub fn new() -> Self {
-        Self(Arc::default())
-    }
-
     /// Potentially updates the last sealed L2 block number by comparing it to the provided
     /// sealed L2 block number (not necessarily the last one).
     ///
@@ -210,12 +206,6 @@ impl SealedL2BlockNumber {
         } else {
             diff
         }
-    }
-}
-
-impl Default for SealedL2BlockNumber {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

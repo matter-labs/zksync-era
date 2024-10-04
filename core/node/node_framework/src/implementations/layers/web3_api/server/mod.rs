@@ -193,7 +193,7 @@ impl WiringLayer for Web3ServerLayer {
         let sync_state = input.sync_state.map(|state| state.0);
         let tree_api_client = input.tree_api_client.map(|client| client.0);
 
-        let sealed_l2_block_handle = SealedL2BlockNumber::new();
+        let sealed_l2_block_handle = SealedL2BlockNumber::default();
         let bridge_addresses_handle =
             BridgeAddressesHandle::new(self.internal_api_config.bridge_addresses.clone());
 

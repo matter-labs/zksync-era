@@ -22,8 +22,9 @@ impl Task for BridgeAddressesUpdaterTask {
     }
 
     async fn run(self: Box<Self>, mut stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        let update_interval = self.update_interval.unwrap_or(Duration::from_secs(30));
+        const DEFAULT_INTERVAL: Duration = Duration::from_secs(30);
 
+        let update_interval = self.update_interval.unwrap_or(DEFAULT_INTERVAL);
         while !*stop_receiver.0.borrow_and_update() {
             match self.main_node_client.get_bridge_contracts().await {
                 Ok(bridge_addresses) => {

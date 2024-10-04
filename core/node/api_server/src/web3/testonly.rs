@@ -181,7 +181,7 @@ async fn spawn_server(
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
     namespaces.extend([Namespace::Debug, Namespace::Snapshots, Namespace::Unstable]);
-    let sealed_l2_block_handle = SealedL2BlockNumber::new();
+    let sealed_l2_block_handle = SealedL2BlockNumber::default();
     let bridge_addresses_handle = BridgeAddressesHandle::new(api_config.bridge_addresses.clone());
 
     let server_builder = match transport {
