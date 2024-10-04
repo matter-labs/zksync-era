@@ -204,9 +204,11 @@ impl TeeProofGenerationDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-                tee_proof_generation_details (l1_batch_number, tee_type, status, created_at, updated_at)
+            tee_proof_generation_details (
+                l1_batch_number, tee_type, status, created_at, updated_at
+            )
             VALUES
-                ($1, $2, $3, NOW(), NOW())
+            ($1, $2, $3, NOW(), NOW())
             ON CONFLICT (l1_batch_number, tee_type) DO NOTHING
             "#,
             batch_number,
@@ -229,9 +231,9 @@ impl TeeProofGenerationDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-                tee_attestations (pubkey, attestation)
+            tee_attestations (pubkey, attestation)
             VALUES
-                ($1, $2)
+            ($1, $2)
             ON CONFLICT (pubkey) DO NOTHING
             "#,
             pubkey,
