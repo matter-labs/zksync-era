@@ -65,11 +65,11 @@ jobs:
             --ignore-prerequisites \
             --legacy-bridge
 
+          ci_run zk_inception containers
           ci_run zk_inception ecosystem init --dev --verbose
-          ci_run zk_inception prover init --dev
-          ci_run zk_inception prover init-bellman-cuda --clone
-          
-          ci_run zk_inception prover setup-keys --mode=download --region=us
+          ci_run zk_inception prover init --dev --verbose
+          ci_run zk_inception prover init-bellman-cuda --clone --verbose
+          ci_run zk_inception prover setup-keys --mode=download --region=us --verbose
       - name: Run server
         run: |
           ci_run zk_inception server --uring --chain=legacy --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>server.log &
