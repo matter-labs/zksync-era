@@ -41,7 +41,7 @@ Most blockchains use factors like time and gas usage to determine when a block s
 case is a bit more complex because we also need to consider prover capacity and limits related to publishing to L1.
 
 The decision of when to seal the block is handled by the code in the [conditional_sealer][conditional_sealer] module. It
-maintains a list of `SealCriterion` and at the time of writing this article, [we have 9 reasons to seal the
+maintains a list of `SealCriterion` and at the time of writing this article, [we have 7 reasons to seal the
 block][reasons_for_sealing], which include:
 
 - Transaction slots limit (currently set to 750 transactions in `StateKeeper`'s config - `transaction_slots`).
@@ -81,7 +81,7 @@ comprehensive understanding of their functionality and interactions.
   https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/seal_criteria/conditional_sealer.rs#20
   'Conditional Sealer'
 [reasons_for_sealing]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/seal_criteria/mod.rs#L106
+  https://github.com/waliair/zksync-era/blob/1d238b0c4cf1ff1904d38d33e0bd0c82e5a7461c/core/bin/zksync_core/src/state_keeper/seal_criteria/mod.rs#L256
   'Reasons for Sealing'
 
 ## Deeper dive
