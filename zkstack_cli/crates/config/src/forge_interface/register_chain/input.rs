@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use types::L1BatchCommitmentMode;
 use zksync_basic_types::L2ChainId;
 
-use crate::{traits::ZkToolboxConfig, ChainConfig, ContractsConfig};
+use crate::{traits::ZkStackConfig, ChainConfig, ContractsConfig};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 struct Bridgehub {
@@ -50,7 +50,7 @@ pub struct ChainL1Config {
     pub governance_min_delay: u64,
 }
 
-impl ZkToolboxConfig for RegisterChainL1Config {}
+impl ZkStackConfig for RegisterChainL1Config {}
 
 impl RegisterChainL1Config {
     pub fn new(chain_config: &ChainConfig, contracts: &ContractsConfig) -> anyhow::Result<Self> {

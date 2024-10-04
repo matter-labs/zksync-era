@@ -11,7 +11,7 @@ use crate::{
         },
         register_chain::output::RegisterChainOutput,
     },
-    traits::{FileConfigWithDefaultName, ZkToolboxConfig},
+    traits::{FileConfigWithDefaultName, ZkStackConfig},
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone, Default)]
@@ -114,7 +114,7 @@ impl FileConfigWithDefaultName for ContractsConfig {
     const FILE_NAME: &'static str = CONTRACTS_FILE;
 }
 
-impl ZkToolboxConfig for ContractsConfig {}
+impl ZkStackConfig for ContractsConfig {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 pub struct EcosystemContracts {
@@ -125,7 +125,7 @@ pub struct EcosystemContracts {
     pub diamond_cut_data: String,
 }
 
-impl ZkToolboxConfig for EcosystemContracts {}
+impl ZkStackConfig for EcosystemContracts {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct BridgesContracts {

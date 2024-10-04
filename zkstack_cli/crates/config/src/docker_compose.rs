@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::traits::ZkToolboxConfig;
+use crate::traits::ZkStackConfig;
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct DockerComposeConfig {
@@ -34,7 +34,7 @@ pub struct DockerComposeService {
     pub other: serde_json::Value,
 }
 
-impl ZkToolboxConfig for DockerComposeConfig {}
+impl ZkStackConfig for DockerComposeConfig {}
 
 impl DockerComposeConfig {
     pub fn add_service(&mut self, name: &str, service: DockerComposeService) {

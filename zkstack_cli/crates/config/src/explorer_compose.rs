@@ -16,7 +16,7 @@ use crate::{
         EXPLORER_WORKER_DOCKER_IMAGE, LOCAL_CHAINS_PATH, LOCAL_CONFIGS_PATH,
     },
     docker_compose::{DockerComposeConfig, DockerComposeService},
-    traits::ZkToolboxConfig,
+    traits::ZkStackConfig,
     EXPLORER_BATCHES_PROCESSING_POLLING_INTERVAL,
 };
 
@@ -72,7 +72,7 @@ pub struct ExplorerBackendComposeConfig {
     pub docker_compose: DockerComposeConfig,
 }
 
-impl ZkToolboxConfig for ExplorerBackendComposeConfig {}
+impl ZkStackConfig for ExplorerBackendComposeConfig {}
 
 impl ExplorerBackendComposeConfig {
     const API_NAME: &'static str = "api";

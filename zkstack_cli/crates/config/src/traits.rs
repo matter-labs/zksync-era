@@ -9,7 +9,7 @@ use url::Url;
 use xshell::Shell;
 
 // Configs that we use only inside ZK Stack CLI, we don't have protobuf implementation for them.
-pub trait ZkToolboxConfig {}
+pub trait ZkStackConfig {}
 
 pub trait FileConfigWithDefaultName {
     const FILE_NAME: &'static str;
@@ -19,7 +19,7 @@ pub trait FileConfigWithDefaultName {
     }
 }
 
-impl<T: Serialize + ZkToolboxConfig> SaveConfig for T {
+impl<T: Serialize + ZkStackConfig> SaveConfig for T {
     fn save(&self, shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<()> {
         save_with_comment(shell, path, self, "")
     }
@@ -49,7 +49,7 @@ pub trait ReadConfig: Sized {
 
 impl<T> ReadConfig for T
 where
-    T: DeserializeOwned + Clone + ZkToolboxConfig,
+    T: DeserializeOwned + Clone + ZkStackConfig,
 {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let error_context = || format!("Failed to parse config file {:?}.", path.as_ref());

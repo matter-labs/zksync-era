@@ -16,7 +16,7 @@ use crate::{
     create_localhost_wallets,
     traits::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
-        SaveConfigWithBasePath, ZkToolboxConfig,
+        SaveConfigWithBasePath, ZkStackConfig,
     },
     ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
@@ -165,4 +165,4 @@ impl FileConfigWithDefaultName for ChainConfigInternal {
     const FILE_NAME: &'static str = CONFIG_NAME;
 }
 
-impl ZkToolboxConfig for ChainConfigInternal {}
+impl ZkStackConfig for ChainConfigInternal {}

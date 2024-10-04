@@ -10,7 +10,7 @@ use zksync_basic_types::L2ChainId;
 
 use crate::{
     consts::INITIAL_DEPLOYMENT_FILE,
-    traits::{FileConfigWithDefaultName, ZkToolboxConfig},
+    traits::{FileConfigWithDefaultName, ZkStackConfig},
     ContractsConfig, GenesisConfig, WalletsConfig,
 };
 
@@ -61,7 +61,7 @@ impl FileConfigWithDefaultName for InitialDeploymentConfig {
     const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
 }
 
-impl ZkToolboxConfig for InitialDeploymentConfig {}
+impl ZkStackConfig for InitialDeploymentConfig {}
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Erc20DeploymentConfig {
@@ -72,7 +72,7 @@ impl FileConfigWithDefaultName for Erc20DeploymentConfig {
     const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
 }
 
-impl ZkToolboxConfig for Erc20DeploymentConfig {}
+impl ZkStackConfig for Erc20DeploymentConfig {}
 
 impl Default for Erc20DeploymentConfig {
     fn default() -> Self {
@@ -115,7 +115,7 @@ pub struct DeployL1Config {
     pub tokens: TokensDeployL1Config,
 }
 
-impl ZkToolboxConfig for DeployL1Config {}
+impl ZkStackConfig for DeployL1Config {}
 
 impl DeployL1Config {
     pub fn new(
@@ -210,7 +210,7 @@ pub struct DeployErc20Config {
     pub additional_addresses_for_minting: Vec<Address>,
 }
 
-impl ZkToolboxConfig for DeployErc20Config {}
+impl ZkStackConfig for DeployErc20Config {}
 
 impl DeployErc20Config {
     pub fn new(
