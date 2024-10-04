@@ -175,7 +175,6 @@ impl SenderConfig {
     }
 
     pub const fn default_time_in_mempool_cap() -> u32 {
-        // ethereum produces blocks every 12s
         let blocks_per_hour = 3600 / 12;
         // cap it at 6h to not allow nearly infinite values when a tx is stuck for a long time
         // 1,001 ^ 1800 ~= 6, so by default we cap exponential price formula at roughly median * 6
