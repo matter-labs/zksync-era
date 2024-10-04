@@ -184,9 +184,8 @@ mod tests {
     use httpmock::prelude::*;
     use serde_json::json;
 
-    use crate::tests::*;
-
     use super::*;
+    use crate::tests::*;
 
     fn make_client(server: &MockServer, api_key: Option<String>) -> Box<dyn PriceAPIClient> {
         Box::new(CmcPriceApiClient::new(ExternalPriceApiClientConfig {
