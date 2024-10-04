@@ -1,6 +1,6 @@
 use ethabi::Token;
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
-use zksync_test_account::TestContract;
+use zksync_test_contracts::TestContract;
 use zksync_types::{utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, U256};
 use zksync_utils::u256_to_h256;
 

@@ -1,7 +1,7 @@
 use ethabi::Token;
 use zksync_eth_signer::TransactionParameters;
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
-use zksync_test_account::TestContract;
+use zksync_test_contracts::TestContract;
 use zksync_types::{
     fee::Fee, l2::L2Tx, transaction_request::TransactionRequest,
     utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Eip712Domain, Execute,

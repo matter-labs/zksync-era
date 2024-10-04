@@ -14,7 +14,7 @@ use zk_evm_1_5_0::{
     zkevm_opcode_defs::{VersionedHashHeader, VersionedHashNormalizedPreimage},
 };
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_test_account::{Account, TestContract};
+use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{Address, Execute, U256};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 use zksync_vm_interface::VmExecutionResultAndLogs;

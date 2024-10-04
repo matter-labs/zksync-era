@@ -1,4 +1,4 @@
-use zksync_test_account::TestContract;
+use zksync_test_contracts::TestContract;
 use zksync_types::{Execute, H160};
 
 use crate::{

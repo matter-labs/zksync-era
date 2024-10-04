@@ -1,5 +1,5 @@
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
-use zksync_test_account::TestContract;
+use zksync_test_contracts::TestContract;
 use zksync_types::{
     get_code_key, get_known_code_key, get_nonce_key,
     system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},

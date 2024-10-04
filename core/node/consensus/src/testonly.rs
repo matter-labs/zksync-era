@@ -40,7 +40,7 @@ use zksync_state_keeper::{
     AsyncRocksdbCache, OutputHandler, StateKeeperPersistence, TreeWritesPersistence,
     ZkSyncStateKeeper,
 };
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{
     ethabi,
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput},

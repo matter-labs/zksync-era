@@ -5,7 +5,7 @@ use once_cell::sync::OnceCell;
 use rand::Rng;
 use tokio::time::timeout;
 use zksync_eth_signer::PrivateKeySigner;
-use zksync_test_account::TestContract;
+use zksync_test_contracts::TestContract;
 use zksync_types::{Address, K256PrivateKey, L2ChainId, H256};
 use zksync_web3_decl::client::{Client, L2};
 

@@ -1,6 +1,6 @@
 [package]
-name = "zksync_test_account"
-description = "ZKsync test account for writing unit tests"
+name = "zksync_test_contracts"
+description = "ZKsync test contracts for writing unit tests"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true

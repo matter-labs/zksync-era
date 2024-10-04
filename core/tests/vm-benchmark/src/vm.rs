@@ -194,7 +194,7 @@ impl BenchmarkingVm<Legacy> {
 mod tests {
     use assert_matches::assert_matches;
     use zksync_multivm::interface::ExecutionResult;
-    use zksync_test_account::TestContract;
+    use zksync_test_contracts::TestContract;
 
     use super::*;
     use crate::{

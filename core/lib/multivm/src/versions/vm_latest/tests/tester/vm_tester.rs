@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use zksync_contracts::BaseSystemContracts;
-use zksync_test_account::TestContract;
+use zksync_test_contracts::TestContract;
 use zksync_types::{
     block::L2BlockHasher,
     fee_model::BatchFeeInput,

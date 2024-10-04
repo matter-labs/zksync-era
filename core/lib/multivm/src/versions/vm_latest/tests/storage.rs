@@ -1,5 +1,5 @@
 use ethabi::Token;
-use zksync_test_account::{Account, TestContract};
+use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{fee::Fee, Address, Execute, U256};
 
 use crate::{

@@ -7,7 +7,7 @@ use zksync_protobuf::{
     testonly::{test_encode, test_encode_random},
     ProtoRepr,
 };
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{
     web3::Bytes, Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
 };

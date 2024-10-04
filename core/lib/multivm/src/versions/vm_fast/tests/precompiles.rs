@@ -1,5 +1,5 @@
 use circuit_sequencer_api_1_5_0::geometry_config::get_geometry_config;
-use zksync_test_account::TestContract;
+use zksync_test_contracts::TestContract;
 use zksync_types::{Address, Execute};
 
 use super::tester::VmTesterBuilder;

@@ -1,6 +1,6 @@
 use zk_evm_1_5_0::aux_structures::Timestamp;
 use zksync_contracts::{deployer_contract, load_sys_contract};
-use zksync_test_account::{TestContract, TxType};
+use zksync_test_contracts::{TestContract, TxType};
 use zksync_types::{
     ethabi::{Contract, Token},
     get_code_key, get_known_code_key,

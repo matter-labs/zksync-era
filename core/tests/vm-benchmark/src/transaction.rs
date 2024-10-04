@@ -1,7 +1,7 @@
 use once_cell::sync::Lazy;
 use zksync_multivm::utils::get_max_gas_per_pubdata_byte;
-pub use zksync_test_account::LoadnextContractExecutionParams as LoadTestParams;
-use zksync_test_account::{Account, TestContract};
+pub use zksync_test_contracts::LoadnextContractExecutionParams as LoadTestParams;
+use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{
     ethabi::Token, fee::Fee, l2::L2Tx, utils::deployed_address_create, Address, Execute,
     K256PrivateKey, L2ChainId, Nonce, ProtocolVersionId, Transaction, H256, U256,

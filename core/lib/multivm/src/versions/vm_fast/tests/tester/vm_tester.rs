@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use zksync_contracts::BaseSystemContracts;
-use zksync_test_account::{Account, TestContract, TxType};
+use zksync_test_contracts::{Account, TestContract, TxType};
 use zksync_types::{
     block::L2BlockHasher, utils::deployed_address_create, AccountTreeId, Address, L1BatchNumber,
     L2BlockNumber, Nonce, StorageKey,

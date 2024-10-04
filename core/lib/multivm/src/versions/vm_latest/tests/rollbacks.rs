@@ -1,6 +1,6 @@
 use assert_matches::assert_matches;
 use ethabi::Token;
-use zksync_test_account::{LoadnextContractExecutionParams, TestContract};
+use zksync_test_contracts::{LoadnextContractExecutionParams, TestContract};
 use zksync_types::{get_nonce_key, Address, Execute, U256};
 
 use crate::{

@@ -3,7 +3,7 @@ use zk_evm_1_5_0::{
     aux_structures::{MemoryPage, Timestamp},
     zkevm_opcode_defs::{ContractCodeSha256Format, VersionedHashLen32},
 };
-use zksync_test_account::TestContract;
+use zksync_test_contracts::TestContract;
 use zksync_types::{
     get_known_code_key, web3::keccak256, Address, Execute, StorageLogWithPreviousValue, U256,
 };

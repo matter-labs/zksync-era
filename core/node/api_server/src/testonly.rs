@@ -8,7 +8,7 @@ use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
-use zksync_test_account::{LoadnextContractExecutionParams, TestContract};
+use zksync_test_contracts::{LoadnextContractExecutionParams, TestContract};
 use zksync_types::{
     api::state_override::{Bytecode, OverrideAccount, OverrideState, StateOverride},
     ethabi,

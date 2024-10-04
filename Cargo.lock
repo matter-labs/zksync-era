@@ -4235,7 +4235,7 @@ dependencies = [
  "zksync_eth_client",
  "zksync_eth_signer",
  "zksync_system_constants",
- "zksync_test_account",
+ "zksync_test_contracts",
  "zksync_types",
  "zksync_utils",
  "zksync_vlog",
@@ -8725,7 +8725,7 @@ dependencies = [
  "vise",
  "zksync_contracts",
  "zksync_multivm",
- "zksync_test_account",
+ "zksync_test_contracts",
  "zksync_types",
  "zksync_utils",
  "zksync_vlog",
@@ -10058,7 +10058,7 @@ dependencies = [
  "zksync_protobuf",
  "zksync_protobuf_build",
  "zksync_system_constants",
- "zksync_test_account",
+ "zksync_test_contracts",
  "zksync_types",
  "zksync_utils",
  "zksync_vm_interface",
@@ -10484,7 +10484,7 @@ dependencies = [
  "zksync_contracts",
  "zksync_eth_signer",
  "zksync_system_constants",
- "zksync_test_account",
+ "zksync_test_contracts",
  "zksync_types",
  "zksync_utils",
  "zksync_vm2",
@@ -10538,7 +10538,7 @@ dependencies = [
  "zksync_state",
  "zksync_state_keeper",
  "zksync_system_constants",
- "zksync_test_account",
+ "zksync_test_contracts",
  "zksync_types",
  "zksync_utils",
  "zksync_vm_executor",
@@ -10581,7 +10581,7 @@ dependencies = [
  "zksync_state",
  "zksync_state_keeper",
  "zksync_system_constants",
- "zksync_test_account",
+ "zksync_test_contracts",
  "zksync_types",
  "zksync_utils",
  "zksync_vm_executor",
@@ -11100,7 +11100,7 @@ dependencies = [
  "zksync_state",
  "zksync_storage",
  "zksync_system_constants",
- "zksync_test_account",
+ "zksync_test_contracts",
  "zksync_types",
  "zksync_utils",
  "zksync_vm_executor",
@@ -11191,7 +11191,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_test_account"
+name = "zksync_test_contracts"
 version = "0.1.0"
 dependencies = [
  "ethabi",
@@ -11375,7 +11375,7 @@ dependencies = [
  "zksync_prover_interface",
  "zksync_state",
  "zksync_storage",
- "zksync_test_account",
+ "zksync_test_contracts",
  "zksync_types",
  "zksync_utils",
  "zksync_vm_executor",

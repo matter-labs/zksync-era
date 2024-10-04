@@ -12,7 +12,7 @@ use zksync_multivm::interface::{
     SystemEnv, VmExecutionResultAndLogs,
 };
 use zksync_state::OwnedStorage;
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{
     fee::Fee, utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute,
     L1BatchNumber, L2BlockNumber, PriorityOpId, StorageLog, Transaction, L2_BASE_TOKEN_ADDRESS,

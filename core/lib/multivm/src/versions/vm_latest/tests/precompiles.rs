@@ -1,5 +1,5 @@
 use zk_evm_1_5_0::zk_evm_abstractions::precompiles::PrecompileAddress;
-use zksync_test_account::TestContract;
+use zksync_test_contracts::TestContract;
 use zksync_types::{Address, Execute};
 
 use crate::{

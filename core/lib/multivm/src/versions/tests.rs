@@ -2,7 +2,7 @@
 //! these tests are placed here.
 
 use assert_matches::assert_matches;
-use zksync_test_account::{Account, LoadnextContractExecutionParams, TestContract, TxType};
+use zksync_test_contracts::{Account, LoadnextContractExecutionParams, TestContract, TxType};
 use zksync_types::{
     block::L2BlockHasher, fee::Fee, AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, StorageKey, H256, U256,

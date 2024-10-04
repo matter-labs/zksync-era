@@ -18,7 +18,7 @@ use zksync_multivm::{
 use zksync_node_genesis::{create_genesis_l1_batch, GenesisParams};
 use zksync_node_test_utils::{recover, Snapshot};
 use zksync_state::{OwnedStorage, ReadStorageFactory, RocksdbStorageOptions};
-use zksync_test_account::{
+use zksync_test_contracts::{
     Account, DeployContractsTx, LoadnextContractExecutionParams, TestContract, TxType,
 };
 use zksync_types::{

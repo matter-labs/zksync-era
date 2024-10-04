@@ -1,7 +1,8 @@
 {
-  "name": "contracts-test-data",
+  "name": "@zksync/test-contracts",
   "version": "0.1.0",
-  "license": "MIT",
+  "private": true,
+  "license": "MIT OR Apache-2.0",
   "dependencies": {
     "@openzeppelin/contracts": "^4.8.0",
     "hardhat": "=2.22.2"

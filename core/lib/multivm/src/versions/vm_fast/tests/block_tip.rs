@@ -6,7 +6,7 @@ use zksync_contracts::load_sys_contract;
 use zksync_system_constants::{
     CONTRACT_FORCE_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
 };
-use zksync_test_account::TestContract;
+use zksync_test_contracts::TestContract;
 use zksync_types::{
     commitment::SerializeCommitment, fee_model::BatchFeeInput, get_code_key,
     l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address, Execute, H256, U256,

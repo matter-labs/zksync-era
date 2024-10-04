@@ -5,7 +5,7 @@ use ethabi::Token;
 use itertools::Itertools;
 use zk_evm_1_3_1::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_test_account::{Account, TestContract};
+use zksync_test_contracts::{Account, TestContract};
 use zksync_types::{AccountTreeId, Address, Execute, StorageKey, H256, U256};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 

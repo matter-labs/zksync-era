@@ -1,5 +1,5 @@
 use zksync_contracts::BaseSystemContracts;
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{
     block::L2BlockHasher, fee_model::BatchFeeInput, get_code_key, get_is_account_key,
     helpers::unix_timestamp_ms, utils::storage_key_for_eth_balance, Address, L1BatchNumber,

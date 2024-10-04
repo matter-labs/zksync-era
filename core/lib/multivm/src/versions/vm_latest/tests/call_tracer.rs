@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
-use zksync_test_account::TestContract;
+use zksync_test_contracts::TestContract;
 use zksync_types::{Address, Execute};
 
 use crate::{

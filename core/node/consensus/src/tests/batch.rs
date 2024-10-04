@@ -1,7 +1,7 @@
 use test_casing::{test_casing, Product};
 use zksync_concurrency::{ctx, scope};
 use zksync_consensus_roles::validator;
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::{L1BatchNumber, ProtocolVersionId};
 
 use super::{FROM_SNAPSHOT, VERSIONS};
