@@ -208,6 +208,15 @@ pub struct L2BlockHasher {
     pub txs_rolling_hash: H256,
 }
 
+/// Rolling transactions hash.
+pub fn rolling_txs_hash(txs: &[Transaction]) -> H256 {
+    let mut h = H256::zero();
+    for tx in txs {
+        h = concat_and_hash(h,tx.hash());
+    }
+    h
+}
+
 impl L2BlockHasher {
     /// At the beginning of the ZKsync, the hashes of the blocks could be calculated as the hash of their number.
     /// This method returns the hash of such L2 blocks.

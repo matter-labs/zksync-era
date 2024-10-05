@@ -1,8 +1,8 @@
 //! L1 Batch representation for sending over p2p network.
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _};
-use zksync_consensus_roles::validator;
-use zksync_dal::consensus_dal::Payload;
+use zksync_consensus_roles::{attester,validator};
+use zksync_dal::consensus_dal::{BatchProof,BlockDigest,Payload};
 use zksync_l1_contract_interface::i_executor;
 use zksync_metadata_calculator::api_server::{TreeApiClient, TreeEntryWithProof};
 use zksync_system_constants as constants;
@@ -16,259 +16,153 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::storage::ConnectionPool;
 
-/// Proof proving what is the last block of a batch.
-/// Contains the hash and the number of the last block.
-pub(crate) struct BatchWitness {
-    info: i_executor::structures::StoredBatchInfo,
-    protocol_version: ProtocolVersionId,
-
-    current_l2_block_info: TreeEntryWithProof,
-    tx_rolling_hash: TreeEntryWithProof,
-    l2_block_hash_entry: TreeEntryWithProof,
+/// Address of the SystemContext contract.
+fn system_context_addr() -> AccountTreeId {
+    AccountTreeId::new(constants::SYSTEM_CONTEXT_ADDRESS)
 }
 
-impl LastBlockProof {
-    /// Address of the SystemContext contract.
-    fn system_context_addr() -> AccountTreeId {
-        AccountTreeId::new(constants::SYSTEM_CONTEXT_ADDRESS)
+/// Storage key of the `SystemContext.current_l2_block_info` field.
+fn current_l2_block_info_key() -> U256 {
+    StorageKey::new(
+        system_context_addr(),
+        constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
+    )
+    .hashed_key_u256()
+}
+
+/// Storage key of the `SystemContext.tx_rolling_hash` field.
+fn tx_rolling_hash_key() -> U256 {
+    StorageKey::new(
+        system_context_addr(),
+        constants::SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
+    )
+    .hashed_key_u256()
+}
+
+/// Storage key of the entry of the `SystemContext.l2BlockHash[]` array, corresponding to l2
+/// block with number i.
+fn l2_block_hash_entry_key(i: L2BlockNumber) -> U256 {
+    let key = h256_to_u256(constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION)
+        + U256::from(i.0) % U256::from(constants::SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES);
+    StorageKey::new(system_context_addr(), u256_to_h256(key)).hashed_key_u256()
+}
+
+#[derive(Debug,PartialEq)]
+struct VerifiedBatchProof(BatchProof);
+
+impl std::ops::Deref for VerifiedBatchProof {
+    type Target = BatchProof;
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+impl VerifiedBatchProof {
+    pub fn new(proof: BatchProof, protocol_version: ProtocolVersionId) -> anyhow::Result<Self> {
+        anyhow::ensure!(protocol_version >= ProtocolVersionId::Version13, "protocol version not supported");
+        anyhow::ensure!(!proof.blocks.is_empty(), "empty batches not supported");
+        
+        /// Compute the hash of the last block, as implied by the storage proof.
+        let (last_block_number, last_block_timestamp) =
+            unpack_block_info(self.current_l2_block_info.value.as_bytes().into());
+        let last_block_number = u32::try_from(last_block_number).context("overflow")?;
+        let prev_block_number = last_block_number.checked_sub(1).context("overflow")? 
+        let want = L2BlockHasher {
+            number: L2BlockNumber(prev),
+            timestamp: last_block_timestamp,
+            prev_l2_block_hash: self.l2_block_hash_entry.value,
+            txs_rolling_hash: self.tx_rolling_hash.value,
+        }.finalize(protocol_version);
+
+        /// Compute the hash of the last block, implied by the digests.
+        let block_count = u32::try_from(proof.blocks.len()).context("overflow")?;
+        let first_block = last_block_number.checked_sub(block_count-1).context("overflow")?;
+        let mut got = proof.initial_hash;
+        for i in 0..block_count {
+            let b = &proof.blocks[i.into()];
+            got = L2BlockHasher {
+                number: L2BlockNumber(first_block+i),
+                timestamp: b.timestamp,
+                prev_l2_block_hash: got,
+                txs_rolling_hash: b.txs_rolling_hash,
+            }.finalize(protocol_version);
+        }
+
+        /// Check that they match.
+        anyhow::ensure!(got == want, "digests do not match proof");
+
+        // Verify merkle paths.
+        proof.current_l2_block_info
+            .verify(current_l2_block_info_key(), proof.info.batch_hash)
+            .context("invalid merkle path for current_l2_block_info")?;
+        proof.tx_rolling_hash
+            .verify(tx_rolling_hash_key(), proof.info.batch_hash)
+            .context("invalid merkle path for tx_rolling_hash")?;
+        proof.l2_block_hash_entry
+            .verify(l2_block_hash_entry_key(prev_block_number), proof.info.batch_hash)
+            .context("invalid merkle path for l2_block_hash entry")?;
+
+        Ok(Self(proof))
     }
 
-    /// Storage key of the `SystemContext.current_l2_block_info` field.
-    fn current_l2_block_info_key() -> U256 {
-        StorageKey::new(
-            Self::system_context_addr(),
-            constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
-        )
-        .hashed_key_u256()
+    /// Range of blocks of the batch.
+    pub fn block_range(&self) -> std::ops::Range<validator::BlockNumber> {
+        let end = unpack_block_info(h256_to_u256(self.current_l2_block_info.value)).0;
+        let start = end - (self.blocks.len()-1) as u64;
+        validator::BlockNumber(start)..validator::BlockNumber(end)
     }
 
-    /// Storage key of the `SystemContext.tx_rolling_hash` field.
-    fn tx_rolling_hash_key() -> U256 {
-        StorageKey::new(
-            Self::system_context_addr(),
-            constants::SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION,
-        )
-        .hashed_key_u256()
-    }
-
-    /// Storage key of the entry of the `SystemContext.l2BlockHash[]` array, corresponding to l2
-    /// block with number i.
-    fn l2_block_hash_entry_key(i: L2BlockNumber) -> U256 {
-        let key = h256_to_u256(constants::SYSTEM_CONTEXT_CURRENT_L2_BLOCK_HASHES_POSITION)
-            + U256::from(i.0) % U256::from(constants::SYSTEM_CONTEXT_STORED_L2_BLOCK_HASHES);
-        StorageKey::new(Self::system_context_addr(), u256_to_h256(key)).hashed_key_u256()
-    }
-
-    async fn number(&self) -> attester::BatchNumber {
-        attester::BatchNumber(self.info.batch_number)
+    /// Block digest corresponding the block number.
+    pub fn digest(&self, n: validator::BlockNumber) -> Option<&BlockDigest> {
+        let r = self.block_range();
+        if !r.contains(n) { return None }
+        self.blocks.get((n-r.start.0) as usize)
     }
 
     /// Loads a `LastBlockProof` from storage.
-    async fn load(
+    pub async fn load(
         ctx: &ctx::Ctx,
-        n: L1BatchNumber,
+        n: attester::BatchNumber,
         pool: &ConnectionPool,
         tree: &dyn TreeApiClient,
-    ) -> ctx::Result<Self> {
+    ) -> ctx::Result<BatchProof> {
         let mut conn = pool.connection(ctx).await.wrap("pool.connection()")?;
-        let batch = conn
-            .batch(ctx, n)
+        let info = conn
+            .batch_info(ctx, n)
             .await
-            .wrap("batch()")?
+            .wrap("batch_info()")?
             .context("batch not in storage")?;
-
-        let proofs = tree
+        let (first_block,last_block) = conn.get_l2_block_range_of_l1_batch(n).await
+            .context("get_l2_block_range_of_l1_batch")?.context("batch is missing")?;
+        let payloads = conn.payloads(ctx, first_block..last_block+1)
+            .await
+            .wrap("payloads()")?;
+        drop(conn);    
+   
+        /// Fetch storage proofs.
+        let prev_block = L2BlockNumber(last_block.0.checked_sub(1).context("overflow")?.try_into().context("overflow")?);
+        let [
+            current_l2_block_info,
+            tx_rolling_hash,
+            l2_block_hash_entry,
+        ] : [TreeEntryWithProof; 3] = tree
             .get_proofs(
                 n,
                 vec![
-                    Self::current_l2_block_info_key(),
-                    Self::tx_rolling_hash_key(),
+                    current_l2_block_info_key(),
+                    tx_rolling_hash_key(),
+                    l2_block_hash_entry_key(prev_block),
                 ],
             )
             .await
             .context("get_proofs()")?;
-        if proofs.len() != 2 {
-            return Err(anyhow::format_err!("proofs.len()!=2").into());
-        }
-        let current_l2_block_info = proofs[0].clone();
-        let tx_rolling_hash = proofs[1].clone();
-        let (block_number, _) = unpack_block_info(current_l2_block_info.value.as_bytes().into());
-        let prev = L2BlockNumber(
-            block_number
-                .checked_sub(1)
-                .context("L2BlockNumber underflow")?
-                .try_into()
-                .context("L2BlockNumber overflow")?,
-        );
-        let proofs = tree
-            .get_proofs(n, vec![Self::l2_block_hash_entry_key(prev)])
-            .await
-            .context("get_proofs()")?;
-        if proofs.len() != 1 {
-            return Err(anyhow::format_err!("proofs.len()!=1").into());
-        }
-        let l2_block_hash_entry = proofs[0].clone();
-        Ok(Self {
-            info: i_executor::structures::StoredBatchInfo::from(&batch),
-            protocol_version: batch
-                .header
-                .protocol_version
-                .context("missing protocol_version")?,
-
+            .try_into()
+            .context("couldn't fetch storage proofs")?;
+        
+        Ok(Self::new(BatchProof {
+            info,
             current_l2_block_info,
             tx_rolling_hash,
             l2_block_hash_entry,
-        })
-    }
-
-    /// Verifies the proof against the commit and returns the hash
-    /// of the last L2 block.
-    pub(crate) fn verify(&self, comm: &LastBlockCommit) -> anyhow::Result<(L2BlockNumber, H256)> {
-        // Verify info.
-        anyhow::ensure!(comm.info == self.info.hash());
-
-        // Check the protocol version.
-        anyhow::ensure!(
-            self.protocol_version >= ProtocolVersionId::Version13,
-            "unsupported protocol version"
-        );
-
-        let (block_number, block_timestamp) =
-            unpack_block_info(self.current_l2_block_info.value.as_bytes().into());
-        let prev = L2BlockNumber(
-            block_number
-                .checked_sub(1)
-                .context("L2BlockNumber underflow")?
-                .try_into()
-                .context("L2BlockNumber overflow")?,
-        );
-
-        // Verify merkle paths.
-        self.current_l2_block_info
-            .verify(Self::current_l2_block_info_key(), self.info.batch_hash)
-            .context("invalid merkle path for current_l2_block_info")?;
-        self.tx_rolling_hash
-            .verify(Self::tx_rolling_hash_key(), self.info.batch_hash)
-            .context("invalid merkle path for tx_rolling_hash")?;
-        self.l2_block_hash_entry
-            .verify(Self::l2_block_hash_entry_key(prev), self.info.batch_hash)
-            .context("invalid merkle path for l2_block_hash entry")?;
-
-        let block_number = L2BlockNumber(block_number.try_into().context("block_number overflow")?);
-        // Derive hash of the last block
-        Ok((
-            block_number,
-            L2BlockHasher::hash(
-                block_number,
-                block_timestamp,
-                self.l2_block_hash_entry.value,
-                self.tx_rolling_hash.value,
-                self.protocol_version,
-            ),
-        ))
-    }
-
-    /// Last L2 block of the batch.
-    pub fn last_block(&self) -> validator::BlockNumber {
-        let (n, _) = unpack_block_info(self.current_l2_block_info.value.as_bytes().into());
-        validator::BlockNumber(n)
-    }
-}
-
-fn rolling_txs_hash(txs: &[Transaction]) -> H256 {
-    let h = H256::default();
-    for tx in txs {
-        h = concat_and_hash(h,tx.hash());
-    }
-    h
-}
-
-/// Commitment to an L1 batch.
-pub(crate) struct L1BatchCommit {
-    pub(crate) number: attester::BatchNumber,
-    pub(crate) this_batch: LastBlockCommit,
-    pub(crate) prev_batch: LastBlockCommit,
-}
-
-/// Proof that can be verified against `L1BatchCommit`.
-pub struct L1BatchProof {
-    /// rolling tx hash for each block in the batch.
-    pub(crate) rolling_txs_hashes: Vec<H256>,
-    pub(crate) this_batch: LastBlockProof,
-    pub(crate) prev_batch: LastBlockProof,
-}
-
-impl L1BatchProof {
-    /// Loads an `L1BatchWithProof` from storage.
-    pub(crate) async fn build(
-        ctx: &ctx::Ctx,
-        number: L1BatchNumber,
-        pool: &ConnectionPool,
-        tree: &dyn TreeApiClient,
-    ) -> ctx::Result<Self> {
-        let prev_batch = LastBlockProof::load(ctx, number - 1, pool, tree)
-            .await
-            .with_wrap(|| format!("LastBlockProof::make({})", number - 1))?;
-        let this_batch = LastBlockProof::load(ctx, number, pool, tree)
-            .await
-            .with_wrap(|| format!("LastBlockProof::make({number})"))?;
-        let mut conn = pool.connection(ctx).await.wrap("connection()")?;
-        let payloads = conn
-                .payloads(
-                    ctx,
-                    std::ops::Range {
-                        start: prev_batch.last_block() + 1,
-                        end: this_batch.last_block() + 1,
-                    },
-                )
-                .await
-                .wrap("payloads()")?;
-        Ok(Self {
-            rolling_txs_hashes: payloads.map(|p| rolling_txs_hash(&p.transactions)).collect(), 
-            prev_batch,
-            this_batch,
-        })
-    }
-
-    /// Verifies the L1Batch and witness against the commitment.
-    /// WARNING: the following fields of the payload are not currently verified:
-    /// * `l1_gas_price`
-    /// * `l2_fair_gas_price`
-    /// * `fair_pubdata_price`
-    /// * `virtual_blocks`
-    /// * `operator_address`
-    /// * `protocol_version` (present both in payload and witness, but neither has a commitment)
-    pub(crate) fn verify(&self, comm: &L1BatchCommit) -> anyhow::Result<()> {
-        let (last_number, last_hash) = self.this_batch.verify(&comm.this_batch)?;
-        let (mut prev_number, mut prev_hash) = self.prev_batch.verify(&comm.prev_batch)?;
-        anyhow::ensure!(
-            self.prev_batch.number() == comm.number.prev().context("batch 0 unsupported")?
-        );
-        anyhow::ensure!(self.this_batch.number() == comm.number);
-        for (i, b) in self.blocks.iter().enumerate() {
-            anyhow::ensure!(b.l1_batch_number == comm.number);
-            anyhow::ensure!(b.protocol_version == self.this_batch.protocol_version);
-            anyhow::ensure!(b.last_in_batch == (i + 1 == self.blocks.len()));
-            prev_number += 1;
-            let mut hasher = L2BlockHasher {
-                number: prev_number,
-                timestamp: b.timestamp, prev_hash);
-            for t in &b.transactions {
-                // Reconstruct transaction by converting it back and forth to `abi::Transaction`.
-                // This allows us to verify that the transaction actually matches the transaction
-                // hash.
-                // TODO: make consensus payload contain `abi::Transaction` instead.
-                // TODO: currently the payload doesn't contain the block number, which is
-                // annoying. Consider adding it to payload.
-                let t2: Transaction = abi::Transaction::try_from(t.clone())?.try_into()?;
-                anyhow::ensure!(t == &t2);
-                hasher.push_tx_hash(t.hash());
-            }
-            prev_hash = hasher.finalize(self.this_batch.protocol_version);
-            anyhow::ensure!(prev_hash == b.hash);
-        }
-        anyhow::ensure!(prev_hash == last_hash);
-        anyhow::ensure!(prev_number == last_number);
-        Ok(())
+            blocks: payloads.iter().map(BlockDigest::from_payload).collect(),
+        })?)
     }
 }

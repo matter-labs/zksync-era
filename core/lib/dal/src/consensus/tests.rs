@@ -4,15 +4,16 @@ use rand::Rng;
 use zksync_concurrency::ctx;
 use zksync_protobuf::{
     repr::{decode, encode},
-    testonly::{test_encode, test_encode_random},
+    testonly::{test_encode},
     ProtoRepr,
 };
 use zksync_test_account::Account;
 use zksync_types::{
     web3::Bytes, Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
 };
+use zksync_protobuf::testonly::{test_encode_all_formats, FmtConv};
 
-use super::{proto, AttestationStatus, Payload};
+use super::*;
 use crate::tests::mock_protocol_upgrade_transaction;
 
 fn execute(rng: &mut impl Rng) -> Execute {
@@ -59,7 +60,11 @@ fn payload(rng: &mut impl Rng, protocol_version: ProtocolVersionId) -> Payload {
 fn test_encoding() {
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
-    test_encode_random::<AttestationStatus>(rng);
+    test_encode_all_formats::<FmtConv<AttestationStatus>>(rng);
+    test_encode_all_formats::<FmtConv<GlobalConfig>>(rng);
+    test_encode_all_formats::<FmtConv<BatchProof>>(rng);
+    test_encode_all_formats::<FmtConv<BlockDigest>>(rng);
+    test_encode_all_formats::<FmtConv<StorageProof>>(rng);
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l1_transaction(rng));
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l2_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l1_transaction(rng));

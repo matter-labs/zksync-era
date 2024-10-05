@@ -10,7 +10,7 @@ use zksync_types::{L1BatchNumber,L2BlockNumber};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_consensus_crypto::keccak256::Keccak256;
 
-pub use crate::consensus::{proto, BatchProof, BatchCommit, AttestationStatus, GlobalConfig, Payload};
+pub use crate::consensus::{proto, BatchProof, BlockDigest, BlockMetadata, AttestationStatus, GlobalConfig, Payload};
 use crate::{Core, CoreDal};
 
 pub fn batch_hash(info: &StoredBatchInfo) -> attester::BatchHash {
@@ -560,27 +560,81 @@ impl ConsensusDal<'_, '_> {
         ))
     }
 
-    /// Wrapper for `consensus_dal().batch_hash()`.
-    pub async fn batch(&mut self, number: attester::BatchNumber) -> anyhow::Result<Option<StoredBatchInfo>> {
+    /// Fetches the L1 batch info for the given number.
+    pub async fn batch_info(&mut self, number: attester::BatchNumber) -> anyhow::Result<Option<StoredBatchInfo>> {
         let n = L1BatchNumber(number.0.try_into().context("overflow")?);
         Ok(self.storage.blocks_dal().get_l1_batch_metadata(n).await.context("get_l1_batch_metadata()")?.map(|x|StoredBatchInfo::from(&x)))
     }
-  
+ 
+    /// Inserts an L1 batch proof.
+    /// Doesn't verify correctness of the proof.
     pub async fn insert_batch_proof(&mut self, proof: &BatchProof) -> anyhow::Result<()> {
-        // TODO:
+        let info = self.batch_info(proof.batch_number()).await.context("batch()")?.context("batch is missing")?;
+        anyhow::ensure!(proof.info == info);
+        sqlx::query!(
+            r#"
+            INSERT INTO
+            l1_batches_proofs (l1_batch_number, proof)
+            VALUES
+            ($1, $2)
+            "#,
+            i64::try_from(proof.batch_number().0).context("overflow")?,
+            zksync_protobuf::serde::Serialize
+                .proto_fmt(proof, serde_json::value::Serializer)
+                .unwrap(),
+        )
+        .instrument("insert_batch_proof")
+        .report_latency()
+        .execute(self.storage)
+        .await?;
+        Ok(())
     }
 
+    /// Fetches an L1 batch proof.
     pub async fn batch_proof(&mut self, number: attester::BatchNumber) -> anyhow::Result<Option<BatchProof>> {
         let n = L1BatchNumber(number.0.try_into().context("overflow")?);
-        // TODO:
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                proof
+            FROM
+                l1_batches_proofs
+            WHERE
+                l1_batch_number = $1
+            "#,
+            i64::try_from(n.0).context("overflow")?,
+        ).instrument("batch_proof")
+        .report_latency()
+        .fetch_optional(self.storage)
+        .await? else {
+            return Ok(None);
+        };
+        Ok(Some(
+            zksync_protobuf::serde::Deserialize {
+                deny_unknown_fields: true,
+            }
+            .proto_fmt(row.proof)?,
+        ))
     }
 
-    pub async fn batch_commit(&mut self, number: attester::BatchNumber) -> anyhow::Result<Option<BatchCommit>> {
-        let n = L1BatchNumber(number.0.try_into().context("overflow")?);
-        let Some(batch) = self.batch().await.context("batch()")? else { return Ok(None) };
-        // TODO:  
-        Ok(Some(BatchCommit {
-
+    pub async fn block_metadata(&mut self, number: validator::BlockNumber) -> anyhow::Result<Option<BlockMetadata>> {
+        let n = L2BlockNumber(number.0.try_into().context("overflow")?);
+        let blocks = self
+            .storage
+            .sync_dal()
+            .sync_blocks_inner(n..n+1)
+            .await?;
+        if blocks.is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(BlockMetadata {
+            batch_number: attester::BatchNumber(blocks[0].l1_batch_number.0.try_into().context("overflow")?),
+            protocol_version: blocks[0].protocol_version,
+            l1_gas_price: blocks[0].l1_gas_price,
+            l2_fair_gas_price: blocks[0].l2_fair_gas_price,
+            fair_pubdata_price: blocks[0].fair_pubdata_price,
+            virtual_blocks: blocks[0].virtual_blocks,
+            operator_address: blocks[0].fee_account_address,
         }))
     }
 
@@ -602,7 +656,7 @@ impl ConsensusDal<'_, '_> {
             .await
             .context("attester_committee()")?
             .context("attester committee is missing")?;
-        let hash = batch_hash(&self.batch(cert.message.number).await.context("batch()")?.context("batch is missing")?);
+        let hash = batch_hash(&self.batch_info(cert.message.number).await.context("batch()")?.context("batch is missing")?);
         anyhow::ensure!(cert.message.hash==hash, "batch hash mismatch, got {:?}, want {hash:?}", cert.message.hash);
         cert.verify(cfg.genesis.hash(), &committee)
             .context("cert.verify()")?;

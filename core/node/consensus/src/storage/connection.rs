@@ -335,19 +335,6 @@ impl<'a> Connection<'a> {
         }.into()))
     }
 
-    /// Wrapper for `blocks_dal().get_sealed_l1_batch_number()`.
-    #[tracing::instrument(skip_all)]
-    pub async fn get_last_batch_number(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<attester::BatchNumber>> {
-        Ok(ctx
-            .wait(self.0.blocks_dal().get_sealed_l1_batch_number())
-            .await?
-            .context("get_sealed_l1_batch_number()")?
-            .map(|nr| attester::BatchNumber(nr.0 as u64)))
-    }
-
     /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.
     pub async fn get_l2_block_range_of_l1_batch(
         &mut self,
@@ -366,46 +353,6 @@ impl<'a> Connection<'a> {
             let max = validator::BlockNumber(max.0 as u64);
             (min, max)
         }))
-    }
-
-    /// Construct the [storage::BatchStoreState] which contains the earliest batch and the last available [attester::SyncBatch].
-    #[tracing::instrument(skip_all)]
-    pub async fn batches_range(&mut self, ctx: &ctx::Ctx) -> ctx::Result<std::ops::Range<attester::BatchNumber>> {
-        let first = self
-            .0
-            .blocks_dal()
-            .get_earliest_l1_batch_number()
-            .await
-            .context("get_earliest_l1_batch_number()")?;
-
-        let first = if first.is_some() {
-            first
-        } else {
-            self.0
-                .snapshot_recovery_dal()
-                .get_applied_snapshot_status()
-                .await
-                .context("get_earliest_l1_batch_number()")?
-                .map(|s| s.l1_batch_number)
-        };
-
-        // TODO: In the future when we start filling in the `SyncBatch::proof` field,
-        // we can only run `get_batch` expecting `Some` result on numbers where the
-        // L1 state root hash is already available, so that we can produce some
-        // Merkle proof that the rolling hash of the L2 blocks in the batch has
-        // been included in the L1 state tree. At that point we probably can't
-        // call `get_last_batch_number` here, but something that indicates that
-        // the hashes/commitments on the L1 batch are ready and the thing has
-        // been included in L1; that potentially requires an API client as well.
-        let last = self
-            .get_last_batch_number(ctx)
-            .await
-            .context("get_last_batch_number()")?;
-
-        let first = first
-            .map(|n| attester::BatchNumber(n.0 as u64))
-            .unwrap_or(attester::BatchNumber(0));
-        Ok(first..last.map_or(first,|last|last+1))
     }
 
     /// Wrapper for `consensus_dal().attestation_status()`.
