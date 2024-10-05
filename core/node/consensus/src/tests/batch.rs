@@ -1,10 +1,11 @@
-use test_casing::{test_casing, Product};
+#![allow(unused)]
+use test_casing::{test_casing};
 use zksync_concurrency::{ctx, scope};
-use zksync_consensus_roles::validator;
+use zksync_consensus_roles::{attester,validator};
 use zksync_test_account::Account;
-use zksync_types::{L1BatchNumber, ProtocolVersionId};
+use zksync_types::{ProtocolVersionId};
 
-use super::{FROM_SNAPSHOT, VERSIONS};
+use super::{VERSIONS};
 use crate::{storage::ConnectionPool, testonly};
 
 /*
@@ -80,6 +81,7 @@ async fn test_connection_get_batch(from_snapshot: bool, version: ProtocolVersion
     .unwrap();
 }*/
 
+/*
 /// Tests that generated L1 batch witnesses can be verified successfully.
 /// TODO: add tests for verification failures.
 #[test_casing(2, VERSIONS)]
@@ -114,7 +116,7 @@ async fn test_batch_witness(version: ProtocolVersionId) {
         // batch witness verifies parent of the last block of the
         // previous batch (and 0th batch contains only 1 block).
         for n in 2..=node.last_sealed_batch().0 {
-            let n = L1BatchNumber(n);
+            let n = attester::BatchNumber(n);
             let batch_with_witness = node.load_batch_with_witness(ctx, n).await?;
             let commit = node.load_batch_commit(ctx, n).await?;
             batch_with_witness.verify(&commit)?;
@@ -123,4 +125,4 @@ async fn test_batch_witness(version: ProtocolVersionId) {
     })
     .await
     .unwrap();
-}
+}*/

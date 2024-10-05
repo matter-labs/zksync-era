@@ -9,7 +9,7 @@ use zksync_consensus_roles::{
 };
 use zksync_dal::consensus_dal;
 use zksync_test_account::Account;
-use zksync_types::{L1BatchNumber, ProtocolVersionId};
+use zksync_types::{ProtocolVersionId};
 use zksync_web3_decl::namespaces::EnNamespaceClient as _;
 
 use super::VERSIONS;
@@ -34,7 +34,7 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
 
         // Setup nontrivial genesis.
-        while sk.last_sealed_batch() < L1BatchNumber(3) {
+        while sk.last_sealed_batch() < attester::BatchNumber(3) {
             sk.push_random_blocks(rng, account, 10).await;
         }
         let mut setup = SetupSpec::new(rng, 3);
@@ -84,11 +84,11 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
         {
             let mut conn = pool.connection(ctx).await?;
             let number = status.next_batch_to_attest;
-            let hash = conn.batch_hash(ctx, number).await?.unwrap();
+            let info = conn.batch_info(ctx, number).await?.unwrap();
             let gcfg = conn.global_config(ctx).await?.unwrap();
             let m = attester::Batch {
                 number,
-                hash,
+                hash: consensus_dal::batch_hash(&info),
                 genesis: gcfg.genesis.hash(),
             };
             let mut sigs = attester::MultiSig::default();

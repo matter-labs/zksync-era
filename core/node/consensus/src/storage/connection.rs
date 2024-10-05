@@ -1,18 +1,17 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
-use zksync_consensus_crypto::keccak256::Keccak256;
 use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
 use zksync_consensus_storage as storage;
-use zksync_dal::{consensus_dal, consensus_dal::Payload, Core, CoreDal, DalError};
+use zksync_dal::{consensus_dal::{AttestationStatus, GlobalConfig, batch_hash, Payload}, Core, CoreDal, DalError};
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
 use zksync_types::{
-    commitment::L1BatchWithMetadata, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber,
+    fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber,
 };
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
-use super::{InsertCertificateError, PayloadQueue};
+use super::{PayloadQueue};
 use crate::config;
 
 /// Context-aware `zksync_dal::ConnectionPool<Core>` wrapper.
@@ -61,15 +60,15 @@ impl ConnectionPool {
     ) -> ctx::Result<attester::BatchHash> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(500);
         loop {
-            if let Some(hash) = self
+            if let Some(info) = self
                 .connection(ctx)
                 .await
                 .wrap("connection()")?
-                .batch_hash(ctx, number)
+                .batch_info(ctx, number)
                 .await
-                .with_wrap(|| format!("batch_hash({number})"))?
+                .with_wrap(|| format!("batch_info({number})"))?
             {
-                return Ok(hash);
+                return Ok(batch_hash(&info));
             }
             ctx.sleep(POLL_INTERVAL).await?;
         }
@@ -109,6 +108,10 @@ impl<'a> Connection<'a> {
             .map_err(DalError::generalize)?)
     }
 
+    pub async fn batch_info(&mut self, ctx: &ctx::Ctx, n: attester::BatchNumber) -> ctx::Result<Option<StoredBatchInfo>> {
+        Ok(ctx.wait(self.0.consensus_dal().batch_info(n)).await??)
+    }
+
     /// Wrapper for `consensus_dal().block_payloads()`.
     pub async fn payloads(
         &mut self,
@@ -138,7 +141,7 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         cert: &validator::CommitQC,
-    ) -> Result<(), InsertCertificateError> {
+    ) -> Result<(), super::InsertCertificateError> {
         Ok(ctx
             .wait(self.0.consensus_dal().insert_block_certificate(cert))
             .await??)
@@ -151,20 +154,10 @@ impl<'a> Connection<'a> {
         &mut self,
         ctx: &ctx::Ctx,
         cert: &attester::BatchQC,
-    ) -> Result<(), InsertCertificateError> {
-        use consensus_dal::InsertCertificateError as E;
-        let want_hash = self
-            .batch_hash(ctx, cert.message.number)
-            .await
-            .wrap("batch_hash()")?
-            .ok_or(E::MissingPayload)?;
-        if want_hash != cert.message.hash {
-            return Err(E::PayloadMismatch.into());
-        }
+    ) -> Result<(), super::InsertCertificateError> {
         Ok(ctx
             .wait(self.0.consensus_dal().insert_batch_certificate(cert))
-            .await?
-            .map_err(E::Other)?)
+            .await??)
     }
 
     /// Wrapper for `consensus_dal().upsert_attester_committee()`.
@@ -203,17 +196,6 @@ impl<'a> Connection<'a> {
             .context("sqlx")?)
     }
 
-    /// Wrapper for `consensus_dal().batch()`.
-    pub async fn batch(
-        &mut self,
-        ctx: &ctx::Ctx,
-        number: L1BatchNumber,
-    ) -> ctx::Result<Option<StoredBatchInfo>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().batch(number))
-            .await??)
-    }
-
     /// Wrapper for `FetcherCursor::new()`.
     pub async fn new_payload_queue(
         &mut self,
@@ -232,7 +214,7 @@ impl<'a> Connection<'a> {
     pub async fn global_config(
         &mut self,
         ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<consensus_dal::GlobalConfig>> {
+    ) -> ctx::Result<Option<GlobalConfig>> {
         Ok(ctx.wait(self.0.consensus_dal().global_config()).await??)
     }
 
@@ -240,7 +222,7 @@ impl<'a> Connection<'a> {
     pub async fn try_update_global_config(
         &mut self,
         ctx: &ctx::Ctx,
-        cfg: &consensus_dal::GlobalConfig,
+        cfg: &GlobalConfig,
     ) -> ctx::Result<()> {
         Ok(ctx
             .wait(self.0.consensus_dal().try_update_global_config(cfg))
@@ -285,7 +267,7 @@ impl<'a> Connection<'a> {
         }
 
         tracing::info!("Performing a hard fork of consensus.");
-        let new = consensus_dal::GlobalConfig {
+        let new = GlobalConfig {
             genesis: validator::GenesisRaw {
                 chain_id: spec.chain_id,
                 fork_number: old.as_ref().map_or(validator::ForkNumber(0), |old| {
@@ -359,7 +341,7 @@ impl<'a> Connection<'a> {
     pub async fn attestation_status(
         &mut self,
         ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<consensus_dal::AttestationStatus>> {
+    ) -> ctx::Result<Option<AttestationStatus>> {
         Ok(ctx
             .wait(self.0.consensus_dal().attestation_status())
             .await?

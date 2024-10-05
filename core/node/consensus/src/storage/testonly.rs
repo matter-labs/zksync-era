@@ -7,9 +7,10 @@ use zksync_dal::CoreDal as _;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{recover, snapshot, Snapshot};
 use zksync_types::{
-    commitment::L1BatchWithMetadata, protocol_version::ProtocolSemanticVersion,
+    protocol_version::ProtocolSemanticVersion,
     system_contracts::get_system_smart_contracts, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
 };
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 
 use super::{Connection, ConnectionPool};
 use crate::registry;
@@ -106,19 +107,19 @@ impl ConnectionPool {
     pub async fn wait_for_batch(
         &self,
         ctx: &ctx::Ctx,
-        number: L1BatchNumber,
-    ) -> ctx::Result<L1BatchWithMetadata> {
+        number: attester::BatchNumber,
+    ) -> ctx::Result<StoredBatchInfo> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
         loop {
-            if let Some(payload) = self
+            if let Some(info) = self
                 .connection(ctx)
                 .await
                 .wrap("connection()")?
-                .batch(ctx, number)
+                .batch_info(ctx, number)
                 .await
-                .wrap("batch()")?
+                .wrap("batch_info()")?
             {
-                return Ok(payload);
+                return Ok(info);
             }
             ctx.sleep(POLL_INTERVAL).await?;
         }
@@ -229,19 +230,11 @@ impl ConnectionPool {
         let registry = registry::Registry::new(cfg.genesis.clone(), self.clone()).await;
         for i in first.0..want_last.0 {
             let i = attester::BatchNumber(i);
-            let hash = conn
-                .batch_hash(ctx, i)
-                .await
-                .wrap("batch_hash()")?
-                .context("hash missing")?;
             let cert = conn
                 .batch_certificate(ctx, i)
                 .await
                 .wrap("batch_certificate")?
                 .context("cert missing")?;
-            if cert.message.hash != hash {
-                return Err(anyhow::format_err!("cert[{i:?}]: hash mismatch").into());
-            }
             let committee = registry
                 .attester_committee_for(ctx, registry_addr, i)
                 .await
@@ -256,8 +249,9 @@ impl ConnectionPool {
     pub async fn prune_batches(
         &self,
         ctx: &ctx::Ctx,
-        last_batch: L1BatchNumber,
+        last_batch: attester::BatchNumber,
     ) -> ctx::Result<()> {
+        let last_batch = L1BatchNumber(last_batch.0.try_into().context("oveflow")?);
         let mut conn = self.connection(ctx).await.context("connection()")?;
         let (_, last_block) = ctx
             .wait(

@@ -10,7 +10,7 @@ use zksync_types::{L1BatchNumber,L2BlockNumber};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_consensus_crypto::keccak256::Keccak256;
 
-pub use crate::consensus::{proto, BatchProof, BlockDigest, BlockMetadata, AttestationStatus, GlobalConfig, Payload};
+pub use crate::consensus::{proto, StorageProof, BatchProof, BlockDigest, BlockMetadata, AttestationStatus, GlobalConfig, Payload};
 use crate::{Core, CoreDal};
 
 pub fn batch_hash(info: &StoredBatchInfo) -> attester::BatchHash {
@@ -645,7 +645,7 @@ impl ConsensusDal<'_, '_> {
     pub async fn insert_batch_certificate(
         &mut self,
         cert: &attester::BatchQC,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(),InsertCertificateError> {
         let cfg = self
             .global_config()
             .await
@@ -657,7 +657,9 @@ impl ConsensusDal<'_, '_> {
             .context("attester_committee()")?
             .context("attester committee is missing")?;
         let hash = batch_hash(&self.batch_info(cert.message.number).await.context("batch()")?.context("batch is missing")?);
-        anyhow::ensure!(cert.message.hash==hash, "batch hash mismatch, got {:?}, want {hash:?}", cert.message.hash);
+        if cert.message.hash!=hash {
+            return Err(InsertCertificateError::PayloadMismatch);
+        }
         cert.verify(cfg.genesis.hash(), &committee)
             .context("cert.verify()")?;
         sqlx::query!(

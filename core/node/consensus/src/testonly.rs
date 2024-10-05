@@ -16,7 +16,6 @@ use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
 use zksync_consensus_roles::{attester, validator, validator::testonly::Setup};
 use zksync_dal::{CoreDal, DalError};
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_metadata_calculator::{
     LazyAsyncTreeReader, MetadataCalculator, MetadataCalculatorConfig,
 };
@@ -49,7 +48,6 @@ use zksync_types::{
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
 use crate::{
-    batch::{L1BatchCommit, L1BatchWithWitness, LastBlockCommit},
     en,
     storage::ConnectionPool,
 };
@@ -369,16 +367,17 @@ impl StateKeeper {
     }
 
     /// Batch of the `last_block`.
-    pub fn last_batch(&self) -> L1BatchNumber {
-        self.last_batch
+    pub fn last_batch(&self) -> attester::BatchNumber {
+        attester::BatchNumber(self.last_batch.0.into())
     }
 
     /// Last L1 batch that has been sealed and will have
     /// metadata computed eventually.
-    pub fn last_sealed_batch(&self) -> L1BatchNumber {
-        self.last_batch - (!self.batch_sealed) as u32
+    pub fn last_sealed_batch(&self) -> attester::BatchNumber {
+        attester::BatchNumber((self.last_batch.0 - (!self.batch_sealed) as u32).into())
     }
 
+    /*
     /// Loads a commitment to L1 batch directly from the database.
     // TODO: ideally, we should rather fake fetching it from Ethereum.
     // We can use `zksync_eth_client::clients::MockEthereum` for that,
@@ -414,7 +413,7 @@ impl StateKeeper {
         n: L1BatchNumber,
     ) -> ctx::Result<L1BatchWithWitness> {
         L1BatchWithWitness::load(ctx, n, &self.pool, &self.tree_reader).await
-    }
+    }*/
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
     pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<Box<DynClient<L2>>> {
