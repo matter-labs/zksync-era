@@ -11,6 +11,7 @@ use zksync_types::{
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
+use crate::batch::VerifiedBatchProof;
 use super::{PayloadQueue};
 use crate::config;
 
@@ -53,11 +54,12 @@ impl ConnectionPool {
 
     /// Waits for the `number` L1 batch hash.
     #[tracing::instrument(skip_all)]
-    pub async fn wait_for_batch_hash(
+    pub async fn wait_for_batch_info(
         &self,
         ctx: &ctx::Ctx,
         number: attester::BatchNumber,
-    ) -> ctx::Result<attester::BatchHash> {
+        // TODO: make poll interval a parameter.
+    ) -> ctx::Result<StoredBatchInfo> {
         const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(500);
         loop {
             if let Some(info) = self
@@ -68,7 +70,7 @@ impl ConnectionPool {
                 .await
                 .with_wrap(|| format!("batch_info({number})"))?
             {
-                return Ok(batch_hash(&info));
+                return Ok(info);
             }
             ctx.sleep(POLL_INTERVAL).await?;
         }
@@ -304,24 +306,35 @@ impl<'a> Connection<'a> {
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<Option<validator::Block>> {
-        let Some(justification) = self
-            .block_certificate(ctx, number)
-            .await
-            .wrap("block_certificate()")?
-        else {
-            return Ok(None);
-        };
-
-        let payload = self
+        let Some(payload) = self
             .payload(ctx, number)
             .await
             .wrap("payload()")?
-            .context("L2 block disappeared from storage")?;
+        else { return Ok(None) };
 
-        Ok(Some(validator::FinalBlock {
-            payload: payload.encode(),
-            justification,
-        }.into()))
+        if let Some(justification) = self
+            .block_certificate(ctx, number)
+            .await
+            .wrap("block_certificate()")?
+        {
+            return Ok(Some(validator::FinalBlock {
+                payload: payload.encode(),
+                justification,
+            }.into()));
+        }
+
+        if let Some(batch_proof) = self
+            .batch_proof(ctx, number)
+            .await
+            .wrap("batch_proof()")?
+        {
+            return Ok(Some(validator::PreGenesisBlock {
+                payload: payload.encode(),
+                justification: batch_proof.encode(),
+            }.into()));
+        }
+
+        Ok(None) 
     }
 
     /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.

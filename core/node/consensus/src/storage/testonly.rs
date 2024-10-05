@@ -103,28 +103,6 @@ impl ConnectionPool {
         Ok(())
     }
 
-    /// Waits for the `number` L1 batch.
-    pub async fn wait_for_batch(
-        &self,
-        ctx: &ctx::Ctx,
-        number: attester::BatchNumber,
-    ) -> ctx::Result<StoredBatchInfo> {
-        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(50);
-        loop {
-            if let Some(info) = self
-                .connection(ctx)
-                .await
-                .wrap("connection()")?
-                .batch_info(ctx, number)
-                .await
-                .wrap("batch_info()")?
-            {
-                return Ok(info);
-            }
-            ctx.sleep(POLL_INTERVAL).await?;
-        }
-    }
-
     /// Takes a storage snapshot at the last sealed L1 batch.
     pub(crate) async fn snapshot(&self, ctx: &ctx::Ctx) -> ctx::Result<Snapshot> {
         let mut conn = self.connection(ctx).await.wrap("connection()")?;

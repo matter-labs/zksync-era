@@ -129,9 +129,10 @@ async fn run_attestation_controller(
                 "waiting for hash of batch {:?}",
                 status.next_batch_to_attest
             );
-            let hash = pool
-                .wait_for_batch_hash(ctx, status.next_batch_to_attest)
+            let info = pool
+                .wait_for_batch_info(ctx, status.next_batch_to_attest)
                 .await?;
+            let hash = consensus_dal::batch_hash(&info);
             let Some(committee) = registry
                 .attester_committee_for(ctx, registry_addr, status.next_batch_to_attest)
                 .await
