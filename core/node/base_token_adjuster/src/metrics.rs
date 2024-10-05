@@ -18,6 +18,7 @@ pub(crate) struct OperationResultLabels {
 #[metrics(prefix = "base_token_adjuster")]
 pub(crate) struct BaseTokenAdjusterMetrics {
     pub l1_gas_used: Gauge<u64>,
+    pub ratio: Gauge<f64>,
     #[metrics(buckets = Buckets::LATENCIES)]
     pub external_price_api_latency: Family<OperationResultLabels, Histogram<Duration>>,
     #[metrics(buckets = Buckets::LATENCIES)]
