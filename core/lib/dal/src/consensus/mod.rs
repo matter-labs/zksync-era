@@ -88,6 +88,16 @@ impl BatchProof {
     pub fn batch_number(&self) -> attester::BatchNumber {
         attester::BatchNumber(self.info.batch_number)
     }
+   
+    /// Decodes the batch proof from justification.
+    pub fn decode(justification: &validator::Justification) -> anyhow::Result<Self> {
+        zksync_protobuf::decode(&justification.0)
+    }
+
+    /// Encodes the batch proof into justification.
+    pub fn encode(&self) -> validator::Justification {
+        validator::Justification(zksync_protobuf::encode(self))
+    }
 }
 
 /// L2 block (= miniblock) payload.

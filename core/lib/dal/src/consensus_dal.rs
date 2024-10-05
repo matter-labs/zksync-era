@@ -617,6 +617,7 @@ impl ConsensusDal<'_, '_> {
         ))
     }
 
+    /// Fetches block metadata for a given block.
     pub async fn block_metadata(&mut self, number: validator::BlockNumber) -> anyhow::Result<Option<BlockMetadata>> {
         let n = L2BlockNumber(number.0.try_into().context("overflow")?);
         let blocks = self

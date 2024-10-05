@@ -43,7 +43,7 @@ pub async fn run_main_node(
         }
 
         // The main node doesn't have a payload queue as it produces all the L2 blocks itself.
-        let (store, runner) = Store::new(ctx, pool.clone(), None)
+        let (store, runner) = Store::new(ctx, pool.clone(), None, None)
             .await
             .wrap("Store::new()")?;
         s.spawn_bg(runner.run(ctx));

@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
 use zksync_consensus_storage as storage;
-use zksync_dal::{consensus_dal::{AttestationStatus, GlobalConfig, batch_hash, Payload}, Core, CoreDal, DalError};
+use zksync_dal::{consensus_dal::{AttestationStatus, BlockMetadata, GlobalConfig, batch_hash, Payload}, Core, CoreDal, DalError};
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
 use zksync_types::{
@@ -122,6 +122,13 @@ impl<'a> Connection<'a> {
             .wait(self.0.consensus_dal().block_payloads(numbers))
             .await?
             .map_err(DalError::generalize)?)
+    }
+
+    /// Wrapper for `consensus_dal().block_metadata()`.
+    pub async fn block_metadata(
+        &mut self, ctx: &ctx::Ctx, number: validator::BlockNumber,
+    ) -> ctx::Result<Option<BlockMetadata>> {
+        Ok(ctx.wait(self.0.consensus_dal().block_metadata(number)).await??)
     }
 
     /// Wrapper for `consensus_dal().block_certificate()`.

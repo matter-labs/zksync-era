@@ -6,10 +6,13 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::{validator};
 use zksync_consensus_storage::{self as storage};
-use zksync_dal::consensus_dal::{self, Payload};
+use zksync_dal::consensus_dal::{self, BatchProof, Payload};
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
 use zksync_types::L2BlockNumber;
+use zksync_web3_decl::client::{DynClient, L2};
+use zksync_web3_decl::namespaces::EnNamespaceClient as _;
 
+use crate::batch::VerifiedBatchProof; 
 use super::{Connection, PayloadQueue};
 use crate::storage::{ConnectionPool, InsertCertificateError};
 
@@ -58,6 +61,8 @@ pub(crate) struct Store {
     block_certificates: ctx::channel::UnboundedSender<validator::CommitQC>,
     /// Range of L2 blocks for which we have a QC persisted.
     blocks_persisted: sync::watch::Receiver<storage::BlockStoreState>,
+    /// Main node client. None if this node is the main node.
+    client: Option<Box<DynClient<L2>>>,
 }
 
 struct PersistedBlockState(sync::watch::Sender<storage::BlockStoreState>);
@@ -74,6 +79,7 @@ impl Store {
         ctx: &ctx::Ctx,
         pool: ConnectionPool,
         payload_queue: Option<PayloadQueue>,
+        client: Option<Box<DynClient<L2>>>,
     ) -> ctx::Result<(Store, StoreRunner)> {
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
 
@@ -93,6 +99,7 @@ impl Store {
                 block_certificates: block_certs_send,
                 block_payloads: Arc::new(sync::Mutex::new(payload_queue)),
                 blocks_persisted: blocks_persisted.subscribe(),
+                client,
             },
             StoreRunner {
                 pool,
@@ -282,8 +289,23 @@ impl storage::PersistentBlockStore for Store {
             .context("not found")?)
     }
 
-    async fn verify_pregenesis_block(&self, _ctx: &ctx::Ctx, _block: &validator::PreGenesisBlock) -> ctx::Result<()> {
-        Err(anyhow::format_err!("pre-genesis block verification is not supported").into())
+    async fn verify_pregenesis_block(&self, ctx: &ctx::Ctx, block: &validator::PreGenesisBlock) -> ctx::Result<()> {
+        let payload = Payload::decode(&block.payload).context("Payload::decode()")?;
+        let batch_proof = BatchProof::decode(&block.justification).context("BatchProof::decode()")?;
+        let meta = match &self.client {
+            None => self.conn(ctx).await?.block_metadata(ctx, block.number).await?.context("metadata not available")?,
+            Some(client) => {
+                let meta = ctx.wait(client
+                    .block_metadata(L2BlockNumber(block.number.0.try_into().context("overflow")?)))
+                    .await?.context("block_metadata()")?
+                    .context("metadata not available")?;
+                zksync_protobuf::serde::Deserialize{deny_unknown_fields:false}.proto_fmt(&meta.0).context("deserialize()")?
+            }
+        };
+        let batch_proof = VerifiedBatchProof::new(batch_proof, meta.protocol_version).context("VerifiedBatchProof::new()")?;
+        // TODO: verify the info hash against L1.
+        batch_proof.verify_payload(block.number, &meta, &payload)?;
+        Ok(())
     }
 
     /// If actions queue is set (and the block has not been stored yet),

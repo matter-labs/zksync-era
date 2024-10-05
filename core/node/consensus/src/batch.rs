@@ -2,7 +2,7 @@
 use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _};
 use zksync_consensus_roles::{attester,validator};
-use zksync_dal::consensus_dal::{BatchProof,BlockDigest,StorageProof,Payload};
+use zksync_dal::consensus_dal::{BlockMetadata, BatchProof, BlockDigest,StorageProof,Payload};
 use zksync_l1_contract_interface::i_executor;
 use zksync_metadata_calculator::api_server::{TreeApiClient, TreeEntryWithProof};
 use zksync_system_constants as constants;
@@ -64,7 +64,7 @@ fn storage_proof(e: TreeEntryWithProof) -> StorageProof {
 }
 
 #[derive(Debug,PartialEq)]
-struct VerifiedBatchProof(BatchProof);
+pub(crate) struct VerifiedBatchProof(BatchProof);
 
 impl std::ops::Deref for VerifiedBatchProof {
     type Target = BatchProof;
@@ -131,6 +131,18 @@ impl VerifiedBatchProof {
         let r = self.block_range();
         if !r.contains(&n) { return None }
         self.blocks.get((n.0-r.start.0) as usize)
+    }
+
+    pub fn verify_payload(&self, n: validator::BlockNumber, meta: &BlockMetadata, payload: &Payload) -> anyhow::Result<()> {
+        anyhow::ensure!(meta.batch_number == self.batch_number(), "batch number mismatch");
+        anyhow::ensure!(meta.protocol_version == payload.protocol_version, "protocol version mismatch");
+        anyhow::ensure!(meta.l1_gas_price == payload.l1_gas_price, "l1 gas price mismatch");
+        anyhow::ensure!(meta.l2_fair_gas_price == payload.l2_fair_gas_price, "l2 fair gas price mismatch");
+        anyhow::ensure!(meta.fair_pubdata_price == payload.fair_pubdata_price, "fair pubdata price mismatch");
+        anyhow::ensure!(meta.virtual_blocks == payload.virtual_blocks, "virtual blocks mismatch");
+        anyhow::ensure!(meta.operator_address == payload.operator_address, "operator address mismatch");
+        anyhow::ensure!(self.digest(n).context("digest()")? == &BlockDigest::from_payload(payload), "digest mismatch");
+        Ok(())
     }
 
     /// Loads a `LastBlockProof` from storage.

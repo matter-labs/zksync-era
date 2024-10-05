@@ -75,7 +75,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
     // Insert blocks one by one and check the storage state.
     for (i, block) in want.iter().enumerate() {
         scope::run!(ctx, |ctx, s| async {
-            let (store, runner) = Store::new(ctx, pool.clone(), None).await.unwrap();
+            let (store, runner) = Store::new(ctx, pool.clone(), None, None).await.unwrap();
             s.spawn_bg(runner.run(ctx));
             let (block_store, runner) =
                 BlockStore::new(ctx, Box::new(store.clone())).await.unwrap();
