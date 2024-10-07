@@ -5165,8 +5165,9 @@ dependencies = [
 
 [[package]]
 name = "sqruff-lib"
-version = "0.18.2"
-source = "git+https://github.com/quarylabs/sqruff#1ccf18a620b93438c0c6b4f9fc88f402f45a1b29"
+version = "0.18.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "233549fc379ec660fb386446f3daacd80498c0eccf6d92026318ec7d06f83c82"
 dependencies = [
  "ahash",
  "anstyle",
@@ -5199,8 +5200,9 @@ dependencies = [
 
 [[package]]
 name = "sqruff-lib-core"
-version = "0.18.2"
-source = "git+https://github.com/quarylabs/sqruff#1ccf18a620b93438c0c6b4f9fc88f402f45a1b29"
+version = "0.18.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ce56d72caf5558d3528af6723a3e9146b04c8b62553d295b01ccc452eddd53a"
 dependencies = [
  "ahash",
  "enum_dispatch",
@@ -5219,8 +5221,9 @@ dependencies = [
 
 [[package]]
 name = "sqruff-lib-dialects"
-version = "0.18.2"
-source = "git+https://github.com/quarylabs/sqruff#1ccf18a620b93438c0c6b4f9fc88f402f45a1b29"
+version = "0.18.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27bd4b432150f7d7e387ab3318d7b55a8d6f7239ea9fe9ac299684b251fdd5a7"
 dependencies = [
  "ahash",
  "itertools 0.13.0",
