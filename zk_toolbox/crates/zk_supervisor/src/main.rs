@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use commands::{
     config_writer::ConfigWriterArgs, contracts::ContractsArgs, database::DatabaseCommands,
     lint::LintArgs, prover::ProverCommands, send_transactions::args::SendTransactionsArgs,
-    snapshot::SnapshotCommands, test::TestCommands,
+    snapshot::SnapshotCommands, status::StatusArgs, test::TestCommands,
 };
 use common::{
     check_general_prerequisites,
@@ -14,7 +14,7 @@ use common::{
 use config::EcosystemConfig;
 use messages::{
     msg_global_chain_does_not_exist, MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT,
-    MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT, MSG_SUBCOMMAND_CLEAN,
+    MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT, MSG_STATUS_ABOUT, MSG_SUBCOMMAND_CLEAN,
     MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT,
     MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
@@ -64,6 +64,8 @@ enum SupervisorSubcommands {
     ConfigWriter(ConfigWriterArgs),
     #[command(about = MSG_SEND_TXNS_ABOUT)]
     SendTransactions(SendTransactionsArgs),
+    #[command(about = MSG_STATUS_ABOUT)]
+    Status(StatusArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -128,6 +130,7 @@ async fn run_subcommand(args: Supervisor, shell: &Shell) -> anyhow::Result<()> {
         SupervisorSubcommands::SendTransactions(args) => {
             commands::send_transactions::run(shell, args).await?
         }
+        SupervisorSubcommands::Status(args) => commands::status::run(shell, args).await?,
     }
     Ok(())
 }

@@ -234,3 +234,8 @@ pub(super) const MSG_UNABLE_TO_WRITE_FILE_ERR: &str = "Unable to write data to f
 pub(super) const MSG_UNABLE_TO_READ_PARSE_JSON_ERR: &str = "Unable to parse JSON";
 pub(super) const MSG_FAILED_TO_SEND_TXN_ERR: &str = "Failed to send transaction";
 pub(super) const MSG_INVALID_L1_RPC_URL_ERR: &str = "Invalid L1 RPC URL";
+
+// Status related messages
+pub(super) const MSG_STATUS_ABOUT: &str = "Get status of the server";
+pub(super) const MSG_STATUS_PORTS_ABOUT: &str = "Get used ports by ecosystem";
+pub(super) const MSG_API_CONFIG_NOT_FOUND_ERR: &str = "API config not found";
