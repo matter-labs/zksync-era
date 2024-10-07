@@ -37,9 +37,6 @@ RUN apt-get update && apt-get install -y \
     lldb\
     lld
 
-# Install prover CLI
-RUN cargo +nightly-2024-08-01 install --git https://github.com/matter-labs/zksync-era/ --locked prover_cli --force
-
 # Install docker engine
 RUN wget -c -O - https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 RUN add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
@@ -75,6 +72,9 @@ RUN rustup install nightly-2024-08-01
 RUN rustup default stable
 RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install cargo-nextest
+
+# Install prover CLI
+RUN cargo +nightly-2024-08-01 install --git https://github.com/matter-labs/zksync-era/ --locked prover_cli --force
 
 RUN git clone https://github.com/matter-labs/foundry-zksync
 RUN cd foundry-zksync && cargo build --release --bins
