@@ -1,18 +1,33 @@
+use std::collections::HashMap;
+
 use ethabi::Token;
-use zksync_contracts::read_bytecode;
-use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
-use zksync_types::{get_code_key, get_known_code_key, Execute, H256};
-use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256};
+use test_casing::{test_casing, Product};
+use zksync_contracts::{load_contract, read_bytecode, SystemContractCode};
+use zksync_system_constants::{
+    CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L2_BASE_TOKEN_ADDRESS,
+};
+use zksync_types::{
+    get_code_key, get_known_code_key, utils::key_for_eth_balance, AccountTreeId, Address, Execute,
+    StorageKey, H256, U256,
+};
+use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 use zksync_vm_interface::VmInterfaceExt;
 
 use crate::{
     interface::{storage::InMemoryStorage, TxExecutionMode},
     versions::testonly::default_system_env,
-    vm_latest::{tests::tester::VmTesterBuilder, utils::hash_evm_bytecode, HistoryEnabled},
+    vm_latest::{
+        tests::tester::{VmTester, VmTesterBuilder},
+        utils::hash_evm_bytecode,
+        HistoryEnabled,
+    },
 };
 
 const MOCK_DEPLOYER_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockContractDeployer.json";
 const MOCK_KNOWN_CODE_STORAGE_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockKnownCodeStorage.json";
+const MOCK_SIMULATOR_PATH: &str =
+    "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockEvmInterpreter.json";
+const RECURSIVE_CONTRACT_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/NativeRecursiveContract.json";
 
 #[test]
 fn tracing_evm_contract_deployment() {
@@ -21,7 +36,7 @@ fn tracing_evm_contract_deployment() {
     let mock_known_code_storage = read_bytecode(MOCK_KNOWN_CODE_STORAGE_PATH);
     let mock_known_code_storage_hash = hash_bytecode(&mock_known_code_storage);
 
-    // Override
+    // Override storage slots for system contracts.
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     storage.set_value(get_code_key(&CONTRACT_DEPLOYER_ADDRESS), mock_deployer_hash);
     storage.set_value(
@@ -73,4 +88,173 @@ fn tracing_evm_contract_deployment() {
         new_known_factory_deps[&expected_bytecode_hash],
         evm_bytecode
     );
+}
+
+#[test]
+fn mock_simulator_basics() {
+    let mock_simulator = read_bytecode(MOCK_SIMULATOR_PATH);
+    let called_address = Address::repeat_byte(0x23);
+    let evm_bytecode: Vec<_> = (0..=u8::MAX).collect();
+    let evm_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
+
+    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    storage.set_value(get_code_key(&called_address), evm_bytecode_hash);
+    storage.set_value(
+        get_known_code_key(&evm_bytecode_hash),
+        H256::from_low_u64_be(1),
+    );
+    let mut system_env = default_system_env();
+    system_env.base_system_smart_contracts.evm_emulator = Some(SystemContractCode {
+        hash: hash_bytecode(&mock_simulator),
+        code: bytes_to_be_words(mock_simulator),
+    });
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_system_env(system_env)
+        .with_storage(storage)
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+    let account = &mut vm.rich_accounts[0];
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(called_address),
+            calldata: vec![],
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(tx, true);
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+}
+
+fn build_vm(deploy_simulator: bool, contract_address: Address) -> VmTester<HistoryEnabled> {
+    let mock_simulator = read_bytecode(MOCK_SIMULATOR_PATH);
+    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    let mut system_env = default_system_env();
+    if deploy_simulator {
+        let evm_bytecode: Vec<_> = (0..=u8::MAX).collect();
+        let evm_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
+        storage.set_value(get_code_key(&contract_address), evm_bytecode_hash);
+        storage.set_value(
+            get_known_code_key(&evm_bytecode_hash),
+            H256::from_low_u64_be(1),
+        );
+
+        system_env.base_system_smart_contracts.evm_emulator = Some(SystemContractCode {
+            hash: hash_bytecode(&mock_simulator),
+            code: bytes_to_be_words(mock_simulator),
+        });
+    } else {
+        let simulator_hash = hash_bytecode(&mock_simulator);
+        storage.set_value(get_code_key(&contract_address), simulator_hash);
+        storage.set_value(
+            get_known_code_key(&simulator_hash),
+            H256::from_low_u64_be(1),
+        );
+        storage.store_factory_dep(simulator_hash, mock_simulator);
+        // Set `isUserSpace` in the simulator storage to `true`, so that it skips simulator-specific checks
+        storage.set_value(
+            StorageKey::new(AccountTreeId::new(contract_address), H256::zero()),
+            H256::from_low_u64_be(1),
+        );
+    }
+
+    VmTesterBuilder::new(HistoryEnabled)
+        .with_system_env(system_env)
+        .with_storage(storage)
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build()
+}
+
+/// `deploy_interpreter = false` here and below tests the mock simulator as an ordinary contract (i.e., sanity-checks its logic).
+#[test_casing(2, [false, true])]
+#[test]
+fn mock_simulator_with_payment(deploy_simulator: bool) {
+    let mock_simulator_abi = load_contract(MOCK_SIMULATOR_PATH);
+    let recipient_address = Address::repeat_byte(0x12);
+    let mut vm = build_vm(deploy_simulator, recipient_address);
+    let account = &mut vm.rich_accounts[0];
+
+    let test_payment_fn = mock_simulator_abi.function("testPayment").unwrap();
+
+    let mut current_balance = U256::zero();
+    for i in 1_u64..=5 {
+        let transferred_value = (1_000_000_000 * i).into();
+        current_balance += transferred_value;
+        let tx = account.get_l2_tx_for_execute(
+            Execute {
+                contract_address: Some(recipient_address),
+                calldata: test_payment_fn
+                    .encode_input(&[Token::Uint(transferred_value), Token::Uint(current_balance)])
+                    .unwrap(),
+                value: transferred_value,
+                factory_deps: vec![],
+            },
+            None,
+        );
+
+        let (_, vm_result) = vm
+            .vm
+            .execute_transaction_with_bytecode_compression(tx, true);
+        assert!(!vm_result.result.is_failed(), "{vm_result:?}");
+
+        let balance_storage_logs = vm_result.logs.storage_logs.iter().filter_map(|log| {
+            (*log.log.key.address() == L2_BASE_TOKEN_ADDRESS)
+                .then_some((*log.log.key.key(), h256_to_u256(log.log.value)))
+        });
+        let balances: HashMap<_, _> = balance_storage_logs.collect();
+        assert_eq!(
+            balances[&key_for_eth_balance(&recipient_address)],
+            current_balance
+        );
+    }
+}
+
+#[test_casing(4, Product(([false, true], [false, true])))]
+#[test]
+fn mock_simulator_with_recursion(deploy_simulator: bool, is_external: bool) {
+    let mock_simulator_abi = load_contract(MOCK_SIMULATOR_PATH);
+    let recipient_address = Address::repeat_byte(0x12);
+    let mut vm = build_vm(deploy_simulator, recipient_address);
+    let account = &mut vm.rich_accounts[0];
+
+    let test_recursion_fn = mock_simulator_abi
+        .function(if is_external {
+            "testExternalRecursion"
+        } else {
+            "testRecursion"
+        })
+        .unwrap();
+    let mut expected_value = U256::one();
+    let depth = 4_u32; // FIXME: `depth >= 5` doesn't work due to the gas overflow in VM code
+    for i in 2..=depth {
+        expected_value *= i;
+    }
+
+    let factory_deps = if is_external {
+        vec![read_bytecode(RECURSIVE_CONTRACT_PATH)]
+    } else {
+        vec![]
+    };
+    let tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(recipient_address),
+            calldata: test_recursion_fn
+                .encode_input(&[Token::Uint(depth.into()), Token::Uint(expected_value)])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps,
+        },
+        None,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(tx, true);
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
 }

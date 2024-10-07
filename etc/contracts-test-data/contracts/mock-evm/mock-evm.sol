@@ -90,3 +90,87 @@ contract MockContractDeployer {
         return address(0);
     }
 }
+
+interface IAccountCodeStorage {
+    function getRawCodeHash(address _address) external view returns (bytes32);
+}
+
+interface IRecursiveContract {
+    function recurse(uint _depth) external returns (uint);
+}
+
+uint constant EVM_INTERPRETER_STIPEND = 1 << 30;
+
+/**
+ * Mock EVM interpreter used in low-level tests.
+ */
+contract MockEvmInterpreter is IRecursiveContract {
+    IAccountCodeStorage constant ACCOUNT_CODE_STORAGE_CONTRACT = IAccountCodeStorage(address(0x8002));
+    address constant CODE_ORACLE_ADDR = address(0x8012);
+
+    /// Set to `true` for testing logic sanity.
+    bool isUserSpace;
+
+    modifier validEvmEntry() {
+        if (!isUserSpace) {
+            require(gasleft() >= EVM_INTERPRETER_STIPEND, "no stipend");
+            // Fetch bytecode for the executed contract.
+            bytes32 bytecodeHash = ACCOUNT_CODE_STORAGE_CONTRACT.getRawCodeHash(address(this));
+            require(bytecodeHash != bytes32(0), "called contract not deployed");
+            uint bytecodeVersion = uint(bytecodeHash) >> 248;
+            require(bytecodeVersion == 2, "non-EVM bytecode");
+
+            // Check that members of the current address are well-defined.
+            require(address(this).code.length != 0, "invalid code");
+            require(address(this).codehash == bytecodeHash, "bytecode hash mismatch");
+        }
+        _;
+    }
+
+    function testPayment(uint _expectedValue, uint _expectedBalance) public payable validEvmEntry {
+        require(msg.value == _expectedValue, "unexpected msg.value");
+        require(address(this).balance == _expectedBalance, "unexpected balance");
+    }
+
+    IRecursiveContract recursionTarget;
+
+    function recurse(uint _depth) public validEvmEntry returns (uint) {
+        // FIXME: for now, a new stipend is provided for each call
+        // require(gasleft() < 2 * EVM_INTERPRETER_STIPEND, "stipend provided multiple times");
+        if (_depth <= 1) {
+            return 1;
+        } else {
+            IRecursiveContract target = (address(recursionTarget) == address(0)) ? this : recursionTarget;
+            return target.recurse(_depth - 1) * _depth;
+        }
+    }
+
+    function testRecursion(uint _depth, uint _expectedValue) external validEvmEntry returns (uint) {
+        require(recurse(_depth) == _expectedValue, "incorrect recursion");
+    }
+
+    function testExternalRecursion(uint _depth, uint _expectedValue) external validEvmEntry returns (uint) {
+        recursionTarget = new NativeRecursiveContract();
+        uint returnedValue = recurse(_depth);
+        recursionTarget = this; // This won't work on revert, but for tests, it's good enough
+        require(returnedValue == _expectedValue, "incorrect recursion");
+    }
+
+    fallback() external validEvmEntry {
+        require(msg.data.length == 0, "unsupported call");
+    }
+}
+
+contract NativeRecursiveContract is IRecursiveContract {
+    IRecursiveContract caller;
+
+    constructor() {
+        caller = IRecursiveContract(msg.sender);
+    }
+
+    function recurse(uint _depth) external returns (uint) {
+        // FIXME: for now, the EVM stipend does spill to native contracts
+        // require(gasleft() < EVM_INTERPRETER_STIPEND, "stipend spilled to native contract");
+        return (_depth <= 1) ? 1 : caller.recurse(_depth - 1) * _depth;
+    }
+}
