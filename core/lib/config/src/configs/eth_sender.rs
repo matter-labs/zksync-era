@@ -42,7 +42,7 @@ impl EthConfig {
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_paused: false,
                 tx_aggregation_only_prove_and_execute: false,
-                time_in_mempool_cap: 1800,
+                time_in_mempool_in_l1_blocks_cap: 1800,
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -130,8 +130,8 @@ pub struct SenderConfig {
     pub tx_aggregation_only_prove_and_execute: bool,
 
     /// Cap of time in mempool for price calculations
-    #[serde(default = "SenderConfig::default_time_in_mempool_cap")]
-    pub time_in_mempool_cap: u32,
+    #[serde(default = "SenderConfig::default_time_in_mempool_in_l1_blocks_cap")]
+    pub time_in_mempool_in_l1_blocks_cap: u32,
 }
 
 impl SenderConfig {
@@ -174,9 +174,9 @@ impl SenderConfig {
         false
     }
 
-    pub const fn default_time_in_mempool_cap() -> u32 {
+    pub const fn default_time_in_mempool_in_l1_blocks_cap() -> u32 {
         let blocks_per_hour = 3600 / 12;
-        // cap it at 6h to not allow nearly infinite values when a tx is stuck for a long time
+        // we cap it at 6h to not allow nearly infinite values when a tx is stuck for a long time
         // 1,001 ^ 1800 ~= 6, so by default we cap exponential price formula at roughly median * 6
         blocks_per_hour * 6
     }

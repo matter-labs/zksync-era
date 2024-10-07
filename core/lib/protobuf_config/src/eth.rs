@@ -115,9 +115,9 @@ impl ProtoRepr for proto::Sender {
                 .parse(),
             tx_aggregation_only_prove_and_execute: self.tx_aggregation_paused.unwrap_or(false),
             tx_aggregation_paused: self.tx_aggregation_only_prove_and_execute.unwrap_or(false),
-            time_in_mempool_cap: self
-                .time_in_mempool_cap
-                .unwrap_or(Self::Type::default_time_in_mempool_cap()),
+            time_in_mempool_in_l1_blocks_cap: self
+                .time_in_mempool_in_l1_blocks_cap
+                .unwrap_or(Self::Type::default_time_in_mempool_in_l1_blocks_cap()),
         })
     }
 
@@ -150,7 +150,7 @@ impl ProtoRepr for proto::Sender {
             ),
             tx_aggregation_only_prove_and_execute: Some(this.tx_aggregation_only_prove_and_execute),
             tx_aggregation_paused: Some(this.tx_aggregation_paused),
-            time_in_mempool_cap: Some(this.time_in_mempool_cap),
+            time_in_mempool_in_l1_blocks_cap: Some(this.time_in_mempool_in_l1_blocks_cap),
         }
     }
 }
