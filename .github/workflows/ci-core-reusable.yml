@@ -349,6 +349,7 @@ jobs:
 
       - name: Run integration tests
         run: |
+
           # Disable immediate exit on non-zero status
           set +e
 
@@ -432,41 +433,130 @@ jobs:
       - name: Run recovery tests (from snapshot)
         run: |
 
+          # Disable immediate exit on non-zero status
+          set +e
+          
           ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain era &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/rollup.log &
-          PID1=$!
+          PID_ERA=$!
 
           ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain validium &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/validium.log &
-          PID2=$!
+          PID_VALIDIUM=$!
 
           ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/custom_token.log &
-          PID3=$!
+          PID_CUSTOM_TOKEN=$!
 
           ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain consensus &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/consensus.log &
-          PID4=$!
+          PID_CONSENSUS=$!
 
-          wait $PID1
-          wait $PID2
-          wait $PID3
-          wait $PID4
+          wait $PID_ERA
+          STATUS_ERA=$?
+          wait $PID_VALIDIUM
+          STATUS_VALIDIUM=$?
+          wait $PID_CUSTOM_TOKEN
+          STATUS_CUSTOM_TOKEN=$?
+          wait $PID_CONSENSUS
+          STATUS_CONSENSUS=$?
+
+          # Check exit statuses and set overall status
+          OVERALL_STATUS=0
+
+          if [ $STATUS_ERA -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain ERA failed with status $STATUS_ERA"
+          else
+            echo "Chain ERA succeeded"
+          fi
+
+          if [ $STATUS_VALIDIUM -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain VALIDIUM failed with status $STATUS_VALIDIUM"
+          else
+            echo "Chain VALIDIUM succeeded"
+          fi
+
+          if [ $STATUS_CUSTOM_TOKEN -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain CUSTOM_TOKEN failed with status $STATUS_CUSTOM_TOKEN"
+          else
+            echo "Chain CUSTOM_TOKEN succeeded"
+          fi
+
+          if [ $STATUS_CONSENSUS -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain CONSENSUS failed with status $STATUS_CONSENSUS"
+          else
+            echo "Chain CONSENSUS succeeded"
+          fi
+
+          # Re-enable immediate exit on non-zero status if needed
+          set -e
+          
+          # Exit with overall status
+          exit $OVERALL_STATUS
 
       - name: Run recovery tests (from genesis)
         run: |
+
+          # Disable immediate exit on non-zero status
+          set +e
+
           ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain era &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/rollup.log &
-          PID1=$!
+          PID_ERA=$!
 
           ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain validium &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/validium.log &
-          PID2=$!
+          PID_VALIDIUM=$!
 
           ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain custom_token &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/custom_token.log &
-          PID3=$!
+          PID_CUSTOM_TOKEN=$!
 
           ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain consensus &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/consensus.log &
-          PID4=$!
+          PID_CONSENSUS=$!
 
-          wait $PID1
-          wait $PID2
-          wait $PID3
-          wait $PID4
+          wait $PID_ERA
+          STATUS_ERA=$?
+          wait $PID_VALIDIUM
+          STATUS_VALIDIUM=$?
+          wait $PID_CUSTOM_TOKEN
+          STATUS_CUSTOM_TOKEN=$?
+          wait $PID_CONSENSUS
+          STATUS_CONSENSUS=$?
+
+          # Check exit statuses and set overall status
+          OVERALL_STATUS=0
+
+          if [ $STATUS_ERA -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain ERA failed with status $STATUS_ERA"
+          else
+            echo "Chain ERA succeeded"
+          fi
+
+          if [ $STATUS_VALIDIUM -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain VALIDIUM failed with status $STATUS_VALIDIUM"
+          else
+            echo "Chain VALIDIUM succeeded"
+          fi
+
+          if [ $STATUS_CUSTOM_TOKEN -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain CUSTOM_TOKEN failed with status $STATUS_CUSTOM_TOKEN"
+          else
+            echo "Chain CUSTOM_TOKEN succeeded"
+          fi
+
+          if [ $STATUS_CONSENSUS -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain CONSENSUS failed with status $STATUS_CONSENSUS"
+          else
+            echo "Chain CONSENSUS succeeded"
+          fi
+
+          # Re-enable immediate exit on non-zero status if needed
+          set -e
+          
+          # Exit with overall status
+          exit $OVERALL_STATUS
 
       - name: Run external node server
         run: |
@@ -477,65 +567,200 @@ jobs:
 
       - name: Run integration tests en
         run: |
+
+          # Disable immediate exit on non-zero status
+          set +e
+
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain era &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/rollup.log &
-          PID1=$!
+          PID_ERA=$!
 
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain validium &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/validium.log &
-          PID2=$!
+          PID_VALIDIUM=$!
 
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain custom_token &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/custom_token.log &
-          PID3=$!
+          PID_CUSTOM_TOKEN=$!
 
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain consensus &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/consensus.log &
-          PID4=$!
+          PID_CONSENSUS=$!
 
-          wait $PID1
-          wait $PID2
-          wait $PID3
-          wait $PID4
+          wait $PID_ERA
+          STATUS_ERA=$?
+          wait $PID_VALIDIUM
+          STATUS_VALIDIUM=$?
+          wait $PID_CUSTOM_TOKEN
+          STATUS_CUSTOM_TOKEN=$?
+          wait $PID_CONSENSUS
+          STATUS_CONSENSUS=$?
+
+          # Check exit statuses and set overall status
+          OVERALL_STATUS=0
+
+          if [ $STATUS_ERA -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain ERA failed with status $STATUS_ERA"
+          else
+            echo "Chain ERA succeeded"
+          fi
+
+          if [ $STATUS_VALIDIUM -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain VALIDIUM failed with status $STATUS_VALIDIUM"
+          else
+            echo "Chain VALIDIUM succeeded"
+          fi
+
+          if [ $STATUS_CUSTOM_TOKEN -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain CUSTOM_TOKEN failed with status $STATUS_CUSTOM_TOKEN"
+          else
+            echo "Chain CUSTOM_TOKEN succeeded"
+          fi
+
+          if [ $STATUS_CONSENSUS -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain CONSENSUS failed with status $STATUS_CONSENSUS"
+          else
+            echo "Chain CONSENSUS succeeded"
+          fi
+
+          # Re-enable immediate exit on non-zero status if needed
+          set -e
+          
+          # Exit with overall status
+          exit $OVERALL_STATUS
 
       - name: Fee projection tests
         run: |
+
+          # Disable immediate exit on non-zero status
+          set +e
+
           ci_run killall -INT zksync_server || true
           
           ci_run zk_supervisor test fees --no-deps --no-kill --chain era &> ${{ env.FEES_LOGS_DIR }}/era.log &
-          PID1=$!
+          PID_ERA=$!
           
           ci_run zk_supervisor test fees --no-deps --no-kill --chain validium &> ${{ env.FEES_LOGS_DIR }}/validium.log &
-          PID2=$!
+          PID_VALIDIUM=$!
           
           ci_run zk_supervisor test fees --no-deps --no-kill --chain custom_token &> ${{ env.FEES_LOGS_DIR }}/custom_token.log &
-          PID3=$!
+          PID_CUSTOM_TOKEN=$!
           
           ci_run zk_supervisor test fees --no-deps --no-kill --chain consensus &> ${{ env.FEES_LOGS_DIR }}/consensus.log &
-          PID4=$!
+          PID_CONSENSUS=$!
           
-          wait $PID1
-          wait $PID2
-          wait $PID3
-          wait $PID4
+          wait $PID_ERA
+          STATUS_ERA=$?
+          wait $PID_VALIDIUM
+          STATUS_VALIDIUM=$?
+          wait $PID_CUSTOM_TOKEN
+          STATUS_CUSTOM_TOKEN=$?
+          wait $PID_CONSENSUS
+          STATUS_CONSENSUS=$?
+
+          # Check exit statuses and set overall status
+          OVERALL_STATUS=0
+
+          if [ $STATUS_ERA -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain ERA failed with status $STATUS_ERA"
+          else
+            echo "Chain ERA succeeded"
+          fi
+
+          if [ $STATUS_VALIDIUM -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain VALIDIUM failed with status $STATUS_VALIDIUM"
+          else
+            echo "Chain VALIDIUM succeeded"
+          fi
+
+          if [ $STATUS_CUSTOM_TOKEN -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain CUSTOM_TOKEN failed with status $STATUS_CUSTOM_TOKEN"
+          else
+            echo "Chain CUSTOM_TOKEN succeeded"
+          fi
+
+          if [ $STATUS_CONSENSUS -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain CONSENSUS failed with status $STATUS_CONSENSUS"
+          else
+            echo "Chain CONSENSUS succeeded"
+          fi
+
+          # Re-enable immediate exit on non-zero status if needed
+          set -e
+          
+          # Exit with overall status
+          exit $OVERALL_STATUS
 
       - name: Run revert tests
         run: |
+
+          # Disable immediate exit on non-zero status
+          set +e
+
           ci_run killall -INT zksync_server || true
           ci_run killall -INT zksync_external_node || true
 
           ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain era &> ${{ env.REVERT_LOGS_DIR }}/rollup.log &
-          PID1=$!
+          PID_ERA=$!
 
           ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain validium &> ${{ env.REVERT_LOGS_DIR }}/validium.log &
-          PID2=$!
+          PID_VALIDIUM=$!
 
           ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain custom_token &> ${{ env.REVERT_LOGS_DIR }}/custom_token.log &
-          PID3=$!
+          PID_CUSTOM_TOKEN=$!
 
           ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain consensus &> ${{ env.REVERT_LOGS_DIR }}/consensus.log &
-          PID4=$!
+          PID_CONSENSUS=$!
 
-          wait $PID1
-          wait $PID2
-          wait $PID3
-          wait $PID4
+          wait $PID_ERA
+          STATUS_ERA=$?
+          wait $PID_VALIDIUM
+          STATUS_VALIDIUM=$?
+          wait $PID_CUSTOM_TOKEN
+          STATUS_CUSTOM_TOKEN=$?
+          wait $PID_CONSENSUS
+          STATUS_CONSENSUS=$?
+
+          # Check exit statuses and set overall status
+          OVERALL_STATUS=0
+
+          if [ $STATUS_ERA -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain ERA failed with status $STATUS_ERA"
+          else
+            echo "Chain ERA succeeded"
+          fi
+
+          if [ $STATUS_VALIDIUM -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain VALIDIUM failed with status $STATUS_VALIDIUM"
+          else
+            echo "Chain VALIDIUM succeeded"
+          fi
+
+          if [ $STATUS_CUSTOM_TOKEN -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain CUSTOM_TOKEN failed with status $STATUS_CUSTOM_TOKEN"
+          else
+            echo "Chain CUSTOM_TOKEN succeeded"
+          fi
+
+          if [ $STATUS_CONSENSUS -ne 0 ]; then
+            OVERALL_STATUS=1
+            echo "Chain CONSENSUS failed with status $STATUS_CONSENSUS"
+          else
+            echo "Chain CONSENSUS succeeded"
+          fi
+
+          # Re-enable immediate exit on non-zero status if needed
+          set -e
+          
+          # Exit with overall status
+          exit $OVERALL_STATUS
 
 
       # Upgrade tests should run last, because as soon as they
