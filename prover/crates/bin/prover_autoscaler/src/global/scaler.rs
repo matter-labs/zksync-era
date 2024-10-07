@@ -317,7 +317,7 @@ mod tests {
         let queuer = queuer::Queuer {
             prover_job_monitor_url: "".to_string(),
         };
-        let scaler = Scaler::new(watcher, queuer);
+        let scaler = Scaler::new(watcher, queuer, ProverAutoscalerScalerConfig::default());
         let got = scaler.run(
             &"prover".to_string(),
             1499,

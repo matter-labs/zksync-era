@@ -30,7 +30,7 @@ pub struct ProverAutoscalerAgentConfig {
     pub cluster_name: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize, Default)]
 pub struct ProverAutoscalerScalerConfig {
     /// Port for prometheus metrics connection.
     pub prometheus_port: u16,

@@ -1,5 +1,4 @@
 use vise::{Counter, Gauge, LabeledFamily, Metrics};
-
 use zksync_config::configs::prover_autoscaler::Gpu;
 
 #[derive(Debug, Metrics)]
