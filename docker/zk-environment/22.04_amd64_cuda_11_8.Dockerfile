@@ -33,16 +33,19 @@ RUN apt-get update && apt-get install -y \
     unzip \
     hub
 
-# Install dependencies for RocksDB.
-RUN apt-get update && \
+# Install dependencies for RocksDB. `liburing` is not available for Ubuntu 20.04,
+# so we use a PPA with the backport
+RUN add-apt-repository ppa:savoury1/virtualisation && \
+    apt-get update && \
     apt-get install -y \
+    curl \
     gnutls-bin git \
     build-essential \
-    clang-15 \
-    lldb-15 \
-    lld-15 \
+    clang \
+    lldb \
+    lld \
     liburing-dev \
-    libclang-15-dev
+    libclang-dev
 
 # Install docker engine
 RUN wget -c -O - https://download.docker.com/linux/ubuntu/gpg | apt-key add -
