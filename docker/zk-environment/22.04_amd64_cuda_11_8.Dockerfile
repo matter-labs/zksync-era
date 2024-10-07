@@ -1,4 +1,4 @@
-FROM ubuntu:20.04@sha256:3246518d9735254519e1b2ff35f95686e4a5011c90c85344c1f38df7bae9dd37 as base
+FROM ubuntu:22.04@sha256:3246518d9735254519e1b2ff35f95686e4a5011c90c85344c1f38df7bae9dd37 as base
 
 # Link Docker Image with repository
 # https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package#connecting-a-repository-to-a-container-image-using-the-command-line
@@ -33,19 +33,16 @@ RUN apt-get update && apt-get install -y \
     unzip \
     hub
 
-# Install dependencies for RocksDB. `liburing` is not available for Ubuntu 20.04,
-# so we use a PPA with the backport
-RUN add-apt-repository ppa:savoury1/virtualisation && \
-    apt-get update && \
+# Install dependencies for RocksDB.
+RUN apt-get update && \
     apt-get install -y \
-    curl \
     gnutls-bin git \
     build-essential \
-    clang \
-    lldb \
-    lld \
+    clang-15 \
+    lldb-15 \
+    lld-15 \
     liburing-dev \
-    libclang-dev
+    libclang-15-dev
 
 # Install docker engine
 RUN wget -c -O - https://download.docker.com/linux/ubuntu/gpg | apt-key add -
