@@ -93,7 +93,7 @@ impl StorageLogsDedupDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                initial_writes (hashed_key, INDEX, l1_batch_number, created_at, updated_at)
+            initial_writes (hashed_key, index, l1_batch_number, created_at, updated_at)
             SELECT
                 u.hashed_key,
                 u.index,
@@ -101,7 +101,7 @@ impl StorageLogsDedupDal<'_, '_> {
                 NOW(),
                 NOW()
             FROM
-                UNNEST($1::bytea[], $2::BIGINT[]) AS u (hashed_key, INDEX)
+                UNNEST($1::bytea [], $2::bigint []) AS u (hashed_key, index)
             "#,
             &hashed_keys as &[&[u8]],
             &indices,
@@ -154,7 +154,7 @@ impl StorageLogsDedupDal<'_, '_> {
             SELECT
                 MAX(INDEX) AS "max?"
             FROM
-                initial_writes
+                INITIAL_WRITES
             "#,
         )
         .instrument("max_enumeration_index")
@@ -174,15 +174,15 @@ impl StorageLogsDedupDal<'_, '_> {
             SELECT
                 MAX(INDEX) AS "max?"
             FROM
-                initial_writes
+                INITIAL_WRITES
             WHERE
-                l1_batch_number = (
+                L1_BATCH_NUMBER = (
                     SELECT
-                        MAX(l1_batch_number) AS "max?"
+                        MAX(L1_BATCH_NUMBER) AS "max?"
                     FROM
-                        initial_writes
+                        INITIAL_WRITES
                     WHERE
-                        l1_batch_number <= $1
+                        L1_BATCH_NUMBER <= $1
                 )
             "#,
             i64::from(l1_batch_number.0)
@@ -202,13 +202,13 @@ impl StorageLogsDedupDal<'_, '_> {
             r#"
             SELECT
                 hashed_key,
-                INDEX
+                index
             FROM
                 initial_writes
             WHERE
                 l1_batch_number = $1
             ORDER BY
-                INDEX
+                index
             "#,
             i64::from(l1_batch_number.0)
         )
@@ -230,9 +230,9 @@ impl StorageLogsDedupDal<'_, '_> {
             SELECT
                 INDEX
             FROM
-                initial_writes
+                INITIAL_WRITES
             WHERE
-                hashed_key = $1
+                HASHED_KEY = $1
             "#,
             hashed_key.as_bytes()
         )
@@ -253,10 +253,10 @@ impl StorageLogsDedupDal<'_, '_> {
             SELECT
                 INDEX
             FROM
-                initial_writes
+                INITIAL_WRITES
             WHERE
-                hashed_key = $1
-                AND l1_batch_number <= $2
+                HASHED_KEY = $1
+                AND L1_BATCH_NUMBER <= $2
             "#,
             hashed_key.as_bytes(),
             l1_batch_number.0 as i32,
@@ -279,7 +279,7 @@ impl StorageLogsDedupDal<'_, '_> {
             FROM
                 initial_writes
             WHERE
-                hashed_key = ANY ($1)
+                hashed_key = ANY($1)
             "#,
             &hashed_keys as &[&[u8]],
         )
@@ -299,7 +299,7 @@ impl StorageLogsDedupDal<'_, '_> {
             SELECT
                 hashed_key,
                 l1_batch_number,
-                INDEX
+                index
             FROM
                 initial_writes
             "#
