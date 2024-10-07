@@ -3,21 +3,33 @@ use std::{num::NonZeroU32, time::Duration};
 use tokio::{sync::oneshot, task::JoinHandle};
 use zksync_circuit_breaker::replication_lag::ReplicationLagChecker;
 use zksync_config::configs::api::MaxResponseSize;
-use zksync_node_api_server::web3::{state::InternalApiConfig, ApiBuilder, ApiServer, Namespace};
+use zksync_node_api_server::web3::{
+    state::{BridgeAddressesHandle, InternalApiConfig, SealedL2BlockNumber},
+    ApiBuilder, ApiServer, Namespace,
+};
 
 use crate::{
-    implementations::resources::{
-        circuit_breakers::CircuitBreakersResource,
-        healthcheck::AppHealthCheckResource,
-        pools::{PoolResource, ReplicaPool},
-        sync_state::SyncStateResource,
-        web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
+    implementations::{
+        layers::web3_api::server::{
+            bridge_addresses::BridgeAddressesUpdaterTask, sealed_l2_block::SealedL2BlockUpdaterTask,
+        },
+        resources::{
+            circuit_breakers::CircuitBreakersResource,
+            healthcheck::AppHealthCheckResource,
+            main_node_client::MainNodeClientResource,
+            pools::{PoolResource, ReplicaPool},
+            sync_state::SyncStateResource,
+            web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
+        },
     },
     service::StopReceiver,
     task::{Task, TaskId},
     wiring_layer::{WiringError, WiringLayer},
     FromContext, IntoContext,
 };
+
+mod bridge_addresses;
+mod sealed_l2_block;
 
 /// Set of optional variables that can be altered to modify the behavior of API builder.
 #[derive(Debug, Default)]
@@ -33,6 +45,8 @@ pub struct Web3ServerOptionalConfig {
     pub replication_lag_limit: Option<Duration>,
     // Used by the external node.
     pub pruning_info_refresh_interval: Option<Duration>,
+    // Used by the external node.
+    pub bridge_addresses_refresh_interval: Option<Duration>,
     pub polling_interval: Option<Duration>,
 }
 
@@ -60,6 +74,10 @@ impl Web3ServerOptionalConfig {
         }
         if let Some(polling_interval) = self.polling_interval {
             api_builder = api_builder.with_polling_interval(polling_interval);
+        }
+        if let Some(pruning_info_refresh_interval) = self.pruning_info_refresh_interval {
+            api_builder =
+                api_builder.with_pruning_info_refresh_interval(pruning_info_refresh_interval);
         }
         api_builder = api_builder.with_extended_tracing(self.with_extended_tracing);
         api_builder
@@ -109,6 +127,7 @@ pub struct Input {
     pub circuit_breakers: CircuitBreakersResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
+    pub main_node_client: Option<MainNodeClientResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -118,6 +137,10 @@ pub struct Output {
     pub web3_api_task: Web3ApiTask,
     #[context(task)]
     pub garbage_collector_task: ApiTaskGarbageCollector,
+    #[context(task)]
+    pub sealed_l2_block_updater_task: SealedL2BlockUpdaterTask,
+    #[context(task)]
+    pub bridge_addresses_updater_task: Option<BridgeAddressesUpdaterTask>,
 }
 
 impl Web3ServerLayer {
@@ -163,20 +186,39 @@ impl WiringLayer for Web3ServerLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // Get required resources.
         let replica_resource_pool = input.replica_pool;
-        let updaters_pool = replica_resource_pool.get_custom(2).await?;
+        let updaters_pool = replica_resource_pool.get_custom(1).await?;
         let replica_pool = replica_resource_pool.get().await?;
         let TxSenderResource(tx_sender) = input.tx_sender;
         let MempoolCacheResource(mempool_cache) = input.mempool_cache;
         let sync_state = input.sync_state.map(|state| state.0);
         let tree_api_client = input.tree_api_client.map(|client| client.0);
 
+        let sealed_l2_block_handle = SealedL2BlockNumber::default();
+        let bridge_addresses_handle =
+            BridgeAddressesHandle::new(self.internal_api_config.bridge_addresses.clone());
+
+        let sealed_l2_block_updater_task = SealedL2BlockUpdaterTask {
+            number_updater: sealed_l2_block_handle.clone(),
+            pool: updaters_pool,
+        };
+        // Bridge addresses updater task must be started for ENs and only for ENs.
+        let bridge_addresses_updater_task =
+            input
+                .main_node_client
+                .map(|main_node_client| BridgeAddressesUpdaterTask {
+                    bridge_address_updater: bridge_addresses_handle.clone(),
+                    main_node_client: main_node_client.0,
+                    update_interval: self.optional_config.bridge_addresses_refresh_interval,
+                });
+
         // Build server.
         let mut api_builder =
             ApiBuilder::jsonrpsee_backend(self.internal_api_config, replica_pool.clone())
-                .with_updaters_pool(updaters_pool)
                 .with_tx_sender(tx_sender)
                 .with_mempool_cache(mempool_cache)
-                .with_extended_tracing(self.optional_config.with_extended_tracing);
+                .with_extended_tracing(self.optional_config.with_extended_tracing)
+                .with_sealed_l2_block_handle(sealed_l2_block_handle)
+                .with_bridge_addresses_handle(bridge_addresses_handle);
         if let Some(client) = tree_api_client {
             api_builder = api_builder.with_tree_api(client);
         }
@@ -191,14 +233,9 @@ impl WiringLayer for Web3ServerLayer {
         if let Some(sync_state) = sync_state {
             api_builder = api_builder.with_sync_state(sync_state);
         }
-        if let Some(pruning_info_refresh_interval) =
-            self.optional_config.pruning_info_refresh_interval
-        {
-            api_builder =
-                api_builder.with_pruning_info_refresh_interval(pruning_info_refresh_interval);
-        }
         let replication_lag_limit = self.optional_config.replication_lag_limit;
         api_builder = self.optional_config.apply(api_builder);
+
         let server = api_builder.build()?;
 
         // Insert healthcheck.
@@ -230,6 +267,8 @@ impl WiringLayer for Web3ServerLayer {
         Ok(Output {
             web3_api_task,
             garbage_collector_task,
+            sealed_l2_block_updater_task,
+            bridge_addresses_updater_task,
         })
     }
 }
