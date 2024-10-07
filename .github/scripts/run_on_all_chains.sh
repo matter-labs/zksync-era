@@ -5,8 +5,10 @@ run_on_all_chains() {
     set +e
 
     local command=$1
-    local chains=("era" "validium" "custom_token" "consensus")
-    local logs=(${{ env.INTEGRATION_TESTS_LOGS_DIR }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }})
+    local chain_list=$2
+    local log_list=$3
+    IFS=',' read -r -a chains <<< "$chain_list"
+    IFS=',' read -r -a logs <<< "$log_list"
     local pids=()
     local statuses=()
 
