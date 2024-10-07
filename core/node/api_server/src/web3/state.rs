@@ -272,7 +272,7 @@ impl RpcState {
             L2Tx::from_request(
                 tx_request,
                 self.api_config.max_tx_size,
-                block_args.use_evm_simulator(),
+                block_args.use_evm_emulator(),
             )?,
             hash,
         ))

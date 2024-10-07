@@ -47,7 +47,7 @@ pub(crate) struct TransactionData {
 }
 
 impl TransactionData {
-    pub(crate) fn new(execute_tx: Transaction, use_evm_simulator: bool) -> Self {
+    pub(crate) fn new(execute_tx: Transaction, use_evm_emulator: bool) -> Self {
         match execute_tx.common_data {
             ExecuteTransactionCommon::L2(common_data) => {
                 let nonce = U256::from_big_endian(&common_data.nonce.to_be_bytes());
@@ -66,8 +66,8 @@ impl TransactionData {
                     // Transactions with no `contract_address` should be filtered out by the API server,
                     // so this is more of a sanity check.
                     assert!(
-                        use_evm_simulator,
-                        "`execute.contract_address` not set for transaction {:?} with EVM simulation disabled",
+                        use_evm_emulator,
+                        "`execute.contract_address` not set for transaction {:?} with EVM emulation disabled",
                         common_data.hash()
                     );
                     U256([1, 0, 0, 0])

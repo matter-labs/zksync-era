@@ -307,8 +307,8 @@ impl BlockArgs {
         self.resolved.protocol_version()
     }
 
-    pub fn use_evm_simulator(&self) -> bool {
-        self.resolved.use_evm_simulator()
+    pub fn use_evm_emulator(&self) -> bool {
+        self.resolved.use_evm_emulator()
     }
 
     /// Loads block information from DB.

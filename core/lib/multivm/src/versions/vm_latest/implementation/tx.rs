@@ -59,12 +59,12 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         tx: Transaction,
         with_compression: bool,
     ) {
-        let use_evm_simulator = self
+        let use_evm_emulator = self
             .system_env
             .base_system_smart_contracts
-            .evm_simulator
+            .evm_emulator
             .is_some();
-        let tx = TransactionData::new(tx, use_evm_simulator);
+        let tx = TransactionData::new(tx, use_evm_emulator);
         let overhead = tx.overhead_gas();
         self.push_raw_transaction(tx, overhead, 0, with_compression);
     }

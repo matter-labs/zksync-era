@@ -304,7 +304,7 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
         timestamp: snapshot.l2_block_timestamp + 1,
         bootloader_code_hash: Some(H256::repeat_byte(1)),
         default_account_code_hash: Some(H256::repeat_byte(1)),
-        evm_simulator_code_hash: Some(H256::repeat_byte(1)),
+        evm_emulator_code_hash: Some(H256::repeat_byte(1)),
         ..api::ProtocolVersion::default()
     };
     client.insert_protocol_version(next_protocol_version.clone());
@@ -349,8 +349,8 @@ async fn external_io_works_without_local_protocol_version(snapshot_recovery: boo
     assert_eq!(
         persisted_protocol_version
             .base_system_contracts_hashes
-            .evm_simulator,
-        next_protocol_version.evm_simulator_code_hash
+            .evm_emulator,
+        next_protocol_version.evm_emulator_code_hash
     );
 
     let l2_block = storage

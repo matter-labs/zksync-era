@@ -312,7 +312,7 @@ impl L1BatchParamsProvider {
             .get_base_system_contracts(
                 contract_hashes.bootloader,
                 contract_hashes.default_aa,
-                contract_hashes.evm_simulator,
+                contract_hashes.evm_emulator,
             )
             .await
             .context("failed getting base system contracts")?;

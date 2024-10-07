@@ -78,7 +78,7 @@ pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
             hash,
         },
         bootloader,
-        evm_simulator: None,
+        evm_emulator: None,
     }
 });
 
@@ -223,7 +223,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
     let base_system_smart_contracts = BaseSystemContracts {
         bootloader,
         default_aa,
-        evm_simulator: None,
+        evm_emulator: None,
     };
 
     let system_env = SystemEnv {

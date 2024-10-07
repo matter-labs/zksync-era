@@ -106,7 +106,7 @@ fn known_bytecodes_without_base_system_contracts<S: WriteStorage, H: HistoryMode
         .unwrap();
 
     known_bytecodes_without_base_system_contracts
-        .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.evm_simulator.hash))
+        .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.evm_emulator.hash))
         .unwrap();
 
     known_bytecodes_without_base_system_contracts

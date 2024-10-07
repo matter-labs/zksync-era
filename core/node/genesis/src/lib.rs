@@ -104,7 +104,7 @@ impl GenesisParams {
             default_aa: config
                 .default_aa_hash
                 .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
-            evm_simulator: config.evm_simulator_hash,
+            evm_emulator: config.evm_emulator_hash,
         };
         if base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(Box::new(
@@ -126,10 +126,10 @@ impl GenesisParams {
 
     pub fn load_genesis_params(config: GenesisConfig) -> Result<GenesisParams, GenesisError> {
         let mut base_system_contracts = BaseSystemContracts::load_from_disk();
-        if config.evm_simulator_hash.is_some() {
-            base_system_contracts = base_system_contracts.with_latest_evm_simulator();
+        if config.evm_emulator_hash.is_some() {
+            base_system_contracts = base_system_contracts.with_latest_evm_emulator();
         }
-        let system_contracts = get_system_smart_contracts(config.evm_simulator_hash.is_some());
+        let system_contracts = get_system_smart_contracts(config.evm_emulator_hash.is_some());
         Self::from_genesis_config(config, base_system_contracts, system_contracts)
     }
 
@@ -176,7 +176,7 @@ pub fn mock_genesis_config() -> GenesisConfig {
         genesis_commitment: Some(H256::default()),
         bootloader_hash: Some(base_system_contracts_hashes.bootloader),
         default_aa_hash: Some(base_system_contracts_hashes.default_aa),
-        evm_simulator_hash: base_system_contracts_hashes.evm_simulator,
+        evm_emulator_hash: base_system_contracts_hashes.evm_emulator,
         l1_chain_id: L1ChainId(9),
         sl_chain_id: None,
         l2_chain_id: L2ChainId::default(),
@@ -240,7 +240,7 @@ pub async fn insert_genesis_batch(
             .config
             .default_aa_hash
             .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
-        evm_simulator: genesis_params.config.evm_simulator_hash,
+        evm_emulator: genesis_params.config.evm_emulator_hash,
     };
     let commitment_input = CommitmentInput::for_genesis_batch(
         genesis_root_hash,

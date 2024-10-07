@@ -122,7 +122,7 @@ pub struct VmExecutionResultAndLogs {
     pub refunds: Refunds,
     /// Bytecodes decommitted during VM execution. `None` if not computed by the VM.
     // FIXME: currently, this is only filled up by `vm_latest`; probably makes sense to narrow down
-    //   to *dynamic* factory deps, so that `HashMap::new()` is a valid value for VMs not supporting EVM simulation.
+    //   to *dynamic* factory deps, so that `HashMap::new()` is a valid value for VMs not supporting EVM emulation.
     pub new_known_factory_deps: Option<HashMap<H256, Vec<u8>>>,
 }
 

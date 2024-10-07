@@ -38,7 +38,7 @@ async fn create_genesis_params(
     let base_system_contracts_hashes = BaseSystemContractsHashes {
         bootloader: config.bootloader_hash.context("Genesis is not finished")?,
         default_aa: config.default_aa_hash.context("Genesis is not finished")?,
-        evm_simulator: config.evm_simulator_hash,
+        evm_emulator: config.evm_emulator_hash,
     };
 
     if zksync_chain_id != config.l2_chain_id {
@@ -49,7 +49,7 @@ async fn create_genesis_params(
     // Not every of these addresses is guaranteed to be present in the genesis state, but we'll iterate through
     // them and try to fetch the contract bytecode for each of them.
     let system_contract_addresses: Vec<_> =
-        get_system_smart_contracts(config.evm_simulator_hash.is_some())
+        get_system_smart_contracts(config.evm_emulator_hash.is_some())
             .into_iter()
             .map(|contract| *contract.account_id.address())
             .collect();
@@ -105,7 +105,7 @@ async fn fetch_base_system_contracts(
         .fetch_system_contract_by_hash(contract_hashes.default_aa)
         .await?
         .context("default AA bytecode is missing on main node")?;
-    let evm_simulator = if let Some(hash) = contract_hashes.evm_simulator {
+    let evm_emulator = if let Some(hash) = contract_hashes.evm_emulator {
         let bytes = client
             .fetch_system_contract_by_hash(hash)
             .await?
@@ -126,6 +126,6 @@ async fn fetch_base_system_contracts(
             code: zksync_utils::bytes_to_be_words(default_aa_bytecode),
             hash: contract_hashes.default_aa,
         },
-        evm_simulator,
+        evm_emulator,
     })
 }

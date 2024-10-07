@@ -325,7 +325,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
-                evm_simulator_code_hash,
+                evm_emulator_code_hash,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -367,7 +367,7 @@ impl BlocksDal<'_, '_> {
                 used_contract_hashes,
                 bootloader_code_hash,
                 default_aa_code_hash,
-                evm_simulator_code_hash,
+                evm_emulator_code_hash,
                 protocol_version,
                 system_logs,
                 pubdata_input
@@ -612,7 +612,7 @@ impl BlocksDal<'_, '_> {
                 used_contract_hashes,
                 bootloader_code_hash,
                 default_aa_code_hash,
-                evm_simulator_code_hash,
+                evm_emulator_code_hash,
                 protocol_version,
                 system_logs,
                 storage_refunds,
@@ -665,7 +665,7 @@ impl BlocksDal<'_, '_> {
             header.base_system_contracts_hashes.default_aa.as_bytes(),
             header
                 .base_system_contracts_hashes
-                .evm_simulator
+                .evm_emulator
                 .as_ref()
                 .map(H256::as_bytes),
             header.protocol_version.map(|v| v as i32),
@@ -712,7 +712,7 @@ impl BlocksDal<'_, '_> {
                 gas_per_pubdata_limit,
                 bootloader_code_hash,
                 default_aa_code_hash,
-                evm_simulator_code_hash,
+                evm_emulator_code_hash,
                 protocol_version,
                 virtual_blocks,
                 fair_pubdata_price,
@@ -765,7 +765,7 @@ impl BlocksDal<'_, '_> {
                 .as_bytes(),
             l2_block_header
                 .base_system_contracts_hashes
-                .evm_simulator
+                .evm_emulator
                 .as_ref()
                 .map(H256::as_bytes),
             l2_block_header.protocol_version.map(|v| v as i32),
@@ -796,7 +796,7 @@ impl BlocksDal<'_, '_> {
                 gas_per_pubdata_limit,
                 bootloader_code_hash,
                 default_aa_code_hash,
-                evm_simulator_code_hash,
+                evm_emulator_code_hash,
                 protocol_version,
                 virtual_blocks,
                 fair_pubdata_price,
@@ -837,7 +837,7 @@ impl BlocksDal<'_, '_> {
                 gas_per_pubdata_limit,
                 bootloader_code_hash,
                 default_aa_code_hash,
-                evm_simulator_code_hash,
+                evm_emulator_code_hash,
                 protocol_version,
                 virtual_blocks,
                 fair_pubdata_price,
@@ -1056,7 +1056,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
-                evm_simulator_code_hash,
+                evm_emulator_code_hash,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -1243,7 +1243,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
-                evm_simulator_code_hash,
+                evm_emulator_code_hash,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -1324,7 +1324,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
-                evm_simulator_code_hash,
+                evm_emulator_code_hash,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -1398,7 +1398,7 @@ impl BlocksDal<'_, '_> {
                         zkporter_is_available,
                         bootloader_code_hash,
                         default_aa_code_hash,
-                        evm_simulator_code_hash,
+                        evm_emulator_code_hash,
                         aux_data_hash,
                         pass_through_data_hash,
                         meta_parameters_hash,
@@ -1526,7 +1526,7 @@ impl BlocksDal<'_, '_> {
                     zkporter_is_available,
                     bootloader_code_hash,
                     default_aa_code_hash,
-                    evm_simulator_code_hash,
+                    evm_emulator_code_hash,
                     aux_data_hash,
                     pass_through_data_hash,
                     meta_parameters_hash,
@@ -1591,7 +1591,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash,
-                l1_batches.evm_simulator_code_hash,
+                l1_batches.evm_emulator_code_hash,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -1670,7 +1670,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash,
-                l1_batches.evm_simulator_code_hash,
+                l1_batches.evm_emulator_code_hash,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -2721,7 +2721,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn persisting_evm_simulator_hash() {
+    async fn persisting_evm_emulator_hash() {
         let pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = pool.connection().await.unwrap();
 
@@ -2731,7 +2731,7 @@ mod tests {
             .unwrap();
 
         let mut l2_block_header = create_l2_block_header(1);
-        l2_block_header.base_system_contracts_hashes.evm_simulator = Some(H256::repeat_byte(0x23));
+        l2_block_header.base_system_contracts_hashes.evm_emulator = Some(H256::repeat_byte(0x23));
         conn.blocks_dal()
             .insert_l2_block(&l2_block_header)
             .await
@@ -2750,7 +2750,7 @@ mod tests {
         // ...and a sanity check just to be sure
         assert!(fetched_block_header
             .base_system_contracts_hashes
-            .evm_simulator
+            .evm_emulator
             .is_some());
     }
 

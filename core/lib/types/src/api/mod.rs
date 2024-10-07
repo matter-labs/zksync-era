@@ -652,9 +652,9 @@ pub struct ProtocolVersion {
     /// Default account code hash
     #[serde(rename = "defaultAccountCodeHash")]
     pub default_account_code_hash: Option<H256>,
-    /// Evm simulator code hash
+    /// EVM emulator code hash
     #[serde(rename = "evmSimulatorCodeHash")]
-    pub evm_simulator_code_hash: Option<H256>,
+    pub evm_emulator_code_hash: Option<H256>,
     /// L2 Upgrade transaction hash
     #[deprecated]
     pub l2_system_upgrade_tx_hash: Option<H256>,
@@ -670,7 +670,7 @@ impl ProtocolVersion {
         timestamp: u64,
         bootloader_code_hash: H256,
         default_account_code_hash: H256,
-        evm_simulator_code_hash: Option<H256>,
+        evm_emulator_code_hash: Option<H256>,
         l2_system_upgrade_tx_hash: Option<H256>,
     ) -> Self {
         Self {
@@ -681,11 +681,11 @@ impl ProtocolVersion {
             base_system_contracts: Some(BaseSystemContractsHashes {
                 bootloader: bootloader_code_hash,
                 default_aa: default_account_code_hash,
-                evm_simulator: evm_simulator_code_hash,
+                evm_emulator: evm_emulator_code_hash,
             }),
             bootloader_code_hash: Some(bootloader_code_hash),
             default_account_code_hash: Some(default_account_code_hash),
-            evm_simulator_code_hash,
+            evm_emulator_code_hash,
             l2_system_upgrade_tx_hash,
             l2_system_upgrade_tx_hash_new: l2_system_upgrade_tx_hash,
         }
@@ -701,10 +701,10 @@ impl ProtocolVersion {
             .or_else(|| self.base_system_contracts.map(|hashes| hashes.default_aa))
     }
 
-    pub fn evm_simulator_code_hash(&self) -> Option<H256> {
-        self.evm_simulator_code_hash.or_else(|| {
+    pub fn evm_emulator_code_hash(&self) -> Option<H256> {
+        self.evm_emulator_code_hash.or_else(|| {
             self.base_system_contracts
-                .and_then(|hashes| hashes.evm_simulator)
+                .and_then(|hashes| hashes.evm_emulator)
         })
     }
 
@@ -930,7 +930,7 @@ mod tests {
             base_system_contracts: Some(Default::default()),
             bootloader_code_hash: Some(Default::default()),
             default_account_code_hash: Some(Default::default()),
-            evm_simulator_code_hash: Some(Default::default()),
+            evm_emulator_code_hash: Some(Default::default()),
             l2_system_upgrade_tx_hash: Default::default(),
             l2_system_upgrade_tx_hash_new: Default::default(),
         };

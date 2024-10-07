@@ -45,7 +45,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 timestamp,
                 bootloader_code_hash,
                 default_account_code_hash,
-                evm_simulator_code_hash,
+                evm_emulator_code_hash,
                 upgrade_tx_hash,
                 created_at
             )
@@ -58,7 +58,7 @@ impl ProtocolVersionsDal<'_, '_> {
             base_system_contracts_hashes.bootloader.as_bytes(),
             base_system_contracts_hashes.default_aa.as_bytes(),
             base_system_contracts_hashes
-                .evm_simulator
+                .evm_emulator
                 .as_ref()
                 .map(H256::as_bytes),
             tx_hash.as_ref().map(H256::as_bytes),
@@ -199,7 +199,7 @@ impl ProtocolVersionsDal<'_, '_> {
             SELECT
                 bootloader_code_hash,
                 default_account_code_hash,
-                evm_simulator_code_hash
+                evm_emulator_code_hash
             FROM
                 protocol_versions
             WHERE
@@ -218,7 +218,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 .get_base_system_contracts(
                     H256::from_slice(&row.bootloader_code_hash),
                     H256::from_slice(&row.default_account_code_hash),
-                    row.evm_simulator_code_hash.as_deref().map(H256::from_slice),
+                    row.evm_emulator_code_hash.as_deref().map(H256::from_slice),
                 )
                 .await?;
             Some(contracts)
@@ -239,7 +239,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_versions.timestamp,
                 protocol_versions.bootloader_code_hash,
                 protocol_versions.default_account_code_hash,
-                protocol_versions.evm_simulator_code_hash,
+                protocol_versions.evm_emulator_code_hash,
                 protocol_patches.patch,
                 protocol_patches.snark_wrapper_vk_hash
             FROM

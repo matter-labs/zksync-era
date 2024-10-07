@@ -673,7 +673,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 miniblocks.fair_pubdata_price,
                 miniblocks.bootloader_code_hash,
                 miniblocks.default_aa_code_hash,
-                l1_batches.evm_simulator_code_hash,
+                l1_batches.evm_emulator_code_hash,
                 miniblocks.protocol_version,
                 miniblocks.fee_account_address
             FROM
@@ -746,7 +746,7 @@ impl BlocksWeb3Dal<'_, '_> {
                 mb.fair_pubdata_price,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash,
-                l1_batches.evm_simulator_code_hash
+                l1_batches.evm_emulator_code_hash
             FROM
                 l1_batches
             INNER JOIN mb ON TRUE

@@ -81,7 +81,7 @@ impl EthNamespace {
         let tx = L2Tx::from_request(
             request.into(),
             self.state.api_config.max_tx_size,
-            false, // Even with EVM simulation enabled, calls must specify `to` field
+            false, // Even with EVM emulation enabled, calls must specify `to` field
         )?;
 
         // It is assumed that the previous checks has already enforced that the `max_fee_per_gas` is at most u64.
@@ -119,7 +119,7 @@ impl EthNamespace {
         let mut tx: L2Tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
-            block_args.use_evm_simulator(),
+            block_args.use_evm_emulator(),
         )?;
 
         // The user may not include the proper transaction type during the estimation of

@@ -131,7 +131,7 @@ pub(super) async fn insert_base_system_contracts_to_factory_deps(
 ) -> Result<(), GenesisError> {
     let factory_deps = [&contracts.bootloader, &contracts.default_aa]
         .into_iter()
-        .chain(contracts.evm_simulator.as_ref())
+        .chain(contracts.evm_emulator.as_ref())
         .map(|c| (c.hash, be_words_to_bytes(&c.code)))
         .collect();
 

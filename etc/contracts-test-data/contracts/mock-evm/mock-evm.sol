@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 
 /**
  * Mock `KnownCodeStorage` counterpart producing `MarkedAsKnown` events and having `publishEVMBytecode` method
- * added for EVM simulation, calls to which should be traced by the host.
+ * added for EVM emulation, calls to which should be traced by the host.
  */
 contract MockKnownCodeStorage {
     event MarkedAsKnown(bytes32 indexed bytecodeHash, bool indexed sendBytecodeToL1);

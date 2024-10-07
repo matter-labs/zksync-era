@@ -40,8 +40,8 @@ fn tracing_evm_contract_deployment() {
     storage.store_factory_dep(mock_known_code_storage_hash, mock_known_code_storage);
 
     let mut system_env = default_system_env();
-    // The EVM simulator will not be accessed, so we set it to a dummy value.
-    system_env.base_system_smart_contracts.evm_simulator =
+    // The EVM emulator will not be accessed, so we set it to a dummy value.
+    system_env.base_system_smart_contracts.evm_emulator =
         Some(system_env.base_system_smart_contracts.default_aa.clone());
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_system_env(system_env)

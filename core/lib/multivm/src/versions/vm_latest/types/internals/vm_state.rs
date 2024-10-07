@@ -98,9 +98,9 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         Timestamp(0),
     );
 
-    if let Some(evm_simulator) = &system_env.base_system_smart_contracts.evm_simulator {
+    if let Some(evm_emulator) = &system_env.base_system_smart_contracts.evm_emulator {
         decommittment_processor.populate(
-            vec![(h256_to_u256(evm_simulator.hash), evm_simulator.code.clone())],
+            vec![(h256_to_u256(evm_emulator.hash), evm_emulator.code.clone())],
             Timestamp(0),
         );
     }
@@ -124,10 +124,10 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         Timestamp(0),
     );
 
-    // By convention, default AA is used as a fallback if the EVM simulator is not available.
-    let evm_simulator_code_hash = system_env
+    // By convention, default AA is used as a fallback if the EVM emulator is not available.
+    let evm_emulator_code_hash = system_env
         .base_system_smart_contracts
-        .evm_simulator
+        .evm_emulator
         .as_ref()
         .unwrap_or(&system_env.base_system_smart_contracts.default_aa)
         .hash;
@@ -142,7 +142,7 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
             default_aa_code_hash: h256_to_u256(
                 system_env.base_system_smart_contracts.default_aa.hash,
             ),
-            evm_simulator_code_hash: h256_to_u256(evm_simulator_code_hash),
+            evm_simulator_code_hash: h256_to_u256(evm_emulator_code_hash),
             zkporter_is_available: system_env.zk_porter_available,
         },
     );

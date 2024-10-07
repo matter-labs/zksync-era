@@ -62,8 +62,8 @@ pub struct ProtocolUpgrade {
     pub bootloader_code_hash: Option<H256>,
     /// New default account code hash.
     pub default_account_code_hash: Option<H256>,
-    /// New evm simulator code hash
-    pub evm_simulator_code_hash: Option<H256>,
+    /// New EVM emulator code hash
+    pub evm_emulator_code_hash: Option<H256>,
     /// New verifier params.
     pub verifier_params: Option<VerifierParams>,
     /// New verifier address.
@@ -120,7 +120,7 @@ impl ProtocolUpgrade {
             bootloader_code_hash: (bootloader_hash != H256::zero()).then_some(bootloader_hash),
             default_account_code_hash: (default_account_hash != H256::zero())
                 .then_some(default_account_hash),
-            evm_simulator_code_hash: None, // EVM simulator upgrades are not supported yet
+            evm_emulator_code_hash: None, // EVM emulator upgrades are not supported yet
             verifier_params: (upgrade.verifier_params != abi::VerifierParams::default())
                 .then_some(upgrade.verifier_params.into()),
             verifier_address: (upgrade.verifier != Address::zero()).then_some(upgrade.verifier),
@@ -307,9 +307,9 @@ impl ProtocolVersion {
                 default_aa: upgrade
                     .default_account_code_hash
                     .unwrap_or(self.base_system_contracts_hashes.default_aa),
-                evm_simulator: upgrade
-                    .evm_simulator_code_hash
-                    .or(self.base_system_contracts_hashes.evm_simulator),
+                evm_emulator: upgrade
+                    .evm_emulator_code_hash
+                    .or(self.base_system_contracts_hashes.evm_emulator),
             },
             tx: upgrade.tx,
         }

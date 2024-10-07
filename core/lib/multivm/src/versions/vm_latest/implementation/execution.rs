@@ -58,7 +58,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             self.system_env.default_validation_computational_gas_limit,
             self.system_env
                 .base_system_smart_contracts
-                .evm_simulator
+                .evm_emulator
                 .is_some(),
             execution_mode,
             mem::take(dispatcher),

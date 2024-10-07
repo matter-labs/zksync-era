@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                protocol_versions.id AS \"minor!\",\n                protocol_versions.timestamp,\n                protocol_versions.bootloader_code_hash,\n                protocol_versions.default_account_code_hash,\n                protocol_versions.evm_simulator_code_hash,\n                protocol_patches.patch,\n                protocol_patches.snark_wrapper_vk_hash\n            FROM\n                protocol_versions\n            JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id\n            WHERE\n                id = $1\n            ORDER BY\n                protocol_patches.patch DESC\n            LIMIT\n                1\n            ",
+  "query": "\n            SELECT\n                protocol_versions.id AS \"minor!\",\n                protocol_versions.timestamp,\n                protocol_versions.bootloader_code_hash,\n                protocol_versions.default_account_code_hash,\n                protocol_versions.evm_emulator_code_hash,\n                protocol_patches.patch,\n                protocol_patches.snark_wrapper_vk_hash\n            FROM\n                protocol_versions\n            JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id\n            WHERE\n                id = $1\n            ORDER BY\n                protocol_patches.patch DESC\n            LIMIT\n                1\n            ",
   "describe": {
     "columns": [
       {
@@ -25,7 +25,7 @@
       },
       {
         "ordinal": 4,
-        "name": "evm_simulator_code_hash",
+        "name": "evm_emulator_code_hash",
         "type_info": "Bytea"
       },
       {
@@ -54,5 +54,5 @@
       false
     ]
   },
-  "hash": "d77dded7cf6443fdae1c4fb7cd0be5ca9c04806077469dcf1e111d06fa88711f"
+  "hash": "89e53b297b2b1c0dfb263f9175cb70e7a5fe02b60d5d23e4d153190138112c5b"
 }

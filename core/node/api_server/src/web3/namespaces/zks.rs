@@ -70,7 +70,7 @@ impl ZksNamespace {
         let mut tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
-            block_args.use_evm_simulator(),
+            block_args.use_evm_emulator(),
         )?;
 
         // When we're estimating fee, we are trying to deduce values related to fee, so we should
@@ -100,7 +100,7 @@ impl ZksNamespace {
         drop(connection);
         let tx = L1Tx::from_request(
             request_with_gas_per_pubdata_overridden,
-            block_args.use_evm_simulator(),
+            block_args.use_evm_emulator(),
         )
         .map_err(Web3Error::SerializationError)?;
 

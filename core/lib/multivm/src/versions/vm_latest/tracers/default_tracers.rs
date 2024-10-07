@@ -74,7 +74,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         computational_gas_limit: u32,
-        use_evm_simulator: bool,
+        use_evm_emulator: bool,
         execution_mode: VmExecutionMode,
         dispatcher: TracerDispatcher<S, H>,
         storage: StoragePtr<S>,
@@ -96,7 +96,7 @@ impl<S: WriteStorage, H: HistoryMode> DefaultExecutionTracer<S, H> {
             pubdata_tracer,
             ret_from_the_bootloader: None,
             circuits_tracer: CircuitsTracer::new(),
-            evm_deploy_tracer: use_evm_simulator.then(EvmDeployTracer::new),
+            evm_deploy_tracer: use_evm_emulator.then(EvmDeployTracer::new),
             storage,
             _phantom: PhantomData,
         }

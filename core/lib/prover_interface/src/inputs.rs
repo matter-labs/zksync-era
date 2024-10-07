@@ -145,7 +145,7 @@ pub struct VMRunWitnessInputData {
     pub bootloader_code: Vec<[u8; 32]>,
     pub default_account_code_hash: U256,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub evm_simulator_code_hash: Option<U256>,
+    pub evm_emulator_code_hash: Option<U256>,
     pub storage_refunds: Vec<u32>,
     pub pubdata_costs: Vec<i32>,
     pub witness_block_state: WitnessStorageState,

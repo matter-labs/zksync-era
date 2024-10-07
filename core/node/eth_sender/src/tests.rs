@@ -44,16 +44,15 @@ const COMMITMENT_MODES: [L1BatchCommitmentMode; 2] = [
 
 pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
     let functions = ZkSyncFunctions::default();
-    let evm_simulator_getter_signature = functions
-        .get_evm_simulator_bytecode_hash
+    let evm_emulator_getter_signature = functions
+        .get_evm_emulator_bytecode_hash
         .as_ref()
         .map(ethabi::Function::short_signature);
     let bootloader_signature = functions.get_l2_bootloader_bytecode_hash.short_signature();
     let default_aa_signature = functions
         .get_l2_default_account_bytecode_hash
         .short_signature();
-    let evm_simulator_getter_signature =
-        evm_simulator_getter_signature.as_ref().map(|sig| &sig[..]);
+    let evm_emulator_getter_signature = evm_emulator_getter_signature.as_ref().map(|sig| &sig[..]);
 
     let calldata = &call.data.as_ref().expect("no calldata").0;
     assert_eq!(calldata[..4], functions.aggregate3.short_signature());
@@ -77,7 +76,7 @@ pub(crate) fn mock_multicall_response(call: &web3::CallRequest) -> Token {
             selector if selector == default_aa_signature => {
                 vec![2u8; 32]
             }
-            selector if Some(selector) == evm_simulator_getter_signature => {
+            selector if Some(selector) == evm_emulator_getter_signature => {
                 vec![3u8; 32]
             }
             selector if selector == functions.get_verifier_params.short_signature() => {
@@ -118,7 +117,7 @@ pub(crate) fn default_l1_batch_metadata() -> L1BatchMetadata {
             zkporter_is_available: false,
             bootloader_code_hash: H256::default(),
             default_aa_code_hash: H256::default(),
-            evm_simulator_code_hash: None,
+            evm_emulator_code_hash: None,
             protocol_version: Some(ProtocolVersionId::default()),
         },
         aux_data_hash: H256::default(),
@@ -703,7 +702,7 @@ async fn skipped_l1_batch_in_the_middle(
 
 #[test_casing(2, [false, true])]
 #[test_log::test(tokio::test)]
-async fn parsing_multicall_data(with_evm_simulator: bool) {
+async fn parsing_multicall_data(with_evm_emulator: bool) {
     let tester = EthSenderTester::new(
         ConnectionPool::<Core>::test_pool().await,
         vec![100; 100],
@@ -727,7 +726,7 @@ async fn parsing_multicall_data(with_evm_simulator: bool) {
             ),
         ]),
     ];
-    if with_evm_simulator {
+    if with_evm_emulator {
         mock_response.insert(
             2,
             Token::Tuple(vec![Token::Bool(true), Token::Bytes(vec![3u8; 32])]),
@@ -737,7 +736,7 @@ async fn parsing_multicall_data(with_evm_simulator: bool) {
 
     let parsed = tester
         .aggregator
-        .parse_multicall_data(mock_response, with_evm_simulator)
+        .parse_multicall_data(mock_response, with_evm_emulator)
         .unwrap();
     assert_eq!(
         parsed.base_system_contracts_hashes.bootloader,
@@ -747,10 +746,10 @@ async fn parsing_multicall_data(with_evm_simulator: bool) {
         parsed.base_system_contracts_hashes.default_aa,
         H256::repeat_byte(2)
     );
-    let expected_evm_simulator_hash = with_evm_simulator.then(|| H256::repeat_byte(3));
+    let expected_evm_emulator_hash = with_evm_emulator.then(|| H256::repeat_byte(3));
     assert_eq!(
-        parsed.base_system_contracts_hashes.evm_simulator,
-        expected_evm_simulator_hash
+        parsed.base_system_contracts_hashes.evm_emulator,
+        expected_evm_emulator_hash
     );
     assert_eq!(parsed.verifier_address, Address::repeat_byte(5));
     assert_eq!(parsed.protocol_version_id, ProtocolVersionId::latest());
@@ -843,7 +842,7 @@ async fn get_multicall_data(commitment_mode: L1BatchCommitmentMode) {
         data.base_system_contracts_hashes.default_aa,
         H256::repeat_byte(2)
     );
-    assert_eq!(data.base_system_contracts_hashes.evm_simulator, None);
+    assert_eq!(data.base_system_contracts_hashes.evm_emulator, None);
     assert_eq!(data.verifier_address, Address::repeat_byte(5));
     assert_eq!(data.protocol_version_id, ProtocolVersionId::latest());
 }
