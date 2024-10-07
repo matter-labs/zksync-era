@@ -6,15 +6,17 @@ use strum_macros::EnumString;
 use time::Duration;
 use vise::EncodeLabelValue;
 
+use crate::configs::ObservabilityConfig;
+
 /// Config used for running ProverAutoscaler (both Scaler and Agent).
-#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProverAutoscalerConfig {
     /// Amount of time ProverJobMonitor will wait all it's tasks to finish.
     // TODO: find a way to use #[serde(with = "humantime_serde")] with time::Duration.
-    #[serde(default = "ProverAutoscalerConfig::default_graceful_shutdown_timeout")]
     pub graceful_shutdown_timeout: Duration,
     pub agent_config: Option<ProverAutoscalerAgentConfig>,
     pub scaler_config: Option<ProverAutoscalerScalerConfig>,
+    pub observability: Option<ObservabilityConfig>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]

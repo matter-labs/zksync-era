@@ -14,6 +14,7 @@ impl ProtoRepr for proto::ProverAutoscalerConfig {
                 .unwrap_or(Self::Type::default_graceful_shutdown_timeout()),
             agent_config: read_optional_repr(&self.agent_config),
             scaler_config: read_optional_repr(&self.scaler_config),
+            observability: read_optional_repr(&self.observability),
         })
     }
 
@@ -22,6 +23,7 @@ impl ProtoRepr for proto::ProverAutoscalerConfig {
             graceful_shutdown_timeout: Some(ProtoFmt::build(&this.graceful_shutdown_timeout)),
             agent_config: this.agent_config.as_ref().map(ProtoRepr::build),
             scaler_config: this.scaler_config.as_ref().map(ProtoRepr::build),
+            observability: this.observability.as_ref().map(ProtoRepr::build),
         }
     }
 }

@@ -54,14 +54,14 @@ struct Opt {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .init();
-
     let opt = Opt::from_args();
     let general_config =
         read_yaml_repr::<prover_autoscaler::ProverAutoscalerConfig>(&opt.config_path)
             .context("general config")?;
+    let observability_config = general_config
+        .observability
+        .context("observability config")?;
+    let _observability_guard = observability_config.install()?;
     // That's unfortunate that there are at least 3 different Duration in rust and we use all 3 in this repo.
     // TODO: Consider updating zksync_protobuf to support std::time::Duration.
     let graceful_shutdown_timeout = general_config.graceful_shutdown_timeout.unsigned_abs();

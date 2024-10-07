@@ -3,11 +3,13 @@ syntax = "proto3";
 package zksync.config.prover_autoscaler;
 
 import "zksync/std.proto";
+import "zksync/config/observability.proto";
 
 message ProverAutoscalerConfig {
   optional std.Duration graceful_shutdown_timeout = 1; // optional
   optional ProverAutoscalerAgentConfig agent_config = 2; // optional
   optional ProverAutoscalerScalerConfig scaler_config = 3; // optional
+  optional observability.Observability observability = 4; // optional
 }
 
 message ProverAutoscalerAgentConfig {
