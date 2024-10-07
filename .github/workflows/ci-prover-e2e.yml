@@ -6,7 +6,7 @@ jobs:
   e2e-test:
     runs-on: [ matterlabs-ci-gpu-runner ]
     env:
-      RUNNER_COMPOSE_FILE: "docker-compose-gpu-runner-cuda-12-0.yml"
+      RUNNER_COMPOSE_FILE: "docker-compose.yml"
 
     steps:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
@@ -25,8 +25,9 @@ jobs:
 
       - name: Start services
         run: |
-          ci_localnet_up
-          ci_run sccache --start-server
+          mkdir -p ./volumes/postgres ./volumes/reth/data
+          run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
+          docker-compose -f ${RUNNER_COMPOSE_FILE} up -d --wait
 
       - name: Init
         run: |
