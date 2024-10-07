@@ -72,6 +72,10 @@ pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
 pub(super) const MSG_INITIALIZING_ECOSYSTEM: &str = "Initializing ecosystem";
 pub(super) const MSG_DEPLOYING_ERC20: &str = "Deploying ERC20 contracts";
 pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
+pub(super) const MSG_CHAIN_CONFIGS_INITIALIZED: &str = "Chain configs were initialized";
+pub(super) const MSG_CHAIN_OWNERSHIP_TRANSFERRED: &str =
+    "Chain ownership was transferred successfully";
+pub(super) const MSG_CHAIN_REGISTERED: &str = "Chain registraion was successful";
 pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
 pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =
     "Minting base token to the governance addresses...";
@@ -100,7 +104,11 @@ pub(super) fn msg_initializing_chain(chain_name: &str) -> String {
 }
 
 pub(super) fn msg_ecosystem_initialized(chains: &str) -> String {
-    format!("Ecosystem initialized successfully with chains {chains}")
+    if chains.is_empty() {
+        "Ecosystem initialized successfully. You can initialize chain with `chain init`".to_string()
+    } else {
+        format!("Ecosystem initialized successfully with chains {chains}")
+    }
 }
 
 /// Ecosystem default related messages
@@ -187,6 +195,7 @@ pub(super) const MSG_INITIALIZING_SERVER_DATABASE: &str = "Initializing server d
 pub(super) const MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR: &str = "Failed to drop server database";
 pub(super) const MSG_INITIALIZING_PROVER_DATABASE: &str = "Initializing prover database";
 pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop prover database";
+pub(super) const MSG_GENESIS_DATABASES_INITIALIZED: &str = "Databases initialized successfully";
 
 /// Chain update related messages
 pub(super) const MSG_WALLETS_CONFIG_MUST_BE_PRESENT: &str = "Wallets configuration must be present";
