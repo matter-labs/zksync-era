@@ -30,17 +30,18 @@ RUN apt-get update && apt-get install -y \
     gnupg2 \
     postgresql-client \
     hub \
-    unzip
-
-# Install dependencies for RocksDB. `liburing` is not available for Ubuntu 20.04,
-# so we use a PPA with the backport
-RUN apt-get update && \
-    apt-get install -y \
+    unzip \
     gnutls-bin \
     build-essential \
     clang \
     lldb\
-    lld \
+    lld
+
+# Install dependencies for RocksDB. `liburing` is not available for Ubuntu 20.04,
+# so we use a PPA with the backport
+RUN add-apt-repository ppa:savoury1/virtualisation && \
+    apt-get update && \
+    apt-get install -y \
     liburing-dev \
     libclang-dev
 
