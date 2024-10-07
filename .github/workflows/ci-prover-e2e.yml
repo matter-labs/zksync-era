@@ -28,7 +28,7 @@ jobs:
         run: |
           run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
           mkdir -p ./volumes/postgres ./volumes/reth/data
-          docker-compose -f ${RUNNER_COMPOSE_FILE} up -d --wait
+          docker-compose -f ${RUNNER_COMPOSE_FILE} --profile runner up -d --wait
           curl -v 127.0.0.1:8545
 
       - name: Init
