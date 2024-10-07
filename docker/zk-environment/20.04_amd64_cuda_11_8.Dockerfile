@@ -16,7 +16,6 @@ RUN apt-get update && apt-get install -y \
     git \
     openssl \
     libssl-dev \
-    gcc \
     g++ \
     curl \
     pkg-config \
