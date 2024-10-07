@@ -26,7 +26,7 @@ use types::L1BatchCommitmentMode;
 use xshell::Shell;
 use zksync_basic_types::{settlement::SettlementMode, H256, U256, U64};
 use zksync_config::configs::eth_sender::PubdataSendingMode;
-use zksync_types::{api::Log, L2ChainId};
+use zksync_types::L2ChainId;
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{

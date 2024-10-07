@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use ethers::{
-    providers::{JsonRpcClient, Provider, ProviderError},
+    providers::ProviderError,
     types::{Address, Bytes, H160, H256, U64},
 };
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ use zksync_types::{
     ethabi,
 };
 use zksync_web3_decl::{
-    client::{Client, ForWeb3Network, L2},
+    client::{Client, L2},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
 };
 
