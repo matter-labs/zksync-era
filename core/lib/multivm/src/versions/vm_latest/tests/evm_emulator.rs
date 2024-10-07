@@ -25,8 +25,8 @@ use crate::{
 
 const MOCK_DEPLOYER_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockContractDeployer.json";
 const MOCK_KNOWN_CODE_STORAGE_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockKnownCodeStorage.json";
-const MOCK_SIMULATOR_PATH: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockEvmInterpreter.json";
+const MOCK_EMULATOR_PATH: &str =
+    "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockEvmEmulator.json";
 const RECURSIVE_CONTRACT_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/NativeRecursiveContract.json";
 
 #[test]
@@ -91,8 +91,8 @@ fn tracing_evm_contract_deployment() {
 }
 
 #[test]
-fn mock_simulator_basics() {
-    let mock_simulator = read_bytecode(MOCK_SIMULATOR_PATH);
+fn mock_emulator_basics() {
+    let mock_emulator = read_bytecode(MOCK_EMULATOR_PATH);
     let called_address = Address::repeat_byte(0x23);
     let evm_bytecode: Vec<_> = (0..=u8::MAX).collect();
     let evm_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
@@ -105,8 +105,8 @@ fn mock_simulator_basics() {
     );
     let mut system_env = default_system_env();
     system_env.base_system_smart_contracts.evm_emulator = Some(SystemContractCode {
-        hash: hash_bytecode(&mock_simulator),
-        code: bytes_to_be_words(mock_simulator),
+        hash: hash_bytecode(&mock_emulator),
+        code: bytes_to_be_words(mock_emulator),
     });
 
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
@@ -132,11 +132,11 @@ fn mock_simulator_basics() {
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
 }
 
-fn build_vm(deploy_simulator: bool, contract_address: Address) -> VmTester<HistoryEnabled> {
-    let mock_simulator = read_bytecode(MOCK_SIMULATOR_PATH);
+fn build_vm(deploy_emulator: bool, contract_address: Address) -> VmTester<HistoryEnabled> {
+    let mock_emulator = read_bytecode(MOCK_EMULATOR_PATH);
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     let mut system_env = default_system_env();
-    if deploy_simulator {
+    if deploy_emulator {
         let evm_bytecode: Vec<_> = (0..=u8::MAX).collect();
         let evm_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
         storage.set_value(get_code_key(&contract_address), evm_bytecode_hash);
@@ -146,18 +146,15 @@ fn build_vm(deploy_simulator: bool, contract_address: Address) -> VmTester<Histo
         );
 
         system_env.base_system_smart_contracts.evm_emulator = Some(SystemContractCode {
-            hash: hash_bytecode(&mock_simulator),
-            code: bytes_to_be_words(mock_simulator),
+            hash: hash_bytecode(&mock_emulator),
+            code: bytes_to_be_words(mock_emulator),
         });
     } else {
-        let simulator_hash = hash_bytecode(&mock_simulator);
-        storage.set_value(get_code_key(&contract_address), simulator_hash);
-        storage.set_value(
-            get_known_code_key(&simulator_hash),
-            H256::from_low_u64_be(1),
-        );
-        storage.store_factory_dep(simulator_hash, mock_simulator);
-        // Set `isUserSpace` in the simulator storage to `true`, so that it skips simulator-specific checks
+        let emulator_hash = hash_bytecode(&mock_emulator);
+        storage.set_value(get_code_key(&contract_address), emulator_hash);
+        storage.set_value(get_known_code_key(&emulator_hash), H256::from_low_u64_be(1));
+        storage.store_factory_dep(emulator_hash, mock_emulator);
+        // Set `isUserSpace` in the emulator storage to `true`, so that it skips emulator-specific checks
         storage.set_value(
             StorageKey::new(AccountTreeId::new(contract_address), H256::zero()),
             H256::from_low_u64_be(1),
@@ -172,16 +169,16 @@ fn build_vm(deploy_simulator: bool, contract_address: Address) -> VmTester<Histo
         .build()
 }
 
-/// `deploy_interpreter = false` here and below tests the mock simulator as an ordinary contract (i.e., sanity-checks its logic).
+/// `deploy_emulator = false` here and below tests the mock emulator as an ordinary contract (i.e., sanity-checks its logic).
 #[test_casing(2, [false, true])]
 #[test]
-fn mock_simulator_with_payment(deploy_simulator: bool) {
-    let mock_simulator_abi = load_contract(MOCK_SIMULATOR_PATH);
+fn mock_emulator_with_payment(deploy_emulator: bool) {
+    let mock_emulator_abi = load_contract(MOCK_EMULATOR_PATH);
     let recipient_address = Address::repeat_byte(0x12);
-    let mut vm = build_vm(deploy_simulator, recipient_address);
+    let mut vm = build_vm(deploy_emulator, recipient_address);
     let account = &mut vm.rich_accounts[0];
 
-    let test_payment_fn = mock_simulator_abi.function("testPayment").unwrap();
+    let test_payment_fn = mock_emulator_abi.function("testPayment").unwrap();
 
     let mut current_balance = U256::zero();
     for i in 1_u64..=5 {
@@ -218,13 +215,13 @@ fn mock_simulator_with_payment(deploy_simulator: bool) {
 
 #[test_casing(4, Product(([false, true], [false, true])))]
 #[test]
-fn mock_simulator_with_recursion(deploy_simulator: bool, is_external: bool) {
-    let mock_simulator_abi = load_contract(MOCK_SIMULATOR_PATH);
+fn mock_emulator_with_recursion(deploy_emulator: bool, is_external: bool) {
+    let mock_emulator_abi = load_contract(MOCK_EMULATOR_PATH);
     let recipient_address = Address::repeat_byte(0x12);
-    let mut vm = build_vm(deploy_simulator, recipient_address);
+    let mut vm = build_vm(deploy_emulator, recipient_address);
     let account = &mut vm.rich_accounts[0];
 
-    let test_recursion_fn = mock_simulator_abi
+    let test_recursion_fn = mock_emulator_abi
         .function(if is_external {
             "testExternalRecursion"
         } else {
@@ -232,7 +229,7 @@ fn mock_simulator_with_recursion(deploy_simulator: bool, is_external: bool) {
         })
         .unwrap();
     let mut expected_value = U256::one();
-    let depth = 4_u32; // FIXME: `depth >= 5` doesn't work due to the gas overflow in VM code
+    let depth = 50_u32;
     for i in 2..=depth {
         expected_value *= i;
     }

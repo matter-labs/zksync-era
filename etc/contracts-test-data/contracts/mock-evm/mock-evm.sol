@@ -99,12 +99,12 @@ interface IRecursiveContract {
     function recurse(uint _depth) external returns (uint);
 }
 
-uint constant EVM_INTERPRETER_STIPEND = 1 << 30;
+uint constant EVM_EMULATOR_STIPEND = 1 << 30;
 
 /**
- * Mock EVM interpreter used in low-level tests.
+ * Mock EVM emulator used in low-level tests.
  */
-contract MockEvmInterpreter is IRecursiveContract {
+contract MockEvmEmulator is IRecursiveContract {
     IAccountCodeStorage constant ACCOUNT_CODE_STORAGE_CONTRACT = IAccountCodeStorage(address(0x8002));
     address constant CODE_ORACLE_ADDR = address(0x8012);
 
@@ -113,7 +113,7 @@ contract MockEvmInterpreter is IRecursiveContract {
 
     modifier validEvmEntry() {
         if (!isUserSpace) {
-            require(gasleft() >= EVM_INTERPRETER_STIPEND, "no stipend");
+            require(gasleft() >= EVM_EMULATOR_STIPEND, "no stipend");
             // Fetch bytecode for the executed contract.
             bytes32 bytecodeHash = ACCOUNT_CODE_STORAGE_CONTRACT.getRawCodeHash(address(this));
             require(bytecodeHash != bytes32(0), "called contract not deployed");
@@ -135,13 +135,15 @@ contract MockEvmInterpreter is IRecursiveContract {
     IRecursiveContract recursionTarget;
 
     function recurse(uint _depth) public validEvmEntry returns (uint) {
-        // FIXME: for now, a new stipend is provided for each call
-        // require(gasleft() < 2 * EVM_INTERPRETER_STIPEND, "stipend provided multiple times");
+        require(gasleft() < 2 * EVM_EMULATOR_STIPEND, "stipend provided multiple times");
+
         if (_depth <= 1) {
             return 1;
         } else {
             IRecursiveContract target = (address(recursionTarget) == address(0)) ? this : recursionTarget;
-            return target.recurse(_depth - 1) * _depth;
+            // The real emulator deducts the stipend when performing far calls, so we emulate this behavior as well.
+            uint gasToSend = isUserSpace ? gasleft() : (gasleft() - EVM_EMULATOR_STIPEND);
+            return target.recurse{gas: gasToSend}(_depth - 1) * _depth;
         }
     }
 
@@ -169,8 +171,7 @@ contract NativeRecursiveContract is IRecursiveContract {
     }
 
     function recurse(uint _depth) external returns (uint) {
-        // FIXME: for now, the EVM stipend does spill to native contracts
-        // require(gasleft() < EVM_INTERPRETER_STIPEND, "stipend spilled to native contract");
+        require(gasleft() < EVM_EMULATOR_STIPEND, "stipend spilled to native contract");
         return (_depth <= 1) ? 1 : caller.recurse(_depth - 1) * _depth;
     }
 }
