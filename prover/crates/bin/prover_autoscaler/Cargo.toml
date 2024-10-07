@@ -42,3 +42,4 @@ regex.workspace = true
 strum.workspace = true
 debug-map-sorted = "0.1.1"
 time.workspace = true
+once_cell.workspace = true

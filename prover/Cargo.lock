@@ -8274,6 +8274,7 @@ dependencies = [
  "futures 0.3.30",
  "k8s-openapi",
  "kube",
+ "once_cell",
  "regex",
  "reqwest 0.12.5",
  "ring",

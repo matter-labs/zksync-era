@@ -2,11 +2,12 @@ use std::{collections::HashMap, str::FromStr};
 
 use chrono::Utc;
 use debug_map_sorted::SortedOutputExt;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 use super::{queuer, watcher};
 use crate::{
-    cluster_types::{Cluster, Clusters, PodStatus, GPU},
+    cluster_types::{Cluster, Clusters, Pod, PodStatus, GPU},
     metrics::AUTOSCALER_METRICS,
     task_wiring::Task,
 };
@@ -41,6 +42,11 @@ struct GPUPoolKey {
     gpu: GPU,
 }
 
+const PROVER_DEPLOYMENT_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^prover-gpu-fri-spec-(\d{1,2})?(-(?<gpu>[ltvpa]\d+))?$").unwrap());
+const PROVER_POD_RE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^prover-gpu-fri-spec-(\d{1,2})?(-(?<gpu>[ltvpa]\d+))?").unwrap());
+
 pub struct Scaler {
     /// namespace to Protocol Version configuration.
     namespaces: HashMap<String, String>,
@@ -51,8 +57,22 @@ pub struct Scaler {
     cluster_priorities: HashMap<String, u32>,
     prover_speed: HashMap<GPU, u64>,
     // `gpu` group must be specified.
-    prover_deployment_re: Regex,
-    prover_pod_re: Regex,
+}
+
+struct ProverPodGpu {
+    name: String,
+    pod: Pod,
+    gpu: GPU,
+}
+
+impl ProverPodGpu {
+    fn new(name: String, pod: Pod) -> Option<Self> {
+        PROVER_POD_RE.captures(&name.clone()).map(|caps| Self {
+            name,
+            pod,
+            gpu: GPU::from_str(caps.name("gpu").map_or("l4", |m| m.as_str())).unwrap_or_default(),
+        })
+    }
 }
 
 impl Scaler {
@@ -72,27 +92,22 @@ impl Scaler {
             ]),
             // TODO: add config.
             prover_speed: HashMap::from([(GPU::L4, 500)]),
-            prover_deployment_re: Regex::new(
-                r"^prover-gpu-fri-spec-(\d{1,2})?(-(?<gpu>[ltvpa]\d+))?$",
-            )
-            .unwrap(),
-            prover_pod_re: Regex::new(r"^prover-gpu-fri-spec-(\d{1,2})?(-(?<gpu>[ltvpa]\d+))?")
-                .unwrap(),
         }
     }
 
     fn convert_to_gpu_pool(&self, namespace: &String, cluster: &Cluster) -> Vec<GPUPool> {
         let mut gp_map = HashMap::new(); // <GPU, GPUPool>
-
-        let Some(nv) = &cluster.namespaces.get(namespace) else {
+        let Some(namespace_value) = &cluster.namespaces.get(namespace) else {
             // No namespace in config, ignoring.
             return vec![];
         };
-        for dn in nv.deployments.keys() {
-            let Some(caps) = self.prover_deployment_re.captures(dn) else {
-                // Not a prover, ignore.
-                continue;
-            };
+
+        for caps in namespace_value
+            .deployments
+            .keys()
+            .filter_map(|dn| PROVER_DEPLOYMENT_RE.captures(dn))
+        {
+            // Processing only provers.
             let gpu =
                 GPU::from_str(caps.name("gpu").map_or("l4", |m| m.as_str())).unwrap_or_default();
             let e = gp_map.entry(gpu).or_insert(GPUPool {
@@ -106,26 +121,29 @@ impl Scaler {
             e.provers.insert(PodStatus::Running, 0);
         }
 
-        for (pn, pv) in &nv.pods {
-            let Some(caps) = self.prover_pod_re.captures(pn) else {
-                // Not a prover, ignore.
-                continue;
-            };
-            let gpu =
-                GPU::from_str(caps.name("gpu").map_or("l4", |m| m.as_str())).unwrap_or_default();
-            let e = gp_map.entry(gpu).or_insert(GPUPool {
+        for ppg in namespace_value
+            .pods
+            .iter()
+            .filter_map(|(pn, pv)| ProverPodGpu::new(pn.clone(), pv.clone()))
+        {
+            let e = gp_map.entry(ppg.gpu).or_insert(GPUPool {
                 name: cluster.name.clone(),
-                gpu,
+                gpu: ppg.gpu,
                 ..Default::default()
             });
-            let mut status = PodStatus::from_str(&pv.status).unwrap_or_default();
+            let mut status = PodStatus::from_str(&ppg.pod.status).unwrap_or_default();
             if status == PodStatus::Pending
-                && pv.changed < Utc::now() - chrono::Duration::minutes(15)
+                && ppg.pod.changed < Utc::now() - chrono::Duration::minutes(15)
             // TODO: add duration into config
             {
                 status = PodStatus::LongPending;
             }
-            tracing::info!("pod {}: status: {}, real status: {}", pn, status, pv.status);
+            tracing::info!(
+                "pod {}: status: {}, real status: {}",
+                ppg.name,
+                status,
+                ppg.pod.status
+            );
             e.provers.entry(status).and_modify(|n| *n += 1).or_insert(1);
         }
 
