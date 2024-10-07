@@ -11,6 +11,7 @@ use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api::state_override::{OverrideAccount, StateOverride},
+    fee::Fee,
     fee_model::BatchFeeInput,
     K256PrivateKey, ProtocolVersionId, Transaction, U256,
 };
@@ -210,11 +211,16 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
     let fee_input = BatchFeeInput::l1_pegged(55, 555);
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
-    let tx = Transaction::from(K256PrivateKey::random().create_transfer(
+    let tx = K256PrivateKey::random().create_transfer_with_fee(
         0.into(),
-        base_fee,
-        gas_per_pubdata,
-    ));
+        Fee {
+            gas_limit: 200_000.into(),
+            max_fee_per_gas: base_fee.into(),
+            max_priority_fee_per_gas: 0.into(),
+            gas_per_pubdata_limit: gas_per_pubdata.into(),
+        },
+    );
+    let tx = Transaction::from(tx);
 
     let (limiter, _) = VmConcurrencyLimiter::new(1);
     let vm_permit = limiter.acquire().await.unwrap();
@@ -253,7 +259,15 @@ async fn validating_transaction(set_balance: bool) {
     let fee_input = BatchFeeInput::l1_pegged(55, 555);
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
-    let tx = K256PrivateKey::random().create_transfer(0.into(), base_fee, gas_per_pubdata);
+    let tx = K256PrivateKey::random().create_transfer_with_fee(
+        0.into(),
+        Fee {
+            gas_limit: 200_000.into(),
+            max_fee_per_gas: base_fee.into(),
+            max_priority_fee_per_gas: 0.into(),
+            gas_per_pubdata_limit: gas_per_pubdata.into(),
+        },
+    );
 
     let (limiter, _) = VmConcurrencyLimiter::new(1);
     let vm_permit = limiter.acquire().await.unwrap();
