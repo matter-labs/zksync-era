@@ -12,6 +12,7 @@ jobs:
       - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
         with:
           submodules: "recursive"
+          fetch-depth: 0
 
       - name: Setup environment
         run: |
@@ -36,21 +37,6 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/forge-std
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/murky
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/murky/lib/forge-std
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/murky/lib/openzeppelin-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/murky/lib/openzeppelin-contracts/lib/erc4626-tests
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/murky/lib/openzeppelin-contracts/lib/forge-std
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/murky/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts/lib/forge-std
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts/lib/erc4626-tests
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/erc4626-tests
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std
-          ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test
           
           ci_run ./bin/zkt
           ci_run zk_inception chain create \
