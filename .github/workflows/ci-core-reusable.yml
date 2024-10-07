@@ -354,57 +354,55 @@ jobs:
 
           PASSED_ENV_VARS="RUN_CONTRACT_VERIFICATION_TEST" \
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/rollup.log &
-          PID1=$!
+          PID_ERA=$!
 
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain validium &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/validium.log &
-          PID2=$!
+          PID_VALIDIUM=$!
 
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain custom_token &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/custom_token.log &
-          PID3=$!
+          PID_CUSTOM_TOKEN=$!
 
-          # TODO remove
-          false &
-          # ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain consensus &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log &
-          PID4=$!
+          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain consensus &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log &
+          PID_CONSENSUS=$!
 
-          wait $PID1
-          STATUS1=$?
-          wait $PID2
-          STATUS2=$?
-          wait $PID3
-          STATUS3=$?
-          wait $PID4
-          STATUS4=$?
+          wait $PID_ERA
+          STATUS_ERA=$?
+          wait $PID_VALIDIUM
+          STATUS_VALIDIUM=$?
+          wait $PID_CUSTOM_TOKEN
+          STATUS_CUSTOM_TOKEN=$?
+          wait $PID_CONSENSUS
+          STATUS_CONSENSUS=$?
 
           # Check exit statuses and set overall status
           OVERALL_STATUS=0
 
-          if [ $STATUS1 -ne 0 ]; then
+          if [ $STATUS_ERA -ne 0 ]; then
             OVERALL_STATUS=1
-            echo "Process 1 failed with status $STATUS1"
+            echo "Chain ERA failed with status $STATUS_ERA"
           else
-            echo "Process 1 succeeded"
+            echo "Chain ERA succeeded"
           fi
 
-          if [ $STATUS2 -ne 0 ]; then
+          if [ $STATUS_VALIDIUM -ne 0 ]; then
             OVERALL_STATUS=1
-            echo "Process 2 failed with status $STATUS2"
+            echo "Chain VALIDIUM failed with status $STATUS_VALIDIUM"
           else
-            echo "Process 2 succeeded"
+            echo "Chain VALIDIUM succeeded"
           fi
 
-          if [ $STATUS3 -ne 0 ]; then
+          if [ $STATUS_CUSTOM_TOKEN -ne 0 ]; then
             OVERALL_STATUS=1
-            echo "Process 3 failed with status $STATUS3"
+            echo "Chain CUSTOM_TOKEN failed with status $STATUS_CUSTOM_TOKEN"
           else
-            echo "Process 3 succeeded"
+            echo "Chain CUSTOM_TOKEN succeeded"
           fi
 
-          if [ $STATUS4 -ne 0 ]; then
+          if [ $STATUS_CONSENSUS -ne 0 ]; then
             OVERALL_STATUS=1
-            echo "Process 4 failed with status $STATUS4"
+            echo "Chain CONSENSUS failed with status $STATUS_CONSENSUS"
           else
-            echo "Process 4 succeeded"
+            echo "Chain CONSENSUS succeeded"
           fi
 
           # Re-enable immediate exit on non-zero status if needed
