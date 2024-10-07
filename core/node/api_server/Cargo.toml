@@ -29,6 +29,7 @@ zksync_utils.workspace = true
 zksync_protobuf.workspace = true
 zksync_mini_merkle_tree.workspace = true
 zksync_multivm.workspace = true
+zksync_vm_executor.workspace = true
 vise.workspace = true
 
 anyhow.workspace = true
@@ -55,6 +56,7 @@ tower-http = { workspace = true, features = ["cors", "metrics"] }
 lru.workspace = true
 
 [dev-dependencies]
+zk_evm_1_5_0.workspace = true
 zksync_node_genesis.workspace = true
 zksync_node_test_utils.workspace = true
 

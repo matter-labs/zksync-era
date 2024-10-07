@@ -23,7 +23,7 @@ fn download_initial_setup(key_download_url: &str) -> reqwest::Result<Vec<u8>> {
             Err(e) => {
                 tracing::warn!("Failed to download keys: {}", e);
                 retry_count += 1
-            },
+            }
         }
 
         tracing::warn!("Failed to download keys. Backing off for 5 second");

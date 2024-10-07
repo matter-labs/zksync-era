@@ -1,6 +1,7 @@
-use fflonk::bellman::bn256::Fr;
-use fflonk::bellman::{bn256, CurveAffine, Engine, PrimeField, PrimeFieldRepr};
-use fflonk::FflonkSnarkVerifierCircuitProof;
+use fflonk::{
+    bellman::{bn256, bn256::Fr, CurveAffine, Engine, PrimeField, PrimeFieldRepr},
+    FflonkSnarkVerifierCircuitProof,
+};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token, U256};
 
@@ -36,7 +37,6 @@ impl Tokenize for &ProveBatches {
                 ..
             } = self.proofs.first().unwrap();
 
-
             fn serialize_fe_for_ethereum(field_element: &Fr) -> U256 {
                 let mut be_bytes = [0u8; 32];
                 field_element
@@ -47,14 +47,16 @@ impl Tokenize for &ProveBatches {
             }
 
             fn serialize_g1_for_ethereum(
-                point: &<bn256::Bn256 as Engine>::G1Affine
+                point: &<bn256::Bn256 as Engine>::G1Affine,
             ) -> (U256, U256) {
                 if <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::is_zero(point) {
                     return (U256::zero(), U256::zero());
                 }
 
-                let (x, y) = <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::into_xy_unchecked(*point);
-                let _ = <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::from_xy_checked(x, y).unwrap();
+                let (x, y) =
+                    <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::into_xy_unchecked(*point);
+                let _ = <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::from_xy_checked(x, y)
+                    .unwrap();
 
                 let mut buffer = [0u8; 32];
                 x.into_repr().write_be(&mut buffer[..]).unwrap();

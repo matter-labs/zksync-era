@@ -8,7 +8,7 @@ use crate::{
     utils::bytecode,
 };
 
-impl<S: ReadStorage> Vm<S> {
+impl<S: ReadStorage, Tr> Vm<S, Tr> {
     /// Checks the last transaction has successfully published compressed bytecodes and returns `true` if there is at least one is still unknown.
     pub(crate) fn has_unpublished_bytecodes(&mut self) -> bool {
         self.bootloader_state

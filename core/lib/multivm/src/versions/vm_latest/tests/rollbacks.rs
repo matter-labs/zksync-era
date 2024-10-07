@@ -6,7 +6,7 @@ use crate::{
     interface::{
         storage::WriteStorage,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled,
+        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
@@ -92,7 +92,7 @@ fn test_vm_loadnext_rollbacks() {
 
     let loadnext_tx_1 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
                 writes: 100,
@@ -110,7 +110,7 @@ fn test_vm_loadnext_rollbacks() {
 
     let loadnext_tx_2 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
                 writes: 100,
@@ -224,14 +224,11 @@ fn test_layered_rollback() {
     vm.vm.make_snapshot();
 
     vm.vm.push_transaction(loadnext_transaction.clone());
-    vm.vm.inspect(
-        MaxRecursionTracer {
-            max_recursion_depth: 15,
-        }
-        .into_tracer_pointer()
-        .into(),
-        VmExecutionMode::OneTx,
-    );
+    let tracer = MaxRecursionTracer {
+        max_recursion_depth: 15,
+    }
+    .into_tracer_pointer();
+    vm.vm.inspect(&mut tracer.into(), VmExecutionMode::OneTx);
 
     let nonce_val2 = vm
         .vm

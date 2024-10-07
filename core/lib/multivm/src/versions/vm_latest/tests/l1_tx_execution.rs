@@ -10,7 +10,7 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     utils::StorageWritesDeduplicator,
     vm_latest::{
         tests::{
@@ -173,7 +173,7 @@ fn test_l1_tx_execution_high_gas_limit() {
 
     let mut tx = account.get_l1_tx(
         Execute {
-            contract_address: L1_MESSENGER_ADDRESS,
+            contract_address: Some(L1_MESSENGER_ADDRESS),
             value: 0.into(),
             factory_deps: vec![],
             calldata,

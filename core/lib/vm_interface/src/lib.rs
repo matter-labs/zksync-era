@@ -20,25 +20,28 @@
 pub use crate::{
     types::{
         errors::{
-            BytecodeCompressionError, Halt, TxRevertReason, VmRevertReason,
-            VmRevertReasonParsingError,
+            BytecodeCompressionError, BytecodeCompressionResult, Halt, TxRevertReason,
+            VmRevertReason, VmRevertReasonParsingError,
         },
         inputs::{
-            L1BatchEnv, L2BlockEnv, OneshotEnv, StoredL2BlockEnv, SystemEnv, TxExecutionMode,
-            VmExecutionMode,
+            L1BatchEnv, L2BlockEnv, OneshotEnv, OneshotTracingParams, StoredL2BlockEnv, SystemEnv,
+            TxExecutionArgs, TxExecutionMode, VmExecutionMode,
         },
         outputs::{
-            BootloaderMemory, Call, CallType, CircuitStatistic, CompressedBytecodeInfo,
-            CurrentExecutionState, DeduplicatedWritesMetrics, ExecutionResult, FinishedL1Batch,
-            L2Block, Refunds, TransactionExecutionMetrics, TransactionExecutionResult,
-            TxExecutionStatus, VmEvent, VmExecutionLogs, VmExecutionMetrics,
-            VmExecutionResultAndLogs, VmExecutionStatistics, VmMemoryMetrics,
+            BatchTransactionExecutionResult, BootloaderMemory, Call, CallType, CircuitStatistic,
+            CompressedBytecodeInfo, CurrentExecutionState, DeduplicatedWritesMetrics,
+            ExecutionResult, FinishedL1Batch, L2Block, OneshotTransactionExecutionResult, Refunds,
+            TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
+            VmExecutionLogs, VmExecutionMetrics, VmExecutionResultAndLogs, VmExecutionStatistics,
+            VmMemoryMetrics,
         },
         tracer,
     },
-    vm::{VmFactory, VmInterface, VmInterfaceHistoryEnabled},
+    vm::{VmFactory, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled, VmTrackingContracts},
 };
 
+pub mod executor;
 pub mod storage;
 mod types;
+pub mod utils;
 mod vm;

@@ -2,33 +2,36 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use fflonk::{bellman::worker::Worker, CompressionInput, CompressionMode, CompressionSchedule, FflonkSnarkVerifierCircuit, FflonkSnarkVerifierCircuitProof};
+use fflonk::{
+    bellman::worker::Worker, CompressionInput, CompressionMode, CompressionSchedule,
+    FflonkSnarkVerifierCircuit, FflonkSnarkVerifierCircuitProof,
+};
 use tokio::task::JoinHandle;
 #[allow(unused_imports)]
 use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, wrap_proof};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::aux_layer::{
-    wrapper::ZkSyncCompressionWrapper, ZkSyncCompressionProofForWrapper,
-    ZkSyncCompressionVerificationKeyForWrapper,
-};
-use zksync_prover_fri_types::circuit_definitions::circuit_definitions::recursion_layer::{
-    ZkSyncRecursionProof, ZkSyncRecursionVerificationKey,
-};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
-        circuit_definitions::recursion_layer::{
-            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
+        circuit_definitions::{
+            aux_layer::{
+                wrapper::ZkSyncCompressionWrapper, ZkSyncCompressionProofForWrapper,
+                ZkSyncCompressionVerificationKeyForWrapper,
+            },
+            recursion_layer::{
+                ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType, ZkSyncRecursionProof,
+                ZkSyncRecursionVerificationKey,
+            },
         },
         zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
 use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
-use zksync_vk_setup_data_server_fri::keystore::Keystore;
 
 use crate::metrics::METRICS;
 
@@ -38,7 +41,7 @@ pub struct ProofCompressor {
     compression_mode: u8,
     max_attempts: u32,
     protocol_version: ProtocolSemanticVersion,
-    setup_data_path: String,
+    keystore: Keystore,
 }
 
 impl ProofCompressor {
@@ -48,7 +51,7 @@ impl ProofCompressor {
         compression_mode: u8,
         max_attempts: u32,
         protocol_version: ProtocolSemanticVersion,
-        setup_data_path: String,
+        keystore: Keystore,
     ) -> Self {
         Self {
             blob_store,
@@ -56,7 +59,7 @@ impl ProofCompressor {
             compression_mode,
             max_attempts,
             protocol_version,
-            setup_data_path,
+            keystore,
         }
     }
 
@@ -126,12 +129,11 @@ impl ProofCompressor {
 
     #[tracing::instrument(skip(proof, _compression_mode))]
     pub fn compress_proof(
-        l1_batch: L1BatchNumber,
         proof: ZkSyncRecursionLayerProof,
         _compression_mode: u8,
         setup_data_path: String,
+        keystore: Keystore,
     ) -> anyhow::Result<FflonkSnarkVerifierCircuitProof> {
-        println!("start comrpession");
         let keystore = Keystore::new_with_setup_data_path(setup_data_path);
         let scheduler_vk = keystore
             .load_recursive_layer_verification_key(
@@ -242,16 +244,13 @@ impl JobProcessor for ProofCompressor {
 
     async fn process_job(
         &self,
-        job_id: &L1BatchNumber,
+        _job_id: &L1BatchNumber,
         job: ZkSyncRecursionLayerProof,
         _started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         let compression_mode = self.compression_mode;
-        let block_number = *job_id;
-        let setup_data_path = self.setup_data_path.clone();
-        tokio::task::spawn_blocking(move || {
-            Self::compress_proof(block_number, job, compression_mode, setup_data_path)
-        })
+        let keystore = self.keystore.clone();
+        tokio::task::spawn_blocking(move || Self::compress_proof(job, compression_mode, keystore))
     }
 
     async fn save_result(

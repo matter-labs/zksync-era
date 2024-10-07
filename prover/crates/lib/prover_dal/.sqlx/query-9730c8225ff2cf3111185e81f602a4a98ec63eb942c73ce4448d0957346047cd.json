@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE leaf_aggregation_witness_jobs_fri\n            SET\n                status = $1,\n                attempts = $2\n            WHERE\n                l1_batch_number = $3\n                AND circuit_id = $4\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int2",
+        "Int8",
+        "Int2"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "9730c8225ff2cf3111185e81f602a4a98ec63eb942c73ce4448d0957346047cd"
+}

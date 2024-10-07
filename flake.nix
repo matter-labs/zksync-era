@@ -67,7 +67,6 @@
           };
 
           craneLib = (crane.mkLib pkgs).overrideToolchain rustVersion;
-          NIX_OUTPATH_USED_AS_RANDOM_SEED = "aaaaaaaaaa";
 
           commonArgs = {
             nativeBuildInputs = with pkgs;[
@@ -81,6 +80,8 @@
               snappy.dev
               lz4.dev
               bzip2.dev
+              rocksdb
+              snappy.dev
             ];
 
             src = with pkgs.lib.fileset; toSource {
@@ -97,7 +98,9 @@
 
             env = {
               OPENSSL_NO_VENDOR = "1";
-              inherit NIX_OUTPATH_USED_AS_RANDOM_SEED;
+              ROCKSDB_LIB_DIR = "${pkgs.rocksdb.out}/lib";
+              SNAPPY_LIB_DIR = "${pkgs.snappy.out}/lib";
+              NIX_OUTPATH_USED_AS_RANDOM_SEED = "aaaaaaaaaa";
             };
 
             doCheck = false;

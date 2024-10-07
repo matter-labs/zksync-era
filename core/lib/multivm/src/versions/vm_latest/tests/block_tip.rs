@@ -15,7 +15,7 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u25
 
 use super::utils::{get_complex_upgrade_abi, read_complex_upgrade};
 use crate::{
-    interface::{L1BatchEnv, TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{L1BatchEnv, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     vm_latest::{
         constants::{
             BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
@@ -164,7 +164,7 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
     for (i, data) in txs_data.into_iter().enumerate() {
         let tx = account.get_l2_tx_for_execute(
             Execute {
-                contract_address: CONTRACT_FORCE_DEPLOYER_ADDRESS,
+                contract_address: Some(CONTRACT_FORCE_DEPLOYER_ADDRESS),
                 calldata: data,
                 value: U256::zero(),
                 factory_deps: vec![],
@@ -196,7 +196,7 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
     );
 
     let result = vm.vm.inspect_inner(
-        TracerDispatcher::default(),
+        &mut TracerDispatcher::default(),
         VmExecutionMode::Batch,
         Some(pubdata_tracer),
     );

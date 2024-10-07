@@ -6,7 +6,8 @@ use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, StorageView},
         ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
+        VmInterfaceHistoryEnabled,
     },
     vm_fast, vm_latest,
     vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled},
@@ -87,7 +88,7 @@ impl BenchmarkingVmFactory for Fast {
         system_env: SystemEnv,
         storage: &'static InMemoryStorage,
     ) -> Self::Instance {
-        vm_fast::Vm::new(batch_env, system_env, storage)
+        vm_fast::Vm::custom(batch_env, system_env, storage)
     }
 }
 
@@ -156,11 +157,9 @@ impl<VM: BenchmarkingVmFactory> BenchmarkingVm<VM> {
 
     pub fn run_transaction_full(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
         self.0.make_snapshot();
-        let (compression_result, tx_result) = self.0.inspect_transaction_with_bytecode_compression(
-            Default::default(),
-            tx.clone(),
-            true,
-        );
+        let (compression_result, tx_result) = self
+            .0
+            .execute_transaction_with_bytecode_compression(tx.clone(), true);
         compression_result.expect("compressing bytecodes failed");
 
         if matches!(tx_result.result, ExecutionResult::Halt { .. }) {
@@ -174,7 +173,7 @@ impl<VM: BenchmarkingVmFactory> BenchmarkingVm<VM> {
     pub fn instruction_count(&mut self, tx: &Transaction) -> usize {
         self.0.push_transaction(tx.clone());
         let count = Rc::new(RefCell::new(0));
-        self.0.inspect(Default::default(), VmExecutionMode::OneTx); // FIXME: re-enable instruction counting once new tracers are merged
+        self.0.execute(VmExecutionMode::OneTx); // FIXME: re-enable instruction counting once new tracers are merged
         count.take()
     }
 }

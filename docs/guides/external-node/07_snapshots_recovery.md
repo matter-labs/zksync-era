@@ -2,8 +2,8 @@
 
 Instead of initializing a node using a Postgres dump, it's possible to configure a node to recover from a protocol-level
 snapshot. This process is much faster and requires much less storage. Postgres database of a mainnet node recovered from
-a snapshot is only about 300GB. Note that without [pruning](08_pruning.md) enabled, the node state will continuously
-grow at a rate about 15GB per day.
+a snapshot is less than 500GB. Note that without [pruning](08_pruning.md) enabled, the node state will continuously grow
+at a rate about 15GB per day.
 
 ## How it works
 
@@ -16,7 +16,10 @@ Recovery from a snapshot consists of several parts.
   to take about 1 hour on the mainnet.
 - **Merkle tree** recovery starts once Postgres is fully recovered. Merkle tree recovery can take about 3 hours on the
   mainnet. Ordinarily, Merkle tree recovery is a blocker for node synchronization; i.e., the node will not process
-  blocks newer than the snapshot block until the Merkle tree is recovered.
+  blocks newer than the snapshot block until the Merkle tree is recovered. If the [treeless mode](10_treeless_mode.md)
+  is enabled, tree recovery is not performed, and the node will start catching up blocks immediately after Postgres
+  recovery. This is still true if the tree data fetcher is enabled _together_ with a Merkle tree; tree recovery is
+  asynchronous in this case.
 - Recovering RocksDB-based **VM state cache** is concurrent with Merkle tree recovery and also depends on Postgres
   recovery. It takes about 1 hour on the mainnet. Unlike Merkle tree recovery, VM state cache is not necessary for node
   operation (the node will get the state from Postgres is if it is absent), although it considerably speeds up VM
@@ -24,7 +27,8 @@ Recovery from a snapshot consists of several parts.
 
 After Postgres recovery is completed, the node becomes operational, providing Web3 API etc. It still needs some time to
 catch up executing blocks after the snapshot (i.e, roughly several hours worth of blocks / transactions). This may take
-order of 1–2 hours on the mainnet. In total, recovery process and catch-up thus should take roughly 5–6 hours.
+order of 1–2 hours on the mainnet. In total, recovery process and catch-up thus should take roughly 5–6 hours with a
+Merkle tree, or 3–4 hours in the treeless mode / with a tree data fetcher.
 
 ## Current limitations
 
@@ -90,8 +94,6 @@ An example of snapshot recovery logs during the first node start:
 
 Recovery logic also exports some metrics, the main of which are as follows:
 
-| Metric name                                             | Type      | Labels       | Description                                                           |
-| ------------------------------------------------------- | --------- | ------------ | --------------------------------------------------------------------- |
-| `snapshots_applier_storage_logs_chunks_left_to_process` | Gauge     | -            | Number of storage log chunks left to process during Postgres recovery |
-| `db_pruner_pruning_chunk_duration_seconds`              | Histogram | `prune_type` | Latency of a single pruning iteration                                 |
-| `merkle_tree_pruning_deleted_stale_key_versions`        | Gauge     | `bound`      | Versions (= L1 batches) pruned from the Merkle tree                   |
+| Metric name                                             | Type  | Labels | Description                                                           |
+| ------------------------------------------------------- | ----- | ------ | --------------------------------------------------------------------- |
+| `snapshots_applier_storage_logs_chunks_left_to_process` | Gauge | -      | Number of storage log chunks left to process during Postgres recovery |

@@ -4,7 +4,9 @@ use zksync_test_account::Account;
 use zksync_types::{fee::Fee, Address, Execute, U256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceHistoryEnabled},
+    interface::{
+        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
+    },
     vm_latest::{tests::tester::VmTesterBuilder, HistoryEnabled},
 };
 
@@ -48,7 +50,7 @@ fn test_storage(txs: Vec<TestTxInfo>) -> u32 {
 
         let tx = account.get_l2_tx_for_execute(
             Execute {
-                contract_address: test_contract_address,
+                contract_address: Some(test_contract_address),
                 calldata,
                 value: 0.into(),
                 factory_deps: vec![],

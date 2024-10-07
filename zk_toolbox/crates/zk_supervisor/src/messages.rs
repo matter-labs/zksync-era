@@ -13,6 +13,8 @@ pub(super) const MSG_SUBCOMMAND_DATABASE_ABOUT: &str = "Database related command
 pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
 pub(super) const MSG_SUBCOMMAND_CLEAN: &str = "Clean artifacts";
 pub(super) const MSG_SUBCOMMAND_LINT_ABOUT: &str = "Lint code";
+pub(super) const MSG_CONTRACTS_ABOUT: &str = "Build contracts";
+pub(super) const MSG_CONFIG_WRITER_ABOUT: &str = "Overwrite general config";
 
 pub(super) const MSG_SUBCOMMAND_FMT_ABOUT: &str = "Format code";
 
@@ -47,6 +49,10 @@ pub(super) const MSG_DATABASE_SETUP_GERUND: &str = "Setting up";
 pub(super) const MSG_DATABASE_SETUP_PAST: &str = "set up";
 pub(super) const MSG_DATABASE_MUST_BE_PRESENTED: &str = "Database config must be presented";
 pub(super) const MSG_DATABASE_COMMON_PROVER_HELP: &str = "Prover database";
+pub(super) const MSG_DATABASE_COMMON_PROVER_URL_HELP: &str =
+    "URL of the Prover database. If not specified, it is used from the current chain's secrets";
+pub(super) const MSG_DATABASE_COMMON_CORE_URL_HELP: &str =
+    "URL of the Core database. If not specified, it is used from the current chain's secrets.";
 pub(super) const MSG_DATABASE_COMMON_CORE_HELP: &str = "Core database";
 pub(super) const MSG_DATABASE_NEW_MIGRATION_DATABASE_HELP: &str =
     "Database to create new migration for";
@@ -84,18 +90,36 @@ pub(super) const MSG_RECOVERY_TEST_ABOUT: &str = "Run recovery tests";
 pub(super) const MSG_UPGRADE_TEST_ABOUT: &str = "Run upgrade tests";
 pub(super) const MSG_RUST_TEST_ABOUT: &str = "Run unit-tests, accepts optional cargo test flags";
 pub(super) const MSG_TEST_RUST_OPTIONS_HELP: &str = "Cargo test flags";
+pub(super) const MSG_BUILD_ABOUT: &str = "Build all test dependencies";
 pub(super) const MSG_TESTS_EXTERNAL_NODE_HELP: &str = "Run tests for external node";
+pub(super) const MSG_NO_DEPS_HELP: &str = "Do not install or build dependencies";
+pub(super) const MSG_TEST_PATTERN_HELP: &str =
+    "Run just the tests matching a pattern. Same as the -t flag on jest.";
+pub(super) const MSG_NO_KILL_HELP: &str = "The test will not kill all the nodes during execution";
 pub(super) const MSG_TESTS_RECOVERY_SNAPSHOT_HELP: &str =
     "Run recovery from a snapshot instead of genesis";
 pub(super) const MSG_UNIT_TESTS_RUN_SUCCESS: &str = "Unit tests ran successfully";
 pub(super) const MSG_USING_CARGO_NEXTEST: &str = "Using cargo-nextest for running tests";
-pub(super) const MSG_CARGO_NEXTEST_MISSING_ERR: &str = "cargo-nextest is missing, please run 'cargo install cargo-nextest'. Falling back to 'cargo test'";
 pub(super) const MSG_L1_CONTRACTS_ABOUT: &str = "Run L1 contracts tests";
 pub(super) const MSG_L1_CONTRACTS_TEST_SUCCESS: &str = "L1 contracts tests ran successfully";
 pub(super) const MSG_PROVER_TEST_ABOUT: &str = "Run prover tests";
 pub(super) const MSG_PROVER_TEST_SUCCESS: &str = "Prover tests ran successfully";
 pub(super) const MSG_POSTGRES_CONFIG_NOT_FOUND_ERR: &str = "Postgres config not found";
 pub(super) const MSG_RESETTING_TEST_DATABASES: &str = "Resetting test databases";
+
+// Contract building related messages
+pub(super) const MSG_NOTHING_TO_BUILD_MSG: &str = "Nothing to build!";
+pub(super) const MSG_BUILDING_CONTRACTS: &str = "Building contracts";
+pub(super) const MSG_CONTRACTS_DEPS_SPINNER: &str = "Installing dependencies..";
+pub(super) const MSG_BUILDING_L2_CONTRACTS_SPINNER: &str = "Building L2 contracts..";
+pub(super) const MSG_BUILDING_L1_CONTRACTS_SPINNER: &str = "Building L1 contracts..";
+pub(super) const MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER: &str = "Building system contracts..";
+pub(super) const MSG_BUILDING_TEST_CONTRACTS_SPINNER: &str = "Building test contracts..";
+pub(super) const MSG_BUILDING_CONTRACTS_SUCCESS: &str = "Contracts built successfully";
+pub(super) const MSG_BUILD_L1_CONTRACTS_HELP: &str = "Build L1 contracts";
+pub(super) const MSG_BUILD_L2_CONTRACTS_HELP: &str = "Build L2 contracts";
+pub(super) const MSG_BUILD_SYSTEM_CONTRACTS_HELP: &str = "Build system contracts";
+pub(super) const MSG_BUILD_TEST_CONTRACTS_HELP: &str = "Build test contracts";
 
 // Integration tests related messages
 pub(super) fn msg_integration_tests_run(external_node: bool) -> String {
@@ -114,8 +138,6 @@ pub(super) const MSG_INTEGRATION_TESTS_BUILDING_CONTRACTS: &str = "Building test
 
 // Revert tests related messages
 pub(super) const MSG_REVERT_TEST_ENABLE_CONSENSUS_HELP: &str = "Enable consensus";
-pub(super) const MSG_REVERT_TEST_INSTALLING_DEPENDENCIES: &str =
-    "Building and installing dependencies. This process may take a lot of time...";
 pub(super) const MSG_REVERT_TEST_RUN_INFO: &str = "Running revert and restart test";
 
 pub(super) fn msg_revert_tests_run(external_node: bool) -> String {
@@ -135,8 +157,6 @@ pub(super) const MSG_RECOVERY_TEST_RUN_SUCCESS: &str = "Recovery test ran succes
 
 // Upgrade tests related messages
 pub(super) const MSG_UPGRADE_TEST_RUN_INFO: &str = "Running upgrade test";
-pub(super) const MSG_UPGRADE_TEST_INSTALLING_DEPENDENCIES: &str =
-    "Building and installing dependencies. This process may take a lot of time...";
 pub(super) const MSG_UPGRADE_TEST_RUN_SUCCESS: &str = "Upgrade test ran successfully";
 
 // Cleaning related messages
@@ -176,3 +196,41 @@ pub(super) fn msg_running_fmt_for_extensions_spinner(targets: &[Target]) -> Stri
 pub(super) const MSG_LINT_CONFIG_PATH_ERR: &str = "Lint config path error";
 pub(super) const MSG_RUNNING_CONTRACTS_LINTER_SPINNER: &str = "Running contracts linter..";
 pub(super) const MSG_RUNNING_CONTRACTS_FMT_SPINNER: &str = "Running prettier for contracts..";
+
+pub(super) const MSG_RUNNING_SQL_FMT_SPINNER: &str = "Running SQL formatter..";
+
+pub(super) fn msg_file_is_not_formatted(file: &str) -> String {
+    format!("File {} is not formatted", file)
+}
+
+// Test wallets related messages
+pub(super) const MSG_TEST_WALLETS_INFO: &str = "Print test wallets information";
+pub(super) const MSG_DESERIALIZE_TEST_WALLETS_ERR: &str = "Impossible to deserialize test wallets";
+pub(super) const MSG_WALLETS_TEST_SUCCESS: &str = "Wallets test success";
+
+pub(super) const MSG_LOADTEST_ABOUT: &str = "Run loadtest";
+
+pub(super) const MSG_OVERRIDE_CONFIG_PATH_HELP: &str = "Path to the config file to override";
+pub(super) const MSG_OVERRRIDE_CONFIG_PATH_PROMPT: &str =
+    "Provide path to the config file to override";
+pub(super) const MSG_OVERRIDE_SUCCESS: &str = "Config was overridden successfully";
+
+pub(super) fn msg_overriding_config(chain: String) -> String {
+    format!("Overriding general config for chain {}", chain)
+}
+
+// Send transactions related messages
+pub(super) const MSG_SEND_TXNS_ABOUT: &str = "Send transactions from file";
+pub(super) const MSG_PROMPT_TRANSACTION_FILE: &str = "Path to transactions file";
+pub(super) const MSG_PROMPT_SECRET_KEY: &str = "Secret key of the sender";
+pub(super) const MSG_PROMPT_L1_RPC_URL: &str = "L1 RPC URL";
+pub(super) fn msg_send_txns_outro(log_file: &str) -> String {
+    format!("Transaction receipts logged to: {}", log_file)
+}
+
+pub(super) const MSG_UNABLE_TO_OPEN_FILE_ERR: &str = "Unable to open file";
+pub(super) const MSG_UNABLE_TO_READ_FILE_ERR: &str = "Unable to read file";
+pub(super) const MSG_UNABLE_TO_WRITE_FILE_ERR: &str = "Unable to write data to file";
+pub(super) const MSG_UNABLE_TO_READ_PARSE_JSON_ERR: &str = "Unable to parse JSON";
+pub(super) const MSG_FAILED_TO_SEND_TXN_ERR: &str = "Failed to send transaction";
+pub(super) const MSG_INVALID_L1_RPC_URL_ERR: &str = "Invalid L1 RPC URL";

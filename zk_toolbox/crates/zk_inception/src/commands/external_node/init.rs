@@ -1,6 +1,5 @@
 use anyhow::Context;
 use common::{
-    config::global_config,
     db::{drop_db_if_exists, init_db, migrate_db, DatabaseConfig},
     spinner::Spinner,
 };
@@ -20,9 +19,8 @@ use crate::{
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let chain = global_config().chain_name.clone();
     let chain_config = ecosystem_config
-        .load_chain(chain)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     init(shell, &chain_config).await

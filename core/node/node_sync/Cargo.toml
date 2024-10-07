@@ -25,7 +25,7 @@ zksync_utils.workspace = true
 zksync_eth_client.workspace = true
 zksync_concurrency.workspace = true
 vise.workspace = true
-zksync_vm_utils.workspace = true
+zksync_vm_executor.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true

@@ -1,5 +1,5 @@
 use anyhow::Context;
-use common::{config::global_config, logger};
+use common::logger;
 use config::{ChainConfig, EcosystemConfig};
 use xshell::Shell;
 
@@ -12,9 +12,8 @@ use crate::{
 pub async fn run(shell: &Shell, args: RunExternalNodeArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    let chain = global_config().chain_name.clone();
     let chain_config = ecosystem_config
-        .load_chain(chain)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     logger::info(MSG_STARTING_EN);
@@ -32,6 +31,7 @@ async fn run_external_node(
     if args.reinit {
         init::init(shell, chain_config).await?
     }
+    let enable_consensus = args.enable_consensus.unwrap_or(false);
     let server = RunExternalNode::new(args.components.clone(), chain_config)?;
-    server.run(shell, args.additional_args.clone())
+    server.run(shell, enable_consensus, args.additional_args.clone())
 }

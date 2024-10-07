@@ -48,6 +48,10 @@ cargo install sqlx-cli --version 0.8.1
 # Foundry
 curl -L https://foundry.paradigm.xyz | bash
 foundryup --branch master
+
+# Non CUDA (GPU) setup, can be skipped if the machine has a CUDA installed for provers
+# Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
+echo "export ZKSYNC_USE_CUDA_STUBS=true" >> ~/.bashrc
 # You will need to reload your `*rc` file here
 
 # Clone the repo to the desired location
@@ -236,6 +240,31 @@ Go to the zksync folder and run `nix develop`. After it finishes, you are in a s
 
 [Foundry](https://book.getfoundry.sh/getting-started/installation) can be utilized for deploying smart contracts. For
 commands related to deployment, you can pass flags for Foundry integration.
+
+## Non-GPU setup
+
+Circuit Prover requires a CUDA bindings to run. If you still want to be able to build everything locally on non-CUDA
+setup, you'll need use CUDA stubs.
+
+For a single run, it's enough to export it on the shell:
+
+```
+export ZKSYNC_USE_CUDA_STUBS=true
+```
+
+For persistent runs, you can echo it in your ~/.<shell>rc file
+
+```
+echo "export ZKSYNC_USE_CUDA_STUBS=true" >> ~/.<SHELL>rc
+```
+
+Note that the same can be achieved with RUSTFLAGS (discouraged). The flag is `--cfg=no_cuda`. You can either set
+RUSTFLAGS as env var, or pass it in `config.toml` (either project level or global). The config would need the following:
+
+```toml
+[build]
+rustflags = ["--cfg=no_cuda"]
+```
 
 ## Environment
 
