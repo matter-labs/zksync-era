@@ -133,10 +133,13 @@ impl WiringLayer for TxSenderLayer {
             PostgresStorageCaches::new(factory_deps_capacity, initial_writes_capacity);
 
         let postgres_storage_caches_task = if values_capacity > 0 {
-            Some(
-                storage_caches
-                    .configure_storage_values_cache(values_capacity, replica_pool.clone()),
-            )
+            // FIXME: make configurable
+            let update_task = storage_caches.configure_storage_values_cache(
+                values_capacity,
+                5,
+                replica_pool.clone(),
+            );
+            Some(update_task)
         } else {
             None
         };
