@@ -244,11 +244,10 @@ impl RequestProcessor {
                     || bootloader_heap_initial_content
                         != bootloader_heap_initial_content_from_prover
                 {
-                    let server_values = format!("events_queue_state = {events_queue_state}, bootloader_heap_initial_content = {bootloader_heap_initial_content}");
-                    let prover_values = format!("events_queue_state = {events_queue_state_from_prover}, bootloader_heap_initial_content = {bootloader_heap_initial_content_from_prover}");
                     panic!(
-                        "Auxilary output doesn't match, server values: {} prover values: {}",
-                        server_values, prover_values
+                        "Auxilary output doesn't match\n\
+                        server values: events_queue_state = {events_queue_state}, bootloader_heap_initial_content = {bootloader_heap_initial_content}\n\
+                        prover values: events_queue_state = {events_queue_state_from_prover}, bootloader_heap_initial_content = {bootloader_heap_initial_content_from_prover}",
                     );
                 }
 

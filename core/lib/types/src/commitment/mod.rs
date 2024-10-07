@@ -276,6 +276,13 @@ pub struct L1BatchAuxiliaryCommonOutput {
     protocol_version: ProtocolVersionId,
 }
 
+#[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
+pub struct BlobHash {
+    pub commitment: H256,
+    pub linear_hash: H256,
+}
+
 /// Block Output produced by Virtual Machine
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
@@ -294,8 +301,7 @@ pub enum L1BatchAuxiliaryOutput {
         state_diffs_compressed: Vec<u8>,
         state_diffs_hash: H256,
         aux_commitments: AuxCommitments,
-        blob_linear_hashes: Vec<H256>,
-        blob_commitments: Vec<H256>,
+        blob_hashes: Vec<BlobHash>,
         aggregated_root: H256,
         local_root: H256,
     },
@@ -346,8 +352,7 @@ impl L1BatchAuxiliaryOutput {
                 system_logs,
                 state_diffs,
                 aux_commitments,
-                blob_commitments,
-                blob_linear_hashes,
+                blob_hashes,
                 aggregated_root,
             } => {
                 let l2_l1_logs_compressed = serialize_commitments(&common_input.l2_to_l1_logs);
@@ -397,6 +402,8 @@ impl L1BatchAuxiliaryOutput {
                                 &common_input.protocol_version,
                                 &system_logs,
                             );
+                        let blob_linear_hashes: Vec<_> =
+                            blob_hashes.iter().map(|b| b.linear_hash).collect();
                         assert_eq!(
                             blob_linear_hashes, blob_linear_hashes_from_logs,
                             "Blob linear hashes mismatch"
@@ -416,20 +423,13 @@ impl L1BatchAuxiliaryOutput {
                     );
                 }
 
-                assert_eq!(
-                    blob_linear_hashes.len(),
-                    blob_commitments.len(),
-                    "Blob linear hashes and commitments have different lengths"
-                );
-
                 Self::PostBoojum {
                     common: common_output,
                     system_logs_linear_hash,
                     state_diffs_compressed,
                     state_diffs_hash,
                     aux_commitments,
-                    blob_linear_hashes,
-                    blob_commitments,
+                    blob_hashes,
                     local_root,
                     aggregated_root,
                 }
@@ -437,14 +437,14 @@ impl L1BatchAuxiliaryOutput {
         }
     }
 
-    pub fn get_local_root(&self) -> H256 {
+    pub fn local_root(&self) -> H256 {
         match self {
             Self::PreBoojum { common, .. } => common.l2_l1_logs_merkle_root,
             Self::PostBoojum { local_root, .. } => *local_root,
         }
     }
 
-    pub fn get_aggregated_root(&self) -> H256 {
+    pub fn aggregated_root(&self) -> H256 {
         match self {
             Self::PreBoojum { .. } => H256::zero(),
             Self::PostBoojum {
@@ -453,7 +453,7 @@ impl L1BatchAuxiliaryOutput {
         }
     }
 
-    pub fn get_state_diff_hash(&self) -> H256 {
+    pub fn state_diff_hash(&self) -> H256 {
         match self {
             Self::PreBoojum { .. } => H256::zero(),
             Self::PostBoojum {
@@ -482,8 +482,7 @@ impl L1BatchAuxiliaryOutput {
                 system_logs_linear_hash,
                 state_diffs_hash,
                 aux_commitments,
-                blob_linear_hashes,
-                blob_commitments,
+                blob_hashes,
                 ..
             } => {
                 result.extend(system_logs_linear_hash.as_bytes());
@@ -495,9 +494,9 @@ impl L1BatchAuxiliaryOutput {
                 );
                 result.extend(aux_commitments.events_queue_commitment.as_bytes());
 
-                for i in 0..blob_commitments.len() {
-                    result.extend(blob_linear_hashes[i].as_bytes());
-                    result.extend(blob_commitments[i].as_bytes());
+                for b in blob_hashes {
+                    result.extend(b.linear_hash.as_bytes());
+                    result.extend(b.commitment.as_bytes());
                 }
             }
         }
@@ -690,9 +689,9 @@ impl L1BatchCommitment {
             aux_commitments: self.aux_commitments(),
             compressed_initial_writes,
             compressed_repeated_writes,
-            local_root: self.auxiliary_output.get_local_root(),
-            aggregation_root: self.auxiliary_output.get_aggregated_root(),
-            state_diff_hash: self.auxiliary_output.get_state_diff_hash(),
+            local_root: self.auxiliary_output.local_root(),
+            aggregation_root: self.auxiliary_output.aggregated_root(),
+            state_diff_hash: self.auxiliary_output.state_diff_hash(),
         }
     }
 }
@@ -728,8 +727,7 @@ pub enum CommitmentInput {
         system_logs: Vec<SystemL2ToL1Log>,
         state_diffs: Vec<StateDiffRecord>,
         aux_commitments: AuxCommitments,
-        blob_commitments: Vec<H256>,
-        blob_linear_hashes: Vec<H256>,
+        blob_hashes: Vec<BlobHash>,
         aggregated_root: H256,
     },
 }
@@ -771,15 +769,9 @@ impl CommitmentInput {
                     events_queue_commitment: H256::zero(),
                     bootloader_initial_content_commitment: H256::zero(),
                 },
-                blob_commitments: {
+                blob_hashes: {
                     let num_blobs = num_blobs_required(&protocol_version);
-
-                    vec![H256::zero(); num_blobs]
-                },
-                blob_linear_hashes: {
-                    let num_blobs = num_blobs_required(&protocol_version);
-
-                    vec![H256::zero(); num_blobs]
+                    vec![Default::default(); num_blobs]
                 },
                 aggregated_root: H256::zero(),
             }

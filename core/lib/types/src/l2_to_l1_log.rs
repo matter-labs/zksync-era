@@ -84,9 +84,10 @@ pub fn parse_system_logs_for_blob_hashes_pre_gateway(
     protocol_version: &ProtocolVersionId,
     system_logs: &[SystemL2ToL1Log],
 ) -> Vec<H256> {
-    if !protocol_version.is_pre_gateway() {
-        panic!("Cannot parse blob linear hashes from system logs for post gateway");
-    }
+    assert!(
+        protocol_version.is_pre_gateway(),
+        "Cannot parse blob linear hashes from system logs for post gateway"
+    );
 
     let num_required_blobs = num_blobs_required(protocol_version) as u32;
     let num_created_blobs = num_blobs_created(protocol_version) as u32;

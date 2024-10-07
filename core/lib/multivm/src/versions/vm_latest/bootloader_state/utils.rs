@@ -136,10 +136,13 @@ pub(crate) fn get_encoded_pubdata(
     pubdata_params: PubdataParams,
     l2_version: bool,
 ) -> Vec<u8> {
-    let pubdata_bytes: Vec<u8> = if pubdata_params.pubdata_type == L1BatchCommitmentMode::Rollup {
-        RollupPubdataBuilder.build_pubdata(pubdata_information, l2_version)
-    } else {
-        ValidiumPubdataBuilder.build_pubdata(pubdata_information, l2_version)
+    let pubdata_bytes: Vec<u8> = match pubdata_params.pubdata_type {
+        L1BatchCommitmentMode::Rollup => {
+            RollupPubdataBuilder.build_pubdata(pubdata_information, l2_version)
+        }
+        L1BatchCommitmentMode::Validium => {
+            ValidiumPubdataBuilder.build_pubdata(pubdata_information, l2_version)
+        }
     };
 
     if l2_version {

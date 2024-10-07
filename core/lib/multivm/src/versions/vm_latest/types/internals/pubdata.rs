@@ -1,3 +1,4 @@
+use ethabi::ParamType;
 use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_types::{
     ethabi::{self, Token},
@@ -92,10 +93,10 @@ impl PubdataBuilder for RollupPubdataBuilder {
         } = input;
 
         if l2_version {
-            let chained_log_hash = build_chained_log_hash(user_logs.clone());
-            let log_root_hash = build_logs_root(user_logs.clone(), l2_to_l1_logs_tree_size);
-            let chained_msg_hash = build_chained_message_hash(l2_to_l1_messages.clone());
-            let chained_bytecodes_hash = build_chained_bytecode_hash(published_bytecodes.clone());
+            let chained_log_hash = build_chained_log_hash(&user_logs);
+            let log_root_hash = build_logs_root(&user_logs, l2_to_l1_logs_tree_size);
+            let chained_msg_hash = build_chained_message_hash(&l2_to_l1_messages);
+            let chained_bytecodes_hash = build_chained_bytecode_hash(&published_bytecodes);
 
             l2_da_header.push(Token::FixedBytes(chained_log_hash));
             l2_da_header.push(Token::FixedBytes(log_root_hash));
@@ -103,7 +104,7 @@ impl PubdataBuilder for RollupPubdataBuilder {
             l2_da_header.push(Token::FixedBytes(chained_bytecodes_hash));
         }
 
-        l1_messenger_pubdata.extend(encode_user_logs(user_logs));
+        l1_messenger_pubdata.extend(encode_user_logs(&user_logs));
 
         // Encoding L2->L1 messages
         // Format: `[(numberOfMessages as u32) || (messages[1].len() as u32) || messages[1] || ... || (messages[n].len() as u32) || messages[n]]`
@@ -131,11 +132,20 @@ impl PubdataBuilder for RollupPubdataBuilder {
             }
 
             // Selector of `IL2DAValidator::validatePubdata`.
-            let func_selector = vec![0x89, 0xf9, 0xa0, 0x72];
+            let func_selector = ethabi::short_signature(
+                "validatePubdata",
+                &[
+                    ParamType::FixedBytes(32),
+                    ParamType::FixedBytes(32),
+                    ParamType::FixedBytes(32),
+                    ParamType::FixedBytes(32),
+                    ParamType::Bytes,
+                ],
+            );
 
             l2_da_header.push(ethabi::Token::Bytes(l1_messenger_pubdata));
 
-            l1_messenger_pubdata = [func_selector, ethabi::encode(&l2_da_header)]
+            l1_messenger_pubdata = [func_selector.to_vec(), ethabi::encode(&l2_da_header)]
                 .concat()
                 .to_vec();
         }
@@ -161,25 +171,34 @@ impl PubdataBuilder for ValidiumPubdataBuilder {
         } = input;
 
         if l2_version {
-            let chained_log_hash = build_chained_log_hash(user_logs.clone());
-            let log_root_hash = build_logs_root(user_logs.clone(), l2_to_l1_logs_tree_size);
-            let chained_msg_hash = build_chained_message_hash(l2_to_l1_messages.clone());
-            let chained_bytecodes_hash = build_chained_bytecode_hash(published_bytecodes.clone());
+            let chained_log_hash = build_chained_log_hash(&user_logs);
+            let log_root_hash = build_logs_root(&user_logs, l2_to_l1_logs_tree_size);
+            let chained_msg_hash = build_chained_message_hash(&l2_to_l1_messages);
+            let chained_bytecodes_hash = build_chained_bytecode_hash(&published_bytecodes);
             l2_da_header.push(Token::FixedBytes(chained_log_hash));
             l2_da_header.push(Token::FixedBytes(log_root_hash));
             l2_da_header.push(Token::FixedBytes(chained_msg_hash));
             l2_da_header.push(Token::FixedBytes(chained_bytecodes_hash));
         }
 
-        l1_messenger_pubdata.extend(encode_user_logs(user_logs));
+        l1_messenger_pubdata.extend(encode_user_logs(&user_logs));
 
         if l2_version {
             // Selector of `IL2DAValidator::validatePubdata`.
-            let func_selector = vec![0x89, 0xf9, 0xa0, 0x72];
+            let func_selector = ethabi::short_signature(
+                "validatePubdata",
+                &[
+                    ParamType::FixedBytes(32),
+                    ParamType::FixedBytes(32),
+                    ParamType::FixedBytes(32),
+                    ParamType::FixedBytes(32),
+                    ParamType::Bytes,
+                ],
+            );
 
             l2_da_header.push(ethabi::Token::Bytes(l1_messenger_pubdata));
 
-            [func_selector, ethabi::encode(&l2_da_header)]
+            [func_selector.to_vec(), ethabi::encode(&l2_da_header)]
                 .concat()
                 .to_vec()
         } else {
@@ -193,7 +212,7 @@ impl PubdataBuilder for ValidiumPubdataBuilder {
     }
 }
 
-fn build_chained_log_hash(user_logs: Vec<L1MessengerL2ToL1Log>) -> Vec<u8> {
+fn build_chained_log_hash(user_logs: &[L1MessengerL2ToL1Log]) -> Vec<u8> {
     let mut chained_log_hash = vec![0u8; 32];
 
     for log in user_logs {
@@ -206,10 +225,7 @@ fn build_chained_log_hash(user_logs: Vec<L1MessengerL2ToL1Log>) -> Vec<u8> {
     chained_log_hash
 }
 
-fn build_logs_root(
-    user_logs: Vec<L1MessengerL2ToL1Log>,
-    l2_to_l1_logs_tree_size: usize,
-) -> Vec<u8> {
+fn build_logs_root(user_logs: &[L1MessengerL2ToL1Log], l2_to_l1_logs_tree_size: usize) -> Vec<u8> {
     let logs = user_logs.iter().map(|log| {
         let encoded = log.packed_encoding();
         let mut slice = [0u8; 88];
@@ -222,11 +238,11 @@ fn build_logs_root(
         .to_vec()
 }
 
-fn build_chained_message_hash(l2_to_l1_messages: Vec<Vec<u8>>) -> Vec<u8> {
+fn build_chained_message_hash(l2_to_l1_messages: &[Vec<u8>]) -> Vec<u8> {
     let mut chained_msg_hash = vec![0u8; 32];
 
     for msg in l2_to_l1_messages {
-        let hash = keccak256(&msg);
+        let hash = keccak256(msg);
 
         chained_msg_hash = keccak256(&[chained_msg_hash, hash.to_vec()].concat()).to_vec();
     }
@@ -234,11 +250,11 @@ fn build_chained_message_hash(l2_to_l1_messages: Vec<Vec<u8>>) -> Vec<u8> {
     chained_msg_hash
 }
 
-fn build_chained_bytecode_hash(published_bytecodes: Vec<Vec<u8>>) -> Vec<u8> {
+fn build_chained_bytecode_hash(published_bytecodes: &[Vec<u8>]) -> Vec<u8> {
     let mut chained_bytecode_hash = vec![0u8; 32];
 
     for bytecode in published_bytecodes {
-        let hash = hash_bytecode(&bytecode).to_fixed_bytes();
+        let hash = hash_bytecode(bytecode).to_fixed_bytes();
 
         chained_bytecode_hash =
             keccak256(&[chained_bytecode_hash, hash.to_vec()].concat()).to_vec();
@@ -247,7 +263,7 @@ fn build_chained_bytecode_hash(published_bytecodes: Vec<Vec<u8>>) -> Vec<u8> {
     chained_bytecode_hash
 }
 
-fn encode_user_logs(user_logs: Vec<L1MessengerL2ToL1Log>) -> Vec<u8> {
+fn encode_user_logs(user_logs: &[L1MessengerL2ToL1Log]) -> Vec<u8> {
     // Encoding user L2->L1 logs.
     // Format: `[(numberOfL2ToL1Logs as u32) || l2tol1logs[1] || ... || l2tol1logs[n]]`
     let mut result = vec![];
