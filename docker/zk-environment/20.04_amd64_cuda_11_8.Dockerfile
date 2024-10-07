@@ -87,6 +87,9 @@ RUN cd foundry-zksync && cargo build --release --bins
 RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
 RUN mv ./foundry-zksync/target/release/cast /usr/local/cargo/bin/
 
+# Install prover CLI
+RUN cargo +nightly-2024-08-01 install --git https://github.com/matter-labs/zksync-era/ --locked prover_cli --force
+
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20.
 RUN wget -c https://github.com/ethereum/solc-bin/raw/gh-pages/linux-amd64/solc-linux-amd64-v0.8.20%2Bcommit.a1b79de6 \
