@@ -406,7 +406,7 @@ jobs:
             echo "Chain CONSENSUS succeeded"
           fi
 
-          # Re-enable immediate exit on non-zero status if needed
+          # Re-enable immediate exit on non-zero status
           set -e
           
           # Exit with overall status
@@ -488,7 +488,7 @@ jobs:
             echo "Chain CONSENSUS succeeded"
           fi
 
-          # Re-enable immediate exit on non-zero status if needed
+          # Re-enable immediate exit on non-zero status
           set -e
           
           # Exit with overall status
@@ -552,7 +552,7 @@ jobs:
             echo "Chain CONSENSUS succeeded"
           fi
 
-          # Re-enable immediate exit on non-zero status if needed
+          # Re-enable immediate exit on non-zero status
           set -e
           
           # Exit with overall status
@@ -623,7 +623,7 @@ jobs:
             echo "Chain CONSENSUS succeeded"
           fi
 
-          # Re-enable immediate exit on non-zero status if needed
+          # Re-enable immediate exit on non-zero status
           set -e
           
           # Exit with overall status
@@ -689,7 +689,7 @@ jobs:
             echo "Chain CONSENSUS succeeded"
           fi
 
-          # Re-enable immediate exit on non-zero status if needed
+          # Re-enable immediate exit on non-zero status
           set -e
           
           # Exit with overall status
@@ -756,7 +756,7 @@ jobs:
             echo "Chain CONSENSUS succeeded"
           fi
 
-          # Re-enable immediate exit on non-zero status if needed
+          # Re-enable immediate exit on non-zero status
           set -e
           
           # Exit with overall status
