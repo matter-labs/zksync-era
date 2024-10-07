@@ -39,6 +39,15 @@ impl TeeProofGenerationDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             WITH
+            tee_proofs AS (
+                SELECT
+                    *
+                FROM
+                    tee_proof_generation_details
+                WHERE
+                    tee_type = $1
+            ),
+            
             upsert AS (
                 SELECT
                     proof_generation_details.l1_batch_number
@@ -48,8 +57,8 @@ impl TeeProofGenerationDal<'_, '_> {
                     l1_batches
                     ON proof_generation_details.l1_batch_number = l1_batches.number
                 LEFT JOIN
-                    tee_proof_generation_details AS proofs
-                    ON proof_generation_details.l1_batch_number = proofs.l1_batch_number
+                    tee_proofs
+                    ON proof_generation_details.l1_batch_number = tee_proofs.l1_batch_number
                 WHERE
                     (
                         proof_generation_details.vm_run_data_blob_url IS NOT NULL
@@ -59,20 +68,21 @@ impl TeeProofGenerationDal<'_, '_> {
                         AND l1_batches.meta_parameters_hash IS NOT NULL
                     )
                     AND (
-                        proofs.tee_type IS NULL
-                        OR proofs.tee_type = $1
-                    )
-                    AND (
-                        proofs.status IS NULL
-                        OR proofs.status = $3
-                        OR (
-                            proofs.status = $2
-                            AND proofs.prover_taken_at < NOW() - $4::INTERVAL
+                        (
+                            tee_proofs.tee_type IS NULL
+                            AND tee_proofs.status IS NULL
+                            AND tee_proofs.l1_batch_number IS NULL
+                        ) OR (
+                            tee_proofs.tee_type = $1
+                            AND (
+                                tee_proofs.status = $3
+                                OR (
+                                    tee_proofs.status = $2
+                                    AND tee_proofs.prover_taken_at < NOW() - $4::INTERVAL
+                                )
+                            )
+                            AND tee_proofs.l1_batch_number >= $5
                         )
-                    )
-                    AND (
-                        proofs.l1_batch_number IS NULL
-                        OR proofs.l1_batch_number >= $5
                     )
                 ORDER BY
                     l1_batch_number ASC
