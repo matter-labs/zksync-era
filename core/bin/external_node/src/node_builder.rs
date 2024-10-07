@@ -55,6 +55,7 @@ use zksync_node_framework::{
     service::{ZkStackService, ZkStackServiceBuilder},
 };
 use zksync_state::RocksdbStorageOptions;
+use zksync_types::L2_NATIVE_TOKEN_VAULT_ADDRESS;
 
 use crate::{config::ExternalNodeConfig, metrics::framework::ExternalNodeMetricsLayer, Component};
 
@@ -192,8 +193,22 @@ impl ExternalNodeBuilder {
         // compression.
         const OPTIONAL_BYTECODE_COMPRESSION: bool = true;
 
+        let l2_shared_bridge_addr = self
+            .config
+            .remote
+            .l2_shared_bridge_addr
+            .context("Missing `l2_shared_bridge_addr`")?;
+        let l2_legacy_shared_bridge_addr = if l2_shared_bridge_addr == L2_NATIVE_TOKEN_VAULT_ADDRESS
+        {
+            // System has migrated to `L2_NATIVE_TOKEN_VAULT_ADDRESS`, use legacy shared bridge address from main node.
+            self.config.remote.l2_legacy_shared_bridge_addr
+        } else {
+            // System hasn't migrated on `L2_NATIVE_TOKEN_VAULT_ADDRESS`, we can safely use `l2_shared_bridge_addr`.
+            l2_shared_bridge_addr
+        };
+
         let persistence_layer = OutputHandlerLayer::new(
-            self.config.remote.l2_legacy_shared_bridge_addr,
+            l2_legacy_shared_bridge_addr,
             self.config.optional.l2_block_seal_queue_capacity,
         )
         .with_pre_insert_txs(true) // EN requires txs to be pre-inserted.
