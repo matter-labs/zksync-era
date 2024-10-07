@@ -101,7 +101,7 @@ impl WiringLayer for PKSigningEthClientLayer {
             if self
                 .gateway_contracts_config
                 .clone()
-                .is_some_and(|v| v.current_settlement_layer != 0_u64)
+                .is_some_and(|v| v.settlement_layer != 0_u64)
             {
                 let private_key = self.wallets.operator.private_key();
                 let GatewayEthInterfaceResource(gateway_client) = input.gateway_client.unwrap();

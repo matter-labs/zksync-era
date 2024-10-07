@@ -3,7 +3,7 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::Subcommand;
 pub(crate) use create::create_chain_inner;
-use migrate_from_gateway::MigrateToGatewayArgs as MigrateFromGatewayArgs;
+use migrate_from_gateway::MigrateFromGatewayArgs;
 use migrate_to_gateway::MigrateToGatewayArgs;
 use xshell::Shell;
 

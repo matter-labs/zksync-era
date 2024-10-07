@@ -98,6 +98,7 @@ mod tests {
             )),
             chain_admin_addr: Some(addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
             l2_da_validator_addr: Some(addr("0xed6fa5c14e7550b4caf2aa2818d24c69cbc347ff")),
+            settlement_layer: Some(0),
         }
     }
 

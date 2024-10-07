@@ -56,7 +56,7 @@ lazy_static! {
         .unwrap(),
     );
 
-    static ref BRDIGEHUB_INTERFACE: BaseContract = BaseContract::from(
+    static ref BRIDGEHUB_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
             "function getHyperchain(uint256 chainId) public returns (address)"
         ])
@@ -174,7 +174,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     // TODO: maybe move to using a precalculated address, just like for EN
     let chain_id = U256::from(chain_config.chain_id.0);
-    let contract = BRDIGEHUB_INTERFACE
+    let contract = BRIDGEHUB_INTERFACE
         .clone()
         .into_contract(L2_BRIDGEHUB_ADDRESS, gateway_provider);
 
