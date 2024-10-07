@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use tokio::sync::{mpsc, oneshot};
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_shared_metrics::{BlockStage, APP_METRICS};
-use zksync_types::{writes::TreeWrite, Address};
+use zksync_types::{writes::TreeWrite, Address, ProtocolVersionId};
 use zksync_utils::u256_to_h256;
 
 use crate::{
@@ -41,13 +41,47 @@ pub struct StateKeeperPersistence {
 impl StateKeeperPersistence {
     const SHUTDOWN_MSG: &'static str = "L2 block sealer unexpectedly shut down";
 
+    async fn validate_l2_legacy_shared_bridge_addr(
+        pool: &ConnectionPool<Core>,
+        l2_legacy_shared_bridge_addr: Option<Address>,
+    ) -> anyhow::Result<()> {
+        let mut connection = pool.connection().await.context("Get DB connection")?;
+
+        if let Some(l2_block) = connection
+            .blocks_dal()
+            .get_earliest_l2_block_number()
+            .await
+            .context("failed to load earliest l2 block number")?
+        {
+            let header = connection
+                .blocks_dal()
+                .get_l2_block_header(l2_block)
+                .await
+                .context("failed to load L2 block header")?
+                .context("missing L2 block header")?;
+            let protocol_version = header
+                .protocol_version
+                .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
+
+            if protocol_version.is_pre_gateway() && l2_legacy_shared_bridge_addr.is_none() {
+                anyhow::bail!(
+                    "Missing `l2_legacy_shared_bridge_addr` for chain that was initialized before gateway upgrade".to_string()
+                );
+            }
+        }
+
+        Ok(())
+    }
+
     /// Creates a sealer that will use the provided Postgres connection and will have the specified
     /// `command_capacity` for unprocessed sealing commands.
-    pub fn new(
+    pub async fn new(
         pool: ConnectionPool<Core>,
         l2_legacy_shared_bridge_addr: Option<Address>,
         mut command_capacity: usize,
-    ) -> (Self, L2BlockSealerTask) {
+    ) -> anyhow::Result<(Self, L2BlockSealerTask)> {
+        Self::validate_l2_legacy_shared_bridge_addr(&pool, l2_legacy_shared_bridge_addr).await?;
+
         let is_sync = command_capacity == 0;
         command_capacity = command_capacity.max(1);
 
@@ -67,7 +101,7 @@ impl StateKeeperPersistence {
             latest_completion_receiver: None,
             is_sync,
         };
-        (this, sealer)
+        Ok((this, sealer))
     }
 
     pub fn with_tx_insertion(mut self) -> Self {
@@ -396,7 +430,9 @@ mod tests {
             pool.clone(),
             Some(Address::default()),
             l2_block_sealer_capacity,
-        );
+        )
+        .await
+        .unwrap();
         let mut output_handler = OutputHandler::new(Box::new(persistence))
             .with_handler(Box::new(TreeWritesPersistence::new(pool.clone())));
         tokio::spawn(l2_block_sealer.run());
@@ -530,7 +566,9 @@ mod tests {
         drop(storage);
 
         let (mut persistence, l2_block_sealer) =
-            StateKeeperPersistence::new(pool.clone(), Some(Address::default()), 1);
+            StateKeeperPersistence::new(pool.clone(), Some(Address::default()), 1)
+                .await
+                .unwrap();
         persistence = persistence.with_tx_insertion().without_protective_reads();
         let mut output_handler = OutputHandler::new(Box::new(persistence));
         tokio::spawn(l2_block_sealer.run());
@@ -569,7 +607,9 @@ mod tests {
     async fn l2_block_sealer_handle_blocking() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let (mut persistence, mut sealer) =
-            StateKeeperPersistence::new(pool, Some(Address::default()), 1);
+            StateKeeperPersistence::new(pool, Some(Address::default()), 1)
+                .await
+                .unwrap();
 
         // The first command should be successfully submitted immediately.
         let mut updates_manager = create_updates_manager();
@@ -620,7 +660,9 @@ mod tests {
     async fn l2_block_sealer_handle_parallel_processing() {
         let pool = ConnectionPool::constrained_test_pool(1).await;
         let (mut persistence, mut sealer) =
-            StateKeeperPersistence::new(pool, Some(Address::default()), 5);
+            StateKeeperPersistence::new(pool, Some(Address::default()), 5)
+                .await
+                .unwrap();
 
         // 5 L2 block sealing commands can be submitted without blocking.
         let mut updates_manager = create_updates_manager();

@@ -465,7 +465,9 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     );
 
     let (mut persistence, l2_block_sealer) =
-        StateKeeperPersistence::new(connection_pool.clone(), Some(Address::default()), 0);
+        StateKeeperPersistence::new(connection_pool.clone(), Some(Address::default()), 0)
+            .await
+            .unwrap();
     tokio::spawn(l2_block_sealer.run());
     persistence.handle_l2_block(&updates).await.unwrap();
 
