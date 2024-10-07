@@ -90,6 +90,9 @@ impl BaseTokenRatioPersister {
                         result: OperationResult::Success,
                     }]
                         .observe(start_time.elapsed());
+                    METRICS
+                        .ratio
+                        .set((ratio.numerator.get() as f64) / (ratio.denominator.get() as f64));
                     return Ok(ratio);
                 }
                 Err(err) => {
