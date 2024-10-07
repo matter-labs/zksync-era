@@ -142,13 +142,13 @@ impl ProtoRepr for proto::ClusterPriority {
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok((
             required(&self.cluster).context("cluster")?.clone(),
-            required(&self.priority).context("priority")?.clone(),
+            *required(&self.priority).context("priority")?,
         ))
     }
     fn build(this: &Self::Type) -> Self {
         Self {
             cluster: Some(this.0.clone()),
-            priority: Some(this.1.clone()),
+            priority: Some(this.1),
         }
     }
 }
@@ -158,13 +158,13 @@ impl ProtoRepr for proto::ProverSpeed {
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok((
             required(&self.gpu).context("gpu")?.parse()?,
-            required(&self.speed).context("speed")?.clone(),
+            *required(&self.speed).context("speed")?,
         ))
     }
     fn build(this: &Self::Type) -> Self {
         Self {
             gpu: Some(this.0.to_string()),
-            speed: Some(this.1.clone()),
+            speed: Some(this.1),
         }
     }
 }
