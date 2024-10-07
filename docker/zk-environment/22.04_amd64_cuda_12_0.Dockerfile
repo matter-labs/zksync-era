@@ -37,13 +37,8 @@ RUN apt-get update && apt-get install -y \
     lldb\
     lld
 
-# Install dependencies for RocksDB. `liburing` is not available for Ubuntu 20.04,
-# so we use a PPA with the backport
-RUN add-apt-repository ppa:savoury1/virtualisation && \
-    apt-get update && \
-    apt-get install -y \
-    liburing-dev \
-    libclang-dev
+# Install prover CLI
+RUN cargo +nightly-2024-08-01 install --git https://github.com/matter-labs/zksync-era/ --locked prover_cli --force
 
 # Install docker engine
 RUN wget -c -O - https://download.docker.com/linux/ubuntu/gpg | apt-key add -
@@ -85,9 +80,6 @@ RUN git clone https://github.com/matter-labs/foundry-zksync
 RUN cd foundry-zksync && cargo build --release --bins
 RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
 RUN mv ./foundry-zksync/target/release/cast /usr/local/cargo/bin/
-
-# Install prover CLI
-RUN cargo +nightly-2024-08-01 install --git https://github.com/matter-labs/zksync-era/ --locked prover_cli --force
 
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20.
