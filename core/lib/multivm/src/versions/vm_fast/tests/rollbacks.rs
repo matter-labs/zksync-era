@@ -172,6 +172,5 @@ fn rollback_in_call_mode() {
         ExecutionResult::Revert { output }
             if output.to_string().contains("This method always reverts")
     );
-    // The new VM performs deduplication internally and doesn't record reads, hence this crude comparison.
     assert_eq!(vm_result.logs.storage_logs, []);
 }

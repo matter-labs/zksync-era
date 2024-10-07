@@ -175,31 +175,27 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
         let mut last_tx_result = None;
         let mut pubdata_before = self.inner.pubdata() as u32;
         let mut pubdata_published = 0;
-        let mut execution_ended = false;
 
-        let execution_result = loop {
+        let (execution_result, execution_ended) = loop {
             let hook = match self.inner.run(&mut self.world, tracer) {
                 ExecutionEnd::SuspendedOnHook(hook) => hook,
                 ExecutionEnd::ProgramFinished(output) => {
-                    execution_ended = true;
-                    break ExecutionResult::Success { output };
+                    break (ExecutionResult::Success { output }, true);
                 }
                 ExecutionEnd::Reverted(output) => {
-                    execution_ended = true;
-                    break match TxRevertReason::parse_error(&output) {
+                    let result = match TxRevertReason::parse_error(&output) {
                         TxRevertReason::TxReverted(output) => ExecutionResult::Revert { output },
                         TxRevertReason::Halt(reason) => ExecutionResult::Halt { reason },
                     };
+                    break (result, true);
                 }
                 ExecutionEnd::Panicked => {
-                    execution_ended = true;
-                    break ExecutionResult::Halt {
-                        reason: if self.gas_remaining() == 0 {
-                            Halt::BootloaderOutOfGas
-                        } else {
-                            Halt::VMPanic
-                        },
+                    let reason = if self.gas_remaining() == 0 {
+                        Halt::BootloaderOutOfGas
+                    } else {
+                        Halt::VMPanic
                     };
+                    break (ExecutionResult::Halt { reason }, true);
                 }
             };
 
@@ -209,7 +205,7 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
                 }
                 Hook::TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
-                        break last_tx_result.take().unwrap();
+                        break (last_tx_result.take().unwrap(), false);
                     }
                 }
                 Hook::AskOperatorForRefund => {
@@ -785,6 +781,10 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::StorageInterface for World<S, T> {
     fn read_storage(&mut self, contract: H160, key: U256) -> StorageSlot {
         let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
         let value = U256::from_big_endian(self.storage.read_value(key).as_bytes());
+        // `is_write_initial` value can be true even if the slot has previously been written to / has non-zero value!
+        // This can happen during oneshot execution (i.e., executing a single transaction) since it emulates
+        // execution starting in the middle of a batch in the general case. Hence, a slot that was first written to in the batch
+        // must still be considered an initial write by the refund logic.
         let is_write_initial = self.storage.is_write_initial(key);
         StorageSlot {
             value,
@@ -797,8 +797,8 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::StorageInterface for World<S, T> {
         U256::from_big_endian(self.storage.read_value(key).as_bytes())
     }
 
-    fn cost_of_writing_storage(&mut self, initial_slot: StorageSlot, new_value: U256) -> u32 {
-        if initial_slot.value == new_value {
+    fn cost_of_writing_storage(&mut self, slot: StorageSlot, new_value: U256) -> u32 {
+        if slot.value == new_value {
             return 0;
         }
 
@@ -812,10 +812,9 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::StorageInterface for World<S, T> {
         // For value compression, we use a metadata byte which holds the length of the value and the operation from the
         // previous state to the new state, and the compressed value. The maximum for this is 33 bytes.
         // Total bytes for initial writes then becomes 65 bytes and repeated writes becomes 38 bytes.
-        let compressed_value_size =
-            compress_with_best_strategy(initial_slot.value, new_value).len() as u32;
+        let compressed_value_size = compress_with_best_strategy(slot.value, new_value).len() as u32;
 
-        if initial_slot.is_write_initial {
+        if slot.is_write_initial {
             (BYTES_PER_DERIVED_KEY as u32) + compressed_value_size
         } else {
             (BYTES_PER_ENUMERATION_INDEX as u32) + compressed_value_size
