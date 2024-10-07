@@ -26,6 +26,8 @@ use types::L1BatchCommitmentMode;
 use xshell::Shell;
 use zksync_basic_types::{settlement::SettlementMode, H256, U256, U64};
 use zksync_config::configs::eth_sender::PubdataSendingMode;
+use zksync_types::L2ChainId;
+use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
@@ -33,7 +35,7 @@ use crate::{
 };
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
-pub struct MigrateToGatewayArgs {
+pub struct MigrateFromGatewayArgs {
     /// All ethereum environment related arguments
     #[clap(flatten)]
     #[serde(flatten)]
@@ -52,16 +54,9 @@ lazy_static! {
         ])
         .unwrap(),
     );
-
-    static ref BRDIGEHUB_INTERFACE: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function getHyperchain(uint256 chainId) public returns (address)"
-        ])
-        .unwrap(),
-    );
 }
 
-pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: MigrateFromGatewayArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let chain_name = global_config().chain_name.clone();
@@ -137,16 +132,31 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
             .http_url,
     )?;
 
+    let client: Client<L2> = Client::http(
+        gateway_chain_config
+            .get_general_config()
+            .unwrap()
+            .api_config
+            .unwrap()
+            .web3_json_rpc
+            .http_url
+            .parse()
+            .unwrap(),
+    )?
+    .for_network(L2::from(L2ChainId(gateway_chain_id)))
+    .build();
+
     if hash == H256::zero() {
         println!("Chain already migrated!");
     } else {
         println!("Migration started! Migration hash: {}", hex::encode(hash));
         await_for_tx_to_complete(&gateway_provider, hash).await?;
-        await_for_withdrawal_to_finalize(&gateway_provider, hash).await?;
+        await_for_withdrawal_to_finalize(&client, hash).await?;
     }
+    // FIXME: this is a temporary hack to make sure that the withdrawal is processed.
     tokio::time::sleep(tokio::time::Duration::from_millis(60000)).await;
 
-    let params = ZKSProvider::get_finalize_withdrawal_params(&gateway_provider, hash, 0).await?;
+    let params = client.get_finalize_withdrawal_params(hash, 0).await?;
 
     call_script(
         shell,
@@ -161,7 +171,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                     U256::from(params.l2_message_index.0[0]),
                     U256::from(params.l2_tx_number_in_block.0[0]),
                     params.message,
-                    params.proof.merkle_proof,
+                    params.proof.proof,
                 ),
             )
             .unwrap(),
@@ -171,7 +181,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?;
 
-    gateway_chain_chain_config.current_settlement_layer = 0;
+    gateway_chain_chain_config.settlement_layer = 0;
     gateway_chain_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 
     let mut general_config = chain_config.get_general_config().unwrap();
@@ -243,15 +253,11 @@ async fn await_for_tx_to_complete(
 }
 
 async fn await_for_withdrawal_to_finalize(
-    gateway_provider: &Provider<Http>,
+    gateway_provider: &Client<L2>,
     hash: H256,
 ) -> anyhow::Result<()> {
     println!("Waiting for withdrawal to finalize...");
-    while ZKSProvider::get_transaction_receipt(gateway_provider, hash)
-        .await
-        .unwrap_or(None)
-        .is_none()
-    {
+    while gateway_provider.get_withdrawal_log(hash, 0).await.is_err() {
         println!("Waiting for withdrawal to finalize...");
         tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
     }

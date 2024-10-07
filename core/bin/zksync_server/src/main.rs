@@ -27,7 +27,7 @@ use zksync_core_leftovers::{
     temp_config_store::{read_yaml_repr, TempConfigStore},
     Component, Components,
 };
-use zksync_env_config::{envy_load, FromEnv, FromEnvVariant};
+use zksync_env_config::{FromEnv, FromEnvVariant};
 
 use crate::node_builder::MainNodeBuilder;
 
@@ -139,12 +139,7 @@ fn main() -> anyhow::Result<()> {
     {
         None => ContractsConfig::from_env_variant("GATEWAY_".to_string())
             .ok()
-            .map(|value| {
-                GatewayChainConfig::from_contracts_config_and_current_settlement_layer(
-                    value,
-                    envy_load::<u64>("GATEWAY_CURRENT_SETTLEMENT_LAYER", "").unwrap(),
-                )
-            }),
+            .map(Into::into),
         Some(path) => {
             let result =
                 read_yaml_repr::<zksync_protobuf_config::proto::gateway::GatewayChainConfig>(&path)

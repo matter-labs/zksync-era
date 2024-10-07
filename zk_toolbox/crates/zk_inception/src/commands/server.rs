@@ -54,7 +54,7 @@ fn run_server(
     let gateway_config = chain_config.get_gateway_chain_config().ok();
     let mut gateway_contracts = None;
     if let Some(gateway_config) = gateway_config {
-        gateway_contracts = if gateway_config.current_settlement_layer != 0_u64 {
+        gateway_contracts = if gateway_config.settlement_layer != 0_u64 {
             Some(GatewayChainConfig::get_path_with_base_path(
                 &chain_config.configs,
             ))
