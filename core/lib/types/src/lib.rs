@@ -158,6 +158,13 @@ impl ExternalTx {
         }
     }
 
+    pub fn signature(&self) -> Option<Vec<u8>> {
+        match self {
+            ExternalTx::L2Tx(tx) => Some(tx.common_data.signature.clone()),
+            ExternalTx::XL2Tx(_) => None,
+        }
+    }
+
     pub fn received_timestamp_ms(&self) -> u64 {
         match self {
             ExternalTx::L2Tx(tx) => tx.received_timestamp_ms,

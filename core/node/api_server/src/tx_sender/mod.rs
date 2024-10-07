@@ -682,7 +682,7 @@ impl TxSender {
         };
 
         let action = SandboxAction::Call {
-            call,
+            call: ExternalTx::L2Tx(call),
             fee_input,
             enforced_base_fee: call_overrides.enforced_base_fee,
             tracing_params: OneshotTracingParams::default(),

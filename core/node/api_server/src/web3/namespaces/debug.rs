@@ -10,7 +10,7 @@ use zksync_types::{
     debug_flat_call::{Action, CallResult, DebugCallFlat},
     l2::L2Tx,
     transaction_request::CallRequest,
-    web3, H256, U256,
+    web3, ExternalTx, H256, U256,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -281,7 +281,7 @@ impl DebugNamespace {
                 vm_permit,
                 connection,
                 SandboxAction::Call {
-                    call: call.clone(),
+                    call: ExternalTx::L2Tx(call.clone()),
                     fee_input,
                     enforced_base_fee: call_overrides.enforced_base_fee,
                     tracing_params,

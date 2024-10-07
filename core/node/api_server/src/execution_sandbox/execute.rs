@@ -30,10 +30,13 @@ use crate::tx_sender::SandboxExecutorOptions;
 #[derive(Debug)]
 pub(crate) enum SandboxAction {
     /// Execute a transaction.
-    Execution { tx: L2Tx, fee_input: BatchFeeInput },
+    Execution {
+        tx: ExternalTx,
+        fee_input: BatchFeeInput,
+    },
     /// Execute a call, possibly with tracing.
     Call {
-        call: L2Tx,
+        call: ExternalTx,
         fee_input: BatchFeeInput,
         enforced_base_fee: Option<u64>,
         tracing_params: OneshotTracingParams,
@@ -50,7 +53,7 @@ impl SandboxAction {
     fn factory_deps_count(&self) -> usize {
         match self {
             Self::Execution { tx, .. } | Self::Call { call: tx, .. } => {
-                tx.execute.factory_deps.len()
+                tx.execute().factory_deps.len()
             }
             Self::GasEstimation { tx, .. } => tx.execute.factory_deps.len(),
         }

@@ -56,9 +56,16 @@ impl TxExecutionArgs {
         }
     }
 
-    pub fn for_eth_call(mut call: L2Tx) -> Self {
-        if call.common_data.signature.is_empty() {
-            call.common_data.signature = PackedEthSignature::default().serialize_packed().into();
+    pub fn for_eth_call(mut call: ExternalTx) -> Self {
+        match call {
+            ExternalTx::L2Tx(mut tx) => {
+                if tx.common_data.signature.is_empty() {
+                    tx.common_data.signature =
+                        PackedEthSignature::default().serialize_packed().into();
+                }
+                call = ExternalTx::L2Tx(tx);
+            }
+            ExternalTx::XL2Tx(_) => (),
         }
 
         Self {
