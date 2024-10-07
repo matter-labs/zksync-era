@@ -113,6 +113,14 @@ impl ValuesCache {
         Self(Arc::new(RwLock::new(inner)))
     }
 
+    fn capacity(&self) -> u64 {
+        self.0
+            .read()
+            .expect("values cache is poisoned")
+            .values
+            .capacity()
+    }
+
     /// *NB.* The returned value should be considered immediately stale; at best, it can be
     /// the lower boundary on the current `valid_for` value.
     fn valid_for(&self) -> L2BlockNumber {
@@ -367,7 +375,14 @@ impl PostgresStorageCachesTask {
     ///
     /// - Propagates Postgres errors.
     /// - Propagates errors from the cache update task.
+    #[tracing::instrument(name = "PostgresStorageCachesTask::run", skip_all)]
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        tracing::info!(
+            max_l2_blocks_lag = self.max_l2_blocks_lag,
+            values_cache.capacity = self.values_cache.capacity(),
+            "Starting task"
+        );
+
         let mut current_l2_block = self.values_cache.valid_for();
         loop {
             let to_l2_block = tokio::select! {
