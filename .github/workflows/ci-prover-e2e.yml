@@ -25,10 +25,8 @@ jobs:
 
       - name: Start services
         run: |
-          run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
-          mkdir -p ./volumes/postgres ./volumes/reth/data
-          docker-compose -f ${RUNNER_COMPOSE_FILE} up -d --wait
-          curl -v 127.0.0.1:8545
+          ci_localnet_up
+          ci_run sccache --start-server
 
       - name: Init
         run: |
@@ -54,7 +52,7 @@ jobs:
           
           ci_run ./bin/zkt
           ci_run zk_inception chain create \
-            --chain-name legacy \
+            --chain-name provers \
             --chain-id sequential \
             --prover-mode gpu \
             --wallet-creation localhost \
@@ -64,7 +62,6 @@ jobs:
             --base-token-price-denominator 1 \
             --set-as-default false \
             --ignore-prerequisites \
-            --legacy-bridge
 
           ci_run zk_inception ecosystem init --dev --verbose
           ci_run zk_inception prover init --dev --verbose
@@ -74,7 +71,7 @@ jobs:
           ci_run zk_supervisor prover insert-batch --number=1 --default --verbose
       - name: Run server
         run: |
-          ci_run zk_inception server --uring --chain=legacy --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>server.log &
+          ci_run zk_inception server --uring --chain=provers --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>server.log &
           ci_run sleep 60
       - name: Run Gateway
         run: |
@@ -103,7 +100,7 @@ jobs:
 
       - name: Wait for prover jobs to finish
         run: |
-          echo "DATABASE_URL=postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_legacy" >> .env
+          echo "DATABASE_URL=postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers" >> .env
           echo "BATCH_NUMBER=1" >> .env
           echo "INTERVAL=30" >> .env
           # 15 minutes
