@@ -349,6 +349,8 @@ jobs:
 
       - name: Run integration tests
         run: |
+          set +e
+
           PASSED_ENV_VARS="RUN_CONTRACT_VERIFICATION_TEST" \
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/rollup.log &
           PID1=$!
@@ -363,9 +365,40 @@ jobs:
           PID4=$!
 
           wait $PID1
+          STATUS1=$?
           wait $PID2
+          STATUS2=$?
           wait $PID3
+          STATUS3=$?
           wait $PID4
+          STATUS4=$?
+
+          # Check exit statuses
+          if [ $STATUS1 -ne 0 ]; then
+            echo "Process 1 failed with status $STATUS1"
+          else
+            echo "Process 1 succeeded"
+          fi
+
+          if [ $STATUS2 -ne 0 ]; then
+            echo "Process 2 failed with status $STATUS2"
+          else
+            echo "Process 2 succeeded"
+          fi
+
+          if [ $STATUS3 -ne 0 ]; then
+            echo "Process 3 failed with status $STATUS3"
+          else
+            echo "Process 3 succeeded"
+          fi
+
+          if [ $STATUS4 -ne 0 ]; then
+            echo "Process 4 failed with status $STATUS4"
+          else
+            echo "Process 4 succeeded"
+          fi
+
+          set -e
 
       - name: Init external nodes
         run: |
