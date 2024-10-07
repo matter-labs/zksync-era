@@ -73,8 +73,7 @@ impl TeeProofGenerationDal<'_, '_> {
                             AND tee_proofs.status IS NULL
                             AND tee_proofs.l1_batch_number IS NULL
                         ) OR (
-                            tee_proofs.tee_type = $1
-                            AND (
+                            (
                                 tee_proofs.status = $3
                                 OR (
                                     tee_proofs.status = $2
