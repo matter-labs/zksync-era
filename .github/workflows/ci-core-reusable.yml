@@ -349,38 +349,8 @@ jobs:
 
       - name: Run integration tests
         run: |
-
-          local chains=("era" "validium" "custom_token" "consensus")
-          local logs=(${{ env.INTEGRATION_TESTS_LOGS_DIR }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }})
-          local pids=()
-          local statuses=()
-
-          # Start background processes
-          for i in "${!chains[@]}"; do
-            ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain "${chains[$i]}" &> "${logs[$i]}/${chains[$i]}.log" &
-            pids+=($!)
-          done
-
-          # Wait for all processes to complete and capture their exit statuses
-          for i in "${!pids[@]}"; do
-            wait ${pids[$i]}
-            statuses[$i]=$?
-          done
-
-          # Check exit statuses and set overall status
-          local overall_status=0
-
-          for i in "${!statuses[@]}"; do
-            if [ ${statuses[$i]} -ne 0 ]; then
-              overall_status=1
-              echo "Chain ${chains[$i]} failed with status ${statuses[$i]}"
-            else
-              echo "Chain ${chains[$i]} succeeded"
-            fi
-          done
-
-          # Exit with overall status
-          exit $overall_status
+          source ./.github/scripts/run_on_all_chains.sh
+          ci_run run_on_all_chains "zk_supervisor test integration --no-deps --ignore-prerequisites" &
 
       - name: Init external nodes
         run: |
