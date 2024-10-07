@@ -35,8 +35,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install dependencies for RocksDB. `liburing` is not available for Ubuntu 20.04,
 # so we use a PPA with the backport
-RUN add-apt-repository ppa:savoury1/virtualisation && \
-    apt-get update && \
+RUN apt-get update && \
     apt-get install -y \
     curl \
     gnutls-bin git \
