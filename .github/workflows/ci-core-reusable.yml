@@ -350,67 +350,37 @@ jobs:
       - name: Run integration tests
         run: |
 
-          # Disable immediate exit on non-zero status
-          set +e
+          local chains=("era" "validium" "custom_token" "consensus")
+          local logs=(${{ env.INTEGRATION_TESTS_LOGS_DIR }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }})
+          local pids=()
+          local statuses=()
 
-          PASSED_ENV_VARS="RUN_CONTRACT_VERIFICATION_TEST" \
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/rollup.log &
-          PID_ERA=$!
+          # Start background processes
+          for i in "${!chains[@]}"; do
+            ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain "${chains[$i]}" &> "${logs[$i]}/${chains[$i]}.log" &
+            pids+=($!)
+          done
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain validium &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/validium.log &
-          PID_VALIDIUM=$!
-
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain custom_token &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/custom_token.log &
-          PID_CUSTOM_TOKEN=$!
-
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain consensus &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log &
-          PID_CONSENSUS=$!
-
-          wait $PID_ERA
-          STATUS_ERA=$?
-          wait $PID_VALIDIUM
-          STATUS_VALIDIUM=$?
-          wait $PID_CUSTOM_TOKEN
-          STATUS_CUSTOM_TOKEN=$?
-          wait $PID_CONSENSUS
-          STATUS_CONSENSUS=$?
+          # Wait for all processes to complete and capture their exit statuses
+          for i in "${!pids[@]}"; do
+            wait ${pids[$i]}
+            statuses[$i]=$?
+          done
 
           # Check exit statuses and set overall status
-          OVERALL_STATUS=0
+          local overall_status=0
 
-          if [ $STATUS_ERA -ne 0 ]; then
-            OVERALL_STATUS=1
-            echo "Chain ERA failed with status $STATUS_ERA"
-          else
-            echo "Chain ERA succeeded"
-          fi
+          for i in "${!statuses[@]}"; do
+            if [ ${statuses[$i]} -ne 0 ]; then
+              overall_status=1
+              echo "Chain ${chains[$i]} failed with status ${statuses[$i]}"
+            else
+              echo "Chain ${chains[$i]} succeeded"
+            fi
+          done
 
-          if [ $STATUS_VALIDIUM -ne 0 ]; then
-            OVERALL_STATUS=1
-            echo "Chain VALIDIUM failed with status $STATUS_VALIDIUM"
-          else
-            echo "Chain VALIDIUM succeeded"
-          fi
-
-          if [ $STATUS_CUSTOM_TOKEN -ne 0 ]; then
-            OVERALL_STATUS=1
-            echo "Chain CUSTOM_TOKEN failed with status $STATUS_CUSTOM_TOKEN"
-          else
-            echo "Chain CUSTOM_TOKEN succeeded"
-          fi
-
-          if [ $STATUS_CONSENSUS -ne 0 ]; then
-            OVERALL_STATUS=1
-            echo "Chain CONSENSUS failed with status $STATUS_CONSENSUS"
-          else
-            echo "Chain CONSENSUS succeeded"
-          fi
-
-          # Re-enable immediate exit on non-zero status
-          set -e
-          
           # Exit with overall status
-          exit $OVERALL_STATUS
+          exit $overall_status
 
       - name: Init external nodes
         run: |
