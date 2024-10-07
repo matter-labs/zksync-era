@@ -1,6 +1,9 @@
 #! /bin/bash
 
 run_on_all_chains() {
+    # Disable immediate exit on non-zero status
+    set +e
+
     local command=$1
     local chains=("era" "validium" "custom_token" "consensus")
     local logs=(${{ env.INTEGRATION_TESTS_LOGS_DIR }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }})
@@ -30,6 +33,9 @@ run_on_all_chains() {
             echo "Chain ${chains[$i]} succeeded"
         fi
     done
+
+    # Re-enable immediate exit on non-zero status
+    set -e
 
     # Exit with overall status
     return $overall_status
