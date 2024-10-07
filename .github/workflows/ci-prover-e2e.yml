@@ -27,7 +27,7 @@ jobs:
         run: |
           run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
           mkdir -p ./volumes/postgres ./volumes/reth/data
-          docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
+          docker-compose -f ${RUNNER_COMPOSE_FILE} up -d --wait
 
       - name: Init
         run: |
@@ -69,6 +69,8 @@ jobs:
           ci_run zk_inception prover init --dev --verbose
           ci_run zk_inception prover init-bellman-cuda --clone --verbose
           ci_run zk_inception prover setup-keys --mode=download --region=us --verbose
+          ci_run zk_supervisor prover insert-version --default --verbose
+          ci_run zk_supervisor prover insert-batch --number=1 --default --verbose
       - name: Run server
         run: |
           ci_run zk_inception server --uring --chain=legacy --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>server.log &
