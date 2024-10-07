@@ -28,6 +28,7 @@ jobs:
           run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
           mkdir -p ./volumes/postgres ./volumes/reth/data
           docker-compose -f ${RUNNER_COMPOSE_FILE} up -d --wait
+          curl -v 127.0.0.1:8545
 
       - name: Init
         run: |
@@ -65,7 +66,7 @@ jobs:
             --ignore-prerequisites \
             --legacy-bridge
 
-          ci_run zk_inception ecosystem init --dev --verbose
+          ci_run zk_inception ecosystem init --dev verbose
           ci_run zk_inception prover init --dev --verbose
           ci_run zk_inception prover init-bellman-cuda --clone --verbose
           ci_run zk_inception prover setup-keys --mode=download --region=us --verbose
