@@ -29,15 +29,12 @@ const MOCK_EMULATOR_PATH: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockEvmEmulator.json";
 const RECURSIVE_CONTRACT_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/NativeRecursiveContract.json";
 
-#[test]
-fn tracing_evm_contract_deployment() {
+fn override_system_contracts(storage: &mut InMemoryStorage) {
     let mock_deployer = read_bytecode(MOCK_DEPLOYER_PATH);
     let mock_deployer_hash = hash_bytecode(&mock_deployer);
     let mock_known_code_storage = read_bytecode(MOCK_KNOWN_CODE_STORAGE_PATH);
     let mock_known_code_storage_hash = hash_bytecode(&mock_known_code_storage);
 
-    // Override storage slots for system contracts.
-    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     storage.set_value(get_code_key(&CONTRACT_DEPLOYER_ADDRESS), mock_deployer_hash);
     storage.set_value(
         get_known_code_key(&mock_deployer_hash),
@@ -53,6 +50,12 @@ fn tracing_evm_contract_deployment() {
     );
     storage.store_factory_dep(mock_deployer_hash, mock_deployer);
     storage.store_factory_dep(mock_known_code_storage_hash, mock_known_code_storage);
+}
+
+#[test]
+fn tracing_evm_contract_deployment() {
+    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    override_system_contracts(&mut storage);
 
     let mut system_env = default_system_env();
     // The EVM emulator will not be accessed, so we set it to a dummy value.
@@ -254,4 +257,64 @@ fn mock_emulator_with_recursion(deploy_emulator: bool, is_external: bool) {
         .vm
         .execute_transaction_with_bytecode_compression(tx, true);
     assert!(!vm_result.result.is_failed(), "{vm_result:?}");
+}
+
+#[test]
+fn mock_emulator_with_deployment() {
+    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+    override_system_contracts(&mut storage);
+
+    let mut system_env = default_system_env();
+    let evm_bytecode: Vec<_> = (0..=u8::MAX).collect();
+    let evm_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
+    let contract_address = Address::repeat_byte(0xaa);
+    storage.set_value(get_code_key(&contract_address), evm_bytecode_hash);
+    storage.set_value(
+        get_known_code_key(&evm_bytecode_hash),
+        H256::from_low_u64_be(1),
+    );
+
+    let mock_emulator = read_bytecode(MOCK_EMULATOR_PATH);
+    system_env.base_system_smart_contracts.evm_emulator = Some(SystemContractCode {
+        hash: hash_bytecode(&mock_emulator),
+        code: bytes_to_be_words(mock_emulator),
+    });
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_system_env(system_env)
+        .with_storage(storage)
+        .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_random_rich_accounts(1)
+        .build();
+    let account = &mut vm.rich_accounts[0];
+
+    let mock_emulator_abi = load_contract(MOCK_EMULATOR_PATH);
+    let new_evm_bytecode = vec![0xfe; 96];
+    let new_evm_bytecode_hash = hash_evm_bytecode(&new_evm_bytecode);
+
+    let test_fn = mock_emulator_abi.function("testDeploymentAndCall").unwrap();
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(contract_address),
+            calldata: test_fn
+                .encode_input(&[
+                    Token::FixedBytes(new_evm_bytecode_hash.0.into()),
+                    Token::Bytes(new_evm_bytecode.clone()),
+                ])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
+
+    let factory_deps = vm_result.new_known_factory_deps.unwrap();
+    assert_eq!(
+        factory_deps,
+        HashMap::from([(new_evm_bytecode_hash, new_evm_bytecode)])
+    );
 }

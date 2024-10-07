@@ -68,7 +68,7 @@ contract MockContractDeployer {
         Version1
     }
 
-    address constant CODE_ORACLE_ADDR = address(0x8012);
+    IAccountCodeStorage constant ACCOUNT_CODE_STORAGE_CONTRACT = IAccountCodeStorage(address(0x8002));
     MockKnownCodeStorage constant KNOWN_CODE_STORAGE_CONTRACT = MockKnownCodeStorage(address(0x8004));
 
     /// The returned value is obviously incorrect in the general case, but works well enough when called by the bootloader.
@@ -78,21 +78,23 @@ contract MockContractDeployer {
 
     /// Replaces real deployment with publishing a surrogate EVM "bytecode".
     /// @param _salt bytecode hash
-    /// @param _bytecodeHash ignored, since it's not possible to set arbitrarily
     /// @param _input bytecode to publish
     function create(
         bytes32 _salt,
-        bytes32 _bytecodeHash,
+        bytes32, // ignored, since it's not possible to set arbitrarily
         bytes calldata _input
     ) external payable returns (address) {
         KNOWN_CODE_STORAGE_CONTRACT.setEVMBytecodeHash(_salt);
         KNOWN_CODE_STORAGE_CONTRACT.publishEVMBytecode(_input);
-        return address(0);
+        address newAddress = address(uint160(msg.sender) + 1);
+        ACCOUNT_CODE_STORAGE_CONTRACT.storeAccountConstructedCodeHash(newAddress, _salt);
+        return newAddress;
     }
 }
 
 interface IAccountCodeStorage {
     function getRawCodeHash(address _address) external view returns (bytes32);
+    function storeAccountConstructedCodeHash(address _address, bytes32 _hash) external;
 }
 
 interface IRecursiveContract {
@@ -156,6 +158,23 @@ contract MockEvmEmulator is IRecursiveContract {
         uint returnedValue = recurse(_depth);
         recursionTarget = this; // This won't work on revert, but for tests, it's good enough
         require(returnedValue == _expectedValue, "incorrect recursion");
+    }
+
+    MockContractDeployer constant CONTRACT_DEPLOYER_CONTRACT = MockContractDeployer(address(0x8006));
+
+    /// Emulates EVM contract deployment and a subsequent call to it in a single transaction.
+    function testDeploymentAndCall(bytes32 _evmBytecodeHash, bytes calldata _evmBytecode) external validEvmEntry {
+        IRecursiveContract newContract = IRecursiveContract(CONTRACT_DEPLOYER_CONTRACT.create(
+            _evmBytecodeHash,
+            _evmBytecodeHash,
+            _evmBytecode
+        ));
+        require(uint160(address(newContract)) == uint160(address(this)) + 1, "unexpected address");
+        require(address(newContract).code.length > 0, "contract code length");
+        require(address(newContract).codehash != bytes32(0), "contract code hash");
+
+        uint gasToSend = gasleft() - EVM_EMULATOR_STIPEND;
+        require(newContract.recurse{gas: gasToSend}(5) == 120, "unexpected recursive result");
     }
 
     fallback() external validEvmEntry {
