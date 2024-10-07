@@ -118,3 +118,6 @@ configs/*
 era-observability/
 core/tests/ts-integration/deployments-zk
 transactions/
+
+# Ecosystem backups
+ecosystem_backups/
