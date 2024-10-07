@@ -204,7 +204,7 @@ impl ExternalNodeBuilder {
             self.config.remote.l2_legacy_shared_bridge_addr
         } else {
             // System hasn't migrated on `L2_NATIVE_TOKEN_VAULT_ADDRESS`, we can safely use `l2_shared_bridge_addr`.
-            l2_shared_bridge_addr
+            Some(l2_shared_bridge_addr)
         };
 
         let persistence_layer = OutputHandlerLayer::new(
