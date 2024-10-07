@@ -13,5 +13,5 @@ categories.workspace = true
 [dependencies]
 zksync_object_store.workspace = true
 zksync_types.workspace = true
-circuit_definitions = { workspace = true, features = [ "log_tracing" ] }
+circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol.git", package = "circuit_definitions", features = [ "log_tracing" ]  }
 serde = { workspace = true, features = ["derive"] }
