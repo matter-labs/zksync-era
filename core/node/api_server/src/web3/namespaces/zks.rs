@@ -132,8 +132,8 @@ impl ZksNamespace {
         self.state.api_config.l2_testnet_paymaster_addr
     }
 
-    pub fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
-        self.state.api_config.bridge_addresses.clone()
+    pub async fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
+        self.state.bridge_addresses_handle.read().await
     }
 
     pub fn l1_chain_id_impl(&self) -> U64 {
