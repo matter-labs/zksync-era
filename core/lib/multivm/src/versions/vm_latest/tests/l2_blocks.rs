@@ -19,12 +19,13 @@ use crate::{
         storage::WriteStorage, ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode,
         VmInterface, VmInterfaceExt,
     },
+    versions::testonly::default_l1_batch,
     vm_latest::{
         constants::{
             BOOTLOADER_HEAP_PAGE, TX_OPERATOR_L2_BLOCK_INFO_OFFSET,
             TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO,
         },
-        tests::tester::{default_l1_batch, VmTesterBuilder},
+        tests::tester::VmTesterBuilder,
         utils::l2_blocks::get_l2_block_hash_key,
         HistoryEnabled, Vm,
     },

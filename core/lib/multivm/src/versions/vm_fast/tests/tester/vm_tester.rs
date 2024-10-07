@@ -3,8 +3,8 @@ use std::{cell::RefCell, rc::Rc};
 use zksync_contracts::BaseSystemContracts;
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
-    block::L2BlockHasher, utils::deployed_address_create, AccountTreeId, Address, L1BatchNumber,
-    L2BlockNumber, Nonce, StorageKey,
+    block::L2BlockHasher, utils::deployed_address_create, AccountTreeId, Address, K256PrivateKey,
+    L1BatchNumber, L2BlockNumber, Nonce, StorageKey, H256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 use zksync_vm2::{interface::Tracer, WorldDiff};
@@ -186,7 +186,13 @@ impl VmTesterBuilder {
     }
 
     pub(crate) fn with_deployer(mut self) -> Self {
-        let deployer = Account::random();
+        let deployer = Account::new(
+            K256PrivateKey::from_bytes(H256::from([
+                166, 213, 235, 115, 15, 141, 58, 10, 160, 63, 84, 199, 169, 24, 185, 226, 57, 199,
+                123, 116, 220, 99, 23, 83, 227, 247, 27, 37, 165, 2, 47, 222,
+            ]))
+            .unwrap(),
+        );
         self.deployer = Some(deployer);
         self
     }
@@ -197,6 +203,10 @@ impl VmTesterBuilder {
     }
 
     pub(crate) fn build(self) -> VmTester<()> {
+        self.build_with_tracer()
+    }
+
+    pub(crate) fn build_with_tracer<T: Tracer>(self) -> VmTester<T> {
         let l1_batch_env = self
             .l1_batch_env
             .unwrap_or_else(|| default_l1_batch(L1BatchNumber(1)));

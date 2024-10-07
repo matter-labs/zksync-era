@@ -4,6 +4,7 @@ pub use self::{circuits_tracer::CircuitsTracer, vm::Vm};
 
 mod bootloader_state;
 mod bytecode;
+mod call_tracer;
 mod circuits_tracer;
 mod events;
 mod glue;
