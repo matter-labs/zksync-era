@@ -24,6 +24,9 @@ rand.workspace = true
 secrecy.workspace = true
 serde = { workspace = true, features = ["derive"] }
 time = { workspace = true, features = ["serde-human-readable"] }
+strum.workspace = true
+vise.workspace = true
+strum_macros = "0.26.4"
 
 [dev-dependencies]
 serde_json.workspace = true

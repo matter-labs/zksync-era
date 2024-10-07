@@ -4,20 +4,21 @@ use chrono::Utc;
 use debug_map_sorted::SortedOutputExt;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use zksync_config::configs::prover_autoscaler::{Gpu, ProverAutoscalerScalerConfig};
 
 use super::{queuer, watcher};
 use crate::{
-    cluster_types::{Cluster, Clusters, Pod, PodStatus, GPU},
+    cluster_types::{Cluster, Clusters, Pod, PodStatus},
     metrics::AUTOSCALER_METRICS,
     task_wiring::Task,
 };
 
-const DEFAULT_SPEED: u64 = 500;
+const DEFAULT_SPEED: u32 = 500;
 
 #[derive(Default, Debug, PartialEq, Eq)]
 struct GPUPool {
     name: String,
-    gpu: GPU,
+    gpu: Gpu,
     provers: HashMap<PodStatus, u32>, // TODO: consider using i64 everywhere to avoid type casts.
     preemtions: u64,
     max_pool_size: u32,
@@ -39,7 +40,7 @@ impl GPUPool {
 #[derive(Debug, Eq, Hash, PartialEq)]
 struct GPUPoolKey {
     cluster: String,
-    gpu: GPU,
+    gpu: Gpu,
 }
 
 const PROVER_DEPLOYMENT_RE: Lazy<Regex> =
@@ -55,14 +56,14 @@ pub struct Scaler {
 
     /// Which cluster to use first.
     cluster_priorities: HashMap<String, u32>,
-    prover_speed: HashMap<GPU, u64>,
-    // `gpu` group must be specified.
+    prover_speed: HashMap<Gpu, u32>,
+    long_pending_duration: chrono::Duration,
 }
 
 struct ProverPodGpu {
     name: String,
     pod: Pod,
-    gpu: GPU,
+    gpu: Gpu,
 }
 
 impl ProverPodGpu {
@@ -70,33 +71,31 @@ impl ProverPodGpu {
         PROVER_POD_RE.captures(&name.clone()).map(|caps| Self {
             name,
             pod,
-            gpu: GPU::from_str(caps.name("gpu").map_or("l4", |m| m.as_str())).unwrap_or_default(),
+            gpu: Gpu::from_str(caps.name("gpu").map_or("l4", |m| m.as_str())).unwrap_or_default(),
         })
     }
 }
 
 impl Scaler {
-    pub fn new(watcher: watcher::Watcher, queuer: queuer::Queuer) -> Self {
+    pub fn new(
+        watcher: watcher::Watcher,
+        queuer: queuer::Queuer,
+        config: ProverAutoscalerScalerConfig,
+    ) -> Self {
         Self {
-            namespaces: HashMap::from([
-                ("prover-red".to_string(), "0.24.2".to_string()),
-                ("prover-blue".to_string(), "0.24.1".to_string()),
-            ]), // TODO: read from config.
+            namespaces: config.protocol_versions,
             watcher,
             queuer,
-
-            // TODO: move to config.
-            cluster_priorities: HashMap::from([
-                ("mainnet2".to_string(), 0),
-                ("mainnet1-use4".to_string(), 10),
-            ]),
-            // TODO: add config.
-            prover_speed: HashMap::from([(GPU::L4, 500)]),
+            cluster_priorities: config.cluster_priorities,
+            prover_speed: config.prover_speed,
+            long_pending_duration: chrono::Duration::seconds(
+                config.long_pending_duration.whole_seconds(),
+            ),
         }
     }
 
     fn convert_to_gpu_pool(&self, namespace: &String, cluster: &Cluster) -> Vec<GPUPool> {
-        let mut gp_map = HashMap::new(); // <GPU, GPUPool>
+        let mut gp_map = HashMap::new(); // <Gpu, GPUPool>
         let Some(namespace_value) = &cluster.namespaces.get(namespace) else {
             // No namespace in config, ignoring.
             return vec![];
@@ -109,7 +108,7 @@ impl Scaler {
         {
             // Processing only provers.
             let gpu =
-                GPU::from_str(caps.name("gpu").map_or("l4", |m| m.as_str())).unwrap_or_default();
+                Gpu::from_str(caps.name("gpu").map_or("l4", |m| m.as_str())).unwrap_or_default();
             let e = gp_map.entry(gpu).or_insert(GPUPool {
                 name: cluster.name.clone(),
                 gpu,
@@ -133,8 +132,7 @@ impl Scaler {
             });
             let mut status = PodStatus::from_str(&ppg.pod.status).unwrap_or_default();
             if status == PodStatus::Pending
-                && ppg.pod.changed < Utc::now() - chrono::Duration::minutes(15)
-            // TODO: add duration into config
+                && ppg.pod.changed < Utc::now() - self.long_pending_duration
             {
                 status = PodStatus::LongPending;
             }
@@ -183,18 +181,19 @@ impl Scaler {
         gpu_pools
     }
 
-    fn speed(&self, gpu: GPU) -> u64 {
+    fn speed(&self, gpu: Gpu) -> u64 {
         self.prover_speed
             .get(&gpu)
             .cloned()
             .unwrap_or(DEFAULT_SPEED)
+            .into()
     }
 
-    fn provers_to_speed(&self, gpu: GPU, n: u32) -> u64 {
+    fn provers_to_speed(&self, gpu: Gpu, n: u32) -> u64 {
         self.speed(gpu) * n as u64
     }
 
-    fn normalize_queue(&self, gpu: GPU, q: u64) -> u64 {
+    fn normalize_queue(&self, gpu: Gpu, q: u64) -> u64 {
         let speed = self.speed(gpu);
         // Divide and round up if there's any remainder.
         (q + speed - 1) / speed * speed
@@ -222,7 +221,7 @@ impl Scaler {
         }
 
         // Remove unneeded pods.
-        if (total as u64) > self.normalize_queue(GPU::L4, q) {
+        if (total as u64) > self.normalize_queue(Gpu::L4, q) {
             for c in sc.iter().rev() {
                 let mut excess_queue = total as u64 - self.normalize_queue(c.gpu, q);
                 let mut excess_provers = (excess_queue / self.speed(c.gpu)) as u32;
@@ -352,7 +351,7 @@ mod tests {
         let want = HashMap::from([(
             GPUPoolKey {
                 cluster: "foo".to_string(),
-                gpu: GPU::L4,
+                gpu: Gpu::L4,
             },
             3,
         )]);

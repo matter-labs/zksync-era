@@ -59,8 +59,9 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let opt = Opt::from_args();
-    let general_config = read_yaml_repr::<prover_autoscaler::GeneralConfig>(&opt.config_path)
-        .context("general config")?;
+    let general_config =
+        read_yaml_repr::<prover_autoscaler::ProverAutoscalerConfig>(&opt.config_path)
+            .context("general config")?;
     // That's unfortunate that there are at least 3 different Duration in rust and we use all 3 in this repo.
     // TODO: Consider updating zksync_protobuf to support std::time::Duration.
     let graceful_shutdown_timeout = general_config.graceful_shutdown_timeout.unsigned_abs();
@@ -108,12 +109,12 @@ async fn main() -> anyhow::Result<()> {
         }
         ProverJob::Scaler => {
             let scaler_config = general_config.scaler_config.context("scaler_config")?;
+            let interval = scaler_config.scaler_run_interval.unsigned_abs();
             let exporter_config = PrometheusExporterConfig::pull(scaler_config.prometheus_port);
             tasks.push(tokio::spawn(exporter_config.run(stop_receiver.clone())));
-            let watcher = global::watcher::Watcher::new(scaler_config.agents);
-            let queuer = global::queuer::Queuer::new(scaler_config.prover_job_monitor_url);
-            let scaler = global::scaler::Scaler::new(watcher.clone(), queuer);
-            let interval = scaler_config.scaler_run_interval.unsigned_abs();
+            let watcher = global::watcher::Watcher::new(scaler_config.agents.clone());
+            let queuer = global::queuer::Queuer::new(scaler_config.prover_job_monitor_url.clone());
+            let scaler = global::scaler::Scaler::new(watcher.clone(), queuer, scaler_config);
             tasks.extend(get_tasks(watcher, scaler, interval, stop_receiver)?);
         }
     }

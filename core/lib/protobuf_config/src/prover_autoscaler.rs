@@ -1,11 +1,12 @@
 use anyhow::Context as _;
-use zksync_config::configs;
+use time::Duration;
+use zksync_config::configs::{self, prover_autoscaler::Gpu};
 use zksync_protobuf::{read_optional, repr::ProtoRepr, required, ProtoFmt};
 
 use crate::{proto::prover_autoscaler as proto, read_optional_repr};
 
-impl ProtoRepr for proto::GeneralConfig {
-    type Type = configs::prover_autoscaler::GeneralConfig;
+impl ProtoRepr for proto::ProverAutoscalerConfig {
+    type Type = configs::prover_autoscaler::ProverAutoscalerConfig;
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             graceful_shutdown_timeout: read_optional(&self.graceful_shutdown_timeout)
@@ -64,6 +65,31 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                 .context("prover_job_monitor_url")?
                 .clone(),
             agents: self.agents.to_vec(),
+            protocol_versions: self
+                .protocol_versions
+                .iter()
+                .enumerate()
+                .map(|(i, e)| e.read().context(i))
+                .collect::<Result<_, _>>()
+                .context("protocol_versions")?,
+            cluster_priorities: self
+                .cluster_priorities
+                .iter()
+                .enumerate()
+                .map(|(i, e)| e.read().context(i))
+                .collect::<Result<_, _>>()
+                .context("cluster_priorities")?,
+            prover_speed: self
+                .prover_speed
+                .iter()
+                .enumerate()
+                .map(|(i, e)| e.read().context(i))
+                .collect::<Result<_, _>>()
+                .context("prover_speed")?,
+            long_pending_duration: match self.long_pending_duration_s {
+                Some(s) => Duration::seconds(s.into()),
+                None => Self::Type::default_long_pending_duration(),
+            },
         })
     }
 
@@ -73,6 +99,72 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
             scaler_run_interval: Some(ProtoFmt::build(&this.scaler_run_interval)),
             prover_job_monitor_url: Some(this.prover_job_monitor_url.clone()),
             agents: this.agents.clone(),
+            protocol_versions: this
+                .protocol_versions
+                .iter()
+                .map(|(k, v)| proto::ProtocolVersion::build(&(k.clone(), v.clone())))
+                .collect(),
+            cluster_priorities: this
+                .cluster_priorities
+                .iter()
+                .map(|(k, v)| proto::ClusterPriority::build(&(k.clone(), *v)))
+                .collect(),
+            prover_speed: this
+                .prover_speed
+                .iter()
+                .map(|(k, v)| proto::ProverSpeed::build(&(*k, *v)))
+                .collect(),
+            long_pending_duration_s: Some(this.long_pending_duration.whole_seconds() as u32),
+        }
+    }
+}
+
+impl ProtoRepr for proto::ProtocolVersion {
+    type Type = (String, String);
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok((
+            required(&self.namespace).context("namespace")?.clone(),
+            required(&self.protocol_version)
+                .context("protocol_version")?
+                .clone(),
+        ))
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            namespace: Some(this.0.clone()),
+            protocol_version: Some(this.1.clone()),
+        }
+    }
+}
+
+impl ProtoRepr for proto::ClusterPriority {
+    type Type = (String, u32);
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok((
+            required(&self.cluster).context("cluster")?.clone(),
+            required(&self.priority).context("priority")?.clone(),
+        ))
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            cluster: Some(this.0.clone()),
+            priority: Some(this.1.clone()),
+        }
+    }
+}
+
+impl ProtoRepr for proto::ProverSpeed {
+    type Type = (Gpu, u32);
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok((
+            required(&self.gpu).context("gpu")?.parse()?,
+            required(&self.speed).context("speed")?.clone(),
+        ))
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            gpu: Some(this.0.to_string()),
+            speed: Some(this.1.clone()),
         }
     }
 }

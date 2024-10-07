@@ -1,12 +1,17 @@
+use std::collections::HashMap;
+
 use serde::Deserialize;
+use strum::Display;
+use strum_macros::EnumString;
 use time::Duration;
+use vise::EncodeLabelValue;
 
 /// Config used for running ProverAutoscaler (both Scaler and Agent).
 #[derive(Debug, Clone, PartialEq, Deserialize)]
-pub struct GeneralConfig {
+pub struct ProverAutoscalerConfig {
     /// Amount of time ProverJobMonitor will wait all it's tasks to finish.
     // TODO: find a way to use #[serde(with = "humantime_serde")] with time::Duration.
-    #[serde(default = "GeneralConfig::default_graceful_shutdown_timeout")]
+    #[serde(default = "ProverAutoscalerConfig::default_graceful_shutdown_timeout")]
     pub graceful_shutdown_timeout: Duration,
     pub agent_config: Option<ProverAutoscalerAgentConfig>,
     pub scaler_config: Option<ProverAutoscalerScalerConfig>,
@@ -33,13 +38,53 @@ pub struct ProverAutoscalerScalerConfig {
     #[serde(default = "ProverAutoscalerScalerConfig::default_scaler_run_interval")]
     pub scaler_run_interval: Duration,
     /// URL to get queue reports from.
+    /// In production should be "http://prover-job-monitor.stage2.svc.cluster.local:3074/queue_report".
     #[serde(default = "ProverAutoscalerScalerConfig::default_prover_job_monitor_url")]
     pub prover_job_monitor_url: String,
     /// List of ProverAutoscaler Agents to get data from.
     pub agents: Vec<String>,
+    /// Mapping of namespaces to protocol versions.
+    pub protocol_versions: HashMap<String, String>,
+    /// Default priorities, which cluster to use when there is no other information.
+    pub cluster_priorities: HashMap<String, u32>,
+    /// Prover speed per GPU.
+    pub prover_speed: HashMap<Gpu, u32>,
+    /// Duration after which pending pod considered long pending.
+    #[serde(default = "ProverAutoscalerScalerConfig::default_long_pending_duration")]
+    pub long_pending_duration: Duration,
 }
 
-impl GeneralConfig {
+#[derive(
+    Default,
+    Debug,
+    Display,
+    Hash,
+    PartialEq,
+    Eq,
+    Clone,
+    Copy,
+    Ord,
+    PartialOrd,
+    EnumString,
+    EncodeLabelValue,
+    Deserialize,
+)]
+pub enum Gpu {
+    #[default]
+    Unknown,
+    #[strum(ascii_case_insensitive)]
+    L4,
+    #[strum(ascii_case_insensitive)]
+    T4,
+    #[strum(ascii_case_insensitive)]
+    V100,
+    #[strum(ascii_case_insensitive)]
+    P100,
+    #[strum(ascii_case_insensitive)]
+    A100,
+}
+
+impl ProverAutoscalerConfig {
     /// Default graceful shutdown timeout -- 5 seconds
     pub fn default_graceful_shutdown_timeout() -> Duration {
         Duration::seconds(5)
@@ -60,6 +105,11 @@ impl ProverAutoscalerScalerConfig {
 
     /// Default prover_job_monitor_url -- cluster local URL
     pub fn default_prover_job_monitor_url() -> String {
-        "http://prover-job-monitor.stage2.svc.cluster.local:3074/queue_report".to_string()
+        "http://localhost:3074/queue_report".to_string()
+    }
+
+    /// Default long_pending_duration -- 10m
+    pub fn default_long_pending_duration() -> Duration {
+        Duration::minutes(10)
     }
 }

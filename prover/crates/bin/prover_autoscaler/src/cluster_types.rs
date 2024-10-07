@@ -3,7 +3,6 @@ use std::collections::{BTreeMap, HashMap};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize, Serializer};
 use strum::{Display, EnumString};
-use vise::EncodeLabelValue;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Pod {
@@ -54,36 +53,6 @@ impl Default for Cluster {
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Clusters {
     pub clusters: HashMap<String, Cluster>,
-}
-
-#[derive(
-    Default,
-    Debug,
-    EnumString,
-    Display,
-    Hash,
-    PartialEq,
-    Eq,
-    Clone,
-    Copy,
-    Ord,
-    PartialOrd,
-    EncodeLabelValue,
-)]
-#[allow(clippy::upper_case_acronyms)]
-pub enum GPU {
-    #[default]
-    Unknown,
-    #[strum(ascii_case_insensitive)]
-    L4,
-    #[strum(ascii_case_insensitive)]
-    T4,
-    #[strum(ascii_case_insensitive)]
-    V100,
-    #[strum(ascii_case_insensitive)]
-    P100,
-    #[strum(ascii_case_insensitive)]
-    A100,
 }
 
 #[derive(Default, Debug, EnumString, Display, Hash, PartialEq, Eq, Clone, Copy)]
