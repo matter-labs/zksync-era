@@ -67,8 +67,7 @@ pub(super) async fn generate_witness(
     let make_circuits_span = tracing::info_span!("make_circuits");
     let make_circuits_span_copy = make_circuits_span.clone();
 
-    use std::sync::mpsc::sync_channel;
-    use std::thread;
+    use std::{sync::mpsc::sync_channel, thread};
     let (artifacts_sender, artifacts_receiver) = sync_channel(1);
 
     let artifacts_receiver_handle = thread::spawn(move || {
