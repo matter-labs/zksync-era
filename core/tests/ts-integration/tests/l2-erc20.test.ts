@@ -14,7 +14,6 @@ import { scaledGasPrice, deployContract, readContract, waitForBlockToBeFinalized
 describe('L2 native ERC20 contract checks', () => {
     let testMaster: TestMaster;
     let alice: zksync.Wallet;
-    let bob: zksync.Wallet;
     let isETHBasedChain: boolean;
     let baseTokenAddress: string;
     let zkTokenAssetId: string;
@@ -29,7 +28,6 @@ describe('L2 native ERC20 contract checks', () => {
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
-        bob = testMaster.newEmptyAccount();
         const bridgeContracts = await alice.getL1BridgeContracts();
         const assetRouter = bridgeContracts.shared;
         l2Provider = alice._providerL2();
