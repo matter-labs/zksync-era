@@ -97,42 +97,72 @@ impl ApiServerHandles {
     }
 }
 
-pub async fn spawn_http_server(
-    api_config: InternalApiConfig,
+/// Builder for test server instances.
+#[derive(Debug)]
+pub struct TestServerBuilder {
     pool: ConnectionPool<Core>,
+    api_config: InternalApiConfig,
     tx_executor: MockOneshotExecutor,
     method_tracer: Arc<MethodTracer>,
-    stop_receiver: watch::Receiver<bool>,
-) -> ApiServerHandles {
-    spawn_server(
-        ApiTransportLabel::Http,
-        api_config,
-        pool,
-        None,
-        tx_executor,
-        method_tracer,
-        stop_receiver,
-    )
-    .await
-    .0
 }
 
-pub async fn spawn_ws_server(
-    api_config: InternalApiConfig,
-    pool: ConnectionPool<Core>,
-    stop_receiver: watch::Receiver<bool>,
-    websocket_requests_per_minute_limit: Option<NonZeroU32>,
-) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
-    spawn_server(
-        ApiTransportLabel::Ws,
-        api_config,
-        pool,
-        websocket_requests_per_minute_limit,
-        MockOneshotExecutor::default(),
-        Arc::default(),
-        stop_receiver,
-    )
-    .await
+impl TestServerBuilder {
+    /// Creates a new builder.
+    pub fn new(pool: ConnectionPool<Core>, api_config: InternalApiConfig) -> Self {
+        Self {
+            api_config,
+            pool,
+            tx_executor: MockOneshotExecutor::default(),
+            method_tracer: Arc::default(),
+        }
+    }
+
+    /// Sets a transaction / call executor for this builder.
+    #[must_use]
+    pub fn with_tx_executor(mut self, tx_executor: MockOneshotExecutor) -> Self {
+        self.tx_executor = tx_executor;
+        self
+    }
+
+    /// Sets an RPC method tracer for this builder.
+    #[must_use]
+    pub fn with_method_tracer(mut self, tracer: Arc<MethodTracer>) -> Self {
+        self.method_tracer = tracer;
+        self
+    }
+
+    /// Builds an HTTP server.
+    pub async fn build_http(self, stop_receiver: watch::Receiver<bool>) -> ApiServerHandles {
+        spawn_server(
+            ApiTransportLabel::Http,
+            self.api_config,
+            self.pool,
+            None,
+            self.tx_executor,
+            self.method_tracer,
+            stop_receiver,
+        )
+        .await
+        .0
+    }
+
+    /// Builds a WS server.
+    pub async fn build_ws(
+        self,
+        websocket_requests_per_minute_limit: Option<NonZeroU32>,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
+        spawn_server(
+            ApiTransportLabel::Ws,
+            self.api_config,
+            self.pool,
+            websocket_requests_per_minute_limit,
+            self.tx_executor,
+            self.method_tracer,
+            stop_receiver,
+        )
+        .await
+    }
 }
 
 async fn spawn_server(
@@ -151,6 +181,8 @@ async fn spawn_server(
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
     namespaces.extend([Namespace::Debug, Namespace::Snapshots, Namespace::Unstable]);
+    let sealed_l2_block_handle = SealedL2BlockNumber::default();
+    let bridge_addresses_handle = BridgeAddressesHandle::new(api_config.bridge_addresses.clone());
 
     let server_builder = match transport {
         ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
@@ -172,6 +204,8 @@ async fn spawn_server(
         .with_pub_sub_events(pub_sub_events_sender)
         .with_method_tracer(method_tracer)
         .enable_api_namespaces(namespaces)
+        .with_sealed_l2_block_handle(sealed_l2_block_handle)
+        .with_bridge_addresses_handle(bridge_addresses_handle)
         .build()
         .expect("Unable to build API server")
         .run(stop_receiver)

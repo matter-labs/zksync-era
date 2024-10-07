@@ -1,11 +1,13 @@
 use std::num::NonZeroUsize;
 
 use rand::{distributions::Distribution, Rng};
+use secrecy::Secret;
 use zksync_basic_types::{
     basic_fri_types::CircuitIdRoundTuple,
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    seed_phrase::SeedPhrase,
     vm::FastVmMode,
     L1BatchNumber, L1ChainId, L2ChainId,
 };
@@ -14,7 +16,7 @@ use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{
     configs::{
-        self, da_client::DAClient::Avail, eth_sender::PubdataSendingMode,
+        self, da_client::DAClientConfig::Avail, eth_sender::PubdataSendingMode,
         external_price_api_client::ForcedPriceClientConfig,
     },
     AvailConfig,
@@ -77,6 +79,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             gas_price_scale_factor: self.sample(rng),
             estimate_gas_scale_factor: self.sample(rng),
             estimate_gas_acceptable_overestimation: self.sample(rng),
+            estimate_gas_optimize_search: self.sample(rng),
             max_tx_size: self.sample(rng),
             vm_execution_cache_misses_limit: self.sample(rng),
             vm_concurrency_limit: self.sample(rng),
@@ -416,6 +419,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             pubdata_sending_mode: PubdataSendingMode::Calldata,
             tx_aggregation_paused: false,
             tx_aggregation_only_prove_and_execute: false,
+            time_in_mempool_in_l1_blocks_cap: self.sample(rng),
         }
     }
 }
@@ -811,6 +815,7 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
                 .collect(),
             genesis_spec: self.sample(rng),
             rpc: self.sample(rng),
+            debug_page_addr: self.sample(rng),
         }
     }
 }
@@ -863,6 +868,7 @@ impl Distribution<configs::secrets::Secrets> for EncodeDist {
             consensus: self.sample_opt(|| self.sample(rng)),
             database: self.sample_opt(|| self.sample(rng)),
             l1: self.sample_opt(|| self.sample(rng)),
+            data_availability: self.sample_opt(|| self.sample(rng)),
         }
     }
 }
@@ -928,22 +934,28 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
             gateway_url: self
                 .sample_opt(|| format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
         }
     }
 }
 
 impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_client::DAClientConfig {
-        configs::da_client::DAClientConfig {
-            client: Avail(AvailConfig {
-                api_node_url: self.sample(rng),
-                bridge_api_url: self.sample(rng),
-                seed: self.sample(rng),
-                app_id: self.sample(rng),
-                timeout: self.sample(rng),
-                max_retries: self.sample(rng),
-            }),
-        }
+        Avail(AvailConfig {
+            api_node_url: self.sample(rng),
+            bridge_api_url: self.sample(rng),
+            app_id: self.sample(rng),
+            timeout: self.sample(rng),
+            max_retries: self.sample(rng),
+        })
+    }
+}
+
+impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::DataAvailabilitySecrets {
+        configs::secrets::DataAvailabilitySecrets::Avail(configs::da_client::avail::AvailSecrets {
+            seed_phrase: Some(SeedPhrase(Secret::new(self.sample(rng)))),
+        })
     }
 }
 

@@ -1,7 +1,7 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        da_client::DAClient::{Avail, ObjectStore},
+        da_client::DAClientConfig::{Avail, ObjectStore},
         {self},
     },
     AvailConfig,
@@ -24,7 +24,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 bridge_api_url: required(&conf.bridge_api_url)
                     .context("bridge_api_url")?
                     .clone(),
-                seed: required(&conf.seed).context("seed")?.clone(),
                 app_id: *required(&conf.app_id).context("app_id")?,
                 timeout: *required(&conf.timeout).context("timeout")? as usize,
                 max_retries: *required(&conf.max_retries).context("max_retries")? as usize,
@@ -34,17 +33,16 @@ impl ProtoRepr for proto::DataAvailabilityClient {
             }
         };
 
-        Ok(configs::DAClientConfig { client })
+        Ok(client)
     }
 
     fn build(this: &Self::Type) -> Self {
-        match &this.client {
+        match &this {
             Avail(config) => Self {
                 config: Some(proto::data_availability_client::Config::Avail(
                     proto::AvailConfig {
                         api_node_url: Some(config.api_node_url.clone()),
                         bridge_api_url: Some(config.bridge_api_url.clone()),
-                        seed: Some(config.seed.clone()),
                         app_id: Some(config.app_id),
                         timeout: Some(config.timeout as u64),
                         max_retries: Some(config.max_retries as u64),

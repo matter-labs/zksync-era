@@ -30,6 +30,7 @@ use zksync_web3_decl::{
 };
 
 use crate::{
+    tx_sender::BinarySearchKind,
     utils::open_readonly_transaction,
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, RpcState},
 };
@@ -104,6 +105,7 @@ impl ZksNamespace {
         let scale_factor = self.state.api_config.estimate_gas_scale_factor;
         let acceptable_overestimation =
             self.state.api_config.estimate_gas_acceptable_overestimation;
+        let search_kind = BinarySearchKind::new(self.state.api_config.estimate_gas_optimize_search);
 
         Ok(self
             .state
@@ -113,6 +115,7 @@ impl ZksNamespace {
                 scale_factor,
                 acceptable_overestimation as u64,
                 state_override,
+                search_kind,
             )
             .await?)
     }
@@ -129,8 +132,8 @@ impl ZksNamespace {
         self.state.api_config.l2_testnet_paymaster_addr
     }
 
-    pub fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
-        self.state.api_config.bridge_addresses.clone()
+    pub async fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
+        self.state.bridge_addresses_handle.read().await
     }
 
     pub fn l1_chain_id_impl(&self) -> U64 {
