@@ -1,10 +1,8 @@
 use anyhow::Context;
 use common::logger;
 use config::{
-    copy_configs, set_l1_rpc_url, update_from_chain_config,
-    ChainConfig, ContractsConfig, EcosystemConfig,
-    traits::SaveConfigWithBasePath,
-    DEFAULT_CONSENSUS_PORT,
+    copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
+    ChainConfig, ContractsConfig, EcosystemConfig, DEFAULT_CONSENSUS_PORT,
 };
 use ethers::types::Address;
 use xshell::Shell;
