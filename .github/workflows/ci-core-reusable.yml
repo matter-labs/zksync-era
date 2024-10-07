@@ -350,8 +350,7 @@ jobs:
       - name: Run integration tests
         run: |
           CHAINS="era,validium,custom_token,consensus"
-          LOG_DIRS="${{ env.INTEGRATION_TESTS_LOGS_DIR }},${{ env.INTEGRATION_TESTS_LOGS_DIR }},${{ env.INTEGRATION_TESTS_LOGS_DIR }},${{ env.INTEGRATION_TESTS_LOGS_DIR }})"
-          ci_run ./.github/scripts/run_on_all_chains.sh "zk_supervisor test integration --no-deps --ignore-prerequisites" $CHAINS $LOG_DIRS
+          ci_run ./.github/scripts/run_on_all_chains.sh "zk_supervisor test integration --no-deps --ignore-prerequisites" $CHAINS ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
       - name: Init external nodes
         run: |

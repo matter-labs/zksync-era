@@ -5,15 +5,14 @@ set +e
 
 command=$1
 chain_list=$2
-log_list=$3
+log_dir=$3
 IFS=',' read -r -a chains <<< "$chain_list"
-IFS=',' read -r -a logs <<< "$log_list"
 pids=()
 statuses=()
 
 # Start background processes
 for i in "${!chains[@]}"; do
-    eval "$command --chain ${chains[$i]} &> ${logs[$i]}/${chains[$i]}.log" &
+    eval "$command --chain ${chains[$i]} &> ${log_dir}/${chains[$i]}.log" &
     pids+=($!)
 done
 
