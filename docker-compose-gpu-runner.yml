@@ -40,6 +40,11 @@ services:
       - GITHUB_WORKSPACE=$GITHUB_WORKSPACE
     env_file:
       - ./.env
+    extra_hosts:
+      - "host:host-gateway"
+    profiles:
+      - runner
+    network_mode: host
     deploy:
       resources:
         reservations:
