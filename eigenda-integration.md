@@ -96,7 +96,8 @@ Modify `etc/env/file_based/wallets.yaml` and `configs/wallets.yaml` with the fol
 # Use your own holesky wallets, be sure they have enough funds
 ```
 
-> ⚠️ Some steps distribute ~5000ETH to some wallets, modify `AMOUNT_FOR_DISTRIBUTION_TO_WALLETS` to a lower value if needed.
+> ⚠️ Some steps distribute ~5000ETH to some wallets, modify `AMOUNT_FOR_DISTRIBUTION_TO_WALLETS` to a lower value if
+> needed.
 
 ### EigenProxy RPC
 
@@ -157,7 +158,8 @@ zk_inception server --chain holesky_eigen_da
 
 ## Backup and restoration
 
-It's possible to run the zk stack on one computer, and then migrate it to another, this is specially useful for holesky testing.
+It's possible to run the zk stack on one computer, and then migrate it to another, this is specially useful for holesky
+testing.
 
 ### Backup
 
@@ -171,7 +173,8 @@ This will generate a directory inside of `ecosystem_backups` with the name `hole
 
 ### Restoration
 
-1. Move the `ecoystem_backups/holesky_eigen_da` directory to the other computer, it should be placed in the root of the project.
+1. Move the `ecoystem_backups/holesky_eigen_da` directory to the other computer, it should be placed in the root of the
+   project.
 
 2. Restore the ecosystem with:
 
