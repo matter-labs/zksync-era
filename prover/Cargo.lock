@@ -630,37 +630,6 @@ dependencies = [
 
 [[package]]
 name = "boojum"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df88daa33db46d683967ca09a4f04817c38950483f2501a771d497669a8a4bb1"
-dependencies = [
- "arrayvec 0.7.4",
- "bincode",
- "blake2 0.10.6",
- "const_format",
- "convert_case",
- "crossbeam 0.8.4",
- "crypto-bigint 0.5.5",
- "cs_derive",
- "derivative",
- "ethereum-types",
- "firestorm",
- "itertools 0.10.5",
- "lazy_static",
- "num-modular",
- "num_cpus",
- "pairing_ce",
- "rand 0.8.5",
- "rayon",
- "serde",
- "sha2 0.10.8",
- "sha3_ce",
- "smallvec",
- "unroll",
-]
-
-[[package]]
-name = "boojum"
 version = "0.30.1"
 source = "git+https://github.com/matter-labs/zksync-crypto?branch=si/fflonk#7bc82c8d8398430488342f89647dbe6c39d43e95"
 dependencies = [
@@ -692,15 +661,16 @@ dependencies = [
 
 [[package]]
 name = "boojum-cuda"
-version = "0.150.4"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=daniyar/fflonk#36acaaf1b22563d0acf407b8cbc9465f9f04bf85"
+version = "0.150.9"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
 dependencies = [
- "boojum 0.2.2",
+ "boojum",
  "cmake",
  "era_cudart",
  "era_cudart_sys",
  "itertools 0.13.0",
  "lazy_static",
+ "snark-wrapper",
 ]
 
 [[package]]
@@ -1806,8 +1776,8 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "era_cudart"
-version = "0.150.4"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=daniyar/fflonk#36acaaf1b22563d0acf407b8cbc9465f9f04bf85"
+version = "0.150.9"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
 dependencies = [
  "bitflags 2.6.0",
  "era_cudart_sys",
@@ -1816,8 +1786,8 @@ dependencies = [
 
 [[package]]
 name = "era_cudart_sys"
-version = "0.150.4"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=daniyar/fflonk#36acaaf1b22563d0acf407b8cbc9465f9f04bf85"
+version = "0.150.9"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
 dependencies = [
  "serde_json",
 ]
@@ -1970,6 +1940,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "fflonk-gpu"
+version = "0.150.9"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
+dependencies = [
+ "bincode",
+ "byteorder",
+ "derivative",
+ "fflonk",
+ "rand 0.4.6",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "zksync-gpu-ffi",
+]
+
+[[package]]
 name = "fiat-crypto"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2072,7 +2058,7 @@ dependencies = [
  "blake2 0.9.2",
  "blake2-rfc_bellman_edition",
  "blake2s_simd",
- "boojum 0.30.1",
+ "boojum",
  "byteorder",
  "derivative",
  "digest 0.9.0",
@@ -2177,6 +2163,17 @@ name = "futures-io"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a44623e20b9681a318efdd71c299b6b222ed6f231972bfe2f224ebad6311f0c1"
+
+[[package]]
+name = "futures-locks"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45ec6fe3675af967e67c5536c0b9d44e34e6c52f86bedc4ea49c5317b8e94d06"
+dependencies = [
+ "futures-channel",
+ "futures-task",
+ "tokio",
+]
 
 [[package]]
 name = "futures-macro"
@@ -4241,6 +4238,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "proof-compression-gpu"
+version = "0.150.9"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
+dependencies = [
+ "bincode",
+ "circuit_definitions",
+ "fflonk-gpu",
+ "serde_json",
+ "shivini",
+]
+
+[[package]]
 name = "proptest"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5483,18 +5492,19 @@ checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shivini"
-version = "0.150.4"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=daniyar/fflonk#36acaaf1b22563d0acf407b8cbc9465f9f04bf85"
+version = "0.150.9"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
 dependencies = [
  "bincode",
  "blake2 0.10.6",
- "boojum 0.30.1",
+ "boojum",
  "boojum-cuda",
  "circuit_definitions",
  "derivative",
  "era_cudart",
  "era_cudart_sys",
  "hex",
+ "itertools 0.13.0",
  "rand 0.8.5",
  "serde",
  "sha2 0.10.8",
@@ -7319,7 +7329,7 @@ checksum = "8beed4cc1ab1f9d99a694506d18705e10059534b30742832be49637c4775e1f8"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
- "boojum 0.30.1",
+ "boojum",
  "cs_derive",
  "derivative",
  "hex",
@@ -7341,7 +7351,7 @@ checksum = "20f1a64d256cc5f5c58d19cf976cb45973df54e4e3010ca4a3e6fafe9f06075e"
 dependencies = [
  "arrayvec 0.7.4",
  "bincode",
- "boojum 0.30.1",
+ "boojum",
  "cs_derive",
  "derivative",
  "hex",
@@ -7361,7 +7371,7 @@ version = "0.150.4"
 source = "git+https://github.com/matter-labs/zksync-protocol?branch=si/fflonk#7b363954fef2b9d9f9b840f714cb677bff4822da"
 dependencies = [
  "arrayvec 0.7.4",
- "boojum 0.30.1",
+ "boojum",
  "cs_derive",
  "derivative",
  "hex",
@@ -7473,6 +7483,20 @@ dependencies = [
  "tracing",
  "zkevm-assembly",
  "zksync_kzg",
+]
+
+[[package]]
+name = "zksync-gpu-ffi"
+version = "0.150.9"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
+dependencies = [
+ "cmake",
+ "crossbeam 0.8.4",
+ "derivative",
+ "era_cudart_sys",
+ "futures 0.3.30",
+ "futures-locks",
+ "num_cpus",
 ]
 
 [[package]]
@@ -7878,7 +7902,7 @@ name = "zksync_kzg"
 version = "0.150.4"
 source = "git+https://github.com/matter-labs/zksync-protocol?branch=si/fflonk#7b363954fef2b9d9f9b840f714cb677bff4822da"
 dependencies = [
- "boojum 0.30.1",
+ "boojum",
  "derivative",
  "hex",
  "once_cell",
@@ -7985,9 +8009,10 @@ dependencies = [
  "circuit_sequencer_api 0.150.4",
  "clap 4.5.4",
  "ctrlc",
- "fflonk",
+ "fflonk-gpu",
  "franklin-crypto",
  "futures 0.3.30",
+ "proof-compression-gpu",
  "reqwest 0.12.5",
  "serde",
  "serde_json",
@@ -8208,6 +8233,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "boojum-cuda",
  "circuit_definitions",
  "futures 0.3.30",
  "hex",

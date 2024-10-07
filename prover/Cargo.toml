@@ -61,12 +61,14 @@ vise = "0.2.0"
 circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol", package = "circuit_definitions", branch = "si/fflonk" }
 circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol", package = "circuit_sequencer_api", branch = "si/fflonk" }
 zkevm_test_harness = { git = "https://github.com/matter-labs/zksync-protocol", package = "zkevm_test_harness", branch = "si/fflonk" }
-fflonk = { git = "https://github.com/matter-labs/zksync-crypto", package = "fflonk", branch = "si/fflonk" }
+proof-compression-gpu = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "proof-compression-gpu", branch = "si/fflonk-gpu" }
+fflonk-gpu = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "fflonk-gpu", branch = "si/fflonk-gpu" }
 franklin-crypto = { git = "https://github.com/matter-labs/zksync-crypto", package = "franklin-crypto", branch = "si/fflonk" }
 
 # GPU proving dependencies
-wrapper_prover = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "zksync-wrapper-prover", branch = "daniyar/fflonk" }
-shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "shivini", branch = "daniyar/fflonk" }
+wrapper_prover = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "zksync-wrapper-prover", branch = "si/fflonk-gpu" }
+shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "shivini", branch = "si/fflonk-gpu" }
+boojum-cuda = { git = "https://github.com/matter-labs/zksync-crypto-gpu", package = "boojum-cuda", branch = "si/fflonk-gpu" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }

@@ -2,10 +2,12 @@ use std::{sync::Arc, time::Instant};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use fflonk::{
-    bellman::worker::Worker, CompressionInput, CompressionMode, CompressionSchedule,
+use fflonk_gpu::{
+    bellman::worker::Worker,
+    fflonk::circuit_definitions::circuit_definitions::aux_layer::ZkSyncCompressionProof,
     FflonkSnarkVerifierCircuit, FflonkSnarkVerifierCircuitProof,
 };
+use proof_compression_gpu::{CompressionInput, CompressionMode, CompressionSchedule};
 use tokio::task::JoinHandle;
 #[allow(unused_imports)]
 use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, wrap_proof};
@@ -20,7 +22,7 @@ use zksync_prover_fri_types::{
                 ZkSyncCompressionVerificationKeyForWrapper,
             },
             recursion_layer::{
-                ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType, ZkSyncRecursionProof,
+                ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
                 ZkSyncRecursionVerificationKey,
             },
         },
@@ -64,7 +66,7 @@ impl ProofCompressor {
     }
 
     pub fn fflonk_compress_proof(
-        proof: ZkSyncRecursionProof,
+        proof: ZkSyncCompressionProof,
         vk: ZkSyncRecursionVerificationKey,
         schedule: CompressionSchedule,
     ) -> (
@@ -72,7 +74,7 @@ impl ProofCompressor {
         ZkSyncCompressionVerificationKeyForWrapper,
     ) {
         let worker = franklin_crypto::boojum::worker::Worker::new();
-        let mut input = CompressionInput::RecursionLayer(Some(proof), vk, CompressionMode::One);
+        let mut input = CompressionInput::Compression(Some(proof), vk, CompressionMode::One);
 
         dbg!(&schedule);
         let CompressionSchedule {
@@ -90,21 +92,24 @@ impl ProofCompressor {
             let compression_mode = compression_modes_iter.next().unwrap();
             let compression_circuit = input.into_compression_circuit();
             println!("Proving compression {}", compression_mode as u8);
-            let (proof, vk) =
-                fflonk::inner_prove_compression_layer_circuit(compression_circuit, &worker);
+            let (proof, vk) = proof_compression_gpu::prove_compression_layer_circuit(
+                compression_circuit,
+                &mut None,
+                &worker,
+            );
             println!(
                 "Proof for compression {} is generated!",
                 compression_mode as u8
             );
 
             if step_idx + 1 == num_compression_steps {
-                input = CompressionInput::CompressionWrapperLayer(
+                input = CompressionInput::CompressionWrapper(
                     Some(proof),
                     vk,
                     last_compression_wrapping_mode,
                 );
             } else {
-                input = CompressionInput::CompressionLayer(
+                input = CompressionInput::Compression(
                     Some(proof),
                     vk,
                     CompressionMode::from_compression_mode(compression_mode as u8 + 1),
@@ -118,8 +123,11 @@ impl ProofCompressor {
             last_compression_wrapping_mode as u8
         );
         let compression_circuit = input.into_compression_wrapper_circuit();
-        let (proof, vk) =
-            fflonk::inner_prove_compression_wrapper_circuit(compression_circuit, &worker);
+        let (proof, vk) = proof_compression_gpu::prove_compression_wrapper_circuit(
+            compression_circuit,
+            &mut None,
+            &worker,
+        );
         println!(
             "Proof for compression wrapper {} is generated!",
             last_compression_wrapping_mode as u8
@@ -131,10 +139,8 @@ impl ProofCompressor {
     pub fn compress_proof(
         proof: ZkSyncRecursionLayerProof,
         _compression_mode: u8,
-        setup_data_path: String,
         keystore: Keystore,
     ) -> anyhow::Result<FflonkSnarkVerifierCircuitProof> {
-        let keystore = Keystore::new_with_setup_data_path(setup_data_path);
         let scheduler_vk = keystore
             .load_recursive_layer_verification_key(
                 ZkSyncRecursionLayerStorageType::SchedulerCircuit as u8,
@@ -169,8 +175,10 @@ impl ProofCompressor {
             wrapper_function,
         };
         // create fflonk proof in single shot - without precomputation
-        let (proof, _) =
-            fflonk::prove_fflonk_snark_verifier_circuit_single_shot(&circuit, &Worker::new());
+        let (proof, _) = fflonk_gpu::gpu_prove_fflonk_snark_verifier_circuit_single_shot(
+            &circuit,
+            &Worker::new(),
+        );
         println!("finished proof");
         Ok(proof)
     }
