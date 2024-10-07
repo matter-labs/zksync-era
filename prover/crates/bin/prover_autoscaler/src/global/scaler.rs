@@ -43,9 +43,9 @@ struct GPUPoolKey {
     gpu: Gpu,
 }
 
-const PROVER_DEPLOYMENT_RE: Lazy<Regex> =
+static PROVER_DEPLOYMENT_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^prover-gpu-fri-spec-(\d{1,2})?(-(?<gpu>[ltvpa]\d+))?$").unwrap());
-const PROVER_POD_RE: Lazy<Regex> =
+static PROVER_POD_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^prover-gpu-fri-spec-(\d{1,2})?(-(?<gpu>[ltvpa]\d+))?").unwrap());
 
 pub struct Scaler {
@@ -60,15 +60,15 @@ pub struct Scaler {
     long_pending_duration: chrono::Duration,
 }
 
-struct ProverPodGpu {
-    name: String,
-    pod: Pod,
+struct ProverPodGpu<'a> {
+    name: &'a str,
+    pod: &'a Pod,
     gpu: Gpu,
 }
 
-impl ProverPodGpu {
-    fn new(name: String, pod: Pod) -> Option<Self> {
-        PROVER_POD_RE.captures(&name.clone()).map(|caps| Self {
+impl<'a> ProverPodGpu<'a> {
+    fn new(name: &'a str, pod: &'a Pod) -> Option<ProverPodGpu<'a>> {
+        PROVER_POD_RE.captures(name).map(|caps| Self {
             name,
             pod,
             gpu: Gpu::from_str(caps.name("gpu").map_or("l4", |m| m.as_str())).unwrap_or_default(),
@@ -123,7 +123,7 @@ impl Scaler {
         for ppg in namespace_value
             .pods
             .iter()
-            .filter_map(|(pn, pv)| ProverPodGpu::new(pn.clone(), pv.clone()))
+            .filter_map(|(pn, pv)| ProverPodGpu::new(pn, pv))
         {
             let e = gp_map.entry(ppg.gpu).or_insert(GPUPool {
                 name: cluster.name.clone(),

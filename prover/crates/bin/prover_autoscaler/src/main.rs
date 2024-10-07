@@ -17,21 +17,21 @@ use zksync_prover_autoscaler::{
 use zksync_utils::wait_for_tasks::ManagedTasks;
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
-/// Represents the sequential number of the Prover Autoscaler Jobs.
+/// Represents the sequential number of the Prover Autoscaler type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum ProverJob {
-    Scaler = 0,
-    Agent = 1,
+pub enum AutoscalerType {
+    Scaler,
+    Agent,
 }
 
-impl std::str::FromStr for ProverJob {
+impl std::str::FromStr for AutoscalerType {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "scaler" => Ok(ProverJob::Scaler),
-            "agent" => Ok(ProverJob::Agent),
-            other => Err(format!("{} is not a valid Prover Scaler Job", other)),
+            "scaler" => Ok(AutoscalerType::Scaler),
+            "agent" => Ok(AutoscalerType::Agent),
+            other => Err(format!("{} is not a valid AutoscalerType", other)),
         }
     }
 }
@@ -39,11 +39,11 @@ impl std::str::FromStr for ProverJob {
 #[derive(Debug, StructOpt)]
 #[structopt(name = "Prover Autoscaler", about = "Run Prover Autoscaler components")]
 struct Opt {
-    /// Prover Autoscaler can run Agent or Scaler job.
+    /// Prover Autoscaler can run Agent or Scaler type.
     ///
     /// Specify `agent` or `scaler`
     #[structopt(short, long, default_value = "agent")]
-    job: ProverJob,
+    job: AutoscalerType,
     /// Name of the cluster Agent is watching.
     #[structopt(long)]
     cluster_name: Option<String>,
@@ -85,7 +85,7 @@ async fn main() -> anyhow::Result<()> {
     let mut tasks = vec![];
 
     match opt.job {
-        ProverJob::Agent => {
+        AutoscalerType::Agent => {
             let agent_config = general_config.agent_config.context("agent_config")?;
             let exporter_config = PrometheusExporterConfig::pull(agent_config.prometheus_port);
             tasks.push(tokio::spawn(exporter_config.run(stop_receiver.clone())));
@@ -107,7 +107,7 @@ async fn main() -> anyhow::Result<()> {
                 stop_receiver.clone(),
             )))
         }
-        ProverJob::Scaler => {
+        AutoscalerType::Scaler => {
             let scaler_config = general_config.scaler_config.context("scaler_config")?;
             let interval = scaler_config.scaler_run_interval.unsigned_abs();
             let exporter_config = PrometheusExporterConfig::pull(scaler_config.prometheus_port);

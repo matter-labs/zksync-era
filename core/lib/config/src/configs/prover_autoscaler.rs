@@ -21,7 +21,7 @@ pub struct ProverAutoscalerConfig {
 pub struct ProverAutoscalerAgentConfig {
     /// Port for prometheus metrics connection.
     pub prometheus_port: u16,
-    /// HTTP port for Scaler to connect to.
+    /// HTTP port for global Scaler to connect to the Agent running in a cluster.
     pub http_port: u16,
     /// List of namespaces to watch.
     #[serde(default = "ProverAutoscalerAgentConfig::default_namespaces")]
@@ -34,20 +34,20 @@ pub struct ProverAutoscalerAgentConfig {
 pub struct ProverAutoscalerScalerConfig {
     /// Port for prometheus metrics connection.
     pub prometheus_port: u16,
-    /// The interval between runs for GPU Prover Archiver.
+    /// The interval between runs for global Scaler.
     #[serde(default = "ProverAutoscalerScalerConfig::default_scaler_run_interval")]
     pub scaler_run_interval: Duration,
     /// URL to get queue reports from.
     /// In production should be "http://prover-job-monitor.stage2.svc.cluster.local:3074/queue_report".
     #[serde(default = "ProverAutoscalerScalerConfig::default_prover_job_monitor_url")]
     pub prover_job_monitor_url: String,
-    /// List of ProverAutoscaler Agents to get data from.
+    /// List of ProverAutoscaler Agents to get cluster data from.
     pub agents: Vec<String>,
     /// Mapping of namespaces to protocol versions.
     pub protocol_versions: HashMap<String, String>,
-    /// Default priorities, which cluster to use when there is no other information.
+    /// Default priorities, which cluster to prefer when there is no other information.
     pub cluster_priorities: HashMap<String, u32>,
-    /// Prover speed per GPU.
+    /// Prover speed per GPU. Used to calculate desired number of provers for queue size.
     pub prover_speed: HashMap<Gpu, u32>,
     /// Duration after which pending pod considered long pending.
     #[serde(default = "ProverAutoscalerScalerConfig::default_long_pending_duration")]

@@ -18,6 +18,7 @@ zksync_config = { workspace = true, features = ["observability_ext"] }
 zksync_prover_job_monitor.workspace = true
 zksync_protobuf_config.workspace = true
 
+debug-map-sorted.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 axum.workspace = true
@@ -25,21 +26,20 @@ chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 ctrlc = { workspace = true, features = ["termination"] }
 futures.workspace = true
-k8s-openapi = { version = "0.23.0", features = ["v1_30"] }
-kube = { version = "0.95.0", features = ["runtime", "derive"] }
+k8s-openapi = { workspace = true, features = ["v1_30"] }
+kube = { workspace = true, features = ["runtime", "derive"] }
+once_cell.workspace = true
+regex.workspace = true
 reqwest = { workspace = true, features = ["json"] }
-ring = "0.17.8"
-rustls = { version = "0.23.12", features = ["ring"] }
+ring.workspace = true
+rustls = { workspace = true, features = ["ring"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 structopt.workspace = true
+strum.workspace = true
+time.workspace = true
 tokio = { workspace = true, features = ["time", "macros"] }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tracing.workspace = true
+url.workspace = true
 vise.workspace = true
-url = "2.5.2"
-regex.workspace = true
-strum.workspace = true
-debug-map-sorted = "0.1.1"
-time.workspace = true
-once_cell.workspace = true

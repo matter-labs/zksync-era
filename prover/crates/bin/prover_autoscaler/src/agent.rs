@@ -101,7 +101,8 @@ pub struct ScaleResponse {
     pub scale_result: Vec<String>,
 }
 
-/// Test: curl -X POST -H "Content-Type: application/json" --data '{"deployments": [{"namespace": "prover-red", "name": "witness-vector-generator-spec-9-f", "size":0},{"namespace": "prover-red", "name": "witness-vector-generator-spec-9-c", "size":0}]}' localhost:8081/scale
+/// To test or forse scale in particular cluster use:
+/// $ curl -X POST -H "Content-Type: application/json" --data '{"deployments": [{"namespace": "prover-red", "name": "witness-vector-generator-spec-9-f", "size":0},{"namespace": "prover-red", "name": "witness-vector-generator-spec-9-c", "size":0}]}' <ip>:8081/scale
 async fn scale(
     State(app): State<App>,
     Json(payload): Json<ScaleRequest>,
