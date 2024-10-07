@@ -362,7 +362,9 @@ jobs:
           ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain custom_token &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/custom_token.log &
           PID3=$!
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain consensus &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log &
+          # TODO remove
+          false &
+          # ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain consensus &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log &
           PID4=$!
 
           wait $PID1
