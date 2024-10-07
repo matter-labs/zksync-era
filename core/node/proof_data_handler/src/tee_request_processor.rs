@@ -114,7 +114,7 @@ impl TeeRequestProcessor {
             .transactions_dal()
             .get_l2_blocks_to_execute_for_l1_batch(l1_batch_number)
             .await
-            .map_err(|err| RequestProcessorError::Dal(err))?;
+            .map_err(RequestProcessorError::Dal)?;
 
         let l1_batch_params_provider = L1BatchParamsProvider::new(&mut connection)
             .await
