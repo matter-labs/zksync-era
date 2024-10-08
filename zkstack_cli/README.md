@@ -183,12 +183,6 @@ Initialize the prover:
 zk_inception prover init
 ```
 
-Generate setup keys:
-
-```bash
-zk_inception prover generate-sk
-```
-
 Run the prover:
 
 ```bash
