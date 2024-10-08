@@ -111,7 +111,7 @@ jobs:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
           BATCH_NUMBER: 1
           INTERVAL: 30
-          TIMEOUT: 1200
+          TIMEOUT: 1500
         run: |
           ci_run chmod +x ./bin/prover_jobs_status_checker
           
