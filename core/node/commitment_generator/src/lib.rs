@@ -385,7 +385,7 @@ impl CommitmentGenerator {
             (L1BatchCommitmentMode::Validium, CommitmentInput::PostBoojum { blob_hashes, .. }) => {
                 blob_hashes
                     .iter_mut()
-                    .for_each(|b| *b.commitment = H256::zero());
+                    .for_each(|b| b.commitment = H256::zero());
             }
             (L1BatchCommitmentMode::Validium, _) => { /* Do nothing */ }
         }
