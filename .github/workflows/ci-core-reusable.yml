@@ -323,6 +323,11 @@ jobs:
           --server-db-name=zksync_server_localhost_consensus \
           --chain consensus
 
+      - name: Export chain list to environment variable
+        run: |
+          CHAINS="era,validium,custom_token,consensus"
+          echo "CHAINS=$CHAINS" >> $GITHUB_ENV
+
       - name: Build test dependencies
         run: |
           ci_run zk_supervisor test build
@@ -349,8 +354,7 @@ jobs:
 
       - name: Run integration tests
         run: |
-          CHAINS="era,validium,custom_token,consensus"
-          ci_run ./.github/scripts/run_on_all_chains.sh "zk_supervisor test integration --no-deps --ignore-prerequisites" $CHAINS ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          ci_run ./.github/scripts/run_on_all_chains.sh "zk_supervisor test integration --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
       - name: Init external nodes
         run: |
