@@ -133,8 +133,8 @@ pub(super) fn assemble_tx_meta(execution_mode: TxExecutionMode, execute_tx: bool
     // Set 0 byte (execution mode)
     output[0] = match execution_mode {
         TxExecutionMode::VerifyExecute => 0x00,
-        TxExecutionMode::EstimateFee { .. } => 0x00,
-        TxExecutionMode::EthCall { .. } => 0x02,
+        TxExecutionMode::EstimateFee => 0x00,
+        TxExecutionMode::EthCall => 0x02,
     };
 
     // Set 31 byte (marker for tx execution)
