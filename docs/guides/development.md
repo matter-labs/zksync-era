@@ -1,6 +1,7 @@
 # Development guide
 
-This document covers development-related actions in ZKsync.
+This document covers development-related actions in ZKsync. **You should first setup your environment following
+[setup-dev.md](./setup-dev.md)**
 
 ## Initializing the project
 
@@ -37,14 +38,15 @@ required to be done only once.
 
 Usually, it is a good idea to do `zk init` once after each merge to the `main` branch (as application setup may change).
 
+`zk init` accepts arguments for different deployment scenarios. For example you may run `zk init --base-token-name BAT`
+to get a setup with non ETH base token.
+
 Additionally, there is a subcommand `zk clean` to remove previously generated data. Examples:
 
 ```
 zk clean --all # Remove generated configs, database and backups.
 zk clean --config # Remove configs only.
 zk clean --database # Remove database.
-zk clean --backups # Remove backups.
-zk clean --database --backups # Remove database *and* backups, but not configs.
 ```
 
 **When do you need it?**
@@ -86,7 +88,7 @@ the workspace initialization process. These hooks will not allow to commit the c
 Currently the following criteria are checked:
 
 - Rust code should always be formatted via `cargo fmt`.
-- Other code should always be formatted via `zk fmt`.
+- Other code should always be formatted via `zk fmt` (`zk fmt` includes `cargo fmt`).
 - Dummy Prover should not be staged for commit (see below for the explanation).
 
 ## Using Dummy Prover
@@ -112,12 +114,26 @@ To switch dummy prover to real prover, one must change `dummy_verifier` to `fals
   # e.g. zk test rust --package zksync_core --lib eth_sender::tests::resend_each_block
   ```
 
-- Running the integration test:
+- Running the integration tests. Integration tests should be run on different setups (eth vs custom base token, rollup
+  vs validium). Some tests change behaviour depending on setup.:
+
+  - main tests
 
   ```
   zk server           # Has to be run in the 1st terminal
   zk test i server    # Has to be run in the 2nd terminal
+  zk test i api       # Has to be run in the 2nd terminal
   ```
+
+  - fees tests
+
+  ```
+  zk server           # Has to be run in the 1st terminal. Will be killed by tests
+  zk test i fees      # Has to be run in the 2nd terminal
+  pkill zksync_server # Kills background server started by tests
+  ```
+
+  You will find server logs in `core/tests/ts-integration/fees.log`
 
 - Running the benchmarks:
 
