@@ -532,29 +532,32 @@ impl ProverInitArgs {
         &self,
         config: &ChainConfig,
     ) -> Option<ProverDatabaseConfig> {
-        if self.dev {
-            return None;
-        }
-
-        let setup_database = self
-            .setup_database
-            .unwrap_or_else(|| PromptConfirm::new("Do you want to setup the database?").ask());
+        let setup_database = self.dev
+            || self
+                .setup_database
+                .unwrap_or_else(|| PromptConfirm::new("Do you want to setup the database?").ask());
 
         if setup_database {
             let DBNames { prover_name, .. } = generate_db_names(config);
             let chain_name = config.name.clone();
 
-            let dont_drop = self.dont_drop.unwrap_or_else(|| {
-                !PromptConfirm::new("Do you want to drop the database?")
-                    .default(true)
-                    .ask()
-            });
+            let dont_drop = if !self.dev {
+                self.dont_drop.unwrap_or_else(|| {
+                    !PromptConfirm::new("Do you want to drop the database?")
+                        .default(true)
+                        .ask()
+                })
+            } else {
+                false
+            };
 
-            if self.use_default.unwrap_or_else(|| {
-                PromptConfirm::new(MSG_USE_DEFAULT_DATABASES_HELP)
-                    .default(true)
-                    .ask()
-            }) {
+            if self.dev
+                || self.use_default.unwrap_or_else(|| {
+                    PromptConfirm::new(MSG_USE_DEFAULT_DATABASES_HELP)
+                        .default(true)
+                        .ask()
+                })
+            {
                 Some(ProverDatabaseConfig {
                     database_config: DatabaseConfig::new(DATABASE_PROVER_URL.clone(), prover_name),
                     dont_drop,
