@@ -19,9 +19,12 @@ use zksync_multivm::{
         executor::{OneshotExecutor, TransactionValidator},
         storage::{ReadStorage, StoragePtr, StorageView, StorageWithOverrides},
         tracer::{ValidationError, ValidationParams},
+        utils::{DivergenceHandler, ShadowVm},
         Call, ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
-        StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode, VmInterface,
+        StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode, VmFactory,
+        VmInterface,
     },
+    is_supported_by_fast_vm,
     tracers::{CallTracer, StorageInvocations, TracerDispatcher, ValidationTracer},
     utils::adjust_pubdata_price_for_tx,
     vm_latest::{HistoryDisabled, HistoryEnabled},
@@ -93,6 +96,7 @@ impl OneshotExecutorVmModes {
 #[derive(Debug)]
 pub struct MainOneshotExecutor {
     fast_vm_modes: OneshotExecutorVmModes,
+    panic_on_divergence: bool,
     missed_storage_invocation_limit: usize,
     execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
 }
@@ -103,6 +107,7 @@ impl MainOneshotExecutor {
     pub fn new(missed_storage_invocation_limit: usize) -> Self {
         Self {
             fast_vm_modes: OneshotExecutorVmModes::default(),
+            panic_on_divergence: false,
             missed_storage_invocation_limit,
             execution_latency_histogram: None,
         }
@@ -118,12 +123,29 @@ impl MainOneshotExecutor {
         self.fast_vm_modes = fast_vm_modes;
     }
 
+    /// Causes the VM to panic on divergence whenever it executes in the shadow mode. By default, a divergence is logged on `ERROR` level.
+    pub fn panic_on_divergence(&mut self) {
+        self.panic_on_divergence = true;
+    }
+
     /// Sets a histogram for measuring VM execution latency.
     pub fn set_execution_latency_histogram(
         &mut self,
         histogram: &'static vise::Histogram<Duration>,
     ) {
         self.execution_latency_histogram = Some(histogram);
+    }
+
+    fn select_fast_vm_mode(
+        &self,
+        env: &OneshotEnv,
+        tracing_params: &OneshotTracingParams,
+    ) -> FastVmMode {
+        if tracing_params.trace_calls || !is_supported_by_fast_vm(env.system.version) {
+            FastVmMode::Old // the fast VM doesn't support call tracing or old protocol versions
+        } else {
+            self.fast_vm_modes.get(env.system.execution_mode)
+        }
     }
 }
 
@@ -137,7 +159,7 @@ where
         storage: StorageWithOverrides<S>,
         env: OneshotEnv,
         args: TxExecutionArgs,
-        params: OneshotTracingParams,
+        tracing_params: OneshotTracingParams,
     ) -> anyhow::Result<OneshotTransactionExecutionResult> {
         let missed_storage_invocation_limit = match env.system.execution_mode {
             // storage accesses are not limited for tx validation
@@ -147,15 +169,13 @@ where
             }
         };
         let execution_latency_histogram = self.execution_latency_histogram;
-        let fast_vm_mode = if params.trace_calls {
-            FastVmMode::Old // the fast VM doesn't support call tracing
-        } else {
-            self.fast_vm_modes.get(env.system.execution_mode)
-        };
+        let fast_vm_mode = self.select_fast_vm_mode(&env, &tracing_params);
+        let panic_on_divergence = self.panic_on_divergence;
 
         tokio::task::spawn_blocking(move || {
             let executor = VmSandbox::new(
                 fast_vm_mode,
+                panic_on_divergence,
                 storage,
                 env,
                 args,
@@ -164,7 +184,7 @@ where
             executor.apply(|vm, transaction| {
                 vm.inspect_transaction_with_bytecode_compression(
                     missed_storage_invocation_limit,
-                    params,
+                    tracing_params,
                     transaction,
                     true,
                 )
@@ -204,6 +224,7 @@ where
 
             let executor = VmSandbox::new(
                 FastVmMode::Old,
+                false,
                 storage,
                 env,
                 TxExecutionArgs::for_validation(tx),
@@ -305,6 +326,7 @@ impl<S: ReadStorage> VmSandbox<S> {
     /// This method is blocking.
     fn new(
         fast_vm_mode: FastVmMode,
+        panic_on_divergence: bool,
         mut storage: StorageWithOverrides<S>,
         mut env: OneshotEnv,
         execution_args: TxExecutionArgs,
@@ -312,6 +334,7 @@ impl<S: ReadStorage> VmSandbox<S> {
     ) -> Self {
         Self::setup_storage(&mut storage, &execution_args, env.current_block);
 
+        let mode = env.system.execution_mode;
         let protocol_version = env.system.version;
         if execution_args.adjust_pubdata_price {
             env.l1_batch.fee_input = adjust_pubdata_price_for_tx(
@@ -335,12 +358,19 @@ impl<S: ReadStorage> VmSandbox<S> {
                 env.system,
                 storage_view.clone(),
             )),
-            FastVmMode::Shadow => Vm::Fast(FastVmInstance::shadowed(
-                env.l1_batch,
-                env.system,
-                storage_view.clone(),
-            )),
+            FastVmMode::Shadow => {
+                let mut vm = ShadowVm::new(env.l1_batch, env.system, storage_view.clone());
+                if !panic_on_divergence {
+                    let transaction = format!("{:?}", execution_args.transaction);
+                    let handler = DivergenceHandler::new(move |errors, _| {
+                        tracing::error!(transaction, ?mode, "{errors}");
+                    });
+                    vm.set_divergence_handler(handler);
+                }
+                Vm::Fast(FastVmInstance::Shadowed(vm))
+            }
         };
+
         Self {
             vm,
             storage_view,
