@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Configuration
 # DATABASE_URL - The URL of the prover database to connect to

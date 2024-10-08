@@ -81,11 +81,11 @@ jobs:
       - name: Run server
         run: |
           ci_run zk_inception server --uring --chain=provers --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &
-          ci_run sleep 60
+          ci_run sleep 180
       - name: Run Gateway
         run: |
           ci_run zk_inception prover run --component=gateway --docker=false &
-          ci_run sleep 15
+          ci_run sleep 60
       - name: Run Prover Job Monitor
         run: |
           ci_run zk_inception prover run --component=prover-job-monitor --docker=false &
@@ -120,7 +120,7 @@ jobs:
           echo "TIMEOUT=900" >> .env
           
           PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
-          prover_jobs_status_checker
+          ci_run ./bin/prover_jobs_status_checker
 
       - name: Kill prover & start compressor
         run: |
