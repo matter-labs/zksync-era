@@ -50,6 +50,23 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
             system_env,
         }
     }
+
+    pub(crate) fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        VmMemoryMetrics {
+            event_sink_inner: self.vm.state.event_sink.get_size(),
+            event_sink_history: self.vm.state.event_sink.get_history_size(),
+            memory_inner: self.vm.state.memory.get_size(),
+            memory_history: self.vm.state.memory.get_history_size(),
+            decommittment_processor_inner: self.vm.state.decommittment_processor.get_size(),
+            decommittment_processor_history: self
+                .vm
+                .state
+                .decommittment_processor
+                .get_history_size(),
+            storage_inner: self.vm.state.storage.get_size(),
+            storage_history: self.vm.state.storage.get_history_size(),
+        }
+    }
 }
 
 impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
@@ -66,7 +83,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn inspect(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         if let Some(storage_invocations) = tracer.storage_invocations {
@@ -106,7 +123,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        tracer: Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
@@ -183,23 +200,6 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
             )
         } else {
             (Ok(compressed_bytecodes.into()), result)
-        }
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        VmMemoryMetrics {
-            event_sink_inner: self.vm.state.event_sink.get_size(),
-            event_sink_history: self.vm.state.event_sink.get_history_size(),
-            memory_inner: self.vm.state.memory.get_size(),
-            memory_history: self.vm.state.memory.get_history_size(),
-            decommittment_processor_inner: self.vm.state.decommittment_processor.get_size(),
-            decommittment_processor_history: self
-                .vm
-                .state
-                .decommittment_processor
-                .get_history_size(),
-            storage_inner: self.vm.state.storage.get_size(),
-            storage_history: self.vm.state.storage.get_history_size(),
         }
     }
 

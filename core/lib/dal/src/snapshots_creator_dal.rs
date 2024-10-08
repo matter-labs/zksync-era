@@ -21,11 +21,11 @@ impl SnapshotsCreatorDal<'_, '_> {
             SELECT
                 INDEX
             FROM
-                initial_writes
+                INITIAL_WRITES
             WHERE
-                l1_batch_number <= $1
+                L1_BATCH_NUMBER <= $1
             ORDER BY
-                l1_batch_number DESC,
+                L1_BATCH_NUMBER DESC,
                 INDEX DESC
             LIMIT
                 1;

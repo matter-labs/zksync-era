@@ -3,7 +3,8 @@ use zksync_types::{Address, Execute};
 
 use super::{tester::VmTesterBuilder, utils::read_precompiles_contract};
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    versions::testonly::ContractToDeploy,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
@@ -18,7 +19,7 @@ fn test_keccak() {
         .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_custom_contracts(vec![(contract, address, true)])
+        .with_custom_contracts(vec![ContractToDeploy::account(contract, address)])
         .build();
 
     // calldata for `doKeccak(1000)`.
@@ -28,7 +29,7 @@ fn test_keccak() {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: hex::decode(keccak1000_calldata).unwrap(),
             value: 0.into(),
             factory_deps: vec![],
@@ -36,7 +37,8 @@ fn test_keccak() {
         None,
     );
     vm.vm.push_transaction(tx);
-    let exec_result = vm.vm.inspect((), VmExecutionMode::OneTx);
+
+    let exec_result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let keccak_count = exec_result.statistics.circuit_statistic.keccak256
@@ -55,7 +57,7 @@ fn test_sha256() {
         .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_custom_contracts(vec![(contract, address, true)])
+        .with_custom_contracts(vec![ContractToDeploy::account(contract, address)])
         .build();
 
     // calldata for `doSha256(1000)`.
@@ -65,7 +67,7 @@ fn test_sha256() {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: hex::decode(sha1000_calldata).unwrap(),
             value: 0.into(),
             factory_deps: vec![],
@@ -73,7 +75,8 @@ fn test_sha256() {
         None,
     );
     vm.vm.push_transaction(tx);
-    let exec_result = vm.vm.inspect((), VmExecutionMode::OneTx);
+
+    let exec_result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let sha_count = exec_result.statistics.circuit_statistic.sha256
@@ -95,7 +98,7 @@ fn test_ecrecover() {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: account.address,
+            contract_address: Some(account.address),
             calldata: vec![],
             value: 0.into(),
             factory_deps: vec![],
@@ -103,7 +106,8 @@ fn test_ecrecover() {
         None,
     );
     vm.vm.push_transaction(tx);
-    let exec_result = vm.vm.inspect((), VmExecutionMode::OneTx);
+
+    let exec_result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!exec_result.result.is_failed(), "{exec_result:#?}");
 
     let ecrecover_count = exec_result.statistics.circuit_statistic.ecrecover

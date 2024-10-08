@@ -96,7 +96,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                     protocol_version_patch
                 )
             VALUES
-                (CAST($1::TEXT AS inet), $2, 'available', $3, $4, NOW(), NOW(), $5, $6)
+                (CAST($1::TEXT AS INET), $2, 'available', $3, $4, NOW(), NOW(), $5, $6)
             ON CONFLICT (instance_host, instance_port, zone) DO
             UPDATE
             SET
@@ -132,7 +132,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                 instance_status = $1,
                 updated_at = NOW()
             WHERE
-                instance_host = $2::TEXT::inet
+                instance_host = $2::TEXT::INET
                 AND instance_port = $3
                 AND zone = $4
             "#,
@@ -158,7 +158,7 @@ impl FriGpuProverQueueDal<'_, '_> {
                 instance_status = 'available',
                 updated_at = NOW()
             WHERE
-                instance_host = $1::TEXT::inet
+                instance_host = $1::TEXT::INET
                 AND instance_port = $2
                 AND instance_status = 'full'
                 AND zone = $3
@@ -184,7 +184,7 @@ impl FriGpuProverQueueDal<'_, '_> {
             FROM
                 gpu_prover_queue_fri
             WHERE
-                instance_host = $1::TEXT::inet
+                instance_host = $1::TEXT::INET
                 AND instance_port = $2
                 AND zone = $3
             "#,

@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::Context as _;
-use common::{config::global_config, logger};
+use common::logger;
 use config::{ChainConfig, EcosystemConfig};
 use xshell::{cmd, Shell};
 
@@ -13,7 +13,7 @@ use crate::messages::MSG_CHAIN_NOT_FOUND_ERR;
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
+        .load_current_chain()
         .expect(MSG_CHAIN_NOT_FOUND_ERR);
 
     let link_to_code = ecosystem_config.link_to_code;

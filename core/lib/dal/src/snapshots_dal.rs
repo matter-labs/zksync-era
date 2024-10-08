@@ -141,13 +141,13 @@ impl SnapshotsDal<'_, '_> {
             r#"
             SELECT
                 VERSION,
-                l1_batch_number,
-                factory_deps_filepath,
-                storage_logs_filepaths
+                L1_BATCH_NUMBER,
+                FACTORY_DEPS_FILEPATH,
+                STORAGE_LOGS_FILEPATHS
             FROM
-                snapshots
+                SNAPSHOTS
             ORDER BY
-                l1_batch_number DESC
+                L1_BATCH_NUMBER DESC
             LIMIT
                 1
             "#
@@ -168,13 +168,13 @@ impl SnapshotsDal<'_, '_> {
             r#"
             SELECT
                 VERSION,
-                l1_batch_number,
-                factory_deps_filepath,
-                storage_logs_filepaths
+                L1_BATCH_NUMBER,
+                FACTORY_DEPS_FILEPATH,
+                STORAGE_LOGS_FILEPATHS
             FROM
-                snapshots
+                SNAPSHOTS
             WHERE
-                l1_batch_number = $1
+                L1_BATCH_NUMBER = $1
             "#,
             l1_batch_number.0 as i32
         )

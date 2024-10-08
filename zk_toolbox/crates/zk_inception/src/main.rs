@@ -14,7 +14,7 @@ use config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::commands::{
-    args::RunServerArgs, chain::ChainCommands, ecosystem::EcosystemCommands,
+    args::RunServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
     explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 
@@ -42,10 +42,10 @@ struct Inception {
 pub enum InceptionSubcommands {
     /// Ecosystem related commands
     #[command(subcommand, alias = "e")]
-    Ecosystem(EcosystemCommands),
+    Ecosystem(Box<EcosystemCommands>),
     /// Chain related commands
     #[command(subcommand, alias = "c")]
-    Chain(ChainCommands),
+    Chain(Box<ChainCommands>),
     /// Prover related commands
     #[command(subcommand, alias = "p")]
     Prover(ProverCommands),
@@ -66,6 +66,8 @@ pub enum InceptionSubcommands {
     #[command(subcommand)]
     Explorer(ExplorerCommands),
     /// Update ZKsync
+    #[command(subcommand)]
+    Consensus(consensus::Command),
     #[command(alias = "u")]
     Update(UpdateArgs),
     #[command(hide = true)]
@@ -119,8 +121,8 @@ async fn main() -> anyhow::Result<()> {
 
 async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Result<()> {
     match inception_args.command {
-        InceptionSubcommands::Ecosystem(args) => commands::ecosystem::run(shell, args).await?,
-        InceptionSubcommands::Chain(args) => commands::chain::run(shell, args).await?,
+        InceptionSubcommands::Ecosystem(args) => commands::ecosystem::run(shell, *args).await?,
+        InceptionSubcommands::Chain(args) => commands::chain::run(shell, *args).await?,
         InceptionSubcommands::Prover(args) => commands::prover::run(shell, args).await?,
         InceptionSubcommands::Server(args) => commands::server::run(shell, args)?,
         InceptionSubcommands::Containers(args) => commands::containers::run(shell, args)?,
@@ -131,8 +133,9 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
             commands::contract_verifier::run(shell, args).await?
         }
         InceptionSubcommands::Explorer(args) => commands::explorer::run(shell, args).await?,
+        InceptionSubcommands::Consensus(cmd) => cmd.run(shell).await?,
         InceptionSubcommands::Portal => commands::portal::run(shell).await?,
-        InceptionSubcommands::Update(args) => commands::update::run(shell, args)?,
+        InceptionSubcommands::Update(args) => commands::update::run(shell, args).await?,
         InceptionSubcommands::Markdown => {
             clap_markdown::print_help_markdown::<Inception>();
         }

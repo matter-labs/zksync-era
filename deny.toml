@@ -8,12 +8,15 @@ feature-depth = 1
 
 [advisories]
 ignore = [
+    "RUSTSEC-2024-0375", # atty dependency being unmaintained, dependency of clap and criterion, we would need to update to newer major of dependencies
     "RUSTSEC-2024-0320", # yaml_rust dependency being unmaintained, dependency in core, we should consider moving to yaml_rust2 fork
     "RUSTSEC-2020-0168", # mach dependency being unmaintained, dependency in consensus, we should consider moving to mach2 fork
     "RUSTSEC-2024-0370", # `cs_derive` needs to be updated to not rely on `proc-macro-error`
     # all below caused by StructOpt which we still use and we should move to clap v3 instead
+    "RUSTSEC-2024-0375",
     "RUSTSEC-2021-0145",
     "RUSTSEC-2021-0139",
+    "RUSTSEC-2024-0375",
 ]
 
 [licenses]

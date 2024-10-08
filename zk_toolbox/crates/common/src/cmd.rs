@@ -147,10 +147,7 @@ impl<'a> Cmd<'a> {
 fn check_output_status(command_text: &str, output: &std::process::Output) -> CmdResult<()> {
     if !output.status.success() {
         logger::new_line();
-        logger::error_note(
-            &format!("Command failed to run: {}", command_text),
-            &log_output(output),
-        );
+        logger::error_note("Command failed to run", &log_output(output));
         return Err(CmdError {
             stderr: Some(String::from_utf8(output.stderr.clone())?),
             source: anyhow::anyhow!("Command failed to run: {}", command_text),

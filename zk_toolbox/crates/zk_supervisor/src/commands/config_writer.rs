@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use common::{config::global_config, logger, Prompt};
+use common::{logger, Prompt};
 use config::{override_config, EcosystemConfig};
 use xshell::Shell;
 
@@ -26,7 +26,7 @@ pub fn run(shell: &Shell, args: ConfigWriterArgs) -> anyhow::Result<()> {
     let path = args.get_config_path().into();
     let ecosystem = EcosystemConfig::from_file(shell)?;
     let chain = ecosystem
-        .load_chain(global_config().chain_name.clone())
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     logger::step(msg_overriding_config(chain.name.clone()));
     override_config(shell, path, &chain)?;

@@ -636,7 +636,8 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL\
+                -- can't just use equality as NULL != NULL
+                from_addr IS NOT DISTINCT FROM $1
                 AND is_gateway = $2
             ORDER BY
                 id DESC

@@ -1,21 +1,30 @@
-use zksync_types::vm::{FastVmMode, VmVersion};
+use std::mem;
+
+use zksync_types::{vm::VmVersion, Transaction};
+use zksync_vm2::interface::Tracer;
 
 use crate::{
     glue::history_mode::HistoryMode,
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
+        utils::ShadowVm,
         BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
         VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
         VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
-    versions::shadow::ShadowVm,
+    vm_latest::HistoryEnabled,
 };
 
-pub type ShadowedFastVm<S, H> = ShadowVm<S, crate::vm_latest::Vm<StorageView<S>, H>>;
-
+/// Enumeration encompassing all supported legacy VM versions.
+///
+/// # Important
+///
+/// Methods with a tracer arg take the provided tracer, replacing it with the default value. Legacy tracers
+/// are adapted for this workflow (previously, tracers were passed by value), so they provide means to extract state after execution
+/// if necessary (e.g., using `Arc<OnceCell<_>>`).
 #[derive(Debug)]
-pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
+pub enum LegacyVmInstance<S: ReadStorage, H: HistoryMode> {
     VmM5(crate::vm_m5::Vm<StorageView<S>, H>),
     VmM6(crate::vm_m6::Vm<StorageView<S>, H>),
     Vm1_3_2(crate::vm_1_3_2::Vm<StorageView<S>, H>),
@@ -25,74 +34,66 @@ pub enum VmInstance<S: ReadStorage, H: HistoryMode> {
     Vm1_4_1(crate::vm_1_4_1::Vm<StorageView<S>, H>),
     Vm1_4_2(crate::vm_1_4_2::Vm<StorageView<S>, H>),
     Vm1_5_0(crate::vm_latest::Vm<StorageView<S>, H>),
-    VmFast(crate::vm_fast::Vm<ImmutableStorageView<S>>),
-    ShadowedVmFast(ShadowedFastVm<S, H>),
 }
 
-macro_rules! dispatch_vm {
+macro_rules! dispatch_legacy_vm {
     ($self:ident.$function:ident($($params:tt)*)) => {
         match $self {
-            VmInstance::VmM5(vm) => vm.$function($($params)*),
-            VmInstance::VmM6(vm) => vm.$function($($params)*),
-            VmInstance::Vm1_3_2(vm) => vm.$function($($params)*),
-            VmInstance::VmVirtualBlocks(vm) => vm.$function($($params)*),
-            VmInstance::VmVirtualBlocksRefundsEnhancement(vm) => vm.$function($($params)*),
-            VmInstance::VmBoojumIntegration(vm) => vm.$function($($params)*),
-            VmInstance::Vm1_4_1(vm) => vm.$function($($params)*),
-            VmInstance::Vm1_4_2(vm) => vm.$function($($params)*),
-            VmInstance::Vm1_5_0(vm) => vm.$function($($params)*),
-            VmInstance::VmFast(vm) => vm.$function($($params)*),
-            VmInstance::ShadowedVmFast(vm) => vm.$function($($params)*),
+            Self::VmM5(vm) => vm.$function($($params)*),
+            Self::VmM6(vm) => vm.$function($($params)*),
+            Self::Vm1_3_2(vm) => vm.$function($($params)*),
+            Self::VmVirtualBlocks(vm) => vm.$function($($params)*),
+            Self::VmVirtualBlocksRefundsEnhancement(vm) => vm.$function($($params)*),
+            Self::VmBoojumIntegration(vm) => vm.$function($($params)*),
+            Self::Vm1_4_1(vm) => vm.$function($($params)*),
+            Self::Vm1_4_2(vm) => vm.$function($($params)*),
+            Self::Vm1_5_0(vm) => vm.$function($($params)*),
         }
     };
 }
 
-impl<S: ReadStorage, H: HistoryMode> VmInterface for VmInstance<S, H> {
+impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     type TracerDispatcher = TracerDispatcher<StorageView<S>, H>;
 
     /// Push tx into memory for the future execution
-    fn push_transaction(&mut self, tx: zksync_types::Transaction) {
-        dispatch_vm!(self.push_transaction(tx))
+    fn push_transaction(&mut self, tx: Transaction) {
+        dispatch_legacy_vm!(self.push_transaction(tx))
     }
 
     /// Execute next transaction with custom tracers
     fn inspect(
         &mut self,
-        dispatcher: Self::TracerDispatcher,
+        dispatcher: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        dispatch_vm!(self.inspect(dispatcher.into(), execution_mode))
+        dispatch_legacy_vm!(self.inspect(&mut mem::take(dispatcher).into(), execution_mode))
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
-        dispatch_vm!(self.start_new_l2_block(l2_block_env))
+        dispatch_legacy_vm!(self.start_new_l2_block(l2_block_env))
     }
 
     /// Inspect transaction with optional bytecode compression.
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        dispatcher: Self::TracerDispatcher,
-        tx: zksync_types::Transaction,
+        dispatcher: &mut Self::TracerDispatcher,
+        tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
-        dispatch_vm!(self.inspect_transaction_with_bytecode_compression(
-            dispatcher.into(),
+        dispatch_legacy_vm!(self.inspect_transaction_with_bytecode_compression(
+            &mut mem::take(dispatcher).into(),
             tx,
             with_compression
         ))
     }
 
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        dispatch_vm!(self.record_vm_memory_metrics())
-    }
-
     /// Return the results of execution of all batch
     fn finish_batch(&mut self) -> FinishedL1Batch {
-        dispatch_vm!(self.finish_batch())
+        dispatch_legacy_vm!(self.finish_batch())
     }
 }
 
-impl<S: ReadStorage, H: HistoryMode> VmFactory<StorageView<S>> for VmInstance<S, H> {
+impl<S: ReadStorage, H: HistoryMode> VmFactory<StorageView<S>> for LegacyVmInstance<S, H> {
     fn new(
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
@@ -104,21 +105,21 @@ impl<S: ReadStorage, H: HistoryMode> VmFactory<StorageView<S>> for VmInstance<S,
     }
 }
 
-impl<S: ReadStorage> VmInterfaceHistoryEnabled for VmInstance<S, crate::vm_latest::HistoryEnabled> {
+impl<S: ReadStorage> VmInterfaceHistoryEnabled for LegacyVmInstance<S, HistoryEnabled> {
     fn make_snapshot(&mut self) {
-        dispatch_vm!(self.make_snapshot())
+        dispatch_legacy_vm!(self.make_snapshot());
     }
 
     fn rollback_to_the_latest_snapshot(&mut self) {
-        dispatch_vm!(self.rollback_to_the_latest_snapshot())
+        dispatch_legacy_vm!(self.rollback_to_the_latest_snapshot());
     }
 
     fn pop_snapshot_no_rollback(&mut self) {
-        dispatch_vm!(self.pop_snapshot_no_rollback())
+        dispatch_legacy_vm!(self.pop_snapshot_no_rollback());
     }
 }
 
-impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
+impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
     pub fn new_with_specific_version(
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
@@ -133,7 +134,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     storage_view,
                     crate::vm_m5::vm_instance::MultiVMSubversion::V1,
                 );
-                VmInstance::VmM5(vm)
+                Self::VmM5(vm)
             }
             VmVersion::M5WithRefunds => {
                 let vm = crate::vm_m5::Vm::new_with_subversion(
@@ -142,7 +143,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     storage_view,
                     crate::vm_m5::vm_instance::MultiVMSubversion::V2,
                 );
-                VmInstance::VmM5(vm)
+                Self::VmM5(vm)
             }
             VmVersion::M6Initial => {
                 let vm = crate::vm_m6::Vm::new_with_subversion(
@@ -151,7 +152,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     storage_view,
                     crate::vm_m6::vm_instance::MultiVMSubversion::V1,
                 );
-                VmInstance::VmM6(vm)
+                Self::VmM6(vm)
             }
             VmVersion::M6BugWithCompressionFixed => {
                 let vm = crate::vm_m6::Vm::new_with_subversion(
@@ -160,33 +161,33 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     storage_view,
                     crate::vm_m6::vm_instance::MultiVMSubversion::V2,
                 );
-                VmInstance::VmM6(vm)
+                Self::VmM6(vm)
             }
             VmVersion::Vm1_3_2 => {
                 let vm = crate::vm_1_3_2::Vm::new(l1_batch_env, system_env, storage_view);
-                VmInstance::Vm1_3_2(vm)
+                Self::Vm1_3_2(vm)
             }
             VmVersion::VmVirtualBlocks => {
                 let vm = crate::vm_virtual_blocks::Vm::new(l1_batch_env, system_env, storage_view);
-                VmInstance::VmVirtualBlocks(vm)
+                Self::VmVirtualBlocks(vm)
             }
             VmVersion::VmVirtualBlocksRefundsEnhancement => {
                 let vm =
                     crate::vm_refunds_enhancement::Vm::new(l1_batch_env, system_env, storage_view);
-                VmInstance::VmVirtualBlocksRefundsEnhancement(vm)
+                Self::VmVirtualBlocksRefundsEnhancement(vm)
             }
             VmVersion::VmBoojumIntegration => {
                 let vm =
                     crate::vm_boojum_integration::Vm::new(l1_batch_env, system_env, storage_view);
-                VmInstance::VmBoojumIntegration(vm)
+                Self::VmBoojumIntegration(vm)
             }
             VmVersion::Vm1_4_1 => {
                 let vm = crate::vm_1_4_1::Vm::new(l1_batch_env, system_env, storage_view);
-                VmInstance::Vm1_4_1(vm)
+                Self::Vm1_4_1(vm)
             }
             VmVersion::Vm1_4_2 => {
                 let vm = crate::vm_1_4_2::Vm::new(l1_batch_env, system_env, storage_view);
-                VmInstance::Vm1_4_2(vm)
+                Self::Vm1_4_2(vm)
             }
             VmVersion::Vm1_5_0SmallBootloaderMemory => {
                 let vm = crate::vm_latest::Vm::new_with_subversion(
@@ -195,7 +196,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     storage_view,
                     crate::vm_latest::MultiVMSubversion::SmallBootloaderMemory,
                 );
-                VmInstance::Vm1_5_0(vm)
+                Self::Vm1_5_0(vm)
             }
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => {
                 let vm = crate::vm_latest::Vm::new_with_subversion(
@@ -204,31 +205,126 @@ impl<S: ReadStorage, H: HistoryMode> VmInstance<S, H> {
                     storage_view,
                     crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
                 );
-                VmInstance::Vm1_5_0(vm)
+                Self::Vm1_5_0(vm)
             }
         }
     }
 
-    /// Creates a VM that may use the fast VM depending on the protocol version in `system_env` and `mode`.
-    pub fn maybe_fast(
+    /// Returns memory-related oracle metrics.
+    pub fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        dispatch_legacy_vm!(self.record_vm_memory_metrics())
+    }
+}
+
+/// Fast VM shadowed by the latest legacy VM.
+pub type ShadowedFastVm<S, Tr = ()> = ShadowVm<
+    S,
+    crate::vm_latest::Vm<StorageView<S>, HistoryEnabled>,
+    crate::vm_fast::Vm<ImmutableStorageView<S>, Tr>,
+>;
+
+/// Fast VM variants.
+#[derive(Debug)]
+pub enum FastVmInstance<S: ReadStorage, Tr> {
+    /// Fast VM running in isolation.
+    Fast(crate::vm_fast::Vm<ImmutableStorageView<S>, Tr>),
+    /// Fast VM shadowed by the latest legacy VM.
+    Shadowed(ShadowedFastVm<S, Tr>),
+}
+
+macro_rules! dispatch_fast_vm {
+    ($self:ident.$function:ident($($params:tt)*)) => {
+        match $self {
+            Self::Fast(vm) => vm.$function($($params)*),
+            Self::Shadowed(vm) => vm.$function($($params)*),
+        }
+    };
+}
+
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInstance<S, Tr> {
+    type TracerDispatcher = (
+        crate::vm_latest::TracerDispatcher<StorageView<S>, HistoryEnabled>,
+        Tr,
+    );
+
+    fn push_transaction(&mut self, tx: Transaction) {
+        dispatch_fast_vm!(self.push_transaction(tx));
+    }
+
+    fn inspect(
+        &mut self,
+        tracer: &mut Self::TracerDispatcher,
+        execution_mode: VmExecutionMode,
+    ) -> VmExecutionResultAndLogs {
+        match self {
+            Self::Fast(vm) => vm.inspect(&mut tracer.1, execution_mode),
+            Self::Shadowed(vm) => vm.inspect(tracer, execution_mode),
+        }
+    }
+
+    fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
+        dispatch_fast_vm!(self.start_new_l2_block(l2_block_env));
+    }
+
+    fn inspect_transaction_with_bytecode_compression(
+        &mut self,
+        tracer: &mut Self::TracerDispatcher,
+        tx: Transaction,
+        with_compression: bool,
+    ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
+        match self {
+            Self::Fast(vm) => vm.inspect_transaction_with_bytecode_compression(
+                &mut tracer.1,
+                tx,
+                with_compression,
+            ),
+            Self::Shadowed(vm) => {
+                vm.inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
+            }
+        }
+    }
+
+    fn finish_batch(&mut self) -> FinishedL1Batch {
+        dispatch_fast_vm!(self.finish_batch())
+    }
+}
+
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterfaceHistoryEnabled
+    for FastVmInstance<S, Tr>
+{
+    fn make_snapshot(&mut self) {
+        dispatch_fast_vm!(self.make_snapshot());
+    }
+
+    fn rollback_to_the_latest_snapshot(&mut self) {
+        dispatch_fast_vm!(self.rollback_to_the_latest_snapshot());
+    }
+
+    fn pop_snapshot_no_rollback(&mut self) {
+        dispatch_fast_vm!(self.pop_snapshot_no_rollback());
+    }
+}
+
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> FastVmInstance<S, Tr> {
+    /// Creates an isolated fast VM.
+    pub fn fast(
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage_view: StoragePtr<StorageView<S>>,
-        mode: FastVmMode,
     ) -> Self {
-        let vm_version = system_env.version.into();
-        match vm_version {
-            VmVersion::Vm1_5_0IncreasedBootloaderMemory => match mode {
-                FastVmMode::Old => Self::new(l1_batch_env, system_env, storage_view),
-                FastVmMode::New => {
-                    let storage = ImmutableStorageView::new(storage_view);
-                    Self::VmFast(crate::vm_fast::Vm::new(l1_batch_env, system_env, storage))
-                }
-                FastVmMode::Shadow => {
-                    Self::ShadowedVmFast(ShadowVm::new(l1_batch_env, system_env, storage_view))
-                }
-            },
-            _ => Self::new(l1_batch_env, system_env, storage_view),
-        }
+        Self::Fast(crate::vm_fast::Vm::new(
+            l1_batch_env,
+            system_env,
+            storage_view,
+        ))
+    }
+
+    /// Creates a shadowed fast VM.
+    pub fn shadowed(
+        l1_batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage_view: StoragePtr<StorageView<S>>,
+    ) -> Self {
+        Self::Shadowed(ShadowedFastVm::new(l1_batch_env, system_env, storage_view))
     }
 }

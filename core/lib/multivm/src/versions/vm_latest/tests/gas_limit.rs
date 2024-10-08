@@ -21,7 +21,10 @@ fn test_tx_gas_limit_offset() {
 
     let gas_limit = 9999.into();
     let tx = vm.rich_accounts[0].get_l2_tx_for_execute(
-        Execute::default(),
+        Execute {
+            contract_address: Some(Default::default()),
+            ..Default::default()
+        },
         Some(Fee {
             gas_limit,
             ..Account::default_fee()

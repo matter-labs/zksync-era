@@ -50,6 +50,10 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
             _phantom: Default::default(),
         }
     }
+
+    pub(crate) fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        VmMemoryMetrics::default()
+    }
 }
 
 impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
@@ -66,7 +70,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn inspect(
         &mut self,
-        _tracer: Self::TracerDispatcher,
+        _tracer: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         match execution_mode {
@@ -90,7 +94,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        _tracer: Self::TracerDispatcher,
+        _tracer: &mut Self::TracerDispatcher,
         tx: Transaction,
         _with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
@@ -100,20 +104,10 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
             self.system_env.execution_mode.glue_into(),
         );
         // Bytecode compression isn't supported
-        (Ok(vec![].into()), self.inspect((), VmExecutionMode::OneTx))
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        VmMemoryMetrics {
-            event_sink_inner: 0,
-            event_sink_history: 0,
-            memory_inner: 0,
-            memory_history: 0,
-            decommittment_processor_inner: 0,
-            decommittment_processor_history: 0,
-            storage_inner: 0,
-            storage_history: 0,
-        }
+        (
+            Ok(vec![].into()),
+            self.inspect(&mut (), VmExecutionMode::OneTx),
+        )
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

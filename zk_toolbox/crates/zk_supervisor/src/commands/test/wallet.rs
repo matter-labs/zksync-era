@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use anyhow::Context;
-use common::{config::global_config, logger};
+use common::logger;
 use config::EcosystemConfig;
 use xshell::Shell;
 
@@ -16,7 +16,7 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let chain_config = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
+        .load_current_chain()
         .context("Chain not found")?;
 
     let wallets_path: PathBuf = ecosystem_config.link_to_code.join(TEST_WALLETS_PATH);

@@ -250,7 +250,7 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
             bootloader_initial_content_commitment: batch
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
-            da_blob_id: batch.blob_id.map(|s| s.into_bytes())
+            da_blob_id: batch.blob_id.map(|s| s.into_bytes()),
         })
     }
 }

@@ -994,8 +994,11 @@ impl BlocksDal<'_, '_> {
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(number.0),
-            commitment_artifacts.aux_commitments.map(|a| a.events_queue_commitment.0.to_vec()),
-            commitment_artifacts.aux_commitments
+            commitment_artifacts
+                .aux_commitments
+                .map(|a| a.events_queue_commitment.0.to_vec()),
+            commitment_artifacts
+                .aux_commitments
                 .map(|a| a.bootloader_initial_content_commitment.0.to_vec()),
         )
         .instrument("save_batch_aux_commitments")
@@ -1464,7 +1467,7 @@ impl BlocksDal<'_, '_> {
                 AND eth_prove_tx_id IS NOT NULL
                 AND eth_execute_tx_id IS NULL
                 AND EXTRACT(
-                    epoch
+                    EPOCH
                     FROM
                         commit_tx.confirmed_at
                 ) < $1

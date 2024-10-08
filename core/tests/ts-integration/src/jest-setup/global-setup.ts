@@ -11,16 +11,14 @@ declare global {
  */
 async function performSetup(_globalConfig: any, _projectConfig: any) {
     // Perform the test initialization.
-    // This is an expensive operation that preceeds running any tests, as we need
+    // This is an expensive operation that precedes running any tests, as we need
     // to deposit & distribute funds, deploy some contracts, and perform basic server checks.
 
     // Jest writes an initial message without a newline, so we have to do it manually.
     console.log('');
+    globalThis.rawWriteToConsole = console.log;
 
-    // Before starting any actual logic, we need to ensure that the server is running (it may not
-    // be the case, for example, right after deployment on stage).
-
-    const testEnvironment = await loadTestEnvironment();
+    let testEnvironment = await loadTestEnvironment();
     const testContextOwner = new TestContextOwner(testEnvironment);
     const testContext = await testContextOwner.setupContext();
 

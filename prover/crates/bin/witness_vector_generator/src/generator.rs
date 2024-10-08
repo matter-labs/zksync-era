@@ -70,7 +70,7 @@ impl WitnessVectorGenerator {
         keystore: &Keystore,
     ) -> anyhow::Result<WitnessVectorArtifacts> {
         let finalization_hints = keystore
-            .load_finalization_hints(job.setup_data_key.clone())
+            .load_finalization_hints(job.setup_data_key)
             .context("get_finalization_hints()")?;
         let cs = match job.circuit_wrapper.clone() {
             CircuitWrapper::Base(base_circuit) => {

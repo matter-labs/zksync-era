@@ -1,9 +1,12 @@
 use anyhow::Context as _;
+use rand::Rng as _;
 use test_casing::{test_casing, Product};
 use tracing::Instrument as _;
-use zksync_concurrency::{ctx, error::Wrap, scope};
+use zksync_concurrency::{ctx, error::Wrap as _, scope};
+use zksync_config::configs::consensus as config;
+use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_roles::{
-    validator,
+    node, validator,
     validator::testonly::{Setup, SetupSpec},
 };
 use zksync_consensus_storage::BlockStore;
@@ -49,6 +52,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
             &consensus_dal::GlobalConfig {
                 genesis: setup.genesis.clone(),
                 registry_address: None,
+                seed_peers: [].into(),
             },
         )
         .await
@@ -239,6 +243,80 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
     })
     .await
     .unwrap();
+}
+
+#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
+#[tokio::test]
+async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId) {
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
+    let rng = &mut ctx.rng();
+    let setup = Setup::new(rng, 1);
+    let mut validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
+    let node_cfg = validator_cfg.new_fullnode(rng);
+    let account = &mut Account::random();
+
+    let validator_pool = ConnectionPool::test(from_snapshot, version).await;
+    let node_pool = ConnectionPool::test(from_snapshot, version).await;
+
+    for i in 0..3 {
+        tracing::info!("iteration {i}");
+        tracing::info!("apply an arbitrary change to configuration");
+        validator_cfg
+            .config
+            .genesis_spec
+            .as_mut()
+            .unwrap()
+            .seed_peers
+            .insert(
+                config::NodePublicKey(rng.gen::<node::PublicKey>().encode()),
+                config::Host("43.54.22.88:7634".to_string()),
+            );
+        scope::run!(ctx, |ctx, s| async {
+            let (mut validator, runner) =
+                testonly::StateKeeper::new(ctx, validator_pool.clone()).await?;
+            s.spawn_bg(async {
+                runner
+                    .run(ctx)
+                    .instrument(tracing::info_span!("validator"))
+                    .await
+                    .context("validator")
+            });
+            tracing::info!("Run validator.");
+            s.spawn_bg(run_main_node(
+                ctx,
+                validator_cfg.config.clone(),
+                validator_cfg.secrets.clone(),
+                validator_pool.clone(),
+            ));
+
+            // Wait for the main node to start and to update the global config.
+            validator.seal_batch().await;
+            validator_pool
+                .wait_for_block_certificate(ctx, validator.last_block())
+                .await?;
+
+            tracing::info!("Run node.");
+            let (node, runner) = testonly::StateKeeper::new(ctx, node_pool.clone()).await?;
+            s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("node")));
+            s.spawn_bg(node.run_consensus(ctx, validator.connect(ctx).await?, node_cfg.clone()));
+
+            validator.push_random_blocks(rng, account, 5).await;
+            let want_last = validator.last_block();
+            let want = validator_pool
+                .wait_for_block_certificates_and_verify(ctx, want_last)
+                .await?;
+            assert_eq!(
+                want,
+                node_pool
+                    .wait_for_block_certificates_and_verify(ctx, want_last)
+                    .await?
+            );
+            Ok(())
+        })
+        .await
+        .unwrap();
+    }
 }
 
 // Test running a validator node and a couple of full nodes.

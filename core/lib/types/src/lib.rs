@@ -5,7 +5,7 @@
 
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
-use std::{fmt, fmt::Debug};
+use std::fmt;
 
 use anyhow::Context as _;
 use fee::encoding_len;
@@ -88,9 +88,16 @@ pub struct Transaction {
     pub raw_bytes: Option<web3::Bytes>,
 }
 
-impl std::fmt::Debug for Transaction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Transaction").field(&self.hash()).finish()
+impl fmt::Debug for Transaction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(hash) = self.hash_for_debugging() {
+            f.debug_tuple("Transaction").field(&hash).finish()
+        } else {
+            f.debug_struct("Transaction")
+                .field("initiator_account", &self.initiator_account())
+                .field("nonce", &self.nonce())
+                .finish()
+        }
     }
 }
 
@@ -104,7 +111,7 @@ impl Eq for Transaction {}
 
 impl Transaction {
     /// Returns recipient account of the transaction.
-    pub fn recipient_account(&self) -> Address {
+    pub fn recipient_account(&self) -> Option<Address> {
         self.execute.contract_address
     }
 
@@ -133,6 +140,15 @@ impl Transaction {
             ExecuteTransactionCommon::L1(data) => data.hash(),
             ExecuteTransactionCommon::L2(data) => data.hash(),
             ExecuteTransactionCommon::ProtocolUpgrade(data) => data.hash(),
+        }
+    }
+
+    fn hash_for_debugging(&self) -> Option<H256> {
+        match &self.common_data {
+            ExecuteTransactionCommon::L1(data) => Some(data.hash()),
+            ExecuteTransactionCommon::L2(data) if data.input.is_some() => Some(data.hash()),
+            ExecuteTransactionCommon::L2(_) => None,
+            ExecuteTransactionCommon::ProtocolUpgrade(data) => Some(data.hash()),
         }
     }
 
@@ -253,7 +269,7 @@ impl TryFrom<Transaction> for abi::Transaction {
                 tx: abi::L2CanonicalTransaction {
                     tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
                     from: address_to_u256(&data.sender),
-                    to: address_to_u256(&tx.execute.contract_address),
+                    to: address_to_u256(&tx.execute.contract_address.unwrap_or_default()),
                     gas_limit: data.gas_limit,
                     gas_per_pubdata_byte_limit: data.gas_per_pubdata_limit,
                     max_fee_per_gas: data.max_fee_per_gas,
@@ -284,7 +300,7 @@ impl TryFrom<Transaction> for abi::Transaction {
                 tx: abi::L2CanonicalTransaction {
                     tx_type: PROTOCOL_UPGRADE_TX_TYPE.into(),
                     from: address_to_u256(&data.sender),
-                    to: address_to_u256(&tx.execute.contract_address),
+                    to: address_to_u256(&tx.execute.contract_address.unwrap_or_default()),
                     gas_limit: data.gas_limit,
                     gas_per_pubdata_byte_limit: data.gas_per_pubdata_limit,
                     max_fee_per_gas: data.max_fee_per_gas,
@@ -377,7 +393,7 @@ impl TryFrom<abi::Transaction> for Transaction {
                         unknown_type => anyhow::bail!("unknown tx type {unknown_type}"),
                     },
                     execute: Execute {
-                        contract_address: u256_to_account_address(&tx.to),
+                        contract_address: Some(u256_to_account_address(&tx.to)),
                         calldata: tx.data,
                         factory_deps,
                         value: tx.value,

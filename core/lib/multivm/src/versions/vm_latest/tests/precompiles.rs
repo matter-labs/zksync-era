@@ -31,7 +31,7 @@ fn test_keccak() {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: hex::decode(keccak1000_calldata).unwrap(),
             value: Default::default(),
             factory_deps: vec![],
@@ -39,7 +39,9 @@ fn test_keccak() {
         None,
     );
     vm.vm.push_transaction(tx);
-    let _ = vm.vm.inspect(Default::default(), VmExecutionMode::OneTx);
+    let _ = vm
+        .vm
+        .inspect(&mut Default::default(), VmExecutionMode::OneTx);
 
     let keccak_count = vm
         .vm
@@ -75,7 +77,7 @@ fn test_sha256() {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: hex::decode(sha1000_calldata).unwrap(),
             value: Default::default(),
             factory_deps: vec![],
@@ -83,7 +85,9 @@ fn test_sha256() {
         None,
     );
     vm.vm.push_transaction(tx);
-    let _ = vm.vm.inspect(Default::default(), VmExecutionMode::OneTx);
+    let _ = vm
+        .vm
+        .inspect(&mut Default::default(), VmExecutionMode::OneTx);
 
     let sha_count = vm
         .vm
@@ -112,7 +116,7 @@ fn test_ecrecover() {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: account.address,
+            contract_address: Some(account.address),
             calldata: Vec::new(),
             value: Default::default(),
             factory_deps: vec![],
@@ -120,7 +124,9 @@ fn test_ecrecover() {
         None,
     );
     vm.vm.push_transaction(tx);
-    let _ = vm.vm.inspect(Default::default(), VmExecutionMode::OneTx);
+    let _ = vm
+        .vm
+        .inspect(&mut Default::default(), VmExecutionMode::OneTx);
 
     let ecrecover_count = vm
         .vm

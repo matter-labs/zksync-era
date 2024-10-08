@@ -12,7 +12,7 @@ use zksync_config::{
     PostgresConfig,
 };
 use zksync_metadata_calculator::{MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig};
-use zksync_node_api_server::{tx_sender::ApiContracts, web3::Namespace};
+use zksync_node_api_server::web3::Namespace;
 use zksync_node_framework::{
     implementations::layers::{
         batch_status_updater::BatchStatusUpdaterLayer,
@@ -380,12 +380,10 @@ impl ExternalNodeBuilder {
             latest_values_cache_size: self.config.optional.latest_values_cache_size() as u64,
         };
         let max_vm_concurrency = self.config.optional.vm_concurrency_limit;
-        let api_contracts = ApiContracts::load_from_disk_blocking(); // TODO (BFT-138): Allow to dynamically reload API contracts;
         let tx_sender_layer = TxSenderLayer::new(
             (&self.config).into(),
             postgres_storage_config,
             max_vm_concurrency,
-            api_contracts,
         )
         .with_whitelisted_tokens_for_aa_cache(true);
 
@@ -432,6 +430,10 @@ impl ExternalNodeBuilder {
             response_body_size_limit: Some(self.config.optional.max_response_body_size()),
             with_extended_tracing: self.config.optional.extended_rpc_tracing,
             pruning_info_refresh_interval: Some(pruning_info_refresh_interval),
+            bridge_addresses_refresh_interval: self
+                .config
+                .optional
+                .bridge_addresses_refresh_interval(),
             polling_interval: Some(self.config.optional.polling_interval()),
             websocket_requests_per_minute_limit: None, // To be set by WS server layer method if required.
             replication_lag_limit: None,               // TODO: Support replication lag limit

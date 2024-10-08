@@ -52,6 +52,7 @@ jobs:
           - witness-generator
           - prover-gpu-fri
           - witness-vector-generator
+          - circuit-prover-gpu
           - prover-fri-gateway
           - prover-job-monitor
           - proof-fri-gpu-compressor

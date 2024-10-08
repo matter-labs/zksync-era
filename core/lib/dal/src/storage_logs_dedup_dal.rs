@@ -154,7 +154,7 @@ impl StorageLogsDedupDal<'_, '_> {
             SELECT
                 MAX(INDEX) AS "max?"
             FROM
-                initial_writes
+                INITIAL_WRITES
             "#,
         )
         .instrument("max_enumeration_index")
@@ -174,15 +174,15 @@ impl StorageLogsDedupDal<'_, '_> {
             SELECT
                 MAX(INDEX) AS "max?"
             FROM
-                initial_writes
+                INITIAL_WRITES
             WHERE
-                l1_batch_number = (
+                L1_BATCH_NUMBER = (
                     SELECT
-                        MAX(l1_batch_number) AS "max?"
+                        MAX(L1_BATCH_NUMBER) AS "max?"
                     FROM
-                        initial_writes
+                        INITIAL_WRITES
                     WHERE
-                        l1_batch_number <= $1
+                        L1_BATCH_NUMBER <= $1
                 )
             "#,
             i64::from(l1_batch_number.0)
@@ -230,9 +230,9 @@ impl StorageLogsDedupDal<'_, '_> {
             SELECT
                 INDEX
             FROM
-                initial_writes
+                INITIAL_WRITES
             WHERE
-                hashed_key = $1
+                HASHED_KEY = $1
             "#,
             hashed_key.as_bytes()
         )
@@ -253,10 +253,10 @@ impl StorageLogsDedupDal<'_, '_> {
             SELECT
                 INDEX
             FROM
-                initial_writes
+                INITIAL_WRITES
             WHERE
-                hashed_key = $1
-                AND l1_batch_number <= $2
+                HASHED_KEY = $1
+                AND L1_BATCH_NUMBER <= $2
             "#,
             hashed_key.as_bytes(),
             l1_batch_number.0 as i32,

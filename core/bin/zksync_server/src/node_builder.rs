@@ -4,15 +4,15 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        da_client::DAClient, eth_sender::PubdataSendingMode, wallets::Wallets, GeneralConfig,
-        Secrets,
+        da_client::DAClientConfig, eth_sender::PubdataSendingMode,
+        secrets::DataAvailabilitySecrets, wallets::Wallets, GeneralConfig, Secrets,
     },
     ContractsConfig, GenesisConfig,
 };
 use zksync_core_leftovers::Component;
 use zksync_metadata_calculator::MetadataCalculatorConfig;
 use zksync_node_api_server::{
-    tx_sender::{ApiContracts, TxSenderConfig},
+    tx_sender::TxSenderConfig,
     web3::{state::InternalApiConfig, Namespace},
 };
 use zksync_node_framework::{
@@ -322,7 +322,6 @@ impl MainNodeBuilder {
             ),
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),
-            ApiContracts::load_from_disk_blocking(), // TODO (BFT-138): Allow to dynamically reload API contracts
         ));
         Ok(self)
     }
@@ -510,15 +509,21 @@ impl MainNodeBuilder {
             return Ok(self);
         };
 
-        match da_client_config.client {
-            DAClient::Avail(config) => {
-                self.node.add_layer(AvailWiringLayer::new(config));
+        let secrets = self.secrets.data_availability.clone();
+
+        match (da_client_config, secrets) {
+            (DAClientConfig::Avail(_), None) => {
+                anyhow::bail!("Data availability secrets are required for the Avail client");
             }
-            DAClient::ObjectStore(config) => {
+
+            (DAClientConfig::Avail(config), Some(DataAvailabilitySecrets::Avail(secret))) => {
+                self.node.add_layer(AvailWiringLayer::new(config, secret));
+            }
+            (DAClientConfig::ObjectStore(config), _) => {
                 self.node
                     .add_layer(ObjectStorageClientWiringLayer::new(config));
             }
-            DAClient::EigenDA(config) => {
+            (DAClientConfig::EigenDA(config), _) => {
                 self.node.add_layer(EigenDAWiringLayer::new(config));
             }
         }

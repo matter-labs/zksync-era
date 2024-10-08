@@ -89,7 +89,15 @@ pub struct L1BatchParamsProvider {
 }
 
 impl L1BatchParamsProvider {
-    pub fn new() -> Self {
+    /// Creates a new provider.
+    pub async fn new(storage: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
+        let mut this = Self::uninitialized();
+        this.initialize(storage).await?;
+        Ok(this)
+    }
+
+    /// Creates an uninitialized provider. Before use, it must be [`initialize`](Self::initialize())d.
+    pub fn uninitialized() -> Self {
         Self { snapshot: None }
     }
 
@@ -322,5 +330,35 @@ impl L1BatchParamsProvider {
             first_l2_block_in_batch.header.virtual_blocks,
             chain_id,
         ))
+    }
+
+    /// Combines [`Self::load_first_l2_block_in_batch()`] and [Self::load_l1_batch_params()`]. Returns `Ok(None)`
+    /// iff the requested batch doesn't have any persisted blocks.
+    ///
+    /// Prefer using this method unless you need to manipulate / inspect the first block in the batch.
+    pub async fn load_l1_batch_env(
+        &self,
+        storage: &mut Connection<'_, Core>,
+        number: L1BatchNumber,
+        validation_computational_gas_limit: u32,
+        chain_id: L2ChainId,
+    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>> {
+        let first_l2_block = self
+            .load_first_l2_block_in_batch(storage, number)
+            .await
+            .with_context(|| format!("failed loading first L2 block for L1 batch #{number}"))?;
+        let Some(first_l2_block) = first_l2_block else {
+            return Ok(None);
+        };
+
+        self.load_l1_batch_params(
+            storage,
+            &first_l2_block,
+            validation_computational_gas_limit,
+            chain_id,
+        )
+        .await
+        .with_context(|| format!("failed loading params for L1 batch #{number}"))
+        .map(Some)
     }
 }

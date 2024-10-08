@@ -1,9 +1,12 @@
+use assert_matches::assert_matches;
 use ethabi::Token;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_types::{Execute, U256};
+use zksync_types::{Address, Execute, U256};
+use zksync_vm_interface::VmInterfaceExt;
 
 use crate::{
-    interface::TxExecutionMode,
+    interface::{ExecutionResult, TxExecutionMode},
+    versions::testonly::ContractToDeploy,
     vm_fast::tests::{
         tester::{DeployContractsTx, TransactionTestInfo, TxModifier, TxType, VmTesterBuilder},
         utils::read_test_contract,
@@ -83,7 +86,7 @@ fn test_vm_loadnext_rollbacks() {
 
     let loadnext_tx_1 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
                 writes: 100,
@@ -101,7 +104,7 @@ fn test_vm_loadnext_rollbacks() {
 
     let loadnext_tx_2 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
                 writes: 100,
@@ -141,4 +144,33 @@ fn test_vm_loadnext_rollbacks() {
     ]);
 
     assert_eq!(result_without_rollbacks, result_with_rollbacks);
+}
+
+#[test]
+fn rollback_in_call_mode() {
+    let counter_bytecode = read_test_contract();
+    let counter_address = Address::repeat_byte(1);
+
+    let mut vm = VmTesterBuilder::new()
+        .with_empty_in_memory_storage()
+        .with_execution_mode(TxExecutionMode::EthCall)
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            counter_bytecode,
+            counter_address,
+        )])
+        .with_random_rich_accounts(1)
+        .build();
+    let account = &mut vm.rich_accounts[0];
+    let tx = account.get_test_contract_transaction(counter_address, true, None, false, TxType::L2);
+
+    let (compression_result, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(tx, true);
+    compression_result.unwrap();
+    assert_matches!(
+        vm_result.result,
+        ExecutionResult::Revert { output }
+            if output.to_string().contains("This method always reverts")
+    );
+    assert_eq!(vm_result.logs.storage_logs, []);
 }

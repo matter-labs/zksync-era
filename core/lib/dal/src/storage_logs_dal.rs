@@ -688,9 +688,9 @@ impl StorageLogsDal<'_, '_> {
             SELECT
                 COUNT(*) AS COUNT
             FROM
-                storage_logs
+                STORAGE_LOGS
             WHERE
-                miniblock_number <= $1
+                MINIBLOCK_NUMBER <= $1
             "#,
             i64::from(at_l2_block.0)
         )

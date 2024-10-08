@@ -114,6 +114,7 @@ prover/data/keys/setup_*
 
 # Zk Toolbox
 chains/era/configs/*
+chains/gateway/*
 configs/*
 era-observability/
 core/tests/ts-integration/deployments-zk

@@ -28,7 +28,7 @@ impl SystemDal<'_, '_> {
             SELECT
                 PG_LAST_WAL_RECEIVE_LSN() = PG_LAST_WAL_REPLAY_LSN() AS synced,
                 EXTRACT(
-                    SECONDS
+                    seconds
                     FROM
                         NOW() - PG_LAST_XACT_REPLAY_TIMESTAMP()
                 )::INT AS LAG

@@ -34,7 +34,7 @@ jobs:
           run_retried docker compose pull zk
           docker compose up -d zk
           ci_run zkt
-          ci_run zks contracts all
+          ci_run zk_supervisor contracts
 
       - name: run benchmarks
         run: |

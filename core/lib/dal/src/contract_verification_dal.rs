@@ -375,9 +375,9 @@ impl ContractVerificationDal<'_, '_> {
             SELECT
                 VERSION
             FROM
-                compiler_versions
+                COMPILER_VERSIONS
             WHERE
-                compiler = $1
+                COMPILER = $1
             ORDER BY
                 VERSION
             "#,

@@ -1,12 +1,14 @@
+use assert_matches::assert_matches;
 use ethabi::Token;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_types::{get_nonce_key, Execute, U256};
+use zksync_types::{get_nonce_key, Address, Execute, U256};
 
 use crate::{
     interface::{
         storage::WriteStorage,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
+        ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
+        VmInterfaceHistoryEnabled,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
@@ -92,7 +94,7 @@ fn test_vm_loadnext_rollbacks() {
 
     let loadnext_tx_1 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
                 writes: 100,
@@ -110,7 +112,7 @@ fn test_vm_loadnext_rollbacks() {
 
     let loadnext_tx_2 = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: address,
+            contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
                 writes: 100,
@@ -224,14 +226,11 @@ fn test_layered_rollback() {
     vm.vm.make_snapshot();
 
     vm.vm.push_transaction(loadnext_transaction.clone());
-    vm.vm.inspect(
-        MaxRecursionTracer {
-            max_recursion_depth: 15,
-        }
-        .into_tracer_pointer()
-        .into(),
-        VmExecutionMode::OneTx,
-    );
+    let tracer = MaxRecursionTracer {
+        max_recursion_depth: 15,
+    }
+    .into_tracer_pointer();
+    vm.vm.inspect(&mut tracer.into(), VmExecutionMode::OneTx);
 
     let nonce_val2 = vm
         .vm
@@ -260,4 +259,38 @@ fn test_layered_rollback() {
     vm.vm.push_transaction(loadnext_transaction);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "transaction must not fail");
+}
+
+#[test]
+fn rollback_in_call_mode() {
+    let counter_bytecode = read_test_contract();
+    let counter_address = Address::repeat_byte(1);
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_execution_mode(TxExecutionMode::EthCall)
+        .with_custom_contracts(vec![(counter_bytecode, counter_address, false)])
+        .with_random_rich_accounts(1)
+        .build();
+    let account = &mut vm.rich_accounts[0];
+    let tx = account.get_test_contract_transaction(counter_address, true, None, false, TxType::L2);
+
+    let (compression_result, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(tx, true);
+    compression_result.unwrap();
+    assert_matches!(
+        vm_result.result,
+        ExecutionResult::Revert { output }
+            if output.to_string().contains("This method always reverts")
+    );
+
+    let storage_logs = vm
+        .vm
+        .get_current_execution_state()
+        .deduplicated_storage_logs;
+    assert!(
+        storage_logs.iter().all(|log| !log.is_write()),
+        "{storage_logs:?}"
+    );
 }
