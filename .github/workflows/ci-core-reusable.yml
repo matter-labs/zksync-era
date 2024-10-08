@@ -219,6 +219,13 @@ jobs:
           --ignore-prerequisites --verbose \
           --observability=false
 
+      - name: Initialize CHAINS variable
+        run: echo "CHAINS=" >> $GITHUB_ENV
+
+      - name: Add era to CHAINS
+        run: |
+          echo "CHAINS=$(echo "${{ env.CHAINS }},era" | sed 's/^,//')" >> $GITHUB_ENV
+  
       - name: Read Custom Token address and set as environment variable
         run: |
           CUSTOM_TOKEN_ADDRESS=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
@@ -246,6 +253,8 @@ jobs:
           --server-db-name=zksync_server_localhost_validium \
           --chain validium
 
+          echo "CHAINS=$(echo "${{ env.CHAINS }},validium" | sed 's/^,//')" >> $GITHUB_ENV
+
       - name: Create and initialize chain with Custom Token
         run: |
           ci_run zk_inception chain create \
@@ -266,6 +275,8 @@ jobs:
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_custom_token \
           --chain custom_token
+
+          echo "CHAINS=$(echo "${{ env.CHAINS }},custom_token" | sed 's/^,//')" >> $GITHUB_ENV
 
       - name: Create and register chain with transactions signed "offline"
         run: |
@@ -322,6 +333,8 @@ jobs:
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_consensus \
           --chain consensus
+
+          echo "CHAINS=$(echo "${{ env.CHAINS }},consensus" | sed 's/^,//')" >> $GITHUB_ENV
 
       - name: Export chain list to environment variable
         run: |
