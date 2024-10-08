@@ -139,4 +139,4 @@ jobs:
           echo "TIMEOUT=300" >> .env
           
           PASSED_ENV_VARS="URL,INTERVAL,TIMEOUT" \
-          batch_l1_status_checker
+          ci_run ./bin/batch_l1_status_checker
