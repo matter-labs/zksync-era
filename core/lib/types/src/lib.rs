@@ -5,7 +5,7 @@
 
 #![allow(clippy::upper_case_acronyms, clippy::derive_partial_eq_without_eq)]
 
-use std::{fmt, fmt::Debug};
+use std::fmt;
 
 use anyhow::Context as _;
 use fee::encoding_len;
@@ -88,9 +88,16 @@ pub struct Transaction {
     pub raw_bytes: Option<web3::Bytes>,
 }
 
-impl std::fmt::Debug for Transaction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Transaction").field(&self.hash()).finish()
+impl fmt::Debug for Transaction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(hash) = self.hash_for_debugging() {
+            f.debug_tuple("Transaction").field(&hash).finish()
+        } else {
+            f.debug_struct("Transaction")
+                .field("initiator_account", &self.initiator_account())
+                .field("nonce", &self.nonce())
+                .finish()
+        }
     }
 }
 
@@ -133,6 +140,15 @@ impl Transaction {
             ExecuteTransactionCommon::L1(data) => data.hash(),
             ExecuteTransactionCommon::L2(data) => data.hash(),
             ExecuteTransactionCommon::ProtocolUpgrade(data) => data.hash(),
+        }
+    }
+
+    fn hash_for_debugging(&self) -> Option<H256> {
+        match &self.common_data {
+            ExecuteTransactionCommon::L1(data) => Some(data.hash()),
+            ExecuteTransactionCommon::L2(data) if data.input.is_some() => Some(data.hash()),
+            ExecuteTransactionCommon::L2(_) => None,
+            ExecuteTransactionCommon::ProtocolUpgrade(data) => Some(data.hash()),
         }
     }
 
