@@ -16,8 +16,8 @@ use zksync_types::{
     L2ChainId, PriorityOpId, ProtocolVersion, ProtocolVersionId, H160, H256, U256,
 };
 use zksync_vm_interface::{
-    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
-    VmExecutionMetrics,
+    tracer::ValidationTraces, TransactionExecutionMetrics, TransactionExecutionResult,
+    TxExecutionStatus, VmEvent, VmExecutionMetrics,
 };
 
 use crate::{
@@ -206,14 +206,22 @@ async fn workflow_with_submit_tx_equal_hashes() {
 
     let tx = mock_l2_transaction();
     let result = transactions_dal
-        .insert_transaction_l2(&tx, mock_tx_execution_metrics())
+        .insert_transaction_l2(
+            &tx,
+            mock_tx_execution_metrics(),
+            ValidationTraces::default(),
+        )
         .await
         .unwrap();
 
     assert_eq!(result, L2TxSubmissionResult::Added);
 
     let result = transactions_dal
-        .insert_transaction_l2(&tx, mock_tx_execution_metrics())
+        .insert_transaction_l2(
+            &tx,
+            mock_tx_execution_metrics(),
+            ValidationTraces::default(),
+        )
         .await
         .unwrap();
 
@@ -232,7 +240,11 @@ async fn workflow_with_submit_tx_diff_hashes() {
     let initiator_address = tx.common_data.initiator_address;
 
     let result = transactions_dal
-        .insert_transaction_l2(&tx, mock_tx_execution_metrics())
+        .insert_transaction_l2(
+            &tx,
+            mock_tx_execution_metrics(),
+            ValidationTraces::default(),
+        )
         .await
         .unwrap();
 
@@ -242,7 +254,11 @@ async fn workflow_with_submit_tx_diff_hashes() {
     tx.common_data.nonce = nonce;
     tx.common_data.initiator_address = initiator_address;
     let result = transactions_dal
-        .insert_transaction_l2(&tx, mock_tx_execution_metrics())
+        .insert_transaction_l2(
+            &tx,
+            mock_tx_execution_metrics(),
+            ValidationTraces::default(),
+        )
         .await
         .unwrap();
 
@@ -266,13 +282,21 @@ async fn remove_stuck_txs() {
     let mut tx = mock_l2_transaction();
     tx.received_timestamp_ms = unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
     transactions_dal
-        .insert_transaction_l2(&tx, mock_tx_execution_metrics())
+        .insert_transaction_l2(
+            &tx,
+            mock_tx_execution_metrics(),
+            ValidationTraces::default(),
+        )
         .await
         .unwrap();
     // Tx in mempool
     let tx = mock_l2_transaction();
     transactions_dal
-        .insert_transaction_l2(&tx, mock_tx_execution_metrics())
+        .insert_transaction_l2(
+            &tx,
+            mock_tx_execution_metrics(),
+            ValidationTraces::default(),
+        )
         .await
         .unwrap();
 
@@ -289,7 +313,11 @@ async fn remove_stuck_txs() {
     executed_tx.received_timestamp_ms =
         unix_timestamp_ms() - Duration::new(1000, 0).as_millis() as u64;
     transactions_dal
-        .insert_transaction_l2(&executed_tx, mock_tx_execution_metrics())
+        .insert_transaction_l2(
+            &executed_tx,
+            mock_tx_execution_metrics(),
+            ValidationTraces::default(),
+        )
         .await
         .unwrap();
 

@@ -456,7 +456,7 @@ impl L2BlockSealSubtask for InsertL2ToL1LogsSubtask {
 mod tests {
     use zksync_dal::{ConnectionPool, Core};
     use zksync_multivm::{
-        interface::{TransactionExecutionResult, TxExecutionStatus},
+        interface::{tracer::ValidationTraces, TransactionExecutionResult, TxExecutionStatus},
         utils::{get_max_batch_gas_limit, get_max_gas_per_pubdata_byte},
         zk_evm_latest::ethereum_types::H256,
         VmVersion,
@@ -484,7 +484,7 @@ mod tests {
             .await
             .unwrap()
             .transactions_dal()
-            .insert_transaction_l2(&tx, Default::default())
+            .insert_transaction_l2(&tx, Default::default(), ValidationTraces::default())
             .await
             .unwrap();
         let tx_hash = tx.hash();

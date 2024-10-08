@@ -16,7 +16,8 @@ use zksync_types::{
 };
 use zksync_utils::u256_to_big_decimal;
 use zksync_vm_interface::{
-    Call, TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus,
+    tracer::ValidationTraces, Call, TransactionExecutionMetrics, TransactionExecutionResult,
+    TxExecutionStatus,
 };
 
 use crate::{
@@ -263,6 +264,7 @@ impl TransactionsDal<'_, '_> {
         &mut self,
         tx: &L2Tx,
         exec_info: TransactionExecutionMetrics,
+        validation_traces: ValidationTraces,
     ) -> DalResult<L2TxSubmissionResult> {
         let tx_hash = tx.hash();
         let is_duplicate = sqlx::query!(
@@ -313,6 +315,12 @@ impl TransactionsDal<'_, '_> {
         let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
         #[allow(deprecated)]
         let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
+        let block_timestamp_range_start = validation_traces
+            .range_start
+            .map(|x| NaiveDateTime::from_timestamp_opt(x.as_u64() as i64, 0).unwrap());
+        let block_timestamp_range_end = validation_traces
+            .range_end
+            .map(|x| NaiveDateTime::from_timestamp_opt(x.as_u64() as i64, 0).unwrap());
         // Besides just adding or updating(on conflict) the record, we want to extract some info
         // from the query below, to indicate what actually happened:
         // 1) transaction is added
@@ -346,7 +354,9 @@ impl TransactionsDal<'_, '_> {
                     execution_info,
                     received_at,
                     created_at,
-                    updated_at
+                    updated_at,
+                    block_timestamp_range_start,
+                    block_timestamp_range_end
                 )
             VALUES
                 (
@@ -369,7 +379,9 @@ impl TransactionsDal<'_, '_> {
                     JSONB_BUILD_OBJECT('gas_used', $16::BIGINT, 'storage_writes', $17::INT, 'contracts_used', $18::INT),
                     $19,
                     NOW(),
-                    NOW()
+                    NOW(),
+                    $20,
+                    $21
                 )
             ON CONFLICT (initiator_address, nonce) DO
             UPDATE
@@ -392,7 +404,9 @@ impl TransactionsDal<'_, '_> {
                 received_at = $19,
                 created_at = NOW(),
                 updated_at = NOW(),
-                error = NULL
+                error = NULL,
+                block_timestamp_range_start = $20,
+                block_timestamp_range_end = $21
             WHERE
                 transactions.is_priority = FALSE
                 AND transactions.miniblock_number IS NULL
@@ -425,7 +439,9 @@ impl TransactionsDal<'_, '_> {
             exec_info.gas_used as i64,
             (exec_info.initial_storage_writes + exec_info.repeated_storage_writes) as i32,
             exec_info.contracts_used as i32,
-            received_at
+            received_at,
+            block_timestamp_range_start,
+            block_timestamp_range_end,
         )
         .instrument("insert_transaction_l2")
         .with_arg("tx_hash", &tx_hash)
@@ -2211,7 +2227,11 @@ mod tests {
         let tx = mock_l2_transaction();
         let tx_hash = tx.hash();
         conn.transactions_dal()
-            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         let mut tx_result = mock_execution_result(tx);

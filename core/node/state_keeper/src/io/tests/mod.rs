@@ -5,7 +5,9 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_multivm::{
-    interface::{TransactionExecutionMetrics, VmEvent, VmExecutionMetrics},
+    interface::{
+        tracer::ValidationTraces, TransactionExecutionMetrics, VmEvent, VmExecutionMetrics,
+    },
     utils::derive_base_fee_and_gas_per_pubdata,
 };
 use zksync_node_test_utils::prepare_recovery_snapshot;
@@ -429,7 +431,11 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     );
     storage
         .transactions_dal()
-        .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+        .insert_transaction_l2(
+            &tx,
+            TransactionExecutionMetrics::default(),
+            ValidationTraces::default(),
+        )
         .await
         .unwrap();
 

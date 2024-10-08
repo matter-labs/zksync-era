@@ -360,7 +360,7 @@ impl TxSender {
         let submission_res_handle = self
             .0
             .tx_sink
-            .submit_tx(&tx, execution_output.metrics)
+            .submit_tx(&tx, execution_output.metrics, validation_result.unwrap())
             .await?;
 
         match submission_res_handle {
