@@ -230,8 +230,9 @@ fn map_log_tree(
                     storage_log.value,
                     value
                 );
+                anyhow::bail!("Failed to map LogQuery to TreeInstruction");
             }
-            anyhow::bail!("Failed to map LogQuery to TreeInstruction");
+            TreeInstruction::Read(key)
         }
         (true, StorageLogKind::RepeatedWrite, TreeLogEntry::Read { .. }) => {
             tracing::error!(
