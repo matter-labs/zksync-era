@@ -1,7 +1,6 @@
 use std::{mem, rc::Rc};
 
 use zksync_types::{vm::VmVersion, ProtocolVersionId, Transaction};
-use zksync_vm2::interface::Tracer;
 use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
@@ -14,6 +13,7 @@ use crate::{
         VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
+    vm_fast::Tracer,
     vm_latest::HistoryEnabled,
 };
 
@@ -250,7 +250,9 @@ macro_rules! dispatch_fast_vm {
     };
 }
 
-impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInstance<S, Tr> {
+impl<S: ReadStorage, Tr: crate::vm_fast::Tracer + Default + 'static> VmInterface
+    for FastVmInstance<S, Tr>
+{
     type TracerDispatcher = (
         crate::vm_latest::TracerDispatcher<StorageView<S>, HistoryEnabled>,
         Tr,

@@ -87,6 +87,23 @@ impl VmRunResult {
     }
 }
 
+pub trait TracerExt: Tracer {
+    fn enter_validation(&mut self) {}
+    fn exit_validation(&mut self) {}
+}
+
+impl TracerExt for () {}
+impl<A: TracerExt, B: TracerExt> TracerExt for (A, B) {
+    fn enter_validation(&mut self) {
+        self.0.enter_validation();
+        self.1.enter_validation();
+    }
+    fn exit_validation(&mut self) {
+        self.0.exit_validation();
+        self.1.exit_validation();
+    }
+}
+
 /// Fast VM wrapper.
 ///
 /// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait, a tracer must have `'static` lifetime
@@ -103,7 +120,7 @@ pub struct Vm<S, Tr = ()> {
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
-impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
+impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
         assert!(
             is_supported_by_fast_vm(system_env.version),
@@ -219,6 +236,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                         account_validation_gas_split.is_none(),
                         "Account validation can't be nested"
                     );
+                    tracer.enter_validation();
                     let gas = self.gas_remaining();
                     let gas_given = gas.min(gas_left_for_account_validation);
                     account_validation_gas_split = Some(AccountValidationGasSplit {
@@ -229,6 +247,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
                 }
 
                 Hook::ValidationExited => {
+                    tracer.exit_validation();
                     if let Some(AccountValidationGasSplit {
                         gas_given,
                         gas_hidden,
@@ -678,7 +697,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
     }
 }
 
-impl<S, Tr> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
+impl<S, Tr: TracerExt> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
 where
     S: ReadStorage,
     Tr: Tracer + Default + 'static,
@@ -693,7 +712,7 @@ where
     }
 }
 
-impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
+impl<S: ReadStorage, Tr: TracerExt + Default + 'static> VmInterface for Vm<S, Tr> {
     type TracerDispatcher = Tr;
 
     fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
@@ -767,7 +786,7 @@ struct VmSnapshot {
     bootloader_snapshot: BootloaderStateSnapshot,
 }
 
-impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterfaceHistoryEnabled for Vm<S, Tr> {
+impl<S: ReadStorage, Tr: TracerExt + Default + 'static> VmInterfaceHistoryEnabled for Vm<S, Tr> {
     fn make_snapshot(&mut self) {
         assert!(
             self.snapshot.is_none(),
