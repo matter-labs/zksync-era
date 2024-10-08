@@ -53,6 +53,8 @@ mod contracts;
 mod env;
 mod metrics;
 mod mock;
+#[cfg(test)]
+mod tests;
 
 /// Fast VM modes utilized for different kinds of operations.
 #[derive(Debug, Clone, Copy, Default)]

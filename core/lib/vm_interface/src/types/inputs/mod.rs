@@ -15,7 +15,7 @@ mod l2_block;
 mod system_env;
 
 /// Full environment for oneshot transaction / call execution.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OneshotEnv {
     /// System environment.
     pub system: SystemEnv,
