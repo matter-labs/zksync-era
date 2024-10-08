@@ -36,6 +36,12 @@ eigenda-proxy:
 zk_inception containers --observability true
 ```
 
+3. Add EigenDA Dashboard
+
+```bash
+mv era-observability/additional_dashboards/EigenDA.json era-observability/dashboards/EigenDA.json
+```
+
 3. Create `eigen_da` chain
 
 ```bash
