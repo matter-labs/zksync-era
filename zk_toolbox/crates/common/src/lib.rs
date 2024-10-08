@@ -15,6 +15,7 @@ pub mod hardhat;
 pub mod server;
 pub mod version;
 pub mod wallets;
+pub mod withdraw;
 pub mod yaml;
 
 pub use prerequisites::{

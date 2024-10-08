@@ -939,7 +939,6 @@ impl ZksNamespace {
         batch_number: L1BatchNumber,
     ) -> Result<Option<L1ProcessingDetails>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
-        println!("\n\nHey1\n\n");
         self.state
             .start_info
             .ensure_not_pruned(batch_number, &mut storage)

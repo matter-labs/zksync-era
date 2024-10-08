@@ -266,6 +266,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l2_da_validator_addr: rng.gen(),
             base_token_addr: self.sample_opt(|| rng.gen()),
             chain_admin_addr: self.sample_opt(|| rng.gen()),
+            settlement_layer: self.sample_opt(|| rng.gen()),
         }
     }
 }

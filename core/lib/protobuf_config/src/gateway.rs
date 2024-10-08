@@ -34,6 +34,7 @@ impl ProtoRepr for proto::GatewayChainConfig {
             governance_addr: required(&self.governance_addr)
                 .and_then(|x| parse_h160(x))
                 .context("governance_addr")?,
+            settlement_layer: *required(&self.settlement_layer)?,
         })
     }
 
@@ -45,6 +46,7 @@ impl ProtoRepr for proto::GatewayChainConfig {
             diamond_proxy_addr: Some(format!("{:?}", this.diamond_proxy_addr)),
             chain_admin_addr: this.chain_admin_addr.map(|x| format!("{:?}", x)),
             governance_addr: Some(format!("{:?}", this.governance_addr)),
+            settlement_layer: Some(this.settlement_layer),
         }
     }
 }

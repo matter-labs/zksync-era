@@ -30,6 +30,7 @@ pub struct GatewayChainConfig {
     pub diamond_proxy_addr: Address,
     pub chain_admin_addr: Option<Address>,
     pub governance_addr: Address,
+    pub settlement_layer: u64,
 }
 
 impl GatewayChainConfig {
@@ -37,6 +38,7 @@ impl GatewayChainConfig {
         gateway_config: &GatewayConfig,
         diamond_proxy_addr: Address,
         chain_admin_addr: Address,
+        settlement_layer: u64,
     ) -> Self {
         // FIXME: there is no "governnace" for a chain, only an admin, we
         // need to figure out what we mean here
@@ -48,6 +50,7 @@ impl GatewayChainConfig {
             diamond_proxy_addr,
             chain_admin_addr: Some(chain_admin_addr),
             governance_addr: chain_admin_addr,
+            settlement_layer,
         }
     }
 }
@@ -64,6 +67,7 @@ impl From<ContractsConfig> for GatewayChainConfig {
             diamond_proxy_addr: value.diamond_proxy_addr,
             chain_admin_addr: value.chain_admin_addr,
             governance_addr: value.governance_addr,
+            settlement_layer: value.settlement_layer.unwrap(),
         }
     }
 }

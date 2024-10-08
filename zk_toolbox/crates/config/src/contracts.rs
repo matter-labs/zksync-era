@@ -19,7 +19,7 @@ use crate::{
 pub struct ContractsConfig {
     pub create2_factory_addr: Address,
     pub create2_factory_salt: H256,
-    pub ecosystem_contracts: EcosystemContracts,
+    pub ecosystem_contracts: ToolboxEcosystemContracts,
     pub bridges: BridgesContracts,
     pub l1: L1Contracts,
     pub l2: L2Contracts,
@@ -162,7 +162,7 @@ impl FileConfigWithDefaultName for ContractsConfig {
 impl ZkToolboxConfig for ContractsConfig {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
-pub struct EcosystemContracts {
+pub struct ToolboxEcosystemContracts {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
@@ -173,7 +173,7 @@ pub struct EcosystemContracts {
     pub native_token_vault_addr: Address,
 }
 
-impl ZkToolboxConfig for EcosystemContracts {}
+impl ZkToolboxConfig for ToolboxEcosystemContracts {}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct BridgesContracts {

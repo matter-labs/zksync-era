@@ -56,7 +56,7 @@ lazy_static! {
         .unwrap(),
     );
 
-    static ref BRDIGEHUB_INTERFACE: BaseContract = BaseContract::from(
+    static ref BRIDGEHUB_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
             "function getHyperchain(uint256 chainId) public returns (address)"
         ])
@@ -89,8 +89,6 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         .to_string();
 
     let genesis_config = chain_config.get_genesis_config()?;
-
-    // Firstly, deploying gateway contracts
 
     let preparation_config_path = GATEWAY_PREPARATION.input(&ecosystem_config.link_to_code);
     let preparation_config = GatewayPreparationConfig::new(
@@ -133,7 +131,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
     )
     .await?;
 
-    println!("Migrating the chain...");
+    println!("Migrating the chain to the Gateway...");
 
     let hash = call_script(
         shell,
@@ -176,7 +174,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     // TODO: maybe move to using a precalculated address, just like for EN
     let chain_id = U256::from(chain_config.chain_id.0);
-    let contract = BRDIGEHUB_INTERFACE
+    let contract = BRIDGEHUB_INTERFACE
         .clone()
         .into_contract(L2_BRIDGEHUB_ADDRESS, gateway_provider);
 
@@ -342,6 +340,7 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
         new_diamond_proxy_address,
         // TODO: for now we do not use a noraml chain admin
         Address::zero(),
+        gateway_chain_id,
     );
     gateway_chain_config.save_with_base_path(shell, chain_config.configs.clone())?;
 

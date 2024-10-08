@@ -52,7 +52,10 @@ use crate::{
 pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
-    git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    if !args.skip_submodules_checkout {
+        println!("Checking out submodules");
+        git::submodule_update(shell, ecosystem_config.link_to_code.clone())?;
+    }
 
     let initial_deployment_config = match ecosystem_config.get_initial_deployment_config() {
         Ok(config) => config,
@@ -115,6 +118,7 @@ pub async fn run(args: EcosystemInitArgs, shell: &Shell) -> anyhow::Result<()> {
             deploy_paymaster: final_ecosystem_args.deploy_paymaster,
             l1_rpc_url: final_ecosystem_args.ecosystem.l1_rpc_url.clone(),
             no_port_reallocation: final_ecosystem_args.no_port_reallocation,
+            skip_submodules_checkout: final_ecosystem_args.skip_submodules_checkout,
         };
 
         chain::init::init(
@@ -139,10 +143,12 @@ async fn init(
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
     install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
-    build_da_contracts(shell, &ecosystem_config.link_to_code)?;
-    build_l1_contracts(shell, &ecosystem_config.link_to_code)?;
-    build_system_contracts(shell, &ecosystem_config.link_to_code)?;
-    build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
+    if !init_args.skip_contract_compilation_override {
+        build_da_contracts(shell, &ecosystem_config.link_to_code)?;
+        build_l1_contracts(shell, &ecosystem_config.link_to_code)?;
+        build_system_contracts(shell, &ecosystem_config.link_to_code)?;
+        build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
+    }
     spinner.finish();
 
     let contracts = deploy_ecosystem(

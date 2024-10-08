@@ -67,6 +67,18 @@ pub struct ChainCreateArgs {
     pub(crate) set_as_default: Option<bool>,
     #[clap(long, default_value = "false")]
     pub(crate) legacy_bridge: bool,
+    #[clap(
+        long,
+        help = "Skip submodules checkout",
+        default_missing_value = "true"
+    )]
+    pub skip_submodules_checkout: bool,
+    #[clap(
+        long,
+        help = "Skip contract compilation override",
+        default_missing_value = "true"
+    )]
+    pub skip_contract_compilation_override: bool,
 }
 
 impl ChainCreateArgs {
@@ -227,6 +239,8 @@ impl ChainCreateArgs {
             base_token,
             set_as_default,
             legacy_bridge: self.legacy_bridge,
+            skip_submodules_checkout: self.skip_submodules_checkout,
+            skip_contract_compilation_override: self.skip_contract_compilation_override,
         })
     }
 }
@@ -242,6 +256,8 @@ pub struct ChainCreateArgsFinal {
     pub base_token: BaseToken,
     pub set_as_default: bool,
     pub legacy_bridge: bool,
+    pub skip_submodules_checkout: bool,
+    pub skip_contract_compilation_override: bool,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
