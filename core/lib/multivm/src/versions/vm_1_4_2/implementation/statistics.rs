@@ -57,7 +57,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     }
 
     /// Returns the info about all oracles' sizes.
-    pub(crate) fn record_vm_memory_metrics_inner(&self) -> VmMemoryMetrics {
+    pub(crate) fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
         VmMemoryMetrics {
             event_sink_inner: self.state.event_sink.get_size(),
             event_sink_history: self.state.event_sink.get_history_size(),
