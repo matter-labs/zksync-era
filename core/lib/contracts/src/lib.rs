@@ -261,10 +261,10 @@ impl SystemContractsRepo {
                 directory, name
             ))),
             ContractLanguage::Yul => {
-                let artifacts_path =
-                    Path::new(&format!("contracts-preprocessed/{}artifacts/", directory))
-                        .to_path_buf();
-                read_yul_bytecode(artifacts_path, name)
+                let artifacts_path = self
+                    .root
+                    .join(format!("contracts-preprocessed/{}artifacts/", directory));
+                read_yul_bytecode_by_path(artifacts_path, name)
             }
         }
     }
@@ -291,13 +291,20 @@ pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
     read_zbin_bytecode_from_path(bytecode_path)
 }
 
-pub fn read_yul_bytecode(artifacts_path: PathBuf, name: &str) -> Vec<u8> {
+pub fn read_yul_bytecode(relative_artifacts_path: PathBuf, name: &str) -> Vec<u8> {
+    let artifacts_path = Path::new(&home_path()).join(relative_artifacts_path);
+    read_yul_bytecode_by_path(artifacts_path, name)
+}
+
+pub fn read_yul_bytecode_by_path(artifacts_path: PathBuf, name: &str) -> Vec<u8> {
     let bytecode_path = artifacts_path.join(format!("{0}.yul/{0}.yul.zbin", name));
 
     if fs::exists(&bytecode_path).unwrap_or_else(|_| panic!("Invalid path: {:?}", &bytecode_path)) {
         read_zbin_bytecode_from_path_utf8(bytecode_path)
     } else {
         let bytecode_path_legacy = artifacts_path.join(format!("{}.yul.zbin", name));
+
+        println!("PATH: {:?}", bytecode_path_legacy);
         if fs::exists(&bytecode_path_legacy)
             .unwrap_or_else(|_| panic!("Invalid path: {:?}", &bytecode_path_legacy))
         {
