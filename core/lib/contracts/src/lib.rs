@@ -335,6 +335,7 @@ fn read_zbin_bytecode_from_path_utf8(bytecode_path: PathBuf) -> Vec<u8> {
     )
     .unwrap_or_else(|_| panic!("Invalid hex"))
 }
+
 /// Hash of code and code which consists of 32 bytes words
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemContractCode {
@@ -346,18 +347,23 @@ pub struct SystemContractCode {
 pub struct BaseSystemContracts {
     pub bootloader: SystemContractCode,
     pub default_aa: SystemContractCode,
+    /// Never filled in constructors for now. The only way to get the EVM emulator enabled is to call [`Self::with_evm_emulator()`].
+    pub evm_emulator: Option<SystemContractCode>,
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq)]
 pub struct BaseSystemContractsHashes {
     pub bootloader: H256,
     pub default_aa: H256,
+    pub evm_emulator: Option<H256>,
 }
 
 impl PartialEq for BaseSystemContracts {
     fn eq(&self, other: &Self) -> bool {
         self.bootloader.hash == other.bootloader.hash
             && self.default_aa.hash == other.default_aa.hash
+            && self.evm_emulator.as_ref().map(|contract| contract.hash)
+                == other.evm_emulator.as_ref().map(|contract| contract.hash)
     }
 }
 
@@ -381,12 +387,25 @@ impl BaseSystemContracts {
         BaseSystemContracts {
             bootloader,
             default_aa,
+            evm_emulator: None,
         }
     }
-    // BaseSystemContracts with proved bootloader - for handling transactions.
+
+    /// BaseSystemContracts with proved bootloader - for handling transactions.
     pub fn load_from_disk() -> Self {
         let bootloader_bytecode = read_proved_batch_bootloader_bytecode();
         BaseSystemContracts::load_with_bootloader(bootloader_bytecode)
+    }
+
+    /// Loads the latest EVM emulator for these base system contracts. Logically, it only makes sense to do for the latest protocol version.
+    pub fn with_latest_evm_emulator(mut self) -> Self {
+        let bytecode = read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
+        let hash = hash_bytecode(&bytecode);
+        self.evm_emulator = Some(SystemContractCode {
+            code: bytes_to_be_words(bytecode),
+            hash,
+        });
+        self
     }
 
     /// BaseSystemContracts with playground bootloader - used for handling eth_calls.
@@ -517,6 +536,7 @@ impl BaseSystemContracts {
         BaseSystemContractsHashes {
             bootloader: self.bootloader.hash,
             default_aa: self.default_aa.hash,
+            evm_emulator: self.evm_emulator.as_ref().map(|contract| contract.hash),
         }
     }
 }
