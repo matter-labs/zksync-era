@@ -1,7 +1,8 @@
 use assert_matches::assert_matches;
 use ethabi::Token;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_types::{Execute, Nonce, U256};
+use zksync_types::{Address, Execute, Nonce, U256};
+use zksync_vm_interface::VmInterfaceExt;
 
 use crate::{
     interface::{ExecutionResult, TxExecutionMode},
