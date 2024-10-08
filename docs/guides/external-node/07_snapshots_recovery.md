@@ -2,8 +2,8 @@
 
 Instead of initializing a node using a Postgres dump, it's possible to configure a node to recover from a protocol-level
 snapshot. This process is much faster and requires much less storage. Postgres database of a mainnet node recovered from
-a snapshot is only about 300GB. Note that without [pruning](08_pruning.md) enabled, the node state will continuously
-grow at a rate about 15GB per day.
+a snapshot is less than 500GB. Note that without [pruning](08_pruning.md) enabled, the node state will continuously grow
+at a rate about 15GB per day.
 
 ## How it works
 
@@ -94,8 +94,6 @@ An example of snapshot recovery logs during the first node start:
 
 Recovery logic also exports some metrics, the main of which are as follows:
 
-| Metric name                                             | Type      | Labels       | Description                                                           |
-| ------------------------------------------------------- | --------- | ------------ | --------------------------------------------------------------------- |
-| `snapshots_applier_storage_logs_chunks_left_to_process` | Gauge     | -            | Number of storage log chunks left to process during Postgres recovery |
-| `db_pruner_pruning_chunk_duration_seconds`              | Histogram | `prune_type` | Latency of a single pruning iteration                                 |
-| `merkle_tree_pruning_deleted_stale_key_versions`        | Gauge     | `bound`      | Versions (= L1 batches) pruned from the Merkle tree                   |
+| Metric name                                             | Type  | Labels | Description                                                           |
+| ------------------------------------------------------- | ----- | ------ | --------------------------------------------------------------------- |
+| `snapshots_applier_storage_logs_chunks_left_to_process` | Gauge | -      | Number of storage log chunks left to process during Postgres recovery |

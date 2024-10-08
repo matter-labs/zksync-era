@@ -9,7 +9,7 @@ pub fn run(shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let chain_config = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
     let general_api = chain_config

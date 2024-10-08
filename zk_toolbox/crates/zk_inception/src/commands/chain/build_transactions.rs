@@ -1,14 +1,15 @@
 use anyhow::Context;
-use common::{config::global_config, git, logger, spinner::Spinner};
+use common::{git, logger, spinner::Spinner};
 use config::{
     copy_configs, traits::SaveConfigWithBasePath, update_from_chain_config, EcosystemConfig,
 };
 use ethers::utils::hex::ToHex;
 use xshell::Shell;
 
-use super::common::register_chain;
 use crate::{
-    commands::chain::args::build_transactions::BuildTransactionsArgs,
+    commands::chain::{
+        args::build_transactions::BuildTransactionsArgs, register_chain::register_chain,
+    },
     messages::{
         MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER, MSG_CHAIN_NOT_FOUND_ERR,
         MSG_CHAIN_TRANSACTIONS_BUILT, MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG,
@@ -27,9 +28,8 @@ const SCRIPT_CONFIG_FILE_DST: &str = "register-hyperchain.toml";
 
 pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::Result<()> {
     let config = EcosystemConfig::from_file(shell)?;
-    let chain_name = global_config().chain_name.clone();
     let chain_config = config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
 
     let args = args.fill_values_with_prompt(config.default_chain.clone());

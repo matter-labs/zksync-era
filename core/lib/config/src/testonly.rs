@@ -79,6 +79,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             gas_price_scale_factor: self.sample(rng),
             estimate_gas_scale_factor: self.sample(rng),
             estimate_gas_acceptable_overestimation: self.sample(rng),
+            estimate_gas_optimize_search: self.sample(rng),
             max_tx_size: self.sample(rng),
             vm_execution_cache_misses_limit: self.sample(rng),
             vm_concurrency_limit: self.sample(rng),
@@ -419,6 +420,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             pubdata_sending_mode: PubdataSendingMode::Calldata,
             tx_aggregation_paused: false,
             tx_aggregation_only_prove_and_execute: false,
+            time_in_mempool_in_l1_blocks_cap: self.sample(rng),
         }
     }
 }
@@ -933,6 +935,7 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
             gateway_url: self
                 .sample_opt(|| format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
         }
     }
 }
