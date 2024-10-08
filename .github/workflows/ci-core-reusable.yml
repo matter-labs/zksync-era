@@ -225,6 +225,15 @@ jobs:
           echo "CUSTOM_TOKEN_ADDRESS=$CUSTOM_TOKEN_ADDRESS"
           echo "CUSTOM_TOKEN_ADDRESS=$CUSTOM_TOKEN_ADDRESS" >> $GITHUB_ENV
 
+      - name: Initialize CHAINS variable
+        run: echo "CHAINS=" >> $GITHUB_ENV
+  
+      - name: Add era to CHAINS
+        run: |
+          echo "CHAINS=$(echo "${{ env.CHAINS }},era" | sed 's/^,//')" > temp_env
+          grep -v '^CHAINS=' $GITHUB_ENV >> temp_env
+          mv temp_env $GITHUB_ENV
+
       - name: Create and initialize Validium chain
         run: |
           ci_run zk_inception chain create \
@@ -246,6 +255,10 @@ jobs:
           --server-db-name=zksync_server_localhost_validium \
           --chain validium
 
+          echo "CHAINS=$(echo "${{ env.CHAINS }},validium" | sed 's/^,//')" > temp_env
+          grep -v '^CHAINS=' $GITHUB_ENV >> temp_env
+          mv temp_env $GITHUB_ENV
+
       - name: Create and initialize chain with Custom Token
         run: |
           ci_run zk_inception chain create \
@@ -266,6 +279,10 @@ jobs:
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_custom_token \
           --chain custom_token
+
+          echo "CHAINS=$(echo "${{ env.CHAINS }},custom_token" | sed 's/^,//')" > temp_env
+          grep -v '^CHAINS=' $GITHUB_ENV >> temp_env
+          mv temp_env $GITHUB_ENV
 
       - name: Create and register chain with transactions signed "offline"
         run: |
@@ -323,10 +340,9 @@ jobs:
           --server-db-name=zksync_server_localhost_consensus \
           --chain consensus
 
-      - name: Export chain list to environment variable
-        run: |
-          CHAINS="era,validium,custom_token,consensus"
-          echo "CHAINS=$CHAINS" >> $GITHUB_ENV
+          echo "CHAINS=$(echo "${{ env.CHAINS }},consensus" | sed 's/^,//')" > temp_env
+          grep -v '^CHAINS=' $GITHUB_ENV >> temp_env
+          mv temp_env $GITHUB_ENV
 
       - name: Build test dependencies
         run: |
