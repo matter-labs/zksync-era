@@ -305,7 +305,6 @@ pub fn read_yul_bytecode_by_path(artifacts_path: PathBuf, name: &str) -> Vec<u8>
     } else {
         let bytecode_path_legacy = artifacts_path.join(format!("{}.yul.zbin", name));
 
-        println!("PATH: {:?}", bytecode_path_legacy);
         if fs::exists(&bytecode_path_legacy)
             .unwrap_or_else(|_| panic!("Invalid path: {:?}", &bytecode_path_legacy))
         {
