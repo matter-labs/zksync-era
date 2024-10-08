@@ -1,4 +1,8 @@
-use std::{cell::RefCell, collections::HashSet, marker::PhantomData, sync::Arc};
+use std::{
+    collections::HashSet,
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 
 use once_cell::sync::OnceCell;
 use zksync_system_constants::{
@@ -47,7 +51,7 @@ pub struct ValidationTracer<H> {
     timestamp_asserter_address: Option<Address>,
     vm_version: VmVersion,
     pub result: Arc<OnceCell<ViolatedValidationRule>>,
-    pub traces: Arc<RefCell<ValidationTraces>>,
+    pub traces: Arc<Mutex<ValidationTraces>>,
     _marker: PhantomData<fn(H) -> H>,
 }
 
@@ -60,10 +64,10 @@ impl<H> ValidationTracer<H> {
     ) -> (
         Self,
         Arc<OnceCell<ViolatedValidationRule>>,
-        Arc<RefCell<ValidationTraces>>,
+        Arc<Mutex<ValidationTraces>>,
     ) {
         let result = Arc::new(OnceCell::new());
-        let traces = Arc::new(RefCell::new(ValidationTraces::default()));
+        let traces = Arc::new(Mutex::new(ValidationTraces::default()));
         (
             Self {
                 validation_mode: ValidationTracerMode::NoValidation,

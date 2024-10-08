@@ -174,7 +174,7 @@ where
             match (exec_result.result, validation_result) {
                 (_, Err(violated_rule)) => Err(ValidationError::ViolatedRule(violated_rule)),
                 (ExecutionResult::Halt { reason }, _) => Err(ValidationError::FailedTx(reason)),
-                _ => Ok(validation_traces.borrow().clone()),
+                _ => Ok(validation_traces.lock().unwrap().clone()),
             }
         })
         .await

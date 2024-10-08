@@ -105,15 +105,17 @@ impl<H: HistoryMode> ValidationTracer<H> {
                         );
                         let end = U256::from_big_endian(&calldata[calldata.len() - 32..]);
 
-                        let mut traces_mut = self.traces.borrow_mut();
-                        traces_mut.range_start = match traces_mut.range_start {
-                            Some(current_value) => Some(cmp::max(current_value, start)),
-                            None => Some(start),
-                        };
-                        traces_mut.range_end = match traces_mut.range_end {
-                            Some(current_value) => Some(cmp::min(current_value, end)),
-                            None => Some(end),
-                        };
+                        {
+                            let mut traces_mut = self.traces.lock().unwrap();
+                            traces_mut.range_start = match traces_mut.range_start {
+                                Some(current_value) => Some(cmp::max(current_value, start)),
+                                None => Some(start),
+                            };
+                            traces_mut.range_end = match traces_mut.range_end {
+                                Some(current_value) => Some(cmp::min(current_value, end)),
+                                None => Some(end),
+                            };
+                        }
                     }
                 }
             }
