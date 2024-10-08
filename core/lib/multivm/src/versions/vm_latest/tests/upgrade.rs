@@ -305,8 +305,8 @@ fn get_complex_upgrade_tx(
     address2: Address,
     bytecode_hash: H256,
 ) -> Transaction {
-    let impl_contract = &TestContract::complex_upgrade().abi;
-    let impl_function = impl_contract.function("someComplexUpgrade").unwrap();
+    let impl_contract = TestContract::complex_upgrade();
+    let impl_function = impl_contract.function("someComplexUpgrade");
     let impl_calldata = impl_function
         .encode_input(&[
             Token::Address(address1),

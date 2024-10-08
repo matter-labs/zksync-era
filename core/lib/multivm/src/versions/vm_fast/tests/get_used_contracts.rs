@@ -150,10 +150,7 @@ fn execute_proxy_counter(gas: u32) -> (VmTester<()>, ProxyCounterData, VmExecuti
         "{decommitted_hashes:?}"
     );
 
-    let increment = TestContract::proxy_counter()
-        .abi
-        .function("increment")
-        .unwrap();
+    let increment = TestContract::proxy_counter().function("increment");
     let increment_tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(deploy_tx.address),
@@ -199,10 +196,7 @@ fn get_used_contracts_with_out_of_gas_far_call() {
 
     // Execute another transaction with a successful far call and check that it's still charged for decommitment.
     let account = &mut vm.rich_accounts[0];
-    let increment = TestContract::proxy_counter()
-        .abi
-        .function("increment")
-        .unwrap();
+    let increment = TestContract::proxy_counter().function("increment");
     let increment_tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(data.proxy_counter_address),

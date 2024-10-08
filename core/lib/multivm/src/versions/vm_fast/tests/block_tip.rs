@@ -40,7 +40,7 @@ struct MimicCallInfo {
 
 const CALLS_PER_TX: usize = 1_000;
 fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<Vec<u8>> {
-    let complex_upgrade = &TestContract::complex_upgrade().abi;
+    let complex_upgrade = TestContract::complex_upgrade();
     let l1_messenger = load_sys_contract("L1Messenger");
 
     let logs_mimic_calls = (0..data.l2_to_l1_logs).map(|_| MimicCallInfo {
@@ -90,7 +90,6 @@ fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<Vec<u8>> {
         .map(|chunk| {
             complex_upgrade
                 .function("mimicCalls")
-                .unwrap()
                 .encode_input(&[Token::Array(chunk.collect_vec())])
                 .unwrap()
         })

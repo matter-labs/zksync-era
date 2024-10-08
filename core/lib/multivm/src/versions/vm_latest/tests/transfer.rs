@@ -21,24 +21,22 @@ enum TestOptions {
 }
 
 fn test_send_or_transfer(test_option: TestOptions) {
-    let test_abi = &TestContract::transfer_test().abi;
+    let test_contract = TestContract::transfer_test();
     let test_contract_address = Address::random();
     let recipient_address = Address::random();
 
     let (value, calldata) = match test_option {
         TestOptions::Send(value) => (
             value,
-            test_abi
+            test_contract
                 .function("send")
-                .unwrap()
                 .encode_input(&[Token::Address(recipient_address), Token::Uint(value)])
                 .unwrap(),
         ),
         TestOptions::Transfer(value) => (
             value,
-            test_abi
+            test_contract
                 .function("transfer")
-                .unwrap()
                 .encode_input(&[Token::Address(recipient_address), Token::Uint(value)])
                 .unwrap(),
         ),
@@ -108,17 +106,16 @@ fn test_send_and_transfer() {
 }
 
 fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
-    let test_abi = &TestContract::transfer_test().abi;
-    let reentrant_recipient_abi = &TestContract::reentrant_recipient().abi;
+    let test_contract = TestContract::transfer_test();
+    let reentrant_recipient_contract = TestContract::reentrant_recipient();
     let test_contract_address = Address::random();
     let reentrant_recipeint_address = Address::random();
 
     let (value, calldata) = match test_option {
         TestOptions::Send(value) => (
             value,
-            test_abi
+            test_contract
                 .function("send")
-                .unwrap()
                 .encode_input(&[
                     Token::Address(reentrant_recipeint_address),
                     Token::Uint(value),
@@ -127,9 +124,8 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
         ),
         TestOptions::Transfer(value) => (
             value,
-            test_abi
+            test_contract
                 .function("transfer")
-                .unwrap()
                 .encode_input(&[
                     Token::Address(reentrant_recipeint_address),
                     Token::Uint(value),
@@ -162,9 +158,8 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
     let tx1 = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(reentrant_recipeint_address),
-            calldata: reentrant_recipient_abi
+            calldata: reentrant_recipient_contract
                 .function("setX")
-                .unwrap()
                 .encode_input(&[])
                 .unwrap(),
             value: U256::from(1),

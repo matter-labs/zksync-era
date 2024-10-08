@@ -24,10 +24,7 @@ fn test_tracing_of_execution_errors() {
         .build();
 
     let account = &mut vm.rich_accounts[0];
-    let require_fn = TestContract::reverts_test()
-        .abi
-        .function("require_short")
-        .unwrap();
+    let require_fn = TestContract::reverts_test().function("require_short");
     let tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(contract_address),

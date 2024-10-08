@@ -63,10 +63,7 @@ fn test_require_eip712() {
 
     // First, let's set the owners of the AA account to the `private_address`.
     // (so that messages signed by `private_address`, are authorized to act on behalf of the AA account).
-    let set_owners_function = TestContract::many_owners()
-        .abi
-        .function("setOwners")
-        .unwrap();
+    let set_owners_function = TestContract::many_owners().function("setOwners");
     let encoded_input = set_owners_function
         .encode_input(&[Token::Array(vec![Token::Address(private_account.address)])])
         .unwrap();

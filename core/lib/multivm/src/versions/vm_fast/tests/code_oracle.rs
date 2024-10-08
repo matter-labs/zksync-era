@@ -47,8 +47,8 @@ fn test_code_oracle() {
         .with_storage(storage)
         .build();
 
-    let precompile_contract = &TestContract::precompiles_test().abi;
-    let call_code_oracle_function = precompile_contract.function("callCodeOracle").unwrap();
+    let precompile_contract = TestContract::precompiles_test();
+    let call_code_oracle_function = precompile_contract.function("callCodeOracle");
 
     vm.vm.insert_bytecodes([normal_zkevm_bytecode.as_slice()]);
     let account = &mut vm.rich_accounts[0];
@@ -139,8 +139,8 @@ fn test_code_oracle_big_bytecode() {
         .with_storage(storage)
         .build();
 
-    let precompile_contract = &TestContract::precompiles_test().abi;
-    let call_code_oracle_function = precompile_contract.function("callCodeOracle").unwrap();
+    let precompile_contract = TestContract::precompiles_test();
+    let call_code_oracle_function = precompile_contract.function("callCodeOracle");
 
     vm.vm.insert_bytecodes([big_zkevm_bytecode.as_slice()]);
 
@@ -183,8 +183,8 @@ fn refunds_in_code_oracle() {
         u256_to_h256(U256::one()),
     );
 
-    let precompile_contract = &TestContract::precompiles_test().abi;
-    let call_code_oracle_function = precompile_contract.function("callCodeOracle").unwrap();
+    let precompile_contract = TestContract::precompiles_test();
+    let call_code_oracle_function = precompile_contract.function("callCodeOracle");
 
     // Execute code oracle twice with identical VM state that only differs in that the queried bytecode
     // is already decommitted the second time. The second call must consume less gas (`decommit` doesn't charge additional gas

@@ -168,9 +168,9 @@ fn test_predetermined_refunded_gas() {
 #[test]
 fn negative_pubdata_for_transaction() {
     let expensive_contract_address = Address::random();
-    let expensive_contract = &TestContract::expensive().abi;
-    let expensive_function = expensive_contract.function("expensive").unwrap();
-    let cleanup_function = expensive_contract.function("cleanUp").unwrap();
+    let expensive_contract = TestContract::expensive();
+    let expensive_function = expensive_contract.function("expensive");
+    let cleanup_function = expensive_contract.function("cleanUp");
 
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()

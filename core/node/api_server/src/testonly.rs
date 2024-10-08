@@ -114,7 +114,7 @@ impl StateBuilder {
     pub fn with_precompiles_contract(self) -> Self {
         self.with_contract(
             Self::PRECOMPILES_CONTRACT_ADDRESS,
-            TestContract::precompiles().bytecode.clone(),
+            TestContract::precompiles_test().bytecode.clone(),
         )
     }
 
@@ -371,9 +371,7 @@ impl TestAccount for K256PrivateKey {
 
     fn create_expensive_tx(&self, write_count: usize) -> L2Tx {
         let calldata = TestContract::expensive()
-            .abi
             .function("expensive")
-            .expect("no `expensive` function in contract")
             .encode_input(&[Token::Uint(write_count.into())])
             .expect("failed encoding `expensive` function");
         L2Tx::new_signed(
@@ -392,9 +390,7 @@ impl TestAccount for K256PrivateKey {
 
     fn create_expensive_cleanup_tx(&self) -> L2Tx {
         let calldata = TestContract::expensive()
-            .abi
             .function("cleanUp")
-            .expect("no `cleanUp` function in contract")
             .encode_input(&[])
             .expect("failed encoding `cleanUp` input");
         L2Tx::new_signed(
@@ -413,9 +409,7 @@ impl TestAccount for K256PrivateKey {
 
     fn create_code_oracle_tx(&self, bytecode_hash: H256, expected_keccak_hash: H256) -> L2Tx {
         let calldata = TestContract::precompiles_test()
-            .abi
             .function("callCodeOracle")
-            .expect("no `callCodeOracle` function")
             .encode_input(&[
                 Token::FixedBytes(bytecode_hash.0.to_vec()),
                 Token::FixedBytes(expected_keccak_hash.0.to_vec()),
@@ -437,9 +431,7 @@ impl TestAccount for K256PrivateKey {
 
     fn create_counter_tx(&self, increment: U256, revert: bool) -> L2Tx {
         let calldata = TestContract::counter()
-            .abi
             .function("incrementWithRevert")
-            .expect("no `incrementWithRevert` function")
             .encode_input(&[Token::Uint(increment), Token::Bool(revert)])
             .expect("failed encoding `incrementWithRevert` input");
         L2Tx::new_signed(
@@ -458,9 +450,7 @@ impl TestAccount for K256PrivateKey {
 
     fn query_counter_value(&self) -> CallRequest {
         let calldata = TestContract::counter()
-            .abi
             .function("get")
-            .expect("no `get` function")
             .encode_input(&[])
             .expect("failed encoding `get` input");
         CallRequest {
@@ -473,9 +463,7 @@ impl TestAccount for K256PrivateKey {
 
     fn create_infinite_loop_tx(&self) -> L2Tx {
         let calldata = TestContract::infinite_loop()
-            .abi
             .function("infiniteLoop")
-            .expect("no `infiniteLoop` function")
             .encode_input(&[])
             .expect("failed encoding `infiniteLoop` input");
         L2Tx::new_signed(

@@ -467,10 +467,7 @@ impl AccountExt for Account {
     }
 
     fn test_transient_store(&mut self, address: Address) -> Transaction {
-        let test_fn = TestContract::storage_test()
-            .abi
-            .function("testTransientStore")
-            .unwrap();
+        let test_fn = TestContract::storage_test().function("testTransientStore");
         let calldata = test_fn.encode_input(&[]).unwrap();
         self.get_l2_tx_for_execute(
             Execute {
@@ -484,10 +481,7 @@ impl AccountExt for Account {
     }
 
     fn assert_transient_value(&mut self, address: Address, expected: U256) -> Transaction {
-        let assert_fn = TestContract::storage_test()
-            .abi
-            .function("assertTValue")
-            .unwrap();
+        let assert_fn = TestContract::storage_test().function("assertTValue");
         let calldata = assert_fn.encode_input(&[Token::Uint(expected)]).unwrap();
         self.get_l2_tx_for_execute(
             Execute {
@@ -510,10 +504,7 @@ impl AccountExt for Account {
         bytecode_hash: H256,
         expected_keccak_hash: H256,
     ) -> Transaction {
-        let assert_fn = TestContract::precompiles_test()
-            .abi
-            .function("callCodeOracle")
-            .unwrap();
+        let assert_fn = TestContract::precompiles_test().function("callCodeOracle");
         let calldata = assert_fn.encode_input(&[
             Token::FixedBytes(bytecode_hash.0.to_vec()),
             Token::FixedBytes(expected_keccak_hash.0.to_vec()),
@@ -531,7 +522,7 @@ impl AccountExt for Account {
 }
 
 pub fn mock_loadnext_gas_burn_calldata(gas: u32) -> Vec<u8> {
-    let contract_function = TestContract::load_test().abi.function("burnGas").unwrap();
+    let contract_function = TestContract::load_test().function("burnGas");
     let params = vec![Token::Uint(U256::from(gas))];
     contract_function
         .encode_input(&params)

@@ -224,6 +224,13 @@ impl TestContract {
         execute.factory_deps.extend(self.factory_deps());
         execute
     }
+
+    /// Shortcut for accessing a function that panics if a function doesn't exist.
+    pub fn function(&self, name: &str) -> &ethabi::Function {
+        self.abi
+            .function(name)
+            .unwrap_or_else(|err| panic!("cannot access function `{name}`: {err}"))
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

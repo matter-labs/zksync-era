@@ -204,10 +204,7 @@ fn execute_proxy_counter(gas: u32) -> (VmTester<HistoryDisabled>, U256, VmExecut
         "{decommitted_hashes:?}"
     );
 
-    let increment = TestContract::proxy_counter()
-        .abi
-        .function("increment")
-        .unwrap();
+    let increment = TestContract::proxy_counter().function("increment");
     let increment_tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(deploy_tx.address),
