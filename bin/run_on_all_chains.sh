@@ -1,5 +1,10 @@
 #! /bin/bash
 
+# Colors for the terminal output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
 # Disable immediate exit on non-zero status
 set +e
 
@@ -28,9 +33,9 @@ overall_status=0
 for i in "${!statuses[@]}"; do
     if [ ${statuses[$i]} -ne 0 ]; then
         overall_status=1
-        echo "Chain ${chains[$i]} failed with status ${statuses[$i]}"
+        echo -e "${RED}✗ Chain ${chains[$i]}: ERROR (Status ${statuses[$i]})${NC}"
     else
-        echo "Chain ${chains[$i]} succeeded"
+        echo -e "${GREEN}✓ Chain ${chains[$i]}: SUCCESS${NC}"
     fi
 done
 
