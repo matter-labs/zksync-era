@@ -18,7 +18,7 @@ if which zkstack >/dev/null; then
   fi
 else
   if which zk_supervisor >/dev/null; then
-    echo -e "${RED}WARNING: zk_inception, zk_supervisor, and their aliases zki and zks are DEPRECATED.${NC}"
+    echo -e "${RED}WARNING: zkup, zk_inception/zki, and zk_supervisor/zks are DEPRECATED.${NC}"
     echo -e "${RED}${INSTALL_PROPT}${NC}"
 
     if ! zk_supervisor fmt --check; then
