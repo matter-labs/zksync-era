@@ -220,8 +220,9 @@ describe('Upgrade test', function () {
     });
 
     step('Send l1 tx for saving new bootloader', async () => {
-        const path = `${pathToHome}/contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin`;
+        const path = `${pathToHome}/contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul/playground_batch.yul.zbin`;
         const bootloaderCode = ethers.hexlify(fs.readFileSync(path));
+        
         bootloaderHash = ethers.hexlify(zksync.utils.hashBytecode(bootloaderCode));
         const txHandle = await tester.syncWallet.requestExecute({
             contractAddress: ethers.ZeroAddress,
