@@ -67,6 +67,15 @@ jobs:
 
           ci_run zk_inception ecosystem init --dev --verbose
           ci_run zk_inception prover init --dev --verbose
+      - name: Build prover binaries
+        run: |
+          ci_run cd $ZKSYNC_HOME/prover
+          ci_run cargo build --release --workspace
+          ci_run cargo install --path crates/bin/prover_cli --force
+      - name: Prepare prover subsystem
+        run: |
+          ci_run cd $ZKSYNC_HOME
+          
           ci_run zk_inception prover init-bellman-cuda --clone --verbose
           ci_run zk_inception prover setup-keys --mode=download --region=us --verbose
           ci_run zk_supervisor prover insert-version --default --verbose

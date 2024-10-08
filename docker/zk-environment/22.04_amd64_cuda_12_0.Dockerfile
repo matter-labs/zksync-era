@@ -81,9 +81,6 @@ RUN rustup default stable
 RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install cargo-nextest
 
-# Install prover CLI
-RUN cargo +nightly-2024-08-01 install --git https://github.com/matter-labs/zksync-era/ --locked prover_cli --force
-
 RUN git clone https://github.com/matter-labs/foundry-zksync
 RUN cd foundry-zksync && cargo build --release --bins
 RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
