@@ -4,7 +4,7 @@
 
 Changes needed both for local and mainnet/testnet setup.
 
-1. Add `da_client` to general config:
+1. Add `da_client` to `etc/env/file_based/general.yaml`:
 
 ```yaml
 da_client:
@@ -22,7 +22,7 @@ eigenda-proxy:
   command: ./eigenda-proxy --addr 0.0.0.0 --port 4242 --memstore.enabled --eigenda-max-blob-length "2MiB"
 ```
 
-3. (optional) for using pubdata with 2MiB (as per specification), modify general config:
+3. (optional) for using pubdata with 2MiB (as per specification), modify `etc/env/file_based/general.yaml`:
 
 ```yaml
 max_pubdata_per_batch: 2097152
