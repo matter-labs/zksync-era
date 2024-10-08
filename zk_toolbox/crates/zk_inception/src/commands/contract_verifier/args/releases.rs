@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use common::{cmd::Cmd, logger, spinner::Spinner};
+use common::{cmd::Cmd, spinner::Spinner};
 use serde::Deserialize;
 use xshell::{cmd, Shell};
 
@@ -85,7 +85,6 @@ fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Ver
     );
 
     if let Ok(token) = shell.var("GITHUB_TOKEN") {
-        logger::info("Using GitHub token for authentication");
         cmd = cmd.args(vec![
             "-H".to_string(),
             format!("Authorization: Bearer {}", token),
