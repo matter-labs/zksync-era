@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use common::{cmd::Cmd, spinner::Spinner};
+use common::{cmd::Cmd, logger, spinner::Spinner};
 use serde::Deserialize;
 use xshell::{cmd, Shell};
 
