@@ -11,7 +11,6 @@ use crate::{
         BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
         FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics,
     },
     vm_latest::HistoryEnabled,
     vm_virtual_blocks::{
@@ -119,10 +118,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
                 result,
             )
         }
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        self.record_vm_memory_metrics_inner()
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
