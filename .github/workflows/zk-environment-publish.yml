@@ -57,7 +57,7 @@ jobs:
 
   get_short_sha:
     if: ${{ (needs.changed_files.outputs.zk_environment == 'true') || (github.event_name == 'workflow_dispatch') }}
-    needs: [ changed_files ]
+    needs: [changed_files]
     runs-on: ubuntu-latest
     outputs:
       short_sha: ${{ steps.set_short_sha.outputs.short_sha }}
@@ -76,7 +76,7 @@ jobs:
     permissions:
       packages: write
       contents: read
-    needs: [ changed_files, get_short_sha ]
+    needs: [changed_files, get_short_sha]
     name: Build and optionally push zk-environment Docker images to Docker Hub
     strategy:
       fail-fast: false
@@ -134,9 +134,9 @@ jobs:
     permissions:
       packages: write
       contents: read
-    needs: [ changed_files, get_short_sha, zk_environment ]
+    needs: [changed_files, get_short_sha, zk_environment]
     # TODO: After migraton switch to CI
-    runs-on: [ matterlabs-default-infra-runners ]
+    runs-on: [matterlabs-default-infra-runners]
     steps:
       - name: Login to DockerHub
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
@@ -195,10 +195,10 @@ jobs:
       packages: write
       contents: read
     needs: changed_files
-    runs-on: [ matterlabs-ci-runner-high-performance ]
+    runs-on: [matterlabs-ci-runner-high-performance]
     strategy:
       matrix:
-        cuda_version: [ '11_8', '12_0' ]
+        cuda_version: ['11_8', '12_0']
     steps:
       - name: Evaluate condition
         id: condition
