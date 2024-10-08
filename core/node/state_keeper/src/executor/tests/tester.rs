@@ -373,7 +373,7 @@ impl AccountExt for Account {
         )
     }
     fn l1_execute(&mut self, serial_id: PriorityOpId) -> Transaction {
-        testonly::l1_transaction(self, serial_id)
+        self.get_l1_tx(Execute::transfer(Address::random(), 0.into()), serial_id.0)
     }
 
     /// Returns a valid `execute` transaction.
@@ -433,7 +433,10 @@ impl AccountExt for Account {
     /// Returns a valid `execute` transaction.
     /// Automatically increments nonce of the account.
     fn execute_with_gas_limit(&mut self, gas_limit: u32) -> Transaction {
-        testonly::l2_transaction(self, gas_limit)
+        self.get_l2_tx_for_execute(
+            Execute::transfer(Address::random(), 0.into()),
+            Some(testonly::fee(gas_limit)),
+        )
     }
 
     /// Returns a transaction to the loadnext contract with custom gas limit and expected burned gas amount.
