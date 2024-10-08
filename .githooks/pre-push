@@ -6,14 +6,28 @@
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
+# Prompt to install zkstack
+INSTALL_PROPT="Please install ZK Stack CLI using zkstackup from https://github.com/matter-labs/zksync-era/tree/main/zkstack_cli/zkstackup, and then run ./bin/zkt from the zksync-era repository."
+
 # Check that prettier formatting rules are not violated.
 if which zkstack >/dev/null; then
   if ! zkstack dev fmt --check; then
       echo -e "${RED}Push error!${NC}"
-      echo "Please format the code via 'zki dev fmt', cannot push unformatted code"
+      echo "Please format the code via 'zkstack dev fmt', cannot push unformatted code"
       exit 1
   fi
 else
-  echo "Please install ZK Stack CLI using zkstackup from https://github.com/matter-labs/zksync-era/tree/main/zkstack_cli/zkstackup, and then run ./bin/zkt from the zksync-era repository."
-  exit 1
+  if which zk_supervisor >/dev/null; then
+    echo -e "${RED}WARNING: zk_inception, zk_supervisor, and their aliases zki and zks are DEPRECATED.${NC}"
+    echo -e "${RED}${INSTALL_PROPT}${NC}"
+
+    if ! zk_supervisor fmt --check; then
+      echo -e "${RED}Push error!${NC}"
+      echo "Please format the code via 'zkstack dev fmt', cannot push unformatted code"
+      exit 1
+    fi
+  else
+    echo -e "${INSTALL_PROPT}"
+    exit 1
+  fi
 fi
