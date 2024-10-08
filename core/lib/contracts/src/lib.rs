@@ -7,6 +7,7 @@
 use std::{
     fs::{self, File},
     io::BufReader,
+    num::ParseIntError,
     path::{Path, PathBuf},
 };
 
@@ -259,19 +260,21 @@ impl SystemContractsRepo {
                 "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
                 directory, name
             ))),
-            ContractLanguage::Yul => read_zbin_bytecode_from_path(self.root.join(format!(
-                "contracts-preprocessed/{0}artifacts/{1}.yul.zbin",
-                directory, name
-            ))),
+            ContractLanguage::Yul => {
+                let artifacts_path =
+                    Path::new(&format!("contracts-preprocessed/{}artifacts/", directory))
+                        .to_path_buf();
+                read_yul_bytecode(artifacts_path, name)
+            }
         }
     }
 }
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
-    read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/build/artifacts/{}.yul.zbin",
-        bootloader_type
-    ))
+    let artifacts_path =
+        Path::new("contracts/system-contracts/bootloader/build/artifacts/").to_path_buf();
+
+    read_yul_bytecode(artifacts_path, bootloader_type)
 }
 
 fn read_proved_batch_bootloader_bytecode() -> Vec<u8> {
@@ -288,10 +291,48 @@ pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
     read_zbin_bytecode_from_path(bytecode_path)
 }
 
+pub fn read_yul_bytecode(artifacts_path: PathBuf, name: &str) -> Vec<u8> {
+    let bytecode_path = artifacts_path.join(format!("{0}.yul/{0}.yul.zbin", name));
+
+    if fs::exists(&bytecode_path).expect(&format!("Invalid path: {:?}", &bytecode_path)) {
+        read_zbin_bytecode_from_path_utf8(bytecode_path)
+    } else {
+        let bytecode_path_legacy = artifacts_path.join(format!("{}.yul.zbin", name));
+        if fs::exists(&bytecode_path_legacy)
+            .expect(&format!("Invalid path: {:?}", &bytecode_path_legacy))
+        {
+            read_zbin_bytecode_from_path(bytecode_path_legacy)
+        } else {
+            panic!(
+                "Can't find bytecode for '{}' yul contract at {:?}",
+                name, artifacts_path
+            )
+        }
+    }
+}
+
 /// Reads zbin bytecode from a given path.
 fn read_zbin_bytecode_from_path(bytecode_path: PathBuf) -> Vec<u8> {
     fs::read(&bytecode_path)
         .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err))
+}
+
+fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
+        .collect()
+}
+
+/// Reads zbin bytecode from a given path as utf8 text file.
+fn read_zbin_bytecode_from_path_utf8(bytecode_path: PathBuf) -> Vec<u8> {
+    let buffer = fs::read(&bytecode_path)
+        .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err));
+
+    decode_hex(
+        &String::from_utf8(buffer).expect(&format!("Invalid input file: {:?}", bytecode_path)),
+    )
+    .expect("Invalid hex")
 }
 /// Hash of code and code which consists of 32 bytes words
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use once_cell::sync::Lazy;
 use zk_evm_1_3_3::{
     aux_structures::{LogQuery, MemoryPage, Timestamp},
@@ -5,7 +7,7 @@ use zk_evm_1_3_3::{
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::FatPointer,
 };
-use zksync_contracts::{read_zbin_bytecode, BaseSystemContracts};
+use zksync_contracts::{read_yul_bytecode, BaseSystemContracts};
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{Address, StorageLogKind, H160, MAX_L2_TX_GAS_LIMIT, U256};
 use zksync_utils::h256_to_u256;
@@ -222,10 +224,10 @@ pub fn create_test_block_params() -> (BlockContext, BlockProperties) {
 }
 
 pub fn read_bootloader_test_code(test: &str) -> Vec<u8> {
-    read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/tests/artifacts/{}.yul.zbin",
-        test
-    ))
+    let artifacts_path =
+        Path::new("contracts/system-contracts/bootloader/tests/artifacts/").to_path_buf();
+
+    read_yul_bytecode(artifacts_path, test)
 }
 
 pub(crate) fn calculate_computational_gas_used<
