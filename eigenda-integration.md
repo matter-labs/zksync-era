@@ -18,7 +18,7 @@ da_client:
 eigenda-proxy:
   image: ghcr.io/layr-labs/eigenda-proxy
   ports:
-    - "4242:4242"
+    - '4242:4242'
   command: ./eigenda-proxy --addr 0.0.0.0 --port 4242 --memstore.enabled --eigenda-max-blob-length "2MiB"
 ```
 
