@@ -61,8 +61,6 @@ zk_inception ecosystem init \
           --l1-rpc-url http://127.0.0.1:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_eigen_da \
-          --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --prover-db-name=zksync_prover_localhost_eigen_da \
           --chain eigen_da \
           --verbose
 ```
