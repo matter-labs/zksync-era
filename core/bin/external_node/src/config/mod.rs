@@ -1439,6 +1439,7 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
             chain_id: config.required.l2_chain_id,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
+            timestamp_asserter_addr: None,
         }
     }
 }

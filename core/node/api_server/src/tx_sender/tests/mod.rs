@@ -154,7 +154,7 @@ async fn create_real_tx_sender(pool: ConnectionPool<Core>) -> TxSender {
     .unwrap();
 
     let pg_caches = PostgresStorageCaches::new(1, 1);
-    let tx_executor = SandboxExecutor::real(executor_options, pg_caches, usize::MAX);
+    let tx_executor = SandboxExecutor::real(executor_options, pg_caches, usize::MAX, None);
     create_test_tx_sender(pool, genesis_params.config().l2_chain_id, tx_executor)
         .await
         .0

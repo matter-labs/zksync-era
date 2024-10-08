@@ -11,7 +11,9 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
 use zksync_multivm::{
-    interface::{TransactionExecutionMetrics, TransactionExecutionResult},
+    interface::{
+        tracer::ValidationTraces, TransactionExecutionMetrics, TransactionExecutionResult,
+    },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 use zksync_node_fee_model::{
@@ -175,7 +177,11 @@ impl Tester {
         let tx = create_l2_transaction(10, 100);
         storage
             .transactions_dal()
-            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         storage
