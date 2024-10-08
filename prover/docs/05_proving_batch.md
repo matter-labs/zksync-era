@@ -87,38 +87,41 @@ After you have the data, you need to prepare the system to run the batch. So, da
 the protocol version it should use. You can do that with running
 
 ```shell
-zk_supervisor prover-version
+zk_supervisor prover info
 ```
 
 Example output:
 
 ```shell
-Current protocol version found in zksync-era: 0.24.2, snark_wrapper: "0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2"
+Current prover setup information: 
+
+Protocol version: 0.24.2 
+
+Snark wrapper: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2 
+
+Database URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_prover
 ```
 
 This command will provide you with the information about the semantic protocol version(you need to know only minor and
 patch versions) and snark wrapper value. In the example, `MINOR_VERSION` is 24, `PATCH_VERSION` is 2, and
 `SNARK_WRAPPER` is `0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2`.
 
-Now, with the use of `prover_cli` tool, you can insert the data about the batch and protocol version into the database:
-
-First, get the database URL(you can find it in `<ecosystem_dir>/chains/<chain_name>/configs/secrets.yaml` - it is the
-`prover_url` value) Now, insert the information about protocol version in the database:
+Now, with the use of `prover_cli` tool, you can insert the data about protocol version into the database (use URL that you got from the previous command):
 
 ```shell
 prover_cli <DATABASE_URL> insert-version --version=<MINOR_VERSION> --patch=<PATCH_VERSION> --snark-wrapper=<SNARK_WRAPPER>
 ```
 
-And finally, provide the data about the batch:
+And finally, insert the data about the batch:
 
 ```shell
 prover_cli <DATABASE_URL> insert-batch --number=<BATCH_NUMBER> --version=<MINOR_VERSION> --patch=<PATCH_VERSION>
 ```
 
-Also, provers need to know which setup keys they should use. It may take some time, but you can generate them with:
+Also, provers need to know which setup keys they should use. You can download or generate (may take some time) them with:
 
 ```shell
-zk_inception prover generate-sk
+zk_inception prover setup-keys
 ```
 
 ## Running prover subsystem
