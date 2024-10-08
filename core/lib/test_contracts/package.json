@@ -5,7 +5,8 @@
   "license": "MIT OR Apache-2.0",
   "dependencies": {
     "@openzeppelin/contracts": "^4.8.0",
-    "hardhat": "=2.22.2"
+    "hardhat": "=2.22.2",
+    "typescript": "^4.3.5"
   },
   "devDependencies": {
     "@matterlabs/hardhat-zksync-solc": "^0.3.15"
