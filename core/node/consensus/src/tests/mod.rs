@@ -97,7 +97,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
     let account = &mut Account::random();
 
     // Fill storage with unsigned L2 blocks.
-    // Fetch a suffix of blocks that we will generate (fake) certs for.
+    // Fetch a suffix of blocks that we will generate certs for.
     let want = scope::run!(ctx, |ctx, s| async {
         // Start state keeper.
         let (mut sk, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
@@ -105,7 +105,8 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
         sk.push_random_blocks(rng, account, 10).await;
         pool.wait_for_payload(ctx, sk.last_block()).await?;
         let mut setup = SetupSpec::new(rng, 3);
-        setup.first_block = validator::BlockNumber(4);
+        setup.first_block = validator::BlockNumber(0);
+        setup.first_pregenesis_block = setup.first_block;
         let mut setup = Setup::from_spec(rng, setup);
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
         conn.try_update_global_config(
