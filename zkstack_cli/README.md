@@ -354,7 +354,7 @@ Possible commands:
 Create a snapshot of the current chain:
 
 ```bash
-zks snapshot create
+zkstack dev snapshot create
 ```
 
 ### Contracts
@@ -362,7 +362,7 @@ zks snapshot create
 Build contracts:
 
 ```bash
-zks contracts
+zkstack dev contracts
 ```
 
 ### Format
@@ -370,7 +370,7 @@ zks contracts
 Format code:
 
 ```bash
-zks fmt
+zkstack dev fmt
 ```
 
 By default, this command runs all formatters. To run a specific fomatter use the following subcommands:
@@ -384,7 +384,7 @@ By default, this command runs all formatters. To run a specific fomatter use the
 Lint code:
 
 ```bash
-zks lint
+zkstack dev lint
 ```
 
 By default, this command runs the linter on all files. To target specific file types, use the `--target` option.
