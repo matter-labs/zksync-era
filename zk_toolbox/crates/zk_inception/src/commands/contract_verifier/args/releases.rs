@@ -81,7 +81,7 @@ fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Ver
 
     let mut cmd = cmd!(
         shell,
-        "curl -s https://api.github.com/repos/{repo}/releases"
+        "curl -f https://api.github.com/repos/{repo}/releases"
     );
 
     if let Ok(token) = shell.var("GITHUB_TOKEN") {
