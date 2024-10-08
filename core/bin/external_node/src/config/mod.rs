@@ -445,6 +445,8 @@ pub(crate) struct OptionalENConfig {
     /// Gateway RPC URL, needed for operating during migration.
     #[allow(dead_code)]
     pub gateway_url: Option<SensitiveUrl>,
+    /// Interval for bridge addresses refreshing in seconds.
+    bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
 }
 
 impl OptionalENConfig {
@@ -675,6 +677,7 @@ impl OptionalENConfig {
             api_namespaces,
             contracts_diamond_proxy_addr: None,
             gateway_url: enconfig.gateway_url.clone(),
+            bridge_addresses_refresh_interval_sec: enconfig.bridge_addresses_refresh_interval_sec,
         })
     }
 
@@ -899,6 +902,11 @@ impl OptionalENConfig {
 
     pub fn pruning_data_retention(&self) -> Duration {
         Duration::from_secs(self.pruning_data_retention_sec)
+    }
+
+    pub fn bridge_addresses_refresh_interval(&self) -> Option<Duration> {
+        self.bridge_addresses_refresh_interval_sec
+            .map(|n| Duration::from_secs(n.get()))
     }
 
     #[cfg(test)]
