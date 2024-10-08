@@ -1,5 +1,30 @@
 # Changelog
 
+## [24.28.0](https://github.com/matter-labs/zksync-era/compare/core-v24.27.0...core-v24.28.0) (2024-10-02)
+
+
+### Features
+
+* **da-clients:** add secrets ([#2954](https://github.com/matter-labs/zksync-era/issues/2954)) ([f4631e4](https://github.com/matter-labs/zksync-era/commit/f4631e4466de620cc1401b326d864cdb8b48a05d))
+* **eth-sender:** add a cap to time_in_mempool ([#2978](https://github.com/matter-labs/zksync-era/issues/2978)) ([650d42f](https://github.com/matter-labs/zksync-era/commit/650d42fea6124d80b60a8270a303d72ad6ac741e))
+* **eth-watch:** redesign to support multiple chains ([#2867](https://github.com/matter-labs/zksync-era/issues/2867)) ([aa72d84](https://github.com/matter-labs/zksync-era/commit/aa72d849c24a664acd083eba73795ddc5d31d55f))
+* Expose http debug page ([#2952](https://github.com/matter-labs/zksync-era/issues/2952)) ([e0b6488](https://github.com/matter-labs/zksync-era/commit/e0b64888aae7324aec2d40fa0cd51ea7e1450cd9))
+* **zk_toolbox:** add fees integration test to toolbox ([#2898](https://github.com/matter-labs/zksync-era/issues/2898)) ([e7ead76](https://github.com/matter-labs/zksync-era/commit/e7ead760ce0417dd36af3839ac557f7e9ab238a4))
+* **zk_toolbox:** Add SQL format for zk supervisor ([#2950](https://github.com/matter-labs/zksync-era/issues/2950)) ([540e5d7](https://github.com/matter-labs/zksync-era/commit/540e5d7554f54e80d52f1bfae37e03ca8f787baf))
+
+
+### Bug Fixes
+
+* **api:** Fix batch fee input for `debug` namespace ([#2948](https://github.com/matter-labs/zksync-era/issues/2948)) ([79b6fcf](https://github.com/matter-labs/zksync-era/commit/79b6fcf8b5d10a0ccdceb846370dd6870b6a32b5))
+* chainstack block limit exceeded ([#2974](https://github.com/matter-labs/zksync-era/issues/2974)) ([4ffbf42](https://github.com/matter-labs/zksync-era/commit/4ffbf426de166c11aaf5d7b5ed7d199644fba229))
+* **eth-watch:** add missing check that from_block is not larger than finalized_block ([#2969](https://github.com/matter-labs/zksync-era/issues/2969)) ([3f406c7](https://github.com/matter-labs/zksync-era/commit/3f406c7d0c0e76d798c2d838abde57ca692822c0))
+* ignore unknown fields in rpc json response ([#2962](https://github.com/matter-labs/zksync-era/issues/2962)) ([692ea73](https://github.com/matter-labs/zksync-era/commit/692ea73f75a5fb9db2b4ac33ad24d20568638742))
+
+
+### Performance Improvements
+
+* **api:** More efficient gas estimation ([#2937](https://github.com/matter-labs/zksync-era/issues/2937)) ([3b69e37](https://github.com/matter-labs/zksync-era/commit/3b69e37e470dab859a55787f6cc971e7083de2fd))
+
 ## [24.27.0](https://github.com/matter-labs/zksync-era/compare/core-v24.26.0...core-v24.27.0) (2024-09-25)
 
 
