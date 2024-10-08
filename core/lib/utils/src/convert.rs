@@ -1,4 +1,4 @@
-use std::convert::TryInto;
+use std::{convert::TryInto, num::ParseIntError};
 
 use bigdecimal::BigDecimal;
 use num::BigUint;
@@ -77,6 +77,13 @@ pub fn be_words_to_bytes(words: &[U256]) -> Vec<u8> {
             w.to_big_endian(&mut bytes);
             bytes
         })
+        .collect()
+}
+
+pub fn hex_string_to_bytes(s: &str) -> Result<Vec<u8>, ParseIntError> {
+    (0..s.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
         .collect()
 }
 

@@ -7,7 +7,6 @@
 use std::{
     fs::{self, File},
     io::BufReader,
-    num::ParseIntError,
     path::{Path, PathBuf},
 };
 
@@ -17,7 +16,9 @@ use ethabi::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, env::Workspace};
+use zksync_utils::{
+    bytecode::hash_bytecode, bytes_to_be_words, env::Workspace, hex_string_to_bytes,
+};
 
 pub mod test_contracts;
 
@@ -324,19 +325,12 @@ fn read_zbin_bytecode_from_path(bytecode_path: PathBuf) -> Vec<u8> {
         .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err))
 }
 
-fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
-    (0..s.len())
-        .step_by(2)
-        .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
-        .collect()
-}
-
 /// Reads zbin bytecode from a given path as utf8 text file.
 fn read_zbin_bytecode_from_path_utf8(bytecode_path: PathBuf) -> Vec<u8> {
     let buffer = fs::read(&bytecode_path)
         .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err));
 
-    decode_hex(
+    hex_string_to_bytes(
         &String::from_utf8(buffer)
             .unwrap_or_else(|_| panic!("Invalid input file: {:?}", bytecode_path)),
     )
