@@ -79,7 +79,7 @@ fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Ver
         return get_solc_releases(shell, arch);
     }
 
-    let response: std::process::Output = Cmd::new(cmd!(
+    let response = Cmd::new(cmd!(
         shell,
         "curl https://api.github.com/repos/{repo}/releases"
     ))
