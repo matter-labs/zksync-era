@@ -7,10 +7,11 @@ use test_casing::test_casing;
 use zksync_dal::ConnectionPool;
 use zksync_multivm::{interface::ExecutionResult, utils::derive_base_fee_and_gas_per_pubdata};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
+use zksync_node_test_utils::{create_l1_batch, create_l2_block, prepare_recovery_snapshot};
 use zksync_state::PostgresStorageCaches;
 use zksync_types::{
     api::state_override::{OverrideAccount, StateOverride},
+    fee::Fee,
     fee_model::BatchFeeInput,
     K256PrivateKey, ProtocolVersionId, Transaction, U256,
 };
@@ -92,17 +93,6 @@ async fn creating_block_args_after_snapshot_recovery() {
     let snapshot_recovery =
         prepare_recovery_snapshot(&mut storage, L1BatchNumber(23), L2BlockNumber(42), &[]).await;
 
-    let pending_block_args = BlockArgs::pending(&mut storage).await.unwrap();
-    assert_eq!(
-        pending_block_args.block_id,
-        api::BlockId::Number(api::BlockNumber::Pending)
-    );
-    assert_eq!(
-        pending_block_args.resolved_block_number(),
-        snapshot_recovery.l2_block_number + 1
-    );
-    assert!(pending_block_args.is_pending());
-
     let start_info = BlockStartInfo::new(&mut storage, Duration::MAX)
         .await
         .unwrap();
@@ -120,6 +110,35 @@ async fn creating_block_args_after_snapshot_recovery() {
         .await
         .unwrap_err();
     assert_matches!(err, BlockArgsError::Missing);
+
+    // Ensure there is a batch in the storage.
+    let l2_block = create_l2_block(snapshot_recovery.l2_block_number.0 + 1);
+    storage
+        .blocks_dal()
+        .insert_l2_block(&l2_block)
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .insert_mock_l1_batch(&create_l1_batch(snapshot_recovery.l1_batch_number.0 + 1))
+        .await
+        .unwrap();
+    storage
+        .blocks_dal()
+        .mark_l2_blocks_as_executed_in_l1_batch(snapshot_recovery.l1_batch_number + 1)
+        .await
+        .unwrap();
+
+    let pending_block_args = BlockArgs::pending(&mut storage).await.unwrap();
+    assert_eq!(
+        pending_block_args.block_id,
+        api::BlockId::Number(api::BlockNumber::Pending)
+    );
+    assert_eq!(
+        pending_block_args.resolved_block_number(),
+        snapshot_recovery.l2_block_number + 2
+    );
+    assert!(pending_block_args.is_pending());
 
     let pruned_blocks = [
         api::BlockNumber::Earliest,
@@ -145,13 +164,6 @@ async fn creating_block_args_after_snapshot_recovery() {
             .unwrap_err();
         assert_matches!(err, BlockArgsError::Missing);
     }
-
-    let l2_block = create_l2_block(snapshot_recovery.l2_block_number.0 + 1);
-    storage
-        .blocks_dal()
-        .insert_l2_block(&l2_block)
-        .await
-        .unwrap();
 
     let latest_block_args = BlockArgs::new(&mut storage, latest_block, &start_info)
         .await
@@ -210,11 +222,16 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
     let fee_input = BatchFeeInput::l1_pegged(55, 555);
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
-    let tx = Transaction::from(K256PrivateKey::random().create_transfer(
+    let tx = K256PrivateKey::random().create_transfer_with_fee(
         0.into(),
-        base_fee,
-        gas_per_pubdata,
-    ));
+        Fee {
+            gas_limit: 200_000.into(),
+            max_fee_per_gas: base_fee.into(),
+            max_priority_fee_per_gas: 0.into(),
+            gas_per_pubdata_limit: gas_per_pubdata.into(),
+        },
+    );
+    let tx = Transaction::from(tx);
 
     let (limiter, _) = VmConcurrencyLimiter::new(1);
     let vm_permit = limiter.acquire().await.unwrap();
@@ -253,7 +270,15 @@ async fn validating_transaction(set_balance: bool) {
     let fee_input = BatchFeeInput::l1_pegged(55, 555);
     let (base_fee, gas_per_pubdata) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::latest().into());
-    let tx = K256PrivateKey::random().create_transfer(0.into(), base_fee, gas_per_pubdata);
+    let tx = K256PrivateKey::random().create_transfer_with_fee(
+        0.into(),
+        Fee {
+            gas_limit: 200_000.into(),
+            max_fee_per_gas: base_fee.into(),
+            max_priority_fee_per_gas: 0.into(),
+            gas_per_pubdata_limit: gas_per_pubdata.into(),
+        },
+    );
 
     let (limiter, _) = VmConcurrencyLimiter::new(1);
     let vm_permit = limiter.acquire().await.unwrap();

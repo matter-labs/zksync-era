@@ -15,7 +15,7 @@ use zksync_types::{Transaction, H256};
 
 use crate::{
     storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmMemoryMetrics,
+    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
 };
 
 pub trait VmInterface {
@@ -43,9 +43,6 @@ pub trait VmInterface {
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs);
-
-    /// Record VM memory metrics.
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics;
 
     /// Execute batch till the end and return the result, with final execution state
     /// and bootloader memory.

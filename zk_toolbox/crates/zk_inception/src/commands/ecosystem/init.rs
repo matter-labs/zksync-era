@@ -365,7 +365,7 @@ async fn init_chains(
             genesis_args: genesis_args.clone(),
             deploy_paymaster,
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
-            no_port_reallocation: final_init_args.no_port_reallocation
+            no_port_reallocation: final_init_args.no_port_reallocation,
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 
