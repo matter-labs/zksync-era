@@ -3,5 +3,6 @@ db:
     mode: LIGHTWEIGHT
 experimental_vm:
   state_keeper_fast_vm_mode: NEW
+  api_fast_vm_mode_for_gas_estimation: NEW
 mempool:
   delay_interval: 50
