@@ -1,5 +1,27 @@
 # Zksync-era <> EigenDA Integration
 
+## Common changes
+
+Changes needed both for local and mainnet/testnet setup.
+
+1. Add `da_client` to general config:
+
+```yaml
+da_client:
+  eigen_da:
+    api_node_url: http://127.0.0.1:4242
+```
+
+2. Add `eigenda-proxy` to the `docker-compose.yml` file:
+
+```yaml
+eigenda-proxy:
+  image: ghcr.io/layr-labs/eigenda-proxy
+  ports:
+    - "4242:4242"
+  command: ./eigenda-proxy --addr 0.0.0.0 --port 4242 --memstore.enabled --eigenda-max-blob-length "2MiB"
+```
+
 ## Local Setup
 
 1. Install `zk_inception` & `zk_supervisor`
@@ -72,7 +94,7 @@ zk_supervisor test integration --chain eigen_da
 
 Access Grafana at [http://localhost:3000/](http://localhost:3000/), go to dashboards and select `EigenDA`.
 
-## Holesky Setup
+## Mainnet/Testnet setup
 
 ### Modify localhost chain id number
 
