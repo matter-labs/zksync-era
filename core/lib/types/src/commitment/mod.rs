@@ -302,7 +302,7 @@ pub enum L1BatchAuxiliaryOutput {
         state_diffs_hash: H256,
         aux_commitments: AuxCommitments,
         blob_hashes: Vec<BlobHash>,
-        aggregated_root: H256,
+        aggregation_root: H256,
         local_root: H256,
     },
 }
@@ -353,7 +353,7 @@ impl L1BatchAuxiliaryOutput {
                 state_diffs,
                 aux_commitments,
                 blob_hashes,
-                aggregated_root,
+                aggregation_root,
             } => {
                 let l2_l1_logs_compressed = serialize_commitments(&common_input.l2_to_l1_logs);
                 let merkle_tree_leaves = l2_l1_logs_compressed
@@ -367,7 +367,7 @@ impl L1BatchAuxiliaryOutput {
                 let l2_l1_logs_merkle_root = if common_input.protocol_version.is_pre_gateway() {
                     local_root
                 } else {
-                    KeccakHasher.compress(&local_root, &aggregated_root)
+                    KeccakHasher.compress(&local_root, &aggregation_root)
                 };
 
                 let common_output = L1BatchAuxiliaryCommonOutput {
@@ -431,7 +431,7 @@ impl L1BatchAuxiliaryOutput {
                     aux_commitments,
                     blob_hashes,
                     local_root,
-                    aggregated_root,
+                    aggregation_root,
                 }
             }
         }
@@ -444,12 +444,12 @@ impl L1BatchAuxiliaryOutput {
         }
     }
 
-    pub fn aggregated_root(&self) -> H256 {
+    pub fn aggregation_root(&self) -> H256 {
         match self {
             Self::PreBoojum { .. } => H256::zero(),
             Self::PostBoojum {
-                aggregated_root, ..
-            } => *aggregated_root,
+                aggregation_root, ..
+            } => *aggregation_root,
         }
     }
 
@@ -690,7 +690,7 @@ impl L1BatchCommitment {
             compressed_initial_writes,
             compressed_repeated_writes,
             local_root: self.auxiliary_output.local_root(),
-            aggregation_root: self.auxiliary_output.aggregated_root(),
+            aggregation_root: self.auxiliary_output.aggregation_root(),
             state_diff_hash: self.auxiliary_output.state_diff_hash(),
         }
     }
@@ -728,7 +728,7 @@ pub enum CommitmentInput {
         state_diffs: Vec<StateDiffRecord>,
         aux_commitments: AuxCommitments,
         blob_hashes: Vec<BlobHash>,
-        aggregated_root: H256,
+        aggregation_root: H256,
     },
 }
 
@@ -773,7 +773,7 @@ impl CommitmentInput {
                     let num_blobs = num_blobs_required(&protocol_version);
                     vec![Default::default(); num_blobs]
                 },
-                aggregated_root: H256::zero(),
+                aggregation_root: H256::zero(),
             }
         }
     }

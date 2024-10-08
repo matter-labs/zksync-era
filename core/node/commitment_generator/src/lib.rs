@@ -295,7 +295,7 @@ impl CommitmentGenerator {
                 .connection_pool
                 .connection_tagged("commitment_generator")
                 .await?;
-            let aggregated_root = read_aggregation_root(&mut connection, l1_batch_number).await?;
+            let aggregation_root = read_aggregation_root(&mut connection, l1_batch_number).await?;
 
             CommitmentInput::PostBoojum {
                 common,
@@ -303,7 +303,7 @@ impl CommitmentGenerator {
                 state_diffs,
                 aux_commitments,
                 blob_hashes,
-                aggregated_root,
+                aggregation_root,
             }
         };
 
