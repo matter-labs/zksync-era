@@ -49,19 +49,20 @@ impl TransactionsWeb3Dal<'_, '_> {
             StorageTransactionReceipt,
             r#"
             WITH
-                events AS (
-                    SELECT DISTINCT
-                        ON (events.tx_hash) *
-                    FROM
-                        events
-                    WHERE
-                        events.address = $1
-                        AND events.topic1 = $2
-                        AND events.tx_hash = ANY ($3)
-                    ORDER BY
-                        events.tx_hash,
-                        events.event_index_in_tx DESC
-                )
+            events AS (
+                SELECT DISTINCT
+                ON (events.tx_hash) *
+                FROM
+                    events
+                WHERE
+                    events.address = $1
+                    AND events.topic1 = $2
+                    AND events.tx_hash = ANY($3)
+                ORDER BY
+                    events.tx_hash,
+                    events.event_index_in_tx DESC
+            )
+            
             SELECT
                 transactions.hash AS tx_hash,
                 transactions.index_in_block,
@@ -81,10 +82,10 @@ impl TransactionsWeb3Dal<'_, '_> {
                 miniblocks.timestamp AS "block_timestamp?"
             FROM
                 transactions
-                JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-                LEFT JOIN events ON events.tx_hash = transactions.hash
+            JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+            LEFT JOIN events ON events.tx_hash = transactions.hash
             WHERE
-                transactions.hash = ANY ($3)
+                transactions.hash = ANY($3)
                 AND transactions.data != '{}'::jsonb
             "#,
             // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
@@ -302,17 +303,20 @@ impl TransactionsWeb3Dal<'_, '_> {
                 execute_tx.tx_hash AS "eth_execute_tx_hash?"
             FROM
                 transactions
-                LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-                LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
-                LEFT JOIN eth_txs_history AS commit_tx ON (
+            LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+            LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
+            LEFT JOIN eth_txs_history AS commit_tx
+                ON (
                     l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
                     AND commit_tx.confirmed_at IS NOT NULL
                 )
-                LEFT JOIN eth_txs_history AS prove_tx ON (
+            LEFT JOIN eth_txs_history AS prove_tx
+                ON (
                     l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
                     AND prove_tx.confirmed_at IS NOT NULL
                 )
-                LEFT JOIN eth_txs_history AS execute_tx ON (
+            LEFT JOIN eth_txs_history AS execute_tx
+                ON (
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
                 )
@@ -439,7 +443,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.*
             FROM
                 transactions
-                INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+            INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
             WHERE
                 miniblocks.number BETWEEN $1 AND $2
             ORDER BY

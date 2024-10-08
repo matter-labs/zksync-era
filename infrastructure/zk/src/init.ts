@@ -15,13 +15,9 @@ import * as run from './run';
 import * as server from './server';
 import { createVolumes, up } from './up';
 
-const fs = require('fs');
-const yaml = require('yaml');
-
 // Checks if all required tools are installed with the correct versions
-const checkEnv = async (runObservability: boolean): Promise<void> => {
+const checkEnv = async (): Promise<void> => {
     const tools = ['node', 'yarn', 'docker', 'cargo'];
-
     for (const tool of tools) {
         await utils.exec(`which ${tool}`);
     }
@@ -41,36 +37,6 @@ const submoduleUpdate = async (): Promise<void> => {
     await utils.exec('git submodule update');
 };
 
-// clone dockprom and zksync-era dashboards
-const setupObservability = async (): Promise<void> => {
-    // clone dockprom, era-observability repos and export era dashboards to dockprom
-    await utils.spawn(
-        `rm -rf ./target/dockprom && git clone https://github.com/stefanprodan/dockprom.git ./target/dockprom \
-            && rm -rf ./target/era-observability && git clone https://github.com/matter-labs/era-observability.git ./target/era-observability \
-            && cp ./target/era-observability/dashboards/* ./target/dockprom/grafana/provisioning/dashboards
-        `
-    );
-
-    const fileContents = fs.readFileSync('./target/dockprom/prometheus/prometheus.yml', 'utf8');
-    let config = yaml.parse(fileContents);
-    config.scrape_configs.push({
-        job_name: 'proxy-blob-retriever',
-        scrape_interval: '5s',
-        honor_labels: true,
-        static_configs: [{ targets: ['host.docker.internal:7070'] }]
-    });
-    config.scrape_configs.push({
-        job_name: 'zksync',
-        scrape_interval: '5s',
-        honor_labels: true,
-        static_configs: [{ targets: ['host.docker.internal:3312'] }]
-    });
-    const newYaml = yaml.stringify(config);
-    fs.writeFileSync('./target/dockprom/prometheus/prometheus.yml', newYaml, 'utf8');
-
-    await utils.spawn('cp EigenDA.json ./target/dockprom/grafana/provisioning/dashboards/EigenDA.json');
-};
-
 // Sets up docker environment and compiles contracts
 type InitSetupOptions = {
     skipEnvSetup: boolean;
@@ -84,10 +50,6 @@ const initSetup = async ({
     runObservability,
     deploymentMode
 }: InitSetupOptions): Promise<void> => {
-    if (runObservability) {
-        await announced('Pulling observability repos', setupObservability());
-    }
-
     await announced(
         `Initializing in ${deploymentMode == contract.DeploymentMode.Validium ? 'Validium mode' : 'Roll-up mode'}`
     );
@@ -96,7 +58,7 @@ const initSetup = async ({
     }
     if (!process.env.CI && !skipEnvSetup) {
         await announced('Pulling images', docker.pull());
-        await announced('Checking environment', checkEnv(runObservability));
+        await announced('Checking environment', checkEnv());
         await announced('Checking git hooks', env.gitHooks());
         await announced('Create volumes', createVolumes());
         await announced('Setting up containers', up(runObservability));

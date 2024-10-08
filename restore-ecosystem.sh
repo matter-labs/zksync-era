@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# This script restores the Postgres databases and chain configuration files for a given ecosystem.
+# Allowing you to recover the L2 state from a previous backup.
+
 # Check if the ecosystem name was provided as an argument
 if [ -z "$1" ]; then
   echo "Usage: ./restore-ecosystem ECOSYSTEM_NAME"

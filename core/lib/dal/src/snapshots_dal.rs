@@ -54,16 +54,16 @@ impl SnapshotsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                snapshots (
-                    VERSION,
-                    l1_batch_number,
-                    storage_logs_filepaths,
-                    factory_deps_filepath,
-                    created_at,
-                    updated_at
-                )
+            snapshots (
+                version,
+                l1_batch_number,
+                storage_logs_filepaths,
+                factory_deps_filepath,
+                created_at,
+                updated_at
+            )
             VALUES
-                ($1, $2, ARRAY_FILL(''::TEXT, ARRAY[$3::INTEGER]), $4, NOW(), NOW())
+            ($1, $2, ARRAY_FILL(''::TEXT, ARRAY[$3::INTEGER]), $4, NOW(), NOW())
             "#,
             version as i32,
             l1_batch_number.0 as i32,
@@ -115,7 +115,7 @@ impl SnapshotsDal<'_, '_> {
             FROM
                 snapshots
             WHERE
-                NOT (''::TEXT = ANY (storage_logs_filepaths))
+                NOT (''::TEXT = ANY(storage_logs_filepaths))
             ORDER BY
                 l1_batch_number DESC
             "#
@@ -198,10 +198,10 @@ impl SnapshotsDal<'_, '_> {
             WHERE
                 l1_batch_number > $1
             RETURNING
-                VERSION,
-                l1_batch_number,
-                factory_deps_filepath,
-                storage_logs_filepaths
+            version,
+            l1_batch_number,
+            factory_deps_filepath,
+            storage_logs_filepaths
             "#,
             last_retained_l1_batch_number.0 as i32
         )

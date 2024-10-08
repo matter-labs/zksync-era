@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# This script backs up the Postgres databases and chain configuration files for a given ecosystem. 
+# With it you can make a testnet deployment and save the L2 state for later recovery.
+
 # Check if the ecosystem name was provided as an argument
 if [ -z "$1" ]; then
   echo "Usage: ./backup-ecosystem ECOSYSTEM_NAME"

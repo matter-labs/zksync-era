@@ -38,9 +38,3 @@ pub fn pull(shell: &Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
     Cmd::new(cmd!(shell, "git pull origin {current_branch}")).run()?;
     Ok(())
 }
-
-pub fn checkout(shell: &Shell, path: PathBuf, branch: &str) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(path);
-    Cmd::new(cmd!(shell, "git checkout {branch}")).run()?;
-    Ok(())
-}

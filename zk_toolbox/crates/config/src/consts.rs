@@ -31,7 +31,7 @@ pub const ERA_OBSERVABILITY_COMPOSE_FILE: &str = "era-observability/docker-compo
 /// Path to era observability repository
 pub const ERA_OBSERBAVILITY_DIR: &str = "era-observability";
 /// Era observability repo link
-pub const ERA_OBSERBAVILITY_GIT_REPO: &str = "https://github.com/lambdaclass/era-observability";
+pub const ERA_OBSERBAVILITY_GIT_REPO: &str = "https://github.com/matter-labs/era-observability";
 pub(crate) const LOCAL_APPS_PATH: &str = "apps/";
 pub(crate) const LOCAL_CHAINS_PATH: &str = "chains/";
 pub(crate) const LOCAL_CONFIGS_PATH: &str = "configs/";

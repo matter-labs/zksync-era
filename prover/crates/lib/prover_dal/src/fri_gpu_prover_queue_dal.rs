@@ -52,10 +52,10 @@ impl FriGpuProverQueueDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                gpu_prover_queue_fri.*
+            gpu_prover_queue_fri.*
             "#,
             &processing_timeout,
             i16::from(specialized_prover_group_id),
@@ -84,28 +84,28 @@ impl FriGpuProverQueueDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                gpu_prover_queue_fri (
-                    instance_host,
-                    instance_port,
-                    instance_status,
-                    specialized_prover_group_id,
-                    zone,
-                    created_at,
-                    updated_at,
-                    protocol_version,
-                    protocol_version_patch
-                )
+            gpu_prover_queue_fri (
+                instance_host,
+                instance_port,
+                instance_status,
+                specialized_prover_group_id,
+                zone,
+                created_at,
+                updated_at,
+                protocol_version,
+                protocol_version_patch
+            )
             VALUES
-                (CAST($1::TEXT AS INET), $2, 'available', $3, $4, NOW(), NOW(), $5, $6)
+            (CAST($1::TEXT AS INET), $2, 'available', $3, $4, NOW(), NOW(), $5, $6)
             ON CONFLICT (instance_host, instance_port, zone) DO
             UPDATE
             SET
-                instance_status = 'available',
-                specialized_prover_group_id = $3,
-                zone = $4,
-                updated_at = NOW(),
-                protocol_version = $5,
-                protocol_version_patch = $6
+            instance_status = 'available',
+            specialized_prover_group_id = $3,
+            zone = $4,
+            updated_at = NOW(),
+            protocol_version = $5,
+            protocol_version_patch = $6
             "#,
             address.host.to_string(),
             i32::from(address.port),

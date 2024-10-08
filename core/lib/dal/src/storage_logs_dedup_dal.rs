@@ -93,7 +93,7 @@ impl StorageLogsDedupDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                initial_writes (hashed_key, INDEX, l1_batch_number, created_at, updated_at)
+            initial_writes (hashed_key, index, l1_batch_number, created_at, updated_at)
             SELECT
                 u.hashed_key,
                 u.index,
@@ -101,7 +101,7 @@ impl StorageLogsDedupDal<'_, '_> {
                 NOW(),
                 NOW()
             FROM
-                UNNEST($1::bytea[], $2::BIGINT[]) AS u (hashed_key, INDEX)
+                UNNEST($1::bytea [], $2::bigint []) AS u (hashed_key, index)
             "#,
             &hashed_keys as &[&[u8]],
             &indices,
@@ -202,13 +202,13 @@ impl StorageLogsDedupDal<'_, '_> {
             r#"
             SELECT
                 hashed_key,
-                INDEX
+                index
             FROM
                 initial_writes
             WHERE
                 l1_batch_number = $1
             ORDER BY
-                INDEX
+                index
             "#,
             i64::from(l1_batch_number.0)
         )
@@ -279,7 +279,7 @@ impl StorageLogsDedupDal<'_, '_> {
             FROM
                 initial_writes
             WHERE
-                hashed_key = ANY ($1)
+                hashed_key = ANY($1)
             "#,
             &hashed_keys as &[&[u8]],
         )
@@ -299,7 +299,7 @@ impl StorageLogsDedupDal<'_, '_> {
             SELECT
                 hashed_key,
                 l1_batch_number,
-                INDEX
+                index
             FROM
                 initial_writes
             "#
