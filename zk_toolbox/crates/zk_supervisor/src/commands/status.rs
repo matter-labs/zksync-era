@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use xshell::{cmd, Shell};
 
-use crate::messages::{MSG_API_CONFIG_NOT_FOUND_ERR, MSG_CHAIN_NOT_FOUND_ERR};
+use crate::messages::{MSG_API_CONFIG_NOT_FOUND_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_STATUS_URL_HELP};
 
 #[derive(Deserialize, Debug)]
 struct StatusResponse {
@@ -24,10 +24,8 @@ struct Component {
 
 #[derive(Debug, Parser)]
 pub struct StatusArgs {
-    #[clap(long, short = 'u')]
+    #[clap(long, short = 'u', help = MSG_STATUS_URL_HELP)]
     pub url: Option<String>,
-    #[clap(long, short = 'p')]
-    pub ports: bool,
 }
 
 fn print_status(shell: &Shell, health_check_url: String) -> anyhow::Result<()> {
@@ -101,15 +99,7 @@ fn deslugify(name: &str) -> String {
         .join(" ")
 }
 
-fn print_ports(shell: &Shell) -> anyhow::Result<()> {
-    Ok(())
-}
-
 pub async fn run(shell: &Shell, args: StatusArgs) -> anyhow::Result<()> {
-    if args.ports {
-        return print_ports(shell);
-    }
-
     let health_check_url = if let Some(url) = args.url {
         url
     } else {
