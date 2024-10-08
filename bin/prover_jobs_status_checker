@@ -22,7 +22,7 @@ while true; do
     fi
 
     # Run the SQL query and capture the result
-    RESULT=$(psql $DATABASE_URL -c "SELECT count(*) FROM compression_jobs_fri WHERE l1_batch_number = $BATCH_NUMBER AND status = 'queued';" -t -A)
+    RESULT=$(psql $DATABASE_URL -c "SELECT count(*) FROM prover_jobs_fri WHERE l1_batch_number = $BATCH_NUMBER AND status = 'queued';" -t -A)
 
     # Check if the result is 1
     if [ "$RESULT" -eq 1 ]; then
