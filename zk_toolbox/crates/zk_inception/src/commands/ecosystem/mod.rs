@@ -46,6 +46,6 @@ pub(crate) async fn run(shell: &Shell, args: EcosystemCommands) -> anyhow::Resul
         EcosystemCommands::Init(args) => init::run(args, shell).await,
         EcosystemCommands::ChangeDefaultChain(args) => change_default::run(args, shell),
         EcosystemCommands::SetupObservability => setup_observability::run(shell),
-        EcosystemCommands::GatewayUpgrade(args) => gateway_upgrade::run(args, shell).await
+        EcosystemCommands::GatewayUpgrade(args) => gateway_upgrade::run(args, shell).await,
     }
 }

@@ -1,7 +1,8 @@
+use std::str::FromStr;
+
 use ethers::abi::Address;
 use zksync_basic_types::U256;
 use zksync_utils::u256_to_account_address;
-use std::str::FromStr;
 
 /// Name of the main configuration file
 pub(crate) const CONFIG_NAME: &str = "ZkStack.yaml";

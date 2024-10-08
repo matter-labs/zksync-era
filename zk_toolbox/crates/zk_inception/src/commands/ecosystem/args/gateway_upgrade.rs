@@ -24,16 +24,16 @@ use crate::{
 pub enum GatewayUpgradeStage {
     // Deploy contracts + init everything the governance will need to approve the upgrade
     NoGovernancePrepare,
-    // Governance will execute stage 1 of the upgrade, which appends 
+    // Governance will execute stage 1 of the upgrade, which appends
     // a new protocol version and all chains involved must upgrade
     GovernanceStage1,
-    // Governance will execute stage 2 of the upgrade. It is CRUCIAL 
+    // Governance will execute stage 2 of the upgrade. It is CRUCIAL
     // to have it done only after protocol deadline has passed.
-    GovernanceStage2
+    GovernanceStage2,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
-pub struct GatewayUpgradeArgs{
+pub struct GatewayUpgradeArgs {
     #[clap(flatten)]
     #[serde(flatten)]
     pub forge_args: ForgeScriptArgs,
@@ -47,7 +47,11 @@ pub struct GatewayUpgradeArgs{
 }
 
 impl GatewayUpgradeArgs {
-    pub fn fill_values_with_prompt(self, l1_network: L1Network, dev: bool) -> GatewayUpgradeArgsFinal {
+    pub fn fill_values_with_prompt(
+        self,
+        l1_network: L1Network,
+        dev: bool,
+    ) -> GatewayUpgradeArgsFinal {
         let l1_rpc_url = self.l1_rpc_url.unwrap_or_else(|| {
             let mut prompt = Prompt::new(MSG_L1_RPC_URL_PROMPT);
             if dev {

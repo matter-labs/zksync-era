@@ -31,7 +31,6 @@ impl FileConfigWithDefaultName for GatewayEcosystemUpgradeOutput {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GatewayEcosystemUpgradeContractsOutput {
-
     // TODO: do we even need this field?
     pub diamond_cut_data: Bytes,
 
@@ -50,16 +49,14 @@ pub struct GatewayEcosystemUpgradeContractsOutput {
 
     pub priority_tx_max_gas_limit: u64,
 
-
     pub recursion_circuits_set_vks_hash: H256,
     pub recursion_leaf_level_vk_hash: H256,
-    pub recursion_node_level_vk_hash: H256
+    pub recursion_node_level_vk_hash: H256,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GatewayEcosystemUpgradeDeployedAddresses {
     // TODO: also deploy new chainadmin / access control restriction for the ecosystem
-
     pub native_token_vault_addr: Address,
     pub permanent_rollup_restriction: Address,
     pub rollup_l1_da_validator_addr: Address,
@@ -68,7 +65,7 @@ pub struct GatewayEcosystemUpgradeDeployedAddresses {
 
     pub bridgehub: GatewayEcosystemUpgradeBridgehub,
     pub bridges: GatewayEcosystemUpgradeBridges,
-    pub state_transition: GatewayEcosystemUpgradeStateTransition
+    pub state_transition: GatewayEcosystemUpgradeStateTransition,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -77,7 +74,7 @@ pub struct GatewayEcosystemUpgradeBridgehub {
     ctm_deployment_tracker_implementation_addr: Address,
     ctm_deployment_tracker_proxy_addr: Address,
     message_root_implementation_addr: Address,
-    message_root_proxy_addr: Address
+    message_root_proxy_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -93,12 +90,12 @@ pub struct GatewayEcosystemUpgradeStateTransition {
     admin_facet_addr: Address,
     default_upgrade_addr: Address,
     diamond_init_addr: Address,
-    executor_facet_addr : Address,
+    executor_facet_addr: Address,
     genesis_upgrade_addr: Address,
     getters_facet_addr: Address,
     mailbox_facet_addr: Address,
     state_transition_implementation_addr: Address,
-    verifier_addr: Address
+    verifier_addr: Address,
 }
 
 impl ZkToolboxConfig for GatewayEcosystemUpgradeOutput {}

@@ -9,7 +9,11 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
 
 use crate::{
-    apply_l1_to_l2_alias, consts::INITIAL_DEPLOYMENT_FILE, forge_interface::deploy_ecosystem::input::InitialDeploymentConfig, traits::{FileConfigWithDefaultName, ZkToolboxConfig}, ContractsConfig, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE
+    apply_l1_to_l2_alias,
+    consts::INITIAL_DEPLOYMENT_FILE,
+    forge_interface::deploy_ecosystem::input::InitialDeploymentConfig,
+    traits::{FileConfigWithDefaultName, ZkToolboxConfig},
+    ContractsConfig, GenesisConfig, WalletsConfig, ERC20_DEPLOYMENT_FILE,
 };
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -35,10 +39,9 @@ impl GatewayEcosystemUpgradeInput {
         testnet_verifier: bool,
     ) -> Self {
         // FIXME: This will have to be properly initialized in a separate contract
-        let aliased_governance_address = apply_l1_to_l2_alias(
-            current_contracts_config.l1.governance_addr
-        );
-        
+        let aliased_governance_address =
+            apply_l1_to_l2_alias(current_contracts_config.l1.governance_addr);
+
         Self {
             era_chain_id,
             testnet_verifier,
@@ -57,7 +60,7 @@ impl GatewayEcosystemUpgradeInput {
                 diamond_init_max_pubdata_per_batch: initial_deployment_config
                     .diamond_init_max_pubdata_per_batch,
                 diamond_init_minimal_l2_gas_price: initial_deployment_config
-                    .diamond_init_minimal_l2_gas_price, 
+                    .diamond_init_minimal_l2_gas_price,
                 bootloader_hash: new_genesis_config.bootloader_hash.unwrap(),
                 default_aa_hash: new_genesis_config.default_aa_hash.unwrap(),
                 diamond_init_priority_tx_max_pubdata: initial_deployment_config
@@ -76,18 +79,23 @@ impl GatewayEcosystemUpgradeInput {
                 validator_timelock_execution_delay: initial_deployment_config
                     .validator_timelock_execution_delay,
 
-                
                 bridgehub_proxy_address: current_contracts_config.user_facing_bridgehub,
                 old_shared_bridge_proxy_address: current_contracts_config.bridges.shared.l1_address,
-                state_transition_manager_address: current_contracts_config.ecosystem_contracts.state_transition_proxy_addr,
-                transparent_proxy_admin: current_contracts_config.ecosystem_contracts.transparent_proxy_admin_addr,
+                state_transition_manager_address: current_contracts_config
+                    .ecosystem_contracts
+                    .state_transition_proxy_addr,
+                transparent_proxy_admin: current_contracts_config
+                    .ecosystem_contracts
+                    .transparent_proxy_admin_addr,
                 era_diamond_proxy: era_diamond_proxy,
                 // FIXME: do we even need to provide it at this point
                 blob_versioned_hash_retriever: Address::from_low_u64_be(1),
                 legacy_erc20_bridge_address: current_contracts_config.bridges.erc20.l1_address,
-                old_validator_timelock: current_contracts_config.ecosystem_contracts.validator_timelock_addr,
+                old_validator_timelock: current_contracts_config
+                    .ecosystem_contracts
+                    .validator_timelock_addr,
                 l2_bridge_proxy_owner_address: aliased_governance_address,
-                l2_bridged_standard_erc20_proxy_owner_address: aliased_governance_address
+                l2_bridged_standard_erc20_proxy_owner_address: aliased_governance_address,
             },
             tokens: GatewayUpgradeTokensConfig {
                 token_weth_address: initial_deployment_config.token_weth_address,
@@ -130,7 +138,7 @@ pub struct GatewayUpgradeContractsConfig {
     pub legacy_erc20_bridge_address: Address,
     pub old_validator_timelock: Address,
     pub l2_bridge_proxy_owner_address: Address,
-    pub l2_bridged_standard_erc20_proxy_owner_address: Address
+    pub l2_bridged_standard_erc20_proxy_owner_address: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
