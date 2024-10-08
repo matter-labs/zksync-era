@@ -17,7 +17,7 @@ use zksync_consensus_network as network;
 use zksync_consensus_roles::{attester, validator, validator::testonly::Setup};
 use zksync_dal::{CoreDal, DalError};
 use zksync_metadata_calculator::{
-    LazyAsyncTreeReader, MetadataCalculator, MetadataCalculatorConfig,
+    MetadataCalculator, MetadataCalculatorConfig,
 };
 use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
 use zksync_node_genesis::GenesisParams;
@@ -68,7 +68,6 @@ pub(super) struct StateKeeper {
     sync_state: SyncState,
     addr: sync::watch::Receiver<Option<std::net::SocketAddr>>,
     pool: ConnectionPool,
-    tree_reader: LazyAsyncTreeReader,
 }
 
 #[derive(Clone)]
@@ -76,6 +75,7 @@ pub(super) struct ConfigSet {
     net: network::Config,
     pub(super) config: config::ConsensusConfig,
     pub(super) secrets: config::ConsensusSecrets,
+    pub(super) enable_pregenesis: bool,
 }
 
 impl ConfigSet {
@@ -85,6 +85,7 @@ impl ConfigSet {
             config: make_config(&net, None),
             secrets: make_secrets(&net, None),
             net,
+            enable_pregenesis: false,
         }
     }
 }
@@ -129,6 +130,7 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
             config: make_config(&net, Some(genesis_spec.clone())),
             secrets: make_secrets(&net, setup.attester_keys.get(i).cloned()),
             net,
+            enable_pregenesis: false,
         })
         .collect()
 }
@@ -246,7 +248,6 @@ impl StateKeeper {
         let metadata_calculator = MetadataCalculator::new(config, None, pool.0.clone())
             .await
             .context("MetadataCalculator::new()")?;
-        let tree_reader = metadata_calculator.tree_reader();
         Ok((
             Self {
                 protocol_version,
@@ -259,7 +260,6 @@ impl StateKeeper {
                 sync_state: sync_state.clone(),
                 addr: addr.subscribe(),
                 pool: pool.clone(),
-                tree_reader,
             },
             StateKeeperRunner {
                 actions_queue,
@@ -377,44 +377,6 @@ impl StateKeeper {
         attester::BatchNumber((self.last_batch.0 - (!self.batch_sealed) as u32).into())
     }
 
-    /*
-    /// Loads a commitment to L1 batch directly from the database.
-    // TODO: ideally, we should rather fake fetching it from Ethereum.
-    // We can use `zksync_eth_client::clients::MockEthereum` for that,
-    // which implements `EthInterface`. It should be enough to use
-    // `MockEthereum.with_call_handler()`.
-    pub async fn load_batch_commit(
-        &self,
-        ctx: &ctx::Ctx,
-        number: L1BatchNumber,
-    ) -> ctx::Result<L1BatchCommit> {
-        // TODO: we should mock the `eth_sender` as well.
-        let mut conn = self.pool.connection(ctx).await?;
-        let this = conn.batch(ctx, number).await?.context("missing batch")?;
-        let prev = conn
-            .batch(ctx, number - 1)
-            .await?
-            .context("missing batch")?;
-        Ok(L1BatchCommit {
-            number,
-            this_batch: LastBlockCommit {
-                info: StoredBatchInfo::from(&this).hash(),
-            },
-            prev_batch: LastBlockCommit {
-                info: StoredBatchInfo::from(&prev).hash(),
-            },
-        })
-    }
-
-    /// Loads an `L1BatchWithWitness`.
-    pub async fn load_batch_with_witness(
-        &self,
-        ctx: &ctx::Ctx,
-        n: L1BatchNumber,
-    ) -> ctx::Result<L1BatchWithWitness> {
-        L1BatchWithWitness::load(ctx, n, &self.pool, &self.tree_reader).await
-    }*/
-
     /// Connects to the json RPC endpoint exposed by the state keeper.
     pub async fn connect(&self, ctx: &ctx::Ctx) -> ctx::Result<Box<DynClient<L2>>> {
         let addr = sync::wait_for(ctx, &mut self.addr.clone(), Option::is_some)
@@ -472,6 +434,7 @@ impl StateKeeper {
             cfgs.config,
             cfgs.secrets,
             cfgs.net.build_version,
+            cfgs.enable_pregenesis,
         )
         .await
     }

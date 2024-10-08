@@ -10,7 +10,6 @@ use zksync_types::{
     protocol_version::ProtocolSemanticVersion,
     system_contracts::get_system_smart_contracts, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
 };
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 
 use super::{Connection, ConnectionPool};
 use crate::registry;
@@ -131,21 +130,21 @@ impl ConnectionPool {
         Self(pool)
     }
 
-    /// Waits for `want_last` block to have certificate then fetches all L2 blocks with certificates.
-    pub async fn wait_for_block_certificates(
+    /// Waits for `want_last` block then fetches all L2 blocks with certificates.
+    pub async fn wait_for_blocks(
         &self,
         ctx: &ctx::Ctx,
         want_last: validator::BlockNumber,
     ) -> ctx::Result<Vec<validator::Block>> {
         self.wait_for_block_certificate(ctx, want_last).await?;
         let mut conn = self.connection(ctx).await.wrap("connection()")?;
-        let range = conn
-            .block_certificates_range(ctx)
+        let state = conn
+            .block_store_state(ctx)
             .await
-            .wrap("certificates_range()")?;
-        assert_eq!(want_last.next(), range.next());
+            .wrap("block_store_state()")?;
+        assert_eq!(want_last.next(), state.next());
         let mut blocks: Vec<validator::Block> = vec![];
-        for i in range.first.0..range.next().0 {
+        for i in state.first.0..state.next().0 {
             let i = validator::BlockNumber(i);
             let block = conn.block(ctx, i).await.context("block()")?.unwrap();
             blocks.push(block);
@@ -153,13 +152,13 @@ impl ConnectionPool {
         Ok(blocks)
     }
 
-    /// Same as `wait_for_certificates`, but additionally verifies all the blocks against genesis.
-    pub async fn wait_for_block_certificates_and_verify(
+    /// Same as `wait_for_blocks`, but additionally verifies all the blocks.
+    pub async fn wait_for_blocks_and_verify(
         &self,
         ctx: &ctx::Ctx,
         want_last: validator::BlockNumber,
     ) -> ctx::Result<Vec<validator::Block>> {
-        let blocks = self.wait_for_block_certificates(ctx, want_last).await?;
+        let blocks = self.wait_for_blocks(ctx, want_last).await?;
         let _cfg = self
             .connection(ctx)
             .await
@@ -229,26 +228,22 @@ impl ConnectionPool {
         ctx: &ctx::Ctx,
         last_batch: attester::BatchNumber,
     ) -> ctx::Result<()> {
-        let last_batch = L1BatchNumber(last_batch.0.try_into().context("oveflow")?);
         let mut conn = self.connection(ctx).await.context("connection()")?;
-        let (_, last_block) = ctx
-            .wait(
-                conn.0
-                    .blocks_dal()
-                    .get_l2_block_range_of_l1_batch(last_batch),
-            )
-            .await?
-            .context("get_l2_block_range_of_l1_batch()")?
+        let (_, last_block) = conn.get_l2_block_range_of_l1_batch(ctx,last_batch)
+            .await
+            .wrap("get_l2_block_range_of_l1_batch()")?
             .context("batch not found")?;
-        conn.0
+        let last_batch = L1BatchNumber(last_batch.0.try_into().context("oveflow")?);
+        let last_block = L2BlockNumber(last_block.0.try_into().context("oveflow")?);
+        ctx.wait(conn.0
             .pruning_dal()
-            .soft_prune_batches_range(last_batch, last_block)
-            .await
+            .soft_prune_batches_range(last_batch, last_block))
+            .await?
             .context("soft_prune_batches_range()")?;
-        conn.0
+        ctx.wait(conn.0
             .pruning_dal()
-            .hard_prune_batches_range(last_batch, last_block)
-            .await
+            .hard_prune_batches_range(last_batch, last_block))
+            .await?
             .context("hard_prune_batches_range()")?;
         Ok(())
     }

@@ -12,7 +12,7 @@ use zksync_test_account::Account;
 use zksync_types::{ProtocolVersionId};
 use zksync_web3_decl::namespaces::EnNamespaceClient as _;
 
-use super::VERSIONS;
+use super::{VERSIONS,POLL_INTERVAL};
 use crate::{
     mn::run_main_node,
     registry::{testonly, Registry},
@@ -54,7 +54,7 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
         .wrap("try_update_global_config()")?;
         // Make sure that the first_batch is actually sealed.
         sk.seal_batch().await;
-        pool.wait_for_batch(ctx, first_batch).await?;
+        pool.wait_for_batch_info(ctx, first_batch, POLL_INTERVAL).await.wrap("wait_for_batch_info()")?;
 
         // Connect to API endpoint.
         let api = sk.connect(ctx).await?;

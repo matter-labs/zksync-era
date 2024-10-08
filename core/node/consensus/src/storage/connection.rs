@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
 use zksync_consensus_storage as storage;
-use zksync_dal::{consensus_dal::{AttestationStatus, BlockMetadata, GlobalConfig, batch_hash, Payload}, Core, CoreDal, DalError};
+use zksync_dal::{consensus_dal::{AttestationStatus, BlockMetadata, GlobalConfig, Payload}, Core, CoreDal, DalError};
 use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
 use zksync_state_keeper::io::common::IoCursor;
 use zksync_types::{
@@ -11,7 +11,6 @@ use zksync_types::{
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
-use crate::batch::VerifiedBatchProof;
 use super::{PayloadQueue};
 use crate::config;
 
@@ -58,9 +57,8 @@ impl ConnectionPool {
         &self,
         ctx: &ctx::Ctx,
         number: attester::BatchNumber,
-        // TODO: make poll interval a parameter.
+        interval: time::Duration,
     ) -> ctx::Result<StoredBatchInfo> {
-        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(500);
         loop {
             if let Some(info) = self
                 .connection(ctx)
@@ -72,7 +70,7 @@ impl ConnectionPool {
             {
                 return Ok(info);
             }
-            ctx.sleep(POLL_INTERVAL).await?;
+            ctx.sleep(interval).await?;
         }
     }
 }
@@ -112,18 +110,6 @@ impl<'a> Connection<'a> {
 
     pub async fn batch_info(&mut self, ctx: &ctx::Ctx, n: attester::BatchNumber) -> ctx::Result<Option<StoredBatchInfo>> {
         Ok(ctx.wait(self.0.consensus_dal().batch_info(n)).await??)
-    }
-
-    /// Wrapper for `consensus_dal().block_payloads()`.
-    pub async fn payloads(
-        &mut self,
-        ctx: &ctx::Ctx,
-        numbers: std::ops::Range<validator::BlockNumber>,
-    ) -> ctx::Result<Vec<Payload>> {
-        Ok(ctx
-            .wait(self.0.consensus_dal().block_payloads(numbers))
-            .await?
-            .map_err(DalError::generalize)?)
     }
 
     /// Wrapper for `consensus_dal().block_metadata()`.
@@ -244,16 +230,17 @@ impl<'a> Connection<'a> {
         Ok(ctx.wait(self.0.consensus_dal().next_block()).await??)
     }
 
-    /// Wrapper for `consensus_dal().block_certificates_range()`.
+    /// Wrapper for `consensus_dal().block_store_state()`.
     #[tracing::instrument(skip_all)]
-    pub(crate) async fn block_certificates_range(
+    pub(crate) async fn block_store_state(
         &mut self,
         ctx: &ctx::Ctx,
     ) -> ctx::Result<storage::BlockStoreState> {
         Ok(ctx
-            .wait(self.0.consensus_dal().block_certificates_range())
+            .wait(self.0.consensus_dal().block_store_state())
             .await??)
     }
+
 
     /// (Re)initializes consensus genesis to start at the last L2 block in storage.
     /// Noop if `spec` matches the current genesis.
@@ -323,18 +310,13 @@ impl<'a> Connection<'a> {
             }.into()));
         }
 
-        if let Some(batch_proof) = self
-            .batch_proof(ctx, number)
-            .await
-            .wrap("batch_proof()")?
-        {
-            return Ok(Some(validator::PreGenesisBlock {
-                payload: payload.encode(),
-                justification: batch_proof.encode(),
-            }.into()));
-        }
-
-        Ok(None) 
+        Ok(Some(validator::PreGenesisBlock {
+            number,
+            payload: payload.encode(),
+            // We won't use justification until it is possible to verify
+            // payload against the L1 batch commitment.
+            justification: validator::Justification(vec![]),
+        }.into()))
     }
 
     /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.

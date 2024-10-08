@@ -41,6 +41,7 @@ impl EN {
         cfg: ConsensusConfig,
         secrets: ConsensusSecrets,
         build_version: Option<semver::Version>,
+        enable_pregenesis: bool,
     ) -> anyhow::Result<()> {
         let attester = config::attester_key(&secrets).context("attester_key")?;
 
@@ -72,13 +73,15 @@ impl EN {
             drop(conn);
 
             // Fetch blocks before the genesis.
-            self.fetch_blocks(
-                ctx,
-                &mut payload_queue,
-                Some(global_config.genesis.first_block),
-            )
-            .await
-            .wrap("fetch_blocks()")?;
+            if !enable_pregenesis {
+                self.fetch_blocks(
+                    ctx,
+                    &mut payload_queue,
+                    Some(global_config.genesis.first_block),
+                )
+                .await
+                .wrap("fetch_blocks()")?;
+            }
 
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
@@ -204,10 +207,10 @@ impl EN {
                 "waiting for hash of batch {:?}",
                 status.next_batch_to_attest
             );
-            let hash = self
+            let hash = consensus_dal::batch_hash(&self
                 .pool
-                .wait_for_batch_hash(ctx, status.next_batch_to_attest)
-                .await?;
+                .wait_for_batch_info(ctx, status.next_batch_to_attest, POLL_INTERVAL)
+                .await.wrap("wait_for_batch_info()")?);
             let Some(committee) = registry
                 .attester_committee_for(
                     ctx,

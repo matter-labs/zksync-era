@@ -6,13 +6,12 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
 use zksync_consensus_roles::{validator};
 use zksync_consensus_storage::{self as storage};
-use zksync_dal::consensus_dal::{self, BatchProof, Payload};
+use zksync_dal::consensus_dal::{self, Payload};
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
 use zksync_types::L2BlockNumber;
 use zksync_web3_decl::client::{DynClient, L2};
 use zksync_web3_decl::namespaces::EnNamespaceClient as _;
 
-use crate::batch::VerifiedBatchProof; 
 use super::{Connection, PayloadQueue};
 use crate::storage::{ConnectionPool, InsertCertificateError};
 
@@ -85,9 +84,9 @@ impl Store {
 
         // Initial state of persisted blocks
         let blocks_persisted = conn
-            .block_certificates_range(ctx)
+            .block_store_state(ctx)
             .await
-            .wrap("block_certificates_range()")?;
+            .wrap("blocks_range()")?;
         drop(conn);
 
         let blocks_persisted = sync::watch::channel(blocks_persisted).0;
@@ -171,13 +170,13 @@ impl StoreRunner {
             ) -> ctx::Result<()> {
                 const POLL_INTERVAL: time::Duration = time::Duration::seconds(1);
 
-                let range = pool
+                let state = pool
                     .connection(ctx)
                     .await?
-                    .block_certificates_range(ctx)
+                    .block_store_state(ctx)
                     .await
-                    .wrap("block_certificates_range()")?;
-                blocks_persisted.update(range);
+                    .wrap("block_store_state()")?;
+                blocks_persisted.update(state);
                 ctx.sleep(POLL_INTERVAL).await?;
 
                 Ok(())
@@ -290,8 +289,8 @@ impl storage::PersistentBlockStore for Store {
     }
 
     async fn verify_pregenesis_block(&self, ctx: &ctx::Ctx, block: &validator::PreGenesisBlock) -> ctx::Result<()> {
-        let payload = Payload::decode(&block.payload).context("Payload::decode()")?;
-        let batch_proof = BatchProof::decode(&block.justification).context("BatchProof::decode()")?;
+        // We simply ask the main node for the payload hash and compare it against the received
+        // payload.
         let meta = match &self.client {
             None => self.conn(ctx).await?.block_metadata(ctx, block.number).await?.context("metadata not available")?,
             Some(client) => {
@@ -302,9 +301,9 @@ impl storage::PersistentBlockStore for Store {
                 zksync_protobuf::serde::Deserialize{deny_unknown_fields:false}.proto_fmt(&meta.0).context("deserialize()")?
             }
         };
-        let batch_proof = VerifiedBatchProof::new(batch_proof, meta.protocol_version).context("VerifiedBatchProof::new()")?;
-        // TODO: verify the info hash against L1.
-        batch_proof.verify_payload(block.number, &meta, &payload)?;
+        if meta.payload_hash != block.payload.hash() {
+            return Err(anyhow::format_err!("payload hash mismatch").into());
+        }
         Ok(())
     }
 
@@ -321,22 +320,21 @@ impl storage::PersistentBlockStore for Store {
         ctx: &ctx::Ctx,
         block: validator::Block,
     ) -> ctx::Result<()> {
-        match block {
-            validator::Block::Final(block) => {
-                let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
-                if let Some(payloads) = &mut *payloads {
-                    payloads
-                        .send(to_fetched_block(block.number(), &block.payload).context("to_fetched_block")?)
-                        .await
-                        .context("payload_queue.send()")?;
-                }
-                self.block_certificates.send(block.justification);
-                Ok(())
-            }
-            validator::Block::PreGenesis(_block) => {
-                return Err(anyhow::format_err!("pre-genesis block is not supported").into());
-            }
+        let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
+        let (p,j) = match &block {
+            validator::Block::Final(block) => (&block.payload, Some(&block.justification)),
+            validator::Block::PreGenesis(block) => (&block.payload, None),
+        };
+        if let Some(payloads) = &mut *payloads {
+            payloads
+                .send(to_fetched_block(block.number(), p).context("to_fetched_block")?)
+                .await
+                .context("payloads.send()")?;
         }
+        if let Some(justification) = j {
+            self.block_certificates.send(justification.clone());
+        }
+        Ok(())
     }
 }
 

@@ -62,9 +62,7 @@ fn test_encoding() {
     let rng = &mut ctx.rng();
     test_encode_all_formats::<FmtConv<AttestationStatus>>(rng);
     test_encode_all_formats::<FmtConv<GlobalConfig>>(rng);
-    test_encode_all_formats::<FmtConv<BatchProof>>(rng);
-    test_encode_all_formats::<FmtConv<BlockDigest>>(rng);
-    test_encode_all_formats::<FmtConv<StorageProof>>(rng);
+    test_encode_all_formats::<FmtConv<BlockMetadata>>(rng);
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l1_transaction(rng));
     encode_decode::<proto::TransactionV25, ComparableTransaction>(l2_transaction(rng));
     encode_decode::<proto::Transaction, ComparableTransaction>(l1_transaction(rng));

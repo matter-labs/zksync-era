@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use rand::Rng as _;
 use test_casing::{test_casing, Product};
 use tracing::Instrument as _;
-use zksync_concurrency::{ctx, error::Wrap as _, scope};
+use zksync_concurrency::{ctx, time, error::Wrap as _, scope};
 use zksync_config::configs::consensus as config;
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_roles::{
@@ -21,10 +21,10 @@ use crate::{
 };
 
 mod attestation;
-mod batch;
 
 const VERSIONS: [ProtocolVersionId; 2] = [ProtocolVersionId::latest(), ProtocolVersionId::next()];
 const FROM_SNAPSHOT: [bool; 2] = [true, false];
+const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(500);
 
 #[test_casing(2, VERSIONS)]
 #[tokio::test]
@@ -86,7 +86,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
                 .await
                 .unwrap();
             let got = pool
-                .wait_for_block_certificates(ctx, block.number())
+                .wait_for_blocks(ctx, block.number())
                 .await
                 .unwrap();
             assert_eq!(want[..=i], got);
@@ -149,9 +149,9 @@ async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
 
                 tracing::info!("Verify all certificates");
                 pool
-                    .wait_for_block_certificates_and_verify(ctx, sk.last_block())
+                    .wait_for_blocks_and_verify(ctx, sk.last_block())
                     .await
-                    .context("wait_for_block_certificates_and_verify()")?;
+                    .context("wait_for_blocks_and_verify()")?;
                 Ok(())
             })
             .await
@@ -226,15 +226,15 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
         tracing::info!("produce more blocks and compare storages");
         validator.push_random_blocks(rng, account, 5).await;
         let want = validator_pool
-            .wait_for_block_certificates_and_verify(ctx, validator.last_block())
+            .wait_for_blocks_and_verify(ctx, validator.last_block())
             .await?;
         // node stores should be suffixes for validator store.
         for got in [
             node_pool
-                .wait_for_block_certificates_and_verify(ctx, validator.last_block())
+                .wait_for_blocks_and_verify(ctx, validator.last_block())
                 .await?,
             node_pool2
-                .wait_for_block_certificates_and_verify(ctx, validator.last_block())
+                .wait_for_blocks_and_verify(ctx, validator.last_block())
                 .await?,
         ] {
             assert_eq!(want[want.len() - got.len()..], got[..]);
@@ -304,12 +304,12 @@ async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId) {
             validator.push_random_blocks(rng, account, 5).await;
             let want_last = validator.last_block();
             let want = validator_pool
-                .wait_for_block_certificates_and_verify(ctx, want_last)
+                .wait_for_blocks_and_verify(ctx, want_last)
                 .await?;
             assert_eq!(
                 want,
                 node_pool
-                    .wait_for_block_certificates_and_verify(ctx, want_last)
+                    .wait_for_blocks_and_verify(ctx, want_last)
                     .await?
             );
             Ok(())
@@ -392,12 +392,12 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
         validator.push_random_blocks(rng, account, 5).await;
         let want_last = validator.last_block();
         let want = validator_pool
-            .wait_for_block_certificates_and_verify(ctx, want_last)
+            .wait_for_blocks_and_verify(ctx, want_last)
             .await?;
         for pool in &node_pools {
             assert_eq!(
                 want,
-                pool.wait_for_block_certificates_and_verify(ctx, want_last)
+                pool.wait_for_blocks_and_verify(ctx, want_last)
                     .await?
             );
         }
@@ -475,12 +475,12 @@ async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
         main_node.push_random_blocks(rng, account, 5).await;
         let want_last = main_node.last_block();
         let want = main_node_pool
-            .wait_for_block_certificates_and_verify(ctx, want_last)
+            .wait_for_blocks_and_verify(ctx, want_last)
             .await?;
         for pool in &ext_node_pools {
             assert_eq!(
                 want,
-                pool.wait_for_block_certificates_and_verify(ctx, want_last)
+                pool.wait_for_blocks_and_verify(ctx, want_last)
                     .await?
             );
         }
@@ -555,10 +555,10 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
             s.spawn_bg(node.run_consensus(ctx, client.clone(), node_cfg));
             validator.push_random_blocks(rng, account, 3).await;
             let want = validator_pool
-                .wait_for_block_certificates_and_verify(ctx, validator.last_block())
+                .wait_for_blocks_and_verify(ctx, validator.last_block())
                 .await?;
             let got = node_pool
-                .wait_for_block_certificates_and_verify(ctx, validator.last_block())
+                .wait_for_blocks_and_verify(ctx, validator.last_block())
                 .await?;
             assert_eq!(want, got);
             Ok(())
@@ -642,27 +642,28 @@ async fn test_with_pruning(version: ProtocolVersionId) {
         validator.push_random_blocks(rng, account, 5).await;
         validator.seal_batch().await;
         validator_pool
-            .wait_for_batch(ctx, validator.last_sealed_batch())
-            .await?;
+            .wait_for_batch_info(ctx, validator.last_sealed_batch(), POLL_INTERVAL)
+            .await
+            .wrap("wait_for_batch_info()")?;
 
         // The main node is not supposed to be pruned. In particular `ConsensusDal::attestation_status`
         // does not look for where the last prune happened at, and thus if we prune the block genesis
         // points at, we might never be able to start the Executor.
         tracing::info!("Wait until the external node has all the batches we want to prune");
         node_pool
-            .wait_for_batch(ctx, to_prune.next())
+            .wait_for_batch_info(ctx, to_prune.next(), POLL_INTERVAL)
             .await
-            .context("wait_for_batch()")?;
+            .wrap("wait_for_batch_info()")?;
         tracing::info!("Prune some blocks and sync more");
         node_pool
             .prune_batches(ctx, to_prune)
             .await
-            .context("prune_batches")?;
+            .wrap("prune_batches")?;
         validator.push_random_blocks(rng, account, 5).await;
         node_pool
-            .wait_for_block_certificates(ctx, validator.last_block())
+            .wait_for_blocks(ctx, validator.last_block())
             .await
-            .context("wait_for_block_certificates()")?;
+            .wrap("wait_for_blocks()")?;
         Ok(())
     })
     .await

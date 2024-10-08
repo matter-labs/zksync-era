@@ -130,7 +130,7 @@ async fn run_attestation_controller(
                 status.next_batch_to_attest
             );
             let info = pool
-                .wait_for_batch_info(ctx, status.next_batch_to_attest)
+                .wait_for_batch_info(ctx, status.next_batch_to_attest, POLL_INTERVAL)
                 .await?;
             let hash = consensus_dal::batch_hash(&info);
             let Some(committee) = registry

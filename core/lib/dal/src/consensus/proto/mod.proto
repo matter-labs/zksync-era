@@ -7,33 +7,7 @@ import "zksync/roles/attester.proto";
 import "zksync/roles/node.proto";
 
 message BlockMetadata {
-  optional uint64 batch_number = 1;
-  optional uint32 protocol_version = 2; // required; ProtocolVersionId
-  optional uint64 l1_gas_price = 3; // required
-  optional uint64 l2_fair_gas_price = 4; // required
-  optional uint64 fair_pubdata_price = 5; // optional
-  optional uint32 virtual_blocks = 6;
-  optional bytes operator_address = 7; // required; H160
-}
-
-message BatchProof {
-  optional bytes info = 1; // required; RLP-encoded StoredBatchInfo
-  optional StorageProof current_l2_block_info = 2; // required
-  optional StorageProof tx_rolling_hash = 3; // required
-  optional StorageProof l2_block_hash_entry = 4; // required
-  optional bytes initial_hash = 5; // required; H526
-  repeated BlockDigest blocks = 6;
-}
-
-message StorageProof {
-  optional bytes value = 1; // required; H256 
-  optional uint64 index = 2; // required
-  repeated bytes merkle_path = 3; // H256[]
-}
-
-message BlockDigest {
-  optional bytes txs_rolling_hash = 1; // required; H256
-  optional uint64 timestamp = 2; // required;
+  optional roles.validator.PayloadHash payload_hash = 1; // required
 }
 
 message Payload {
