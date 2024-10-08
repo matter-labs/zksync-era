@@ -159,3 +159,8 @@ async fn create_real_tx_sender(pool: ConnectionPool<Core>) -> TxSender {
         .await
         .0
 }
+
+async fn pending_block_args(tx_sender: &TxSender) -> BlockArgs {
+    let mut storage = tx_sender.acquire_replica_connection().await.unwrap();
+    BlockArgs::pending(&mut storage).await.unwrap()
+}

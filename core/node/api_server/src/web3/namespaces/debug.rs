@@ -259,7 +259,11 @@ impl DebugNamespace {
         };
 
         let call_overrides = request.get_call_overrides()?;
-        let call = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE)?;
+        let call = L2Tx::from_request(
+            request.into(),
+            MAX_ENCODED_TX_SIZE,
+            false, // Even with EVM emulation enabled, calls must specify `to` field
+        )?;
 
         let vm_permit = self
             .state
