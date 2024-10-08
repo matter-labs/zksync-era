@@ -7,28 +7,20 @@ select
     -- initial writes
     stddev_samp(initial_writes_per_tx)                                   as initial_writes_stddev,
     avg(initial_writes_per_tx)                                           as initial_writes_avg,
-    percentile_cont(0.00) within group (order by initial_writes_per_tx)  as initial_writes_pct_00,
+    min(initial_writes_per_tx)                                           as initial_writes_min,
     percentile_cont(0.01) within group (order by initial_writes_per_tx)  as initial_writes_pct_01,
-    percentile_cont(0.05) within group (order by initial_writes_per_tx)  as initial_writes_pct_05,
-    percentile_cont(0.25) within group (order by initial_writes_per_tx)  as initial_writes_pct_25,
     percentile_cont(0.50) within group (order by initial_writes_per_tx)  as initial_writes_pct_50,
-    percentile_cont(0.75) within group (order by initial_writes_per_tx)  as initial_writes_pct_75,
-    percentile_cont(0.95) within group (order by initial_writes_per_tx)  as initial_writes_pct_95,
     percentile_cont(0.99) within group (order by initial_writes_per_tx)  as initial_writes_pct_99,
-    percentile_cont(1.00) within group (order by initial_writes_per_tx)  as initial_writes_pct_100,
+    max(initial_writes_per_tx)                                           as initial_writes_max,
 
     -- repeated writes
     stddev_samp(repeated_writes_per_tx)                                  as repeated_writes_stddev,
     avg(repeated_writes_per_tx)                                          as repeated_writes_avg,
-    percentile_cont(0.00) within group (order by repeated_writes_per_tx) as repeated_writes_pct_00,
+    min(repeated_writes_per_tx)                                          as repeated_writes_min,
     percentile_cont(0.01) within group (order by repeated_writes_per_tx) as repeated_writes_pct_01,
-    percentile_cont(0.05) within group (order by repeated_writes_per_tx) as repeated_writes_pct_05,
-    percentile_cont(0.25) within group (order by repeated_writes_per_tx) as repeated_writes_pct_25,
     percentile_cont(0.50) within group (order by repeated_writes_per_tx) as repeated_writes_pct_50,
-    percentile_cont(0.75) within group (order by repeated_writes_per_tx) as repeated_writes_pct_75,
-    percentile_cont(0.95) within group (order by repeated_writes_per_tx) as repeated_writes_pct_95,
     percentile_cont(0.99) within group (order by repeated_writes_per_tx) as repeated_writes_pct_99,
-    percentile_cont(1.00) within group (order by repeated_writes_per_tx) as repeated_writes_pct_100
+    max(repeated_writes_per_tx)                                          as repeated_writes_max
 from (select initial_writes::real / l2_tx_count::real                  as initial_writes_per_tx,
              (total_writes - initial_writes)::real / l2_tx_count::real as repeated_writes_per_tx
       from (select mb.number            as miniblock_number,

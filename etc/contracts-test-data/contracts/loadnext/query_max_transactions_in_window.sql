@@ -1,3 +1,5 @@
+-- not a metrics-collecting query, but may be useful to find an interesting range of transactions
+
 \set miniblock_number_range_start 36700000
 \set miniblock_number_range_end 36850000
 \set window_size 10000

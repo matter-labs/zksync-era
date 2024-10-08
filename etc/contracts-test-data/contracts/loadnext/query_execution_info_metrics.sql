@@ -8,15 +8,11 @@
 select stddev_samp(metric)                                  as stddev,
        avg(metric)                                          as avg,
        sum(metric)                                          as sum,
-       percentile_cont(0.00) within group (order by metric) as pct_00,
+       min(metric)                                          as min,
        percentile_cont(0.01) within group (order by metric) as pct_01,
-       percentile_cont(0.05) within group (order by metric) as pct_05,
-       percentile_cont(0.25) within group (order by metric) as pct_25,
        percentile_cont(0.50) within group (order by metric) as pct_50,
-       percentile_cont(0.75) within group (order by metric) as pct_75,
-       percentile_cont(0.95) within group (order by metric) as pct_95,
        percentile_cont(0.99) within group (order by metric) as pct_99,
-       percentile_cont(1.00) within group (order by metric) as pct_100
+       max(metric)                                          as max
 from (select tx.miniblock_number,
              (execution_info ->> :execution_info_field)::bigint as metric
       from transactions tx) cd
