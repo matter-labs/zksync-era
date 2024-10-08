@@ -294,12 +294,12 @@ pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
 pub fn read_yul_bytecode(artifacts_path: PathBuf, name: &str) -> Vec<u8> {
     let bytecode_path = artifacts_path.join(format!("{0}.yul/{0}.yul.zbin", name));
 
-    if fs::exists(&bytecode_path).expect(&format!("Invalid path: {:?}", &bytecode_path)) {
+    if fs::exists(&bytecode_path).unwrap_or_else(|_| panic!("Invalid path: {:?}", &bytecode_path)) {
         read_zbin_bytecode_from_path_utf8(bytecode_path)
     } else {
         let bytecode_path_legacy = artifacts_path.join(format!("{}.yul.zbin", name));
         if fs::exists(&bytecode_path_legacy)
-            .expect(&format!("Invalid path: {:?}", &bytecode_path_legacy))
+            .unwrap_or_else(|_| panic!("Invalid path: {:?}", &bytecode_path_legacy))
         {
             read_zbin_bytecode_from_path(bytecode_path_legacy)
         } else {
@@ -330,9 +330,10 @@ fn read_zbin_bytecode_from_path_utf8(bytecode_path: PathBuf) -> Vec<u8> {
         .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err));
 
     decode_hex(
-        &String::from_utf8(buffer).expect(&format!("Invalid input file: {:?}", bytecode_path)),
+        &String::from_utf8(buffer)
+            .unwrap_or_else(|_| panic!("Invalid input file: {:?}", bytecode_path)),
     )
-    .expect("Invalid hex")
+    .unwrap_or_else(|_| panic!("Invalid hex"))
 }
 /// Hash of code and code which consists of 32 bytes words
 #[derive(Debug, Clone, Serialize, Deserialize)]
