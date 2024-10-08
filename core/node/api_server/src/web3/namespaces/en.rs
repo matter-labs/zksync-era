@@ -1,11 +1,11 @@
 use anyhow::Context as _;
 use zksync_config::{configs::EcosystemContracts, GenesisConfig};
+use zksync_consensus_roles::validator;
 use zksync_dal::{CoreDal, DalError};
 use zksync_types::{
     api::en, protocol_version::ProtocolSemanticVersion, tokens::TokenInfo, Address, L1BatchNumber,
     L2BlockNumber,
 };
-use zksync_consensus_roles::validator;
 use zksync_web3_decl::error::Web3Error;
 
 use crate::web3::{backend_jsonrpsee::MethodTracer, state::RpcState};

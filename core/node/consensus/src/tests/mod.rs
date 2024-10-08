@@ -2,14 +2,14 @@ use anyhow::Context as _;
 use rand::Rng as _;
 use test_casing::{test_casing, Product};
 use tracing::Instrument as _;
-use zksync_concurrency::{ctx, time, error::Wrap as _, scope};
+use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_config::configs::consensus as config;
 use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_roles::{
     node, validator,
     validator::testonly::{Setup, SetupSpec},
 };
-use zksync_consensus_storage::{PersistentBlockStore,BlockStore};
+use zksync_consensus_storage::{BlockStore, PersistentBlockStore};
 use zksync_dal::consensus_dal;
 use zksync_test_account::Account;
 use zksync_types::ProtocolVersionId;
@@ -33,7 +33,7 @@ async fn test_verify_pregenesis_block(version: ProtocolVersionId) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
-    let account = &mut Account::random(); 
+    let account = &mut Account::random();
     let mut setup = SetupSpec::new(rng, 3);
     setup.first_block = validator::BlockNumber(1000);
     let setup = Setup::from_spec(rng, setup);
@@ -45,28 +45,49 @@ async fn test_verify_pregenesis_block(version: ProtocolVersionId) {
 
     scope::run!(ctx, |ctx, s| async {
         tracing::info!("Start state keeper.");
-        let pool = ConnectionPool::test(/*from_snapshot=*/false,version).await;
-        pool
-            .connection(ctx).await.wrap("connection()")?
-            .try_update_global_config(ctx, &cfg).await.wrap("try_update_global_config()")?;
+        let pool = ConnectionPool::test(/*from_snapshot=*/ false, version).await;
+        pool.connection(ctx)
+            .await
+            .wrap("connection()")?
+            .try_update_global_config(ctx, &cfg)
+            .await
+            .wrap("try_update_global_config()")?;
         let (mut sk, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
         s.spawn_bg(runner.run(ctx));
 
         tracing::info!("Populate storage with a bunch of blocks.");
         sk.push_random_blocks(rng, account, 5).await;
-        sk.seal_batch().await; 
-        let blocks : Vec<_> = pool.wait_for_blocks(ctx, sk.last_block()).await.context("wait_for_blocks()")?
-            .into_iter().map(|b| match b { validator::Block::PreGenesis(b) => b, _ => panic!() }).collect();
+        sk.seal_batch().await;
+        let blocks: Vec<_> = pool
+            .wait_for_blocks(ctx, sk.last_block())
+            .await
+            .context("wait_for_blocks()")?
+            .into_iter()
+            .map(|b| match b {
+                validator::Block::PreGenesis(b) => b,
+                _ => panic!(),
+            })
+            .collect();
         assert!(!blocks.is_empty());
 
         tracing::info!("Create another store");
-        let pool = ConnectionPool::test(/*from_snapshot=*/false,version).await;
-        pool
-            .connection(ctx).await.wrap("connection()")?
-            .try_update_global_config(ctx, &cfg).await.wrap("try_update_global_config()")?;
-        let (store, runner) = Store::new(ctx, pool.clone(), None, Some(sk.connect(ctx).await.unwrap())).await.unwrap();
-        s.spawn_bg(runner.run(ctx));        
-        
+        let pool = ConnectionPool::test(/*from_snapshot=*/ false, version).await;
+        pool.connection(ctx)
+            .await
+            .wrap("connection()")?
+            .try_update_global_config(ctx, &cfg)
+            .await
+            .wrap("try_update_global_config()")?;
+        let (store, runner) = Store::new(
+            ctx,
+            pool.clone(),
+            None,
+            Some(sk.connect(ctx).await.unwrap()),
+        )
+        .await
+        .unwrap();
+        s.spawn_bg(runner.run(ctx));
+
         tracing::info!("All the blocks from the main node should be valid.");
         for b in &blocks {
             store.verify_pregenesis_block(ctx, b).await.unwrap();
@@ -76,15 +97,23 @@ async fn test_verify_pregenesis_block(version: ProtocolVersionId) {
             let mut p = consensus_dal::Payload::decode(&b.payload).unwrap();
             // Arbitrary small change.
             p.timestamp = rng.gen();
-            store.verify_pregenesis_block(ctx, &validator::PreGenesisBlock {
-                number: b.number,
-                justification: b.justification.clone(),
-                payload: p.encode(),
-            }).await.unwrap_err();
+            store
+                .verify_pregenesis_block(
+                    ctx,
+                    &validator::PreGenesisBlock {
+                        number: b.number,
+                        justification: b.justification.clone(),
+                        payload: p.encode(),
+                    },
+                )
+                .await
+                .unwrap_err();
         }
 
         Ok(())
-    }).await.unwrap();
+    })
+    .await
+    .unwrap();
 }
 
 #[test_casing(2, VERSIONS)]
@@ -147,10 +176,7 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
                 .wait_until_persisted(ctx, block.number())
                 .await
                 .unwrap();
-            let got = pool
-                .wait_for_blocks(ctx, block.number())
-                .await
-                .unwrap();
+            let got = pool.wait_for_blocks(ctx, block.number()).await.unwrap();
             assert_eq!(want[..=i], got);
             Ok(())
         })
@@ -557,7 +583,11 @@ async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId, pre
 // Test fetcher back filling missing certs.
 #[test_casing(8, Product((FROM_SNAPSHOT,VERSIONS,PREGENESIS)))]
 #[tokio::test]
-async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolVersionId, pregenesis: bool) {
+async fn test_p2p_fetcher_backfill_certs(
+    from_snapshot: bool,
+    version: ProtocolVersionId,
+    pregenesis: bool,
+) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();

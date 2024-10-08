@@ -1,22 +1,22 @@
 //! Protobuf conversion functions.
-use super::proto;
 use anyhow::{anyhow, Context as _};
 use zksync_concurrency::net;
 use zksync_consensus_roles::{attester, node};
 use zksync_protobuf::{read_required, required, ProtoFmt, ProtoRepr};
-use super::*;
 use zksync_types::{
-    parse_h160, parse_h256,
     abi, ethabi,
     fee::Fee,
     l1::{OpProcessingType, PriorityQueueType},
     l2::TransactionType,
+    parse_h160, parse_h256,
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     transaction_request::PaymasterParams,
-    Execute, ExecuteTransactionCommon, InputData, L1BatchNumber, L1TxCommonData,
-    L2TxCommonData, Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
+    Execute, ExecuteTransactionCommon, InputData, L1BatchNumber, L1TxCommonData, L2TxCommonData,
+    Nonce, PriorityOpId, ProtocolVersionId, Transaction, H256,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
+
+use super::{proto, *};
 
 impl ProtoFmt for BlockMetadata {
     type Proto = proto::BlockMetadata;

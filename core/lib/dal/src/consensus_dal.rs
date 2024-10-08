@@ -1,16 +1,16 @@
 use anyhow::Context as _;
+use zksync_consensus_crypto::keccak256::Keccak256;
 use zksync_consensus_roles::{attester, validator};
-use zksync_consensus_storage::{Last, BlockStoreState, ReplicaState};
+use zksync_consensus_storage::{BlockStoreState, Last, ReplicaState};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::{L1BatchNumber,L2BlockNumber};
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
-use zksync_consensus_crypto::keccak256::Keccak256;
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
-pub use crate::consensus::{proto, BlockMetadata, AttestationStatus, GlobalConfig, Payload};
+pub use crate::consensus::{proto, AttestationStatus, BlockMetadata, GlobalConfig, Payload};
 use crate::{Core, CoreDal};
 
 pub fn batch_hash(info: &StoredBatchInfo) -> attester::BatchHash {
@@ -316,13 +316,14 @@ impl ConsensusDal<'_, '_> {
     /// have a consensus certificate.
     /// Currently, certificates are NOT generated synchronously with L2 blocks,
     /// so the `BlockStoreState.last` might be different than the last block in storage.
-    pub async fn block_store_state(&mut self) -> anyhow::Result<BlockStoreState> { 
+    pub async fn block_store_state(&mut self) -> anyhow::Result<BlockStoreState> {
         let first = self.first_block().await.context("first_block()")?;
         let cfg = self
             .global_config()
-            .await.context("global_config()")?
+            .await
+            .context("global_config()")?
             .context("global config is missing")?;
-        
+
         // If there is a cert in storage, then the block range visible to consensus
         // is [first block, block of last cert].
         if let Some(row) = sqlx::query!(
@@ -340,19 +341,33 @@ impl ConsensusDal<'_, '_> {
         .instrument("block_certificate_range")
         .report_latency()
         .fetch_optional(self.storage)
-        .await? {
+        .await?
+        {
             return Ok(BlockStoreState {
                 first,
-                last: Some(Last::Final(zksync_protobuf::serde::Deserialize { deny_unknown_fields: true }.proto_fmt(row.certificate)?)),
+                last: Some(Last::Final(
+                    zksync_protobuf::serde::Deserialize {
+                        deny_unknown_fields: true,
+                    }
+                    .proto_fmt(row.certificate)?,
+                )),
             });
         }
 
         // Otherwise it is [first block, min(genesis.first_block-1,last block)].
-        let next = self.next_block().await.context("next_block()")?.min(cfg.genesis.first_block);
+        let next = self
+            .next_block()
+            .await
+            .context("next_block()")?
+            .min(cfg.genesis.first_block);
         Ok(BlockStoreState {
             first,
             // unwrap is ok, because `next > first >= 0`.
-            last: if next > first { Some(Last::PreGenesis(next.prev().unwrap())) } else { None },
+            last: if next > first {
+                Some(Last::PreGenesis(next.prev().unwrap()))
+            } else {
+                None
+            },
         })
     }
 
@@ -469,8 +484,13 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Fetches L2 block metadata for the given block number.
-    pub async fn block_metadata(&mut self, n: validator::BlockNumber) -> anyhow::Result<Option<BlockMetadata>> {
-        let Some(b) = self.block_payload(n).await.context("block_payload()")? else { return Ok(None); };
+    pub async fn block_metadata(
+        &mut self,
+        n: validator::BlockNumber,
+    ) -> anyhow::Result<Option<BlockMetadata>> {
+        let Some(b) = self.block_payload(n).await.context("block_payload()")? else {
+            return Ok(None);
+        };
         Ok(Some(BlockMetadata {
             payload_hash: b.encode().hash(),
         }))
@@ -574,11 +594,20 @@ impl ConsensusDal<'_, '_> {
     }
 
     /// Fetches the L1 batch info for the given number.
-    pub async fn batch_info(&mut self, number: attester::BatchNumber) -> anyhow::Result<Option<StoredBatchInfo>> {
+    pub async fn batch_info(
+        &mut self,
+        number: attester::BatchNumber,
+    ) -> anyhow::Result<Option<StoredBatchInfo>> {
         let n = L1BatchNumber(number.0.try_into().context("overflow")?);
-        Ok(self.storage.blocks_dal().get_l1_batch_metadata(n).await.context("get_l1_batch_metadata()")?.map(|x|StoredBatchInfo::from(&x)))
+        Ok(self
+            .storage
+            .blocks_dal()
+            .get_l1_batch_metadata(n)
+            .await
+            .context("get_l1_batch_metadata()")?
+            .map(|x| StoredBatchInfo::from(&x)))
     }
- 
+
     /// Inserts a certificate for the L1 batch.
     /// Noop if a certificate for the same L1 batch is already present.
     /// Verification against previously stored attester committee is performed.
@@ -586,7 +615,7 @@ impl ConsensusDal<'_, '_> {
     pub async fn insert_batch_certificate(
         &mut self,
         cert: &attester::BatchQC,
-    ) -> Result<(),InsertCertificateError> {
+    ) -> Result<(), InsertCertificateError> {
         let cfg = self
             .global_config()
             .await
@@ -597,8 +626,14 @@ impl ConsensusDal<'_, '_> {
             .await
             .context("attester_committee()")?
             .context("attester committee is missing")?;
-        let hash = batch_hash(&self.batch_info(cert.message.number).await.context("batch()")?.context("batch is missing")?);
-        if cert.message.hash!=hash {
+        let hash = batch_hash(
+            &self
+                .batch_info(cert.message.number)
+                .await
+                .context("batch()")?
+                .context("batch is missing")?,
+        );
+        if cert.message.hash != hash {
             return Err(InsertCertificateError::PayloadMismatch);
         }
         cert.verify(cfg.genesis.hash(), &committee)

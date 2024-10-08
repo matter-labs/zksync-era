@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use rand::Rng as _;
-use test_casing::{Product,test_casing};
+use test_casing::{test_casing, Product};
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, error::Wrap, scope};
 use zksync_consensus_roles::{
@@ -9,10 +9,10 @@ use zksync_consensus_roles::{
 };
 use zksync_dal::consensus_dal;
 use zksync_test_account::Account;
-use zksync_types::{ProtocolVersionId};
+use zksync_types::ProtocolVersionId;
 use zksync_web3_decl::namespaces::EnNamespaceClient as _;
 
-use super::{VERSIONS,PREGENESIS,POLL_INTERVAL};
+use super::{POLL_INTERVAL, PREGENESIS, VERSIONS};
 use crate::{
     mn::run_main_node,
     registry::{testonly, Registry},
@@ -54,7 +54,9 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
         .wrap("try_update_global_config()")?;
         // Make sure that the first_batch is actually sealed.
         sk.seal_batch().await;
-        pool.wait_for_batch_info(ctx, first_batch, POLL_INTERVAL).await.wrap("wait_for_batch_info()")?;
+        pool.wait_for_batch_info(ctx, first_batch, POLL_INTERVAL)
+            .await
+            .wrap("wait_for_batch_info()")?;
 
         // Connect to API endpoint.
         let api = sk.connect(ctx).await?;

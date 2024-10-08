@@ -1,5 +1,5 @@
 use rand::Rng as _;
-use zksync_concurrency::{ctx, time, scope};
+use zksync_concurrency::{ctx, scope, time};
 use zksync_consensus_roles::{attester, validator::testonly::Setup};
 use zksync_test_account::Account;
 use zksync_types::ProtocolVersionId;
@@ -7,7 +7,7 @@ use zksync_types::ProtocolVersionId;
 use super::*;
 use crate::storage::ConnectionPool;
 
-const POLL_INTERVAL : time::Duration = time::Duration::milliseconds(500);
+const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(500);
 
 /// Test checking that parsing logic matches the abi specified in the json file.
 #[test]
@@ -75,7 +75,9 @@ async fn test_attester_committee() {
 
         node.push_block(&txs).await;
         node.seal_batch().await;
-        pool.wait_for_batch_info(ctx, node.last_batch(), POLL_INTERVAL).await.wrap("wait_for_batch_info()")?;
+        pool.wait_for_batch_info(ctx, node.last_batch(), POLL_INTERVAL)
+            .await
+            .wrap("wait_for_batch_info()")?;
 
         // Read the attester committee using the vm.
         let batch = attester::BatchNumber(node.last_batch().0.into());

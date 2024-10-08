@@ -1,6 +1,6 @@
 pub mod storage_block;
 use zksync_db_connection::error::SqlxContext;
-use zksync_types::{ProtocolVersionId};
+use zksync_types::ProtocolVersionId;
 
 mod call;
 pub mod storage_base_token_ratio;

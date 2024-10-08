@@ -4,14 +4,13 @@ use rand::Rng;
 use zksync_concurrency::ctx;
 use zksync_protobuf::{
     repr::{decode, encode},
-    testonly::{test_encode},
+    testonly::{test_encode, test_encode_all_formats, FmtConv},
     ProtoRepr,
 };
 use zksync_test_account::Account;
 use zksync_types::{
     web3::Bytes, Execute, ExecuteTransactionCommon, L1BatchNumber, ProtocolVersionId, Transaction,
 };
-use zksync_protobuf::testonly::{test_encode_all_formats, FmtConv};
 
 use super::*;
 use crate::tests::mock_protocol_upgrade_transaction;

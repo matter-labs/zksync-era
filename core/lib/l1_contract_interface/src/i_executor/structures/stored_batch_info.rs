@@ -1,11 +1,12 @@
+use anyhow::Context as _;
 use zksync_types::{
     commitment::L1BatchWithMetadata,
     ethabi::{self, ParamType, Token},
-    web3,
+    parse_h256, web3,
     web3::contract::Error as ContractError,
-    H256, U256, parse_h256,
+    H256, U256,
 };
-use anyhow::Context as _;
+
 use crate::Tokenizable;
 
 /// `StoredBatchInfo` from `IExecutor.sol`.
@@ -42,7 +43,9 @@ impl StoredBatchInfo {
 
     /// Decodes the struct from RLP.
     pub fn decode(rlp: &[u8]) -> anyhow::Result<Self> {
-        let [token] = ethabi::decode_whole(&Self::schema(), rlp)?.try_into().unwrap();
+        let [token] = ethabi::decode_whole(&Self::schema(), rlp)?
+            .try_into()
+            .unwrap();
         Ok(Self::from_token(token)?)
     }
 
@@ -69,7 +72,7 @@ impl From<&L1BatchWithMetadata> for StoredBatchInfo {
 
 impl Tokenizable for StoredBatchInfo {
     fn from_token(token: Token) -> Result<Self, ContractError> {
-        (||{
+        (|| {
             let [
                 Token::Uint(batch_number),
                 Token::FixedBytes(batch_hash),
@@ -84,16 +87,29 @@ impl Tokenizable for StoredBatchInfo {
                 .try_into().ok().context("bad length")?
             else { anyhow::bail!("bad format") };
             Ok(Self {
-                batch_number: batch_number.try_into().ok().context("overflow").context("batch_number")?,
+                batch_number: batch_number
+                    .try_into()
+                    .ok()
+                    .context("overflow")
+                    .context("batch_number")?,
                 batch_hash: parse_h256(&batch_hash).context("batch_hash")?,
-                index_repeated_storage_changes: index_repeated_storage_changes.try_into().ok().context("overflow").context("index_repeated_storage_changes")?,
-                number_of_layer1_txs: number_of_layer1_txs.try_into().context("overflow").context("number_of_layer1_txs")?,
-                priority_operations_hash: parse_h256(&priority_operations_hash).context("priority_operations_hash")?,
+                index_repeated_storage_changes: index_repeated_storage_changes
+                    .try_into()
+                    .ok()
+                    .context("overflow")
+                    .context("index_repeated_storage_changes")?,
+                number_of_layer1_txs: number_of_layer1_txs
+                    .try_into()
+                    .context("overflow")
+                    .context("number_of_layer1_txs")?,
+                priority_operations_hash: parse_h256(&priority_operations_hash)
+                    .context("priority_operations_hash")?,
                 l2_logs_tree_root: parse_h256(&l2_logs_tree_root).context("l2_logs_tree_root")?,
                 timestamp,
                 commitment: parse_h256(&commitment).context("commitment")?,
             })
-        })().map_err(|err|ContractError::InvalidOutputType(format!("{err:#}")))
+        })()
+        .map_err(|err| ContractError::InvalidOutputType(format!("{err:#}")))
     }
 
     fn into_token(self) -> Token {

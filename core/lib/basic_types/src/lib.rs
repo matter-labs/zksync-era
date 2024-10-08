@@ -13,6 +13,7 @@ use std::{
     str::FromStr,
 };
 
+use anyhow::Context as _;
 pub use ethabi::{
     self,
     ethereum_types::{
@@ -20,7 +21,6 @@ pub use ethabi::{
     },
 };
 use serde::{de, Deserialize, Deserializer, Serialize};
-use anyhow::Context as _;
 
 #[macro_use]
 mod macros;

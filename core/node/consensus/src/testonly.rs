@@ -16,9 +16,7 @@ use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
 use zksync_consensus_roles::{attester, validator, validator::testonly::Setup};
 use zksync_dal::{CoreDal, DalError};
-use zksync_metadata_calculator::{
-    MetadataCalculator, MetadataCalculatorConfig,
-};
+use zksync_metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
@@ -47,10 +45,7 @@ use zksync_types::{
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
-use crate::{
-    en,
-    storage::ConnectionPool,
-};
+use crate::{en, storage::ConnectionPool};
 
 /// Fake StateKeeper for tests.
 #[derive(Debug)]
@@ -90,7 +85,12 @@ impl ConfigSet {
     }
 }
 
-pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize, pregenesis: bool) -> Vec<ConfigSet> {
+pub(super) fn new_configs(
+    rng: &mut impl Rng,
+    setup: &Setup,
+    seed_peers: usize,
+    pregenesis: bool,
+) -> Vec<ConfigSet> {
     let net_cfgs = network::testonly::new_configs(rng, setup, 0);
     let genesis_spec = config::GenesisSpec {
         chain_id: setup.genesis.chain_id.0.try_into().unwrap(),

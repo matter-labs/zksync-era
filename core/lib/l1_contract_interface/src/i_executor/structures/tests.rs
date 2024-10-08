@@ -1,5 +1,9 @@
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
+
 use super::*;
-use rand::{distributions::{Standard,Distribution}, Rng};
 
 impl Distribution<StoredBatchInfo> for Standard {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> StoredBatchInfo {
@@ -16,14 +20,13 @@ impl Distribution<StoredBatchInfo> for Standard {
     }
 }
 
-
 /// Test checking encoding and decoding of `StoredBatchInfo`.
 #[test]
 fn test_encoding() {
     let rng = &mut rand::thread_rng();
     for _ in 0..10 {
-        let want : StoredBatchInfo = rng.gen();
+        let want: StoredBatchInfo = rng.gen();
         let got = StoredBatchInfo::decode(&want.encode()).unwrap();
-        assert_eq!(want,got);
+        assert_eq!(want, got);
     }
 }

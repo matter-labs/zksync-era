@@ -7,8 +7,8 @@ use zksync_dal::CoreDal as _;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{recover, snapshot, Snapshot};
 use zksync_types::{
-    protocol_version::ProtocolSemanticVersion,
-    system_contracts::get_system_smart_contracts, L1BatchNumber, L2BlockNumber, ProtocolVersionId,
+    protocol_version::ProtocolSemanticVersion, system_contracts::get_system_smart_contracts,
+    L1BatchNumber, L2BlockNumber, ProtocolVersionId,
 };
 
 use super::{Connection, ConnectionPool};
@@ -145,7 +145,7 @@ impl ConnectionPool {
                 .block_store_state(ctx)
                 .await
                 .wrap("block_store_state()")?;
-            tracing::info!("state.next() = {}",state.next());
+            tracing::info!("state.next() = {}", state.next());
             if state.next() > want_last {
                 break state;
             }
@@ -241,22 +241,27 @@ impl ConnectionPool {
         last_batch: attester::BatchNumber,
     ) -> ctx::Result<()> {
         let mut conn = self.connection(ctx).await.context("connection()")?;
-        let (_, last_block) = conn.get_l2_block_range_of_l1_batch(ctx,last_batch)
+        let (_, last_block) = conn
+            .get_l2_block_range_of_l1_batch(ctx, last_batch)
             .await
             .wrap("get_l2_block_range_of_l1_batch()")?
             .context("batch not found")?;
         let last_batch = L1BatchNumber(last_batch.0.try_into().context("oveflow")?);
         let last_block = L2BlockNumber(last_block.0.try_into().context("oveflow")?);
-        ctx.wait(conn.0
-            .pruning_dal()
-            .soft_prune_batches_range(last_batch, last_block))
-            .await?
-            .context("soft_prune_batches_range()")?;
-        ctx.wait(conn.0
-            .pruning_dal()
-            .hard_prune_batches_range(last_batch, last_block))
-            .await?
-            .context("hard_prune_batches_range()")?;
+        ctx.wait(
+            conn.0
+                .pruning_dal()
+                .soft_prune_batches_range(last_batch, last_block),
+        )
+        .await?
+        .context("soft_prune_batches_range()")?;
+        ctx.wait(
+            conn.0
+                .pruning_dal()
+                .hard_prune_batches_range(last_batch, last_block),
+        )
+        .await?
+        .context("hard_prune_batches_range()")?;
         Ok(())
     }
 }

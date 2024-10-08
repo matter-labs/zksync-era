@@ -212,7 +212,7 @@ pub struct L2BlockHasher {
 pub fn rolling_txs_hash(txs: &[Transaction]) -> H256 {
     let mut h = H256::zero();
     for tx in txs {
-        h = concat_and_hash(h,tx.hash());
+        h = concat_and_hash(h, tx.hash());
     }
     h
 }

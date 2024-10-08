@@ -62,8 +62,15 @@ pub async fn run_external_node(
             // We will enable it once the main node on all envs supports
             // `block_metadata()` JSON RPC method.
             let enable_pregenesis = false;
-            en.run(ctx, actions, cfg, secrets, Some(build_version), enable_pregenesis)
-                .await
+            en.run(
+                ctx,
+                actions,
+                cfg,
+                secrets,
+                Some(build_version),
+                enable_pregenesis,
+            )
+            .await
         }
         None => {
             tracing::info!("running fetcher");

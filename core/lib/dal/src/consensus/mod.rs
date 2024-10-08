@@ -2,14 +2,10 @@ use std::collections::BTreeMap;
 
 use zksync_concurrency::net;
 use zksync_consensus_roles::{attester, node, validator};
-use zksync_types::{
-    ethabi,
-    Address, L1BatchNumber,
-    ProtocolVersionId, Transaction, H256,
-};
+use zksync_types::{ethabi, Address, L1BatchNumber, ProtocolVersionId, Transaction, H256};
 
-pub mod proto;
 mod conv;
+pub mod proto;
 #[cfg(test)]
 mod testonly;
 #[cfg(test)]

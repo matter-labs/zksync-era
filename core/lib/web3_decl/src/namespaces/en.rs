@@ -29,7 +29,10 @@ pub trait EnNamespace {
     async fn consensus_global_config(&self) -> RpcResult<Option<en::ConsensusGlobalConfig>>;
 
     #[method(name = "blockMetadata")]
-    async fn block_metadata(&self, block_number: L2BlockNumber) -> RpcResult<Option<en::BlockMetadata>>;
+    async fn block_metadata(
+        &self,
+        block_number: L2BlockNumber,
+    ) -> RpcResult<Option<en::BlockMetadata>>;
 
     /// Lists all tokens created at or before the specified `block_number`.
     ///

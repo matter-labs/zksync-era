@@ -4,13 +4,15 @@ use anyhow::Context as _;
 use tracing::Instrument;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, sync, time};
 use zksync_consensus_bft::PayloadManager;
-use zksync_consensus_roles::{validator};
+use zksync_consensus_roles::validator;
 use zksync_consensus_storage::{self as storage};
 use zksync_dal::consensus_dal::{self, Payload};
 use zksync_node_sync::fetcher::{FetchedBlock, FetchedTransaction};
 use zksync_types::L2BlockNumber;
-use zksync_web3_decl::client::{DynClient, L2};
-use zksync_web3_decl::namespaces::EnNamespaceClient as _;
+use zksync_web3_decl::{
+    client::{DynClient, L2},
+    namespaces::EnNamespaceClient as _,
+};
 
 use super::{Connection, PayloadQueue};
 use crate::storage::{ConnectionPool, InsertCertificateError};
@@ -83,10 +85,7 @@ impl Store {
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
 
         // Initial state of persisted blocks
-        let blocks_persisted = conn
-            .block_store_state(ctx)
-            .await
-            .wrap("blocks_range()")?;
+        let blocks_persisted = conn.block_store_state(ctx).await.wrap("blocks_range()")?;
         drop(conn);
 
         let blocks_persisted = sync::watch::channel(blocks_persisted).0;
@@ -289,17 +288,33 @@ impl storage::PersistentBlockStore for Store {
             .context("not found")?)
     }
 
-    async fn verify_pregenesis_block(&self, ctx: &ctx::Ctx, block: &validator::PreGenesisBlock) -> ctx::Result<()> {
+    async fn verify_pregenesis_block(
+        &self,
+        ctx: &ctx::Ctx,
+        block: &validator::PreGenesisBlock,
+    ) -> ctx::Result<()> {
         // We simply ask the main node for the payload hash and compare it against the received
         // payload.
         let meta = match &self.client {
-            None => self.conn(ctx).await?.block_metadata(ctx, block.number).await?.context("metadata not in storage")?,
+            None => self
+                .conn(ctx)
+                .await?
+                .block_metadata(ctx, block.number)
+                .await?
+                .context("metadata not in storage")?,
             Some(client) => {
-                let meta = ctx.wait(client
-                    .block_metadata(L2BlockNumber(block.number.0.try_into().context("overflow")?)))
-                    .await?.context("block_metadata()")?
+                let meta = ctx
+                    .wait(client.block_metadata(L2BlockNumber(
+                        block.number.0.try_into().context("overflow")?,
+                    )))
+                    .await?
+                    .context("block_metadata()")?
                     .context("metadata not available")?;
-                zksync_protobuf::serde::Deserialize{deny_unknown_fields:false}.proto_fmt(&meta.0).context("deserialize()")?
+                zksync_protobuf::serde::Deserialize {
+                    deny_unknown_fields: false,
+                }
+                .proto_fmt(&meta.0)
+                .context("deserialize()")?
             }
         };
         if meta.payload_hash != block.payload.hash() {
@@ -316,13 +331,9 @@ impl storage::PersistentBlockStore for Store {
     /// `store_next_block()` call will wait synchronously for the L2 block.
     /// Once the L2 block is observed in storage, `store_next_block()` will store a cert for this
     /// L2 block.
-    async fn queue_next_block(
-        &self,
-        ctx: &ctx::Ctx,
-        block: validator::Block,
-    ) -> ctx::Result<()> {
+    async fn queue_next_block(&self, ctx: &ctx::Ctx, block: validator::Block) -> ctx::Result<()> {
         let mut payloads = sync::lock(ctx, &self.block_payloads).await?.into_async();
-        let (p,j) = match &block {
+        let (p, j) = match &block {
             validator::Block::Final(block) => (&block.payload, Some(&block.justification)),
             validator::Block::PreGenesis(block) => (&block.payload, None),
         };

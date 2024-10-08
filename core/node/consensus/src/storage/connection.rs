@@ -2,16 +2,17 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, time};
 use zksync_consensus_roles::{attester, attester::BatchNumber, validator};
 use zksync_consensus_storage as storage;
-use zksync_dal::{consensus_dal::{AttestationStatus, BlockMetadata, GlobalConfig, Payload}, Core, CoreDal, DalError};
-use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
-use zksync_state_keeper::io::common::IoCursor;
-use zksync_types::{
-    fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber,
+use zksync_dal::{
+    consensus_dal::{AttestationStatus, BlockMetadata, GlobalConfig, Payload},
+    Core, CoreDal, DalError,
 };
 use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
+use zksync_node_sync::{fetcher::IoCursorExt as _, ActionQueueSender, SyncState};
+use zksync_state_keeper::io::common::IoCursor;
+use zksync_types::{fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber};
 use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
-use super::{PayloadQueue};
+use super::PayloadQueue;
 use crate::config;
 
 /// Context-aware `zksync_dal::ConnectionPool<Core>` wrapper.
@@ -108,15 +109,23 @@ impl<'a> Connection<'a> {
             .map_err(DalError::generalize)?)
     }
 
-    pub async fn batch_info(&mut self, ctx: &ctx::Ctx, n: attester::BatchNumber) -> ctx::Result<Option<StoredBatchInfo>> {
+    pub async fn batch_info(
+        &mut self,
+        ctx: &ctx::Ctx,
+        n: attester::BatchNumber,
+    ) -> ctx::Result<Option<StoredBatchInfo>> {
         Ok(ctx.wait(self.0.consensus_dal().batch_info(n)).await??)
     }
 
     /// Wrapper for `consensus_dal().block_metadata()`.
     pub async fn block_metadata(
-        &mut self, ctx: &ctx::Ctx, number: validator::BlockNumber,
+        &mut self,
+        ctx: &ctx::Ctx,
+        number: validator::BlockNumber,
     ) -> ctx::Result<Option<BlockMetadata>> {
-        Ok(ctx.wait(self.0.consensus_dal().block_metadata(number)).await??)
+        Ok(ctx
+            .wait(self.0.consensus_dal().block_metadata(number))
+            .await??)
     }
 
     /// Wrapper for `consensus_dal().block_certificate()`.
@@ -206,10 +215,7 @@ impl<'a> Connection<'a> {
     }
 
     /// Wrapper for `consensus_dal().global_config()`.
-    pub async fn global_config(
-        &mut self,
-        ctx: &ctx::Ctx,
-    ) -> ctx::Result<Option<GlobalConfig>> {
+    pub async fn global_config(&mut self, ctx: &ctx::Ctx) -> ctx::Result<Option<GlobalConfig>> {
         Ok(ctx.wait(self.0.consensus_dal().global_config()).await??)
     }
 
@@ -240,7 +246,6 @@ impl<'a> Connection<'a> {
             .wait(self.0.consensus_dal().block_store_state())
             .await??)
     }
-
 
     /// (Re)initializes consensus genesis to start at the last L2 block in storage.
     /// Noop if `spec` matches the current genesis.
@@ -293,30 +298,34 @@ impl<'a> Connection<'a> {
         ctx: &ctx::Ctx,
         number: validator::BlockNumber,
     ) -> ctx::Result<Option<validator::Block>> {
-        let Some(payload) = self
-            .payload(ctx, number)
-            .await
-            .wrap("payload()")?
-        else { return Ok(None) };
+        let Some(payload) = self.payload(ctx, number).await.wrap("payload()")? else {
+            return Ok(None);
+        };
 
         if let Some(justification) = self
             .block_certificate(ctx, number)
             .await
             .wrap("block_certificate()")?
         {
-            return Ok(Some(validator::FinalBlock {
-                payload: payload.encode(),
-                justification,
-            }.into()));
+            return Ok(Some(
+                validator::FinalBlock {
+                    payload: payload.encode(),
+                    justification,
+                }
+                .into(),
+            ));
         }
 
-        Ok(Some(validator::PreGenesisBlock {
-            number,
-            payload: payload.encode(),
-            // We won't use justification until it is possible to verify
-            // payload against the L1 batch commitment.
-            justification: validator::Justification(vec![]),
-        }.into()))
+        Ok(Some(
+            validator::PreGenesisBlock {
+                number,
+                payload: payload.encode(),
+                // We won't use justification until it is possible to verify
+                // payload against the L1 batch commitment.
+                justification: validator::Justification(vec![]),
+            }
+            .into(),
+        ))
     }
 
     /// Wrapper for `blocks_dal().get_l2_block_range_of_l1_batch()`.

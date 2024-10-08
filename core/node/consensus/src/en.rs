@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
-use zksync_consensus_storage::{BlockStore};
+use zksync_consensus_storage::BlockStore;
 use zksync_dal::consensus_dal;
 use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender, SyncState};
 use zksync_types::L2BlockNumber;
@@ -105,9 +105,14 @@ impl EN {
 
             // Run consensus component.
             // External nodes have a payload queue which they use to fetch data from the main node.
-            let (store, runner) = Store::new(ctx, self.pool.clone(), Some(payload_queue), Some(self.client.clone()))
-                .await
-                .wrap("Store::new()")?;
+            let (store, runner) = Store::new(
+                ctx,
+                self.pool.clone(),
+                Some(payload_queue),
+                Some(self.client.clone()),
+            )
+            .await
+            .wrap("Store::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
 
             let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
@@ -207,10 +212,13 @@ impl EN {
                 "waiting for hash of batch {:?}",
                 status.next_batch_to_attest
             );
-            let hash = consensus_dal::batch_hash(&self
-                .pool
-                .wait_for_batch_info(ctx, status.next_batch_to_attest, POLL_INTERVAL)
-                .await.wrap("wait_for_batch_info()")?);
+            let hash = consensus_dal::batch_hash(
+                &self
+                    .pool
+                    .wait_for_batch_info(ctx, status.next_batch_to_attest, POLL_INTERVAL)
+                    .await
+                    .wrap("wait_for_batch_info()")?,
+            );
             let Some(committee) = registry
                 .attester_committee_for(
                     ctx,

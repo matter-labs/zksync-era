@@ -37,7 +37,10 @@ impl EnNamespaceServer for EnNamespace {
             .map_err(|err| self.current_method().map_err(err))
     }
 
-    async fn block_metadata(&self, block_number: L2BlockNumber) -> RpcResult<Option<en::BlockMetadata>> {
+    async fn block_metadata(
+        &self,
+        block_number: L2BlockNumber,
+    ) -> RpcResult<Option<en::BlockMetadata>> {
         self.block_metadata_impl(block_number)
             .await
             .map_err(|err| self.current_method().map_err(err))
