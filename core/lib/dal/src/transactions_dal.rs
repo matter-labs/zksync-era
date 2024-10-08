@@ -315,9 +315,11 @@ impl TransactionsDal<'_, '_> {
         let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
         #[allow(deprecated)]
         let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
+        #[allow(deprecated)]
         let block_timestamp_range_start = validation_traces
             .range_start
             .map(|x| NaiveDateTime::from_timestamp_opt(x.as_u64() as i64, 0).unwrap());
+        #[allow(deprecated)]
         let block_timestamp_range_end = validation_traces
             .range_end
             .map(|x| NaiveDateTime::from_timestamp_opt(x.as_u64() as i64, 0).unwrap());
