@@ -1,6 +1,12 @@
 {
   "db_name": "PostgreSQL",
+<<<<<<<< HEAD:core/lib/dal/.sqlx/query-511b99d53e4559deb1d5fd65193410d8d7497e18aeeed85eaaf6ecdfbb77e10d.json
   "query": "\n                    SELECT\n                        number,\n                        timestamp,\n                        l1_tx_count,\n                        l2_tx_count,\n                        bloom,\n                        priority_ops_onchain_data,\n                        hash,\n                        commitment,\n                        l2_to_l1_messages,\n                        used_contract_hashes,\n                        compressed_initial_writes,\n                        compressed_repeated_writes,\n                        l2_l1_merkle_root,\n                        rollup_last_leaf_index,\n                        zkporter_is_available,\n                        bootloader_code_hash,\n                        default_aa_code_hash,\n                        aux_data_hash,\n                        pass_through_data_hash,\n                        meta_parameters_hash,\n                        protocol_version,\n                        compressed_state_diffs,\n                        system_logs,\n                        events_queue_commitment,\n                        bootloader_initial_content_commitment,\n                        pubdata_input,\n                        data_availability.blob_id AS \"blob_id?\"\n                    FROM\n                        l1_batches\n                        LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                        LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number\n                    WHERE\n                        eth_prove_tx_id IS NOT NULL\n                        AND eth_execute_tx_id IS NULL\n                    ORDER BY\n                        number\n                    LIMIT\n                        $1\n                    ",
+|||||||| 3fd2fb14e:core/lib/dal/.sqlx/query-4ef330359df85ad6e0110a068ef3afa9cf50eafc7ac542975edea9bd592ce862.json
+  "query": "\n                    SELECT\n                        number,\n                        timestamp,\n                        l1_tx_count,\n                        l2_tx_count,\n                        bloom,\n                        priority_ops_onchain_data,\n                        hash,\n                        commitment,\n                        l2_to_l1_messages,\n                        used_contract_hashes,\n                        compressed_initial_writes,\n                        compressed_repeated_writes,\n                        l2_l1_merkle_root,\n                        rollup_last_leaf_index,\n                        zkporter_is_available,\n                        bootloader_code_hash,\n                        default_aa_code_hash,\n                        aux_data_hash,\n                        pass_through_data_hash,\n                        meta_parameters_hash,\n                        protocol_version,\n                        compressed_state_diffs,\n                        system_logs,\n                        events_queue_commitment,\n                        bootloader_initial_content_commitment,\n                        pubdata_input\n                    FROM\n                        l1_batches\n                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                    WHERE\n                        eth_prove_tx_id IS NOT NULL\n                        AND eth_execute_tx_id IS NULL\n                    ORDER BY\n                        number\n                    LIMIT\n                        $1\n                    ",
+========
+  "query": "\n                    SELECT\n                        number,\n                        timestamp,\n                        l1_tx_count,\n                        l2_tx_count,\n                        bloom,\n                        priority_ops_onchain_data,\n                        hash,\n                        commitment,\n                        l2_to_l1_messages,\n                        used_contract_hashes,\n                        compressed_initial_writes,\n                        compressed_repeated_writes,\n                        l2_l1_merkle_root,\n                        rollup_last_leaf_index,\n                        zkporter_is_available,\n                        bootloader_code_hash,\n                        default_aa_code_hash,\n                        evm_emulator_code_hash,\n                        aux_data_hash,\n                        pass_through_data_hash,\n                        meta_parameters_hash,\n                        protocol_version,\n                        compressed_state_diffs,\n                        system_logs,\n                        events_queue_commitment,\n                        bootloader_initial_content_commitment,\n                        pubdata_input\n                    FROM\n                        l1_batches\n                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                    WHERE\n                        eth_prove_tx_id IS NOT NULL\n                        AND eth_execute_tx_id IS NULL\n                    ORDER BY\n                        number\n                    LIMIT\n                        $1\n                    ",
+>>>>>>>> main:core/lib/dal/.sqlx/query-da1ea91f3a1189f881020a6cec17fc5d8943e65a30508898d90a098432050bc7.json
   "describe": {
     "columns": [
       {
@@ -90,46 +96,51 @@
       },
       {
         "ordinal": 17,
-        "name": "aux_data_hash",
+        "name": "evm_emulator_code_hash",
         "type_info": "Bytea"
       },
       {
         "ordinal": 18,
-        "name": "pass_through_data_hash",
+        "name": "aux_data_hash",
         "type_info": "Bytea"
       },
       {
         "ordinal": 19,
-        "name": "meta_parameters_hash",
+        "name": "pass_through_data_hash",
         "type_info": "Bytea"
       },
       {
         "ordinal": 20,
+        "name": "meta_parameters_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 21,
         "name": "protocol_version",
         "type_info": "Int4"
       },
       {
-        "ordinal": 21,
+        "ordinal": 22,
         "name": "compressed_state_diffs",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 22,
+        "ordinal": 23,
         "name": "system_logs",
         "type_info": "ByteaArray"
       },
       {
-        "ordinal": 23,
+        "ordinal": 24,
         "name": "events_queue_commitment",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 24,
+        "ordinal": 25,
         "name": "bootloader_initial_content_commitment",
         "type_info": "Bytea"
       },
       {
-        "ordinal": 25,
+        "ordinal": 26,
         "name": "pubdata_input",
         "type_info": "Bytea"
       },
@@ -167,6 +178,7 @@
       true,
       true,
       true,
+      true,
       false,
       true,
       true,
@@ -174,5 +186,11 @@
       false
     ]
   },
+<<<<<<<< HEAD:core/lib/dal/.sqlx/query-511b99d53e4559deb1d5fd65193410d8d7497e18aeeed85eaaf6ecdfbb77e10d.json
   "hash": "511b99d53e4559deb1d5fd65193410d8d7497e18aeeed85eaaf6ecdfbb77e10d"
+|||||||| 3fd2fb14e:core/lib/dal/.sqlx/query-4ef330359df85ad6e0110a068ef3afa9cf50eafc7ac542975edea9bd592ce862.json
+  "hash": "4ef330359df85ad6e0110a068ef3afa9cf50eafc7ac542975edea9bd592ce862"
+========
+  "hash": "da1ea91f3a1189f881020a6cec17fc5d8943e65a30508898d90a098432050bc7"
+>>>>>>>> main:core/lib/dal/.sqlx/query-da1ea91f3a1189f881020a6cec17fc5d8943e65a30508898d90a098432050bc7.json
 }

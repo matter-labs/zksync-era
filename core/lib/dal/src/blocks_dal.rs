@@ -325,6 +325,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_emulator_code_hash,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -368,6 +369,7 @@ impl BlocksDal<'_, '_> {
                 used_contract_hashes,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_emulator_code_hash,
                 protocol_version,
                 system_logs,
                 pubdata_input
@@ -597,55 +599,57 @@ impl BlocksDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-                l1_batches (
-                    number,
-                    l1_tx_count,
-                    l2_tx_count,
-                    timestamp,
-                    l2_to_l1_messages,
-                    bloom,
-                    priority_ops_onchain_data,
-                    predicted_commit_gas_cost,
-                    predicted_prove_gas_cost,
-                    predicted_execute_gas_cost,
-                    initial_bootloader_heap_content,
-                    used_contract_hashes,
-                    bootloader_code_hash,
-                    default_aa_code_hash,
-                    protocol_version,
-                    system_logs,
-                    storage_refunds,
-                    pubdata_costs,
-                    pubdata_input,
-                    predicted_circuits_by_type,
-                    created_at,
-                    updated_at
-                )
+            l1_batches (
+                number,
+                l1_tx_count,
+                l2_tx_count,
+                timestamp,
+                l2_to_l1_messages,
+                bloom,
+                priority_ops_onchain_data,
+                predicted_commit_gas_cost,
+                predicted_prove_gas_cost,
+                predicted_execute_gas_cost,
+                initial_bootloader_heap_content,
+                used_contract_hashes,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                evm_emulator_code_hash,
+                protocol_version,
+                system_logs,
+                storage_refunds,
+                pubdata_costs,
+                pubdata_input,
+                predicted_circuits_by_type,
+                created_at,
+                updated_at
+            )
             VALUES
-                (
-                    $1,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    $8,
-                    $9,
-                    $10,
-                    $11,
-                    $12,
-                    $13,
-                    $14,
-                    $15,
-                    $16,
-                    $17,
-                    $18,
-                    $19,
-                    $20,
-                    NOW(),
-                    NOW()
-                )
+            (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                $11,
+                $12,
+                $13,
+                $14,
+                $15,
+                $16,
+                $17,
+                $18,
+                $19,
+                $20,
+                $21,
+                NOW(),
+                NOW()
+            )
             "#,
             i64::from(header.number.0),
             i32::from(header.l1_tx_count),
@@ -661,6 +665,11 @@ impl BlocksDal<'_, '_> {
             used_contract_hashes,
             header.base_system_contracts_hashes.bootloader.as_bytes(),
             header.base_system_contracts_hashes.default_aa.as_bytes(),
+            header
+                .base_system_contracts_hashes
+                .evm_emulator
+                .as_ref()
+                .map(H256::as_bytes),
             header.protocol_version.map(|v| v as i32),
             &system_logs,
             &storage_refunds,
@@ -692,49 +701,51 @@ impl BlocksDal<'_, '_> {
         let query = sqlx::query!(
             r#"
             INSERT INTO
-                miniblocks (
-                    number,
-                    timestamp,
-                    hash,
-                    l1_tx_count,
-                    l2_tx_count,
-                    fee_account_address,
-                    base_fee_per_gas,
-                    l1_gas_price,
-                    l2_fair_gas_price,
-                    gas_per_pubdata_limit,
-                    bootloader_code_hash,
-                    default_aa_code_hash,
-                    protocol_version,
-                    virtual_blocks,
-                    fair_pubdata_price,
-                    gas_limit,
-                    logs_bloom,
-                    created_at,
-                    updated_at
-                )
+            miniblocks (
+                number,
+                timestamp,
+                hash,
+                l1_tx_count,
+                l2_tx_count,
+                fee_account_address,
+                base_fee_per_gas,
+                l1_gas_price,
+                l2_fair_gas_price,
+                gas_per_pubdata_limit,
+                bootloader_code_hash,
+                default_aa_code_hash,
+                evm_emulator_code_hash,
+                protocol_version,
+                virtual_blocks,
+                fair_pubdata_price,
+                gas_limit,
+                logs_bloom,
+                created_at,
+                updated_at
+            )
             VALUES
-                (
-                    $1,
-                    $2,
-                    $3,
-                    $4,
-                    $5,
-                    $6,
-                    $7,
-                    $8,
-                    $9,
-                    $10,
-                    $11,
-                    $12,
-                    $13,
-                    $14,
-                    $15,
-                    $16,
-                    $17,
-                    NOW(),
-                    NOW()
-                )
+            (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                $11,
+                $12,
+                $13,
+                $14,
+                $15,
+                $16,
+                $17,
+                $18,
+                NOW(),
+                NOW()
+            )
             "#,
             i64::from(l2_block_header.number.0),
             l2_block_header.timestamp as i64,
@@ -754,6 +765,11 @@ impl BlocksDal<'_, '_> {
                 .base_system_contracts_hashes
                 .default_aa
                 .as_bytes(),
+            l2_block_header
+                .base_system_contracts_hashes
+                .evm_emulator
+                .as_ref()
+                .map(H256::as_bytes),
             l2_block_header.protocol_version.map(|v| v as i32),
             i64::from(l2_block_header.virtual_blocks),
             l2_block_header.batch_fee_input.fair_pubdata_price() as i64,
@@ -782,6 +798,7 @@ impl BlocksDal<'_, '_> {
                 gas_per_pubdata_limit,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_emulator_code_hash,
                 protocol_version,
                 virtual_blocks,
                 fair_pubdata_price,
@@ -822,6 +839,7 @@ impl BlocksDal<'_, '_> {
                 gas_per_pubdata_limit,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_emulator_code_hash,
                 protocol_version,
                 virtual_blocks,
                 fair_pubdata_price,
@@ -1036,6 +1054,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_emulator_code_hash,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -1218,6 +1237,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_emulator_code_hash,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -1300,6 +1320,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 bootloader_code_hash,
                 default_aa_code_hash,
+                evm_emulator_code_hash,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -1375,6 +1396,7 @@ impl BlocksDal<'_, '_> {
                         zkporter_is_available,
                         bootloader_code_hash,
                         default_aa_code_hash,
+                        evm_emulator_code_hash,
                         aux_data_hash,
                         pass_through_data_hash,
                         meta_parameters_hash,
@@ -1502,6 +1524,7 @@ impl BlocksDal<'_, '_> {
                     zkporter_is_available,
                     bootloader_code_hash,
                     default_aa_code_hash,
+                    evm_emulator_code_hash,
                     aux_data_hash,
                     pass_through_data_hash,
                     meta_parameters_hash,
@@ -1568,6 +1591,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash,
+                l1_batches.evm_emulator_code_hash,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -1648,6 +1672,7 @@ impl BlocksDal<'_, '_> {
                 zkporter_is_available,
                 l1_batches.bootloader_code_hash,
                 l1_batches.default_aa_code_hash,
+                l1_batches.evm_emulator_code_hash,
                 aux_data_hash,
                 pass_through_data_hash,
                 meta_parameters_hash,
@@ -2694,6 +2719,40 @@ mod tests {
             )
             .await
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn persisting_evm_emulator_hash() {
+        let pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let mut l2_block_header = create_l2_block_header(1);
+        l2_block_header.base_system_contracts_hashes.evm_emulator = Some(H256::repeat_byte(0x23));
+        conn.blocks_dal()
+            .insert_l2_block(&l2_block_header)
+            .await
+            .unwrap();
+
+        let mut fetched_block_header = conn
+            .blocks_dal()
+            .get_last_sealed_l2_block_header()
+            .await
+            .unwrap()
+            .expect("no block");
+        // Batch fee input isn't restored exactly
+        fetched_block_header.batch_fee_input = l2_block_header.batch_fee_input;
+
+        assert_eq!(fetched_block_header, l2_block_header);
+        // ...and a sanity check just to be sure
+        assert!(fetched_block_header
+            .base_system_contracts_hashes
+            .evm_emulator
+            .is_some());
     }
 
     #[tokio::test]
