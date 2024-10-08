@@ -36,7 +36,11 @@ fn print_status(shell: &Shell, health_check_url: String) -> anyhow::Result<()> {
 
     let status_response: StatusResponse = serde_json::from_str(&response)?;
 
-    logger::info(format!("System Status: {}\n", status_response.status));
+    if status_response.status.to_lowercase() == "ready" {
+        logger::success(format!("System Status: {}\n", status_response.status));
+    } else {
+        logger::warn(format!("System Status: {}\n", status_response.status));
+    }
 
     let mut components_info = String::from("Components:");
 
@@ -66,7 +70,7 @@ fn print_status(shell: &Shell, health_check_url: String) -> anyhow::Result<()> {
     if not_ready_components.is_empty() {
         logger::outro("Overall System Status: All components operational and ready.");
     } else {
-        logger::info("Overall System Status: Some components are not ready.");
+        logger::warn("Overall System Status: Some components are not ready.");
         logger::outro(format!(
             "Not Ready Components: {}",
             not_ready_components.join(", ")
