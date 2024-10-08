@@ -91,11 +91,11 @@ jobs:
           ci_run sleep 15
       - name: Run Witness Generator
         run: |
-          ci_run zk_inception prover run --component=witness-generator --rounds=all-rounds --docker=false &
+          ci_run zk_inception prover run --component=witness-generator --round=all-rounds --docker=false &
           ci_run sleep 15
       - name: Run Witness Vector Generator
         run: |
-          ci_run zk_inception prover run --component=witness-vector-generator --docker=false &
+          ci_run zk_inception prover run --component=witness-vector-generator --threads=8 --docker=false &
           ci_run sleep 15
       - name: Run Prover
         run: |
@@ -119,7 +119,7 @@ jobs:
           echo "TIMEOUT=900" >> .env
           
           PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
-          ci_run ./bin/prover_jobs_status_checker
+          prover_jobs_status_checker
 
       - name: Kill prover & start compressor
         run: |
@@ -138,4 +138,4 @@ jobs:
           echo "TIMEOUT=300" >> .env
           
           PASSED_ENV_VARS="URL,INTERVAL,TIMEOUT" \
-          ci_run ./bin/batch_l1_status_checker
+          batch_l1_status_checker
