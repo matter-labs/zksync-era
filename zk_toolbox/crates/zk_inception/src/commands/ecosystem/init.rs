@@ -384,10 +384,10 @@ async fn init_chains(
             no_port_reallocation: final_init_args.no_port_reallocation,
             skip_submodules_checkout: false,
         };
-        let mut final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
+        let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 
         chain::init::init(
-            &mut final_chain_init_args,
+            &final_chain_init_args,
             shell,
             ecosystem_config,
             &chain_config,

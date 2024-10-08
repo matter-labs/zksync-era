@@ -12,7 +12,10 @@ use crate::{
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
-        tests::tester::{DeployContractsTx, TxType, VmTesterBuilder},
+        tests::{
+            tester::{DeployContractsTx, TxType, VmTesterBuilder},
+            utils::read_test_contract,
+        },
         types::internals::ZkSyncVmState,
         BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, VmTracer,
     },
