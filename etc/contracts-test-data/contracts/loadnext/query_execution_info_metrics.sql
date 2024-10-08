@@ -1,4 +1,4 @@
--- calculate distribution of e-- calculate distribution of execution_info fields per transaction
+-- calculate distribution of execution_info fields per transaction
 
 -- execution_info fields: gas_used, vm_events, cycles_used, storage_logs, l2_to_l1_logs, contracts_used, pubdata_published, total_log_queries, contracts_deployed, l2_l1_long_messages, computational_gas_used, published_bytecode_bytes
 \set exection_info_field 'storage_logs'
