@@ -18,7 +18,7 @@ use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
         storage::{ReadStorage, StorageView, StorageWithOverrides},
-        tracer::{ValidationError, ValidationParams},
+        tracer::{ValidationError, ValidationParams, ViolatedValidationRule},
         utils::{DivergenceHandler, ShadowVm},
         Call, ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
         StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode, VmFactory,
@@ -27,6 +27,7 @@ use zksync_multivm::{
     is_supported_by_fast_vm,
     tracers::{CallTracer, StorageInvocations, TracerDispatcher, ValidationTracer},
     utils::adjust_pubdata_price_for_tx,
+    vm_fast::Tracer,
     vm_latest::{HistoryDisabled, HistoryEnabled},
     zk_evm_latest::ethereum_types::U256,
     FastVmInstance, HistoryMode, LegacyVmInstance, MultiVMTracer,
@@ -63,7 +64,7 @@ pub struct OneshotExecutorVmModes {
     pub gas_estimation: FastVmMode,
     /// Mode used for `eth_call`s.
     pub call: FastVmMode,
-    /// Mode used for transaction execution. This temporarily doesn't include the validation step since it's not supported by the fast VM.
+    /// Mode used for transaction execution and validation.
     pub tx_execution: FastVmMode,
 }
 
@@ -213,7 +214,7 @@ where
         );
 
         let sandbox = VmSandbox {
-            fast_vm_mode: FastVmMode::Old,
+            fast_vm_mode: FastVmMode::New,
             panic_on_divergence: self.panic_on_divergence,
             storage,
             env,
@@ -229,22 +230,44 @@ where
                 );
             let tracers = vec![validation_tracer.into_tracer_pointer()];
 
-            let exec_result = sandbox.execute_in_vm(|vm, transaction| {
-                let Vm::Legacy(vm) = vm else {
-                    unreachable!("Fast VM is never used for validation yet");
-                };
-                vm.push_transaction(transaction);
-                vm.inspect(&mut tracers.into(), VmExecutionMode::OneTx)
-            });
-            let validation_result = Arc::make_mut(&mut validation_result)
-                .take()
-                .map_or(Ok(()), Err);
+            sandbox.execute_in_vm_with_tracer(|vm, transaction| match vm {
+                Vm::Legacy(vm) => {
+                    vm.push_transaction(transaction);
+                    let exec_result = vm.inspect(&mut tracers.into(), VmExecutionMode::OneTx);
 
-            match (exec_result.result, validation_result) {
-                (_, Err(violated_rule)) => Err(ValidationError::ViolatedRule(violated_rule)),
-                (ExecutionResult::Halt { reason }, _) => Err(ValidationError::FailedTx(reason)),
-                _ => Ok(()),
-            }
+                    let validation_result = Arc::make_mut(&mut validation_result)
+                        .take()
+                        .map_or(Ok(()), Err);
+
+                    match (exec_result.result, validation_result) {
+                        (_, Err(violated_rule)) => {
+                            Err(ValidationError::ViolatedRule(violated_rule))
+                        }
+                        (ExecutionResult::Halt { reason }, _) => {
+                            Err(ValidationError::FailedTx(reason))
+                        }
+                        _ => Ok(()),
+                    }
+                }
+
+                Vm::Fast(FastVmInstance::Fast(vm)) => {
+                    vm.push_transaction(transaction);
+                    let mut tracer =
+                        zksync_multivm::vm_fast::validation_tracer::ValidationTracer::default();
+                    vm.inspect(&mut tracer, VmExecutionMode::OneTx);
+                    if tracer.probably_out_of_gas {
+                        Err(ValidationError::ViolatedRule(
+                            ViolatedValidationRule::TookTooManyComputationalGas(1),
+                        ))
+                    } else {
+                        Ok(())
+                    }
+                }
+
+                _ => {
+                    unimplemented!("Shadow validation is not supported.")
+                }
+            })
         })
         .await
         .context("VM execution panicked")
@@ -252,9 +275,9 @@ where
 }
 
 #[derive(Debug)]
-enum Vm<S: ReadStorage> {
+enum Vm<S: ReadStorage, T = ()> {
     Legacy(LegacyVmInstance<S, HistoryDisabled>),
-    Fast(FastVmInstance<S, ()>),
+    Fast(FastVmInstance<S, T>),
 }
 
 impl<S: ReadStorage> Vm<S> {
@@ -375,8 +398,15 @@ impl<S: ReadStorage> VmSandbox<S> {
 
     /// This method is blocking.
     fn execute_in_vm<T>(
-        mut self,
+        self,
         action: impl FnOnce(&mut Vm<StorageWithOverrides<S>>, Transaction) -> T,
+    ) -> T {
+        self.execute_in_vm_with_tracer(action)
+    }
+
+    fn execute_in_vm_with_tracer<T, Tr: Tracer + Default + 'static>(
+        mut self,
+        action: impl FnOnce(&mut Vm<StorageWithOverrides<S>, Tr>, Transaction) -> T,
     ) -> T {
         Self::setup_storage(
             &mut self.storage,
