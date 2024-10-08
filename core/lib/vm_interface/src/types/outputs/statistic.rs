@@ -109,7 +109,8 @@ pub struct VmExecutionStatistics {
     pub circuit_statistic: CircuitStatistic,
 }
 
-/// Oracle metrics of the VM.
+/// Oracle metrics reported by legacy VMs.
+#[derive(Debug, Default)]
 pub struct VmMemoryMetrics {
     pub event_sink_inner: usize,
     pub event_sink_history: usize,
