@@ -33,9 +33,9 @@ overall_status=0
 for i in "${!statuses[@]}"; do
     if [ ${statuses[$i]} -ne 0 ]; then
         overall_status=1
-        echo -e "${RED}✗ Chain ${chains[$i]}: ERROR (Status ${statuses[$i]})${NC}"
+        echo -e "${RED}✗ ERROR (exit code ${statuses[$i]}): ${chains[$i]}${NC}"
     else
-        echo -e "${GREEN}✓ Chain ${chains[$i]}: SUCCESS${NC}"
+        echo -e "${GREEN}✓ SUCCESS: ${chains[$i]}${NC}"
     fi
 done
 
