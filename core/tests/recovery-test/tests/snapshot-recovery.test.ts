@@ -458,9 +458,9 @@ async function decompressGzip(filePath: string): Promise<Buffer> {
     });
 }
 
-async function createSnapshot(zkSupervisor: boolean) {
+async function createSnapshot(useZkStack: boolean) {
     let command = '';
-    if (zkSupervisor) {
+    if (useZkStack) {
         command = `zkstack dev snapshot create`;
         command += ` --chain ${fileConfig.chain}`;
     } else {

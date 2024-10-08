@@ -84,8 +84,8 @@ export async function getExternalNodeHealth(url: string) {
     }
 }
 
-export async function dropNodeData(env: { [key: string]: string }, useZkSupervisor?: boolean, chain?: string) {
-    if (useZkSupervisor) {
+export async function dropNodeData(env: { [key: string]: string }, useZkStack?: boolean, chain?: string) {
+    if (useZkStack) {
         let cmd = 'zkstack external-node init';
         cmd += chain ? ` --chain ${chain}` : '';
         await executeNodeCommand(env, cmd);
