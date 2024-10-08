@@ -766,6 +766,7 @@ dependencies = [
  "zksync_protobuf",
  "zksync_protobuf_config",
  "zksync_system_constants",
+ "zksync_utils",
 ]
 
 [[package]]
@@ -5936,6 +5937,7 @@ dependencies = [
  "strum",
  "thiserror",
  "zksync_basic_types",
+ "zksync_utils",
 ]
 
 [[package]]

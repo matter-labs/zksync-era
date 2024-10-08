@@ -79,3 +79,16 @@ pub const GATEWAY_PREPARATION: ForgeScriptParams = ForgeScriptParams {
     output: "script-out/output-gateway-preparation-l1.toml",
     script_path: "deploy-scripts/GatewayPreparation.s.sol",
 };
+
+pub const GATEWAY_UPGRADE_ECOSYSTEM_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/gateway-upgrade-ecosystem.toml",
+    output: "script-out/gateway-upgrade-ecosystem.toml",
+    script_path: "deploy-scripts/upgrade/EcosystemUpgrade.s.sol",
+};
+
+pub const GATEWAY_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/gateway-upgrade-chain.toml",
+    output: "script-out/gateway-upgrade-chain.toml",
+    script_path: "deploy-scripts/upgrade/ChainUpgrade.s.sol",
+};
+

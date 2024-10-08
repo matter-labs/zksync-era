@@ -1,3 +1,8 @@
+use ethers::abi::Address;
+use zksync_basic_types::U256;
+use zksync_utils::u256_to_account_address;
+use std::str::FromStr;
+
 /// Name of the main configuration file
 pub(crate) const CONFIG_NAME: &str = "ZkStack.yaml";
 /// Name of the wallets file
@@ -29,7 +34,7 @@ pub const ZKSYNC_ERA_GIT_REPO: &str = "https://github.com/matter-labs/zksync-era
 /// Name of the docker-compose file inside zksync repository
 pub const DOCKER_COMPOSE_FILE: &str = "docker-compose.yml";
 /// Path to the config file with mnemonic for localhost wallets
-pub(crate) const CONFIGS_PATH: &str = "etc/env/file_based";
+pub const CONFIGS_PATH: &str = "etc/env/file_based";
 /// Path to the docker-compose file for grafana
 pub const ERA_OBSERVABILITY_COMPOSE_FILE: &str = "era-observability/docker-compose.yml";
 /// Path to era observability repository
@@ -86,3 +91,12 @@ pub(crate) const ERA_CHAIN_ID: u32 = 270;
 
 pub(crate) const TEST_CONFIG_PATH: &str = "etc/test_config/constant/eth.json";
 pub(crate) const BASE_PATH: &str = "m/44'/60'/0'";
+
+pub(crate) fn apply_l1_to_l2_alias(address: Address) -> Address {
+    let addr_as_u256 = zksync_utils::address_to_u256(&address);
+    let offset = U256::from_str_radix("1111000000000000000000000000000000001111", 16).unwrap();
+
+    let addr_with_offset = addr_as_u256 + offset;
+
+    u256_to_account_address(&addr_with_offset)
+}
