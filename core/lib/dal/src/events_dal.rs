@@ -217,17 +217,17 @@ impl EventsDal<'_, '_> {
                 topic4,
                 value,
                 NULL::bytea AS "block_hash",
-                NULL::BIGINT AS "l1_batch_number?",
+                NULL::bigint AS "l1_batch_number?",
                 miniblock_number,
                 tx_hash,
                 tx_index_in_block,
                 event_index_in_block,
                 event_index_in_tx,
-                NULL::BIGINT AS "block_timestamp?"
+                NULL::bigint AS "block_timestamp?"
             FROM
                 events
             WHERE
-                tx_hash = ANY ($1)
+                tx_hash = ANY($1)
             ORDER BY
                 miniblock_number ASC,
                 event_index_in_block ASC
@@ -319,7 +319,7 @@ impl EventsDal<'_, '_> {
             FROM
                 l2_to_l1_logs
             WHERE
-                tx_hash = ANY ($1)
+                tx_hash = ANY($1)
             ORDER BY
                 tx_index_in_l1_batch ASC,
                 log_index_in_tx ASC

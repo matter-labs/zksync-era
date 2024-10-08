@@ -1,4 +1,5 @@
 use std::{
+    hash::{DefaultHasher, Hash, Hasher},
     io,
     num::NonZeroU32,
     path::{Path, PathBuf},
@@ -14,10 +15,14 @@ use tokio::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_health_check::{Health, HealthStatus, HealthUpdater, ReactiveHealthCheck};
+use zksync_object_store::{Bucket, ObjectStore};
 use zksync_state::RocksdbStorage;
 use zksync_types::{vm::FastVmMode, L1BatchNumber, L2ChainId};
 use zksync_vm_executor::batch::MainBatchExecutorFactory;
-use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv};
+use zksync_vm_interface::{
+    utils::{DivergenceHandler, VmDump},
+    L1BatchEnv, L2BlockEnv, SystemEnv,
+};
 
 use crate::{
     storage::{PostgresLoader, StorageLoader},
@@ -82,7 +87,7 @@ enum VmPlaygroundStorage {
 #[derive(Debug)]
 pub struct VmPlayground {
     pool: ConnectionPool<Core>,
-    batch_executor_factory: MainBatchExecutorFactory,
+    batch_executor_factory: MainBatchExecutorFactory<()>,
     storage: VmPlaygroundStorage,
     chain_id: L2ChainId,
     io: VmPlaygroundIo,
@@ -95,6 +100,7 @@ impl VmPlayground {
     /// Creates a new playground.
     pub async fn new(
         pool: ConnectionPool<Core>,
+        dumps_object_store: Option<Arc<dyn ObjectStore>>,
         vm_mode: FastVmMode,
         storage: VmPlaygroundStorageOptions,
         chain_id: L2ChainId,
@@ -127,9 +133,25 @@ impl VmPlayground {
             latest_processed_batch.unwrap_or(cursor.first_processed_batch)
         };
 
-        let mut batch_executor_factory = MainBatchExecutorFactory::new(false, false);
+        let mut batch_executor_factory = MainBatchExecutorFactory::new(false);
         batch_executor_factory.set_fast_vm_mode(vm_mode);
         batch_executor_factory.observe_storage_metrics();
+        let handle = tokio::runtime::Handle::current();
+        if let Some(store) = dumps_object_store {
+            tracing::info!("Using object store for VM dumps: {store:?}");
+
+            let handler = DivergenceHandler::new(move |err, dump| {
+                let err_message = err.to_string();
+                if let Err(err) = handle.block_on(Self::dump_vm_state(&*store, &err_message, &dump))
+                {
+                    let l1_batch_number = dump.l1_batch_number();
+                    tracing::error!(
+                        "Saving VM dump for L1 batch #{l1_batch_number} failed: {err:#}"
+                    );
+                }
+            });
+            batch_executor_factory.set_divergence_handler(handler);
+        }
 
         let io = VmPlaygroundIo {
             cursor_file_path,
@@ -174,6 +196,27 @@ impl VmPlayground {
                 output_handler_factory_task,
             },
         ))
+    }
+
+    async fn dump_vm_state(
+        object_store: &dyn ObjectStore,
+        err_message: &str,
+        dump: &VmDump,
+    ) -> anyhow::Result<()> {
+        // Deduplicate VM dumps by the error hash so that we don't create a lot of dumps for the same error.
+        let mut hasher = DefaultHasher::new();
+        err_message.hash(&mut hasher);
+        let err_hash = hasher.finish();
+        let batch_number = dump.l1_batch_number().0;
+        let dump_filename = format!("shadow_vm_dump_batch{batch_number:08}_{err_hash:x}.json");
+
+        tracing::info!("Dumping diverged VM state to `{dump_filename}`");
+        let dump = serde_json::to_string(&dump).context("failed serializing VM dump")?;
+        object_store
+            .put_raw(Bucket::VmDumps, &dump_filename, dump.into_bytes())
+            .await
+            .context("failed putting VM dump to object store")?;
+        Ok(())
     }
 
     /// Returns a health check for this component.

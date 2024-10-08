@@ -3,10 +3,10 @@ use std::{sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 use zksync_node_api_server::{
     execution_sandbox::{VmConcurrencyBarrier, VmConcurrencyLimiter},
-    tx_sender::{ApiContracts, TxSenderBuilder, TxSenderConfig},
+    tx_sender::{SandboxExecutorOptions, TxSenderBuilder, TxSenderConfig},
 };
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
-use zksync_types::Address;
+use zksync_types::{AccountTreeId, Address};
 use zksync_web3_decl::{
     client::{DynClient, L2},
     jsonrpsee,
@@ -58,7 +58,6 @@ pub struct TxSenderLayer {
     tx_sender_config: TxSenderConfig,
     postgres_storage_caches_config: PostgresStorageCachesConfig,
     max_vm_concurrency: usize,
-    api_contracts: ApiContracts,
     whitelisted_tokens_for_aa_cache: bool,
 }
 
@@ -89,13 +88,11 @@ impl TxSenderLayer {
         tx_sender_config: TxSenderConfig,
         postgres_storage_caches_config: PostgresStorageCachesConfig,
         max_vm_concurrency: usize,
-        api_contracts: ApiContracts,
     ) -> Self {
         Self {
             tx_sender_config,
             postgres_storage_caches_config,
             max_vm_concurrency,
-            api_contracts,
             whitelisted_tokens_for_aa_cache: false,
         }
     }
@@ -148,8 +145,17 @@ impl WiringLayer for TxSenderLayer {
         let (vm_concurrency_limiter, vm_concurrency_barrier) =
             VmConcurrencyLimiter::new(self.max_vm_concurrency);
 
+        // TODO (BFT-138): Allow to dynamically reload API contracts
+        let config = self.tx_sender_config;
+        let executor_options = SandboxExecutorOptions::new(
+            config.chain_id,
+            AccountTreeId::new(config.fee_account_addr),
+            config.validation_computational_gas_limit,
+        )
+        .await?;
+
         // Build `TxSender`.
-        let mut tx_sender = TxSenderBuilder::new(self.tx_sender_config, replica_pool, tx_sink);
+        let mut tx_sender = TxSenderBuilder::new(config, replica_pool, tx_sink);
         if let Some(sealer) = sealer {
             tx_sender = tx_sender.with_sealer(sealer);
         }
@@ -176,7 +182,7 @@ impl WiringLayer for TxSenderLayer {
         let tx_sender = tx_sender.build(
             fee_input,
             Arc::new(vm_concurrency_limiter),
-            self.api_contracts,
+            executor_options,
             storage_caches,
         );
 

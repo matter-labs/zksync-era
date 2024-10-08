@@ -4,6 +4,7 @@ use ethers::{
     types::{H160, U256},
     utils::format_ether,
 };
+use zksync_consensus_roles::attester;
 
 pub(super) const MSG_SETUP_KEYS_DOWNLOAD_SELECTION_PROMPT: &str =
     "Do you want to download the setup keys or generate them?";
@@ -51,7 +52,7 @@ pub(super) fn msg_path_to_zksync_does_not_exist_err(path: &str) -> String {
 
 /// Ecosystem and chain init related messages
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
-pub(super) const MSG_PORT_OFFSET_HELP: &str = "Add a costant offset to the ports exposed by the components. Useful when running multiple chains on the same machine";
+pub(super) const MSG_NO_PORT_REALLOCATION_HELP: &str = "Do not reallocate ports";
 pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
 pub(super) const MSG_DEV_ARG_HELP: &str =
     "Deploy ecosystem  using all defaults. Suitable for local development";
@@ -71,6 +72,10 @@ pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
 pub(super) const MSG_INITIALIZING_ECOSYSTEM: &str = "Initializing ecosystem";
 pub(super) const MSG_DEPLOYING_ERC20: &str = "Deploying ERC20 contracts";
 pub(super) const MSG_CHAIN_INITIALIZED: &str = "Chain initialized successfully";
+pub(super) const MSG_CHAIN_CONFIGS_INITIALIZED: &str = "Chain configs were initialized";
+pub(super) const MSG_CHAIN_OWNERSHIP_TRANSFERRED: &str =
+    "Chain ownership was transferred successfully";
+pub(super) const MSG_CHAIN_REGISTERED: &str = "Chain registraion was successful";
 pub(super) const MSG_DISTRIBUTING_ETH_SPINNER: &str = "Distributing eth...";
 pub(super) const MSG_MINT_BASE_TOKEN_SPINNER: &str =
     "Minting base token to the governance addresses...";
@@ -99,7 +104,11 @@ pub(super) fn msg_initializing_chain(chain_name: &str) -> String {
 }
 
 pub(super) fn msg_ecosystem_initialized(chains: &str) -> String {
-    format!("Ecosystem initialized successfully with chains {chains}")
+    if chains.is_empty() {
+        "Ecosystem initialized successfully. You can initialize chain with `chain init`".to_string()
+    } else {
+        format!("Ecosystem initialized successfully with chains {chains}")
+    }
 }
 
 /// Ecosystem default related messages
@@ -186,6 +195,7 @@ pub(super) const MSG_INITIALIZING_SERVER_DATABASE: &str = "Initializing server d
 pub(super) const MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR: &str = "Failed to drop server database";
 pub(super) const MSG_INITIALIZING_PROVER_DATABASE: &str = "Initializing prover database";
 pub(super) const MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR: &str = "Failed to drop prover database";
+pub(super) const MSG_GENESIS_DATABASES_INITIALIZED: &str = "Databases initialized successfully";
 
 /// Chain update related messages
 pub(super) const MSG_WALLETS_CONFIG_MUST_BE_PRESENT: &str = "Wallets configuration must be present";
@@ -328,8 +338,6 @@ pub(super) const MSG_EXTERNAL_NODE_CONFIG_NOT_INITIALIZED: &str =
 pub(super) const MSG_CONSENSUS_CONFIG_MISSING_ERR: &str = "Consensus config is missing";
 pub(super) const MSG_CONSENSUS_SECRETS_MISSING_ERR: &str = "Consensus secrets config is missing";
 pub(super) const MSG_CONSENSUS_SECRETS_NODE_KEY_MISSING_ERR: &str = "Consensus node key is missing";
-
-pub(super) const MSG_PORTS_CONFIG_ERR: &str = "Failed to get ports config";
 
 pub(super) const MSG_STARTING_EN: &str = "Starting external node";
 
@@ -480,4 +488,23 @@ pub(super) fn msg_diff_secrets(
 
 pub(super) fn msg_updating_chain(chain: &str) -> String {
     format!("Updating chain: {}", chain)
+}
+
+/// consensus command messages
+pub(super) const MSG_RECEIPT_MISSING: &str = "receipt missing";
+pub(super) const MSG_STATUS_MISSING: &str = "status missing";
+pub(super) const MSG_TRANSACTION_FAILED: &str = "transaction failed";
+pub(super) const MSG_API_CONFIG_MISSING: &str = "api config missing";
+pub(super) const MSG_MULTICALL3_CONTRACT_NOT_CONFIGURED: &str =
+    "multicall3 contract not configured";
+pub(super) const MSG_GOVERNOR_PRIVATE_KEY_NOT_SET: &str = "governor private key not set";
+pub(super) const MSG_CONSENSUS_REGISTRY_ADDRESS_NOT_CONFIGURED: &str =
+    "consensus registry address not configured";
+pub(super) const MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML: &str =
+    "consensus.genesis_spec.attesters missing in general.yaml";
+pub(super) fn msg_setting_attester_committee_failed(
+    got: &attester::Committee,
+    want: &attester::Committee,
+) -> String {
+    format!("setting attester committee failed: got {got:?}, want {want:?}")
 }

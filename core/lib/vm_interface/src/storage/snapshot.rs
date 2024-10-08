@@ -12,7 +12,7 @@ use super::ReadStorage;
 /// In contrast, `StorageSnapshot` cannot be modified once created and is intended to represent a complete or almost complete snapshot
 /// for a particular VM execution. It can serve as a preloaded cache for a certain [`ReadStorage`] implementation
 /// that significantly reduces the number of storage accesses.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StorageSnapshot {
     // `Option` encompasses entire map value for more efficient serialization
     storage: HashMap<H256, Option<(H256, u64)>>,
@@ -57,6 +57,36 @@ impl StorageSnapshot {
             fallback,
             shadow,
         }
+    }
+}
+
+/// When used as a storage, a snapshot is assumed to be *complete*; [`ReadStorage`] methods will panic when called
+/// with storage slots not present in the snapshot.
+impl ReadStorage for StorageSnapshot {
+    fn read_value(&mut self, key: &StorageKey) -> StorageValue {
+        let entry = self
+            .storage
+            .get(&key.hashed_key())
+            .unwrap_or_else(|| panic!("attempted to read from unknown storage slot: {key:?}"));
+        entry.unwrap_or_default().0
+    }
+
+    fn is_write_initial(&mut self, key: &StorageKey) -> bool {
+        let entry = self.storage.get(&key.hashed_key()).unwrap_or_else(|| {
+            panic!("attempted to check initialness for unknown storage slot: {key:?}")
+        });
+        entry.is_none()
+    }
+
+    fn load_factory_dep(&mut self, hash: H256) -> Option<Vec<u8>> {
+        self.factory_deps.get(&hash).map(|bytes| bytes.0.clone())
+    }
+
+    fn get_enumeration_index(&mut self, key: &StorageKey) -> Option<u64> {
+        let entry = self.storage.get(&key.hashed_key()).unwrap_or_else(|| {
+            panic!("attempted to get enum index for unknown storage slot: {key:?}")
+        });
+        entry.map(|(_, idx)| idx)
     }
 }
 

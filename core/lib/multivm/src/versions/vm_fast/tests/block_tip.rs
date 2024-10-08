@@ -13,11 +13,12 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use super::{
-    tester::{default_l1_batch, get_empty_storage, VmTesterBuilder},
+    tester::{get_empty_storage, VmTesterBuilder},
     utils::{get_complex_upgrade_abi, read_complex_upgrade},
 };
 use crate::{
     interface::{L1BatchEnv, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    versions::testonly::default_l1_batch,
     vm_latest::constants::{
         BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
         BOOTLOADER_BATCH_TIP_METRICS_SIZE_OVERHEAD, BOOTLOADER_BATCH_TIP_OVERHEAD,

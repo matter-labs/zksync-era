@@ -5,8 +5,11 @@ mod testonly;
 #[cfg(test)]
 mod tests;
 
+use std::collections::BTreeMap;
+
 use anyhow::{anyhow, Context as _};
-use zksync_consensus_roles::{attester, validator};
+use zksync_concurrency::net;
+use zksync_consensus_roles::{attester, node, validator};
 use zksync_protobuf::{read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi, ethabi,
@@ -27,6 +30,23 @@ use crate::models::{parse_h160, parse_h256};
 pub struct GlobalConfig {
     pub genesis: validator::Genesis,
     pub registry_address: Option<ethabi::Address>,
+    pub seed_peers: BTreeMap<node::PublicKey, net::Host>,
+}
+
+impl ProtoRepr for proto::NodeAddr {
+    type Type = (node::PublicKey, net::Host);
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok((
+            read_required(&self.key).context("key")?,
+            net::Host(required(&self.addr).context("addr")?.clone()),
+        ))
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            key: Some(this.0.build()),
+            addr: Some(this.1 .0.clone()),
+        }
+    }
 }
 
 impl ProtoFmt for GlobalConfig {
@@ -41,6 +61,13 @@ impl ProtoFmt for GlobalConfig {
                 .map(|a| parse_h160(a))
                 .transpose()
                 .context("registry_address")?,
+            seed_peers: r
+                .seed_peers
+                .iter()
+                .enumerate()
+                .map(|(i, e)| e.read().context(i))
+                .collect::<Result<_, _>>()
+                .context("seed_peers")?,
         })
     }
 
@@ -48,6 +75,11 @@ impl ProtoFmt for GlobalConfig {
         Self::Proto {
             genesis: Some(self.genesis.build()),
             registry_address: self.registry_address.map(|a| a.as_bytes().to_vec()),
+            seed_peers: self
+                .seed_peers
+                .iter()
+                .map(|(k, v)| ProtoRepr::build(&(k.clone(), v.clone())))
+                .collect(),
         }
     }
 }

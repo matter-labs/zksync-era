@@ -47,6 +47,7 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
             &consensus_dal::GlobalConfig {
                 genesis: setup.genesis.clone(),
                 registry_address: None,
+                seed_peers: [].into(),
             },
         )
         .await
@@ -62,8 +63,11 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
                 .wait(api.attestation_status())
                 .await??
                 .context("no attestation_status")?;
-            let s: consensus_dal::AttestationStatus =
-                zksync_protobuf::serde::deserialize(&s.0).context("deserialize()")?;
+            let s: consensus_dal::AttestationStatus = zksync_protobuf::serde::Deserialize {
+                deny_unknown_fields: true,
+            }
+            .proto_fmt(&s.0)
+            .context("deserialize()")?;
             anyhow::ensure!(s.genesis == setup.genesis.hash(), "genesis hash mismatch");
             Ok(s)
         };

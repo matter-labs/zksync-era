@@ -38,7 +38,7 @@ impl ProtectiveReadsWriter {
         let output_handler_factory = ProtectiveReadsOutputHandlerFactory { pool: pool.clone() };
         let (output_handler_factory, output_handler_factory_task) =
             ConcurrentOutputHandlerFactory::new(pool.clone(), io.clone(), output_handler_factory);
-        let batch_processor = MainBatchExecutorFactory::new(false, false);
+        let batch_processor = MainBatchExecutorFactory::<()>::new(false);
         let vm_runner = VmRunner::new(
             pool,
             Arc::new(io),

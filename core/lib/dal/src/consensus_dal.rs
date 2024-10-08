@@ -6,7 +6,6 @@ use zksync_db_connection::{
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_protobuf::ProtoRepr as _;
 use zksync_types::L2BlockNumber;
 
 pub use crate::consensus::{proto, AttestationStatus, GlobalConfig, Payload};
@@ -55,17 +54,18 @@ impl ConsensusDal<'_, '_> {
         else {
             return Ok(None);
         };
+        let d = zksync_protobuf::serde::Deserialize {
+            deny_unknown_fields: true,
+        };
         if let Some(global_config) = row.global_config {
-            return Ok(Some(
-                zksync_protobuf::serde::deserialize(&global_config).context("global_config")?,
-            ));
+            return Ok(Some(d.proto_fmt(&global_config).context("global_config")?));
         }
         if let Some(genesis) = row.genesis {
-            let genesis: validator::Genesis =
-                zksync_protobuf::serde::deserialize(&genesis).context("genesis")?;
+            let genesis: validator::Genesis = d.proto_fmt(&genesis).context("genesis")?;
             return Ok(Some(GlobalConfig {
                 genesis,
                 registry_address: None,
+                seed_peers: [].into(),
             }));
         }
         Ok(None)
@@ -79,35 +79,65 @@ impl ConsensusDal<'_, '_> {
     /// Resets the stored consensus state otherwise and purges all certificates.
     pub async fn try_update_global_config(&mut self, want: &GlobalConfig) -> anyhow::Result<()> {
         let mut txn = self.storage.start_transaction().await?;
-        if let Some(got) = txn.consensus_dal().global_config().await? {
-            // Exit if the genesis didn't change.
-            if &got == want {
+        let got = txn.consensus_dal().global_config().await?;
+        if let Some(got) = &got {
+            // Exit if the global config didn't change.
+            if got == want {
                 return Ok(());
             }
+            // If genesis didn't change, just update the config.
+            if got.genesis == want.genesis {
+                let s = zksync_protobuf::serde::Serialize;
+                let global_config = s.proto_fmt(want, serde_json::value::Serializer).unwrap();
+                sqlx::query!(
+                    r#"
+                    UPDATE consensus_replica_state
+                    SET
+                        global_config = $1
+                    "#,
+                    global_config,
+                )
+                .instrument("try_update_global_config#UPDATE consensus_replica_state")
+                .execute(&mut txn)
+                .await?;
+                txn.commit().await?;
+                return Ok(());
+            }
+
+            // Verify the genesis change.
             anyhow::ensure!(
                 got.genesis.chain_id == want.genesis.chain_id,
                 "changing chain_id is not allowed: old = {:?}, new = {:?}",
                 got.genesis.chain_id,
                 want.genesis.chain_id,
             );
+            // Note that it may happen that the fork number didn't change,
+            // in case the binary was updated to support more fields in genesis struct.
+            // In such a case, the old binary was not able to connect to the consensus network,
+            // because of the genesis hash mismatch.
+            // TODO: Perhaps it would be better to deny unknown fields in the genesis instead.
+            // It would require embedding the genesis either as a json string or protobuf bytes within
+            // the global config, so that the global config can be parsed with
+            // `deny_unknown_fields:false` while genesis would be parsed with
+            // `deny_unknown_fields:true`.
             anyhow::ensure!(
-                got.genesis.fork_number < want.genesis.fork_number,
+                got.genesis.fork_number <= want.genesis.fork_number,
                 "transition to a past fork is not allowed: old = {:?}, new = {:?}",
                 got.genesis.fork_number,
                 want.genesis.fork_number,
             );
             want.genesis.verify().context("genesis.verify()")?;
         }
-        let genesis =
-            zksync_protobuf::serde::serialize(&want.genesis, serde_json::value::Serializer)
-                .unwrap();
-        let global_config =
-            zksync_protobuf::serde::serialize(want, serde_json::value::Serializer).unwrap();
-        let state = zksync_protobuf::serde::serialize(
-            &ReplicaState::default(),
-            serde_json::value::Serializer,
-        )
-        .unwrap();
+
+        // Reset the consensus state.
+        let s = zksync_protobuf::serde::Serialize;
+        let genesis = s
+            .proto_fmt(&want.genesis, serde_json::value::Serializer)
+            .unwrap();
+        let global_config = s.proto_fmt(want, serde_json::value::Serializer).unwrap();
+        let state = s
+            .proto_fmt(&ReplicaState::default(), serde_json::value::Serializer)
+            .unwrap();
         sqlx::query!(
             r#"
             DELETE FROM l1_batches_consensus
@@ -135,9 +165,9 @@ impl ConsensusDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                consensus_replica_state (fake_key, global_config, genesis, state)
+            consensus_replica_state (fake_key, global_config, genesis, state)
             VALUES
-                (TRUE, $1, $2, $3)
+            (TRUE, $1, $2, $3)
             "#,
             global_config,
             genesis,
@@ -184,6 +214,7 @@ impl ConsensusDal<'_, '_> {
             }
             .with_hash(),
             registry_address: old.registry_address,
+            seed_peers: old.seed_peers,
         };
         txn.consensus_dal().try_update_global_config(&new).await?;
         txn.commit().await?;
@@ -202,7 +233,13 @@ impl ConsensusDal<'_, '_> {
                 fake_key
             "#
         )
-        .try_map(|row| zksync_protobuf::serde::deserialize(row.state).decode_column("state"))
+        .try_map(|row| {
+            zksync_protobuf::serde::Deserialize {
+                deny_unknown_fields: true,
+            }
+            .proto_fmt(row.state)
+            .decode_column("state")
+        })
         .instrument("replica_state")
         .fetch_one(self.storage)
         .await
@@ -210,8 +247,9 @@ impl ConsensusDal<'_, '_> {
 
     /// Sets the current BFT replica state.
     pub async fn set_replica_state(&mut self, state: &ReplicaState) -> DalResult<()> {
-        let state_json =
-            zksync_protobuf::serde::serialize(state, serde_json::value::Serializer).unwrap();
+        let state_json = zksync_protobuf::serde::Serialize
+            .proto_fmt(state, serde_json::value::Serializer)
+            .unwrap();
         sqlx::query!(
             r#"
             UPDATE consensus_replica_state
@@ -301,7 +339,12 @@ impl ConsensusDal<'_, '_> {
         Ok(BlockStoreState {
             first: start,
             last: row
-                .map(|row| zksync_protobuf::serde::deserialize(row.certificate))
+                .map(|row| {
+                    zksync_protobuf::serde::Deserialize {
+                        deny_unknown_fields: true,
+                    }
+                    .proto_fmt(row.certificate)
+                })
                 .transpose()?,
         })
     }
@@ -329,7 +372,12 @@ impl ConsensusDal<'_, '_> {
         else {
             return Ok(None);
         };
-        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
+        Ok(Some(
+            zksync_protobuf::serde::Deserialize {
+                deny_unknown_fields: true,
+            }
+            .proto_fmt(row.certificate)?,
+        ))
     }
 
     /// Fetches the attester certificate for the L1 batch with the given `batch_number`.
@@ -355,7 +403,12 @@ impl ConsensusDal<'_, '_> {
         else {
             return Ok(None);
         };
-        Ok(Some(zksync_protobuf::serde::deserialize(row.certificate)?))
+        Ok(Some(
+            zksync_protobuf::serde::Deserialize {
+                deny_unknown_fields: true,
+            }
+            .proto_fmt(row.certificate)?,
+        ))
     }
 
     /// Fetches a range of L2 blocks from storage and converts them to `Payload`s.
@@ -426,12 +479,14 @@ impl ConsensusDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                miniblocks_consensus (number, certificate)
+            miniblocks_consensus (number, certificate)
             VALUES
-                ($1, $2)
+            ($1, $2)
             "#,
             i64::try_from(header.number.0).context("overflow")?,
-            zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
+            zksync_protobuf::serde::Serialize
+                .proto_fmt(cert, serde_json::value::Serializer)
+                .unwrap(),
         )
         .instrument("insert_block_certificate")
         .report_latency()
@@ -446,22 +501,21 @@ impl ConsensusDal<'_, '_> {
         number: attester::BatchNumber,
         committee: &attester::Committee,
     ) -> anyhow::Result<()> {
-        let committee = proto::AttesterCommittee::build(committee);
-        let committee =
-            zksync_protobuf::serde::serialize_proto(&committee, serde_json::value::Serializer)
-                .unwrap();
+        let committee = zksync_protobuf::serde::Serialize
+            .proto_repr::<proto::AttesterCommittee, _>(committee, serde_json::value::Serializer)
+            .unwrap();
         sqlx::query!(
             r#"
             INSERT INTO
-                l1_batches_consensus_committees (l1_batch_number, attesters, updated_at)
+            l1_batches_consensus_committees (l1_batch_number, attesters, updated_at)
             VALUES
-                ($1, $2, NOW())
+            ($1, $2, NOW())
             ON CONFLICT (l1_batch_number) DO
             UPDATE
             SET
-                l1_batch_number = $1,
-                attesters = $2,
-                updated_at = NOW()
+            l1_batch_number = $1,
+            attesters = $2,
+            updated_at = NOW()
             "#,
             i64::try_from(number.0).context("overflow")?,
             committee
@@ -496,10 +550,11 @@ impl ConsensusDal<'_, '_> {
         else {
             return Ok(None);
         };
-        let raw = zksync_protobuf::serde::deserialize_proto(&row.attesters)
-            .context("deserialize_proto()")?;
         Ok(Some(
-            proto::AttesterCommittee::read(&raw).context("read()")?,
+            zksync_protobuf::serde::Deserialize {
+                deny_unknown_fields: true,
+            }
+            .proto_repr::<proto::AttesterCommittee, _>(row.attesters)?,
         ))
     }
 
@@ -527,13 +582,15 @@ impl ConsensusDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                l1_batches_consensus (l1_batch_number, certificate, updated_at, created_at)
+            l1_batches_consensus (l1_batch_number, certificate, updated_at, created_at)
             VALUES
-                ($1, $2, NOW(), NOW())
+            ($1, $2, NOW(), NOW())
             "#,
             i64::try_from(cert.message.number.0).context("overflow")?,
             // Unwrap is ok, because serialization should always succeed.
-            zksync_protobuf::serde::serialize(cert, serde_json::value::Serializer).unwrap(),
+            zksync_protobuf::serde::Serialize
+                .proto_fmt(cert, serde_json::value::Serializer)
+                .unwrap(),
         )
         .instrument("insert_batch_certificate")
         .report_latency()
@@ -681,6 +738,7 @@ mod tests {
             let cfg = GlobalConfig {
                 genesis: genesis.with_hash(),
                 registry_address: Some(rng.gen()),
+                seed_peers: [].into(), // TODO: rng.gen() for Host
             };
             conn.consensus_dal()
                 .try_update_global_config(&cfg)
@@ -715,6 +773,7 @@ mod tests {
         let cfg = GlobalConfig {
             genesis: setup.genesis.clone(),
             registry_address: Some(rng.gen()),
+            seed_peers: [].into(),
         };
         conn.consensus_dal()
             .try_update_global_config(&cfg)

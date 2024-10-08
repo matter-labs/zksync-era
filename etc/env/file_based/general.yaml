@@ -80,7 +80,7 @@ operations_manager:
 contract_verifier:
   compilation_timeout: 240
   polling_interval: 1000
-  prometheus_port: 3314
+  prometheus_port: 3318
   port: 3070
   url: http://127.0.0.1:3070
   threads_per_server: 128
@@ -172,7 +172,7 @@ data_handler:
   tee_support: true
 prover_gateway:
   api_url: http://127.0.0.1:3320
-  api_poll_duration_secs: 1000
+  api_poll_duration_secs: 15
   prometheus_listener_port: 3310
   prometheus_pushgateway_url: http://127.0.0.1:9091
   prometheus_push_interval_ms: 100
@@ -287,6 +287,7 @@ prover_job_monitor:
   prover_queue_reporter_run_interval_ms: 10000
   witness_generator_queue_reporter_run_interval_ms: 10000
   witness_job_queuer_run_interval_ms: 10000
+  http_port: 3074
 
 
 base_token_adjuster:

@@ -262,7 +262,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
     }
     .into_tracer_pointer();
     let mut vm: Vm<_, HistoryEnabled> = Vm::new(l1_batch, system_env, storage_view.to_rc_ptr());
-    let result = vm.inspect(tracer.into(), VmExecutionMode::Bootloader);
+    let result = vm.inspect(&mut tracer.into(), VmExecutionMode::Bootloader);
 
     assert!(!result.result.is_failed(), "The internal call has reverted");
     tracer_result.take()

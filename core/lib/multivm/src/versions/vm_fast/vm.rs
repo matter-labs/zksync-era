@@ -1,6 +1,8 @@
-use std::{collections::HashMap, fmt};
+use std::{collections::HashMap, fmt, mem};
 
-use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
+use zk_evm_1_5_0::{
+    aux_structures::LogQuery, zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION,
+};
 use zksync_contracts::SystemContractCode;
 use zksync_types::{
     l1::is_l1_tx_type,
@@ -11,13 +13,13 @@ use zksync_types::{
         BYTES_PER_ENUMERATION_INDEX,
     },
     AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
-    BOOTLOADER_ADDRESS, H160, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
+    BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
 use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
-    ExecutionEnd, FatPointer, Program, Settings, VirtualMachine,
+    ExecutionEnd, FatPointer, Program, Settings, StorageSlot, VirtualMachine,
 };
 
 use super::{
@@ -31,11 +33,12 @@ use super::{
 use crate::{
     glue::GlueInto,
     interface::{
-        storage::ReadStorage, BytecodeCompressionError, BytecodeCompressionResult,
-        CurrentExecutionState, ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv,
-        Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode,
-        VmExecutionResultAndLogs, VmExecutionStatistics, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics, VmRevertReason,
+        storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
+        BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
+        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv,
+        TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
+        VmExecutionStatistics, VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
+        VmTrackingContracts,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_fast::{
@@ -55,9 +58,41 @@ use crate::{
 
 const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
 
-pub struct Vm<S> {
-    pub(crate) world: World<S, CircuitsTracer>,
-    pub(crate) inner: VirtualMachine<CircuitsTracer, World<S, CircuitsTracer>>,
+type FullTracer<Tr> = (Tr, CircuitsTracer);
+
+#[derive(Debug)]
+struct VmRunResult {
+    execution_result: ExecutionResult,
+    /// `true` if VM execution has terminated (as opposed to being stopped on a hook, e.g. when executing a single transaction
+    /// in a batch). Used for `execution_result == Revert { .. }` to understand whether VM logs should be reverted.
+    execution_ended: bool,
+    refunds: Refunds,
+    /// This value is used in stats. It's defined in the old VM as the latest value used when computing refunds (see the refunds tracer for `vm_latest`).
+    /// This is **not** equal to the pubdata diff before and after VM execution; e.g., when executing a batch tip,
+    /// `pubdata_published` is always 0 (since no refunds are computed).
+    pubdata_published: u32,
+}
+
+impl VmRunResult {
+    fn should_ignore_vm_logs(&self) -> bool {
+        match &self.execution_result {
+            ExecutionResult::Success { .. } => false,
+            ExecutionResult::Halt { .. } => true,
+            // Logs generated during reverts should only be ignored if the revert has reached the root (bootloader) call frame,
+            // which is only possible with `TxExecutionMode::EthCall`.
+            ExecutionResult::Revert { .. } => self.execution_ended,
+        }
+    }
+}
+
+/// Fast VM wrapper.
+///
+/// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait, a tracer must have `'static` lifetime
+/// and implement [`Default`] (the latter is necessary to complete batches). [`CircuitsTracer`] is currently always enabled;
+/// you don't need to specify it explicitly.
+pub struct Vm<S, Tr = ()> {
+    pub(crate) world: World<S, FullTracer<Tr>>,
+    pub(crate) inner: VirtualMachine<FullTracer<Tr>, World<S, FullTracer<Tr>>>,
     gas_for_account_validation: u32,
     pub(crate) bootloader_state: BootloaderState,
     pub(crate) batch_env: L1BatchEnv,
@@ -67,38 +102,100 @@ pub struct Vm<S> {
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
-impl<S: ReadStorage> Vm<S> {
+impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
+    pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
+        let default_aa_code_hash = system_env
+            .base_system_smart_contracts
+            .default_aa
+            .hash
+            .into();
+
+        let program_cache = HashMap::from([World::convert_system_contract_code(
+            &system_env.base_system_smart_contracts.default_aa,
+            false,
+        )]);
+
+        let (_, bootloader) = World::convert_system_contract_code(
+            &system_env.base_system_smart_contracts.bootloader,
+            true,
+        );
+        let bootloader_memory = bootloader_initial_memory(&batch_env);
+
+        let mut inner = VirtualMachine::new(
+            BOOTLOADER_ADDRESS,
+            bootloader,
+            H160::zero(),
+            &[],
+            system_env.bootloader_gas_limit,
+            Settings {
+                default_aa_code_hash,
+                // this will change after 1.5
+                evm_interpreter_code_hash: default_aa_code_hash,
+                hook_address: get_vm_hook_position(VM_VERSION) * 32,
+            },
+        );
+
+        inner.current_frame().set_stack_pointer(0);
+        // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
+        inner.current_frame().set_heap_bound(u32::MAX);
+        inner.current_frame().set_aux_heap_bound(u32::MAX);
+        inner
+            .current_frame()
+            .set_exception_handler(INITIAL_FRAME_FORMAL_EH_LOCATION);
+
+        let mut this = Self {
+            world: World::new(storage, program_cache),
+            inner,
+            gas_for_account_validation: system_env.default_validation_computational_gas_limit,
+            bootloader_state: BootloaderState::new(
+                system_env.execution_mode,
+                bootloader_memory.clone(),
+                batch_env.first_l2_block,
+            ),
+            system_env,
+            batch_env,
+            snapshot: None,
+            #[cfg(test)]
+            enforced_state_diffs: None,
+        };
+        this.write_to_bootloader_heap(bootloader_memory);
+        this
+    }
+
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,
-        tracer: &mut CircuitsTracer,
+        tracer: &mut (Tr, CircuitsTracer),
         track_refunds: bool,
-    ) -> (ExecutionResult, Refunds) {
+    ) -> VmRunResult {
         let mut refunds = Refunds {
             gas_refunded: 0,
             operator_suggested_refund: 0,
         };
         let mut last_tx_result = None;
         let mut pubdata_before = self.inner.pubdata() as u32;
+        let mut pubdata_published = 0;
 
-        let result = loop {
+        let (execution_result, execution_ended) = loop {
             let hook = match self.inner.run(&mut self.world, tracer) {
                 ExecutionEnd::SuspendedOnHook(hook) => hook,
-                ExecutionEnd::ProgramFinished(output) => break ExecutionResult::Success { output },
+                ExecutionEnd::ProgramFinished(output) => {
+                    break (ExecutionResult::Success { output }, true);
+                }
                 ExecutionEnd::Reverted(output) => {
-                    break match TxRevertReason::parse_error(&output) {
+                    let result = match TxRevertReason::parse_error(&output) {
                         TxRevertReason::TxReverted(output) => ExecutionResult::Revert { output },
                         TxRevertReason::Halt(reason) => ExecutionResult::Halt { reason },
-                    }
+                    };
+                    break (result, true);
                 }
                 ExecutionEnd::Panicked => {
-                    break ExecutionResult::Halt {
-                        reason: if self.gas_remaining() == 0 {
-                            Halt::BootloaderOutOfGas
-                        } else {
-                            Halt::VMPanic
-                        },
-                    }
+                    let reason = if self.gas_remaining() == 0 {
+                        Halt::BootloaderOutOfGas
+                    } else {
+                        Halt::VMPanic
+                    };
+                    break (ExecutionResult::Halt { reason }, true);
                 }
             };
 
@@ -108,7 +205,7 @@ impl<S: ReadStorage> Vm<S> {
                 }
                 Hook::TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
-                        break last_tx_result.take().unwrap();
+                        break (last_tx_result.take().unwrap(), false);
                     }
                 }
                 Hook::AskOperatorForRefund => {
@@ -125,7 +222,8 @@ impl<S: ReadStorage> Vm<S> {
                             )
                             .as_u64();
 
-                        let pubdata_published = self.inner.pubdata() as u32;
+                        let pubdata_after = self.inner.pubdata() as u32;
+                        pubdata_published = pubdata_after.saturating_sub(pubdata_before);
 
                         refunds.operator_suggested_refund = compute_refund(
                             &self.batch_env,
@@ -133,7 +231,7 @@ impl<S: ReadStorage> Vm<S> {
                             gas_spent_on_pubdata.as_u64(),
                             tx_gas_limit,
                             gas_per_pubdata_byte.low_u32(),
-                            pubdata_published.saturating_sub(pubdata_before),
+                            pubdata_published,
                             self.bootloader_state
                                 .last_l2_block()
                                 .txs
@@ -142,7 +240,7 @@ impl<S: ReadStorage> Vm<S> {
                                 .hash,
                         );
 
-                        pubdata_before = pubdata_published;
+                        pubdata_before = pubdata_after;
                         let refund_value = refunds.operator_suggested_refund;
                         self.write_to_bootloader_heap([(
                             OPERATOR_REFUNDS_OFFSET + current_tx_index,
@@ -238,7 +336,12 @@ impl<S: ReadStorage> Vm<S> {
             }
         };
 
-        (result, refunds)
+        VmRunResult {
+            execution_result,
+            execution_ended,
+            refunds,
+            pubdata_published,
+        }
     }
 
     fn get_hook_params(&self) -> [U256; 3] {
@@ -363,24 +466,24 @@ impl<S: ReadStorage> Vm<S> {
         }
 
         let storage = &mut self.world.storage;
-        let diffs = self.inner.world_diff().get_storage_changes().map(
-            move |((address, key), (initial_value, final_value))| {
-                let storage_key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(key));
-                StateDiffRecord {
-                    address,
-                    key,
-                    derived_key:
-                        zk_evm_1_5_0::aux_structures::LogQuery::derive_final_address_for_params(
-                            &address, &key,
-                        ),
-                    enumeration_index: storage
-                        .get_enumeration_index(&storage_key)
-                        .unwrap_or_default(),
-                    initial_value: initial_value.unwrap_or_default(),
-                    final_value,
-                }
-            },
-        );
+        let diffs =
+            self.inner
+                .world_diff()
+                .get_storage_changes()
+                .map(move |((address, key), change)| {
+                    let storage_key =
+                        StorageKey::new(AccountTreeId::new(address), u256_to_h256(key));
+                    StateDiffRecord {
+                        address,
+                        key,
+                        derived_key: LogQuery::derive_final_address_for_params(&address, &key),
+                        enumeration_index: storage
+                            .get_enumeration_index(&storage_key)
+                            .unwrap_or_default(),
+                        initial_value: change.before,
+                        final_value: change.after,
+                    }
+                });
         diffs
             .filter(|diff| diff.address != L1_MESSENGER_ADDRESS)
             .collect()
@@ -392,69 +495,6 @@ impl<S: ReadStorage> Vm<S> {
 
     pub(super) fn gas_remaining(&mut self) -> u32 {
         self.inner.current_frame().gas()
-    }
-}
-
-// We don't implement `VmFactory` trait because, unlike old VMs, the new VM doesn't require storage to be writable;
-// it maintains its own storage cache and a write buffer.
-impl<S: ReadStorage> Vm<S> {
-    pub fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
-        let default_aa_code_hash = system_env
-            .base_system_smart_contracts
-            .default_aa
-            .hash
-            .into();
-
-        let program_cache = HashMap::from([World::convert_system_contract_code(
-            &system_env.base_system_smart_contracts.default_aa,
-            false,
-        )]);
-
-        let (_, bootloader) = World::convert_system_contract_code(
-            &system_env.base_system_smart_contracts.bootloader,
-            true,
-        );
-        let bootloader_memory = bootloader_initial_memory(&batch_env);
-
-        let mut inner = VirtualMachine::new(
-            BOOTLOADER_ADDRESS,
-            bootloader,
-            H160::zero(),
-            &[],
-            system_env.bootloader_gas_limit,
-            Settings {
-                default_aa_code_hash,
-                // this will change after 1.5
-                evm_interpreter_code_hash: default_aa_code_hash,
-                hook_address: get_vm_hook_position(VM_VERSION) * 32,
-            },
-        );
-
-        inner.current_frame().set_stack_pointer(0);
-        // The bootloader writes results to high addresses in its heap, so it makes sense to preallocate it.
-        inner.current_frame().set_heap_bound(u32::MAX);
-        inner.current_frame().set_aux_heap_bound(u32::MAX);
-        inner
-            .current_frame()
-            .set_exception_handler(INITIAL_FRAME_FORMAL_EH_LOCATION);
-
-        let mut this = Self {
-            world: World::new(storage, program_cache),
-            inner,
-            gas_for_account_validation: system_env.default_validation_computational_gas_limit,
-            bootloader_state: BootloaderState::new(
-                system_env.execution_mode,
-                bootloader_memory.clone(),
-                batch_env.first_l2_block,
-            ),
-            system_env,
-            batch_env,
-            snapshot: None,
-            #[cfg(test)]
-            enforced_state_diffs: None,
-        };
-        this.write_to_bootloader_heap(bootloader_memory);
-        this
     }
 
     // visible for testing
@@ -473,9 +513,9 @@ impl<S: ReadStorage> Vm<S> {
             events,
             deduplicated_storage_logs: world_diff
                 .get_storage_changes()
-                .map(|((address, key), (_, value))| StorageLog {
+                .map(|((address, key), change)| StorageLog {
                     key: StorageKey::new(AccountTreeId::new(address), u256_to_h256(key)),
-                    value: u256_to_h256(value),
+                    value: u256_to_h256(change.after),
                     kind: StorageLogKind::RepeatedWrite, // Initialness doesn't matter here
                 })
                 .collect(),
@@ -488,8 +528,23 @@ impl<S: ReadStorage> Vm<S> {
     }
 }
 
-impl<S: ReadStorage> VmInterface for Vm<S> {
-    type TracerDispatcher = ();
+impl<S, Tr> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
+where
+    S: ReadStorage,
+    Tr: Tracer + Default + 'static,
+{
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<StorageView<S>>,
+    ) -> Self {
+        let storage = ImmutableStorageView::new(storage);
+        Self::custom(batch_env, system_env, storage)
+    }
+}
+
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
+    type TracerDispatcher = Tr;
 
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
         self.push_transaction_inner(tx, 0, true);
@@ -497,7 +552,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
 
     fn inspect(
         &mut self,
-        (): Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut track_refunds = false;
@@ -507,17 +562,20 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             track_refunds = true;
         }
 
-        let mut tracer = CircuitsTracer::default();
         let start = self.inner.world_diff().snapshot();
-        let pubdata_before = self.inner.pubdata();
         let gas_before = self.gas_remaining();
 
-        let (result, refunds) = self.run(execution_mode, &mut tracer, track_refunds);
-        let ignore_world_diff = matches!(execution_mode, VmExecutionMode::OneTx)
-            && matches!(result, ExecutionResult::Halt { .. });
+        let mut full_tracer = (mem::take(tracer), CircuitsTracer::default());
+        let result = self.run(execution_mode, &mut full_tracer, track_refunds);
+        *tracer = full_tracer.0; // place the tracer back
+
+        let ignore_world_diff =
+            matches!(execution_mode, VmExecutionMode::OneTx) && result.should_ignore_vm_logs();
 
         // If the execution is halted, the VM changes are expected to be rolled back by the caller.
         // Earlier VMs return empty execution logs in this case, so we follow this behavior.
+        // Likewise, if a revert has reached the bootloader frame (possible with `TxExecutionMode::EthCall`; otherwise, the bootloader catches reverts),
+        // old VMs revert all logs; the new VM doesn't do that automatically, so we recreate this behavior here.
         let logs = if ignore_world_diff {
             VmExecutionLogs::default()
         } else {
@@ -535,7 +593,7 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
                             StorageLogKind::RepeatedWrite
                         },
                     },
-                    previous_value: u256_to_h256(change.before.unwrap_or_default()),
+                    previous_value: u256_to_h256(change.before),
                 })
                 .collect();
             let events = merge_events(
@@ -563,35 +621,35 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
             }
         };
 
-        let pubdata_after = self.inner.pubdata();
-        let circuit_statistic = tracer.circuit_statistic();
         let gas_remaining = self.gas_remaining();
+        let gas_used = gas_before - gas_remaining;
+
         VmExecutionResultAndLogs {
-            result,
+            result: result.execution_result,
             logs,
             // TODO (PLA-936): Fill statistics; investigate whether they should be zeroed on `Halt`
             statistics: VmExecutionStatistics {
+                gas_used: gas_used.into(),
+                gas_remaining,
+                computational_gas_used: gas_used, // since 1.5.0, this always has the same value as `gas_used`
+                pubdata_published: result.pubdata_published,
+                circuit_statistic: full_tracer.1.circuit_statistic(),
                 contracts_used: 0,
                 cycles_used: 0,
-                gas_used: (gas_before - gas_remaining).into(),
-                gas_remaining,
-                computational_gas_used: 0,
                 total_log_queries: 0,
-                pubdata_published: (pubdata_after - pubdata_before).max(0) as u32,
-                circuit_statistic,
             },
-            refunds,
+            refunds: result.refunds,
         }
     }
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
-        (): Self::TracerDispatcher,
+        tracer: &mut Self::TracerDispatcher,
         tx: zksync_types::Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.push_transaction_inner(tx, 0, with_compression);
-        let result = self.inspect((), VmExecutionMode::OneTx);
+        let result = self.inspect(tracer, VmExecutionMode::OneTx);
 
         let compression_result = if self.has_unpublished_bytecodes() {
             Err(BytecodeCompressionError::BytecodeCompressionFailed)
@@ -608,12 +666,8 @@ impl<S: ReadStorage> VmInterface for Vm<S> {
         self.bootloader_state.start_new_l2_block(l2_block_env)
     }
 
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        todo!("Unused during batch execution")
-    }
-
     fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.inspect((), VmExecutionMode::Batch);
+        let result = self.inspect(&mut Tr::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {
@@ -642,7 +696,7 @@ struct VmSnapshot {
     gas_for_account_validation: u32,
 }
 
-impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterfaceHistoryEnabled for Vm<S, Tr> {
     fn make_snapshot(&mut self) {
         assert!(
             self.snapshot.is_none(),
@@ -673,7 +727,13 @@ impl<S: ReadStorage> VmInterfaceHistoryEnabled for Vm<S> {
     }
 }
 
-impl<S: fmt::Debug> fmt::Debug for Vm<S> {
+impl<S: ReadStorage> VmTrackingContracts for Vm<S> {
+    fn used_contract_hashes(&self) -> Vec<H256> {
+        self.decommitted_hashes().map(u256_to_h256).collect()
+    }
+}
+
+impl<S: fmt::Debug, Tr: fmt::Debug> fmt::Debug for Vm<S, Tr> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vm")
             .field(
@@ -718,20 +778,27 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
 }
 
 impl<S: ReadStorage, T: Tracer> zksync_vm2::StorageInterface for World<S, T> {
-    fn read_storage(&mut self, contract: H160, key: U256) -> Option<U256> {
+    fn read_storage(&mut self, contract: H160, key: U256) -> StorageSlot {
         let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
-        if self.storage.is_write_initial(key) {
-            None
-        } else {
-            Some(self.storage.read_value(key).as_bytes().into())
+        let value = U256::from_big_endian(self.storage.read_value(key).as_bytes());
+        // `is_write_initial` value can be true even if the slot has previously been written to / has non-zero value!
+        // This can happen during oneshot execution (i.e., executing a single transaction) since it emulates
+        // execution starting in the middle of a batch in the general case. Hence, a slot that was first written to in the batch
+        // must still be considered an initial write by the refund logic.
+        let is_write_initial = self.storage.is_write_initial(key);
+        StorageSlot {
+            value,
+            is_write_initial,
         }
     }
 
-    fn cost_of_writing_storage(&mut self, initial_value: Option<U256>, new_value: U256) -> u32 {
-        let is_initial = initial_value.is_none();
-        let initial_value = initial_value.unwrap_or_default();
+    fn read_storage_value(&mut self, contract: H160, key: U256) -> U256 {
+        let key = &StorageKey::new(AccountTreeId::new(contract), u256_to_h256(key));
+        U256::from_big_endian(self.storage.read_value(key).as_bytes())
+    }
 
-        if initial_value == new_value {
+    fn cost_of_writing_storage(&mut self, slot: StorageSlot, new_value: U256) -> u32 {
+        if slot.value == new_value {
             return 0;
         }
 
@@ -745,10 +812,9 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::StorageInterface for World<S, T> {
         // For value compression, we use a metadata byte which holds the length of the value and the operation from the
         // previous state to the new state, and the compressed value. The maximum for this is 33 bytes.
         // Total bytes for initial writes then becomes 65 bytes and repeated writes becomes 38 bytes.
-        let compressed_value_size =
-            compress_with_best_strategy(initial_value, new_value).len() as u32;
+        let compressed_value_size = compress_with_best_strategy(slot.value, new_value).len() as u32;
 
-        if is_initial {
+        if slot.is_write_initial {
             (BYTES_PER_DERIVED_KEY as u32) + compressed_value_size
         } else {
             (BYTES_PER_ENUMERATION_INDEX as u32) + compressed_value_size

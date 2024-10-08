@@ -19,6 +19,7 @@ categories = ["cryptography"]
 [workspace.dependencies]
 # Common dependencies
 anyhow = "1.0"
+axum = "0.7.5"
 async-trait = "0.1"
 bincode = "1"
 chrono = "0.4.38"
@@ -50,6 +51,7 @@ structopt = "0.3.26"
 strum = { version = "0.26" }
 tempfile = "3"
 tokio = "1"
+tokio-util = "0.7.11"
 toml_edit = "0.14.4"
 tracing = "0.1"
 tracing-subscriber = "0.3"
@@ -61,8 +63,8 @@ circuit_sequencer_api = "=0.150.5"
 zkevm_test_harness = "=0.150.5"
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.150.7" }
-shivini = "=0.150.7"
+wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.150.9" }
+shivini = "=0.150.9"
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
