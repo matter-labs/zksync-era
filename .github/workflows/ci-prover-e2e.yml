@@ -85,7 +85,7 @@ jobs:
       - name: Run Gateway
         run: |
           ci_run zk_inception prover run --component=gateway --docker=false &
-          ci_run sleep 60
+          ci_run sleep 90
       - name: Run Prover Job Monitor
         run: |
           ci_run zk_inception prover run --component=prover-job-monitor --docker=false &
