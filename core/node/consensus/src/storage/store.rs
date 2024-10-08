@@ -134,10 +134,11 @@ impl PersistedBlockState {
         });
     }
 
-    /// Checks if the given certificate is exactly the next one that should
-    /// be persisted.
+    /// Checks if the given certificate should be eventually persisted.
+    /// Only certificates block store state is a range of blocks for which we already have
+    /// certificates and we need certs only for the later ones.
     fn should_be_persisted(&self, cert: &validator::CommitQC) -> bool {
-        self.0.borrow().next() == cert.header().number
+        self.0.borrow().next() <= cert.header().number
     }
 
     /// Appends the `cert` to `persisted` range.
@@ -292,7 +293,7 @@ impl storage::PersistentBlockStore for Store {
         // We simply ask the main node for the payload hash and compare it against the received
         // payload.
         let meta = match &self.client {
-            None => self.conn(ctx).await?.block_metadata(ctx, block.number).await?.context("metadata not available")?,
+            None => self.conn(ctx).await?.block_metadata(ctx, block.number).await?.context("metadata not in storage")?,
             Some(client) => {
                 let meta = ctx.wait(client
                     .block_metadata(L2BlockNumber(block.number.0.try_into().context("overflow")?)))

@@ -320,8 +320,8 @@ impl ConsensusDal<'_, '_> {
         let first = self.first_block().await.context("first_block()")?;
         let cfg = self
             .global_config()
-            .await?
-            .context("global_config()")?;
+            .await.context("global_config()")?
+            .context("global config is missing")?;
         
         // If there is a cert in storage, then the block range visible to consensus
         // is [first block, block of last cert].

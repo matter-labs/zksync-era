@@ -85,12 +85,12 @@ impl ConfigSet {
             config: make_config(&net, None),
             secrets: make_secrets(&net, None),
             net,
-            enable_pregenesis: false,
+            enable_pregenesis: self.enable_pregenesis,
         }
     }
 }
 
-pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) -> Vec<ConfigSet> {
+pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize, pregenesis: bool) -> Vec<ConfigSet> {
     let net_cfgs = network::testonly::new_configs(rng, setup, 0);
     let genesis_spec = config::GenesisSpec {
         chain_id: setup.genesis.chain_id.0.try_into().unwrap(),
@@ -130,7 +130,7 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
             config: make_config(&net, Some(genesis_spec.clone())),
             secrets: make_secrets(&net, setup.attester_keys.get(i).cloned()),
             net,
-            enable_pregenesis: false,
+            enable_pregenesis: pregenesis,
         })
         .collect()
 }

@@ -9,7 +9,7 @@ use zksync_consensus_roles::{
     node, validator,
     validator::testonly::{Setup, SetupSpec},
 };
-use zksync_consensus_storage::BlockStore;
+use zksync_consensus_storage::{PersistentBlockStore,BlockStore};
 use zksync_dal::consensus_dal;
 use zksync_test_account::Account;
 use zksync_types::ProtocolVersionId;
@@ -24,7 +24,68 @@ mod attestation;
 
 const VERSIONS: [ProtocolVersionId; 2] = [ProtocolVersionId::latest(), ProtocolVersionId::next()];
 const FROM_SNAPSHOT: [bool; 2] = [true, false];
+const PREGENESIS: [bool; 2] = [true, false];
 const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(500);
+
+#[test_casing(2, VERSIONS)]
+#[tokio::test]
+async fn test_verify_pregenesis_block(version: ProtocolVersionId) {
+    zksync_concurrency::testonly::abort_on_panic();
+    let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
+    let rng = &mut ctx.rng();
+    let account = &mut Account::random(); 
+    let mut setup = SetupSpec::new(rng, 3);
+    setup.first_block = validator::BlockNumber(1000);
+    let setup = Setup::from_spec(rng, setup);
+    let cfg = consensus_dal::GlobalConfig {
+        genesis: setup.genesis.clone(),
+        registry_address: None,
+        seed_peers: [].into(),
+    };
+
+    scope::run!(ctx, |ctx, s| async {
+        tracing::info!("Start state keeper.");
+        let pool = ConnectionPool::test(/*from_snapshot=*/false,version).await;
+        pool
+            .connection(ctx).await.wrap("connection()")?
+            .try_update_global_config(ctx, &cfg).await.wrap("try_update_global_config()")?;
+        let (mut sk, runner) = testonly::StateKeeper::new(ctx, pool.clone()).await?;
+        s.spawn_bg(runner.run(ctx));
+
+        tracing::info!("Populate storage with a bunch of blocks.");
+        sk.push_random_blocks(rng, account, 5).await;
+        sk.seal_batch().await; 
+        let blocks : Vec<_> = pool.wait_for_blocks(ctx, sk.last_block()).await.context("wait_for_blocks()")?
+            .into_iter().map(|b| match b { validator::Block::PreGenesis(b) => b, _ => panic!() }).collect();
+        assert!(!blocks.is_empty());
+
+        tracing::info!("Create another store");
+        let pool = ConnectionPool::test(/*from_snapshot=*/false,version).await;
+        pool
+            .connection(ctx).await.wrap("connection()")?
+            .try_update_global_config(ctx, &cfg).await.wrap("try_update_global_config()")?;
+        let (store, runner) = Store::new(ctx, pool.clone(), None, Some(sk.connect(ctx).await.unwrap())).await.unwrap();
+        s.spawn_bg(runner.run(ctx));        
+        
+        tracing::info!("All the blocks from the main node should be valid.");
+        for b in &blocks {
+            store.verify_pregenesis_block(ctx, b).await.unwrap();
+        }
+        tracing::info!("Malformed blocks should not be valid");
+        for b in &blocks {
+            let mut p = consensus_dal::Payload::decode(&b.payload).unwrap();
+            // Arbitrary small change.
+            p.timestamp = rng.gen();
+            store.verify_pregenesis_block(ctx, &validator::PreGenesisBlock {
+                number: b.number,
+                justification: b.justification.clone(),
+                payload: p.encode(),
+            }).await.unwrap_err();
+        }
+
+        Ok(())
+    }).await.unwrap();
+}
 
 #[test_casing(2, VERSIONS)]
 #[tokio::test]
@@ -100,14 +161,14 @@ async fn test_validator_block_store(version: ProtocolVersionId) {
 // In the current implementation, consensus certificates are created asynchronously
 // for the L2 blocks constructed by the StateKeeper. This means that consensus actor
 // is effectively just back filling the consensus certificates for the L2 blocks in storage.
-#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
+#[test_casing(8, Product((FROM_SNAPSHOT,VERSIONS,PREGENESIS)))]
 #[tokio::test]
-async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
+async fn test_validator(from_snapshot: bool, version: ProtocolVersionId, pregenesis: bool) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
-    let cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
+    let cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
     let account = &mut Account::random();
 
     scope::run!(ctx, |ctx, s| async {
@@ -149,9 +210,9 @@ async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
 
                 tracing::info!("Verify all certificates");
                 pool
-                    .wait_for_blocks_and_verify(ctx, sk.last_block())
+                    .wait_for_blocks_and_verify_certs(ctx, sk.last_block())
                     .await
-                    .context("wait_for_blocks_and_verify()")?;
+                    .context("wait_for_blocks_and_verify_certs()")?;
                 Ok(())
             })
             .await
@@ -164,14 +225,14 @@ async fn test_validator(from_snapshot: bool, version: ProtocolVersionId) {
 }
 
 // Test running a validator node and 2 full nodes recovered from different snapshots.
-#[test_casing(2, VERSIONS)]
+#[test_casing(4, Product((VERSIONS,PREGENESIS)))]
 #[tokio::test]
-async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
+async fn test_nodes_from_various_snapshots(version: ProtocolVersionId, pregenesis: bool) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
-    let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
+    let validator_cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
     let account = &mut Account::random();
 
     scope::run!(ctx, |ctx, s| async {
@@ -226,15 +287,15 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
         tracing::info!("produce more blocks and compare storages");
         validator.push_random_blocks(rng, account, 5).await;
         let want = validator_pool
-            .wait_for_blocks_and_verify(ctx, validator.last_block())
+            .wait_for_blocks_and_verify_certs(ctx, validator.last_block())
             .await?;
         // node stores should be suffixes for validator store.
         for got in [
             node_pool
-                .wait_for_blocks_and_verify(ctx, validator.last_block())
+                .wait_for_blocks_and_verify_certs(ctx, validator.last_block())
                 .await?,
             node_pool2
-                .wait_for_blocks_and_verify(ctx, validator.last_block())
+                .wait_for_blocks_and_verify_certs(ctx, validator.last_block())
                 .await?,
         ] {
             assert_eq!(want[want.len() - got.len()..], got[..]);
@@ -245,14 +306,14 @@ async fn test_nodes_from_various_snapshots(version: ProtocolVersionId) {
     .unwrap();
 }
 
-#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
+#[test_casing(8, Product((FROM_SNAPSHOT,VERSIONS,PREGENESIS)))]
 #[tokio::test]
-async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId) {
+async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId, pregenesis: bool) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
-    let mut validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
+    let mut validator_cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
     let node_cfg = validator_cfg.new_fullnode(rng);
     let account = &mut Account::random();
 
@@ -304,12 +365,12 @@ async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId) {
             validator.push_random_blocks(rng, account, 5).await;
             let want_last = validator.last_block();
             let want = validator_pool
-                .wait_for_blocks_and_verify(ctx, want_last)
+                .wait_for_blocks_and_verify_certs(ctx, want_last)
                 .await?;
             assert_eq!(
                 want,
                 node_pool
-                    .wait_for_blocks_and_verify(ctx, want_last)
+                    .wait_for_blocks_and_verify_certs(ctx, want_last)
                     .await?
             );
             Ok(())
@@ -322,16 +383,16 @@ async fn test_config_change(from_snapshot: bool, version: ProtocolVersionId) {
 // Test running a validator node and a couple of full nodes.
 // Validator is producing signed blocks and fetchers are expected to fetch
 // them directly or indirectly.
-#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
+#[test_casing(8, Product((FROM_SNAPSHOT,VERSIONS,PREGENESIS)))]
 #[tokio::test]
-async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
+async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId, pregenesis: bool) {
     const NODES: usize = 2;
 
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
-    let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
+    let validator_cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
     let account = &mut Account::random();
 
     // topology:
@@ -391,13 +452,15 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
         // Note that block from before and after genesis have to be fetched.
         validator.push_random_blocks(rng, account, 5).await;
         let want_last = validator.last_block();
+        tracing::info!("Waiting for the validator to produce block {want_last}.");
         let want = validator_pool
-            .wait_for_blocks_and_verify(ctx, want_last)
+            .wait_for_blocks_and_verify_certs(ctx, want_last)
             .await?;
+        tracing::info!("Waiting for the nodes to fetch block {want_last}.");
         for pool in &node_pools {
             assert_eq!(
                 want,
-                pool.wait_for_blocks_and_verify(ctx, want_last)
+                pool.wait_for_blocks_and_verify_certs(ctx, want_last)
                     .await?
             );
         }
@@ -408,16 +471,16 @@ async fn test_full_nodes(from_snapshot: bool, version: ProtocolVersionId) {
 }
 
 // Test running external node (non-leader) validators.
-#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
+#[test_casing(8, Product((FROM_SNAPSHOT,VERSIONS,PREGENESIS)))]
 #[tokio::test]
-async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
+async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId, pregenesis: bool) {
     const NODES: usize = 3;
 
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, NODES);
-    let cfgs = testonly::new_configs(rng, &setup, 1);
+    let cfgs = testonly::new_configs(rng, &setup, 1, pregenesis);
     let account = &mut Account::random();
 
     // Run all nodes in parallel.
@@ -475,12 +538,12 @@ async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
         main_node.push_random_blocks(rng, account, 5).await;
         let want_last = main_node.last_block();
         let want = main_node_pool
-            .wait_for_blocks_and_verify(ctx, want_last)
+            .wait_for_blocks_and_verify_certs(ctx, want_last)
             .await?;
         for pool in &ext_node_pools {
             assert_eq!(
                 want,
-                pool.wait_for_blocks_and_verify(ctx, want_last)
+                pool.wait_for_blocks_and_verify_certs(ctx, want_last)
                     .await?
             );
         }
@@ -491,14 +554,14 @@ async fn test_en_validators(from_snapshot: bool, version: ProtocolVersionId) {
 }
 
 // Test fetcher back filling missing certs.
-#[test_casing(4, Product((FROM_SNAPSHOT,VERSIONS)))]
+#[test_casing(8, Product((FROM_SNAPSHOT,VERSIONS,PREGENESIS)))]
 #[tokio::test]
-async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolVersionId) {
+async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolVersionId, pregenesis: bool) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::AffineClock::new(10.));
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
-    let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
+    let validator_cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
     let node_cfg = validator_cfg.new_fullnode(rng);
     let account = &mut Account::random();
 
@@ -555,10 +618,10 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
             s.spawn_bg(node.run_consensus(ctx, client.clone(), node_cfg));
             validator.push_random_blocks(rng, account, 3).await;
             let want = validator_pool
-                .wait_for_blocks_and_verify(ctx, validator.last_block())
+                .wait_for_blocks_and_verify_certs(ctx, validator.last_block())
                 .await?;
             let got = node_pool
-                .wait_for_blocks_and_verify(ctx, validator.last_block())
+                .wait_for_blocks_and_verify_certs(ctx, validator.last_block())
                 .await?;
             assert_eq!(want, got);
             Ok(())
@@ -571,14 +634,14 @@ async fn test_p2p_fetcher_backfill_certs(from_snapshot: bool, version: ProtocolV
     .unwrap();
 }
 
-#[test_casing(2, VERSIONS)]
+#[test_casing(4, Product((VERSIONS,PREGENESIS)))]
 #[tokio::test]
-async fn test_with_pruning(version: ProtocolVersionId) {
+async fn test_with_pruning(version: ProtocolVersionId, pregenesis: bool) {
     zksync_concurrency::testonly::abort_on_panic();
     let ctx = &ctx::test_root(&ctx::RealClock);
     let rng = &mut ctx.rng();
     let setup = Setup::new(rng, 1);
-    let validator_cfg = testonly::new_configs(rng, &setup, 0)[0].clone();
+    let validator_cfg = testonly::new_configs(rng, &setup, 0, pregenesis)[0].clone();
     let node_cfg = validator_cfg.new_fullnode(rng);
     let account = &mut Account::random();
 

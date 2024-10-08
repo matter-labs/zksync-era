@@ -136,13 +136,24 @@ impl ConnectionPool {
         ctx: &ctx::Ctx,
         want_last: validator::BlockNumber,
     ) -> ctx::Result<Vec<validator::Block>> {
-        self.wait_for_block_certificate(ctx, want_last).await?;
-        let mut conn = self.connection(ctx).await.wrap("connection()")?;
-        let state = conn
-            .block_store_state(ctx)
-            .await
-            .wrap("block_store_state()")?;
+        const POLL_INTERVAL: time::Duration = time::Duration::milliseconds(100);
+        let state = loop {
+            let state = self
+                .connection(ctx)
+                .await
+                .wrap("connection()")?
+                .block_store_state(ctx)
+                .await
+                .wrap("block_store_state()")?;
+            tracing::info!("state.next() = {}",state.next());
+            if state.next() > want_last {
+                break state;
+            }
+            ctx.sleep(POLL_INTERVAL).await?;
+        };
+
         assert_eq!(want_last.next(), state.next());
+        let mut conn = self.connection(ctx).await.wrap("connection()")?;
         let mut blocks: Vec<validator::Block> = vec![];
         for i in state.first.0..state.next().0 {
             let i = validator::BlockNumber(i);
@@ -152,14 +163,14 @@ impl ConnectionPool {
         Ok(blocks)
     }
 
-    /// Same as `wait_for_blocks`, but additionally verifies all the blocks.
-    pub async fn wait_for_blocks_and_verify(
+    /// Same as `wait_for_blocks`, but additionally verifies all certificates.
+    pub async fn wait_for_blocks_and_verify_certs(
         &self,
         ctx: &ctx::Ctx,
         want_last: validator::BlockNumber,
     ) -> ctx::Result<Vec<validator::Block>> {
         let blocks = self.wait_for_blocks(ctx, want_last).await?;
-        let _cfg = self
+        let cfg = self
             .connection(ctx)
             .await
             .wrap("connection()")?
@@ -167,9 +178,10 @@ impl ConnectionPool {
             .await
             .wrap("genesis()")?
             .context("genesis is missing")?;
-        for _block in &blocks {
-            // TODO: verify against L1 or storage?
-            //block.verify(&cfg.genesis).context(block.number())?;
+        for block in &blocks {
+            if let validator::Block::Final(block) = block {
+                block.verify(&cfg.genesis).context(block.number())?;
+            }
         }
         Ok(blocks)
     }

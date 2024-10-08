@@ -105,7 +105,7 @@ impl EN {
 
             // Run consensus component.
             // External nodes have a payload queue which they use to fetch data from the main node.
-            let (store, runner) = Store::new(ctx, self.pool.clone(), Some(payload_queue), None) // TODO
+            let (store, runner) = Store::new(ctx, self.pool.clone(), Some(payload_queue), Some(self.client.clone()))
                 .await
                 .wrap("Store::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
