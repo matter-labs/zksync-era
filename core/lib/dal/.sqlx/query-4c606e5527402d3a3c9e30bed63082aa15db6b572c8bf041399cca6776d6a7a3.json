@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n                SELECT\n                    number,\n                    timestamp,\n                    l1_tx_count,\n                    l2_tx_count,\n                    bloom,\n                    priority_ops_onchain_data,\n                    hash,\n                    commitment,\n                    l2_to_l1_messages,\n                    used_contract_hashes,\n                    compressed_initial_writes,\n                    compressed_repeated_writes,\n                    l2_l1_merkle_root,\n                    rollup_last_leaf_index,\n                    zkporter_is_available,\n                    bootloader_code_hash,\n                    default_aa_code_hash,\n                    aux_data_hash,\n                    pass_through_data_hash,\n                    meta_parameters_hash,\n                    protocol_version,\n                    compressed_state_diffs,\n                    system_logs,\n                    events_queue_commitment,\n                    bootloader_initial_content_commitment,\n                    pubdata_input,\n                    data_availability.blob_id AS \"blob_id?\"\n                FROM\n                    l1_batches\n                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                    LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number\n                WHERE\n                    number BETWEEN $1 AND $2\n                ORDER BY\n                    number\n                LIMIT\n                    $3\n                ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                system_logs,\n                compressed_state_diffs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                data_availability.blob_id AS \"blob_id?\"\n            FROM\n                l1_batches\n            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            LEFT JOIN\n                data_availability\n                ON data_availability.l1_batch_number = l1_batches.number\n            WHERE\n                number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -90,28 +90,28 @@
       },
       {
         "ordinal": 17,
-        "name": "aux_data_hash",
+        "name": "evm_emulator_code_hash",
         "type_info": "Bytea"
       },
       {
         "ordinal": 18,
-        "name": "pass_through_data_hash",
+        "name": "aux_data_hash",
         "type_info": "Bytea"
       },
       {
         "ordinal": 19,
-        "name": "meta_parameters_hash",
+        "name": "pass_through_data_hash",
         "type_info": "Bytea"
       },
       {
         "ordinal": 20,
-        "name": "protocol_version",
-        "type_info": "Int4"
+        "name": "meta_parameters_hash",
+        "type_info": "Bytea"
       },
       {
         "ordinal": 21,
-        "name": "compressed_state_diffs",
-        "type_info": "Bytea"
+        "name": "protocol_version",
+        "type_info": "Int4"
       },
       {
         "ordinal": 22,
@@ -120,29 +120,32 @@
       },
       {
         "ordinal": 23,
-        "name": "events_queue_commitment",
+        "name": "compressed_state_diffs",
         "type_info": "Bytea"
       },
       {
         "ordinal": 24,
-        "name": "bootloader_initial_content_commitment",
+        "name": "events_queue_commitment",
         "type_info": "Bytea"
       },
       {
         "ordinal": 25,
-        "name": "pubdata_input",
+        "name": "bootloader_initial_content_commitment",
         "type_info": "Bytea"
       },
       {
         "ordinal": 26,
+        "name": "pubdata_input",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 27,
         "name": "blob_id?",
         "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
-        "Int8",
-        "Int8",
         "Int8"
       ]
     },
@@ -173,8 +176,9 @@
       true,
       true,
       true,
+      true,
       false
     ]
   },
-  "hash": "70d2f1a59e5e12c4c0c843fe14c674d9dab0ebd6256b0d3c9142a62f99de111d"
+  "hash": "4c606e5527402d3a3c9e30bed63082aa15db6b572c8bf041399cca6776d6a7a3"
 }

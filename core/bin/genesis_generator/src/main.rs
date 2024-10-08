@@ -87,6 +87,7 @@ async fn generate_new_config(
         genesis_commitment: None,
         bootloader_hash: Some(base_system_contracts.bootloader),
         default_aa_hash: Some(base_system_contracts.default_aa),
+        evm_emulator_hash: base_system_contracts.evm_emulator,
         ..genesis_config
     };
 

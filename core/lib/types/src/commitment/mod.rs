@@ -468,6 +468,7 @@ pub struct L1BatchMetaParameters {
     pub zkporter_is_available: bool,
     pub bootloader_code_hash: H256,
     pub default_aa_code_hash: H256,
+    pub evm_emulator_code_hash: Option<H256>,
     pub protocol_version: Option<ProtocolVersionId>,
 }
 
@@ -483,10 +484,11 @@ impl L1BatchMetaParameters {
             .protocol_version
             .map_or(false, |ver| ver.is_post_1_5_0())
         {
-            // EVM simulator hash for now is the same as the default AA hash.
-            result.extend(self.default_aa_code_hash.as_bytes());
+            let evm_emulator_code_hash = self
+                .evm_emulator_code_hash
+                .unwrap_or(self.default_aa_code_hash);
+            result.extend(evm_emulator_code_hash.as_bytes());
         }
-
         result
     }
 
@@ -552,6 +554,7 @@ impl L1BatchCommitment {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
             bootloader_code_hash: input.common().bootloader_code_hash,
             default_aa_code_hash: input.common().default_aa_code_hash,
+            evm_emulator_code_hash: input.common().evm_emulator_code_hash,
             protocol_version: Some(input.common().protocol_version),
         };
 
@@ -654,6 +657,7 @@ pub struct CommitmentCommonInput {
     pub rollup_root_hash: H256,
     pub bootloader_code_hash: H256,
     pub default_aa_code_hash: H256,
+    pub evm_emulator_code_hash: Option<H256>,
     pub protocol_version: ProtocolVersionId,
 }
 
@@ -694,6 +698,7 @@ impl CommitmentInput {
             rollup_root_hash,
             bootloader_code_hash: base_system_contracts_hashes.bootloader,
             default_aa_code_hash: base_system_contracts_hashes.default_aa,
+            evm_emulator_code_hash: base_system_contracts_hashes.evm_emulator,
             protocol_version,
         };
         if protocol_version.is_pre_boojum() {

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_multivm::{
     interface::{
@@ -8,7 +10,7 @@ use zksync_multivm::{
 };
 use zksync_types::{
     block::BlockGasCount, fee_model::BatchFeeInput, Address, L1BatchNumber, L2BlockNumber,
-    ProtocolVersionId, Transaction,
+    ProtocolVersionId, Transaction, H256,
 };
 
 pub(crate) use self::{l1_batch_updates::L1BatchUpdates, l2_block_updates::L2BlockUpdates};
@@ -104,11 +106,13 @@ impl UpdatesManager {
         self.protocol_version
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn extend_from_executed_transaction(
         &mut self,
         tx: Transaction,
         tx_execution_result: VmExecutionResultAndLogs,
         compressed_bytecodes: Vec<CompressedBytecodeInfo>,
+        new_known_factory_deps: HashMap<H256, Vec<u8>>,
         tx_l1_gas_this_tx: BlockGasCount,
         execution_metrics: VmExecutionMetrics,
         call_traces: Vec<Call>,
@@ -124,6 +128,7 @@ impl UpdatesManager {
             tx_l1_gas_this_tx,
             execution_metrics,
             compressed_bytecodes,
+            new_known_factory_deps,
             call_traces,
         );
         latency.observe();
@@ -233,6 +238,7 @@ mod tests {
             tx,
             create_execution_result([]),
             vec![],
+            HashMap::new(),
             new_block_gas_count(),
             VmExecutionMetrics::default(),
             vec![],
