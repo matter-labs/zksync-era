@@ -70,8 +70,6 @@ impl TeeProofGenerationDal<'_, '_> {
                             )
                         )
                     )
-                ORDER BY
-                    l1_batch_number ASC
                 FETCH FIRST ROW ONLY
             )
             
