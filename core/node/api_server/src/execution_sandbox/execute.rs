@@ -109,6 +109,8 @@ impl SandboxExecutor {
     ) -> Self {
         let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
         executor.set_fast_vm_modes(options.fast_vm_modes);
+        #[cfg(test)]
+        executor.panic_on_divergence();
         executor
             .set_execution_latency_histogram(&SANDBOX_METRICS.sandbox[&SandboxStage::Execution]);
         Self {
