@@ -55,7 +55,7 @@ pub fn l1_batch_params(
     virtual_blocks: u32,
     chain_id: L2ChainId,
     pubdata_params: PubdataParams,
-) -> (SystemEnv, L1BatchEnv) {
+) -> (SystemEnv, L1BatchEnv, PubdataParams) {
     (
         SystemEnv {
             zk_porter_available: ZKPORTER_IS_AVAILABLE,
@@ -65,7 +65,6 @@ pub fn l1_batch_params(
             execution_mode: TxExecutionMode::VerifyExecute,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
             chain_id,
-            pubdata_params,
         },
         L1BatchEnv {
             previous_batch_hash: Some(previous_batch_hash),
@@ -81,6 +80,7 @@ pub fn l1_batch_params(
                 max_virtual_blocks_to_create: virtual_blocks,
             },
         },
+        pubdata_params,
     )
 }
 
@@ -266,7 +266,7 @@ impl L1BatchParamsProvider {
         first_l2_block_in_batch: &FirstL2BlockInBatch,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
-    ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
+    ) -> anyhow::Result<(SystemEnv, L1BatchEnv, PubdataParams)> {
         anyhow::ensure!(
             first_l2_block_in_batch.l1_batch_number > L1BatchNumber(0),
             "Loading params for genesis L1 batch not supported"
@@ -346,7 +346,7 @@ impl L1BatchParamsProvider {
         number: L1BatchNumber,
         validation_computational_gas_limit: u32,
         chain_id: L2ChainId,
-    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv)>> {
+    ) -> anyhow::Result<Option<(SystemEnv, L1BatchEnv, PubdataParams)>> {
         let first_l2_block = self
             .load_first_l2_block_in_batch(storage, number)
             .await

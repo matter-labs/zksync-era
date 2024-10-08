@@ -4,6 +4,7 @@ use once_cell::sync::Lazy;
 use zksync_contracts::BaseSystemContracts;
 use zksync_multivm::{
     interface::{
+        pubdata::{pubdata_params_to_builder, PubdataBuilder},
         storage::{InMemoryStorage, StorageView},
         ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
@@ -14,9 +15,9 @@ use zksync_multivm::{
     zk_evm_latest::ethereum_types::{Address, U256},
 };
 use zksync_types::{
-    block::L2BlockHasher, fee_model::BatchFeeInput, helpers::unix_timestamp_ms,
-    utils::storage_key_for_eth_balance, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
-    Transaction,
+    block::L2BlockHasher, commitment::PubdataParams, fee_model::BatchFeeInput,
+    helpers::unix_timestamp_ms, utils::storage_key_for_eth_balance, L1BatchNumber, L2BlockNumber,
+    L2ChainId, ProtocolVersionId, Transaction,
 };
 use zksync_utils::bytecode::hash_bytecode;
 
@@ -71,6 +72,7 @@ pub trait BenchmarkingVmFactory {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: &'static InMemoryStorage,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> Self::Instance;
 }
 
@@ -87,6 +89,7 @@ impl BenchmarkingVmFactory for Fast {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: &'static InMemoryStorage,
+        _pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> Self::Instance {
         vm_fast::Vm::custom(batch_env, system_env, storage)
     }
@@ -105,9 +108,10 @@ impl BenchmarkingVmFactory for Legacy {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: &'static InMemoryStorage,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> Self::Instance {
         let storage = StorageView::new(storage).to_rc_ptr();
-        vm_latest::Vm::new(batch_env, system_env, storage)
+        vm_latest::Vm::new(batch_env, system_env, storage, Some(pubdata_builder))
     }
 }
 
@@ -143,9 +147,9 @@ impl<VM: BenchmarkingVmFactory> Default for BenchmarkingVm<VM> {
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 chain_id: L2ChainId::from(270),
-                pubdata_params: Default::default(),
             },
             &STORAGE,
+            pubdata_params_to_builder(PubdataParams::default()),
         ))
     }
 }

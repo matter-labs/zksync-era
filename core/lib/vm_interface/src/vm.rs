@@ -11,11 +11,13 @@
 //! Generally speaking, in most cases, the tracer dispatcher is a wrapper around `Vec<Box<dyn VmTracer>>`,
 //! where `VmTracer` is a trait implemented for a specific VM version.
 
+use std::rc::Rc;
+
 use zksync_types::{Transaction, H256};
 
 use crate::{
-    storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmMemoryMetrics,
+    pubdata::PubdataBuilder, storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch,
+    L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmMemoryMetrics,
 };
 
 pub trait VmInterface {
@@ -78,7 +80,12 @@ impl<T: VmInterface> VmInterfaceExt for T {}
 /// Encapsulates creating VM instance based on the provided environment.
 pub trait VmFactory<S>: VmInterface {
     /// Creates a new VM instance.
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<S>,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) -> Self;
 }
 
 /// Methods of VM requiring history manipulations.

@@ -182,7 +182,7 @@ impl<T> OneshotEnvParameters<T> {
         )
         .await?;
 
-        let (system, l1_batch) = self.prepare_env(
+        let (system, l1_batch, pubdata_params) = self.prepare_env(
             execution_mode,
             resolved_block_info,
             next_block,
@@ -192,6 +192,7 @@ impl<T> OneshotEnvParameters<T> {
         Ok(OneshotEnv {
             system,
             l1_batch,
+            pubdata_params,
             current_block,
         })
     }
@@ -203,7 +204,7 @@ impl<T> OneshotEnvParameters<T> {
         next_block: L2BlockEnv,
         fee_input: BatchFeeInput,
         enforced_base_fee: Option<u64>,
-    ) -> (SystemEnv, L1BatchEnv) {
+    ) -> (SystemEnv, L1BatchEnv, PubdataParams) {
         let &Self {
             operator_account,
             validation_computational_gas_limit,
@@ -222,7 +223,6 @@ impl<T> OneshotEnvParameters<T> {
             execution_mode,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
             chain_id,
-            pubdata_params: resolved_block_info.pubdata_params,
         };
         let l1_batch_env = L1BatchEnv {
             previous_batch_hash: None,
@@ -233,7 +233,7 @@ impl<T> OneshotEnvParameters<T> {
             enforced_base_fee,
             first_l2_block: next_block,
         };
-        (system_env, l1_batch_env)
+        (system_env, l1_batch_env, resolved_block_info.pubdata_params)
     }
 }
 

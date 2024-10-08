@@ -43,7 +43,11 @@ pub struct UpdatesManager {
 }
 
 impl UpdatesManager {
-    pub fn new(l1_batch_env: &L1BatchEnv, system_env: &SystemEnv) -> Self {
+    pub fn new(
+        l1_batch_env: &L1BatchEnv,
+        system_env: &SystemEnv,
+        pubdata_params: PubdataParams,
+    ) -> Self {
         let protocol_version = system_env.version;
         Self {
             batch_timestamp: l1_batch_env.timestamp,
@@ -62,7 +66,7 @@ impl UpdatesManager {
             ),
             storage_writes_deduplicator: StorageWritesDeduplicator::new(),
             storage_view_cache: None,
-            pubdata_params: system_env.pubdata_params,
+            pubdata_params,
         }
     }
 

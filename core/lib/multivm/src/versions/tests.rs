@@ -22,7 +22,8 @@ use crate::{
     },
     utils::get_max_gas_per_pubdata_byte,
     versions::testonly::{
-        default_l1_batch, default_system_env, make_account_rich, ContractToDeploy,
+        default_l1_batch, default_pubdata_builder, default_system_env, make_account_rich,
+        ContractToDeploy,
     },
     vm_fast,
     vm_latest::{self, HistoryEnabled},
@@ -206,12 +207,13 @@ where
 {
     let system_env = default_system_env();
     let l1_batch_env = default_l1_batch(L1BatchNumber(1));
+    let pubdata_builder = default_pubdata_builder();
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     let mut harness = Harness::new(&l1_batch_env);
     harness.setup_storage(&mut storage);
 
     let storage = StorageView::new(storage).to_rc_ptr();
-    let mut vm = Vm::new(l1_batch_env, system_env, storage);
+    let mut vm = Vm::new(l1_batch_env, system_env, storage, Some(pubdata_builder));
     harness.execute_on_vm(&mut vm);
     (vm, harness)
 }
@@ -230,6 +232,7 @@ fn sanity_check_harness_on_new_vm() {
 fn sanity_check_shadow_vm() {
     let system_env = default_system_env();
     let l1_batch_env = default_l1_batch(L1BatchNumber(1));
+    let pubdata_builder = default_pubdata_builder();
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     let mut harness = Harness::new(&l1_batch_env);
     harness.setup_storage(&mut storage);
@@ -242,6 +245,7 @@ fn sanity_check_shadow_vm() {
         system_env,
         main_storage,
         shadow_storage,
+        Some(pubdata_builder),
     );
     harness.execute_on_vm(&mut vm);
 }
@@ -261,16 +265,17 @@ fn shadow_vm_basics() {
     harness.setup_storage(&mut storage);
     let storage = StorageView::new(storage).to_rc_ptr();
 
-    let vm = dump
-        .clone()
-        .play_back_custom(|l1_batch_env, system_env, dump_storage| {
-            ShadowVm::<_, ReferenceVm, ReferenceVm<_>>::with_custom_shadow(
-                l1_batch_env,
-                system_env,
-                storage,
-                dump_storage,
-            )
-        });
+    let vm =
+        dump.clone()
+            .play_back_custom(|l1_batch_env, system_env, dump_storage, pubdata_builder| {
+                ShadowVm::<_, ReferenceVm, ReferenceVm<_>>::with_custom_shadow(
+                    l1_batch_env,
+                    system_env,
+                    storage,
+                    dump_storage,
+                    pubdata_builder,
+                )
+            });
     let new_dump = vm.dump_state();
     pretty_assertions::assert_eq!(new_dump, dump);
 }

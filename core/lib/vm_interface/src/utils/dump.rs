@@ -1,9 +1,13 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use serde::{Deserialize, Serialize};
-use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2BlockNumber, Transaction, H256};
+use zksync_types::{
+    block::L2BlockExecutionData, commitment::PubdataParams, L1BatchNumber, L2BlockNumber,
+    Transaction, H256,
+};
 
 use crate::{
+    pubdata::{pubdata_params_to_builder, PubdataBuilder},
     storage::{ReadStorage, StoragePtr, StorageSnapshot, StorageView},
     BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
     VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
@@ -54,6 +58,7 @@ pub struct VmDump {
     pub system_env: SystemEnv,
     pub l2_blocks: Vec<L2BlockExecutionData>,
     pub storage: StorageSnapshot,
+    pub pubdata_params: Option<PubdataParams>,
 }
 
 impl VmDump {
@@ -73,10 +78,20 @@ impl VmDump {
     #[doc(hidden)] // too low-level
     pub fn play_back_custom<Vm: VmInterface>(
         self,
-        create_vm: impl FnOnce(L1BatchEnv, SystemEnv, StoragePtr<StorageView<StorageSnapshot>>) -> Vm,
+        create_vm: impl FnOnce(
+            L1BatchEnv,
+            SystemEnv,
+            StoragePtr<StorageView<StorageSnapshot>>,
+            Option<Rc<dyn PubdataBuilder>>,
+        ) -> Vm,
     ) -> Vm {
         let storage = StorageView::new(self.storage).to_rc_ptr();
-        let mut vm = create_vm(self.l1_batch_env, self.system_env, storage);
+        let mut vm = create_vm(
+            self.l1_batch_env,
+            self.system_env,
+            storage,
+            self.pubdata_params.map(pubdata_params_to_builder),
+        );
 
         for (i, l2_block) in self.l2_blocks.into_iter().enumerate() {
             if i > 0 {
@@ -118,6 +133,7 @@ pub(super) struct DumpingVm<S, Vm> {
     system_env: SystemEnv,
     l2_blocks: Vec<L2BlockExecutionData>,
     l2_blocks_snapshot: Option<L2BlocksSnapshot>,
+    pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
 }
 
 impl<S: ReadStorage, Vm: VmTrackingContracts> DumpingVm<S, Vm> {
@@ -135,6 +151,10 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> DumpingVm<S, Vm> {
             system_env: self.system_env.clone(),
             l2_blocks: self.l2_blocks.clone(),
             storage: create_storage_snapshot(&self.storage, self.inner.used_contract_hashes()),
+            pubdata_params: self
+                .pubdata_builder
+                .clone()
+                .map(|p| p.pubdata_params().expect("pubdata builder is not dumpable")),
         }
     }
 }
@@ -231,8 +251,14 @@ where
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<StorageView<S>>,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
-        let inner = Vm::new(l1_batch_env.clone(), system_env.clone(), storage.clone());
+        let inner = Vm::new(
+            l1_batch_env.clone(),
+            system_env.clone(),
+            storage.clone(),
+            pubdata_builder.clone(),
+        );
         let first_block = L2BlockExecutionData {
             number: L2BlockNumber(l1_batch_env.first_l2_block.number),
             timestamp: l1_batch_env.first_l2_block.timestamp,
@@ -247,6 +273,7 @@ where
             l2_blocks_snapshot: None,
             storage,
             inner,
+            pubdata_builder,
         }
     }
 }

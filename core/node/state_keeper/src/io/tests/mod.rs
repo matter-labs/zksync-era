@@ -446,13 +446,13 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         .await
         .unwrap()
         .expect("no batch params generated");
-    let (system_env, l1_batch_env) = l1_batch_params.into_env(
+    let (system_env, l1_batch_env, pubdata_params) = l1_batch_params.into_env(
         L2ChainId::default(),
         BASE_SYSTEM_CONTRACTS.clone(),
         &cursor,
         previous_batch_hash,
     );
-    let mut updates = UpdatesManager::new(&l1_batch_env, &system_env);
+    let mut updates = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
 
     let tx_hash = tx.hash();
     updates.extend_from_executed_transaction(

@@ -487,7 +487,8 @@ mod tests {
 
     async fn execute_mock_batch(output_handler: &mut OutputHandler) -> H256 {
         let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
-        let mut updates = UpdatesManager::new(&l1_batch_env, &default_system_env());
+        let mut updates =
+            UpdatesManager::new(&l1_batch_env, &default_system_env(), Default::default());
 
         let tx = create_transaction(10, 100);
         let tx_hash = tx.hash();

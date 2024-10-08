@@ -1,8 +1,11 @@
+use std::rc::Rc;
+
 use circuit_sequencer_api_1_4_1::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     Transaction,
 };
+use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use crate::{
     glue::GlueInto,
@@ -148,7 +151,12 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<S>,
+        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
         Self {
             bootloader_state,

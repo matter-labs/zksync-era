@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use zksync_contracts::BaseSystemContracts;
 use zksync_test_account::Account;
 use zksync_types::{
@@ -8,9 +10,17 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
-    interface::{storage::InMemoryStorage, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode},
+    interface::{
+        pubdata::{rollup::RollupPubdataBuilder, PubdataBuilder},
+        storage::InMemoryStorage,
+        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+    },
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
+
+pub(super) fn default_pubdata_builder() -> Rc<dyn PubdataBuilder> {
+    Rc::new(RollupPubdataBuilder::new(Address::zero()))
+}
 
 pub(super) fn default_system_env() -> SystemEnv {
     SystemEnv {
@@ -21,7 +31,6 @@ pub(super) fn default_system_env() -> SystemEnv {
         execution_mode: TxExecutionMode::VerifyExecute,
         default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::from(270),
-        pubdata_params: Default::default(),
     }
 }
 

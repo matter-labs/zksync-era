@@ -1,7 +1,8 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, rc::Rc};
 
 use zksync_types::Transaction;
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
+use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
@@ -187,7 +188,12 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<S>,
+        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) -> Self {
         let oracle_tools = crate::vm_1_3_2::OracleTools::new(storage.clone());
         let block_properties = crate::vm_1_3_2::BlockProperties {
             default_aa_code_hash: h256_to_u256(

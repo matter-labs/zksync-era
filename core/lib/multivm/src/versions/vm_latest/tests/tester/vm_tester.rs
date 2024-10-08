@@ -1,9 +1,8 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, rc::Rc};
 
 use zksync_contracts::BaseSystemContracts;
 use zksync_types::{
     block::L2BlockHasher,
-    commitment::PubdataParams,
     fee_model::BatchFeeInput,
     get_code_key, get_is_account_key,
     helpers::unix_timestamp_ms,
@@ -11,6 +10,7 @@ use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
+use zksync_vm_interface::pubdata::{rollup::RollupPubdataBuilder, PubdataBuilder};
 
 use crate::{
     interface::{
@@ -97,7 +97,12 @@ impl<H: HistoryMode> VmTester<H> {
             };
         }
 
-        let vm = Vm::new(l1_batch, self.vm.system_env.clone(), self.storage.clone());
+        let vm = Vm::new(
+            l1_batch,
+            self.vm.system_env.clone(),
+            self.storage.clone(),
+            Some(self.vm.bootloader_state.pubdata_builder()),
+        );
 
         if self.test_contract.is_some() {
             self.deploy_test_contract();
@@ -116,6 +121,7 @@ pub(crate) struct VmTesterBuilder<H: HistoryMode> {
     deployer: Option<Account>,
     rich_accounts: Vec<Account>,
     custom_contracts: Vec<ContractsToDeploy>,
+    pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     _phantom: PhantomData<H>,
 }
 
@@ -128,6 +134,7 @@ impl<H: HistoryMode> Clone for VmTesterBuilder<H> {
             deployer: self.deployer.clone(),
             rich_accounts: self.rich_accounts.clone(),
             custom_contracts: self.custom_contracts.clone(),
+            pubdata_builder: self.pubdata_builder.clone(),
             _phantom: PhantomData,
         }
     }
@@ -147,11 +154,11 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
                 execution_mode: TxExecutionMode::VerifyExecute,
                 default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
                 chain_id: L2ChainId::from(270),
-                pubdata_params: Default::default(),
             },
             deployer: None,
             rich_accounts: vec![],
             custom_contracts: vec![],
+            pubdata_builder: None,
             _phantom: PhantomData,
         }
     }
@@ -218,8 +225,11 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
         self
     }
 
-    pub(crate) fn with_custom_pubdata_params(mut self, pubdata_params: PubdataParams) -> Self {
-        self.system_env.pubdata_params = pubdata_params;
+    pub(crate) fn with_custom_pubdata_builder(
+        mut self,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
+    ) -> Self {
+        self.pubdata_builder = Some(pubdata_builder);
         self
     }
 
@@ -239,7 +249,15 @@ impl<H: HistoryMode> VmTesterBuilder<H> {
         }
         let fee_account = l1_batch_env.fee_account;
 
-        let vm = Vm::new(l1_batch_env, self.system_env, storage_ptr.clone());
+        let pubdata_builder = self
+            .pubdata_builder
+            .unwrap_or_else(|| Rc::new(RollupPubdataBuilder::new(Address::zero())));
+        let vm = Vm::new(
+            l1_batch_env,
+            self.system_env,
+            storage_ptr.clone(),
+            Some(pubdata_builder),
+        );
 
         VmTester {
             vm,

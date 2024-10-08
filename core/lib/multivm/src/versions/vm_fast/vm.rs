@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, mem};
+use std::{collections::HashMap, fmt, mem, rc::Rc};
 
 use zk_evm_1_5_0::zkevm_opcode_defs::system_params::INITIAL_FRAME_FORMAL_EH_LOCATION;
 use zksync_contracts::SystemContractCode;
@@ -19,6 +19,7 @@ use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
     ExecutionEnd, FatPointer, Program, Settings, VirtualMachine,
 };
+use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
@@ -501,6 +502,7 @@ where
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<StorageView<S>>,
+        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
         let storage = ImmutableStorageView::new(storage);
         Self::custom(batch_env, system_env, storage)

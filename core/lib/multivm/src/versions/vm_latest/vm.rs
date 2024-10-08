@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
@@ -5,6 +7,7 @@ use zksync_types::{
     Transaction, H256,
 };
 use zksync_utils::u256_to_h256;
+use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use crate::{
     glue::GlueInto,
@@ -176,7 +179,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
-            pubdata_input: Some(self.bootloader_state.get_encoded_pubdata()),
+            pubdata_input: Some(self.bootloader_state.settlement_layer_pubdata()),
             state_diffs: Some(
                 self.bootloader_state
                     .get_pubdata_information()
@@ -188,12 +191,18 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<S>,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) -> Self {
         let vm_version: VmVersion = system_env.version.into();
         Self::new_with_subversion(
             batch_env,
             system_env,
             storage,
+            pubdata_builder,
             vm_version.try_into().expect("Incorrect 1.5.0 VmVersion"),
         )
     }
@@ -204,10 +213,12 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<S>,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
         subversion: MultiVMSubversion,
     ) -> Self {
+        let pubdata_builder = pubdata_builder.expect("pubdata_builder is required");
         let (state, bootloader_state) =
-            new_vm_state(storage.clone(), &system_env, &batch_env, subversion);
+            new_vm_state(storage.clone(), &system_env, &batch_env, pubdata_builder);
         Self {
             bootloader_state,
             state,

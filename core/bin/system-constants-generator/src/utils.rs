@@ -7,6 +7,7 @@ use zksync_contracts::{
 };
 use zksync_multivm::{
     interface::{
+        pubdata::pubdata_params_to_builder,
         storage::{InMemoryStorage, StorageView, WriteStorage},
         tracer::VmExecutionStopReason,
         L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
@@ -21,11 +22,12 @@ use zksync_multivm::{
     zk_evm_latest::aux_structures::Timestamp,
 };
 use zksync_types::{
-    block::L2BlockHasher, ethabi::Token, fee::Fee, fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx,
-    utils::storage_key_for_eth_balance, AccountTreeId, Address, Execute, K256PrivateKey,
-    L1BatchNumber, L1TxCommonData, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, StorageKey,
-    Transaction, BOOTLOADER_ADDRESS, SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION,
-    SYSTEM_CONTEXT_TX_ORIGIN_POSITION, U256, ZKPORTER_IS_AVAILABLE,
+    block::L2BlockHasher, commitment::PubdataParams, ethabi::Token, fee::Fee,
+    fee_model::BatchFeeInput, l1::L1Tx, l2::L2Tx, utils::storage_key_for_eth_balance,
+    AccountTreeId, Address, Execute, K256PrivateKey, L1BatchNumber, L1TxCommonData, L2BlockNumber,
+    L2ChainId, Nonce, ProtocolVersionId, StorageKey, Transaction, BOOTLOADER_ADDRESS,
+    SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_GAS_PRICE_POSITION, SYSTEM_CONTEXT_TX_ORIGIN_POSITION,
+    U256, ZKPORTER_IS_AVAILABLE,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
 
@@ -231,7 +233,6 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         execution_mode: TxExecutionMode::VerifyExecute,
         default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::default(),
-        pubdata_params: Default::default(),
     };
 
     let eth_token_sys_contract = load_sys_contract("L2BaseToken");
@@ -262,7 +263,14 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
         output: tracer_result.clone(),
     }
     .into_tracer_pointer();
-    let mut vm: Vm<_, HistoryEnabled> = Vm::new(l1_batch, system_env, storage_view.to_rc_ptr());
+
+    let pubdata_builder = pubdata_params_to_builder(PubdataParams::default());
+    let mut vm: Vm<_, HistoryEnabled> = Vm::new(
+        l1_batch,
+        system_env,
+        storage_view.to_rc_ptr(),
+        Some(pubdata_builder),
+    );
     let result = vm.inspect(&mut tracer.into(), VmExecutionMode::Bootloader);
 
     assert!(!result.result.is_failed(), "The internal call has reverted");
@@ -314,11 +322,15 @@ pub(super) fn execute_user_txs_in_test_gas_vm(
         execution_mode: TxExecutionMode::VerifyExecute,
         default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
         chain_id: L2ChainId::default(),
-        pubdata_params: Default::default(),
     };
+    let pubdata_builder = pubdata_params_to_builder(PubdataParams::default());
 
-    let mut vm: Vm<_, HistoryEnabled> =
-        Vm::new(l1_batch, system_env, Rc::new(RefCell::new(storage_view)));
+    let mut vm: Vm<_, HistoryEnabled> = Vm::new(
+        l1_batch,
+        system_env,
+        Rc::new(RefCell::new(storage_view)),
+        Some(pubdata_builder),
+    );
 
     let mut total_gas_refunded = 0;
     for tx in txs {

@@ -1,5 +1,8 @@
+use std::rc::Rc;
+
 use zksync_types::{vm::VmVersion, Transaction};
 use zksync_utils::h256_to_u256;
+use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
@@ -129,7 +132,12 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 }
 
 impl<S: Storage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<S>,
+        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) -> Self {
         let vm_version: VmVersion = system_env.version.into();
         let vm_sub_version = match vm_version {
             VmVersion::M5WithoutRefunds => MultiVMSubversion::V1,

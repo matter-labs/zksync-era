@@ -101,7 +101,7 @@ impl StateKeeperIO for MempoolIO {
 
         L2BlockSealProcess::clear_pending_l2_block(&mut storage, cursor.next_l2_block - 1).await?;
 
-        let Some((system_env, l1_batch_env)) = self
+        let Some((system_env, l1_batch_env, pubdata_params)) = self
             .l1_batch_params_provider
             .load_l1_batch_env(
                 &mut storage,
@@ -113,38 +113,29 @@ impl StateKeeperIO for MempoolIO {
         else {
             return Ok((cursor, None));
         };
-        let pending_batch_data = load_pending_batch(&mut storage, system_env, l1_batch_env)
-            .await
-            .with_context(|| {
-                format!(
-                    "failed loading data for re-execution for pending L1 batch #{}",
-                    cursor.l1_batch
-                )
-            })?;
+        let pending_batch_data =
+            load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
+                .await
+                .with_context(|| {
+                    format!(
+                        "failed loading data for re-execution for pending L1 batch #{}",
+                        cursor.l1_batch
+                    )
+                })?;
 
-        let PendingBatchData {
-            l1_batch_env,
-            system_env,
-            pending_l2_blocks,
-        } = pending_batch_data;
         // Initialize the filter for the transactions that come after the pending batch.
         // We use values from the pending block to match the filter with one used before the restart.
-        let (base_fee, gas_per_pubdata) =
-            derive_base_fee_and_gas_per_pubdata(l1_batch_env.fee_input, system_env.version.into());
+        let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
+            pending_batch_data.l1_batch_env.fee_input,
+            pending_batch_data.system_env.version.into(),
+        );
         self.filter = L2TxFilter {
-            fee_input: l1_batch_env.fee_input,
+            fee_input: pending_batch_data.l1_batch_env.fee_input,
             fee_per_gas: base_fee,
             gas_per_pubdata: gas_per_pubdata as u32,
         };
 
-        Ok((
-            cursor,
-            Some(PendingBatchData {
-                l1_batch_env,
-                system_env,
-                pending_l2_blocks,
-            }),
-        ))
+        Ok((cursor, Some(pending_batch_data)))
     }
 
     async fn wait_for_new_batch_params(

@@ -39,6 +39,7 @@ pub struct PendingBatchData {
     /// (e.g. timestamp) are the same, so transaction would have the same result after re-execution.
     pub(crate) l1_batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
+    pub(crate) pubdata_params: PubdataParams,
     /// List of L2 blocks and corresponding transactions that were executed within batch.
     pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
 }
@@ -82,7 +83,7 @@ impl L1BatchParams {
         contracts: BaseSystemContracts,
         cursor: &IoCursor,
         previous_batch_hash: H256,
-    ) -> (SystemEnv, L1BatchEnv) {
+    ) -> (SystemEnv, L1BatchEnv, PubdataParams) {
         l1_batch_params(
             cursor.l1_batch,
             self.operator_address,
