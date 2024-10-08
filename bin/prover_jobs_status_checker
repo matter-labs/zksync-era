@@ -29,7 +29,9 @@ while true; do
         echo "Query result is 1. Success!"
         exit 0  # Exit with zero status to succeed CI
     else
-        echo "Query result is not 1, retrying in $INTERVAL seconds..."
+        STATUS=$(psql $DATABASE_URL -c "SELECT COUNT(*), status FROM prover_jobs_fri WHERE l1_batch_number = $BATCH_NUMBER GROUP BY status;" -t -A)
+        echo "Current status is $STATUS"
+        echo "Retrying in $INTERVAL seconds..."
     fi
 
     # Wait for the next interval
