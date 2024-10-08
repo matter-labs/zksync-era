@@ -509,22 +509,21 @@ impl MainNodeBuilder {
             return Ok(self);
         };
 
-        match da_client_config {
-            DAClientConfig::Avail(config) => {
-                let secrets = try_load_config!(self.secrets.data_availability);
-                match secrets {
-                    DataAvailabilitySecrets::Avail(secret) => {
-                        self.node.add_layer(AvailWiringLayer::new(config, secret));
-                    }
-                    _ => anyhow::bail!("Secrets for Avail DA client are not provided"),
-                }
+        let secrets = self.secrets.data_availability.clone();
+
+        match (da_client_config, secrets) {
+            (DAClientConfig::Avail(_), None) => {
+                anyhow::bail!("Data availability secrets are required for the Avail client");
             }
 
-            DAClientConfig::ObjectStore(config) => {
+            (DAClientConfig::Avail(config), Some(DataAvailabilitySecrets::Avail(secret))) => {
+                self.node.add_layer(AvailWiringLayer::new(config, secret));
+            }
+            (DAClientConfig::ObjectStore(config), _) => {
                 self.node
                     .add_layer(ObjectStorageClientWiringLayer::new(config));
             }
-            DAClientConfig::EigenDA(config) => {
+            (DAClientConfig::EigenDA(config), _) => {
                 self.node.add_layer(EigenDAWiringLayer::new(config));
             }
         }
