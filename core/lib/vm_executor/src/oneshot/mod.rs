@@ -446,15 +446,26 @@ impl<S: ReadStorage> VmSandbox<S> {
         if let Some(histogram) = self.execution_latency_histogram {
             histogram.observe(vm_execution_took);
         }
-        if let Vm::Legacy(vm) = &self.vm {
-            let memory_metrics = vm.record_vm_memory_metrics();
-            metrics::report_vm_memory_metrics(
-                &tx_id,
-                &memory_metrics,
-                vm_execution_took,
-                &self.storage_view.borrow().stats(),
-            );
-            // FIXME: Memory metrics don't work for the fast VM yet
+
+        match &self.vm {
+            Vm::Legacy(vm) => {
+                let memory_metrics = vm.record_vm_memory_metrics();
+                metrics::report_vm_memory_metrics(
+                    &tx_id,
+                    &memory_metrics,
+                    vm_execution_took,
+                    &self.storage_view.borrow().stats(),
+                );
+            }
+            Vm::Fast(_) => {
+                // The new VM implementation doesn't have the same memory model as old ones, so it doesn't report memory metrics,
+                // only storage-related ones.
+                metrics::report_vm_storage_metrics(
+                    &format!("Tx {tx_id}"),
+                    vm_execution_took,
+                    &self.storage_view.borrow().stats(),
+                );
+            }
         }
         result
     }
