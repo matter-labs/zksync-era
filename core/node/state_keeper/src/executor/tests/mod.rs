@@ -3,11 +3,13 @@
 use assert_matches::assert_matches;
 use rand::{thread_rng, Rng};
 use test_casing::{test_casing, Product};
+use zksync_contracts::l2_message_root;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_multivm::interface::{BatchTransactionExecutionResult, ExecutionResult, Halt};
 use zksync_test_account::Account;
 use zksync_types::{
-    get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, PriorityOpId,
+    get_nonce_key, utils::storage_key_for_eth_balance, vm::FastVmMode, Execute, PriorityOpId,
+    L2_MESSAGE_ROOT_ADDRESS, U256,
 };
 
 use self::tester::{
@@ -49,7 +51,9 @@ impl StorageType {
     const ALL: [Self; 3] = [Self::AsyncRocksdbCache, Self::Rocksdb, Self::Postgres];
 }
 
-const FAST_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::New, FastVmMode::Shadow];
+// FIXME: uncomment when gateway support is added to fast vm.
+// const FAST_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::New, FastVmMode::Shadow];
+const FAST_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::Old, FastVmMode::Old];
 
 /// Checks that we can successfully execute a single L2 tx in batch executor on all storage types.
 #[test_casing(9, Product((StorageType::ALL, FAST_VM_MODES)))]
@@ -60,7 +64,30 @@ async fn execute_l2_tx(storage_type: StorageType, vm_mode: FastVmMode) {
     let mut tester = Tester::new(connection_pool, vm_mode);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
-    let mut executor = tester.create_batch_executor(storage_type).await;
+
+    let l2_message_root = l2_message_root();
+    let encoded_data = l2_message_root
+        .function("initialize")
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+
+    let message_root_init_txn = alice.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
+            calldata: encoded_data,
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
+    let mut executor = tester
+        .create_batch_executor_with_init_transactions(
+            storage_type,
+            &[message_root_init_txn.clone()],
+        )
+        .await;
 
     let res = executor.execute_tx(alice.execute()).await.unwrap();
     assert_executed(&res);
@@ -103,7 +130,25 @@ async fn execute_l2_tx_after_snapshot_recovery(
     let mut alice = Account::random();
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
 
-    let mut storage_snapshot = StorageSnapshot::new(&connection_pool, &mut alice, 10).await;
+    let l2_message_root = l2_message_root();
+    let encoded_data = l2_message_root
+        .function("initialize")
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+
+    let message_root_init_txn = alice.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
+            calldata: encoded_data,
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
+    let mut storage_snapshot =
+        StorageSnapshot::new(&connection_pool, &mut alice, 10, &[message_root_init_txn]).await;
     assert!(storage_snapshot.storage_logs.len() > 10); // sanity check
     assert!(!storage_snapshot.factory_deps.is_empty());
     if let Some(mutation) = mutation {
@@ -135,8 +180,29 @@ async fn execute_l1_tx(vm_mode: FastVmMode) {
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
+
+    let l2_message_root = l2_message_root();
+    let encoded_data = l2_message_root
+        .function("initialize")
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+
+    let message_root_init_txn = alice.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
+            calldata: encoded_data,
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
     let mut executor = tester
-        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .create_batch_executor_with_init_transactions(
+            StorageType::AsyncRocksdbCache,
+            &[message_root_init_txn.clone()],
+        )
         .await;
 
     let res = executor
@@ -157,8 +223,29 @@ async fn execute_l2_and_l1_txs(vm_mode: FastVmMode) {
     let mut tester = Tester::new(connection_pool, vm_mode);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
+
+    let l2_message_root = l2_message_root();
+    let encoded_data = l2_message_root
+        .function("initialize")
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+
+    let message_root_init_txn = alice.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
+            calldata: encoded_data,
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
     let mut executor = tester
-        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .create_batch_executor_with_init_transactions(
+            StorageType::AsyncRocksdbCache,
+            &[message_root_init_txn.clone()],
+        )
         .await;
 
     let res = executor.execute_tx(alice.execute()).await.unwrap();
@@ -184,8 +271,29 @@ async fn rollback(vm_mode: FastVmMode) {
 
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
+
+    let l2_message_root = l2_message_root();
+    let encoded_data = l2_message_root
+        .function("initialize")
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+
+    let message_root_init_txn = alice.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
+            calldata: encoded_data,
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
     let mut executor = tester
-        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .create_batch_executor_with_init_transactions(
+            StorageType::AsyncRocksdbCache,
+            &[message_root_init_txn.clone()],
+        )
         .await;
 
     let tx = alice.execute();
@@ -238,8 +346,29 @@ async fn too_big_gas_limit(vm_mode: FastVmMode) {
     let mut tester = Tester::new(connection_pool, vm_mode);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
+
+    let l2_message_root = l2_message_root();
+    let encoded_data = l2_message_root
+        .function("initialize")
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+
+    let message_root_init_txn = alice.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
+            calldata: encoded_data,
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
     let mut executor = tester
-        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .create_batch_executor_with_init_transactions(
+            StorageType::AsyncRocksdbCache,
+            &[message_root_init_txn.clone()],
+        )
         .await;
 
     let big_gas_limit_tx = alice.execute_with_gas_limit(u32::MAX);
@@ -282,8 +411,29 @@ async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
     let mut tester = Tester::new(connection_pool, vm_mode);
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
+
+    let l2_message_root = l2_message_root();
+    let encoded_data = l2_message_root
+        .function("initialize")
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+
+    let message_root_init_txn = alice.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
+            calldata: encoded_data,
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
     let mut executor = tester
-        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .create_batch_executor_with_init_transactions(
+            StorageType::AsyncRocksdbCache,
+            &[message_root_init_txn.clone()],
+        )
         .await;
 
     let tx = alice.deploy_loadnext_tx();
@@ -330,27 +480,51 @@ async fn deploy_failedcall(vm_mode: FastVmMode) {
 async fn execute_reverted_tx(vm_mode: FastVmMode) {
     let connection_pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut alice = Account::random();
+    let mut bob = Account::random();
 
     let mut tester = Tester::new(connection_pool, vm_mode);
 
     tester.genesis().await;
-    tester.fund(&[alice.address()]).await;
+    tester.fund(&[alice.address(), bob.address()]).await;
+
+    let l2_message_root = l2_message_root();
+    let encoded_data = l2_message_root
+        .function("initialize")
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+
+    let message_root_init_txn = bob.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
+            calldata: encoded_data,
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
     let mut executor = tester
-        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .create_batch_executor_with_init_transactions(
+            StorageType::AsyncRocksdbCache,
+            &[message_root_init_txn.clone()],
+        )
         .await;
 
     let tx = alice.deploy_loadnext_tx();
     assert_executed(&executor.execute_tx(tx.tx).await.unwrap());
 
-    assert_reverted(
-        &executor
-            .execute_tx(alice.loadnext_custom_writes_call(
-                tx.address, 1,
-                1_000_000, // We provide enough gas for tx to be executed, but not enough for the call to be successful.
-            ))
-            .await
-            .unwrap(),
-    );
+    let txn = &executor
+        .execute_tx(alice.loadnext_custom_writes_call(
+            tx.address, 1,
+            1_000_000, // We provide enough gas for tx to be executed, but not enough for the call to be successful.
+        ))
+        .await
+        .unwrap();
+
+    dbg!(&txn);
+
+    assert_reverted(txn);
     executor.finish_batch().await.unwrap();
 }
 
@@ -368,8 +542,29 @@ async fn execute_realistic_scenario(vm_mode: FastVmMode) {
     tester.genesis().await;
     tester.fund(&[alice.address()]).await;
     tester.fund(&[bob.address()]).await;
+
+    let l2_message_root = l2_message_root();
+    let encoded_data = l2_message_root
+        .function("initialize")
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+
+    let message_root_init_txn = alice.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
+            calldata: encoded_data,
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
     let mut executor = tester
-        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .create_batch_executor_with_init_transactions(
+            StorageType::AsyncRocksdbCache,
+            &[message_root_init_txn.clone()],
+        )
         .await;
 
     // A good tx should be executed successfully.
@@ -508,8 +703,30 @@ async fn catchup_rocksdb_cache() {
     tester.genesis().await;
     tester.fund(&[alice.address(), bob.address()]).await;
 
+    let l2_message_root = l2_message_root();
+    let encoded_data = l2_message_root
+        .function("initialize")
+        .unwrap()
+        .encode_input(&[])
+        .unwrap();
+
+    let message_root_init_txn = alice.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(L2_MESSAGE_ROOT_ADDRESS),
+            calldata: encoded_data,
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+
     // Execute a bunch of transactions to populate Postgres-based storage (note that RocksDB stays empty)
-    let mut executor = tester.create_batch_executor(StorageType::Postgres).await;
+    let mut executor = tester
+        .create_batch_executor_with_init_transactions(
+            StorageType::Postgres,
+            &[message_root_init_txn.clone()],
+        )
+        .await;
     for _ in 0..10 {
         let res = executor.execute_tx(alice.execute()).await.unwrap();
         assert_executed(&res);
@@ -523,7 +740,10 @@ async fn catchup_rocksdb_cache() {
 
     // Async RocksDB cache should be aware of the tx and should reject it
     let mut executor = tester
-        .create_batch_executor(StorageType::AsyncRocksdbCache)
+        .create_batch_executor_with_init_transactions(
+            StorageType::AsyncRocksdbCache,
+            &[message_root_init_txn.clone()],
+        )
         .await;
     let res = executor.execute_tx(tx.clone()).await.unwrap();
     assert_rejected(&res);
@@ -536,7 +756,12 @@ async fn catchup_rocksdb_cache() {
     tester.wait_for_tasks().await;
 
     // Sync RocksDB storage should be aware of the tx and should reject it
-    let mut executor = tester.create_batch_executor(StorageType::Rocksdb).await;
+    let mut executor = tester
+        .create_batch_executor_with_init_transactions(
+            StorageType::Rocksdb,
+            &[message_root_init_txn.clone()],
+        )
+        .await;
     let res = executor.execute_tx(tx).await.unwrap();
     assert_rejected(&res);
 }

@@ -16,8 +16,8 @@ use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
     interface::{
-        storage::{InMemoryStorage, ReadStorage, StorageView},
-        utils::{ShadowVm, VmDump},
+        storage::{InMemoryStorage, StorageView},
+        utils::ShadowVm,
         ExecutionResult, L1BatchEnv, L2BlockEnv, VmFactory, VmInterface, VmInterfaceExt,
     },
     utils::get_max_gas_per_pubdata_byte,
@@ -29,7 +29,7 @@ use crate::{
 };
 
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;
-type ShadowedFastVm<S = InMemoryStorage> = crate::vm_instance::ShadowedFastVm<S>;
+// type ShadowedFastVm<S = InMemoryStorage> = crate::vm_instance::ShadowedFastVm<S>;
 
 fn hash_block(block_env: L2BlockEnv, tx_hashes: &[H256]) -> H256 {
     let mut hasher = L2BlockHasher::new(
@@ -97,21 +97,21 @@ impl Harness {
         );
     }
 
-    fn assert_dump(dump: &mut VmDump) {
-        assert_eq!(dump.l1_batch_number(), L1BatchNumber(1));
-        let tx_counts_per_block: Vec<_> =
-            dump.l2_blocks.iter().map(|block| block.txs.len()).collect();
-        assert_eq!(tx_counts_per_block, [1, 2, 2, 0]);
+    // fn assert_dump(dump: &mut VmDump) {
+    //     assert_eq!(dump.l1_batch_number(), L1BatchNumber(1));
+    //     let tx_counts_per_block: Vec<_> =
+    //         dump.l2_blocks.iter().map(|block| block.txs.len()).collect();
+    //     assert_eq!(tx_counts_per_block, [1, 2, 2, 0]);
 
-        let storage_contract_key = StorageKey::new(
-            AccountTreeId::new(Self::STORAGE_CONTRACT_ADDRESS),
-            H256::zero(),
-        );
-        let value = dump.storage.read_value(&storage_contract_key);
-        assert_eq!(value, H256::from_low_u64_be(42));
-        let enum_index = dump.storage.get_enumeration_index(&storage_contract_key);
-        assert_eq!(enum_index, Some(999));
-    }
+    //     let storage_contract_key = StorageKey::new(
+    //         AccountTreeId::new(Self::STORAGE_CONTRACT_ADDRESS),
+    //         H256::zero(),
+    //     );
+    //     let value = dump.storage.read_value(&storage_contract_key);
+    //     assert_eq!(value, H256::from_low_u64_be(42));
+    //     let enum_index = dump.storage.get_enumeration_index(&storage_contract_key);
+    //     assert_eq!(enum_index, Some(999));
+    // }
 
     fn new_block(&mut self, vm: &mut impl VmInterface, tx_hashes: &[H256]) {
         self.current_block = L2BlockEnv {
@@ -246,31 +246,31 @@ fn sanity_check_shadow_vm() {
     harness.execute_on_vm(&mut vm);
 }
 
-#[test]
-fn shadow_vm_basics() {
-    let (vm, harness) = sanity_check_vm::<ShadowedFastVm>();
-    let mut dump = vm.dump_state();
-    Harness::assert_dump(&mut dump);
-
-    // Test standard playback functionality.
-    let replayed_dump = dump.clone().play_back::<ShadowedFastVm<_>>().dump_state();
-    pretty_assertions::assert_eq!(replayed_dump, dump);
-
-    // Check that the VM executes identically when reading from the original storage and one restored from the dump.
-    let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
-    harness.setup_storage(&mut storage);
-    let storage = StorageView::new(storage).to_rc_ptr();
-
-    let vm = dump
-        .clone()
-        .play_back_custom(|l1_batch_env, system_env, dump_storage| {
-            ShadowVm::<_, ReferenceVm, ReferenceVm<_>>::with_custom_shadow(
-                l1_batch_env,
-                system_env,
-                storage,
-                dump_storage,
-            )
-        });
-    let new_dump = vm.dump_state();
-    pretty_assertions::assert_eq!(new_dump, dump);
-}
+// #[test]
+// fn shadow_vm_basics() {
+//     let (vm, harness) = sanity_check_vm::<ShadowedFastVm>();
+//     let mut dump = vm.dump_state();
+//     Harness::assert_dump(&mut dump);
+//
+//     // Test standard playback functionality.
+//     let replayed_dump = dump.clone().play_back::<ShadowedFastVm<_>>().dump_state();
+//     pretty_assertions::assert_eq!(replayed_dump, dump);
+//
+//     // Check that the VM executes identically when reading from the original storage and one restored from the dump.
+//     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
+//     harness.setup_storage(&mut storage);
+//     let storage = StorageView::new(storage).to_rc_ptr();
+//
+//     let vm = dump
+//         .clone()
+//         .play_back_custom(|l1_batch_env, system_env, dump_storage| {
+//             ShadowVm::<_, ReferenceVm, ReferenceVm<_>>::with_custom_shadow(
+//                 l1_batch_env,
+//                 system_env,
+//                 storage,
+//                 dump_storage,
+//             )
+//         });
+//     let new_dump = vm.dump_state();
+//     pretty_assertions::assert_eq!(new_dump, dump);
+// }

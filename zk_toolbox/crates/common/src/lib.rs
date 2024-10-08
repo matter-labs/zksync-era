@@ -11,9 +11,11 @@ pub mod external_node;
 pub mod files;
 pub mod forge;
 pub mod git;
+pub mod hardhat;
 pub mod server;
 pub mod version;
 pub mod wallets;
+pub mod withdraw;
 pub mod yaml;
 
 pub use prerequisites::{

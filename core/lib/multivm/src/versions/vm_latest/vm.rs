@@ -36,12 +36,14 @@ pub(crate) enum MultiVMSubversion {
     SmallBootloaderMemory,
     /// The final correct version of v1.5.0
     IncreasedBootloaderMemory,
+    /// Version for protocol v25
+    Gateway,
 }
 
 impl MultiVMSubversion {
     #[cfg(test)]
     pub(crate) fn latest() -> Self {
-        Self::IncreasedBootloaderMemory
+        Self::Gateway
     }
 }
 
@@ -53,6 +55,7 @@ impl TryFrom<VmVersion> for MultiVMSubversion {
         match value {
             VmVersion::Vm1_5_0SmallBootloaderMemory => Ok(Self::SmallBootloaderMemory),
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
+            VmVersion::VmGateway => Ok(Self::Gateway),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }
@@ -169,12 +172,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
-            pubdata_input: Some(
-                self.bootloader_state
-                    .get_pubdata_information()
-                    .clone()
-                    .build_pubdata(false),
-            ),
+            pubdata_input: Some(self.bootloader_state.get_encoded_pubdata()),
             state_diffs: Some(
                 self.bootloader_state
                     .get_pubdata_information()
@@ -204,7 +202,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         storage: StoragePtr<S>,
         subversion: MultiVMSubversion,
     ) -> Self {
-        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
+        let (state, bootloader_state) =
+            new_vm_state(storage.clone(), &system_env, &batch_env, subversion);
         Self {
             bootloader_state,
             state,

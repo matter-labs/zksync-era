@@ -6,6 +6,7 @@ use zksync_contracts::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
+use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_types::{
     abi,
     abi::ProposedUpgrade,
@@ -16,7 +17,7 @@ use zksync_types::{
     protocol_version::ProtocolSemanticVersion,
     web3::{contract::Tokenizable, BlockNumber, Log},
     Address, Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion,
-    ProtocolVersionId, SLChainId, Transaction, H160, H256, U256, U64,
+    ProtocolVersionId, SLChainId, Transaction, H256, U256, U64,
 };
 
 use crate::{
@@ -294,6 +295,7 @@ async fn create_test_watcher(
         Box::new(sl_client.clone()),
         connection_pool,
         std::time::Duration::from_nanos(1),
+        SyncMerkleTree::from_hashes(std::iter::empty(), None),
     )
     .await
     .unwrap();
@@ -399,6 +401,7 @@ async fn test_normal_operation_upgrade_timestamp() {
         Box::new(client.clone()),
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
+        SyncMerkleTree::from_hashes(std::iter::empty(), None),
     )
     .await
     .unwrap();
@@ -684,7 +687,7 @@ fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
     // }
     let final_data = ethabi::encode(&[Token::Tuple(vec![
         Token::Array(vec![]),
-        Token::Address(H160::zero()),
+        Token::Address(Address::zero()),
         Token::Bytes(init_calldata(upgrade.clone())),
     ])]);
     tracing::info!("{:?}", Token::Bytes(init_calldata(upgrade)));

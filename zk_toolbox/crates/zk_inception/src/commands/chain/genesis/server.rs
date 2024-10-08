@@ -40,6 +40,7 @@ pub fn run_server_genesis(chain_config: &ChainConfig, shell: &Shell) -> anyhow::
             GeneralConfig::get_path_with_base_path(&chain_config.configs),
             SecretsConfig::get_path_with_base_path(&chain_config.configs),
             ContractsConfig::get_path_with_base_path(&chain_config.configs),
+            None,
             vec![],
         )
         .context(MSG_FAILED_TO_RUN_SERVER_ERR)

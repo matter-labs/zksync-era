@@ -23,6 +23,9 @@ impl FromEnv for L1Secrets {
                 .context("ETH_CLIENT_WEB3_URL")?
                 .parse()
                 .context("ETH_CLIENT_WEB3_URL")?,
+            gateway_url: std::env::var("ETH_CLIENT_GATEWAY_WEB3_URL")
+                .ok()
+                .map(|url| url.parse().expect("ETH_CLIENT_GATEWAY_WEB3_URL")),
         })
     }
 }
@@ -58,7 +61,6 @@ mod tests {
                     aggregated_block_execute_deadline: 4_000,
                     max_aggregated_tx_gas: 4_000_000,
                     max_eth_tx_data_size: 120_000,
-
                     timestamp_criteria_max_allowed_lag: 30,
                     max_aggregated_blocks_to_commit: 3,
                     max_aggregated_blocks_to_execute: 4,
@@ -73,6 +75,8 @@ mod tests {
                     tx_aggregation_only_prove_and_execute: false,
                     tx_aggregation_paused: false,
                     time_in_mempool_in_l1_blocks_cap: 2000,
+                    ignore_db_nonce: None,
+                    priority_tree_start_index: None,
                 }),
                 gas_adjuster: Some(GasAdjusterConfig {
                     default_priority_fee_per_gas: 20000000000,
@@ -96,6 +100,7 @@ mod tests {
             },
             L1Secrets {
                 l1_rpc_url: "http://127.0.0.1:8545".to_string().parse().unwrap(),
+                gateway_url: Some("http://127.0.0.1:8547".to_string().parse().unwrap()),
             },
         )
     }
@@ -139,6 +144,7 @@ mod tests {
             ETH_WATCH_CONFIRMATIONS_FOR_ETH_EVENT="0"
             ETH_WATCH_ETH_NODE_POLL_INTERVAL="300"
             ETH_CLIENT_WEB3_URL="http://127.0.0.1:8545"
+            ETH_CLIENT_GATEWAY_WEB3_URL="http://127.0.0.1:8547"
 
         "#;
         lock.set_env(config);

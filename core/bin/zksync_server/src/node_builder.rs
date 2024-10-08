@@ -4,7 +4,7 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        da_client::DAClientConfig, eth_sender::PubdataSendingMode,
+        da_client::DAClientConfig, eth_sender::PubdataSendingMode, gateway::GatewayChainConfig,
         secrets::DataAvailabilitySecrets, wallets::Wallets, GeneralConfig, Secrets,
     },
     ContractsConfig, GenesisConfig,
@@ -49,6 +49,7 @@ use zksync_node_framework::{
         pk_signing_eth_client::PKSigningEthClientLayer,
         pools_layer::PoolsLayerBuilder,
         postgres_metrics::PostgresMetricsLayer,
+        priority_tree::PriorityTreeLayer,
         prometheus_exporter::PrometheusExporterLayer,
         proof_data_handler::ProofDataHandlerLayer,
         query_eth_client::QueryEthClientLayer,
@@ -89,6 +90,7 @@ pub struct MainNodeBuilder {
     wallets: Wallets,
     genesis_config: GenesisConfig,
     contracts_config: ContractsConfig,
+    gateway_contracts_config: Option<GatewayChainConfig>,
     secrets: Secrets,
 }
 
@@ -98,6 +100,7 @@ impl MainNodeBuilder {
         wallets: Wallets,
         genesis_config: GenesisConfig,
         contracts_config: ContractsConfig,
+        gateway_contracts_config: Option<GatewayChainConfig>,
         secrets: Secrets,
     ) -> anyhow::Result<Self> {
         Ok(Self {
@@ -106,6 +109,7 @@ impl MainNodeBuilder {
             wallets,
             genesis_config,
             contracts_config,
+            gateway_contracts_config,
             secrets,
         })
     }
@@ -148,6 +152,7 @@ impl MainNodeBuilder {
         self.node.add_layer(PKSigningEthClientLayer::new(
             eth_config,
             self.contracts_config.clone(),
+            self.gateway_contracts_config.clone(),
             self.genesis_config.settlement_layer_id(),
             wallets,
         ));
@@ -160,11 +165,7 @@ impl MainNodeBuilder {
         let query_eth_client_layer = QueryEthClientLayer::new(
             genesis.settlement_layer_id(),
             eth_config.l1_rpc_url,
-            self.configs
-                .eth
-                .as_ref()
-                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
-                .unwrap_or(SettlementMode::SettlesToL1),
+            eth_config.gateway_url,
         );
         self.node.add_layer(query_eth_client_layer);
         Ok(self)
@@ -239,9 +240,7 @@ impl MainNodeBuilder {
         let wallets = self.wallets.clone();
         let sk_config = try_load_config!(self.configs.state_keeper_config);
         let persistence_layer = OutputHandlerLayer::new(
-            self.contracts_config
-                .l2_shared_bridge_addr
-                .context("L2 shared bridge address")?,
+            self.contracts_config.l2_legacy_shared_bridge_addr,
             sk_config.l2_block_seal_queue_capacity,
         )
         .with_protective_reads_persistence_enabled(sk_config.protective_reads_persistence_enabled);
@@ -249,6 +248,8 @@ impl MainNodeBuilder {
             self.genesis_config.l2_chain_id,
             sk_config.clone(),
             try_load_config!(self.configs.mempool_config),
+            self.contracts_config.clone(),
+            self.genesis_config.clone(),
             try_load_config!(wallets.state_keeper),
         );
         let db_config = try_load_config!(self.configs.db_config);
@@ -279,10 +280,24 @@ impl MainNodeBuilder {
 
     fn add_eth_watch_layer(mut self) -> anyhow::Result<Self> {
         let eth_config = try_load_config!(self.configs.eth);
-        self.node.add_layer(EthWatchLayer::new(
-            try_load_config!(eth_config.watcher),
-            self.contracts_config.clone(),
-        ));
+        let priority_tree_layer = PriorityTreeLayer::new(
+            eth_config
+                .sender
+                .and_then(|config| config.priority_tree_start_index)
+                .unwrap_or(0),
+        );
+        self.node
+            .add_layer(priority_tree_layer)
+            .add_layer(EthWatchLayer::new(
+                try_load_config!(eth_config.watcher),
+                self.contracts_config.clone(),
+                self.gateway_contracts_config.clone(),
+                self.configs
+                    .eth
+                    .as_ref()
+                    .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
+                    .unwrap_or(SettlementMode::SettlesToL1),
+            ));
         Ok(self)
     }
 
@@ -430,18 +445,27 @@ impl MainNodeBuilder {
 
     fn add_eth_tx_aggregator_layer(mut self) -> anyhow::Result<Self> {
         let eth_sender_config = try_load_config!(self.configs.eth);
-
-        self.node.add_layer(EthTxAggregatorLayer::new(
-            eth_sender_config,
-            self.contracts_config.clone(),
-            self.genesis_config.l2_chain_id,
-            self.genesis_config.l1_batch_commit_data_generator_mode,
-            self.configs
-                .eth
+        let priority_tree_layer = PriorityTreeLayer::new(
+            eth_sender_config
+                .sender
                 .as_ref()
-                .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
-                .unwrap_or(SettlementMode::SettlesToL1),
-        ));
+                .and_then(|config| config.priority_tree_start_index)
+                .unwrap_or(0),
+        );
+        self.node
+            .add_layer(priority_tree_layer)
+            .add_layer(EthTxAggregatorLayer::new(
+                eth_sender_config,
+                self.contracts_config.clone(),
+                self.gateway_contracts_config.clone(),
+                self.genesis_config.l2_chain_id,
+                self.genesis_config.l1_batch_commit_data_generator_mode,
+                self.configs
+                    .eth
+                    .as_ref()
+                    .and_then(|x| Some(x.gas_adjuster?.settlement_mode))
+                    .unwrap_or(SettlementMode::SettlesToL1),
+            ));
 
         Ok(self)
     }

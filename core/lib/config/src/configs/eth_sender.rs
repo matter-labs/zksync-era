@@ -43,6 +43,8 @@ impl EthConfig {
                 tx_aggregation_paused: false,
                 tx_aggregation_only_prove_and_execute: false,
                 time_in_mempool_in_l1_blocks_cap: 1800,
+                ignore_db_nonce: None,
+                priority_tree_start_index: Some(0),
             }),
             gas_adjuster: Some(GasAdjusterConfig {
                 default_priority_fee_per_gas: 1000000000,
@@ -132,6 +134,10 @@ pub struct SenderConfig {
     /// Cap of time in mempool for price calculations
     #[serde(default = "SenderConfig::default_time_in_mempool_in_l1_blocks_cap")]
     pub time_in_mempool_in_l1_blocks_cap: u32,
+    /// Used to ignore db nonce check for sender and only use the RPC one.
+    pub ignore_db_nonce: Option<bool>,
+    /// Index of the priority operation to start building the `PriorityMerkleTree` from.
+    pub priority_tree_start_index: Option<usize>,
 }
 
 impl SenderConfig {
@@ -163,6 +169,14 @@ impl SenderConfig {
     #[deprecated]
     pub fn private_key_blobs(&self) -> Option<H256> {
         std::env::var("ETH_SENDER_SENDER_OPERATOR_BLOBS_PRIVATE_KEY")
+            .ok()
+            .map(|pk| pk.parse().unwrap())
+    }
+
+    // Don't load gateway private key, if it's not required
+    #[deprecated]
+    pub fn private_key_gateway(&self) -> Option<H256> {
+        std::env::var("ETH_SENDER_SENDER_OPERATOR_GATEWAY_PRIVATE_KEY")
             .ok()
             .map(|pk| pk.parse().unwrap())
     }

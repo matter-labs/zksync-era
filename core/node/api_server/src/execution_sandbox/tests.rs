@@ -5,7 +5,10 @@ use std::collections::HashMap;
 use assert_matches::assert_matches;
 use test_casing::test_casing;
 use zksync_dal::ConnectionPool;
-use zksync_multivm::{interface::ExecutionResult, utils::derive_base_fee_and_gas_per_pubdata};
+use zksync_multivm::{
+    interface::{ExecutionResult, Halt, VmRevertReason},
+    utils::derive_base_fee_and_gas_per_pubdata,
+};
 use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
 use zksync_node_test_utils::{create_l2_block, prepare_recovery_snapshot};
 use zksync_state::PostgresStorageCaches;
@@ -296,9 +299,18 @@ async fn validating_transaction(set_balance: bool) {
     if set_balance {
         assert_matches!(result, ExecutionResult::Success { .. });
     } else {
+        // FIXME: maybe provide a better way to encode it?
+        let expected_reason = VmRevertReason::Unknown {
+            function_selector: vec![3, 235, 139, 84],
+            data: vec![
+                3, 235, 139, 84, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 6, 157, 185, 192, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ],
+        };
         assert_matches!(
             result,
-            ExecutionResult::Halt { reason } if reason.to_string().contains("Not enough balance")
+            ExecutionResult::Halt { reason: Halt::ValidationFailed(reason) } if reason == expected_reason
         );
     }
 }

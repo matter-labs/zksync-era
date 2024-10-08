@@ -3,6 +3,8 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
+use migrate_from_gateway::MigrateFromGatewayArgs;
+use migrate_to_gateway::MigrateToGatewayArgs;
 use xshell::Shell;
 
 use crate::commands::chain::{
@@ -14,11 +16,14 @@ mod accept_chain_ownership;
 pub(crate) mod args;
 mod build_transactions;
 mod common;
+mod convert_to_gateway;
 mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 pub mod genesis;
 pub mod init;
+mod migrate_from_gateway;
+mod migrate_to_gateway;
 pub mod register_chain;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
@@ -61,6 +66,12 @@ pub enum ChainCommands {
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
+    /// Prepare chain to be an eligible gateway
+    ConvertToGateway(ForgeScriptArgs),
+    /// Migrate chain to gateway
+    MigrateToGateway(MigrateToGatewayArgs),
+    /// Migrate chain from gateway
+    MigrateFromGateway(MigrateFromGatewayArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -87,5 +98,8 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
+        ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,
+        ChainCommands::MigrateToGateway(args) => migrate_to_gateway::run(args, shell).await,
+        ChainCommands::MigrateFromGateway(args) => migrate_from_gateway::run(args, shell).await,
     }
 }

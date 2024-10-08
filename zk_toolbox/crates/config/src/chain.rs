@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize, Serializer};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
+use zksync_config::configs::{gateway::GatewayChainConfig, GatewayConfig};
 
 use crate::{
     consts::{
@@ -18,7 +19,7 @@ use crate::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath, ZkToolboxConfig,
     },
-    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig, GATEWAY_FILE,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -105,6 +106,14 @@ impl ChainConfig {
         SecretsConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
 
+    pub fn get_gateway_config(&self) -> anyhow::Result<GatewayConfig> {
+        GatewayConfig::read_with_base_path(self.get_shell(), &self.configs)
+    }
+
+    pub fn get_gateway_chain_config(&self) -> anyhow::Result<GatewayChainConfig> {
+        GatewayChainConfig::read_with_base_path(self.get_shell(), &self.configs)
+    }
+
     pub fn path_to_general_config(&self) -> PathBuf {
         self.configs.join(GENERAL_FILE)
     }
@@ -123,6 +132,10 @@ impl ChainConfig {
 
     pub fn path_to_secrets_config(&self) -> PathBuf {
         self.configs.join(SECRETS_FILE)
+    }
+
+    pub fn path_to_gateway_config(&self) -> PathBuf {
+        self.configs.join(GATEWAY_FILE)
     }
 
     pub fn save_general_config(&self, general_config: &GeneralConfig) -> anyhow::Result<()> {

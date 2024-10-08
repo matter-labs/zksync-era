@@ -105,12 +105,17 @@ pub(crate) struct RemoteENConfig {
     pub state_transition_proxy_addr: Option<Address>,
     pub transparent_proxy_admin_addr: Option<Address>,
     /// Should not be accessed directly. Use [`ExternalNodeConfig::diamond_proxy_address`] instead.
-    diamond_proxy_addr: Address,
+    pub user_facing_diamond_proxy: Address,
     // While on L1 shared bridge and legacy bridge are different contracts with different addresses,
     // the `l2_erc20_bridge_addr` and `l2_shared_bridge_addr` are basically the same contract, but with
     // a different name, with names adapted only for consistency.
     pub l1_shared_bridge_proxy_addr: Option<Address>,
+    /// Contract address that serves as a shared bridge on L2.
+    /// It is expected that `L2SharedBridge` is used before gateway upgrade, and `L2AssetRouter` is used after.
     pub l2_shared_bridge_addr: Option<Address>,
+    /// Address of `L2SharedBridge` that was used before gateway upgrade.
+    /// `None` if chain genesis used post-gateway protocol version.
+    pub l2_legacy_shared_bridge_addr: Option<Address>,
     pub l1_erc20_bridge_proxy_addr: Option<Address>,
     pub l2_erc20_bridge_addr: Option<Address>,
     pub l1_weth_bridge_addr: Option<Address>,
@@ -119,6 +124,8 @@ pub(crate) struct RemoteENConfig {
     pub base_token_addr: Address,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
+
+    pub user_facing_bridgehub: Option<Address>,
 }
 
 impl RemoteENConfig {
@@ -137,10 +144,16 @@ impl RemoteENConfig {
             .rpc_context("ecosystem_contracts")
             .await
             .ok();
-        let diamond_proxy_addr = client
+        let user_facing_diamond_proxy = client
             .get_main_contract()
             .rpc_context("get_main_contract")
             .await?;
+
+        let user_facing_bridgehub = client
+            .get_bridgehub_contract()
+            .rpc_context("get_bridgehub_contract")
+            .await?;
+
         let base_token_addr = match client.get_base_token_l1_address().await {
             Err(ClientError::Call(err))
                 if [
@@ -183,12 +196,14 @@ impl RemoteENConfig {
             transparent_proxy_admin_addr: ecosystem_contracts
                 .as_ref()
                 .map(|a| a.transparent_proxy_admin_addr),
-            diamond_proxy_addr,
+            user_facing_diamond_proxy,
+            user_facing_bridgehub,
             l2_testnet_paymaster_addr,
             l1_erc20_bridge_proxy_addr: bridges.l1_erc20_default_bridge,
             l2_erc20_bridge_addr: l2_erc20_default_bridge,
             l1_shared_bridge_proxy_addr: bridges.l1_shared_default_bridge,
             l2_shared_bridge_addr: l2_erc20_shared_bridge,
+            l2_legacy_shared_bridge_addr: bridges.l2_legacy_shared_bridge,
             l1_weth_bridge_addr: bridges.l1_weth_bridge,
             l2_weth_bridge_addr: bridges.l2_weth_bridge,
             base_token_addr,
@@ -209,7 +224,8 @@ impl RemoteENConfig {
             bridgehub_proxy_addr: None,
             state_transition_proxy_addr: None,
             transparent_proxy_admin_addr: None,
-            diamond_proxy_addr: Address::repeat_byte(1),
+            user_facing_diamond_proxy: Address::repeat_byte(1),
+            user_facing_bridgehub: None,
             l1_erc20_bridge_proxy_addr: Some(Address::repeat_byte(2)),
             l2_erc20_bridge_addr: Some(Address::repeat_byte(3)),
             l2_weth_bridge_addr: None,
@@ -218,6 +234,7 @@ impl RemoteENConfig {
             l1_shared_bridge_proxy_addr: Some(Address::repeat_byte(5)),
             l1_weth_bridge_addr: None,
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
+            l2_legacy_shared_bridge_addr: Some(Address::repeat_byte(7)),
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             dummy_verifier: true,
         }
@@ -1329,7 +1346,7 @@ impl ExternalNodeConfig<()> {
         let remote = RemoteENConfig::fetch(main_node_client)
             .await
             .context("Unable to fetch required config values from the main node")?;
-        let remote_diamond_proxy_addr = remote.diamond_proxy_addr;
+        let remote_diamond_proxy_addr = remote.user_facing_diamond_proxy;
         if let Some(local_diamond_proxy_addr) = self.optional.contracts_diamond_proxy_addr {
             anyhow::ensure!(
                 local_diamond_proxy_addr == remote_diamond_proxy_addr,
@@ -1380,10 +1397,11 @@ impl ExternalNodeConfig {
     /// If local configuration contains the address, it will be checked against the one returned by the main node.
     /// Otherwise, the remote value will be used. However, using remote value has trust implications for the main
     /// node so relying on it solely is not recommended.
-    pub fn diamond_proxy_address(&self) -> Address {
+    /// FIXME: This method is not used as of now, it should be used just like in the main branch
+    pub fn _diamond_proxy_address(&self) -> Address {
         self.optional
             .contracts_diamond_proxy_addr
-            .unwrap_or(self.remote.diamond_proxy_addr)
+            .unwrap_or(self.remote.user_facing_diamond_proxy)
     }
 }
 
@@ -1392,6 +1410,9 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
         Self {
             l1_chain_id: config.required.l1_chain_id,
             l2_chain_id: config.required.l2_chain_id,
+            // TODO: EN not supported yet
+            sl_chain_id: SLChainId(config.required.l1_chain_id.0),
+            settlement_layer_url: None,
             max_tx_size: config.optional.max_tx_size_bytes,
             estimate_gas_scale_factor: config.optional.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: config
@@ -1405,11 +1426,13 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
                 l2_shared_default_bridge: config.remote.l2_shared_bridge_addr,
                 l1_weth_bridge: config.remote.l1_weth_bridge_addr,
                 l2_weth_bridge: config.remote.l2_weth_bridge_addr,
+                l2_legacy_shared_bridge: config.remote.l2_legacy_shared_bridge_addr,
             },
             bridgehub_proxy_addr: config.remote.bridgehub_proxy_addr,
             state_transition_proxy_addr: config.remote.state_transition_proxy_addr,
             transparent_proxy_admin_addr: config.remote.transparent_proxy_admin_addr,
-            diamond_proxy_addr: config.remote.diamond_proxy_addr,
+            user_facing_diamond_proxy_addr: config.remote.user_facing_diamond_proxy,
+            user_facing_bridgehub_addr: config.remote.user_facing_bridgehub,
             l2_testnet_paymaster_addr: config.remote.l2_testnet_paymaster_addr,
             req_entities_limit: config.optional.req_entities_limit,
             fee_history_limit: config.optional.fee_history_limit,

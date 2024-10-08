@@ -2,16 +2,20 @@ use std::{convert::TryFrom, str::FromStr};
 
 use anyhow::Context as _;
 use sqlx::types::chrono::{DateTime, Utc};
-use zksync_db_connection::{connection::Connection, interpolate_query, match_query_as};
+use zksync_db_connection::{
+    connection::Connection, error::DalResult, instrument::InstrumentExt, interpolate_query,
+    match_query_as,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
+    eth_sender::{BatchSettlementInfo, EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
     Address, L1BatchNumber, H256, U256,
 };
 
 use crate::{
     models::storage_eth_tx::{
         L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
+        StoredBatchSettlementInfo,
     },
     Core,
 };
@@ -746,6 +750,44 @@ impl EthSenderDal<'_, '_> {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn get_batch_finalization_info(
+        &mut self,
+        batch_number: L1BatchNumber,
+    ) -> DalResult<Option<BatchSettlementInfo>> {
+        let mut info = sqlx::query_as!(
+            StoredBatchSettlementInfo,
+            r#"
+            SELECT
+                number AS batch_number,
+                eth_txs.chain_id AS settlement_layer_id,
+                eth_txs_history.tx_hash AS settlement_layer_tx_hash
+            FROM
+                l1_batches
+            JOIN eth_txs ON l1_batches.eth_execute_tx_id = eth_txs.id
+            JOIN eth_txs_history
+                ON (
+                    eth_txs.id = eth_txs_history.eth_tx_id
+                    AND eth_txs_history.confirmed_at IS NOT NULL
+                )
+            WHERE
+                l1_batches.number = $1
+            "#,
+            i64::from(batch_number.0)
+        )
+        .instrument("get_batch_finalization_info")
+        .with_arg("batch_number", &batch_number)
+        .fetch_all(self.storage)
+        .await?;
+
+        assert!(
+            info.len() <= 1,
+            "Batch number must be unique in the database {:#?}",
+            info
+        );
+
+        Ok(info.pop().and_then(Into::into))
     }
 }
 

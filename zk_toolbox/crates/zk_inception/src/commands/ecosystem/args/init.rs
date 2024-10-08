@@ -98,6 +98,18 @@ pub struct EcosystemInitArgs {
     pub observability: Option<bool>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP, default_value = "false", default_missing_value = "true", num_args = 0..=1)]
     pub no_port_reallocation: bool,
+    #[clap(
+        long,
+        help = "Skip submodules checkout",
+        default_missing_value = "true"
+    )]
+    pub skip_submodules_checkout: bool,
+    #[clap(
+        long,
+        help = "Skip contract compilation override",
+        default_missing_value = "true"
+    )]
+    pub skip_contract_compilation_override: bool,
 }
 
 impl EcosystemInitArgs {
@@ -130,6 +142,8 @@ impl EcosystemInitArgs {
             observability,
             ecosystem_only: self.ecosystem_only,
             no_port_reallocation: self.no_port_reallocation,
+            skip_submodules_checkout: self.skip_submodules_checkout,
+            skip_contract_compilation_override: self.skip_contract_compilation_override,
         }
     }
 }
@@ -143,4 +157,6 @@ pub struct EcosystemInitArgsFinal {
     pub observability: bool,
     pub ecosystem_only: bool,
     pub no_port_reallocation: bool,
+    pub skip_submodules_checkout: bool,
+    pub skip_contract_compilation_override: bool,
 }

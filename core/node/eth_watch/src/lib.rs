@@ -7,9 +7,10 @@ use std::time::Duration;
 use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
+use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    ethabi::Contract, protocol_version::ProtocolSemanticVersion,
+    ethabi::Contract, l1::L1Tx, protocol_version::ProtocolSemanticVersion,
     web3::BlockNumber as Web3BlockNumber, PriorityOpId,
 };
 
@@ -44,12 +45,14 @@ pub struct EthWatch {
 }
 
 impl EthWatch {
+    #[allow(clippy::too_many_arguments)]
     pub async fn new(
         chain_admin_contract: &Contract,
         l1_client: Box<dyn EthClient>,
         sl_client: Box<dyn EthClient>,
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
+        priority_merkle_tree: SyncMerkleTree<L1Tx>,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let state = Self::initialize_state(&mut storage).await?;
@@ -57,7 +60,7 @@ impl EthWatch {
         drop(storage);
 
         let priority_ops_processor =
-            PriorityOpsEventProcessor::new(state.next_expected_priority_id)?;
+            PriorityOpsEventProcessor::new(state.next_expected_priority_id, priority_merkle_tree)?;
         let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
             state.last_seen_protocol_version,
             chain_admin_contract,
@@ -140,7 +143,7 @@ impl EthWatch {
             let finalized_block = client.finalized_block_number().await?;
 
             let from_block = storage
-                .processed_events_dal()
+                .eth_watcher_dal()
                 .get_or_set_next_block_to_process(
                     processor.event_type(),
                     chain_id,
@@ -180,7 +183,7 @@ impl EthWatch {
             };
 
             storage
-                .processed_events_dal()
+                .eth_watcher_dal()
                 .update_next_block_to_process(
                     processor.event_type(),
                     chain_id,

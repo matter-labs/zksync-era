@@ -32,9 +32,12 @@ git_version_macro = { path = "crates/git_version_macro" }
 zksync_config = { path = "../core/lib/config" }
 zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
+zksync_system_constants = { path = "../core/lib/constants" }
 zksync_consensus_roles = "=0.3.0"
 zksync_consensus_crypto = "=0.3.0"
 zksync_protobuf = "=0.3.0"
+zksync_types = { path = "../core/lib/types" }
+zksync_web3_decl = { path = "../core/lib/web3_decl" }
 
 # External dependencies
 anyhow = "1.0.82"

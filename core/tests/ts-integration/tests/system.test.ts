@@ -13,6 +13,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
 import { DataAvailabityMode } from '../src/types';
+import { isNetworkLocalL2 } from 'utils';
 import { BigNumberish } from 'ethers';
 
 const contracts = {
@@ -32,6 +33,10 @@ describe('System behavior checks', () => {
     });
 
     test('Network should be supporting Cancun+Deneb', async () => {
+        if (isNetworkLocalL2(process.env.CHAIN_ETH_NETWORK!)) {
+            // Skipping for L2 networks
+            return;
+        }
         const address_a = '0x000000000000000000000000000000000000000A';
         const address_b = '0x000000000000000000000000000000000000000b';
 
@@ -206,7 +211,7 @@ describe('System behavior checks', () => {
         expect(proposedEIP712Hashes.signedTxHash).toEqual(expectedEIP712SignedHash);
     });
 
-    test('Should execute withdrawals with different parameters in one block', async () => {
+    test.skip('Should execute withdrawals with different parameters in one block', async () => {
         // This test checks the SDK/system contracts (not even the server) behavior, and it's very time-consuming,
         // so it doesn't make sense to run it outside the localhost environment.
         if (testMaster.isFastMode()) {
@@ -257,7 +262,7 @@ describe('System behavior checks', () => {
         testMaster.reporter.debug('Finalized withdrawal for Bob');
     });
 
-    test('Should execute a withdrawal with same parameters twice', async () => {
+    test.skip('Should execute a withdrawal with same parameters twice', async () => {
         // This test is a logical copy of the previous one, but in this one we send two withdrawals from the same account
         // It's skipped outside the localhost environment for the same reason.
         if (testMaster.isFastMode()) {

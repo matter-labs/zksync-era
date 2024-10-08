@@ -22,7 +22,7 @@ use crate::{
 lazy_static! {
     static ref SET_TOKEN_MULTIPLIER_SETTER: BaseContract = BaseContract::from(
         parse_abi(&[
-            "function chainSetTokenMultiplierSetter(address chainAdmin, address target) public"
+            "function chainSetTokenMultiplierSetter(address accessControlRestriction, address diamondProxyAddress, address setter) public"
         ])
         .unwrap(),
     );
@@ -53,7 +53,8 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         shell,
         &ecosystem_config,
         chain_config.get_wallets_config()?.governor_private_key(),
-        contracts_config.l1.chain_admin_addr,
+        contracts_config.l1.access_control_restriction_addr,
+        contracts_config.l1.diamond_proxy_addr,
         token_multiplier_setter_address,
         &args.clone(),
         l1_url,
@@ -69,12 +70,14 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn set_token_multiplier_setter(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor: Option<H256>,
-    chain_admin_address: Address,
-    target_address: Address,
+    access_control_restriction_address: Address,
+    diamond_proxy_address: Address,
+    new_setter_address: Address,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
 ) -> anyhow::Result<()> {
@@ -87,10 +90,14 @@ pub async fn set_token_multiplier_setter(
     let calldata = SET_TOKEN_MULTIPLIER_SETTER
         .encode(
             "chainSetTokenMultiplierSetter",
-            (chain_admin_address, target_address),
+            (
+                access_control_restriction_address,
+                diamond_proxy_address,
+                new_setter_address,
+            ),
         )
         .unwrap();
-    let foundry_contracts_path = ecosystem_config.path_to_foundry();
+    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
         .script(
             &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),

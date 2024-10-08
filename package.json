@@ -7,6 +7,7 @@
     "packages": [
       "contracts",
       "contracts/l1-contracts",
+      "contracts/da-contracts",
       "contracts/l2-contracts",
       "contracts/system-contracts",
       "etc/contracts-test-data",
@@ -29,6 +30,7 @@
     "local-prep": "yarn workspace local-setup-preparation",
     "l1-contracts": "yarn workspace l1-contracts",
     "l2-contracts": "yarn workspace l2-contracts",
+    "da-contracts": "yarn workspace da-contracts",
     "revert-test": "yarn workspace revert-test",
     "upgrade-test": "yarn workspace upgrade-test",
     "recovery-test": "yarn workspace recovery-test",

@@ -44,6 +44,7 @@ export function exec(command: string) {
 // but pipes data to parent's stdout/stderr
 export function spawn(command: string) {
     command = command.replace(/\n/g, ' ');
+    console.log(`+ ${command}`);
     const child = _spawn(command, { stdio: 'inherit', shell: true });
     return new Promise((resolve, reject) => {
         child.on('error', reject);
@@ -181,6 +182,22 @@ export const announced = async (fn: string, promise: Promise<void> | void) => {
     const timestampLine = timestamp(`(${time}ms)`);
     console.log(`${successLine} ${timestampLine}`);
 };
+
+export function isNetworkLocal(network: string): boolean {
+    return isNetworkLocalL1(network) || isNetworkLocalL2(network);
+}
+
+export function isNetworkLocalL1(network: string): boolean {
+    return network == 'localhost';
+}
+
+export function isNetworkLocalL2(network: string): boolean {
+    return network == 'localhostL2';
+}
+
+export function isCurrentNetworkLocal(): boolean {
+    return process.env.CHAIN_ETH_NETWORK ? isNetworkLocal(process.env.CHAIN_ETH_NETWORK) : true;
+}
 
 export function unpackStringSemVer(semver: string): [number, number, number] {
     const [major, minor, patch] = semver.split('.');

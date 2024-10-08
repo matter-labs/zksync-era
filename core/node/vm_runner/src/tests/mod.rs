@@ -25,7 +25,8 @@ use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TransactionExecutio
 use super::*;
 
 mod output_handler;
-mod playground;
+// FIXME: uncomment when gateway support is added to fast vm.
+// mod playground;
 mod process;
 mod storage;
 mod storage_writer;

@@ -7,8 +7,9 @@ use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_multivm::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 use zksync_types::{
-    block::L2BlockHeader, fee_model::BatchFeeInput, snapshots::SnapshotRecoveryStatus, Address,
-    L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
+    block::L2BlockHeader, commitment::PubdataParams, fee_model::BatchFeeInput,
+    snapshots::SnapshotRecoveryStatus, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    ProtocolVersionId, H256, ZKPORTER_IS_AVAILABLE,
 };
 
 const BATCH_COMPUTATIONAL_GAS_LIMIT: u32 = u32::MAX;
@@ -53,6 +54,7 @@ pub fn l1_batch_params(
     protocol_version: ProtocolVersionId,
     virtual_blocks: u32,
     chain_id: L2ChainId,
+    pubdata_params: PubdataParams,
 ) -> (SystemEnv, L1BatchEnv) {
     (
         SystemEnv {
@@ -63,6 +65,7 @@ pub fn l1_batch_params(
             execution_mode: TxExecutionMode::VerifyExecute,
             default_validation_computational_gas_limit: validation_computational_gas_limit,
             chain_id,
+            pubdata_params,
         },
         L1BatchEnv {
             previous_batch_hash: Some(previous_batch_hash),
@@ -329,6 +332,13 @@ impl L1BatchParamsProvider {
                 .context("`protocol_version` must be set for L2 block")?,
             first_l2_block_in_batch.header.virtual_blocks,
             chain_id,
+            PubdataParams {
+                l2_da_validator_address: first_l2_block_in_batch
+                    .header
+                    .pubdata_params
+                    .l2_da_validator_address,
+                pubdata_type: first_l2_block_in_batch.header.pubdata_params.pubdata_type,
+            },
         ))
     }
 

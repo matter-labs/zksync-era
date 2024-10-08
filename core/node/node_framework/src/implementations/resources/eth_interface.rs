@@ -13,6 +13,14 @@ impl Resource for EthInterfaceResource {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct GatewayEthInterfaceResource(pub Box<DynClient<L1>>);
+
+impl Resource for GatewayEthInterfaceResource {
+    fn name() -> String {
+        "common/gateway_eth_interface".into()
+    }
+}
 /// A resource that provides L2 interface object to the service.
 /// It is expected to have the same URL as the `EthInterfaceResource`, but have different capabilities.
 ///

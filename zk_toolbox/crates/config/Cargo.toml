@@ -29,3 +29,4 @@ zksync_protobuf_config.workspace = true
 zksync_protobuf.workspace = true
 zksync_config.workspace = true
 zksync_basic_types.workspace = true
+zksync_system_constants.workspace = true

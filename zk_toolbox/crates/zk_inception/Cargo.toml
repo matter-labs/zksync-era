@@ -30,11 +30,14 @@ toml.workspace = true
 url.workspace = true
 thiserror.workspace = true
 zksync_config.workspace = true
+zksync_system_constants.workspace = true
 slugify-rs.workspace = true
 zksync_basic_types.workspace = true
 clap-markdown.workspace = true
 zksync_consensus_roles.workspace = true
 zksync_consensus_crypto.workspace = true
+zksync_types.workspace = true
+zksync_web3_decl.workspace = true
 secrecy.workspace = true
 
 [build-dependencies]

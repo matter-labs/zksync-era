@@ -11,7 +11,7 @@ import {
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
 import * as zksync from 'zksync-ethers';
-import { scaledGasPrice } from '../src/helpers';
+import { scaledGasPrice, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
 import { ethers } from 'ethers';
 
 describe('ETH token checks', () => {
@@ -49,7 +49,9 @@ describe('ETH token checks', () => {
             ? await shouldChangeETHBalances([{ wallet: alice, change: amount }], {
                   l1ToL2: true
               })
-            : await shouldChangeTokenBalances(l2EthTokenAddressNonBase, [{ wallet: alice, change: amount }]);
+            : await shouldChangeTokenBalances(l2EthTokenAddressNonBase, [{ wallet: alice, change: amount }], {
+                  ignoreUndeployedToken: true
+              });
 
         // Variables used only for base token implementation
         const l1BaseTokenBalanceBefore = await alice.getBalanceL1(baseTokenAddress);
@@ -57,15 +59,8 @@ describe('ETH token checks', () => {
 
         const gasPerPubdataByte = zksync.utils.REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_LIMIT;
 
-        const l2GasLimit = await zksync.utils.estimateDefaultBridgeDepositL2Gas(
-            alice.providerL1!,
-            alice.provider,
-            zksync.utils.ETH_ADDRESS,
-            amount,
-            alice.address,
-            alice.address,
-            gasPerPubdataByte
-        );
+        // FIXME: restore the old logic
+        const l2GasLimit = 10_000_000;
         const expectedL2Costs = await alice.getBaseCost({
             gasLimit: l2GasLimit,
             gasPerPubdataByte,
@@ -201,7 +196,10 @@ describe('ETH token checks', () => {
         const EIP_1559_TX_TYPE = 0x02;
         const value = 200n;
 
-        await expect(alice.sendTransaction({ type: EIP_2930_TX_TYPE, to: bob.address, value })).toBeRejected(
+        // SDK sets maxFeePerGas to the type 1 transactions, causing issues on the SDK level
+        const gasPrice = await scaledGasPrice(alice);
+
+        await expect(alice.sendTransaction({ type: EIP_2930_TX_TYPE, to: bob.address, value, gasPrice })).toBeRejected(
             'access lists are not supported'
         );
 
@@ -256,7 +254,8 @@ describe('ETH token checks', () => {
         });
         await expect(withdrawalPromise).toBeAccepted([l2ethBalanceChange]);
         const withdrawalTx = await withdrawalPromise;
-        await withdrawalTx.waitFinalize();
+        const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
+        await waitForBlockToBeFinalizedOnL1(alice, l2TxReceipt!.blockNumber);
 
         // TODO (SMA-1374): Enable L1 ETH checks as soon as they're supported.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();

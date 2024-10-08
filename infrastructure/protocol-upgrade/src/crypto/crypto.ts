@@ -1,4 +1,4 @@
-import { getCryptoFileName, getUpgradePath, VerifierParams } from '../utils';
+import { getCryptoFileName, getUpgradePath, VerifierParams } from 'utils';
 import fs from 'fs';
 import { BytesLike, ethers } from 'ethers';
 import { Command } from 'commander';

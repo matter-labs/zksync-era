@@ -39,6 +39,7 @@ pub fn create_l2_block(number: u32) -> L2BlockHeader {
         base_fee_per_gas: 100,
         batch_fee_input: BatchFeeInput::l1_pegged(100, 100),
         fee_account_address: Address::zero(),
+        pubdata_params: Default::default(),
         gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(ProtocolVersionId::latest().into()),
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
@@ -96,6 +97,10 @@ pub fn create_l1_batch_metadata(number: u32) -> L1BatchMetadata {
         events_queue_commitment: Some(H256::zero()),
         bootloader_initial_content_commitment: Some(H256::zero()),
         state_diffs_compressed: vec![],
+        state_diff_hash: Some(H256::zero()),
+        local_root: Some(H256::zero()),
+        aggregation_root: Some(H256::zero()),
+        da_inclusion_data: Some(vec![]),
     }
 }
 
@@ -110,10 +115,13 @@ pub fn l1_batch_metadata_to_commitment_artifacts(
             commitment: metadata.commitment,
         },
         l2_l1_merkle_root: metadata.l2_l1_merkle_root,
+        local_root: metadata.local_root.unwrap(),
+        aggregation_root: metadata.aggregation_root.unwrap(),
         compressed_state_diffs: Some(metadata.state_diffs_compressed.clone()),
         compressed_initial_writes: metadata.initial_writes_compressed.clone(),
         compressed_repeated_writes: metadata.repeated_writes_compressed.clone(),
         zkporter_is_available: ZKPORTER_IS_AVAILABLE,
+        state_diff_hash: metadata.state_diff_hash.unwrap(),
         aux_commitments: match (
             metadata.bootloader_initial_content_commitment,
             metadata.events_queue_commitment,
@@ -206,6 +214,7 @@ impl Snapshot {
             gas_per_pubdata_limit: get_max_gas_per_pubdata_byte(
                 genesis_params.minor_protocol_version().into(),
             ),
+            pubdata_params: Default::default(),
             base_system_contracts_hashes: contracts.hashes(),
             protocol_version: Some(genesis_params.minor_protocol_version()),
             virtual_blocks: 1,

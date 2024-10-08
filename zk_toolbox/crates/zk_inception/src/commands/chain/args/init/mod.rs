@@ -31,6 +31,12 @@ pub struct InitArgs {
     pub l1_rpc_url: Option<String>,
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP, default_value = "false", default_missing_value = "true", num_args = 0..=1)]
     pub no_port_reallocation: bool,
+    #[clap(
+        long,
+        help = "Skip submodules checkout",
+        default_missing_value = "true"
+    )]
+    pub skip_submodules_checkout: bool,
 }
 
 impl InitArgs {
@@ -61,6 +67,7 @@ impl InitArgs {
             deploy_paymaster,
             l1_rpc_url,
             no_port_reallocation: self.no_port_reallocation,
+            skip_submodules_checkout: self.skip_submodules_checkout,
         }
     }
 }
@@ -72,4 +79,5 @@ pub struct InitArgsFinal {
     pub deploy_paymaster: bool,
     pub l1_rpc_url: String,
     pub no_port_reallocation: bool,
+    pub skip_submodules_checkout: bool,
 }
