@@ -338,8 +338,10 @@ impl BlocksDal<'_, '_> {
                 data_availability.blob_id AS "blob_id?"
             FROM
                 l1_batches
-                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
-                LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            LEFT JOIN
+                data_availability
+                ON data_availability.l1_batch_number = l1_batches.number
             WHERE
                 number = $1
             "#,
@@ -1006,9 +1008,13 @@ impl BlocksDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                commitments (l1_batch_number, events_queue_commitment, bootloader_initial_content_commitment)
+            commitments (
+                l1_batch_number,
+                events_queue_commitment,
+                bootloader_initial_content_commitment
+            )
             VALUES
-                ($1, $2, $3)
+            ($1, $2, $3)
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(number.0),
@@ -1067,8 +1073,10 @@ impl BlocksDal<'_, '_> {
                 data_availability.blob_id AS "blob_id?"
             FROM
                 l1_batches
-                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
-                LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            LEFT JOIN
+                data_availability
+                ON data_availability.l1_batch_number = l1_batches.number
             WHERE
                 number = 0
                 OR eth_commit_tx_id IS NOT NULL
@@ -1100,7 +1108,9 @@ impl BlocksDal<'_, '_> {
                 number
             FROM
                 l1_batches
-                LEFT JOIN eth_txs_history AS commit_tx ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id)
+            LEFT JOIN
+                eth_txs_history AS commit_tx
+                ON (l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id)
             WHERE
                 commit_tx.confirmed_at IS NOT NULL
             ORDER BY
@@ -1167,7 +1177,9 @@ impl BlocksDal<'_, '_> {
                 number
             FROM
                 l1_batches
-                LEFT JOIN eth_txs_history AS prove_tx ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id)
+            LEFT JOIN
+                eth_txs_history AS prove_tx
+                ON (l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id)
             WHERE
                 prove_tx.confirmed_at IS NOT NULL
             ORDER BY
@@ -1192,7 +1204,9 @@ impl BlocksDal<'_, '_> {
                 number
             FROM
                 l1_batches
-                LEFT JOIN eth_txs_history AS execute_tx ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id)
+            LEFT JOIN
+                eth_txs_history AS execute_tx
+                ON (l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id)
             WHERE
                 execute_tx.confirmed_at IS NOT NULL
             ORDER BY
@@ -1250,8 +1264,10 @@ impl BlocksDal<'_, '_> {
                 data_availability.blob_id AS "blob_id?"
             FROM
                 l1_batches
-                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
-                LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            LEFT JOIN
+                data_availability
+                ON data_availability.l1_batch_number = l1_batches.number
             WHERE
                 eth_commit_tx_id IS NOT NULL
                 AND eth_prove_tx_id IS NULL
@@ -1338,7 +1354,7 @@ impl BlocksDal<'_, '_> {
                         ROW_NUMBER() OVER (
                             ORDER BY
                                 number ASC
-                        ) AS ROW_NUMBER
+                        ) AS row_number
                     FROM
                         l1_batches
                     WHERE
@@ -1350,10 +1366,10 @@ impl BlocksDal<'_, '_> {
                     LIMIT
                         $2
                 ) inn
-                LEFT JOIN commitments ON commitments.l1_batch_number = inn.number
-                LEFT JOIN data_availability ON data_availability.l1_batch_number = inn.number
+            LEFT JOIN commitments ON commitments.l1_batch_number = inn.number
+            LEFT JOIN data_availability ON data_availability.l1_batch_number = inn.number
             WHERE
-                number - ROW_NUMBER = $1
+                number - row_number = $1
             "#,
             last_proved_batch_number.0 as i32,
             limit as i32
@@ -1409,8 +1425,10 @@ impl BlocksDal<'_, '_> {
                         data_availability.blob_id AS "blob_id?"
                     FROM
                         l1_batches
-                        LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
-                        LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
+                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                    LEFT JOIN
+                        data_availability
+                        ON data_availability.l1_batch_number = l1_batches.number
                     WHERE
                         eth_prove_tx_id IS NOT NULL
                         AND eth_execute_tx_id IS NULL
@@ -1482,8 +1500,10 @@ impl BlocksDal<'_, '_> {
                 MAX(l1_batches.number)
             FROM
                 l1_batches
-                JOIN eth_txs ON (l1_batches.eth_commit_tx_id = eth_txs.id)
-                JOIN eth_txs_history AS commit_tx ON (eth_txs.confirmed_eth_tx_history_id = commit_tx.id)
+            JOIN eth_txs ON (l1_batches.eth_commit_tx_id = eth_txs.id)
+            JOIN
+                eth_txs_history AS commit_tx
+                ON (eth_txs.confirmed_eth_tx_history_id = commit_tx.id)
             WHERE
                 commit_tx.confirmed_at IS NOT NULL
                 AND eth_prove_tx_id IS NOT NULL
@@ -1491,7 +1511,7 @@ impl BlocksDal<'_, '_> {
                 AND EXTRACT(
                     EPOCH
                     FROM
-                        commit_tx.confirmed_at
+                    commit_tx.confirmed_at
                 ) < $1
             "#,
             max_l1_batch_timestamp_seconds_bd,
@@ -1537,8 +1557,10 @@ impl BlocksDal<'_, '_> {
                     data_availability.blob_id AS "blob_id?"
                 FROM
                     l1_batches
-                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
-                    LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
+                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                LEFT JOIN
+                    data_availability
+                    ON data_availability.l1_batch_number = l1_batches.number
                 WHERE
                     number BETWEEN $1 AND $2
                 ORDER BY
@@ -1604,9 +1626,11 @@ impl BlocksDal<'_, '_> {
                 data_availability.blob_id AS "blob_id?"
             FROM
                 l1_batches
-                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
-                JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
-                LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
+            LEFT JOIN
+                data_availability
+                ON data_availability.l1_batch_number = l1_batches.number
             WHERE
                 eth_commit_tx_id IS NULL
                 AND number != 0
@@ -1685,9 +1709,11 @@ impl BlocksDal<'_, '_> {
                 data_availability.blob_id AS "blob_id?"
             FROM
                 l1_batches
-                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
-                LEFT JOIN data_availability ON data_availability.l1_batch_number = l1_batches.number
-                JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
+            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            LEFT JOIN
+                data_availability
+                ON data_availability.l1_batch_number = l1_batches.number
+            JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
             WHERE
                 eth_commit_tx_id IS NULL
                 AND number != 0
@@ -1886,7 +1912,7 @@ impl BlocksDal<'_, '_> {
                 bytecode
             FROM
                 factory_deps
-                INNER JOIN miniblocks ON miniblocks.number = factory_deps.miniblock_number
+            INNER JOIN miniblocks ON miniblocks.number = factory_deps.miniblock_number
             WHERE
                 miniblocks.l1_batch_number = $1
             "#,
@@ -2382,7 +2408,7 @@ impl BlocksDal<'_, '_> {
                 value
             FROM
                 l2_to_l1_logs
-                JOIN miniblocks ON l2_to_l1_logs.miniblock_number = miniblocks.number
+            JOIN miniblocks ON l2_to_l1_logs.miniblock_number = miniblocks.number
             WHERE
                 l1_batch_number = $1
             ORDER BY
@@ -2480,8 +2506,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 (
                     SELECT
-                        UNNEST($1::BIGINT[]) AS number,
-                        UNNEST($2::BYTEA[]) AS logs_bloom
+                        UNNEST($1::BIGINT []) AS number,
+                        UNNEST($2::BYTEA []) AS logs_bloom
                 ) AS data
             WHERE
                 miniblocks.number = data.number
