@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use common::{cmd::Cmd, spinner::Spinner};
+use common::{cmd::Cmd, logger, spinner::Spinner};
 use serde::Deserialize;
 use xshell::{cmd, Shell};
 
@@ -85,7 +85,9 @@ fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Ver
     ))
     .run_with_output()?;
 
+    logger::debug(&format!("Response status: {:?}", response.clone().status));
     let response = String::from_utf8(response.stdout)?;
+    logger::debug(&format!("Response: {:?}", response.clone()));
     let releases: Vec<GitHubRelease> = serde_json::from_str(&response)?;
 
     let mut versions = vec![];
