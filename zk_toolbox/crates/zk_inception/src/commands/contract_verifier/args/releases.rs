@@ -85,6 +85,7 @@ fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Ver
     );
 
     if let Ok(token) = shell.var("GITHUB_TOKEN") {
+        logger::info("Using GitHub token for authentication");
         cmd = cmd.args(vec![
             "-H".to_string(),
             format!("Authorization: Bearer {}", token),
