@@ -2,7 +2,7 @@ use ethabi::Token;
 use zksync_contracts::{
     deployer_contract, load_contract, test_contracts::LoadnextContractExecutionParams,
 };
-use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
+use zksync_eth_signer::{PrivateKeySigner, TransactionParameters};
 use zksync_system_constants::{
     CONTRACT_DEPLOYER_ADDRESS, DEFAULT_L2_TX_GAS_PER_PUBDATA_BYTE,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
@@ -255,8 +255,8 @@ impl Account {
         PrivateKeySigner::new(self.private_key.clone())
     }
 
-    pub async fn sign_legacy_tx(&self, tx: TransactionParameters) -> Vec<u8> {
+    pub fn sign_legacy_tx(&self, tx: TransactionParameters) -> Vec<u8> {
         let pk_signer = self.get_pk_signer();
-        pk_signer.sign_transaction(tx).await.unwrap()
+        pk_signer.sign_transaction(tx)
     }
 }

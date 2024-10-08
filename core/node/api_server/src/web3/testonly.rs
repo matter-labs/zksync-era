@@ -181,6 +181,8 @@ async fn spawn_server(
 
     let mut namespaces = Namespace::DEFAULT.to_vec();
     namespaces.extend([Namespace::Debug, Namespace::Snapshots, Namespace::Unstable]);
+    let sealed_l2_block_handle = SealedL2BlockNumber::default();
+    let bridge_addresses_handle = BridgeAddressesHandle::new(api_config.bridge_addresses.clone());
 
     let server_builder = match transport {
         ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
@@ -202,6 +204,8 @@ async fn spawn_server(
         .with_pub_sub_events(pub_sub_events_sender)
         .with_method_tracer(method_tracer)
         .enable_api_namespaces(namespaces)
+        .with_sealed_l2_block_handle(sealed_l2_block_handle)
+        .with_bridge_addresses_handle(bridge_addresses_handle)
         .build()
         .expect("Unable to build API server")
         .run(stop_receiver)

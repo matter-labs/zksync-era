@@ -320,7 +320,7 @@ pub struct FailureInfo {
 
 #[cfg(test)]
 mod tests {
-    use zksync_eth_signer::{EthereumSigner, PrivateKeySigner, TransactionParameters};
+    use zksync_eth_signer::{PrivateKeySigner, TransactionParameters};
     use zksync_types::{
         eth_sender::{EthTxBlobSidecarV1, SidecarBlobV1},
         web3, K256PrivateKey, EIP_4844_TX_TYPE, H256, U256, U64,
@@ -384,10 +384,7 @@ mod tests {
                     .as_ref(),
             )]),
         };
-        let raw_tx = signer
-            .sign_transaction(raw_transaction.clone())
-            .await
-            .unwrap();
+        let raw_tx = signer.sign_transaction(raw_transaction.clone());
 
         let hash = web3::keccak256(&raw_tx).into();
         // Transaction generated with https://github.com/inphi/blob-utils with
@@ -493,10 +490,7 @@ mod tests {
             blob_versioned_hashes: Some(vec![versioned_hash_1, versioned_hash_2]),
         };
 
-        let raw_tx = signer
-            .sign_transaction(raw_transaction.clone())
-            .await
-            .unwrap();
+        let raw_tx = signer.sign_transaction(raw_transaction);
 
         let hash = web3::keccak256(&raw_tx).into();
         // Transaction generated with https://github.com/inphi/blob-utils with

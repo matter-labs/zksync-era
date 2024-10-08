@@ -8,11 +8,10 @@ use common::{
     yaml::{merge_yaml, ConfigDiff},
 };
 use config::{
-    traits::ReadConfigWithBasePath, ChainConfig, EcosystemConfig, CONTRACTS_FILE, EN_CONFIG_FILE,
-    ERA_OBSERBAVILITY_DIR, GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
+    ChainConfig, EcosystemConfig, CONTRACTS_FILE, EN_CONFIG_FILE, ERA_OBSERBAVILITY_DIR,
+    GENERAL_FILE, GENESIS_FILE, SECRETS_FILE,
 };
 use xshell::Shell;
-use zksync_config::configs::Secrets;
 
 use super::args::UpdateArgs;
 use crate::{
@@ -183,7 +182,7 @@ async fn update_chain(
         )?;
     }
 
-    let secrets = Secrets::read_with_base_path(shell, secrets)?;
+    let secrets = chain.get_secrets_config()?;
 
     if let Some(db) = secrets.database {
         if let Some(url) = db.server_url {

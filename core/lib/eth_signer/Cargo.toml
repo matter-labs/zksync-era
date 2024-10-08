@@ -11,10 +11,9 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_types.workspace = true
+zksync_basic_types.workspace = true
+zksync_crypto_primitives.workspace = true
+
+async-trait.workspace = true
 rlp.workspace = true
 thiserror.workspace = true
-async-trait.workspace = true
-
-[dev-dependencies]
-tokio = { workspace = true, features = ["full"] }

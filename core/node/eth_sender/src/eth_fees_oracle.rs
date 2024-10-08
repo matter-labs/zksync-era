@@ -23,7 +23,7 @@ pub(crate) trait EthFeesOracle: 'static + Sync + Send + fmt::Debug {
     fn calculate_fees(
         &self,
         previous_sent_tx: &Option<TxHistory>,
-        time_in_mempool: u32,
+        time_in_mempool_in_l1_blocks: u32,
         operator_type: OperatorType,
     ) -> Result<EthFees, EthSenderError>;
 }
@@ -32,6 +32,7 @@ pub(crate) trait EthFeesOracle: 'static + Sync + Send + fmt::Debug {
 pub(crate) struct GasAdjusterFeesOracle {
     pub gas_adjuster: Arc<dyn TxParamsProvider>,
     pub max_acceptable_priority_fee_in_gwei: u64,
+    pub time_in_mempool_in_l1_blocks_cap: u32,
 }
 
 impl GasAdjusterFeesOracle {
@@ -80,11 +81,16 @@ impl GasAdjusterFeesOracle {
     fn calculate_fees_no_blob_sidecar(
         &self,
         previous_sent_tx: &Option<TxHistory>,
-        time_in_mempool: u32,
+        time_in_mempool_in_l1_blocks: u32,
     ) -> Result<EthFees, EthSenderError> {
-        // cap it at 6h to not allow nearly infinite values when a tx is stuck for a long time
-        let capped_time_in_mempool = min(time_in_mempool, 1800);
-        let mut base_fee_per_gas = self.gas_adjuster.get_base_fee(capped_time_in_mempool);
+        // we cap it to not allow nearly infinite values when a tx is stuck for a long time
+        let capped_time_in_mempool_in_l1_blocks = min(
+            time_in_mempool_in_l1_blocks,
+            self.time_in_mempool_in_l1_blocks_cap,
+        );
+        let mut base_fee_per_gas = self
+            .gas_adjuster
+            .get_base_fee(capped_time_in_mempool_in_l1_blocks);
         self.assert_fee_is_not_zero(base_fee_per_gas, "base");
         if let Some(previous_sent_tx) = previous_sent_tx {
             self.verify_base_fee_not_too_low_on_resend(
@@ -162,14 +168,14 @@ impl EthFeesOracle for GasAdjusterFeesOracle {
     fn calculate_fees(
         &self,
         previous_sent_tx: &Option<TxHistory>,
-        time_in_mempool: u32,
+        time_in_mempool_in_l1_blocks: u32,
         operator_type: OperatorType,
     ) -> Result<EthFees, EthSenderError> {
         let has_blob_sidecar = operator_type == OperatorType::Blob;
         if has_blob_sidecar {
             self.calculate_fees_with_blob_sidecar(previous_sent_tx)
         } else {
-            self.calculate_fees_no_blob_sidecar(previous_sent_tx, time_in_mempool)
+            self.calculate_fees_no_blob_sidecar(previous_sent_tx, time_in_mempool_in_l1_blocks)
         }
     }
 }

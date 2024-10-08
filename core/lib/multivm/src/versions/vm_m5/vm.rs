@@ -50,6 +50,10 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
             _phantom: Default::default(),
         }
     }
+
+    pub(crate) fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        VmMemoryMetrics::default()
+    }
 }
 
 impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
@@ -104,19 +108,6 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
             Ok(vec![].into()),
             self.inspect(&mut (), VmExecutionMode::OneTx),
         )
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        VmMemoryMetrics {
-            event_sink_inner: 0,
-            event_sink_history: 0,
-            memory_inner: 0,
-            memory_history: 0,
-            decommittment_processor_inner: 0,
-            decommittment_processor_history: 0,
-            storage_inner: 0,
-            storage_history: 0,
-        }
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

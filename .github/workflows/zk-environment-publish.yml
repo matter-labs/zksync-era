@@ -4,6 +4,12 @@ on:
   # Workflow dispatch, to allow building and pushing new environments.
   # It will NOT mark them as latest.
   workflow_dispatch:
+    inputs:
+      build_cuda:
+        description: "Build CUDA images or not"
+        type: boolean
+        required: false
+        default: false
 
   push:
     branches:
@@ -202,25 +208,25 @@ jobs:
           echo "should_run=$changed_files_output" >> "$GITHUB_OUTPUT"
 
       - name: Checkout code
-        if: steps.condition.outputs.should_run == 'true'
+        if: ${{ (steps.condition.outputs.should_run == 'true') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           submodules: "recursive"
 
       - name: Log in to US GAR
-        if: steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
         run: |
           gcloud auth print-access-token --lifetime=7200 --impersonate-service-account=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com | docker login -u oauth2accesstoken --password-stdin https://us-docker.pkg.dev
 
       - name: Log in to Docker Hub
-        if: steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           username: ${{ secrets.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Login to GitHub Container Registry
-        if: steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: ${{ (steps.condition.outputs.should_run == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
           registry: ghcr.io
@@ -228,19 +234,19 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up QEMU
-        if: steps.condition.outputs.should_run == 'true'
+        if: ${{ (steps.condition.outputs.should_run == 'true') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
         uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
 
       - name: Set up Docker Buildx
-        if: steps.condition.outputs.should_run == 'true'
+        if: ${{ (steps.condition.outputs.should_run == 'true') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
         uses: docker/setup-buildx-action@aa33708b10e362ff993539393ff100fa93ed6a27 # v3.5.0
 
       - name: Build and optionally push
-        if: steps.condition.outputs.should_run == 'true'
+        if: ${{ (steps.condition.outputs.should_run == 'true') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
         uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
         with:
           file: docker/zk-environment/20.04_amd64_cuda_${{ matrix.cuda_version }}.Dockerfile
-          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          push: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zk-environment-cuda-${{ matrix.cuda_version }}:latest
             matterlabs/zk-environment:cuda-${{ matrix.cuda_version }}-latest

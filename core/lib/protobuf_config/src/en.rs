@@ -1,4 +1,7 @@
-use std::{num::NonZeroUsize, str::FromStr};
+use std::{
+    num::{NonZeroU64, NonZeroUsize},
+    str::FromStr,
+};
 
 use anyhow::Context;
 use zksync_basic_types::{url::SensitiveUrl, L1ChainId, L2ChainId};
@@ -36,6 +39,9 @@ impl ProtoRepr for proto::ExternalNode {
                 .as_ref()
                 .map(|a| a.parse().context("gateway_url"))
                 .transpose()?,
+            bridge_addresses_refresh_interval_sec: self
+                .bridge_addresses_refresh_interval_sec
+                .and_then(NonZeroU64::new),
         })
     }
 
@@ -55,6 +61,9 @@ impl ProtoRepr for proto::ExternalNode {
                 .gateway_url
                 .as_ref()
                 .map(|a| a.expose_str().to_string()),
+            bridge_addresses_refresh_interval_sec: this
+                .bridge_addresses_refresh_interval_sec
+                .map(|a| a.get()),
         }
     }
 }

@@ -1,5 +1,7 @@
-use zksync_types::{
-    Address, EIP712TypedStructure, Eip712Domain, K256PrivateKey, PackedEthSignature,
+use async_trait::async_trait;
+use zksync_basic_types::Address;
+use zksync_crypto_primitives::{
+    EIP712TypedStructure, Eip712Domain, K256PrivateKey, PackedEthSignature,
 };
 
 use crate::{
@@ -12,22 +14,20 @@ pub struct PrivateKeySigner {
     private_key: K256PrivateKey,
 }
 
+// We define inherent methods duplicating `EthereumSigner` ones because they are sync and (other than `sign_typed_data`) infallible.
 impl PrivateKeySigner {
     pub fn new(private_key: K256PrivateKey) -> Self {
         Self { private_key }
     }
-}
 
-#[async_trait::async_trait]
-impl EthereumSigner for PrivateKeySigner {
-    /// Get Ethereum address that matches the private key.
-    async fn get_address(&self) -> Result<Address, SignerError> {
-        Ok(self.private_key.address())
+    /// Gets an Ethereum address that matches this private key.
+    pub fn address(&self) -> Address {
+        self.private_key.address()
     }
 
     /// Signs typed struct using Ethereum private key by EIP-712 signature standard.
     /// Result of this function is the equivalent of RPC calling `eth_signTypedData`.
-    async fn sign_typed_data<S: EIP712TypedStructure + Sync>(
+    pub fn sign_typed_data<S: EIP712TypedStructure + Sync>(
         &self,
         domain: &Eip712Domain,
         typed_struct: &S,
@@ -39,16 +39,11 @@ impl EthereumSigner for PrivateKeySigner {
     }
 
     /// Signs and returns the RLP-encoded transaction.
-    async fn sign_transaction(
-        &self,
-        raw_tx: TransactionParameters,
-    ) -> Result<Vec<u8>, SignerError> {
+    pub fn sign_transaction(&self, raw_tx: TransactionParameters) -> Vec<u8> {
         // According to the code in web3 <https://docs.rs/web3/latest/src/web3/api/accounts.rs.html#86>
         // We should use `max_fee_per_gas` as `gas_price` if we use EIP1559
         let gas_price = raw_tx.max_fee_per_gas;
-
         let max_priority_fee_per_gas = raw_tx.max_priority_fee_per_gas;
-
         let tx = Transaction {
             to: raw_tx.to,
             nonce: raw_tx.nonce,
@@ -62,21 +57,42 @@ impl EthereumSigner for PrivateKeySigner {
             max_fee_per_blob_gas: raw_tx.max_fee_per_blob_gas,
             blob_versioned_hashes: raw_tx.blob_versioned_hashes,
         };
-
         let signed = tx.sign(&self.private_key, raw_tx.chain_id);
-        Ok(signed.raw_transaction.0)
+        signed.raw_transaction.0
+    }
+}
+
+#[async_trait]
+impl EthereumSigner for PrivateKeySigner {
+    async fn get_address(&self) -> Result<Address, SignerError> {
+        Ok(self.address())
+    }
+
+    async fn sign_typed_data<S: EIP712TypedStructure + Sync>(
+        &self,
+        domain: &Eip712Domain,
+        typed_struct: &S,
+    ) -> Result<PackedEthSignature, SignerError> {
+        self.sign_typed_data(domain, typed_struct)
+    }
+
+    async fn sign_transaction(
+        &self,
+        raw_tx: TransactionParameters,
+    ) -> Result<Vec<u8>, SignerError> {
+        Ok(self.sign_transaction(raw_tx))
     }
 }
 
 #[cfg(test)]
 mod test {
-    use zksync_types::{K256PrivateKey, H160, H256, U256, U64};
+    use zksync_basic_types::{H160, H256, U256, U64};
+    use zksync_crypto_primitives::K256PrivateKey;
 
-    use super::PrivateKeySigner;
-    use crate::{raw_ethereum_tx::TransactionParameters, EthereumSigner};
+    use super::*;
 
-    #[tokio::test]
-    async fn test_generating_signed_raw_transaction() {
+    #[test]
+    fn test_generating_signed_raw_transaction() {
         let private_key = K256PrivateKey::from_bytes(H256::from([5; 32])).unwrap();
         let signer = PrivateKeySigner::new(private_key);
         let raw_transaction = TransactionParameters {
@@ -94,10 +110,7 @@ mod test {
             blob_versioned_hashes: None,
             max_fee_per_blob_gas: None,
         };
-        let raw_tx = signer
-            .sign_transaction(raw_transaction.clone())
-            .await
-            .unwrap();
+        let raw_tx = signer.sign_transaction(raw_transaction);
         assert_ne!(raw_tx.len(), 1);
         // pre-calculated signature with right algorithm implementation
         let precalculated_raw_tx: Vec<u8> = vec![

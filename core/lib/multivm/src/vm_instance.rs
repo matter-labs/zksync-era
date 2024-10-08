@@ -87,10 +87,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
         ))
     }
 
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        dispatch_legacy_vm!(self.record_vm_memory_metrics())
-    }
-
     /// Return the results of execution of all batch
     fn finish_batch(&mut self) -> FinishedL1Batch {
         dispatch_legacy_vm!(self.finish_batch())
@@ -222,6 +218,11 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
             }
         }
     }
+
+    /// Returns memory-related oracle metrics.
+    pub fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        dispatch_legacy_vm!(self.record_vm_memory_metrics())
+    }
 }
 
 /// Fast VM shadowed by the latest legacy VM.
@@ -290,10 +291,6 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInsta
                 vm.inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
             }
         }
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        dispatch_fast_vm!(self.record_vm_memory_metrics())
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

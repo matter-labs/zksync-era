@@ -25,6 +25,7 @@ contract-verifier:2.0
 server-v2:2.0
 prover:2.0
 witness-generator:2.0
+external-node:2.0
 ```
 
 Alternatively, you may build only needed components - available targets are
@@ -34,6 +35,7 @@ make -C ./docker build-contract-verifier
 make -C ./docker build-server-v2
 make -C ./docker build-circuit-prover-gpu
 make -C ./docker build-witness-generator
+make -C ./docker build-external-node
 ```
 
 ## Building updated images

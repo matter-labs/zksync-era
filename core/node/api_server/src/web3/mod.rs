@@ -47,6 +47,7 @@ use self::{
 use crate::{
     execution_sandbox::{BlockStartInfo, VmConcurrencyBarrier},
     tx_sender::TxSender,
+    web3::state::BridgeAddressesHandle,
 };
 
 pub mod backend_jsonrpsee;
@@ -143,7 +144,6 @@ struct OptionalApiParams {
 #[derive(Debug)]
 pub struct ApiServer {
     pool: ConnectionPool<Core>,
-    updaters_pool: ConnectionPool<Core>,
     health_updater: Arc<HealthUpdater>,
     config: InternalApiConfig,
     transport: ApiTransport,
@@ -153,18 +153,21 @@ pub struct ApiServer {
     namespaces: Vec<Namespace>,
     method_tracer: Arc<MethodTracer>,
     optional: OptionalApiParams,
+    bridge_addresses_handle: BridgeAddressesHandle,
+    sealed_l2_block_handle: SealedL2BlockNumber,
 }
 
 #[derive(Debug)]
 pub struct ApiBuilder {
     pool: ConnectionPool<Core>,
-    updaters_pool: ConnectionPool<Core>,
     config: InternalApiConfig,
     polling_interval: Duration,
     pruning_info_refresh_interval: Duration,
     // Mandatory params that must be set using builder methods.
     transport: Option<ApiTransport>,
     tx_sender: Option<TxSender>,
+    bridge_addresses_handle: Option<BridgeAddressesHandle>,
+    sealed_l2_block_handle: Option<SealedL2BlockNumber>,
     // Optional params that may or may not be set using builder methods. We treat `namespaces`
     // specially because we want to output a warning if they are not set.
     namespaces: Option<Vec<Namespace>>,
@@ -178,13 +181,14 @@ impl ApiBuilder {
 
     pub fn jsonrpsee_backend(config: InternalApiConfig, pool: ConnectionPool<Core>) -> Self {
         Self {
-            updaters_pool: pool.clone(),
             pool,
             config,
             polling_interval: Self::DEFAULT_POLLING_INTERVAL,
             pruning_info_refresh_interval: Self::DEFAULT_PRUNING_INFO_REFRESH_INTERVAL,
             transport: None,
             tx_sender: None,
+            bridge_addresses_handle: None,
+            sealed_l2_block_handle: None,
             namespaces: None,
             method_tracer: Arc::new(MethodTracer::default()),
             optional: OptionalApiParams::default(),
@@ -198,15 +202,6 @@ impl ApiBuilder {
 
     pub fn http(mut self, port: u16) -> Self {
         self.transport = Some(ApiTransport::Http(([0, 0, 0, 0], port).into()));
-        self
-    }
-
-    /// Configures a dedicated DB pool to be used for updating different information,
-    /// such as last mined block number or account nonces. This pool is used to execute
-    /// in a background task. If not called, the main pool will be used. If the API server is under high load,
-    /// it may make sense to supply a single-connection pool to reduce pool contention with the API methods.
-    pub fn with_updaters_pool(mut self, pool: ConnectionPool<Core>) -> Self {
-        self.updaters_pool = pool;
         self
     }
 
@@ -285,6 +280,22 @@ impl ApiBuilder {
         self
     }
 
+    pub fn with_sealed_l2_block_handle(
+        mut self,
+        sealed_l2_block_handle: SealedL2BlockNumber,
+    ) -> Self {
+        self.sealed_l2_block_handle = Some(sealed_l2_block_handle);
+        self
+    }
+
+    pub fn with_bridge_addresses_handle(
+        mut self,
+        bridge_addresses_handle: BridgeAddressesHandle,
+    ) -> Self {
+        self.bridge_addresses_handle = Some(bridge_addresses_handle);
+        self
+    }
+
     // Intended for tests only.
     #[doc(hidden)]
     fn with_pub_sub_events(mut self, sender: mpsc::UnboundedSender<PubSubEvent>) -> Self {
@@ -312,7 +323,6 @@ impl ApiBuilder {
         Ok(ApiServer {
             pool: self.pool,
             health_updater: Arc::new(health_updater),
-            updaters_pool: self.updaters_pool,
             config: self.config,
             transport,
             tx_sender: self.tx_sender.context("Transaction sender not set")?,
@@ -326,6 +336,12 @@ impl ApiBuilder {
             }),
             method_tracer: self.method_tracer,
             optional: self.optional,
+            sealed_l2_block_handle: self
+                .sealed_l2_block_handle
+                .context("Sealed l2 block handle not set")?,
+            bridge_addresses_handle: self
+                .bridge_addresses_handle
+                .context("Bridge addresses handle not set")?,
         })
     }
 }
@@ -335,11 +351,8 @@ impl ApiServer {
         self.health_updater.subscribe()
     }
 
-    async fn build_rpc_state(
-        self,
-        last_sealed_l2_block: SealedL2BlockNumber,
-    ) -> anyhow::Result<RpcState> {
-        let mut storage = self.updaters_pool.connection_tagged("api").await?;
+    async fn build_rpc_state(self) -> anyhow::Result<RpcState> {
+        let mut storage = self.pool.connection_tagged("api").await?;
         let start_info =
             BlockStartInfo::new(&mut storage, self.pruning_info_refresh_interval).await?;
         drop(storage);
@@ -363,7 +376,8 @@ impl ApiServer {
             api_config: self.config,
             start_info,
             mempool_cache: self.optional.mempool_cache,
-            last_sealed_l2_block,
+            last_sealed_l2_block: self.sealed_l2_block_handle,
+            bridge_addresses_handle: self.bridge_addresses_handle,
             tree_api: self.optional.tree_api,
         })
     }
@@ -371,11 +385,10 @@ impl ApiServer {
     async fn build_rpc_module(
         self,
         pub_sub: Option<EthSubscribe>,
-        last_sealed_l2_block: SealedL2BlockNumber,
     ) -> anyhow::Result<RpcModule<()>> {
         let namespaces = self.namespaces.clone();
         let zksync_network_id = self.config.l2_chain_id;
-        let rpc_state = self.build_rpc_state(last_sealed_l2_block).await?;
+        let rpc_state = self.build_rpc_state().await?;
 
         // Collect all the methods into a single RPC module.
         let mut rpc = RpcModule::new(());
@@ -473,21 +486,9 @@ impl ApiServer {
         self,
         stop_receiver: watch::Receiver<bool>,
     ) -> anyhow::Result<ApiServerHandles> {
-        // Chosen to be significantly smaller than the interval between L2 blocks, but larger than
-        // the latency of getting the latest sealed L2 block number from Postgres. If the API server
-        // processes enough requests, information about the latest sealed L2 block will be updated
-        // by reporting block difference metrics, so the actual update lag would be much smaller than this value.
-        const SEALED_L2_BLOCK_UPDATE_INTERVAL: Duration = Duration::from_millis(25);
-
         let transport = self.transport;
+        let mut tasks = vec![];
 
-        let (last_sealed_l2_block, sealed_l2_block_update_task) = SealedL2BlockNumber::new(
-            self.updaters_pool.clone(),
-            SEALED_L2_BLOCK_UPDATE_INTERVAL,
-            stop_receiver.clone(),
-        );
-
-        let mut tasks = vec![tokio::spawn(sealed_l2_block_update_task)];
         let pub_sub = if matches!(transport, ApiTransport::WebSocket(_))
             && self.namespaces.contains(&Namespace::Pubsub)
         {
@@ -510,12 +511,8 @@ impl ApiServer {
         // framework it'll no longer be needed.
         let health_check = self.health_updater.subscribe();
         let (local_addr_sender, local_addr) = oneshot::channel();
-        let server_task = tokio::spawn(self.run_jsonrpsee_server(
-            stop_receiver,
-            pub_sub,
-            last_sealed_l2_block,
-            local_addr_sender,
-        ));
+        let server_task =
+            tokio::spawn(self.run_jsonrpsee_server(stop_receiver, pub_sub, local_addr_sender));
 
         tasks.push(server_task);
         Ok(ApiServerHandles {
@@ -584,7 +581,6 @@ impl ApiServer {
         self,
         mut stop_receiver: watch::Receiver<bool>,
         pub_sub: Option<EthSubscribe>,
-        last_sealed_l2_block: SealedL2BlockNumber,
         local_addr_sender: oneshot::Sender<SocketAddr>,
     ) -> anyhow::Result<()> {
         let transport = self.transport;
@@ -640,7 +636,7 @@ impl ApiServer {
             tracing::info!("Enabled extended call tracing for {transport_str} API server; this might negatively affect performance");
         }
 
-        let rpc = self.build_rpc_module(pub_sub, last_sealed_l2_block).await?;
+        let rpc = self.build_rpc_module(pub_sub).await?;
         let registered_method_names = Arc::new(rpc.method_names().collect::<HashSet<_>>());
         tracing::debug!(
             "Built RPC module for {transport_str} server with {} methods: {registered_method_names:?}",

@@ -317,14 +317,14 @@ impl TxParamsProvider for GasAdjuster {
     // smooth out base_fee increases in general.
     // In other words, in order to pay less fees, we are ready to wait longer.
     // But the longer we wait, the more we are ready to pay.
-    fn get_base_fee(&self, time_in_mempool: u32) -> u64 {
+    fn get_base_fee(&self, time_in_mempool_in_l1_blocks: u32) -> u64 {
         let a = self.config.pricing_formula_parameter_a;
         let b = self.config.pricing_formula_parameter_b;
 
         // Currently we use an exponential formula.
         // The alternative is a linear one:
-        // `let scale_factor = a + b * time_in_mempool as f64;`
-        let scale_factor = a * b.powf(time_in_mempool as f64);
+        // `let scale_factor = a + b * time_in_mempool_in_l1_blocks as f64;`
+        let scale_factor = a * b.powf(time_in_mempool_in_l1_blocks as f64);
         let median = self.base_fee_statistics.median();
         METRICS.median_base_fee_per_gas.set(median);
         let new_fee = median as f64 * scale_factor;

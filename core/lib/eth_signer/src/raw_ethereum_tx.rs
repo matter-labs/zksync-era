@@ -10,11 +10,11 @@
 //! Link to @Deniallugo's PR to web3: https://github.com/tomusdrw/rust-web3/pull/630
 
 use rlp::RlpStream;
-use zksync_types::{
-    ethabi::Address,
+use zksync_basic_types::{
     web3::{keccak256, AccessList, Signature, SignedTransaction},
-    K256PrivateKey, H256, U256, U64,
+    Address, H256, U256, U64,
 };
+use zksync_crypto_primitives::K256PrivateKey;
 
 const LEGACY_TX_ID: u64 = 0;
 const ACCESSLISTS_TX_ID: u64 = 1;

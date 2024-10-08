@@ -12,7 +12,7 @@ use crate::{
     storage::{ReadStorage, StoragePtr, StorageView},
     BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
     SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
-    VmInterfaceHistoryEnabled, VmMemoryMetrics, VmTrackingContracts,
+    VmInterfaceHistoryEnabled, VmTrackingContracts,
 };
 
 /// Handler for VM divergences.
@@ -202,7 +202,8 @@ where
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
-        let tx_hash = tx.hash();
+        let tx_repr = format!("{tx:?}"); // includes little data, so is OK to call proactively
+
         let (main_bytecodes_result, main_tx_result) =
             self.main.inspect_transaction_with_bytecode_compression(
                 main_tracer,
@@ -224,16 +225,12 @@ where
             errors.check_results_match(&main_tx_result, &shadow_result.1);
             if let Err(err) = errors.into_result() {
                 let ctx = format!(
-                    "inspecting transaction {tx_hash:?}, with_compression={with_compression:?}"
+                    "inspecting transaction {tx_repr}, with_compression={with_compression:?}"
                 );
                 self.report(err.context(ctx));
             }
         }
         (main_bytecodes_result, main_tx_result)
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        self.main.record_vm_memory_metrics()
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
@@ -341,9 +338,24 @@ impl DivergenceErrors {
             &shadow_result.statistics.circuit_statistic,
         );
         self.check_match(
-            "gas_remaining",
+            "statistics.pubdata_published",
+            &main_result.statistics.pubdata_published,
+            &shadow_result.statistics.pubdata_published,
+        );
+        self.check_match(
+            "statistics.gas_remaining",
             &main_result.statistics.gas_remaining,
             &shadow_result.statistics.gas_remaining,
+        );
+        self.check_match(
+            "statistics.gas_used",
+            &main_result.statistics.gas_used,
+            &shadow_result.statistics.gas_used,
+        );
+        self.check_match(
+            "statistics.computational_gas_used",
+            &main_result.statistics.computational_gas_used,
+            &shadow_result.statistics.computational_gas_used,
         );
     }
 

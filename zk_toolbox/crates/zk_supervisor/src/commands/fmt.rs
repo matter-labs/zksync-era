@@ -101,14 +101,9 @@ pub async fn run(shell: Shell, args: FmtArgs) -> anyhow::Result<()> {
             )));
             tasks.push(tokio::spawn(prettier_contracts(shell.clone(), args.check)));
 
-            futures::future::join_all(tasks)
-                .await
-                .iter()
-                .for_each(|res| {
-                    if let Err(err) = res {
-                        logger::error(err)
-                    }
-                });
+            for result in futures::future::join_all(tasks).await {
+                result??;
+            }
         }
         Some(Formatter::Prettier { mut targets }) => {
             if targets.is_empty() {

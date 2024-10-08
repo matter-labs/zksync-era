@@ -1,4 +1,4 @@
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU64, NonZeroUsize};
 
 use serde::Deserialize;
 use zksync_basic_types::{
@@ -19,4 +19,5 @@ pub struct ENConfig {
     pub main_node_rate_limit_rps: Option<NonZeroUsize>,
 
     pub gateway_url: Option<SensitiveUrl>,
+    pub bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
 }
