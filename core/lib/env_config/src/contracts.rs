@@ -22,10 +22,9 @@ impl FromEnvVariant for EcosystemContracts {
                 "{variant}CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR"
             ))?
             .parse()?,
-            l1_bytecodes_supplier_addr: std::env::var(format!(
-                "{variant}CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR"
-            ))?
-            .parse()?,
+            l1_bytecodes_supplier_addr: Some(
+                std::env::var(format!("{variant}CONTRACTS_L1_BYTECODE_SUPPLIER_ADDR"))?.parse()?,
+            ),
         })
     }
 }
@@ -92,7 +91,9 @@ mod tests {
                 bridgehub_proxy_addr: addr("0x35ea7f92f4c5f433efe15284e99c040110cf6297"),
                 state_transition_proxy_addr: addr("0xd90f1c081c6117241624e97cb6147257c3cb2097"),
                 transparent_proxy_admin_addr: addr("0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"),
-                l1_bytecodes_supplier_addr: addr("0x36ea7f92f4c5f433efe15284e99c040110cf6297"),
+                l1_bytecodes_supplier_addr: Some(addr(
+                    "0x36ea7f92f4c5f433efe15284e99c040110cf6297",
+                )),
             }),
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
             user_facing_bridgehub_proxy_addr: Some(addr(

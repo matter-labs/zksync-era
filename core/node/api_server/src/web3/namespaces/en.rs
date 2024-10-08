@@ -133,11 +133,7 @@ impl EnNamespace {
                     .api_config
                     .transparent_proxy_admin_addr
                     .unwrap(),
-                l1_bytecodes_supplier_addr: self
-                    .state
-                    .api_config
-                    .l1_bytecodes_supplier_addr
-                    .unwrap(),
+                l1_bytecodes_supplier_addr: self.state.api_config.l1_bytecodes_supplier_addr,
             })
             .context("Shared bridge doesn't supported")?)
     }

@@ -179,7 +179,7 @@ impl InternalApiConfig {
             l1_bytecodes_supplier_addr: contracts_config
                 .ecosystem_contracts
                 .as_ref()
-                .map(|a| a.l1_bytecodes_supplier_addr),
+                .and_then(|a| a.l1_bytecodes_supplier_addr),
             user_facing_diamond_proxy_addr: contracts_config
                 .user_facing_diamond_proxy_addr
                 .unwrap_or(contracts_config.diamond_proxy_addr),

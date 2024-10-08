@@ -95,7 +95,7 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config
                 .ecosystem_contracts
                 .as_ref()
-                .map(|a| a.l1_bytecodes_supplier_addr),
+                .and_then(|a| a.l1_bytecodes_supplier_addr),
             self.contracts_config
                 .ecosystem_contracts
                 .map(|a| a.state_transition_proxy_addr),

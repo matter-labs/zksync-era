@@ -351,6 +351,14 @@ impl ZksNamespace {
         // For now it is always 0
         let aggregated_root = batch_meta.metadata.aggregation_root.unwrap();
         let final_root = KeccakHasher.compress(&root, &aggregated_root);
+        if protocol_version.is_pre_gateway() {
+            return Ok(Some(L2ToL1LogProof {
+                proof,
+                root: final_root,
+                id: l1_log_index as u32,
+            }));
+        }
+
         proof.push(aggregated_root);
 
         println!("\n\nTrying to get the final proof! {}\n\n", l1_batch_number);
