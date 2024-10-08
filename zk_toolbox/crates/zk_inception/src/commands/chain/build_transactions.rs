@@ -6,9 +6,10 @@ use config::{
 use ethers::utils::hex::ToHex;
 use xshell::Shell;
 
-use super::common::register_chain;
 use crate::{
-    commands::chain::args::build_transactions::BuildTransactionsArgs,
+    commands::chain::{
+        args::build_transactions::BuildTransactionsArgs, register_chain::register_chain,
+    },
     messages::{
         MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER, MSG_CHAIN_NOT_FOUND_ERR,
         MSG_CHAIN_TRANSACTIONS_BUILT, MSG_CHAIN_TXN_MISSING_CONTRACT_CONFIG,

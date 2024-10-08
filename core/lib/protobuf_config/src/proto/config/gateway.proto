@@ -9,4 +9,5 @@ message GatewayChainConfig {
     optional string diamond_proxy_addr = 4;
     optional string chain_admin_addr = 5;
     optional string governance_addr = 6;
+    optional uint64 settlement_layer = 7;
 }

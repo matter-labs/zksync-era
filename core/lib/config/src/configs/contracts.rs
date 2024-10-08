@@ -55,6 +55,8 @@ pub struct ContractsConfig {
     pub l2_da_validator_addr: Option<Address>,
 
     pub chain_admin_addr: Option<Address>,
+
+    pub settlement_layer: Option<u64>,
 }
 
 impl ContractsConfig {
@@ -80,6 +82,7 @@ impl ContractsConfig {
             user_facing_diamond_proxy_addr: Some(Address::repeat_byte(0x16)),
             chain_admin_addr: Some(Address::repeat_byte(0x18)),
             l2_da_validator_addr: Some(Address::repeat_byte(0x19)),
+            settlement_layer: Some(0),
         }
     }
 }

@@ -217,13 +217,11 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk_inception ecosystem init --deploy-paymaster --deploy-erc20 \
-            --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
-            --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-            --server-db-name=zksync_server_localhost_era \
-            --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-            --prover-db-name=zksync_prover_localhost_era \
-            --ignore-prerequisites --verbose \
-            --observability=false
+          --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_era \
+          --ignore-prerequisites --verbose \
+          --observability=false
 
       - name: Read Custom Token address and set as environment variable
         run: |
@@ -250,8 +248,6 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_validium \
-          --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --prover-db-name=zksync_prover_localhost_validium \
           --chain validium
 
       - name: Create and initialize chain with Custom Token
@@ -273,8 +269,6 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_custom_token \
-          --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --prover-db-name=zksync_prover_localhost_custom_token \
           --chain custom_token
 
       - name: Initialize gateway chain
@@ -292,13 +286,11 @@ jobs:
             --ignore-prerequisites
 
           ci_run zk_inception chain init \
-            --deploy-paymaster \
-            --l1-rpc-url=http://localhost:8545 \
-            --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-            --server-db-name=zksync_server_localhost_gateway \
-            --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-            --prover-db-name=zksync_prover_localhost_gateway \
-            --chain gateway
+          --deploy-paymaster \
+          --l1-rpc-url=http://localhost:8545 \
+          --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
+          --server-db-name=zksync_server_localhost_gateway \
+          --chain gateway
 
           ci_run zk_inception chain convert-to-gateway --chain gateway --ignore-prerequisites
 
@@ -313,6 +305,14 @@ jobs:
           ci_run zk_inception chain migrate-to-gateway --chain era --gateway-chain-name gateway
           ci_run zk_inception chain migrate-to-gateway --chain validium --gateway-chain-name gateway
           ci_run zk_inception chain migrate-to-gateway --chain custom_token --gateway-chain-name gateway
+      
+      - name: Migrate back era
+        run: |
+          ci_run zk_inception chain migrate-from-gateway --chain era --gateway-chain-name gateway
+
+      - name: Migrate to gateway again
+        run: |
+          ci_run zk_inception chain migrate-to-gateway --chain era --gateway-chain-name gateway
 
       - name: Build test dependencies
         run: |

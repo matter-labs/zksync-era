@@ -136,6 +136,7 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("chain_admin_addr")?,
+            settlement_layer: self.settlement_layer,
         })
     }
 
@@ -200,6 +201,7 @@ impl ProtoRepr for proto::Contracts {
             user_facing_diamond_proxy: this
                 .user_facing_diamond_proxy_addr
                 .map(|a| format!("{:?}", a)),
+            settlement_layer: this.settlement_layer,
         }
     }
 }

@@ -150,8 +150,8 @@ impl ZksNamespace {
         self.state.api_config.l2_testnet_paymaster_addr
     }
 
-    pub fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
-        self.state.api_config.bridge_addresses.clone()
+    pub async fn get_bridge_contracts_impl(&self) -> BridgeAddresses {
+        self.state.bridge_addresses_handle.read().await
     }
 
     pub fn l1_chain_id_impl(&self) -> U64 {
@@ -939,7 +939,6 @@ impl ZksNamespace {
         batch_number: L1BatchNumber,
     ) -> Result<Option<L1ProcessingDetails>, Web3Error> {
         let mut storage = self.state.acquire_connection().await?;
-        println!("\n\nHey1\n\n");
         self.state
             .start_info
             .ensure_not_pruned(batch_number, &mut storage)

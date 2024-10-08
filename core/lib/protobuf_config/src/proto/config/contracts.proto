@@ -44,4 +44,5 @@ message Contracts {
   optional EcosystemContracts ecosystem_contracts = 4;
   optional string user_facing_bridgehub = 5;
   optional string user_facing_diamond_proxy = 6;
+  optional uint64 settlement_layer = 7;
 }

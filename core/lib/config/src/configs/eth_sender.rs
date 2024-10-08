@@ -42,6 +42,7 @@ impl EthConfig {
                 pubdata_sending_mode: PubdataSendingMode::Calldata,
                 tx_aggregation_paused: false,
                 tx_aggregation_only_prove_and_execute: false,
+                time_in_mempool_in_l1_blocks_cap: 1800,
                 ignore_db_nonce: None,
                 priority_tree_start_index: Some(0),
             }),
@@ -130,6 +131,9 @@ pub struct SenderConfig {
     #[serde(default = "SenderConfig::default_tx_aggregation_only_prove_and_execute")]
     pub tx_aggregation_only_prove_and_execute: bool,
 
+    /// Cap of time in mempool for price calculations
+    #[serde(default = "SenderConfig::default_time_in_mempool_in_l1_blocks_cap")]
+    pub time_in_mempool_in_l1_blocks_cap: u32,
     /// Used to ignore db nonce check for sender and only use the RPC one.
     pub ignore_db_nonce: Option<bool>,
     /// Index of the priority operation to start building the `PriorityMerkleTree` from.
@@ -183,6 +187,13 @@ impl SenderConfig {
     const fn default_tx_aggregation_only_prove_and_execute() -> bool {
         false
     }
+
+    pub const fn default_time_in_mempool_in_l1_blocks_cap() -> u32 {
+        let blocks_per_hour = 3600 / 12;
+        // we cap it at 6h to not allow nearly infinite values when a tx is stuck for a long time
+        // 1,001 ^ 1800 ~= 6, so by default we cap exponential price formula at roughly median * 6
+        blocks_per_hour * 6
+    }
 }
 
 #[derive(Debug, Deserialize, Copy, Clone, PartialEq, Default)]
@@ -192,8 +203,10 @@ pub struct GasAdjusterConfig {
     /// Number of blocks collected by GasAdjuster from which base_fee median is taken
     pub max_base_fee_samples: usize,
     /// Parameter of the transaction base_fee_per_gas pricing formula
+    #[serde(default = "GasAdjusterConfig::default_pricing_formula_parameter_a")]
     pub pricing_formula_parameter_a: f64,
     /// Parameter of the transaction base_fee_per_gas pricing formula
+    #[serde(default = "GasAdjusterConfig::default_pricing_formula_parameter_b")]
     pub pricing_formula_parameter_b: f64,
     /// Parameter by which the base fee will be multiplied for internal purposes
     pub internal_l1_pricing_multiplier: f64,
@@ -239,5 +252,13 @@ impl GasAdjusterConfig {
 
     pub const fn default_internal_pubdata_pricing_multiplier() -> f64 {
         1.0
+    }
+
+    pub const fn default_pricing_formula_parameter_a() -> f64 {
+        1.1
+    }
+
+    pub const fn default_pricing_formula_parameter_b() -> f64 {
+        1.001
     }
 }

@@ -10152,8 +10152,8 @@ dependencies = [
  "async-trait",
  "rlp",
  "thiserror",
- "tokio",
- "zksync_types",
+ "zksync_basic_types",
+ "zksync_crypto_primitives",
 ]
 
 [[package]]
@@ -10180,7 +10180,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.27.0"
+version = "24.28.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -10476,7 +10476,6 @@ dependencies = [
  "itertools 0.10.5",
  "once_cell",
  "thiserror",
- "tokio",
  "tracing",
  "vise",
  "zk_evm 0.131.0-rc.2",
@@ -11302,8 +11301,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm2"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=74577d9be13b1bff9d1a712389731f669b179e47#74577d9be13b1bff9d1a712389731f669b179e47"
+version = "0.2.1"
+source = "git+https://github.com/matter-labs/vm2.git?rev=a233d44bbe61dc6a758a754c3b78fe4f83e56699#a233d44bbe61dc6a758a754c3b78fe4f83e56699"
 dependencies = [
  "enum_dispatch",
  "primitive-types",
@@ -11314,8 +11313,8 @@ dependencies = [
 
 [[package]]
 name = "zksync_vm2_interface"
-version = "0.1.0"
-source = "git+https://github.com/matter-labs/vm2.git?rev=74577d9be13b1bff9d1a712389731f669b179e47#74577d9be13b1bff9d1a712389731f669b179e47"
+version = "0.2.1"
+source = "git+https://github.com/matter-labs/vm2.git?rev=a233d44bbe61dc6a758a754c3b78fe4f83e56699#a233d44bbe61dc6a758a754c3b78fe4f83e56699"
 dependencies = [
  "primitive-types",
 ]

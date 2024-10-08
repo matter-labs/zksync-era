@@ -37,6 +37,8 @@ zksync_utils = { path = "../core/lib/utils" }
 zksync_consensus_roles = "=0.3.0"
 zksync_consensus_crypto = "=0.3.0"
 zksync_protobuf = "=0.3.0"
+zksync_types = { path = "../core/lib/types" }
+zksync_web3_decl = { path = "../core/lib/web3_decl" }
 
 # External dependencies
 anyhow = "1.0.82"

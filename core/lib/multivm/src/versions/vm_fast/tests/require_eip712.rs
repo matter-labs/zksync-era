@@ -1,5 +1,5 @@
 use ethabi::Token;
-use zksync_eth_signer::{EthereumSigner, TransactionParameters};
+use zksync_eth_signer::TransactionParameters;
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
 use zksync_types::{
     fee::Fee, l2::L2Tx, transaction_request::TransactionRequest,
@@ -38,8 +38,8 @@ impl VmTester<()> {
 /// This test deploys 'buggy' account abstraction code, and then tries accessing it both with legacy
 /// and EIP712 transactions.
 /// Currently we support both, but in the future, we should allow only EIP712 transactions to access the AA accounts.
-#[tokio::test]
-async fn test_require_eip712() {
+#[test]
+fn test_require_eip712() {
     // Use 3 accounts:
     // - `private_address` - EOA account, where we have the key
     // - `account_address` - AA account, where the contract is deployed
@@ -104,7 +104,7 @@ async fn test_require_eip712() {
         blob_versioned_hashes: None,
     };
 
-    let aa_tx = private_account.sign_legacy_tx(aa_raw_tx).await;
+    let aa_tx = private_account.sign_legacy_tx(aa_raw_tx);
     let (tx_request, hash) = TransactionRequest::from_bytes(&aa_tx, L2ChainId::from(270)).unwrap();
 
     let mut l2_tx: L2Tx = L2Tx::from_request(tx_request, 10000).unwrap();
@@ -151,7 +151,6 @@ async fn test_require_eip712() {
     let signature = private_account
         .get_pk_signer()
         .sign_typed_data(&domain, &transaction_request)
-        .await
         .unwrap();
     let encoded_tx = transaction_request.get_signed_bytes(&signature).unwrap();
 
