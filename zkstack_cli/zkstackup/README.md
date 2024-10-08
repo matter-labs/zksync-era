@@ -39,12 +39,6 @@ The `zkstackup` script provides various options for installing ZK Stack CLI:
 - `-v, --version <version>`  
   Git tag to use when installing from a repository. Ignored if `--branch` or `--commit` is provided.
 
-- `--inception`  
-  Installs `zk_inception` from the repository. By default, `zkstackup` installs `zk_inception` and `zk_supervisor`.
-
-- `--supervisor`  
-  Installs `zk_supervisor` from the repository.
-
 ### Local Installation
 
 If you provide a local path using the `-p` or `--path` option, `zkstackup` will install ZK Stack CLI from that

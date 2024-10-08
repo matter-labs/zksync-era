@@ -24,7 +24,7 @@ Google VM instance, you also need to install [gcloud](https://cloud.google.com/s
 Now, you can use `zkstack` and `prover_cli` tools for setting up the env and running prover subsystem.
 
 ```shell
-cargo +nightly-2024-08-01 install --git https://github.com/matter-labs/zksync-era/ --locked zkstack zk_supervisor prover_cli --force
+cargo +nightly-2024-08-01 install --git https://github.com/matter-labs/zksync-era/ --locked zkstack prover_cli --force
 ```
 
 ## Initializing system

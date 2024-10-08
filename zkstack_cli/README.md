@@ -1,11 +1,7 @@
 # ZK Stack CLI
 
-Toolkit for creating and managing ZK Stack chains.
-
-## ZK Inception
-
-`ZK Inception` facilitates the creation and management of ZK Stacks. Commands are interactive but can also accept
-arguments via the command line.
+Toolkit for creating and managing ZK Stack chains. `ZK Stack CLI` facilitates the creation and management of ZK Stacks.
+Commands are interactive but can also accept arguments via the command line.
 
 ### Dependencies
 
@@ -14,10 +10,10 @@ dependencies on your machine. Ignore the Environment section for now.
 
 ### Installation
 
-Install `zk_inception` from Git:
+Install `zkstack` from Git:
 
 ```bash
-cargo install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception zk_supervisor --force
+cargo install --git https://github.com/matter-labs/zksync-era/ --locked zkstack --force
 ```
 
 Or manually build from a local copy of the [ZKsync](https://github.com/matter-labs/zksync-era/) repository:
@@ -26,7 +22,7 @@ Or manually build from a local copy of the [ZKsync](https://github.com/matter-la
 ./bin/zkt
 ```
 
-This command installs `zk_inception` and `zk_supervisor` from the current repository.
+This command installs `zkstack` from the current repository.
 
 ### Foundry Integration
 
@@ -51,13 +47,13 @@ BridgeHub, shared bridges, and state transition managers.
 To create a ZK Stack project, start by creating an ecosystem:
 
 ```bash
-zk_inception ecosystem create
+zkstack ecosystem create
 ```
 
 If you choose not to start database & L1 containers after creating the ecosystem, you can later run:
 
 ```bash
-zk_inception containers
+zkstack containers
 ```
 
 Execute subsequent commands from within the created ecosystem folder:
@@ -71,14 +67,14 @@ cd path/to/ecosystem/name
 If the ecosystem has never been deployed before, initialize it:
 
 ```bash
-zk_inception ecosystem init
+zkstack ecosystem init
 ```
 
 This initializes the first ZK chain, which becomes the default. Override with `--chain <name>` if needed. For default
 params, use:
 
 ```bash
-zk_inception ecosystem init --dev
+zkstack ecosystem init --dev
 ```
 
 If the process gets stuck, resume it with `--resume`. This flag keeps track of already sent transactions and sends new
@@ -98,7 +94,7 @@ To verify contracts, use the `--verify` flag.
 To change the default ZK chain:
 
 ```bash
-zk_inception ecosystem change-default-chain
+zkstack ecosystem change-default-chain
 ```
 
 IMPORTANT: Currently, you cannot use an existing ecosystem to register a new chain. This feature will be added in the
@@ -109,19 +105,19 @@ future.
 To setup [era-observability](https://github.com/matter-labs/era-observability):
 
 ```bash
-zk_inception ecosystem setup-observability
+zkstack ecosystem setup-observability
 ```
 
 Or run:
 
 ```bash
-zk_inception ecosystem init --observability
+zkstack ecosystem init --observability
 ```
 
 To start observability containers:
 
 ```bash
-zk_inception containers --observability
+zkstack containers --observability
 ```
 
 ### ZK Chain
@@ -131,7 +127,7 @@ zk_inception containers --observability
 The first ZK chain is generated upon ecosystem creation. Create additional chains and switch between them:
 
 ```bash
-zk_inception chain create
+zkstack chain create
 ```
 
 #### Init
@@ -139,7 +135,7 @@ zk_inception chain create
 Deploy contracts and initialize Zk Chain:
 
 ```bash
-zk_inception chain init
+zkstack chain init
 ```
 
 This registers the chain in the BridgeHub and deploys all necessary contracts. Manual initialization steps:
@@ -154,7 +150,7 @@ by a third party).
 To run the chain:
 
 ```bash
-zk_inception server
+zkstack server
 ```
 
 You can specify the component you want to run using `--components` flag
@@ -180,13 +176,13 @@ information.
 Initialize the prover:
 
 ```bash
-zk_inception prover init
+zkstack prover init
 ```
 
 Run the prover:
 
 ```bash
-zk_inception prover run
+zkstack prover run
 ```
 
 Specify the prover component with `--component <component>`. Components:
@@ -202,13 +198,13 @@ For `witness-generator`, specify the round with `--round <round>`. Rounds:
 Download required binaries (`solc`, `zksolc`, `vyper`, `zkvyper`):
 
 ```bash
-zk_inception contract-verifier init
+zkstack contract-verifier init
 ```
 
 Run the contract verifier:
 
 ```bash
-zk_inception contract-verifier run
+zkstack contract-verifier run
 ```
 
 ### External Node
@@ -220,7 +216,7 @@ Commands for running an external node:
 Prepare configs:
 
 ```bash
-zk_inception en configs
+zkstack en configs
 ```
 
 This ensures no port conflicts with the main node.
@@ -230,7 +226,7 @@ This ensures no port conflicts with the main node.
 Prepare the databases:
 
 ```bash
-zk_inception en init
+zkstack en init
 ```
 
 #### Run
@@ -238,7 +234,7 @@ zk_inception en init
 Run the external node:
 
 ```bash
-zk_inception en run
+zkstack en run
 ```
 
 ### Portal
@@ -247,7 +243,7 @@ Once you have at least one chain initialized, you can run the [portal](https://g
 web-app to bridge tokens between L1 and L2 and more:
 
 ```bash
-zk_inception portal
+zkstack portal
 ```
 
 This command will start the dockerized portal app using configuration from `apps/portal.config.json` file inside your
@@ -263,7 +259,7 @@ contracts and more.
 First, each chain should be initialized:
 
 ```bash
-zk_inception explorer init
+zkstack explorer init
 ```
 
 This command creates a database to store explorer data and generatesdocker compose file with explorer services
@@ -272,7 +268,7 @@ This command creates a database to store explorer data and generatesdocker compo
 Next, for each chain you want to have an explorer, you need to start its backend services:
 
 ```bash
-zk_inception explorer backend --chain <chain_name>
+zkstack explorer backend --chain <chain_name>
 ```
 
 This command uses previously created docker compose file to start the services (api, data fetcher, worker) required for
@@ -281,7 +277,7 @@ the explorer.
 Finally, you can run the explorer app:
 
 ```bash
-zk_inception explorer run
+zkstack explorer run
 ```
 
 This command will start the dockerized explorer app using configuration from `apps/explorer.config.json` file inside
@@ -293,15 +289,15 @@ your ecosystem directory. You can edit this file to configure the app if needed.
 To update your node:
 
 ```bash
-zk_inception update
+zkstack update
 ```
 
 This command pulls the latest changes, syncs the general config for all chains, and raises a warning if L1 upgrades are
 needed.
 
-## ZK Supervisor
+## Dev
 
-Tools for developing ZKsync.
+The subcommand `zkstack dev` offers tools for developing ZKsync.
 
 ### Database
 
