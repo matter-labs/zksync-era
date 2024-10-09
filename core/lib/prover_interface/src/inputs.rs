@@ -137,19 +137,6 @@ impl WitnessInputMerklePaths {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VMRunWitnessInputDataLegacy {
-    pub l1_batch_number: L1BatchNumber,
-    pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
-    pub initial_heap_content: Vec<(usize, U256)>,
-    pub protocol_version: ProtocolVersionId,
-    pub bootloader_code: Vec<[u8; 32]>,
-    pub default_account_code_hash: U256,
-    pub storage_refunds: Vec<u32>,
-    pub pubdata_costs: Vec<i32>,
-    pub witness_block_state: WitnessStorageState,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VMRunWitnessInputData {
     pub l1_batch_number: L1BatchNumber,
     pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
@@ -159,6 +146,21 @@ pub struct VMRunWitnessInputData {
     pub default_account_code_hash: U256,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub evm_emulator_code_hash: Option<U256>,
+    pub storage_refunds: Vec<u32>,
+    pub pubdata_costs: Vec<i32>,
+    pub witness_block_state: WitnessStorageState,
+}
+
+// skip_serializing_if for field evm_emulator_code_hash doesn't work fine with bincode,
+// so we are implementing custom deserialization for it
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VMRunWitnessInputDataLegacy {
+    pub l1_batch_number: L1BatchNumber,
+    pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
+    pub initial_heap_content: Vec<(usize, U256)>,
+    pub protocol_version: ProtocolVersionId,
+    pub bootloader_code: Vec<[u8; 32]>,
+    pub default_account_code_hash: U256,
     pub storage_refunds: Vec<u32>,
     pub pubdata_costs: Vec<i32>,
     pub witness_block_state: WitnessStorageState,
@@ -195,13 +197,11 @@ impl StoredObject for VMRunWitnessInputData {
     }
 
     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
-        if let Ok(res) = bincode::deserialize::<VMRunWitnessInputData>(&bytes).map_err(From::from) {
-            return Ok(res);
-        } else {
+        bincode::deserialize::<VMRunWitnessInputData>(&bytes).or_else(|| {
             bincode::deserialize::<VMRunWitnessInputDataLegacy>(&bytes)
-                .map_err(From::from)
                 .map(Into::into)
-        }
+                .map_err(Into::into)
+        })
     }
 }
 
