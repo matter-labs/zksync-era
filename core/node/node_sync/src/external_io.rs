@@ -358,6 +358,7 @@ impl StateKeeperIO for ExternalIO {
         let default_account_code_hash = protocol_version
             .default_account_code_hash()
             .context("Missing default account code hash")?;
+        let evm_emulator_code_hash = protocol_version.evm_emulator_code_hash();
         let l2_system_upgrade_tx_hash = protocol_version.l2_system_upgrade_tx_hash();
         self.pool
             .connection_tagged("sync_layer")
@@ -375,6 +376,7 @@ impl StateKeeperIO for ExternalIO {
                 BaseSystemContractsHashes {
                     bootloader: bootloader_code_hash,
                     default_aa: default_account_code_hash,
+                    evm_emulator: evm_emulator_code_hash,
                 },
                 l2_system_upgrade_tx_hash,
             )
@@ -388,9 +390,22 @@ impl StateKeeperIO for ExternalIO {
             .get_base_system_contract(default_account_code_hash, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch default AA code for {protocol_version:?}"))?;
+        let evm_emulator = if let Some(hash) = evm_emulator_code_hash {
+            Some(
+                self.get_base_system_contract(hash, cursor.next_l2_block)
+                    .await
+                    .with_context(|| {
+                        format!("cannot fetch EVM emulator code for {protocol_version:?}")
+                    })?,
+            )
+        } else {
+            None
+        };
+
         Ok(BaseSystemContracts {
             bootloader,
             default_aa,
+            evm_emulator,
         })
     }
 

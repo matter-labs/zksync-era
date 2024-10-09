@@ -61,19 +61,17 @@ fn test_nonce_holder() {
         // it will fail again and again. At the same time we have to keep the same storage, because we want to keep the nonce holder contract state.
         // The easiest way in terms of lifetimes is to reuse `vm_builder` to achieve it.
         vm.reset_state(true);
-        let mut transaction_data: TransactionData = account
-            .get_l2_tx_for_execute_with_nonce(
-                Execute {
-                    contract_address: Some(account.address),
-                    calldata: vec![12],
-                    value: Default::default(),
-                    factory_deps: vec![],
-                },
-                None,
-                Nonce(nonce),
-            )
-            .into();
-
+        let tx = account.get_l2_tx_for_execute_with_nonce(
+            Execute {
+                contract_address: Some(account.address),
+                calldata: vec![12],
+                value: Default::default(),
+                factory_deps: vec![],
+            },
+            None,
+            Nonce(nonce),
+        );
+        let mut transaction_data = TransactionData::new(tx, false);
         transaction_data.signature = vec![test_mode.into()];
         vm.vm.push_raw_transaction(transaction_data, 0, 0, true);
         let result = vm.vm.execute(VmExecutionMode::OneTx);

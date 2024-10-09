@@ -244,7 +244,7 @@ impl ProtoRepr for proto::TransactionV25 {
             },
             T::L2(l2) => abi::Transaction::L2(required(&l2.rlp).context("rlp")?.clone()),
         };
-        tx.try_into()
+        Transaction::from_abi(tx, true)
     }
 
     fn build(tx: &Self::Type) -> Self {
