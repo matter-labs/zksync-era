@@ -100,9 +100,12 @@ jobs:
       - name: Run Witness Generator
         run: |
           ci_run zk_inception prover run --component=witness-generator --round=all-rounds --docker=false &
-      - name: Run Circuit Prover
+      - name: Run WVG
         run: |
-          ci_run cd prover && cargo run --release --bin zksync_circuit_prover -- --witness-vector-generator-count=10 &
+          ci_run zk_inception prover run --component=witness-vector-generator --threads=10 --docker=false &
+      - name: Run Prover
+        run: |
+          ci_run zk_inception prover run --component=prover --docker=false &
           
           # Capture the PID of the prover run process
           PROVER_PID=$!
@@ -116,7 +119,7 @@ jobs:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
           BATCH_NUMBER: 1
           INTERVAL: 30
-          TIMEOUT: 1200
+          TIMEOUT: 1800
         run: |
           ci_run chmod +x ./bin/prover_checkers/prover_jobs_status_checker
           
