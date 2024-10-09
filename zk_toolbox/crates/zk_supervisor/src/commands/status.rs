@@ -30,63 +30,67 @@ pub struct StatusArgs {
     pub url: Option<String>,
 }
 
+struct BoxProperties {
+    longest_line: usize,
+    border: String,
+    boxed_msg: Vec<String>,
+}
+
+impl BoxProperties {
+    fn new(msg: &str) -> Self {
+        let longest_line = msg
+            .lines()
+            .map(|line| line.len())
+            .max()
+            .unwrap_or(0)
+            .max(DEFAULT_LINE_WIDTH);
+        let width = longest_line + 2;
+        let border = "─".repeat(width);
+        let boxed_msg = msg
+            .lines()
+            .map(|line| format!("│ {:longest_line$} │", line))
+            .collect();
+        Self {
+            longest_line,
+            border,
+            boxed_msg,
+        }
+    }
+}
+
 fn bordered_box(msg: &str) -> String {
-    let longest_line = msg
-        .lines()
-        .map(|line| line.len())
-        .max()
-        .unwrap_or(0)
-        .max(DEFAULT_LINE_WIDTH);
-    let width = longest_line + 2;
-    let border = "─".repeat(width);
-    let boxed_msg = msg
-        .lines()
-        .map(|line| format!("│ {:longest_line$} │", line))
-        .collect::<Vec<_>>()
-        .join("\n");
-    format!("┌{}┐\n{}\n└{}┘\n", border, boxed_msg, border)
+    let properties = BoxProperties::new(msg);
+    format!(
+        "┌{}┐\n{}\n└{}┘\n",
+        properties.border,
+        properties.boxed_msg.join("\n"),
+        properties.border
+    )
 }
 
 fn two_bordered_boxes(msg1: &str, msg2: &str) -> String {
-    let longest_line1 = msg1
-        .lines()
-        .map(|line| line.len())
-        .max()
-        .unwrap_or(0)
-        .max(DEFAULT_LINE_WIDTH);
-    let longest_line2 = msg2
-        .lines()
-        .map(|line| line.len())
-        .max()
-        .unwrap_or(0)
-        .max(DEFAULT_LINE_WIDTH);
-    let width1 = longest_line1 + 2;
-    let width2 = longest_line2 + 2;
+    let properties1 = BoxProperties::new(msg1);
+    let properties2 = BoxProperties::new(msg2);
 
-    let border1 = "─".repeat(width1);
-    let border2 = "─".repeat(width2);
+    let max_lines = properties1.boxed_msg.len().max(properties2.boxed_msg.len());
+    let header = format!("┌{}┐  ┌{}┐\n", properties1.border, properties2.border);
+    let footer = format!("└{}┘  └{}┘\n", properties1.border, properties2.border);
 
-    let boxed_msg1: Vec<String> = msg1
-        .lines()
-        .map(|line| format!("│ {:longest_line1$} │", line))
-        .collect();
-
-    let boxed_msg2: Vec<String> = msg2
-        .lines()
-        .map(|line| format!("│ {:longest_line2$} │", line))
-        .collect();
-
-    let max_lines = boxed_msg1.len().max(boxed_msg2.len());
-
-    let header = format!("┌{}┐  ┌{}┐\n", border1, border2);
-    let footer = format!("└{}┘  └{}┘\n", border1, border2);
-    let empty_line1 = format!("│ {:longest_line1$} │", "");
-    let empty_line2 = format!("│ {:longest_line2$} │", "");
+    let empty_line1 = format!(
+        "│ {:longest_line$} │",
+        "",
+        longest_line = properties1.longest_line
+    );
+    let empty_line2 = format!(
+        "│ {:longest_line$} │",
+        "",
+        longest_line = properties2.longest_line
+    );
 
     let boxed_info: Vec<String> = (0..max_lines)
         .map(|i| {
-            let line1 = boxed_msg1.get(i).unwrap_or(&empty_line1);
-            let line2 = boxed_msg2.get(i).unwrap_or(&empty_line2);
+            let line1 = properties1.boxed_msg.get(i).unwrap_or(&empty_line1);
+            let line2 = properties2.boxed_msg.get(i).unwrap_or(&empty_line2);
             format!("{}  {}", line1, line2)
         })
         .collect();
