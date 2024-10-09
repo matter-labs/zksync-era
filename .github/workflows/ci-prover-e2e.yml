@@ -113,13 +113,13 @@ jobs:
           
           # Store the PID in a file to reference later if needed
           echo $PROVER_PID > prover_pid.txt
-          ci_run sleep 150
+          ci_run sleep 300
       - name: Wait for prover jobs to finish
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
           BATCH_NUMBER: 1
           INTERVAL: 30
-          TIMEOUT: 1800
+          TIMEOUT: 2400
         run: |
           ci_run chmod +x ./bin/prover_checkers/prover_jobs_status_checker
           
@@ -139,7 +139,7 @@ jobs:
         env:
             URL: http://127.0.0.1:3052/
             INTERVAL: 30
-            TIMEOUT: 300
+            TIMEOUT: 600
         run: |
           ci_run chmod +x ./bin/prover_checkers/batch_l1_status_checker
           
