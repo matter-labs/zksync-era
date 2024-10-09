@@ -3,6 +3,7 @@ use std::{collections::HashMap, convert::TryInto, fmt::Debug};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
+use zksync_object_store::_reexports::BoxedError;
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::Eip4844Blobs, block::L2BlockExecutionData,
@@ -137,6 +138,19 @@ impl WitnessInputMerklePaths {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VMRunWitnessInputDataLegacy {
+    pub l1_batch_number: L1BatchNumber,
+    pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
+    pub initial_heap_content: Vec<(usize, U256)>,
+    pub protocol_version: ProtocolVersionId,
+    pub bootloader_code: Vec<[u8; 32]>,
+    pub default_account_code_hash: U256,
+    pub storage_refunds: Vec<u32>,
+    pub pubdata_costs: Vec<i32>,
+    pub witness_block_state: WitnessStorageState,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VMRunWitnessInputData {
     pub l1_batch_number: L1BatchNumber,
     pub used_bytecodes: HashMap<U256, Vec<[u8; 32]>>,
@@ -151,6 +165,23 @@ pub struct VMRunWitnessInputData {
     pub witness_block_state: WitnessStorageState,
 }
 
+impl From<VMRunWitnessInputDataLegacy> for VMRunWitnessInputData {
+    fn from(value: VMRunWitnessInputDataLegacy) -> Self {
+        Self {
+            l1_batch_number: value.l1_batch_number,
+            used_bytecodes: value.used_bytecodes,
+            initial_heap_content: value.initial_heap_content,
+            protocol_version: value.protocol_version,
+            bootloader_code: value.bootloader_code,
+            default_account_code_hash: value.default_account_code_hash,
+            evm_emulator_code_hash: None,
+            storage_refunds: value.storage_refunds,
+            pubdata_costs: value.pubdata_costs,
+            witness_block_state: value.witness_block_state,
+        }
+    }
+}
+
 impl StoredObject for VMRunWitnessInputData {
     const BUCKET: Bucket = Bucket::WitnessInput;
 
@@ -160,7 +191,19 @@ impl StoredObject for VMRunWitnessInputData {
         format!("vm_run_data_{key}.bin")
     }
 
-    serialize_using_bincode!();
+    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
+        bincode::serialize(self).map_err(Into::into)
+    }
+
+    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
+        if let Ok(res) = bincode::deserialize::<VMRunWitnessInputData>(&bytes).map_err(From::from) {
+            return Ok(res);
+        } else {
+            bincode::deserialize::<VMRunWitnessInputDataLegacy>(&bytes)
+                .map_err(From::from)
+                .map(Into::into)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
