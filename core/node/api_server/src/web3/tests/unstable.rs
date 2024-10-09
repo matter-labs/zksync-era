@@ -34,6 +34,9 @@ impl HttpTest for GetTeeProofsTest {
         tee_proof_generation_dal
             .save_attestation(&pubkey, &attestation)
             .await?;
+        tee_proof_generation_dal
+            .insert_tee_proof_generation_job(batch_no, tee_type)
+            .await?;
 
         let signature = vec![0, 1, 2, 3, 4];
         let proof_vec = vec![5, 6, 7, 8, 9];

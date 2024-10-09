@@ -44,11 +44,9 @@ impl TeeRequestProcessor {
     ) -> Result<Json<TeeProofGenerationDataResponse>, RequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        println!("foobar_01");
         let mut min_batch_number: Option<L1BatchNumber> = None;
         let mut missing_range: Option<(L1BatchNumber, L1BatchNumber)> = None;
 
-        println!("foobar_02");
         let result = loop {
             let l1_batch_number = match self
                 .lock_batch_for_proving(request.tee_type, min_batch_number)
@@ -58,17 +56,14 @@ impl TeeRequestProcessor {
                 None => break Ok(Json(TeeProofGenerationDataResponse(None))),
             };
 
-            println!("foobar_03");
             match self
                 .tee_verifier_input_for_existing_batch(l1_batch_number)
                 .await
             {
                 Ok(input) => {
-                    println!("foobar_04");
                     break Ok(Json(TeeProofGenerationDataResponse(Some(Box::new(input)))));
                 }
                 Err(RequestProcessorError::ObjectStore(ObjectStoreError::KeyNotFound(_))) => {
-                    println!("foobar_05");
                     missing_range = match missing_range {
                         Some((start, _)) => Some((start, l1_batch_number)),
                         None => Some((l1_batch_number, l1_batch_number)),
@@ -77,14 +72,11 @@ impl TeeRequestProcessor {
                     min_batch_number = Some(min_batch_number.unwrap_or(l1_batch_number) + 1);
                 }
                 Err(err) => {
-                    println!("foobar_06");
                     self.unlock_batch(l1_batch_number, request.tee_type).await?;
                     break Err(err);
                 }
             }
-            println!("foobar_07");
         };
-        println!("foobar_08");
 
         if let Some((start, end)) = missing_range {
             tracing::warn!(
