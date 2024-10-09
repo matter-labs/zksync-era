@@ -79,13 +79,19 @@ fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Ver
         return get_solc_releases(shell, arch);
     }
 
-    let response: std::process::Output = Cmd::new(cmd!(
+    let mut cmd = cmd!(
         shell,
-        "curl https://api.github.com/repos/{repo}/releases"
-    ))
-    .run_with_output()?;
+        "curl -f https://api.github.com/repos/{repo}/releases"
+    );
 
-    let response = String::from_utf8(response.stdout)?;
+    if let Ok(token) = shell.var("GITHUB_TOKEN") {
+        cmd = cmd.args(vec![
+            "-H".to_string(),
+            format!("Authorization: Bearer {}", token),
+        ]);
+    }
+
+    let response = String::from_utf8(Cmd::new(cmd).run_with_output()?.stdout)?;
     let releases: Vec<GitHubRelease> = serde_json::from_str(&response)?;
 
     let mut versions = vec![];

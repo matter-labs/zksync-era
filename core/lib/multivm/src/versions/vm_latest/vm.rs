@@ -1,10 +1,12 @@
+use std::collections::HashMap;
+
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     vm::VmVersion,
     Transaction, H256,
 };
-use zksync_utils::u256_to_h256;
+use zksync_utils::{be_words_to_bytes, h256_to_u256, u256_to_h256};
 
 use crate::{
     glue::GlueInto,
@@ -77,6 +79,20 @@ pub struct Vm<S: WriteStorage, H: HistoryMode> {
 impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
     pub(super) fn gas_remaining(&self) -> u32 {
         self.state.local_state.callstack.current.ergs_remaining
+    }
+
+    pub(crate) fn decommit_bytecodes(&self, hashes: &[H256]) -> HashMap<H256, Vec<u8>> {
+        let bytecodes = hashes.iter().map(|&hash| {
+            let bytecode_words = self
+                .state
+                .decommittment_processor
+                .known_bytecodes
+                .inner()
+                .get(&h256_to_u256(hash))
+                .unwrap_or_else(|| panic!("Bytecode with hash {hash:?} not found"));
+            (hash, be_words_to_bytes(bytecode_words))
+        });
+        bytecodes.collect()
     }
 
     // visible for testing

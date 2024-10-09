@@ -49,6 +49,8 @@ impl L1BatchUpdates {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use zksync_multivm::vm_latest::TransactionVmExt;
     use zksync_types::{L2BlockNumber, ProtocolVersionId, H256};
 
@@ -76,6 +78,7 @@ mod tests {
             BlockGasCount::default(),
             VmExecutionMetrics::default(),
             vec![],
+            HashMap::new(),
             vec![],
         );
 
