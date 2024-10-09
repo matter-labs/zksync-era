@@ -43,10 +43,12 @@ pub(super) async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> any
 
 pub fn merkle_tree_metadata_from_deployed_contracts(contracts: &[DeployedContract]) -> BlockOutput {
     let deduped_log_queries = get_deduped_log_queries(&get_storage_logs(contracts));
+    tracing::info!("deduped_log_queries_len: {}", deduped_log_queries.len());
 
     let (deduplicated_writes, _): (Vec<_>, Vec<_>) = deduped_log_queries
         .into_iter()
         .partition(|log_query| log_query.rw_flag);
+    tracing::info!("deduplicated_writes_len: {}", deduplicated_writes.len());
 
     let storage_logs: Vec<TreeInstruction> = deduplicated_writes
         .iter()
