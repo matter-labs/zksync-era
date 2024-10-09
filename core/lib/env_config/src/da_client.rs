@@ -34,7 +34,14 @@ impl FromEnv for DataAvailabilitySecrets {
                     .ok()
                     .map(|s| s.parse())
                     .transpose()?;
-                Self::Avail(AvailSecrets { seed_phrase })
+                let gas_relay_api_key = env::var("DA_GAS_RELAY_API_KEY")
+                    .ok()
+                    .map(|s| s.parse())
+                    .transpose()?;
+                Self::Avail(AvailSecrets {
+                    seed_phrase,
+                    gas_relay_api_key,
+                })
             }
             _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
         };
@@ -94,7 +101,6 @@ mod tests {
         max_retries: usize,
         gas_relay_mode: bool,
         gas_relay_api_url: &str,
-        gas_relay_api_key: &str,
     ) -> DAClientConfig {
         DAClientConfig::Avail(AvailConfig {
             api_node_url: Some(api_node_url.to_string()),
@@ -104,7 +110,6 @@ mod tests {
             max_retries,
             gas_relay_mode,
             gas_relay_api_url: Some(gas_relay_api_url.to_string()),
-            gas_relay_api_key: Some(gas_relay_api_key.to_string()),
         })
     }
 
@@ -120,7 +125,6 @@ mod tests {
             DA_MAX_RETRIES="3"
             DA_GAS_RELAY_MODE="true"
             DA_GAS_RELAY_API_URL="localhost:23456"
-            DA_GAS_RELAY_API_KEY="0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
         "#;
 
         lock.set_env(config);
@@ -136,7 +140,6 @@ mod tests {
                 "3".parse::<usize>().unwrap(),
                 true,
                 "localhost:23456",
-                "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
             )
         );
     }

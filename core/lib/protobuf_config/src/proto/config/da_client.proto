@@ -12,7 +12,6 @@ message AvailConfig {
   optional uint64 max_retries = 6;
   optional bool gas_relay_mode = 7;
   optional string gas_relay_api_url = 8;
-  optional string gas_relay_api_key = 9;
   reserved 3; reserved "seed";
 }
 

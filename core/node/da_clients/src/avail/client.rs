@@ -11,7 +11,7 @@ use bytes::Bytes;
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
 use subxt_signer::ExposeSecret;
-use zksync_config::configs::da_client::avail::{AvailConfig, AvailSecrets};
+use zksync_config::configs::da_client::avail::{AvailConfig, AvailSecrets, GasRelayAPIKey};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
@@ -25,6 +25,7 @@ pub struct AvailClient {
     config: AvailConfig,
     sdk_client: Option<Arc<RawAvailClient>>,
     api_client: Arc<reqwest::Client>,
+    gas_relay_api_key: Option<GasRelayAPIKey>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -87,6 +88,7 @@ impl AvailClient {
                 config,
                 sdk_client: None,
                 api_client: Arc::new(api_client),
+                gas_relay_api_key: secrets.gas_relay_api_key,
             });
         }
 
@@ -101,6 +103,7 @@ impl AvailClient {
             config,
             sdk_client: Some(Arc::new(sdk_client)),
             api_client: Arc::new(api_client),
+            gas_relay_api_key: None,
         })
     }
 }
@@ -125,7 +128,12 @@ impl DataAvailabilityClient for AvailClient {
                 .header("Content-Type", "text/plain")
                 .header(
                     "Authorization",
-                    self.config.gas_relay_api_key.clone().unwrap(),
+                    self.gas_relay_api_key
+                        .as_ref()
+                        .expect("No gas relay api key")
+                        .0
+                        .expose_secret()
+                        .clone(),
                 )
                 .send()
                 .await
@@ -154,7 +162,13 @@ impl DataAvailabilityClient for AvailClient {
                     .get(&status_url)
                     .header(
                         "Authorization",
-                        self.config.gas_relay_api_key.clone().unwrap(),
+                        &self
+                            .gas_relay_api_key
+                            .as_ref()
+                            .expect("No gas relay api key")
+                            .0
+                            .expose_secret()
+                            .clone(),
                     )
                     .send()
                     .await

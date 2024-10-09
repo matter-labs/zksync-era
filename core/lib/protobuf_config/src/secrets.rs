@@ -5,7 +5,7 @@ use secrecy::ExposeSecret;
 use zksync_basic_types::{seed_phrase::SeedPhrase, url::SensitiveUrl};
 use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
-    da_client::avail::AvailSecrets,
+    da_client::avail::{AvailSecrets, GasRelayAPIKey},
     secrets::{DataAvailabilitySecrets, Secrets},
     DatabaseSecrets, L1Secrets,
 };
@@ -110,6 +110,12 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                     )
                     .unwrap(),
                 ),
+                gas_relay_api_key: Some(
+                    GasRelayAPIKey::from_str(
+                        required(&avail_secret.gas_relay_api_key).context("seed_phrase")?,
+                    )
+                    .unwrap(),
+                ),
             }),
         };
 
@@ -133,7 +139,24 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                     None
                 };
 
-                Some(DaSecrets::Avail(AvailSecret { seed_phrase }))
+                let gas_relay_api_key = if config.gas_relay_api_key.is_some() {
+                    Some(
+                        config
+                            .clone()
+                            .gas_relay_api_key
+                            .unwrap()
+                            .0
+                            .expose_secret()
+                            .to_string(),
+                    )
+                } else {
+                    None
+                };
+
+                Some(DaSecrets::Avail(AvailSecret {
+                    seed_phrase,
+                    gas_relay_api_key,
+                }))
             }
         };
 

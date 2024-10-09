@@ -35,11 +35,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                                 .context("gas_relay_api_url")?
                                 .clone(),
                         ),
-                        gas_relay_api_key: Some(
-                            required(&conf.gas_relay_api_key)
-                                .context("gas_relay_api_key")?
-                                .clone(),
-                        ),
                     }
                 } else {
                     AvailConfig {
@@ -58,9 +53,8 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                             .gas_relay_mode
                             .context("gas_relay_mode")
                             .unwrap_or(false),
-                        // if gas_relay_mode is not true, then the gas_relay_api_url and gas_relay_api_key are not required
+                        // if gas_relay_mode is not true, then the gas_relay_api_url is not required
                         gas_relay_api_url: None,
-                        gas_relay_api_key: None,
                     }
                 })
             }
@@ -84,7 +78,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         max_retries: Some(config.max_retries as u64),
                         gas_relay_mode: Some(config.gas_relay_mode),
                         gas_relay_api_url: config.gas_relay_api_url.clone(),
-                        gas_relay_api_key: config.gas_relay_api_key.clone(),
                     },
                 )),
             },

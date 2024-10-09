@@ -16,7 +16,9 @@ use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{
     configs::{
-        self, da_client::DAClientConfig::Avail, eth_sender::PubdataSendingMode,
+        self,
+        da_client::{avail::GasRelayAPIKey, DAClientConfig::Avail},
+        eth_sender::PubdataSendingMode,
         external_price_api_client::ForcedPriceClientConfig,
     },
     AvailConfig,
@@ -952,7 +954,6 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
             max_retries: self.sample(rng),
             gas_relay_mode: self.sample(rng),
             gas_relay_api_url: self.sample(rng),
-            gas_relay_api_key: self.sample(rng),
         })
     }
 }
@@ -961,6 +962,7 @@ impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::DataAvailabilitySecrets {
         configs::secrets::DataAvailabilitySecrets::Avail(configs::da_client::avail::AvailSecrets {
             seed_phrase: Some(SeedPhrase(Secret::new(self.sample(rng)))),
+            gas_relay_api_key: Some(GasRelayAPIKey(Secret::new(self.sample(rng)))),
         })
     }
 }
