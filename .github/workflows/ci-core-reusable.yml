@@ -351,7 +351,7 @@ jobs:
 
       - name: Setup attester committee for the consensus chain
         run: |
-          ci_run zk_inception consensus set-attester-committee --chain consensus &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log 
+          ci_run zk_inception consensus set-attester-committee --chain consensus --from-genesis &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log 
 
       - name: Run integration tests
         run: |
