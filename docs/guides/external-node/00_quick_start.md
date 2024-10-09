@@ -38,8 +38,8 @@ sudo docker compose --file testnet-external-node-docker-compose.yml down --volum
 
 ### Observability
 
-You can see the status of the node (after recovery) in [local grafana dashboard](http://localhost:3000/dashboards).
-You can also access a debug page with more information about the node [here](http://localhost:5000).
+You can see the status of the node (after recovery) in [local grafana dashboard](http://localhost:3000/dashboards). You
+can also access a debug page with more information about the node [here](http://localhost:5000).
 
 The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be accessed on port `3061`.
 
