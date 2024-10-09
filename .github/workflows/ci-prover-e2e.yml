@@ -71,13 +71,10 @@ jobs:
       - name: Build prover binaries
         run: |
           ci_run cargo build --release --workspace --manifest-path=prover/Cargo.toml
-          ci_run cargo install --path prover/crates/bin/prover_cli --force
       - name: Prepare prover subsystem
         run: |
           ci_run zk_inception prover init-bellman-cuda --clone --verbose
           ci_run zk_inception prover setup-keys --mode=download --region=us --verbose
-          ci_run zk_supervisor prover insert-version --default --verbose
-          ci_run zk_supervisor prover insert-batch --number=1 --default --verbose
       - name: Run server
         run: |
           ci_run zk_inception server --uring --chain=provers --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &
