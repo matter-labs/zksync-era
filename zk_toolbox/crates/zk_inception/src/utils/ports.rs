@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt, net::SocketAddr, ops::Range, path::Path};
+use std::{collections::HashMap, fmt, ops::Range, path::Path};
 
 use anyhow::{bail, Context, Result};
 use config::{
@@ -108,12 +108,6 @@ impl EcosystemPorts {
                                     *val = Value::String(url.to_string());
                                 }
                             }
-                        }
-                    } else if key.as_str().map(|s| s.ends_with("addr")).unwrap_or(false) {
-                        let socket_addr = val.as_str().unwrap().parse::<SocketAddr>()?;
-                        if let Some(new_port) = updated_ports.get(&socket_addr.port()) {
-                            let new_socket_addr = SocketAddr::new(socket_addr.ip(), *new_port);
-                            *val = Value::String(new_socket_addr.to_string());
                         }
                     }
                 }

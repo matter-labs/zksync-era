@@ -802,7 +802,6 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusConfig {
         use configs::consensus::{ConsensusConfig, Host, NodePublicKey};
         ConsensusConfig {
-            port: self.sample(rng),
             server_addr: self.sample(rng),
             public_addr: Host(self.sample(rng)),
             max_payload_size: self.sample(rng),
