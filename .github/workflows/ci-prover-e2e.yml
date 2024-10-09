@@ -78,14 +78,24 @@ jobs:
       - name: Run server
         run: |
           ci_run zk_inception server --uring --chain=provers --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &
-          ci_run sleep 60
       - name: Run Gateway
         run: |
           ci_run zk_inception prover run --component=gateway --docker=false &
-          ci_run sleep 90
+          ci_run sleep 60
       - name: Run Prover Job Monitor
         run: |
           ci_run zk_inception prover run --component=prover-job-monitor --docker=false &
+      - name: Wait for batch to be available
+        env:
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
+          BATCH_NUMBER: 1
+          INTERVAL: 30
+          TIMEOUT: 300
+        run: |
+          ci_run chmod +x ./bin/batch_availability_checker
+          
+          PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
+          ci_run ./bin/batch_availability_checker
       - name: Run Witness Generator
         run: |
           ci_run zk_inception prover run --component=witness-generator --round=all-rounds --docker=false &
@@ -110,10 +120,10 @@ jobs:
           INTERVAL: 30
           TIMEOUT: 1500
         run: |
-          ci_run chmod +x ./bin/prover_jobs_status_checker
+          ci_run chmod +x ./bin/prover_checkers/prover_jobs_status_checker
           
           PASSED_ENV_VARS="DATABASE_URL,BATCH_NUMBER,INTERVAL,TIMEOUT" \
-          ci_run ./bin/prover_jobs_status_checker
+          ci_run ./bin/prover_checkers/prover_jobs_status_checker
 
       - name: Kill prover & start compressor
         run: |
@@ -130,7 +140,7 @@ jobs:
             INTERVAL: 30
             TIMEOUT: 300
         run: |
-          ci_run chmod +x ./bin/batch_l1_status_checker
+          ci_run chmod +x ./bin/prover_checkers/batch_l1_status_checker
           
           PASSED_ENV_VARS="URL,INTERVAL,TIMEOUT" \
-          ci_run ./bin/batch_l1_status_checker
+          ci_run ./bin/prover_checkers/batch_l1_status_checker
