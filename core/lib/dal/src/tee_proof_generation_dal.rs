@@ -38,55 +38,41 @@ impl TeeProofGenerationDal<'_, '_> {
         let min_batch_number = min_batch_number.map_or(0, |num| i64::from(num.0));
         let query = sqlx::query!(
             r#"
-            WITH
-            tee_proofs AS (
+            WITH upsert AS (
                 SELECT
-                    *
+                    p.l1_batch_number
                 FROM
-                    tee_proof_generation_details
-                WHERE
-                    tee_type = $1
-            ),
-            
-            upsert AS (
-                SELECT
-                    proof_generation_details.l1_batch_number
-                FROM
-                    proof_generation_details
+                    proof_generation_details p
                 LEFT JOIN
-                    l1_batches
-                    ON proof_generation_details.l1_batch_number = l1_batches.number
+                    l1_batches l1
+                    ON p.l1_batch_number = l1.number
                 LEFT JOIN
-                    tee_proofs
-                    ON proof_generation_details.l1_batch_number = tee_proofs.l1_batch_number
+                    tee_proof_generation_details tee
+                    ON
+                        p.l1_batch_number = tee.l1_batch_number
+                        AND tee.tee_type = $1
                 WHERE
                     (
-                        proof_generation_details.vm_run_data_blob_url IS NOT NULL
-                        AND proof_generation_details.proof_gen_data_blob_url IS NOT NULL
-                        AND l1_batches.hash IS NOT NULL
-                        AND l1_batches.aux_data_hash IS NOT NULL
-                        AND l1_batches.meta_parameters_hash IS NOT NULL
+                        p.l1_batch_number >= $5
+                        AND p.vm_run_data_blob_url IS NOT NULL
+                        AND p.proof_gen_data_blob_url IS NOT NULL
+                        AND l1.hash IS NOT NULL
+                        AND l1.aux_data_hash IS NOT NULL
+                        AND l1.meta_parameters_hash IS NOT NULL
                     )
                     AND (
-                        (
-                            tee_proofs.tee_type IS NULL
-                            AND tee_proofs.status IS NULL
-                            AND tee_proofs.l1_batch_number IS NULL
-                        ) OR (
-                            (
-                                tee_proofs.status = $3
-                                OR (
-                                    tee_proofs.status = $2
-                                    AND tee_proofs.prover_taken_at < NOW() - $4::INTERVAL
-                                )
+                        tee.l1_batch_number IS NULL
+                        OR (
+                            tee.status = $3
+                            OR (
+                                tee.status = $2
+                                AND tee.prover_taken_at < NOW() - $4::INTERVAL
                             )
-                            AND tee_proofs.l1_batch_number >= $5
                         )
                     )
                 ORDER BY
                     l1_batch_number ASC
-                LIMIT
-                    1
+                FETCH FIRST ROW ONLY
             )
             
             INSERT INTO
