@@ -81,7 +81,6 @@ jobs:
           ci_run sleep 90
       - name: Run Gateway
         run: |
-          curl -v --header 'Content-Type: application/json' --url http://127.0.0.1:3421/proof_generation_data --data '{}'
           ci_run zk_inception prover run --component=gateway --docker=false &
           ci_run sleep 60
       - name: Run Prover Job Monitor
