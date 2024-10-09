@@ -134,9 +134,10 @@ jobs:
           kill $PROVER_PID
           
           ci_run zk_inception prover run --component=compressor --docker=false &
-          ci_run sleep 60
+          ci_run sleep 420
       - name: Wait for batch to be executed on L1
         env:
+            DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
             URL: http://127.0.0.1:3052/
             INTERVAL: 30
             TIMEOUT: 600
