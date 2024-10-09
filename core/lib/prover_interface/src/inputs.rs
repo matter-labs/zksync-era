@@ -198,7 +198,7 @@ impl StoredObject for VMRunWitnessInputData {
 
     fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
         zksync_object_store::bincode::deserialize::<VMRunWitnessInputData>(&bytes).or_else(|_| {
-            bincode::deserialize::<VMRunWitnessInputDataLegacy>(&bytes)
+            zksync_object_store::bincode::deserialize::<VMRunWitnessInputDataLegacy>(&bytes)
                 .map(Into::into)
                 .map_err(Into::into)
         })
