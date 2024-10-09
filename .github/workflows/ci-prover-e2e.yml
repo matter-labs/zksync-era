@@ -77,12 +77,10 @@ jobs:
           ci_run zk_inception prover setup-keys --mode=download --region=us --verbose
       - name: Run server
         run: |
-          ci_run zk_inception server --uring --chain=provers --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,da_dispatcher,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &
-          ci_run sleep 90
+          ci_run zk_inception server --uring --chain=provers --components=api,tree,eth,state_keeper,,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &
       - name: Run Gateway
         run: |
           ci_run zk_inception prover run --component=gateway --docker=false &
-          ci_run sleep 60
       - name: Run Prover Job Monitor
         run: |
           ci_run zk_inception prover run --component=prover-job-monitor --docker=false &
@@ -102,7 +100,7 @@ jobs:
           ci_run zk_inception prover run --component=witness-generator --round=all-rounds --docker=false &
       - name: Run Circuit Prover
         run: |
-          ci_run cargo run --release --manifest-path=prover/crates/bin/circuit_prover/Cargo.toml -- --witness-vector-generator-count=8 &
+          ci_run cd prover && cargo run --release --bin zksync_circuit_prover -- --witness-vector-generator-count=10 &
           
           # Capture the PID of the prover run process
           PROVER_PID=$!
@@ -110,7 +108,7 @@ jobs:
           
           # Store the PID in a file to reference later if needed
           echo $PROVER_PID > prover_pid.txt
-          ci_run sleep 300
+          ci_run sleep 150
       - name: Wait for prover jobs to finish
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
