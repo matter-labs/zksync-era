@@ -154,6 +154,7 @@ fn make_config(
     genesis_spec: Option<config::GenesisSpec>,
 ) -> config::ConsensusConfig {
     config::ConsensusConfig {
+        port: cfg.server_addr.port(),
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
         max_payload_size: usize::MAX,
