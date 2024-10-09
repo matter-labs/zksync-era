@@ -110,7 +110,7 @@ jobs:
           
           # Store the PID in a file to reference later if needed
           echo $PROVER_PID > prover_pid.txt
-          ci_run sleep 180
+          ci_run sleep 300
       - name: Wait for prover jobs to finish
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
