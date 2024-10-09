@@ -209,6 +209,7 @@ async fn get_updates_manager_witness_input_data(
 ) -> anyhow::Result<VMRunWitnessInputData> {
     let initial_heap_content = output.batch.final_bootloader_memory.clone().unwrap(); // might be just empty
     let default_aa = system_env.base_system_smart_contracts.hashes().default_aa;
+    let evm_emulator = system_env.base_system_smart_contracts.hashes().evm_emulator;
     let bootloader = system_env.base_system_smart_contracts.hashes().bootloader;
     let bootloader_code_bytes = connection
         .factory_deps_dal()
@@ -240,6 +241,22 @@ async fn get_updates_manager_witness_input_data(
         used_bytecodes.insert(account_code_hash, account_bytecode);
     }
 
+    let evm_emulator_code_hash = if let Some(evm_emulator) = evm_emulator {
+        let evm_emulator_code_hash = h256_to_u256(evm_emulator);
+        if used_contract_hashes.contains(&evm_emulator_code_hash) {
+            let evm_emulator_bytecode = connection
+                .factory_deps_dal()
+                .get_sealed_factory_dep(evm_emulator)
+                .await?
+                .ok_or_else(|| anyhow!("EVM Simulator bytecode should exist"))?;
+            let evm_emulator_bytecode = bytes_to_chunks(&evm_emulator_bytecode);
+            used_bytecodes.insert(evm_emulator_code_hash, evm_emulator_bytecode);
+        }
+        Some(evm_emulator_code_hash)
+    } else {
+        None
+    };
+
     let storage_refunds = output.batch.final_execution_state.storage_refunds.clone();
     let pubdata_costs = output.batch.final_execution_state.pubdata_costs.clone();
     let witness_block_state = WitnessStorageState {
@@ -254,6 +271,7 @@ async fn get_updates_manager_witness_input_data(
         protocol_version: system_env.version,
         bootloader_code,
         default_account_code_hash: account_code_hash,
+        evm_emulator_code_hash,
         storage_refunds,
         pubdata_costs,
         witness_block_state,

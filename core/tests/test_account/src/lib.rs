@@ -154,7 +154,7 @@ impl Account {
         let max_fee_per_gas = U256::from(0u32);
         let gas_limit = U256::from(20_000_000);
         let factory_deps = execute.factory_deps;
-        abi::Transaction::L1 {
+        let tx = abi::Transaction::L1 {
             tx: abi::L2CanonicalTransaction {
                 tx_type: PRIORITY_OPERATION_L2_TX_TYPE.into(),
                 from: address_to_u256(&self.address),
@@ -186,9 +186,8 @@ impl Account {
             .into(),
             factory_deps,
             eth_block: 0,
-        }
-        .try_into()
-        .unwrap()
+        };
+        Transaction::from_abi(tx, false).unwrap()
     }
 
     pub fn get_test_contract_transaction(
