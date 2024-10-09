@@ -20,7 +20,12 @@ main() {
   if [ -n "$ZKSTACKUP_PATH" ]; then
     install_local
   else
-    install_from_repo
+    if [ -n "$ZKSTACKUP_LOCAL" ]; then
+      ZKSTACKUP_PATH="./"
+      install_local
+    else
+      install_from_repo
+    fi
   fi
 
   zkstack_banner
@@ -63,6 +68,9 @@ parse_args() {
       shift
       ZKSTACKUP_PATH=$1
       ;;
+    -l | --local)
+      ZKSTACKUP_LOCAL=true
+      ;;
     -r | --repo)
       shift
       ZKSTACKUP_REPO=$1
@@ -101,6 +109,7 @@ Usage: $(basename "$0") [OPTIONS]
 
 Options:
   -p, --path <path>         Specify a local path to install ZK Stack CLI from. Ignored if --repo is provided.
+  -l, --local               Install ZK Stack CLI from the current directory. 
   -r, --repo <repo>         GitHub repository to install from (e.g., "matter-labs/zksync-era"). Defaults to "matter-labs/zksync-era".
   -b, --branch <branch>     Git branch to use when installing from a repository. Ignored if --commit or --version is provided.
   -c, --commit <commit>     Git commit hash to use when installing from a repository. Ignored if --branch or --version is provided.
@@ -114,7 +123,11 @@ EOF
 
 install_local() {
   if [ ! -d "$ZKSTACKUP_PATH/zkstack_cli" ]; then
-    err "Path $ZKSTACKUP_PATH does not contain zkstack_cli"
+    if [ -n "$ZKSTACKUP_LOCAL" ]; then
+      err "Current folder does not contain zkstack_cli"
+    else
+      err "Path $ZKSTACKUP_PATH does not contain zkstack_cli"
+    fi
     exit 1
   fi
 

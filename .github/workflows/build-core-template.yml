@@ -127,7 +127,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
           ci_run ./bin/zk || true
-          ci_run ./bin/zkt || true
+          ci_run zkstackup --local || true
           ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: build contracts

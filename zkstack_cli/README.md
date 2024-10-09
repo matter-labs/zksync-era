@@ -10,16 +10,22 @@ dependencies on your machine. Ignore the Environment section for now.
 
 ### Installation
 
-Install `zkstack` from Git:
+You can use `zkstackup` to install and manage `zkstack`:
 
 ```bash
-cargo install --git https://github.com/matter-labs/zksync-era/ --locked zkstack --force
+curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkstackup/install | bash
+```
+
+Then install the most recent version with:
+
+```bash
+zkstackup
 ```
 
 Or manually build from a local copy of the [ZKsync](https://github.com/matter-labs/zksync-era/) repository:
 
 ```bash
-./bin/zkt
+zkstackup  --local
 ```
 
 This command installs `zkstack` from the current repository.
