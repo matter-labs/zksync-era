@@ -98,10 +98,7 @@ impl Tokenizable for StoredBatchInfo {
                     .ok()
                     .context("overflow")
                     .context("index_repeated_storage_changes")?,
-                number_of_layer1_txs: number_of_layer1_txs
-                    .try_into()
-                    .context("overflow")
-                    .context("number_of_layer1_txs")?,
+                number_of_layer1_txs,
                 priority_operations_hash: parse_h256(&priority_operations_hash)
                     .context("priority_operations_hash")?,
                 l2_logs_tree_root: parse_h256(&l2_logs_tree_root).context("l2_logs_tree_root")?,
