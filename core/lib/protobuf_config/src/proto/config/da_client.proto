@@ -10,6 +10,9 @@ message AvailConfig {
   optional uint32 app_id = 4;
   optional uint64 timeout = 5;
   optional uint64 max_retries = 6;
+  optional bool gas_relay_mode = 7;
+  optional string gas_relay_api_url = 8;
+  optional string gas_relay_api_key = 9;
   reserved 3; reserved "seed";
 }
 
