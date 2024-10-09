@@ -32,8 +32,13 @@ impl EN {
     /// Task running a consensus node for the external node.
     /// It may be a validator, but it cannot be a leader (cannot propose blocks).
     ///
-    /// NOTE: Before starting the consensus node it fetches all the blocks
+    /// If `enable_pregenesis` is false,
+    /// before starting the consensus node it fetches all the blocks
     /// older than consensus genesis from the main node using json RPC.
+    /// NOTE: currently `enable_pregenesis` is hardcoded to `false` in `era.rs`.
+    ///   True is used only in tests. Once the `block_metadata` RPC is enabled everywhere
+    ///   this flag should be removed and fetching pregenesis blocks will always be done
+    ///   over the gossip network.
     pub async fn run(
         self,
         ctx: &ctx::Ctx,

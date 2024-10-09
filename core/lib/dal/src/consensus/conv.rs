@@ -16,7 +16,7 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-use super::{proto, *};
+use super::*;
 
 impl ProtoFmt for BlockMetadata {
     type Proto = proto::BlockMetadata;

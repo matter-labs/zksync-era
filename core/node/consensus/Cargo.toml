@@ -37,7 +37,6 @@ zksync_vm_executor.workspace = true
 zksync_vm_interface.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
-prost.workspace = true
 secrecy.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
@@ -53,6 +52,3 @@ zksync_test_account.workspace = true
 
 test-casing.workspace = true
 rand.workspace = true
-
-[build-dependencies]
-zksync_protobuf_build.workspace = true

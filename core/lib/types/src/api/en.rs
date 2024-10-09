@@ -65,7 +65,7 @@ pub struct ConsensusGenesis(pub serde_json::Value);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttestationStatus(pub serde_json::Value);
 
-/// Block metadata that should have been committed to on L1, but it is not.\
+/// Block metadata that should have been committed to on L1, but it is not.
 ///
 /// The wrapped JSON value corresponds to `zksync_dal::consensus::BlockMetadata`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
