@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-BASE_DIR=${XDG_CONFIG_HOME:-$HOME}
-ZKT_DIR=${ZKT_DIR:-"$BASE_DIR/.zkt"}
-ZKT_BIN_DIR="$ZKT_DIR/bin"
+HOME_DIR=${XDG_CONFIG_HOME:-$HOME}
+LOCAL_DIR=${LOCAL_DIR:-"$HOME_DIR/.local"}
+BIN_DIR="$LOCAL_DIR/bin"
 
 BINS=()
 
@@ -13,7 +13,7 @@ main() {
   zkstack_banner
 
   check_prerequisites
-  mkdir -p "$ZKT_BIN_DIR"
+  mkdir -p "$BIN_DIR"
 
   BINS+=(zkstack)
 
@@ -31,7 +31,7 @@ main() {
   zkstack_banner
 
   for bin in "${BINS[@]}"; do
-    success "Installed $bin to $ZKT_BIN_DIR/$bin"
+    success "Installed $bin to $BIN_DIR/$bin"
   done
 }
 
@@ -140,7 +140,7 @@ install_local() {
 
   for bin in "${BINS[@]}"; do
     say "Installing $bin"
-    ensure cargo install --root $ZKT_DIR --path ./crates/$bin --force
+    ensure cargo install --root $LOCAL_DIR --path ./crates/$bin --force
   done
 }
 
@@ -157,16 +157,16 @@ install_from_repo() {
     if [ -n "$ZKSTACKUP_COMMIT" ] || [ -n "$ZKSTACKUP_BRANCH" ]; then
       warn "Ignoring --commit and --branch arguments when installing by version"
     fi
-    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKSTACKUP_REPO" --tag "zkstack_cli-v$ZKSTACKUP_VERSION" --locked "${BINS[@]}" --force
+    ensure cargo install --root $LOCAL_DIR --git "https://github.com/$ZKSTACKUP_REPO" --tag "zkstack_cli-v$ZKSTACKUP_VERSION" --locked "${BINS[@]}" --force
   elif [ -n "$ZKSTACKUP_COMMIT" ]; then
     if [ -n "$ZKSTACKUP_BRANCH" ]; then
       warn "Ignoring --branch argument when installing by commit"
     fi
-    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKSTACKUP_REPO" --rev "$ZKSTACKUP_COMMIT" --locked "${BINS[@]}" --force
+    ensure cargo install --root $LOCAL_DIR --git "https://github.com/$ZKSTACKUP_REPO" --rev "$ZKSTACKUP_COMMIT" --locked "${BINS[@]}" --force
   elif [ -n "$ZKSTACKUP_BRANCH" ]; then
-    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKSTACKUP_REPO" --branch "$ZKSTACKUP_BRANCH" --locked "${BINS[@]}" --force
+    ensure cargo install --root $LOCAL_DIR --git "https://github.com/$ZKSTACKUP_REPO" --branch "$ZKSTACKUP_BRANCH" --locked "${BINS[@]}" --force
   else
-    ensure cargo install --root $ZKT_DIR --git "https://github.com/$ZKSTACKUP_REPO" --locked "${BINS[@]}" --force
+    ensure cargo install --root $LOCAL_DIR --git "https://github.com/$ZKSTACKUP_REPO" --locked "${BINS[@]}" --force
   fi
 }
 
