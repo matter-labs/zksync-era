@@ -1,10 +1,6 @@
 {
   "db_name": "PostgreSQL",
-<<<<<<<< HEAD:core/lib/dal/.sqlx/query-6d2a29adc9cceb8ef0d614dd3b9d512670180908eab56f49e70d42e1a933bd97.json
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                fee_address\n            FROM\n                l1_batches\n            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            WHERE\n                eth_commit_tx_id IS NOT NULL\n                AND eth_prove_tx_id IS NULL\n            ORDER BY\n                number\n            LIMIT\n                $1\n            ",
-========
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input\n            FROM\n                l1_batches\n            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            WHERE\n                eth_commit_tx_id IS NOT NULL\n                AND eth_prove_tx_id IS NULL\n            ORDER BY\n                number\n            LIMIT\n                $1\n            ",
->>>>>>>> origin/main:core/lib/dal/.sqlx/query-860de4af5c11c3a7c9eb660ec7049749bd5fc78b09578589c26d3017cc6bd192.json
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                fee_address\n            FROM\n                l1_batches\n            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            WHERE\n                eth_commit_tx_id IS NOT NULL\n                AND eth_prove_tx_id IS NULL\n            ORDER BY\n                number\n            LIMIT\n                $1\n            ",
   "describe": {
     "columns": [
       {
@@ -143,7 +139,7 @@
         "type_info": "Bytea"
       },
       {
-        "ordinal": 26,
+        "ordinal": 27,
         "name": "fee_address",
         "type_info": "Bytea"
       }
@@ -184,9 +180,5 @@
       false
     ]
   },
-<<<<<<<< HEAD:core/lib/dal/.sqlx/query-6d2a29adc9cceb8ef0d614dd3b9d512670180908eab56f49e70d42e1a933bd97.json
-  "hash": "6d2a29adc9cceb8ef0d614dd3b9d512670180908eab56f49e70d42e1a933bd97"
-========
-  "hash": "860de4af5c11c3a7c9eb660ec7049749bd5fc78b09578589c26d3017cc6bd192"
->>>>>>>> origin/main:core/lib/dal/.sqlx/query-860de4af5c11c3a7c9eb660ec7049749bd5fc78b09578589c26d3017cc6bd192.json
+  "hash": "0784f2cc13f85763cc7da29902850fa76a03907957b7a0d87ea55a7873f3312e"
 }
