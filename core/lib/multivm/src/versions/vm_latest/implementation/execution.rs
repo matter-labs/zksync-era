@@ -14,6 +14,7 @@ use crate::{
             circuits_capacity::circuit_statistic_from_cycles, dispatcher::TracerDispatcher,
             DefaultExecutionTracer, PubdataTracer, RefundsTracer,
         },
+        utils::extract_bytecodes_marked_as_known,
         vm::Vm,
     },
     HistoryMode,
@@ -55,6 +56,10 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             .then_some(RefundsTracer::new(self.batch_env.clone(), self.subversion));
         let mut tx_tracer: DefaultExecutionTracer<S, H::Vm1_5_0> = DefaultExecutionTracer::new(
             self.system_env.default_validation_computational_gas_limit,
+            self.system_env
+                .base_system_smart_contracts
+                .evm_emulator
+                .is_some(),
             execution_mode,
             mem::take(dispatcher),
             self.storage.clone(),
@@ -95,6 +100,8 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             circuit_statistic_from_cycles(tx_tracer.circuits_tracer.statistics),
         );
         let result = tx_tracer.result_tracer.into_result();
+        let factory_deps_marked_as_known = extract_bytecodes_marked_as_known(&logs.events);
+        let new_known_factory_deps = self.decommit_bytecodes(&factory_deps_marked_as_known);
         *dispatcher = tx_tracer.dispatcher;
 
         let result = VmExecutionResultAndLogs {
@@ -102,6 +109,7 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
             logs,
             statistics,
             refunds,
+            new_known_factory_deps: Some(new_known_factory_deps),
         };
 
         (stop_reason, result)

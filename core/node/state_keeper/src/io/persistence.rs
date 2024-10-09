@@ -347,7 +347,7 @@ impl StateKeeperOutputHandler for TreeWritesPersistence {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::collections::{HashMap, HashSet};
 
     use assert_matches::assert_matches;
     use futures::FutureExt;
@@ -462,6 +462,7 @@ mod tests {
             tx,
             tx_result,
             vec![],
+            HashMap::new(),
             BlockGasCount::default(),
             VmExecutionMetrics::default(),
             vec![],

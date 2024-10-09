@@ -94,6 +94,7 @@ impl FactoryDepsDal<'_, '_> {
         &mut self,
         bootloader_hash: H256,
         default_aa_hash: H256,
+        evm_emulator_hash: Option<H256>,
     ) -> anyhow::Result<BaseSystemContracts> {
         let bootloader_bytecode = self
             .get_sealed_factory_dep(bootloader_hash)
@@ -115,9 +116,26 @@ impl FactoryDepsDal<'_, '_> {
             code: bytes_to_be_words(default_aa_bytecode),
             hash: default_aa_hash,
         };
+
+        let evm_emulator_code = if let Some(evm_emulator_hash) = evm_emulator_hash {
+            let evm_emulator_bytecode = self
+                .get_sealed_factory_dep(evm_emulator_hash)
+                .await
+                .context("failed loading EVM emulator code")?
+                .with_context(|| format!("EVM emulator code with hash {evm_emulator_hash:?} should be present in the database"))?;
+
+            Some(SystemContractCode {
+                code: bytes_to_be_words(evm_emulator_bytecode),
+                hash: evm_emulator_hash,
+            })
+        } else {
+            None
+        };
+
         Ok(BaseSystemContracts {
             bootloader: bootloader_code,
             default_aa: default_aa_code,
+            evm_emulator: evm_emulator_code,
         })
     }
 

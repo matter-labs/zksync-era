@@ -277,6 +277,8 @@ impl L2BlockMaxPayloadSizeSealer {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use zksync_utils::time::seconds_since_epoch;
 
     use super::*;
@@ -287,6 +289,7 @@ mod tests {
             tx,
             create_execution_result([]),
             vec![],
+            HashMap::new(),
             BlockGasCount::default(),
             VmExecutionMetrics::default(),
             vec![],
