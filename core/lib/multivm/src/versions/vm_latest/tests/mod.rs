@@ -8,6 +8,7 @@ mod call_tracer;
 mod circuits;
 mod code_oracle;
 mod constants;
+mod evm_emulator;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
