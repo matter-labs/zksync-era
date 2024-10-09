@@ -3278,7 +3278,7 @@ dependencies = [
  "bytes",
  "http 1.1.0",
  "opentelemetry",
- "reqwest 0.12.7",
+ "reqwest 0.12.8",
 ]
 
 [[package]]
@@ -3295,7 +3295,7 @@ dependencies = [
  "opentelemetry-proto",
  "opentelemetry_sdk",
  "prost 0.13.3",
- "reqwest 0.12.7",
+ "reqwest 0.12.8",
  "thiserror",
  "tokio",
  "tonic",
@@ -4078,9 +4078,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.7"
+version = "0.12.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8f4955649ef5c38cc7f9e8aa41761d48fb9677197daea9984dc54f56aad5e63"
+checksum = "f713147fbe92361e52392c73b8c9e48c04c6625bce969ef54dc901e58e042a7b"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -6697,6 +6697,7 @@ dependencies = [
  "lazy_static",
  "prost 0.12.6",
  "rand",
+ "reqwest 0.12.8",
  "secrecy",
  "serde",
  "serde_json",
@@ -7021,7 +7022,7 @@ dependencies = [
  "hex",
  "num",
  "once_cell",
- "reqwest 0.12.7",
+ "reqwest 0.12.8",
  "serde",
  "serde_json",
  "thiserror",
