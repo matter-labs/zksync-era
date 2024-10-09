@@ -32,7 +32,7 @@ jobs:
 
       - name: Init
         run: |
-          ci_run zkstackup --local
+          ci_run ./zkstack_cli/zkstackup/zkstackup --local
 
       # This does both linting and "building". We're using `zk lint prover` as it's common practice within our repo
       # `zk lint prover` = cargo clippy, which does cargo check behind the scenes, which is a lightweight version of cargo build

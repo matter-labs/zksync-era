@@ -32,7 +32,7 @@ jobs:
 
       - name: Init
         run: |
-          ci_run zkstackup --local
+          ci_run ./zkstack_cli/zkstackup/zkstackup --local
           ci_run zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
 
       - name: Formatting
@@ -67,7 +67,7 @@ jobs:
 
       - name: Init
         run: |
-          ci_run zkstackup --local
+          ci_run ./zkstack_cli/zkstackup/zkstackup --local
           ci_run run_retried rustup show
 
       - name: Prover unit tests
