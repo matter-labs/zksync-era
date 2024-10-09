@@ -254,7 +254,7 @@ testFees('Test fees', function () {
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
 
         await mainNode.killAndWaitForShutdown();
-        await mainNodeSpawner.spawnMainNode({
+        mainNode = await mainNodeSpawner.spawnMainNode({
             newL1GasPrice: l1GasPrice,
             newPubdataPrice: l1GasPrice
         });
@@ -298,7 +298,7 @@ testFees('Test fees', function () {
         if (isETHBasedChain) return;
 
         await mainNode.killAndWaitForShutdown();
-        await mainNodeSpawner.spawnMainNode({
+        mainNode = await mainNodeSpawner.spawnMainNode({
             newL1GasPrice: l1GasPrice,
             newPubdataPrice: l1GasPrice,
             externalPriceApiClientForcedNumerator: 300,
