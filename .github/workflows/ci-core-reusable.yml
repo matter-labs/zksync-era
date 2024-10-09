@@ -57,7 +57,10 @@ jobs:
         run: |
           ci_run run_retried rustup show
           ci_run ./zkstack_cli/zkstackup/zkstackup --local
-          ci_run /root/.zkt/bin/zkstack dev contracts
+
+      - name: Build contracts
+        run: |
+          ci_run zkstack dev contracts
 
       - name: Contracts unit tests
         run: ci_run yarn l1-contracts test
@@ -114,6 +117,9 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run ./zkstack_cli/zkstackup/zkstackup --local
+
+      - name: Create and initialize legacy chain
+        run: |
           ci_run zkstack chain create \
             --chain-name legacy \
             --chain-id sequential \

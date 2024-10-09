@@ -33,6 +33,9 @@ jobs:
       - name: Init
         run: |          
           ci_run ./zkstack_cli/zkstackup/zkstackup --local
+
+      - name: Database setup
+        run: |
           ci_run zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
 
       - name: Formatting

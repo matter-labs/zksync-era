@@ -63,6 +63,9 @@ jobs:
           ci_run zk
           ci_run ./zkstack_cli/zkstackup/zkstackup --local
           ci_run cp etc/tokens/{test,localhost}.json
+
+      - name: build contracts
+        run: |
           ci_run zkstack dev contracts 
 
       - name: update-image

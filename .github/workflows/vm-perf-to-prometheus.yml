@@ -35,6 +35,9 @@ jobs:
           docker compose up -d zk
 
           ci_run ./zkstack_cli/zkstackup/zkstackup --local
+
+      - name: build contracts
+        run: |
           ci_run zkstack dev contracts
 
       - name: run benchmarks
