@@ -81,7 +81,7 @@ impl EthNamespace {
         let tx = L2Tx::from_request(
             request.into(),
             self.state.api_config.max_tx_size,
-            false, // Even with EVM emulation enabled, calls must specify `to` field
+            block_args.use_evm_emulator(),
         )?;
 
         // It is assumed that the previous checks has already enforced that the `max_fee_per_gas` is at most u64.

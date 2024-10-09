@@ -893,6 +893,58 @@ async fn trace_call_after_snapshot_recovery() {
     test_http_server(TraceCallTestAfterSnapshotRecovery::default()).await;
 }
 
+#[derive(Debug)]
+struct TraceCallTestWithEvmEmulator;
+
+#[async_trait]
+impl HttpTest for TraceCallTestWithEvmEmulator {
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::genesis_with_evm()
+    }
+
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut executor = MockOneshotExecutor::default();
+        executor.set_call_responses(evm_emulator_responses);
+        executor
+    }
+
+    fn executor_options(&self) -> Option<SandboxExecutorOptions> {
+        Some(executor_options_with_evm_emulator())
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        // Store an additional L2 block because L2 block #0 has some special processing making it work incorrectly.
+        let mut connection = pool.connection().await?;
+        let block_header = L2BlockHeader {
+            base_system_contracts_hashes: genesis_contract_hashes(&mut connection).await?,
+            ..create_l2_block(1)
+        };
+        store_custom_l2_block(&mut connection, &block_header, &[]).await?;
+
+        client
+            .trace_call(CallTest::call_request(&[]), None, None)
+            .await?;
+
+        let call_request_without_target = CallRequest {
+            to: None,
+            ..CallTest::call_request(b"no_target")
+        };
+        client
+            .trace_call(call_request_without_target, None, None)
+            .await?;
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn trace_call_method_with_evm_emulator() {
+    test_http_server(TraceCallTestWithEvmEmulator).await;
+}
+
 #[derive(Debug, Clone, Copy)]
 enum EstimateMethod {
     EthEstimateGas,
