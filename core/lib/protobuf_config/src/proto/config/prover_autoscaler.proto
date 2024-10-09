@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package zksync.config.prover_autoscaler;
+
+import "zksync/std.proto";
+import "zksync/config/observability.proto";
+
+message ProverAutoscalerConfig {
+  optional std.Duration graceful_shutdown_timeout = 1; // optional
+  optional ProverAutoscalerAgentConfig agent_config = 2; // optional
+  optional ProverAutoscalerScalerConfig scaler_config = 3; // optional
+  optional observability.Observability observability = 4; // optional
+}
+
+message ProverAutoscalerAgentConfig {
+  optional uint32 prometheus_port = 1; // required
+  optional uint32 http_port = 2; // required
+  repeated string namespaces = 3; // optional
+  optional string cluster_name = 4; // optional
+}
+
+message ProtocolVersion {
+  optional string namespace = 1; // required
+  optional string protocol_version = 2; // required
+}
+
+message ClusterPriority {
+  optional string cluster = 1; // required
+  optional uint32 priority = 2; // required
+}
+
+message ProverSpeed {
+  optional string gpu = 1; // required
+  optional uint32 speed = 2; // required
+}
+
+message ProverAutoscalerScalerConfig {
+  optional uint32 prometheus_port = 1; // required
+  optional std.Duration scaler_run_interval = 2; // optional
+  optional string prover_job_monitor_url = 3; // required
+  repeated string agents = 4; // required at least one
+  repeated ProtocolVersion protocol_versions = 5; // repeated at least one
+  repeated ClusterPriority cluster_priorities = 6; // optional
+  repeated ProverSpeed prover_speed = 7; // optional
+  optional uint32 long_pending_duration_s = 8; // optional
+}
