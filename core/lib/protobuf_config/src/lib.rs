@@ -28,6 +28,7 @@ mod observability;
 mod proof_data_handler;
 pub mod proto;
 mod prover;
+mod prover_autoscaler;
 mod prover_job_monitor;
 mod pruning;
 mod secrets;
