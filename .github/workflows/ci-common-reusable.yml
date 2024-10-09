@@ -33,6 +33,7 @@ jobs:
       - name: Init
         run: |
           ci_run ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup || true
+          source /root/.bashrc
           ci_run zkstackup --local
 
       # This does both linting and "building". We're using `zk lint prover` as it's common practice within our repo
