@@ -7697,6 +7697,7 @@ dependencies = [
  "circuit_sequencer_api 0.141.2",
  "circuit_sequencer_api 0.142.2",
  "circuit_sequencer_api 0.150.5",
+ "ethabi",
  "hex",
  "itertools 0.10.5",
  "once_cell",
