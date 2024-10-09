@@ -1,12 +1,13 @@
 #!/bin/bash
 
+set -o errexit  
+set -o pipefail
+
 # Colors for the terminal output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 NC='\033[0m' # No Color
 
-# Disable immediate exit on non-zero status
-set +e
 
 command=$1
 chain_list=$2
@@ -38,9 +39,6 @@ for i in "${!statuses[@]}"; do
         echo -e "${GREEN}✓ SUCCESS: ${chains[$i]}${NC}"
     fi
 done
-
-# Re-enable immediate exit on non-zero status
-set -e
 
 # Exit with overall status
 exit $overall_status
