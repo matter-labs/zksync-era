@@ -35,4 +35,4 @@ jobs:
 
       - name: Lints
         run: |
-          ci_run /root/.zkt/bin/zkstack dev lint -t md --check
+          ci_run zkstack dev lint -t md --check

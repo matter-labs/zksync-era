@@ -32,18 +32,18 @@ jobs:
           ci_run ./zkstack_cli/zkstackup/zkstackup --local
           ci_run yarn install
           ci_run git config --global --add safe.directory /usr/src/zksync
-          ci_run /root/.zkt/bin/zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
+          ci_run zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
 
 
       - name: Lints
         run: |
-          ci_run /root/.zkt/bin/zkstack dev fmt --check
-          ci_run /root/.zkt/bin/zkstack dev lint -t md --check
-          ci_run /root/.zkt/bin/zkstack dev lint -t sol --check
-          ci_run /root/.zkt/bin/zkstack dev lint -t js --check
-          ci_run /root/.zkt/bin/zkstack dev lint -t ts --check
-          ci_run /root/.zkt/bin/zkstack dev lint -t rs --check
+          ci_run zkstack dev fmt --check
+          ci_run zkstack dev lint -t md --check
+          ci_run zkstack dev lint -t sol --check
+          ci_run zkstack dev lint -t js --check
+          ci_run zkstack dev lint -t ts --check
+          ci_run zkstack dev lint -t rs --check
 
       - name: Check Database
         run: |
-          ci_run /root/.zkt/bin/zkstack dev database check-sqlx-data --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
+          ci_run zkstack dev database check-sqlx-data --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
