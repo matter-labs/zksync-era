@@ -15,7 +15,7 @@ use zksync_multivm::interface::{
 };
 use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, ExternalTx, Transaction,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, ExternalTx, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 

@@ -1,5 +1,5 @@
 use zksync_types::{
-    l2::L2Tx, ExecuteTransactionCommon, ExternalTx, Nonce, PackedEthSignature, Transaction, U256,
+    ExecuteTransactionCommon, ExternalTx, Nonce, PackedEthSignature, Transaction, U256,
 };
 
 pub use self::{
