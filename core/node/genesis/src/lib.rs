@@ -36,7 +36,7 @@ use crate::utils::{
 
 #[cfg(test)]
 mod tests;
-mod utils;
+pub mod utils;
 
 #[derive(Debug, Clone)]
 pub struct BaseContractsHashError {
