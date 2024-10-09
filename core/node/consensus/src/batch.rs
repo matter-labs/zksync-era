@@ -261,7 +261,7 @@ impl L1BatchWithWitness {
                 // TODO: make consensus payload contain `abi::Transaction` instead.
                 // TODO: currently the payload doesn't contain the block number, which is
                 // annoying. Consider adding it to payload.
-                let t2: Transaction = abi::Transaction::try_from(t.clone())?.try_into()?;
+                let t2 = Transaction::from_abi(abi::Transaction::try_from(t.clone())?, true)?;
                 anyhow::ensure!(t == &t2);
                 hasher.push_tx_hash(t.hash());
             }

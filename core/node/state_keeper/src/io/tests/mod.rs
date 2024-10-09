@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
@@ -251,6 +251,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         BlockGasCount::default(),
         VmExecutionMetrics::default(),
         vec![],
+        HashMap::new(),
         vec![],
     );
 
@@ -269,6 +270,7 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         BlockGasCount::default(),
         VmExecutionMetrics::default(),
         vec![],
+        HashMap::new(),
         vec![],
     );
 
@@ -358,6 +360,7 @@ async fn processing_events_when_sealing_l2_block() {
             BlockGasCount::default(),
             VmExecutionMetrics::default(),
             vec![],
+            HashMap::new(),
             vec![],
         );
     }
@@ -463,6 +466,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         tx.into(),
         create_execution_result([]),
         vec![],
+        HashMap::new(),
         BlockGasCount::default(),
         VmExecutionMetrics::default(),
         vec![],
