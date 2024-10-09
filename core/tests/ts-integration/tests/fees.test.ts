@@ -285,6 +285,10 @@ testFees('Test fees', function () {
         const expectedConvertedGasPrice =
             (expectedETHGasPrice * conversionRatio.numerator) / conversionRatio.denominator;
 
+        console.log('feeParams', feeParams);
+        console.log('receipt', receipt);
+        console.log('gas price', await alice._providerL2().getGasPrice());
+        console.log(await alice._providerL2().getFeeParams());
         expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
     });
 
