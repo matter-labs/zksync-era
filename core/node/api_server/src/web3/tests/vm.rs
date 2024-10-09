@@ -9,6 +9,7 @@ use std::{
 };
 
 use api::state_override::{OverrideAccount, StateOverride};
+use test_casing::test_casing;
 use zksync_contracts::{BaseSystemContracts, BaseSystemContractsHashes};
 use zksync_multivm::interface::{
     ExecutionResult, OneshotEnv, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
@@ -892,16 +893,44 @@ async fn trace_call_after_snapshot_recovery() {
     test_http_server(TraceCallTestAfterSnapshotRecovery::default()).await;
 }
 
+#[derive(Debug, Clone, Copy)]
+enum EstimateMethod {
+    EthEstimateGas,
+    ZksEstimateFee,
+    ZksEstimateGasL1ToL2,
+}
+
+impl EstimateMethod {
+    const ALL: [Self; 3] = [
+        Self::EthEstimateGas,
+        Self::ZksEstimateFee,
+        Self::ZksEstimateGasL1ToL2,
+    ];
+
+    async fn query(self, client: &DynClient<L2>, req: CallRequest) -> Result<U256, ClientError> {
+        match self {
+            Self::EthEstimateGas => client.estimate_gas(req, None, None).await,
+            Self::ZksEstimateFee => client
+                .estimate_fee(req, None)
+                .await
+                .map(|fee| fee.gas_limit),
+            Self::ZksEstimateGasL1ToL2 => client.estimate_gas_l1_to_l2(req, None).await,
+        }
+    }
+}
+
 #[derive(Debug)]
 struct EstimateGasTest {
     gas_limit_threshold: Arc<AtomicU32>,
+    method: EstimateMethod,
     snapshot_recovery: bool,
 }
 
 impl EstimateGasTest {
-    fn new(snapshot_recovery: bool) -> Self {
+    fn new(method: EstimateMethod, snapshot_recovery: bool) -> Self {
         Self {
             gas_limit_threshold: Arc::default(),
+            method,
             snapshot_recovery,
         }
     }
@@ -922,9 +951,12 @@ impl HttpTest for EstimateGasTest {
             L2BlockNumber(1)
         };
         let gas_limit_threshold = self.gas_limit_threshold.clone();
+        let should_set_nonce = !matches!(self.method, EstimateMethod::ZksEstimateGasL1ToL2);
         tx_executor.set_tx_responses(move |tx, env| {
             assert_eq!(tx.execute.calldata(), [] as [u8; 0]);
-            assert_eq!(tx.nonce(), Some(Nonce(0)));
+            if should_set_nonce {
+                assert_eq!(tx.nonce(), Some(Nonce(0)));
+            }
             assert_eq!(env.l1_batch.first_l2_block.number, pending_block_number.0);
 
             let gas_limit_threshold = gas_limit_threshold.load(Ordering::SeqCst);
@@ -947,8 +979,9 @@ impl HttpTest for EstimateGasTest {
         let l2_transaction = create_l2_transaction(10, 100);
         for threshold in [10_000, 50_000, 100_000, 1_000_000] {
             self.gas_limit_threshold.store(threshold, Ordering::Relaxed);
-            let output = client
-                .estimate_gas(l2_transaction.clone().into(), None, None)
+            let output = self
+                .method
+                .query(client, l2_transaction.clone().into())
                 .await?;
             assert!(
                 output >= U256::from(threshold),
@@ -973,15 +1006,11 @@ impl HttpTest for EstimateGasTest {
         let mut call_request = CallRequest::from(l2_transaction);
         call_request.from = Some(SendRawTransactionTest::private_key().address());
         call_request.value = Some(1_000_000.into());
-        client
-            .estimate_gas(call_request.clone(), None, None)
-            .await?;
+
+        self.method.query(client, call_request.clone()).await?;
 
         call_request.value = Some(U256::max_value());
-        let error = client
-            .estimate_gas(call_request, None, None)
-            .await
-            .unwrap_err();
+        let error = self.method.query(client, call_request).await.unwrap_err();
         if let ClientError::Call(error) = error {
             let error_msg = error.message();
             assert!(
@@ -995,14 +1024,16 @@ impl HttpTest for EstimateGasTest {
     }
 }
 
+#[test_casing(3, EstimateMethod::ALL)]
 #[tokio::test]
-async fn estimate_gas_basics() {
-    test_http_server(EstimateGasTest::new(false)).await;
+async fn estimate_gas_basics(method: EstimateMethod) {
+    test_http_server(EstimateGasTest::new(method, false)).await;
 }
 
+#[test_casing(3, EstimateMethod::ALL)]
 #[tokio::test]
-async fn estimate_gas_after_snapshot_recovery() {
-    test_http_server(EstimateGasTest::new(true)).await;
+async fn estimate_gas_after_snapshot_recovery(method: EstimateMethod) {
+    test_http_server(EstimateGasTest::new(method, true)).await;
 }
 
 #[derive(Debug)]
@@ -1073,15 +1104,17 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
 
 #[tokio::test]
 async fn estimate_gas_with_state_override() {
-    let inner = EstimateGasTest::new(false);
+    let inner = EstimateGasTest::new(EstimateMethod::EthEstimateGas, false);
     test_http_server(EstimateGasWithStateOverrideTest { inner }).await;
 }
 
 #[derive(Debug)]
-struct EstimateGasWithoutToAddessTest;
+struct EstimateGasWithoutToAddressTest {
+    method: EstimateMethod,
+}
 
 #[async_trait]
-impl HttpTest for EstimateGasWithoutToAddessTest {
+impl HttpTest for EstimateGasWithoutToAddressTest {
     async fn test(
         &self,
         client: &DynClient<L2>,
@@ -1090,8 +1123,9 @@ impl HttpTest for EstimateGasWithoutToAddessTest {
         let mut l2_transaction = create_l2_transaction(10, 100);
         l2_transaction.execute.contract_address = None;
         l2_transaction.common_data.signature = vec![]; // Remove invalidated signature so that it doesn't trip estimation logic
-        let err = client
-            .estimate_gas(l2_transaction.clone().into(), None, None)
+        let err = self
+            .method
+            .query(client, l2_transaction.into())
             .await
             .unwrap_err();
         assert_null_to_address_error(&err);
@@ -1099,7 +1133,58 @@ impl HttpTest for EstimateGasWithoutToAddessTest {
     }
 }
 
+#[test_casing(3, EstimateMethod::ALL)]
 #[tokio::test]
-async fn estimate_gas_fails_without_to_address() {
-    test_http_server(EstimateGasWithoutToAddessTest).await;
+async fn estimate_gas_fails_without_to_address(method: EstimateMethod) {
+    test_http_server(EstimateGasWithoutToAddressTest { method }).await;
+}
+
+#[derive(Debug)]
+struct EstimateGasTestWithEvmEmulator {
+    method: EstimateMethod,
+}
+
+#[async_trait]
+impl HttpTest for EstimateGasTestWithEvmEmulator {
+    fn storage_initialization(&self) -> StorageInitialization {
+        StorageInitialization::genesis_with_evm()
+    }
+
+    fn transaction_executor(&self) -> MockOneshotExecutor {
+        let mut executor = MockOneshotExecutor::default();
+        executor.set_tx_responses(evm_emulator_responses);
+        executor
+    }
+
+    fn executor_options(&self) -> Option<SandboxExecutorOptions> {
+        Some(executor_options_with_evm_emulator())
+    }
+
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        _pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let call_request = CallRequest {
+            from: Some(Address::repeat_byte(1)),
+            to: Some(Address::repeat_byte(2)),
+            ..CallRequest::default()
+        };
+        self.method.query(client, call_request).await?;
+
+        let call_request = CallRequest {
+            from: Some(Address::repeat_byte(1)),
+            to: None,
+            data: Some(b"no_target".to_vec().into()),
+            ..CallRequest::default()
+        };
+        self.method.query(client, call_request).await?;
+        Ok(())
+    }
+}
+
+#[test_casing(3, EstimateMethod::ALL)]
+#[tokio::test]
+async fn estimate_gas_with_evm_emulator(method: EstimateMethod) {
+    test_http_server(EstimateGasTestWithEvmEmulator { method }).await;
 }
