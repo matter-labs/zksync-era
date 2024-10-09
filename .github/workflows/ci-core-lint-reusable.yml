@@ -29,9 +29,7 @@ jobs:
 
       - name: Build
         run: |
-          ci_run ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup || true
-          source /root/.bashrc
-          ci_run zkstackup --local
+          ci_run ./zkstack_cli/zkstackup/zkstackup --local
           ci_run yarn install
           ci_run git config --global --add safe.directory /usr/src/zksync
           ci_run zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}

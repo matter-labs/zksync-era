@@ -33,9 +33,8 @@ jobs:
         run: |
           run_retried docker compose pull zk
           docker compose up -d zk
-          ci_run ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup || true
-          source /root/.bashrc
-          ci_run zkstackup --local
+
+          ci_run ./zkstack_cli/zkstackup/zkstackup --local
           ci_run zkstack dev contracts
 
       - name: run benchmarks
