@@ -16,9 +16,7 @@ use ethabi::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use zksync_utils::{
-    bytecode::hash_bytecode, bytes_to_be_words, env::Workspace, hex_string_to_bytes,
-};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, env::Workspace};
 
 pub mod test_contracts;
 
@@ -304,7 +302,7 @@ pub fn read_yul_bytecode_by_path(artifacts_path: PathBuf, name: &str) -> Vec<u8>
     if fs::exists(&bytecode_path)
         .unwrap_or_else(|err| panic!("Invalid path: {bytecode_path:?}, {err}"))
     {
-        read_zbin_bytecode_from_path_utf8(bytecode_path)
+        read_zbin_bytecode_from_hex_file(bytecode_path)
     } else {
         let bytecode_path_legacy = artifacts_path.join(format!("{name}.yul.zbin"));
 
@@ -325,15 +323,11 @@ fn read_zbin_bytecode_from_path(bytecode_path: PathBuf) -> Vec<u8> {
 }
 
 /// Reads zbin bytecode from a given path as utf8 text file.
-fn read_zbin_bytecode_from_path_utf8(bytecode_path: PathBuf) -> Vec<u8> {
-    let buffer = fs::read(&bytecode_path)
+fn read_zbin_bytecode_from_hex_file(bytecode_path: PathBuf) -> Vec<u8> {
+    let bytes = fs::read(&bytecode_path)
         .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {bytecode_path:?}: {err}"));
 
-    hex_string_to_bytes(
-        &String::from_utf8(buffer)
-            .unwrap_or_else(|err| panic!("Invalid input file: {bytecode_path:?}, {err}")),
-    )
-    .unwrap_or_else(|err| panic!("Invalid hex, {err}"))
+    hex::decode(bytes).unwrap_or_else(|err| panic!("Invalid input file: {bytecode_path:?}, {err}"))
 }
 
 /// Hash of code and code which consists of 32 bytes words
