@@ -255,12 +255,6 @@ pub fn create_test_block_params() -> (BlockContext, BlockProperties) {
     )
 }
 
-pub fn read_bootloader_test_code(test: &str) -> Vec<u8> {
-    let artifacts_path =
-        Path::new("contracts/system-contracts/bootloader/tests/artifacts/").to_path_buf();
-    read_yul_bytecode(artifacts_path, test)
-}
-
 /// Log query, which handle initial and repeated writes to the storage
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StorageLogQuery {

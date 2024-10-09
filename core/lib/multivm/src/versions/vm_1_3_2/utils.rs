@@ -223,13 +223,6 @@ pub fn create_test_block_params() -> (BlockContext, BlockProperties) {
     )
 }
 
-pub fn read_bootloader_test_code(test: &str) -> Vec<u8> {
-    let artifacts_path =
-        Path::new("contracts/system-contracts/bootloader/tests/artifacts/").to_path_buf();
-
-    read_yul_bytecode(artifacts_path, test)
-}
-
 pub(crate) fn calculate_computational_gas_used<
     S: WriteStorage,
     T: PubdataSpentTracer<H>,
