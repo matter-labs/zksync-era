@@ -207,7 +207,8 @@ pub async fn insert_genesis_batch(
     .await?;
     tracing::info!("chain_schema_genesis is complete");
 
-    let metadata = merkle_tree_metadata_from_deployed_contracts(genesis_params.system_contracts());
+    let metadata =
+        merkle_tree_metadata_from_deployed_contracts(genesis_params.system_contracts(), false);
     let genesis_root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
 
@@ -416,7 +417,7 @@ pub async fn create_genesis_l1_batch(
         .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
         .await?;
 
-    let storage_logs = get_storage_logs(system_contracts);
+    let storage_logs = get_storage_logs(system_contracts, false);
 
     let factory_deps = system_contracts
         .iter()

@@ -41,8 +41,12 @@ pub(super) async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> any
     Ok(())
 }
 
-pub fn merkle_tree_metadata_from_deployed_contracts(contracts: &[DeployedContract]) -> BlockOutput {
-    let deduped_log_queries = get_deduped_log_queries(&get_storage_logs(contracts));
+pub fn merkle_tree_metadata_from_deployed_contracts(
+    contracts: &[DeployedContract],
+    skip_known_code_storage_logs: bool,
+) -> BlockOutput {
+    let deduped_log_queries =
+        get_deduped_log_queries(&get_storage_logs(contracts, skip_known_code_storage_logs));
     tracing::info!("deduped_log_queries_len: {}", deduped_log_queries.len());
 
     let (deduplicated_writes, _): (Vec<_>, Vec<_>) = deduped_log_queries
@@ -71,7 +75,10 @@ pub fn merkle_tree_metadata_from_deployed_contracts(contracts: &[DeployedContrac
     ZkSyncTree::process_genesis_batch(&storage_logs)
 }
 
-pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<StorageLog> {
+pub(super) fn get_storage_logs(
+    system_contracts: &[DeployedContract],
+    skip_known_code_storage_logs: bool,
+) -> Vec<StorageLog> {
     let system_context_init_logs =
         // During the genesis all chains have the same id.
         // TODO(EVM-579): make sure that the logic is compatible with Era.
@@ -82,7 +89,7 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
         system_context_init_logs.len()
     );
 
-    let known_code_storage_logs: Vec<_> = system_contracts
+    let mut known_code_storage_logs: Vec<_> = system_contracts
         .iter()
         .map(|contract| {
             let hash = hash_bytecode(&contract.bytecode);
@@ -93,6 +100,9 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
         })
         .dedup_by(|a, b| a == b)
         .collect();
+    if skip_known_code_storage_logs {
+        known_code_storage_logs = vec![];
+    }
     tracing::info!(
         "known_code_storage_logs_len {}",
         known_code_storage_logs.len()
