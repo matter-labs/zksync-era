@@ -56,7 +56,7 @@ async fn test_call(
     mut call: CallRequest,
 ) -> Result<Vec<u8>, SubmitTxError> {
     call.gas = call.gas.max(Some(10_000_000.into()));
-    let call = L2Tx::from_request(call.into(), usize::MAX).unwrap();
+    let call = L2Tx::from_request(call.into(), usize::MAX, true).unwrap();
 
     let mut storage = tx_sender
         .0
