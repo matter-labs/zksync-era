@@ -28,7 +28,7 @@ use zksync_node_framework::{
         consensus::MainNodeConsensusLayer,
         contract_verification_api::ContractVerificationApiLayer,
         da_clients::{
-            avail::AvailWiringLayer, no_da::NoDAClientWiringLayer,
+            avail::AvailWiringLayer, eigen_da::EigenDAWiringLayer, no_da::NoDAClientWiringLayer,
             object_store::ObjectStorageClientWiringLayer,
         },
         da_dispatcher::DataAvailabilityDispatcherLayer,
@@ -509,16 +509,22 @@ impl MainNodeBuilder {
             return Ok(self);
         };
 
-        let secrets = try_load_config!(self.secrets.data_availability);
+        let secrets = self.secrets.data_availability.clone();
 
         match (da_client_config, secrets) {
-            (DAClientConfig::Avail(config), DataAvailabilitySecrets::Avail(secret)) => {
-                self.node.add_layer(AvailWiringLayer::new(config, secret));
+            (DAClientConfig::Avail(_), None) => {
+                anyhow::bail!("Data availability secrets are required for the Avail client");
             }
 
+            (DAClientConfig::Avail(config), Some(DataAvailabilitySecrets::Avail(secret))) => {
+                self.node.add_layer(AvailWiringLayer::new(config, secret));
+            }
             (DAClientConfig::ObjectStore(config), _) => {
                 self.node
                     .add_layer(ObjectStorageClientWiringLayer::new(config));
+            }
+            (DAClientConfig::EigenDA(config), _) => {
+                self.node.add_layer(EigenDAWiringLayer::new(config));
             }
         }
 

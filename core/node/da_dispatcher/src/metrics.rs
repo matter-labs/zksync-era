@@ -19,6 +19,12 @@ pub(super) struct DataAvailabilityDispatcherMetrics {
     /// Buckets are bytes ranging from 1 KB to 16 MB, which has to satisfy all blob size values.
     #[metrics(buckets = Buckets::exponential(1_024.0..=16.0 * 1_024.0 * 1_024.0, 2.0), unit = Unit::Bytes)]
     pub blob_size: Histogram<usize>,
+    /// Amount of pending blobs to be dispatched.
+    pub blobs_pending_dispatch: Gauge<usize>,
+    /// Total number of blobs dispatched.
+    pub blobs_dispatched: Gauge<usize>,
+    /// Total number of blobs included.
+    pub blobs_included: Gauge<usize>,
 
     /// Number of transactions resent by the DA dispatcher.
     #[metrics(buckets = Buckets::linear(0.0..=10.0, 1.0))]

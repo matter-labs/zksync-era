@@ -37,3 +37,7 @@ blake2b_simd.workspace = true
 jsonrpsee = { workspace = true, features = ["ws-client"] }
 parity-scale-codec = { workspace = true, features = ["derive"] }
 subxt-signer = { workspace = true, features = ["sr25519", "native"] }
+
+# EigenDA dependencies
+reqwest = { version = "0.12" }
+http = "1"
