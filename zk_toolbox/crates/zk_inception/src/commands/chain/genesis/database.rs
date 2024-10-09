@@ -7,7 +7,7 @@ use common::{
     logger,
 };
 use config::{
-    override_config, set_databases, set_file_artifacts, set_rocks_db_config,
+    override_config, set_file_artifacts, set_rocks_db_config, set_server_database,
     traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, FileArtifacts,
 };
 use types::ProverMode;
@@ -18,12 +18,11 @@ use crate::{
     commands::chain::args::genesis::{GenesisArgs, GenesisArgsFinal},
     consts::{
         PATH_TO_ONLY_REAL_PROOFS_OVERRIDE_CONFIG, PATH_TO_VALIDIUM_OVERRIDE_CONFIG,
-        PROVER_MIGRATIONS, SERVER_MIGRATIONS,
+        SERVER_MIGRATIONS,
     },
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
-        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_GENESIS_DATABASES_INITIALIZED,
-        MSG_INITIALIZING_PROVER_DATABASE, MSG_INITIALIZING_SERVER_DATABASE,
+        MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR,
+        MSG_GENESIS_DATABASES_INITIALIZED, MSG_INITIALIZING_SERVER_DATABASE,
         MSG_RECREATE_ROCKS_DB_ERRROR,
     },
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
@@ -37,13 +36,12 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let mut secrets = chain_config.get_secrets_config()?;
     let args = args.fill_values_with_secrets(&chain_config)?;
-    set_databases(&mut secrets, &args.server_db, &args.prover_db)?;
+    set_server_database(&mut secrets, &args.server_db)?;
     secrets.save_with_base_path(shell, &chain_config.configs)?;
 
-    initialize_databases(
+    initialize_server_database(
         shell,
         &args.server_db,
-        &args.prover_db,
         chain_config.link_to_code.clone(),
         args.dont_drop,
     )
@@ -53,10 +51,9 @@ pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn initialize_databases(
+pub async fn initialize_server_database(
     shell: &Shell,
     server_db_config: &DatabaseConfig,
-    prover_db_config: &DatabaseConfig,
     link_to_code: PathBuf,
     dont_drop: bool,
 ) -> anyhow::Result<()> {
@@ -78,23 +75,6 @@ pub async fn initialize_databases(
     )
     .await?;
 
-    if global_config().verbose {
-        logger::debug(MSG_INITIALIZING_PROVER_DATABASE)
-    }
-    if !dont_drop {
-        drop_db_if_exists(prover_db_config)
-            .await
-            .context(MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR)?;
-        init_db(prover_db_config).await?;
-    }
-    let path_to_prover_migration = link_to_code.join(PROVER_MIGRATIONS);
-    migrate_db(
-        shell,
-        path_to_prover_migration,
-        &prover_db_config.full_url(),
-    )
-    .await?;
-
     Ok(())
 }
 
@@ -107,7 +87,7 @@ pub fn update_configs(
 
     // Update secrets configs
     let mut secrets = config.get_secrets_config()?;
-    set_databases(&mut secrets, &args.server_db, &args.prover_db)?;
+    set_server_database(&mut secrets, &args.server_db)?;
     secrets.save_with_base_path(shell, &config.configs)?;
 
     // Update general config

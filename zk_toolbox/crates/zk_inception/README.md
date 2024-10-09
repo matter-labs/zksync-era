@@ -17,8 +17,12 @@ This document contains the help content for the `zk_inception` command-line prog
 - [`zk_inception chain initialize-bridges`↴](#zk_inception-chain-initialize-bridges)
 - [`zk_inception chain deploy-l2-contracts`↴](#zk_inception-chain-deploy-l2-contracts)
 - [`zk_inception chain upgrader`↴](#zk_inception-chain-upgrader)
+- [`zk_inception chain deploy-consensus-registry`↴](#zk_inception-chain-deploy-consensus-registry)
+- [`zk_inception chain deploy-multicall3`↴](#zk_inception-chain-deploy-multicall3)
 - [`zk_inception chain deploy-paymaster`↴](#zk_inception-chain-deploy-paymaster)
 - [`zk_inception chain update-token-multiplier-setter`↴](#zk_inception-chain-update-token-multiplier-setter)
+- [`zk_inception consensus set-attester-committee`↴](#zk_inception-consensus-set-attester-committee)
+- [`zk_inception consensus get-attester-committee`↴](#zk_inception-consensus-get-attester-committee)
 - [`zk_inception prover`↴](#zk_inception-prover)
 - [`zk_inception prover init`↴](#zk_inception-prover-init)
 - [`zk_inception prover setup-keys`↴](#zk_inception-prover-setup-keys)
@@ -364,6 +368,18 @@ Deploy Default Upgrader
 
   e.g.: `zk_inception init -a --private-key=<PRIVATE_KEY>`
 
+## `zk_inception chain deploy-consensus-registry`
+
+Deploy Consensus Registry smart contract
+
+**Usage:** `zk_inception chain deploy-consensus-registry`
+
+## `zk_inception chain deploy-multicall3`
+
+Deploy Multicall3 smart contract
+
+**Usage:** `zk_inception chain deploy-multicall3`
+
 ## `zk_inception chain deploy-paymaster`
 
 Deploy paymaster smart contract
@@ -414,6 +430,47 @@ Update Token Multiplier Setter address on L1
 
   e.g.: `zk_inception init -a --private-key=<PRIVATE_KEY>`
 
+## `zk_inception consensus`
+
+Consensus related commands
+
+**Usage:** `zk_inception consensus <COMMAND>`
+
+###### **Subcommands:**
+
+- `set-attester-committee` — Set attester committee
+- `get-attester-committee` — Get attester committee
+
+## `zk_inception consensus set-attester-committee`
+
+Set attester committee in the consensus registry smart contract. Requires `consensus_registry` and `multicall3`
+contracts to be deployed.
+
+**Usage:** `zk_inception consensus set-attester-committee [OPTIONS]`
+
+###### **Options:**
+
+- `--from-genesis` — Set attester committee to `consensus.genesis_spec.attesters` in general.yaml Mutually exclusive
+  with `--from-file`.
+- `--from-file <PATH>` — Set attester committee to committee specified in yaml file at `PATH`.  
+  Mutually exclusive with `--from-genesis`. File format is specified in
+  `zk_inception/src/commands/consensus/proto/mod.proto`. Example:
+
+  ```yaml
+  attesters:
+    - key: attester:public:secp256k1:0339d4b0cdd9896d3929631a4e5e9a5b4919f52592bec571d70bb0e50a3a824714
+      weight: 1
+    - key: attester:public:secp256k1:024897d8c10d7a57d108cfe2a724d7824c657f219ef5d9f7674810a6746c19fa7b
+      weight: 1
+  ```
+
+## `zk_inception consensus get-attester-committee`
+
+Requires `consensus_registry` and `multicall3` contracts to be deployed. Fetches attester committee from the consensus
+registry contract and prints it.
+
+**Usage:** `zk_inception consensus get-attester-committee`
+
 ## `zk_inception prover`
 
 Prover related commands
@@ -423,7 +480,6 @@ Prover related commands
 ###### **Subcommands:**
 
 - `init` — Initialize prover
-- `generate-sk` — Generate setup keys
 - `run` — Run prover
 - `init-bellman-cuda` — Initialize bellman-cuda
 
