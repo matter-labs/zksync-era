@@ -257,7 +257,7 @@ impl Tester {
                     patch: 0.into(),
                 },
                 &BASE_SYSTEM_CONTRACTS,
-                &get_system_smart_contracts(),
+                &get_system_smart_contracts(false),
                 Default::default(),
             )
             .await

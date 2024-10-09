@@ -280,13 +280,11 @@ impl TxSender {
     pub async fn submit_tx(
         &self,
         tx: L2Tx,
+        block_args: BlockArgs,
     ) -> Result<(L2TxSubmissionResult, VmExecutionResultAndLogs), SubmitTxError> {
         let tx_hash = tx.hash();
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::Validate);
-        let mut connection = self.acquire_replica_connection().await?;
-        let protocol_version = connection.blocks_dal().pending_protocol_version().await?;
-        drop(connection);
-        self.validate_tx(&tx, protocol_version).await?;
+        self.validate_tx(&tx, block_args.protocol_version()).await?;
         stage_latency.observe();
 
         let stage_latency = SANDBOX_METRICS.start_tx_submit_stage(tx_hash, SubmitTxStage::DryRun);
@@ -305,9 +303,7 @@ impl TxSender {
             tx: tx.clone(),
         };
         let vm_permit = vm_permit.ok_or(SubmitTxError::ServerShuttingDown)?;
-        let mut connection = self.acquire_replica_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
-
+        let connection = self.acquire_replica_connection().await?;
         let execution_output = self
             .0
             .executor

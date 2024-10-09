@@ -117,8 +117,8 @@ impl Execute {
         FUNCTION_SIGNATURE.iter().copied().chain(params).collect()
     }
 
-    /// Creates an instance for deploying the specified bytecode without additional dependencies. (If necessary,
-    /// additional deps can be added after this call.)
+    /// Creates an instance for deploying the specified bytecode without additional dependencies. If necessary,
+    /// additional deps can be added to `Self.factory_deps` after this call.
     pub fn for_deploy(
         salt: H256,
         contract_bytecode: Vec<u8>,

@@ -55,7 +55,7 @@ fn test_l1_tx_execution() {
         None,
         TxType::L1 { serial_id: 1 },
     );
-    let tx_data: TransactionData = deploy_tx.tx.clone().into();
+    let tx_data = TransactionData::new(deploy_tx.tx.clone(), false);
 
     let required_l2_to_l1_logs: Vec<_> = vec![L2ToL1Log {
         shard_id: 0,

@@ -19,6 +19,7 @@ use zksync_web3_decl::{
 };
 
 use crate::{
+    execution_sandbox::BlockArgs,
     tx_sender::BinarySearchKind,
     utils::open_readonly_transaction,
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
@@ -77,7 +78,11 @@ impl EthNamespace {
         drop(connection);
 
         let call_overrides = request.get_call_overrides()?;
-        let tx = L2Tx::from_request(request.into(), self.state.api_config.max_tx_size)?;
+        let tx = L2Tx::from_request(
+            request.into(),
+            self.state.api_config.max_tx_size,
+            false, // Even with EVM emulation enabled, calls must specify `to` field
+        )?;
 
         // It is assumed that the previous checks has already enforced that the `max_fee_per_gas` is at most u64.
         let call_result: Vec<u8> = self
@@ -108,10 +113,13 @@ impl EthNamespace {
         let is_eip712 = request_with_gas_per_pubdata_overridden
             .eip712_meta
             .is_some();
-
+        let mut connection = self.state.acquire_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
+        drop(connection);
         let mut tx: L2Tx = L2Tx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
+            block_args.use_evm_emulator(),
         )?;
 
         // The user may not include the proper transaction type during the estimation of
@@ -137,6 +145,7 @@ impl EthNamespace {
             .tx_sender
             .get_txs_fee_in_wei(
                 tx.into(),
+                block_args,
                 scale_factor,
                 acceptable_overestimation as u64,
                 state_override,
@@ -619,10 +628,15 @@ impl EthNamespace {
     }
 
     pub async fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
-        let (mut tx, hash) = self.state.parse_transaction_bytes(&tx_bytes.0)?;
+        let mut connection = self.state.acquire_connection().await?;
+        let block_args = BlockArgs::pending(&mut connection).await?;
+        drop(connection);
+        let (mut tx, hash) = self
+            .state
+            .parse_transaction_bytes(&tx_bytes.0, &block_args)?;
         tx.set_input(tx_bytes.0, hash);
 
-        let submit_result = self.state.tx_sender.submit_tx(tx).await;
+        let submit_result = self.state.tx_sender.submit_tx(tx, block_args).await;
         submit_result.map(|_| hash).map_err(|err| {
             tracing::debug!("Send raw transaction error: {err}");
             API_METRICS.submit_tx_error[&err.prom_error_code()].inc();
