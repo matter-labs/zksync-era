@@ -10,7 +10,7 @@ use xshell::{cmd, Shell};
 
 use crate::messages::{MSG_API_CONFIG_NOT_FOUND_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_STATUS_URL_HELP};
 
-const DEFAULT_LINE_WIDTH: usize = 40;
+const DEFAULT_LINE_WIDTH: usize = 32;
 
 #[derive(Deserialize, Debug)]
 struct StatusResponse {
@@ -58,7 +58,7 @@ impl BoxProperties {
     }
 }
 
-fn bordered_box(msg: &str) -> String {
+fn single_bordered_box(msg: &str) -> String {
     let properties = BoxProperties::new(msg);
     format!(
         "┌{}┐\n{}\n└{}┘\n",
@@ -68,9 +68,13 @@ fn bordered_box(msg: &str) -> String {
     )
 }
 
-fn two_bordered_boxes(msg1: &str, msg2: &str) -> String {
+fn bordered_boxes(msg1: &str, msg2: Option<&String>) -> String {
+    if msg2.is_none() {
+        return single_bordered_box(msg1);
+    }
+
     let properties1 = BoxProperties::new(msg1);
-    let properties2 = BoxProperties::new(msg2);
+    let properties2 = BoxProperties::new(msg2.unwrap());
 
     let max_lines = properties1.boxed_msg.len().max(properties2.boxed_msg.len());
     let header = format!("┌{}┐  ┌{}┐\n", properties1.border, properties2.border);
@@ -140,11 +144,7 @@ fn print_status(shell: &Shell, health_check_url: String) -> anyhow::Result<()> {
     });
 
     for chunk in components.chunks(2) {
-        if let Some(component) = chunk.get(1) {
-            components_info.push_str(&two_bordered_boxes(component, chunk.first().unwrap()));
-        } else {
-            components_info.push_str(&bordered_box(chunk.first().unwrap()));
-        }
+        components_info.push_str(&bordered_boxes(&chunk[0], chunk.get(1)));
     }
 
     logger::info(components_info);
