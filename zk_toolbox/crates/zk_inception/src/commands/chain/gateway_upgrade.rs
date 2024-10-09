@@ -35,6 +35,9 @@ use crate::{
     Debug, Serialize, Deserialize, Clone, Copy, ValueEnum, EnumIter, strum::Display, PartialEq, Eq,
 )]
 pub enum GatewayChainUpgradeStage {
+    // some config paaram
+    AdaptConfig,
+
     // Does not require admin, still needs to be done to update configs, etc
     PrepareStage1, 
 
@@ -88,6 +91,9 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
 
 
     match args.chain_upgrade_stage {
+        GatewayChainUpgradeStage::AdaptConfig => {
+            adapt_config(shell, chain_config).await
+        }
         GatewayChainUpgradeStage::PrepareStage1 => {
             prepare_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
         }
@@ -106,6 +112,21 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
     // contracts_config.bridges.l1_nullifier_addr = Some(contracts_config.bridges.shared.l1_address);
     // contracts_config.bridges.shared.l1_address = gateway_ecosystem_preparation_output.deployed_addresses.bridges.shared_bridge_proxy_addr;
 
+}
+
+async fn adapt_config(
+    shell: &Shell,
+    chain_config: ChainConfig,
+) -> anyhow::Result<()> {
+    println!("Adapting config");
+    let mut contracts_config = chain_config.get_contracts_config()?;
+
+    contracts_config.l2.legacy_shared_bridge_addr = contracts_config.bridges.shared.l2_address;
+
+    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+    println!("Done");
+
+    Ok(())
 }
 
 async fn prepare_stage1(
@@ -163,6 +184,7 @@ async fn prepare_stage1(
     contracts_config.ecosystem_contracts.native_token_vault_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.native_token_vault_addr);
     contracts_config.ecosystem_contracts.l1_bytecodes_supplier_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.l1_bytecodes_supplier_addr);
     contracts_config.l1.access_control_restriction_addr = Some(chain_output.access_control_restriction);
+    contracts_config.l1.chain_admin_addr = chain_output.chain_admin_addr;
 
     // TODO: this field is probably not needed at all
     contracts_config.l1.chain_proxy_admin_addr = Some(H160::zero());
@@ -172,6 +194,7 @@ async fn prepare_stage1(
 
     let validum = chain_config.get_genesis_config()?.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium;
 
+    // We do not use chain output because IMHO we should delete it altogether from there
     contracts_config.l2.da_validator_addr = if validum {
         Some(gateway_ecosystem_preparation_output.contracts_config.expected_rollup_l2_da_validator)
     } else {

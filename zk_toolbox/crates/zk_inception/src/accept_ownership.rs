@@ -25,7 +25,6 @@ lazy_static! {
             "function chainAdminAcceptAdmin(address admin, address target) public",
             "function setDAValidatorPair(address chainAdmin, address target, address l1DaValidator, address l2DaValidator) public",
             "function governanceExecuteCalls(bytes calldata callsToExecute, address target) public",
-            "function adminExecuteCalls(bytes calldata callsToExecute, address target) public",
             "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)"
         ])
         .unwrap(),
@@ -149,7 +148,7 @@ pub async fn governance_execute_calls(
 
     let calldata = ACCEPT_ADMIN
         .encode(
-            "adminExecuteCalls",
+            "governanceExecuteCalls",
             (Token::Bytes(encoded_calls),governance_address,)
         )
         .unwrap();
