@@ -17,6 +17,8 @@ jobs:
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
+          echo $HOME/.local/bin >> $GITHUB_PATH
+          echo $(pwd)/zkstack_cli/zkstackup >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
           echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
@@ -32,7 +34,7 @@ jobs:
 
       - name: Init
         run: |
-          ci_run ./zkstack_cli/zkstackup/zkstackup --local
+          ci_run zkstackup --local
 
       # This does both linting and "building". We're using `zk lint prover` as it's common practice within our repo
       # `zk lint prover` = cargo clippy, which does cargo check behind the scenes, which is a lightweight version of cargo build
