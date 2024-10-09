@@ -40,7 +40,7 @@ pub enum TestCommands {
     Upgrade(UpgradeArgs),
     #[clap(about = MSG_BUILD_ABOUT)]
     Build,
-    #[clap(about = MSG_RUST_TEST_ABOUT, alias = "unit")]
+    #[clap(about = MSG_RUST_TEST_ABOUT, alias = "unit", allow_hyphen_values(true))]
     Rust(RustArgs),
     #[clap(about = MSG_L1_CONTRACTS_ABOUT, alias = "l1")]
     L1Contracts,

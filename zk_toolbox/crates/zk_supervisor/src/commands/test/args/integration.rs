@@ -9,6 +9,6 @@ pub struct IntegrationArgs {
     pub external_node: bool,
     #[clap(short, long, help = MSG_NO_DEPS_HELP)]
     pub no_deps: bool,
-    #[clap(short, long, help = MSG_TEST_PATTERN_HELP)]
+    #[clap(short, long, help = MSG_TEST_PATTERN_HELP, allow_hyphen_values(true))]
     pub test_pattern: Option<String>,
 }
