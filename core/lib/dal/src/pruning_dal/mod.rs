@@ -45,32 +45,34 @@ impl PruningDal<'_, '_> {
         let pruning_info = sqlx::query!(
             r#"
             WITH
-                soft AS (
-                    SELECT
-                        pruned_l1_batch,
-                        pruned_miniblock
-                    FROM
-                        pruning_log
-                    WHERE
-                    TYPE = 'Soft'
-                    ORDER BY
-                        pruned_l1_batch DESC
-                    LIMIT
-                        1
-                ),
-                hard AS (
-                    SELECT
-                        pruned_l1_batch,
-                        pruned_miniblock
-                    FROM
-                        pruning_log
-                    WHERE
-                    TYPE = 'Hard'
-                    ORDER BY
-                        pruned_l1_batch DESC
-                    LIMIT
-                        1
-                )
+            soft AS (
+                SELECT
+                    pruned_l1_batch,
+                    pruned_miniblock
+                FROM
+                    pruning_log
+                WHERE
+                    type = 'Soft'
+                ORDER BY
+                    pruned_l1_batch DESC
+                LIMIT
+                    1
+            ),
+            
+            hard AS (
+                SELECT
+                    pruned_l1_batch,
+                    pruned_miniblock
+                FROM
+                    pruning_log
+                WHERE
+                    type = 'Hard'
+                ORDER BY
+                    pruned_l1_batch DESC
+                LIMIT
+                    1
+            )
+            
             SELECT
                 soft.pruned_l1_batch AS last_soft_pruned_l1_batch,
                 soft.pruned_miniblock AS last_soft_pruned_miniblock,
@@ -78,7 +80,7 @@ impl PruningDal<'_, '_> {
                 hard.pruned_miniblock AS last_hard_pruned_miniblock
             FROM
                 soft
-                FULL JOIN hard ON TRUE
+            FULL JOIN hard ON TRUE
             "#
         )
         .map(|row| PruningInfo {
@@ -110,15 +112,15 @@ impl PruningDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                pruning_log (
-                    pruned_l1_batch,
-                    pruned_miniblock,
-                    TYPE,
-                    created_at,
-                    updated_at
-                )
+            pruning_log (
+                pruned_l1_batch,
+                pruned_miniblock,
+                type,
+                created_at,
+                updated_at
+            )
             VALUES
-                ($1, $2, $3, NOW(), NOW())
+            ($1, $2, $3, NOW(), NOW())
             "#,
             i64::from(last_l1_batch_to_prune.0),
             i64::from(last_l2_block_to_prune.0),
@@ -319,25 +321,28 @@ impl PruningDal<'_, '_> {
         let execution_result = sqlx::query!(
             r#"
             WITH
-                new_logs AS MATERIALIZED (
-                    SELECT DISTINCT
-                        ON (hashed_key) hashed_key,
-                        miniblock_number,
-                        operation_number
-                    FROM
-                        storage_logs
-                    WHERE
-                        miniblock_number BETWEEN $1 AND $2
-                    ORDER BY
-                        hashed_key,
-                        miniblock_number DESC,
-                        operation_number DESC
-                )
+            new_logs AS MATERIALIZED (
+                SELECT DISTINCT
+                ON (hashed_key)
+                    hashed_key,
+                    miniblock_number,
+                    operation_number
+                FROM
+                    storage_logs
+                WHERE
+                    miniblock_number BETWEEN $1 AND $2
+                ORDER BY
+                    hashed_key,
+                    miniblock_number DESC,
+                    operation_number DESC
+            )
+            
             DELETE FROM storage_logs USING new_logs
             WHERE
                 storage_logs.hashed_key = new_logs.hashed_key
                 AND storage_logs.miniblock_number <= $2
-                AND (storage_logs.miniblock_number, storage_logs.operation_number) < (new_logs.miniblock_number, new_logs.operation_number)
+                AND (storage_logs.miniblock_number, storage_logs.operation_number)
+                < (new_logs.miniblock_number, new_logs.operation_number)
             "#,
             i64::from(l2_blocks_to_prune.start().0),
             i64::from(l2_blocks_to_prune.end().0)
@@ -392,15 +397,15 @@ impl PruningDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                pruning_log (
-                    pruned_l1_batch,
-                    pruned_miniblock,
-                    TYPE,
-                    created_at,
-                    updated_at
-                )
+            pruning_log (
+                pruned_l1_batch,
+                pruned_miniblock,
+                type,
+                created_at,
+                updated_at
+            )
             VALUES
-                ($1, $2, $3, NOW(), NOW())
+            ($1, $2, $3, NOW(), NOW())
             "#,
             i64::from(last_l1_batch_to_prune.0),
             i64::from(last_l2_block_to_prune.0),

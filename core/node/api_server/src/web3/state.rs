@@ -4,13 +4,13 @@ use std::{
         atomic::{AtomicU32, Ordering},
         Arc,
     },
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use anyhow::Context as _;
 use futures::TryFutureExt;
 use lru::LruCache;
-use tokio::sync::{watch, Mutex};
+use tokio::sync::{Mutex, RwLock};
 use vise::GaugeGuard;
 use zksync_config::{
     configs::{api::Web3JsonRpcConfig, ContractsConfig},
@@ -20,8 +20,9 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_metadata_calculator::api_server::TreeApiClient;
 use zksync_node_sync::SyncState;
 use zksync_types::{
-    api, commitment::L1BatchCommitmentMode, l2::L2Tx, transaction_request::CallRequest, Address,
-    L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId, H256, U256, U64,
+    api, api::BridgeAddresses, commitment::L1BatchCommitmentMode, l2::L2Tx,
+    transaction_request::CallRequest, Address, L1BatchNumber, L1ChainId, L2BlockNumber, L2ChainId,
+    H256, U256, U64,
 };
 use zksync_web3_decl::{error::Web3Error, types::Filter};
 
@@ -90,7 +91,7 @@ impl BlockStartInfo {
 }
 
 /// Configuration values for the API.
-/// This structure is detached from `ZkSyncConfig`, since different node types (main, external, etc)
+/// This structure is detached from `ZkSyncConfig`, since different node types (main, external, etc.)
 /// may require different configuration layouts.
 /// The intention is to only keep the actually used information here.
 #[derive(Debug, Clone)]
@@ -101,6 +102,7 @@ pub struct InternalApiConfig {
     pub max_tx_size: usize,
     pub estimate_gas_scale_factor: f64,
     pub estimate_gas_acceptable_overestimation: u32,
+    pub estimate_gas_optimize_search: bool,
     pub bridge_addresses: api::BridgeAddresses,
     pub bridgehub_proxy_addr: Option<Address>,
     pub state_transition_proxy_addr: Option<Address>,
@@ -128,6 +130,7 @@ impl InternalApiConfig {
             estimate_gas_scale_factor: web3_config.estimate_gas_scale_factor,
             estimate_gas_acceptable_overestimation: web3_config
                 .estimate_gas_acceptable_overestimation,
+            estimate_gas_optimize_search: web3_config.estimate_gas_optimize_search,
             bridge_addresses: api::BridgeAddresses {
                 l1_erc20_default_bridge: contracts_config.l1_erc20_bridge_proxy_addr,
                 l2_erc20_default_bridge: contracts_config.l2_erc20_bridge_addr,
@@ -171,51 +174,16 @@ impl InternalApiConfig {
 /// Thread-safe updatable information about the last sealed L2 block number.
 ///
 /// The information may be temporarily outdated and thus should only be used where this is OK
-/// (e.g., for metrics reporting). The value is updated by [`Self::diff()`] and [`Self::diff_with_block_args()`]
-/// and on an interval specified when creating an instance.
-#[derive(Debug, Clone)]
-pub(crate) struct SealedL2BlockNumber(Arc<AtomicU32>);
+/// (e.g., for metrics reporting). The value is updated by [`Self::diff()`] and [`Self::diff_with_block_args()`].
+#[derive(Debug, Clone, Default)]
+pub struct SealedL2BlockNumber(Arc<AtomicU32>);
 
 impl SealedL2BlockNumber {
-    /// Creates a handle to the last sealed L2 block number together with a task that will update
-    /// it on a schedule.
-    pub fn new(
-        connection_pool: ConnectionPool<Core>,
-        update_interval: Duration,
-        stop_receiver: watch::Receiver<bool>,
-    ) -> (Self, impl Future<Output = anyhow::Result<()>>) {
-        let this = Self(Arc::default());
-        let number_updater = this.clone();
-
-        let update_task = async move {
-            loop {
-                if *stop_receiver.borrow() {
-                    tracing::debug!("Stopping latest sealed L2 block updates");
-                    return Ok(());
-                }
-
-                let mut connection = connection_pool.connection_tagged("api").await.unwrap();
-                let Some(last_sealed_l2_block) =
-                    connection.blocks_dal().get_sealed_l2_block_number().await?
-                else {
-                    tokio::time::sleep(update_interval).await;
-                    continue;
-                };
-                drop(connection);
-
-                number_updater.update(last_sealed_l2_block);
-                tokio::time::sleep(update_interval).await;
-            }
-        };
-
-        (this, update_task)
-    }
-
     /// Potentially updates the last sealed L2 block number by comparing it to the provided
     /// sealed L2 block number (not necessarily the last one).
     ///
     /// Returns the last sealed L2 block number after the update.
-    fn update(&self, maybe_newer_l2_block_number: L2BlockNumber) -> L2BlockNumber {
+    pub fn update(&self, maybe_newer_l2_block_number: L2BlockNumber) -> L2BlockNumber {
         let prev_value = self
             .0
             .fetch_max(maybe_newer_l2_block_number.0, Ordering::Relaxed);
@@ -229,7 +197,7 @@ impl SealedL2BlockNumber {
 
     /// Returns the difference between the latest L2 block number and the resolved L2 block number
     /// from `block_args`.
-    pub fn diff_with_block_args(&self, block_args: &BlockArgs) -> u32 {
+    pub(crate) fn diff_with_block_args(&self, block_args: &BlockArgs) -> u32 {
         // We compute the difference in any case, since it may update the stored value.
         let diff = self.diff(block_args.resolved_block_number());
 
@@ -238,6 +206,23 @@ impl SealedL2BlockNumber {
         } else {
             diff
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct BridgeAddressesHandle(Arc<RwLock<BridgeAddresses>>);
+
+impl BridgeAddressesHandle {
+    pub fn new(bridge_addresses: BridgeAddresses) -> Self {
+        Self(Arc::new(RwLock::new(bridge_addresses)))
+    }
+
+    pub async fn update(&self, bridge_addresses: BridgeAddresses) {
+        *self.0.write().await = bridge_addresses;
+    }
+
+    pub async fn read(&self) -> BridgeAddresses {
+        self.0.read().await.clone()
     }
 }
 
@@ -256,15 +241,23 @@ pub(crate) struct RpcState {
     pub(super) start_info: BlockStartInfo,
     pub(super) mempool_cache: Option<MempoolCache>,
     pub(super) last_sealed_l2_block: SealedL2BlockNumber,
+    pub(super) bridge_addresses_handle: BridgeAddressesHandle,
 }
 
 impl RpcState {
-    pub fn parse_transaction_bytes(&self, bytes: &[u8]) -> Result<(L2Tx, H256), Web3Error> {
+    pub fn parse_transaction_bytes(
+        &self,
+        bytes: &[u8],
+        block_args: &BlockArgs,
+    ) -> Result<(L2Tx, H256), Web3Error> {
         let chain_id = self.api_config.l2_chain_id;
         let (tx_request, hash) = api::TransactionRequest::from_bytes(bytes, chain_id)?;
-
         Ok((
-            L2Tx::from_request(tx_request, self.api_config.max_tx_size)?,
+            L2Tx::from_request(
+                tx_request,
+                self.api_config.max_tx_size,
+                block_args.use_evm_emulator(),
+            )?,
             hash,
         ))
     }

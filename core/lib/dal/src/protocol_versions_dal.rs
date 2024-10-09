@@ -40,22 +40,27 @@ impl ProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                protocol_versions (
-                    id,
-                    timestamp,
-                    bootloader_code_hash,
-                    default_account_code_hash,
-                    upgrade_tx_hash,
-                    created_at
-                )
+            protocol_versions (
+                id,
+                timestamp,
+                bootloader_code_hash,
+                default_account_code_hash,
+                evm_emulator_code_hash,
+                upgrade_tx_hash,
+                created_at
+            )
             VALUES
-                ($1, $2, $3, $4, $5, NOW())
+            ($1, $2, $3, $4, $5, $6, NOW())
             ON CONFLICT DO NOTHING
             "#,
             version.minor as i32,
             timestamp as i64,
             base_system_contracts_hashes.bootloader.as_bytes(),
             base_system_contracts_hashes.default_aa.as_bytes(),
+            base_system_contracts_hashes
+                .evm_emulator
+                .as_ref()
+                .map(H256::as_bytes),
             tx_hash.as_ref().map(H256::as_bytes),
         )
         .instrument("save_protocol_version#minor")
@@ -71,9 +76,9 @@ impl ProtocolVersionsDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                protocol_patches (minor, patch, snark_wrapper_vk_hash, created_at)
+            protocol_patches (minor, patch, snark_wrapper_vk_hash, created_at)
             VALUES
-                ($1, $2, $3, NOW())
+            ($1, $2, $3, NOW())
             ON CONFLICT DO NOTHING
             "#,
             version.minor as i32,
@@ -193,7 +198,8 @@ impl ProtocolVersionsDal<'_, '_> {
             r#"
             SELECT
                 bootloader_code_hash,
-                default_account_code_hash
+                default_account_code_hash,
+                evm_emulator_code_hash
             FROM
                 protocol_versions
             WHERE
@@ -212,6 +218,7 @@ impl ProtocolVersionsDal<'_, '_> {
                 .get_base_system_contracts(
                     H256::from_slice(&row.bootloader_code_hash),
                     H256::from_slice(&row.default_account_code_hash),
+                    row.evm_emulator_code_hash.as_deref().map(H256::from_slice),
                 )
                 .await?;
             Some(contracts)
@@ -232,11 +239,12 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_versions.timestamp,
                 protocol_versions.bootloader_code_hash,
                 protocol_versions.default_account_code_hash,
+                protocol_versions.evm_emulator_code_hash,
                 protocol_patches.patch,
                 protocol_patches.snark_wrapper_vk_hash
             FROM
                 protocol_versions
-                JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id
+            JOIN protocol_patches ON protocol_patches.minor = protocol_versions.id
             WHERE
                 id = $1
             ORDER BY

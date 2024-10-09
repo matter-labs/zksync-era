@@ -72,7 +72,7 @@ jobs:
               echo "No tag found on all pages."
               echo "BUILD_CONTRACTS=true" >> "$GITHUB_ENV"
               # TODO Remove it when we migrate to foundry inside contracts repository
-              mkdir -p contracts/l1-contracts/artifacts/ 
+              mkdir -p contracts/l1-contracts/artifacts/
               exit 0
             fi
             filtered_tag=$(jq -r --arg commit_sha "$commit_sha" 'map(select(.commit.sha == $commit_sha)) | .[].name' <<<"$tags")
