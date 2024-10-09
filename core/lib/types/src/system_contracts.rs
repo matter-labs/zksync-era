@@ -193,13 +193,14 @@ pub fn get_system_smart_contracts(use_evm_emulator: bool) -> Vec<DeployedContrac
         .collect()
 }
 
-/// Loads system contracts from a given directory.
-pub fn get_system_smart_contracts_from_dir(
+/// Loads contracts from a given directory.
+pub fn get_smart_contracts_from_dir(
     path: PathBuf,
     use_evm_emulator: bool,
+    contracts: &[(&str, &str, Address, ContractLanguage)],
 ) -> Vec<DeployedContract> {
     let repo = SystemContractsRepo { root: path };
-    SYSTEM_CONTRACT_LIST
+    contracts
         .iter()
         .filter_map(|(path, name, address, contract_lang)| {
             if *name == "EvmGasManager" && !use_evm_emulator {
@@ -212,4 +213,11 @@ pub fn get_system_smart_contracts_from_dir(
             }
         })
         .collect::<Vec<_>>()
+}
+/// Loads system contracts from a given directory.
+pub fn get_system_smart_contracts_from_dir(
+    path: PathBuf,
+    use_evm_emulator: bool,
+) -> Vec<DeployedContract> {
+    get_smart_contracts_from_dir(path, use_evm_emulator, &SYSTEM_CONTRACT_LIST)
 }

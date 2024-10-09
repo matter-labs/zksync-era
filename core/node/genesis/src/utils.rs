@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use itertools::Itertools;
 use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{Connection, Core, CoreDal};
+use zksync_merkle_tree::{domain::ZkSyncTree, BlockOutput, TreeInstruction};
 use zksync_multivm::{
     circuit_sequencer_api_latest::sort_storage_access::sort_storage_access_queries,
     zk_evm_latest::aux_structures::{LogQuery as MultiVmLogQuery, Timestamp as MultiVMTimestamp},
@@ -38,6 +39,29 @@ pub(super) async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> any
         .mark_token_as_well_known(ETHEREUM_ADDRESS)
         .await?;
     Ok(())
+}
+
+pub fn merkle_tree_metadata_from_deployed_contracts(contracts: &[DeployedContract]) -> BlockOutput {
+    let deduped_log_queries = get_deduped_log_queries(&get_storage_logs(contracts));
+
+    let (deduplicated_writes, _): (Vec<_>, Vec<_>) = deduped_log_queries
+        .into_iter()
+        .partition(|log_query| log_query.rw_flag);
+
+    let storage_logs: Vec<TreeInstruction> = deduplicated_writes
+        .iter()
+        .enumerate()
+        .map(|(index, log)| {
+            TreeInstruction::write(
+                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key))
+                    .hashed_key_u256(),
+                (index + 1) as u64,
+                u256_to_h256(log.written_value),
+            )
+        })
+        .collect();
+
+    ZkSyncTree::process_genesis_batch(&storage_logs)
 }
 
 pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<StorageLog> {

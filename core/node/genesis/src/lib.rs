@@ -31,7 +31,7 @@ use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 use crate::utils::{
     add_eth_token, get_deduped_log_queries, get_storage_logs,
     insert_base_system_contracts_to_factory_deps, insert_system_contracts,
-    save_genesis_l1_batch_metadata,
+    merkle_tree_metadata_from_deployed_contracts, save_genesis_l1_batch_metadata,
 };
 
 #[cfg(test)]
@@ -207,27 +207,7 @@ pub async fn insert_genesis_batch(
     .await?;
     tracing::info!("chain_schema_genesis is complete");
 
-    let deduped_log_queries =
-        get_deduped_log_queries(&get_storage_logs(genesis_params.system_contracts()));
-
-    let (deduplicated_writes, _): (Vec<_>, Vec<_>) = deduped_log_queries
-        .into_iter()
-        .partition(|log_query| log_query.rw_flag);
-
-    let storage_logs: Vec<TreeInstruction> = deduplicated_writes
-        .iter()
-        .enumerate()
-        .map(|(index, log)| {
-            TreeInstruction::write(
-                StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key))
-                    .hashed_key_u256(),
-                (index + 1) as u64,
-                u256_to_h256(log.written_value),
-            )
-        })
-        .collect();
-
-    let metadata = ZkSyncTree::process_genesis_batch(&storage_logs);
+    let metadata = merkle_tree_metadata_from_deployed_contracts(genesis_params.system_contracts());
     let genesis_root_hash = metadata.root_hash;
     let rollup_last_leaf_index = metadata.leaf_count + 1;
 
