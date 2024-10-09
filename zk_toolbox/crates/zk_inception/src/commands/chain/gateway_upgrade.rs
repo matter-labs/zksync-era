@@ -8,9 +8,7 @@ use common::{
 use config::{
     forge_interface::{
         gateway_chain_upgrade::{input::GatewayChainUpgradeInput, output::GatewayChainUpgradeOutput}, gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput, gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput}, script_params::{GATEWAY_PREPARATION, GATEWAY_UPGRADE_CHAIN_PARAMS}
-    },
-    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
-    EcosystemConfig,
+    }, traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath}, ChainConfig, EcosystemConfig
 };
 use ethers::{
     abi::parse_abi,
@@ -30,14 +28,16 @@ use zksync_types::{L2ChainId, H160, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
-    utils::forge::{check_the_balance, fill_forge_private_key},
+    accept_ownership::admin_execute_calls, messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED}, utils::forge::{check_the_balance, fill_forge_private_key}
 };
 
 #[derive(
     Debug, Serialize, Deserialize, Clone, Copy, ValueEnum, EnumIter, strum::Display, PartialEq, Eq,
 )]
 pub enum GatewayChainUpgradeStage {
+    // Does not require admin, still needs to be done to update configs, etc
+    PrepareStage1, 
+
     // Should be executed after Stage1 of the governance upgrade
     FinalizeStage1,
 
@@ -71,18 +71,6 @@ lazy_static! {
 }
 
 pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> {
-    match args.chain_upgrade_stage {
-        GatewayChainUpgradeStage::FinalizeStage1 => {
-            // nothing
-        },
-        GatewayChainUpgradeStage::FinalizeStage2 => {
-            panic!("Not supported");
-        },
-        GatewayChainUpgradeStage::KeepUpStage2 => {
-            panic!("Not supported");
-        }
-    }
-
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let chain_name = global_config().chain_name.clone();
@@ -98,6 +86,35 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
         .expose_str()
         .to_string();
 
+
+    match args.chain_upgrade_stage {
+        GatewayChainUpgradeStage::PrepareStage1 => {
+            prepare_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
+        }
+        GatewayChainUpgradeStage::FinalizeStage1 => {
+            finalize_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
+        },
+        GatewayChainUpgradeStage::FinalizeStage2 => {
+            panic!("Not supported");
+        },
+        GatewayChainUpgradeStage::KeepUpStage2 => {
+            panic!("Not supported");
+        }
+    }
+  
+    // // TODO: this has to be done as the final stage of the chain upgrade.
+    // contracts_config.bridges.l1_nullifier_addr = Some(contracts_config.bridges.shared.l1_address);
+    // contracts_config.bridges.shared.l1_address = gateway_ecosystem_preparation_output.deployed_addresses.bridges.shared_bridge_proxy_addr;
+
+}
+
+async fn prepare_stage1(
+    shell: &Shell,
+    args: GatewayUpgradeArgs,
+    ecosystem_config: EcosystemConfig,
+    chain_config: ChainConfig,
+    l1_url: String
+) -> anyhow::Result<()> {
     let chain_upgrade_config_path =
         GATEWAY_UPGRADE_CHAIN_PARAMS.input(&ecosystem_config.link_to_code);
 
@@ -105,7 +122,7 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
         &chain_config
     );
     gateway_upgrade_input.save(shell, chain_upgrade_config_path.clone())?;
-    
+
     let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
         .script(
             &GATEWAY_UPGRADE_CHAIN_PARAMS.script(),
@@ -142,7 +159,6 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
     contracts_config.user_facing_diamond_proxy = Some(contracts_config.l1.diamond_proxy_addr);
     contracts_config.ecosystem_contracts.stm_deployment_tracker_proxy_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.bridgehub.ctm_deployment_tracker_proxy_addr);
     // This is force deployment data for creating new contracts, not really relevant here tbh,
-    // FIXME: remove it from here at all
     contracts_config.ecosystem_contracts.force_deployments_data = Some(hex::encode(&gateway_ecosystem_preparation_output.contracts_config.force_deployments_data.0));
     contracts_config.ecosystem_contracts.native_token_vault_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.native_token_vault_addr);
     contracts_config.ecosystem_contracts.l1_bytecodes_supplier_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.l1_bytecodes_supplier_addr);
@@ -166,11 +182,31 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
 
     contracts_config.save_with_base_path(shell, chain_config.configs)?;
 
-    // // TODO: this has to be done as the final stage of the chain upgrade.
-    // contracts_config.bridges.l1_nullifier_addr = Some(contracts_config.bridges.shared.l1_address);
-    // contracts_config.bridges.shared.l1_address = gateway_ecosystem_preparation_output.deployed_addresses.bridges.shared_bridge_proxy_addr;
+    Ok(())
+}
 
+async fn finalize_stage1(
+    shell: &Shell,
+    args: GatewayUpgradeArgs,
+    ecosystem_config: EcosystemConfig,
+    chain_config: ChainConfig,
+    l1_url: String
+) -> anyhow::Result<()> {
+    println!("Finalizing stage1 of chain upgrade!");
 
+    let gateway_ecosystem_preparation_output = GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
+
+    admin_execute_calls(
+        shell,
+        &ecosystem_config,
+        &chain_config.get_contracts_config()?,
+        chain_config.get_wallets_config()?.governor_private_key(),
+        gateway_ecosystem_preparation_output.chain_upgrade_diamond_cut.0,
+        &args.forge_args,
+        l1_url
+    ).await?;
+
+    println!("done!");
 
     Ok(())
 }
