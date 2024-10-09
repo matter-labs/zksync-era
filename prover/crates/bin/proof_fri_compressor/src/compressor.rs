@@ -153,16 +153,7 @@ impl ProofCompressor {
 
         // set compression schedule:
         // - "hard" is the strategy that gives smallest final circuit
-        let compression_schedule = CompressionSchedule {
-            name: "hardest",
-            compression_steps: vec![
-                CompressionMode::One,
-                CompressionMode::Two,
-                CompressionMode::Three,
-                CompressionMode::Four,
-                CompressionMode::Five,
-            ],
-        };
+        let compression_schedule = CompressionSchedule::hard();
         let compression_wrapper_mode = compression_schedule
             .compression_steps
             .last()
