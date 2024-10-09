@@ -10,6 +10,8 @@ use xshell::{cmd, Shell};
 
 use crate::messages::{MSG_API_CONFIG_NOT_FOUND_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_STATUS_URL_HELP};
 
+const DEFAULT_LINE_WIDTH: usize = 40;
+
 #[derive(Deserialize, Debug)]
 struct StatusResponse {
     status: String,
@@ -29,7 +31,12 @@ pub struct StatusArgs {
 }
 
 fn bordered_box(msg: &str) -> String {
-    let longest_line = msg.lines().map(|line| line.len()).max().unwrap_or(0);
+    let longest_line = msg
+        .lines()
+        .map(|line| line.len())
+        .max()
+        .unwrap_or(0)
+        .max(DEFAULT_LINE_WIDTH);
     let width = longest_line + 2;
     let border = "─".repeat(width);
     let boxed_msg = msg
@@ -41,8 +48,18 @@ fn bordered_box(msg: &str) -> String {
 }
 
 fn two_bordered_boxes(msg1: &str, msg2: &str) -> String {
-    let longest_line1 = msg1.lines().map(|line| line.len()).max().unwrap_or(0);
-    let longest_line2 = msg2.lines().map(|line| line.len()).max().unwrap_or(0);
+    let longest_line1 = msg1
+        .lines()
+        .map(|line| line.len())
+        .max()
+        .unwrap_or(0)
+        .max(DEFAULT_LINE_WIDTH);
+    let longest_line2 = msg2
+        .lines()
+        .map(|line| line.len())
+        .max()
+        .unwrap_or(0)
+        .max(DEFAULT_LINE_WIDTH);
     let width1 = longest_line1 + 2;
     let width2 = longest_line2 + 2;
 
@@ -100,7 +117,7 @@ fn print_status(shell: &Shell, health_check_url: String) -> anyhow::Result<()> {
         if let Some(details) = &component.details {
             for (key, value) in details.as_object().unwrap() {
                 let deslugified_key = deslugify(key);
-                component_info.push_str(&format!("\n    - {}: {}", deslugified_key, value));
+                component_info.push_str(&format!("\n  - {}: {}", deslugified_key, value));
             }
         }
 
@@ -111,11 +128,16 @@ fn print_status(shell: &Shell, health_check_url: String) -> anyhow::Result<()> {
         components.push(component_info);
     }
 
-    // Add components boxes to the components info string
-    // grouped by 2 components per line
+    components.sort_by(|a, b| {
+        a.lines()
+            .count()
+            .cmp(&b.lines().count())
+            .then_with(|| a.cmp(b))
+    });
+
     for chunk in components.chunks(2) {
         if let Some(component) = chunk.get(1) {
-            components_info.push_str(&two_bordered_boxes(chunk.first().unwrap(), component));
+            components_info.push_str(&two_bordered_boxes(component, chunk.first().unwrap()));
         } else {
             components_info.push_str(&bordered_box(chunk.first().unwrap()));
         }
