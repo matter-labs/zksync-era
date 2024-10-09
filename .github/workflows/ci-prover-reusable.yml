@@ -32,7 +32,7 @@ jobs:
 
       - name: Init
         run: |
-          ci_run ./zkstack_cli/zkstack/install --path ./zkstack_cli/zkstack/zkstackup || true
+          ci_run ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup --local
           ci_run zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
 
@@ -68,7 +68,7 @@ jobs:
 
       - name: Init
         run: |
-          ci_run ./zkstack_cli/zkstack/install --path ./zkstack_cli/zkstack/zkstackup || true
+          ci_run ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup --local
           ci_run run_retried rustup show
 
