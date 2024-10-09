@@ -148,6 +148,9 @@ impl ProtoRepr for proto::Config {
         };
 
         Ok(Self::Type {
+            port: required(&self.port)
+                .and_then(|x| Ok((*x).try_into()?))
+                .context("port")?,
             server_addr: required(&self.server_addr)
                 .and_then(|x| Ok(x.parse()?))
                 .context("server_addr")?,
@@ -182,6 +185,7 @@ impl ProtoRepr for proto::Config {
 
     fn build(this: &Self::Type) -> Self {
         Self {
+            port: Some(this.port.into()),
             server_addr: Some(this.server_addr.to_string()),
             public_addr: Some(this.public_addr.0.clone()),
             max_payload_size: Some(this.max_payload_size.try_into().unwrap()),
