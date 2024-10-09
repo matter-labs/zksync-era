@@ -21,6 +21,10 @@ main() {
   chmod +x "$BIN_PATH"
   echo "zkstackup: successfully installed in ${BIN_DIR}."
 
+  add_bin_folder_to_path
+}
+
+add_bin_folder_to_path() {
   if [[ ":$PATH:" == *":${BIN_DIR}:"* ]]; then
     echo "zkstackup: found ${BIN_DIR} in PATH"
     exit 0
@@ -63,7 +67,6 @@ main() {
   echo "Run 'source $PROFILE' or start a new terminal session to use zkstackup."
   echo "Then run 'zkstackup' to install ZK Stack CLI."
 }
-
 
 parse_args() {
   while [[ $# -gt 0 ]]; do
