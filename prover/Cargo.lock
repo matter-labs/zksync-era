@@ -662,7 +662,7 @@ dependencies = [
 [[package]]
 name = "boojum-cuda"
 version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#cf47a26aeea8e7db2020f4c467dd4e9e5d07a044"
 dependencies = [
  "boojum",
  "cmake",
@@ -1777,7 +1777,7 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 [[package]]
 name = "era_cudart"
 version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#cf47a26aeea8e7db2020f4c467dd4e9e5d07a044"
 dependencies = [
  "bitflags 2.6.0",
  "era_cudart_sys",
@@ -1787,7 +1787,7 @@ dependencies = [
 [[package]]
 name = "era_cudart_sys"
 version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#cf47a26aeea8e7db2020f4c467dd4e9e5d07a044"
 dependencies = [
  "serde_json",
 ]
@@ -1942,7 +1942,7 @@ dependencies = [
 [[package]]
 name = "fflonk-gpu"
 version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#cf47a26aeea8e7db2020f4c467dd4e9e5d07a044"
 dependencies = [
  "bincode",
  "byteorder",
@@ -4240,7 +4240,7 @@ dependencies = [
 [[package]]
 name = "proof-compression-gpu"
 version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#cf47a26aeea8e7db2020f4c467dd4e9e5d07a044"
 dependencies = [
  "bincode",
  "circuit_definitions",
@@ -5493,7 +5493,7 @@ checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 [[package]]
 name = "shivini"
 version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#cf47a26aeea8e7db2020f4c467dd4e9e5d07a044"
 dependencies = [
  "bincode",
  "blake2 0.10.6",
@@ -7488,7 +7488,7 @@ dependencies = [
 [[package]]
 name = "zksync-gpu-ffi"
 version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#5d77f7c7833b09ae2823ff6eed437e3ed7b64bd0"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#cf47a26aeea8e7db2020f4c467dd4e9e5d07a044"
 dependencies = [
  "cmake",
  "crossbeam 0.8.4",

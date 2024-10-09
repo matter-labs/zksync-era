@@ -73,6 +73,10 @@ impl ProofCompressor {
         ZkSyncCompressionProofForWrapper,
         ZkSyncCompressionVerificationKeyForWrapper,
     ) {
+        let bytes = std::fs::read("data/compression_wrapper_5_setup_data.bin").unwrap();
+        println!("Compression wrapper setup data loaded");
+        let setup_data = bincode::deserialize(&bytes).unwrap();
+
         let worker = franklin_crypto::boojum::worker::Worker::new();
         let mut input = CompressionInput::Compression(Some(proof), vk, CompressionMode::One);
 
@@ -125,7 +129,7 @@ impl ProofCompressor {
         let compression_circuit = input.into_compression_wrapper_circuit();
         let (proof, vk) = proof_compression_gpu::prove_compression_wrapper_circuit(
             compression_circuit,
-            &mut None,
+            &mut Some(setup_data),
             &worker,
         );
         println!(
@@ -149,7 +153,16 @@ impl ProofCompressor {
 
         // set compression schedule:
         // - "hard" is the strategy that gives smallest final circuit
-        let compression_schedule = CompressionSchedule::hard();
+        let compression_schedule = CompressionSchedule {
+            name: "hardest",
+            compression_steps: vec![
+                CompressionMode::One,
+                CompressionMode::Two,
+                CompressionMode::Three,
+                CompressionMode::Four,
+                CompressionMode::Five,
+            ],
+        };
         let compression_wrapper_mode = compression_schedule
             .compression_steps
             .last()
