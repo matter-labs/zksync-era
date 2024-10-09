@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use once_cell::sync::Lazy;
 use zk_evm_1_3_3::{
     aux_structures::{LogQuery, MemoryPage, Timestamp},
@@ -7,7 +5,7 @@ use zk_evm_1_3_3::{
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::FatPointer,
 };
-use zksync_contracts::{read_yul_bytecode, BaseSystemContracts};
+use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{Address, StorageLogKind, H160, MAX_L2_TX_GAS_LIMIT, U256};
 use zksync_utils::h256_to_u256;
