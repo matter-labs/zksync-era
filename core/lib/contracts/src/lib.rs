@@ -296,22 +296,24 @@ pub fn read_yul_bytecode(relative_artifacts_path: &str, name: &str) -> Vec<u8> {
 }
 
 pub fn read_yul_bytecode_by_path(artifacts_path: PathBuf, name: &str) -> Vec<u8> {
-    let bytecode_path = artifacts_path.join(format!("{0}.yul/{0}.yul.zbin", name));
+    let bytecode_path = artifacts_path.join(format!("{name}.yul/{name}.yul.zbin"));
 
-    if fs::exists(&bytecode_path).unwrap_or_else(|_| panic!("Invalid path: {:?}", &bytecode_path)) {
+    // Legacy versions of zksolc use the following path for output data if a yul file is being compiled: <name>.yul.zbin
+    // New zksolc versions use <name>.yul/<name>.yul.zbin, for consistency with solidity files compilation.
+    // In addition, the output of the legacy zksolc in this case is a binary file, while in new versions it is hex encoded.
+    if fs::exists(&bytecode_path)
+        .unwrap_or_else(|err| panic!("Invalid path: {bytecode_path:?}, {err}"))
+    {
         read_zbin_bytecode_from_path_utf8(bytecode_path)
     } else {
-        let bytecode_path_legacy = artifacts_path.join(format!("{}.yul.zbin", name));
+        let bytecode_path_legacy = artifacts_path.join(format!("{name}.yul.zbin"));
 
         if fs::exists(&bytecode_path_legacy)
-            .unwrap_or_else(|_| panic!("Invalid path: {:?}", &bytecode_path_legacy))
+            .unwrap_or_else(|err| panic!("Invalid path: {bytecode_path_legacy:?}, {err}"))
         {
             read_zbin_bytecode_from_path(bytecode_path_legacy)
         } else {
-            panic!(
-                "Can't find bytecode for '{}' yul contract at {:?}",
-                name, artifacts_path
-            )
+            panic!("Can't find bytecode for '{name}' yul contract at {artifacts_path:?}")
         }
     }
 }
@@ -319,19 +321,19 @@ pub fn read_yul_bytecode_by_path(artifacts_path: PathBuf, name: &str) -> Vec<u8>
 /// Reads zbin bytecode from a given path.
 fn read_zbin_bytecode_from_path(bytecode_path: PathBuf) -> Vec<u8> {
     fs::read(&bytecode_path)
-        .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err))
+        .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {bytecode_path:?}: {err}"))
 }
 
 /// Reads zbin bytecode from a given path as utf8 text file.
 fn read_zbin_bytecode_from_path_utf8(bytecode_path: PathBuf) -> Vec<u8> {
     let buffer = fs::read(&bytecode_path)
-        .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err));
+        .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {bytecode_path:?}: {err}"));
 
     hex_string_to_bytes(
         &String::from_utf8(buffer)
-            .unwrap_or_else(|_| panic!("Invalid input file: {:?}", bytecode_path)),
+            .unwrap_or_else(|err| panic!("Invalid input file: {bytecode_path:?}, {err}")),
     )
-    .unwrap_or_else(|_| panic!("Invalid hex"))
+    .unwrap_or_else(|err| panic!("Invalid hex, {err}"))
 }
 
 /// Hash of code and code which consists of 32 bytes words
