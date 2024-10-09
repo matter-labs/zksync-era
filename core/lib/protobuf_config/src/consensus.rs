@@ -148,7 +148,7 @@ impl ProtoRepr for proto::Config {
         };
 
         Ok(Self::Type {
-            port: self.port.map(|x| x.try_into().ok()).flatten(),
+            port: self.port.and_then(|x| x.try_into().ok()),
             server_addr: required(&self.server_addr)
                 .and_then(|x| Ok(x.parse()?))
                 .context("server_addr")?,
