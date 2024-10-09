@@ -3,8 +3,7 @@ use std::{collections::HashMap, convert::TryInto, fmt::Debug};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
-use zksync_object_store::_reexports::BoxedError;
-use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
+use zksync_object_store::{_reexports::BoxedError, serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::Eip4844Blobs, block::L2BlockExecutionData,
     witness_block_state::WitnessStorageState, L1BatchNumber, ProtocolVersionId, H256, U256,
