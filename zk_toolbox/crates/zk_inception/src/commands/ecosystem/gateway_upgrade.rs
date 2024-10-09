@@ -89,11 +89,6 @@ async fn no_governance_prepare(
     ecosystem_config: &EcosystemConfig,
 ) -> anyhow::Result<()> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
-    build_da_contracts(shell, &ecosystem_config.link_to_code)?;
-    build_l1_contracts(shell, &ecosystem_config.link_to_code)?;
-    build_system_contracts(shell, &ecosystem_config.link_to_code)?;
-    build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
     spinner.finish();
 
     let forge_args = init_args.forge_args.clone();
@@ -152,18 +147,22 @@ async fn no_governance_prepare(
         GATEWAY_UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.link_to_code),
     )?;
     output.save_with_base_path(shell, &ecosystem_config.config)?;
-    // output.save_wth
 
-    // let spinner = Spinner::new(MSG_DEPLOYING_ERC20_SPINNER);
-    // check_the_balance(&forge).await?;
-    // forge.run(shell)?;
-    // spinner.finish();
-
-    // let result = ERC20Tokens::read(
-    //     shell,
-    //     DEPLOY_ERC20_SCRIPT_PARAMS.output(&ecosystem_config.link_to_code),
-    // )?;
-    // result.save_with_base_path(shell, &ecosystem_config.config)?;
+    // Each chain will have to update it
 
     Ok(())
 }
+
+// async fn update_chains(
+//     ecosystem_config: &EcosystemConfig,
+//     output: GatewayEcosystemUpgradeOutput
+// ) -> anyhow::Result<()> {
+//     for entry in ecosystem_config.list_of_chains() {
+//         let chain_config = ecosystem_config.load_chain(Some(entry)).context("unexisting chain")?;
+
+//         let mut contracts_config = chain_config.get_contracts_config()?;
+
+//     }
+
+//     Ok(())
+// }

@@ -337,7 +337,8 @@ async fn deploy_ecosystem_inner(
         config.get_wallets()?.governor_private_key(),
         contracts_config
             .ecosystem_contracts
-            .stm_deployment_tracker_proxy_addr,
+            .stm_deployment_tracker_proxy_addr
+            .context("stm_deployment_tracker_proxy_addr")?,
         &forge_args,
         l1_rpc_url.clone(),
     )

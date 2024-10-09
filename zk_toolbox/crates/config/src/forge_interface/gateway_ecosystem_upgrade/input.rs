@@ -79,7 +79,7 @@ impl GatewayEcosystemUpgradeInput {
                 validator_timelock_execution_delay: initial_deployment_config
                     .validator_timelock_execution_delay,
 
-                bridgehub_proxy_address: current_contracts_config.user_facing_bridgehub,
+                bridgehub_proxy_address: current_contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
                 old_shared_bridge_proxy_address: current_contracts_config.bridges.shared.l1_address,
                 state_transition_manager_address: current_contracts_config
                     .ecosystem_contracts

@@ -125,7 +125,7 @@ pub async fn init(
             shell,
             ecosystem_config,
             chain_config.get_wallets_config()?.governor_private_key(),
-            chain_contracts.l1.access_control_restriction_addr,
+            chain_contracts.l1.access_control_restriction_addr.context("chain_contracts.l1.access_control_restriction_addr")?,
             chain_contracts.l1.diamond_proxy_addr,
             chain_config
                 .get_wallets_config()
@@ -167,8 +167,8 @@ pub async fn init(
         contracts_config.l1.chain_admin_addr,
         chain_config.get_wallets_config()?.governor_private_key(),
         contracts_config.l1.diamond_proxy_addr,
-        l1_da_validator_addr,
-        contracts_config.l2.da_validator_addr,
+        l1_da_validator_addr.context("l1_da_validator_addr")?,
+        contracts_config.l2.da_validator_addr.context("da_validator_addr")?,
         &init_args.forge_args.clone(),
         init_args.l1_rpc_url.clone(),
     )

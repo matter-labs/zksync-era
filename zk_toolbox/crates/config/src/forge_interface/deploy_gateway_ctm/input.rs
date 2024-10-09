@@ -63,8 +63,9 @@ impl DeployGatewayCTMInput {
             bridgehub_proxy_addr: contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
             ctm_deployment_tracker_proxy_addr: contracts_config
                 .ecosystem_contracts
-                .stm_deployment_tracker_proxy_addr,
-            native_token_vault_addr: contracts_config.ecosystem_contracts.native_token_vault_addr,
+                .stm_deployment_tracker_proxy_addr
+                .expect("stm_deployment_tracker_proxy_addr"),
+            native_token_vault_addr: contracts_config.ecosystem_contracts.native_token_vault_addr.expect("native_token_vault_addr"),
             chain_type_manager_proxy_addr: contracts_config
                 .ecosystem_contracts
                 .state_transition_proxy_addr,
@@ -110,7 +111,8 @@ impl DeployGatewayCTMInput {
             force_deployments_data: contracts_config
                 .ecosystem_contracts
                 .force_deployments_data
-                .clone(),
+                .clone()
+                .expect("force_deployments_data"),
         }
     }
 }

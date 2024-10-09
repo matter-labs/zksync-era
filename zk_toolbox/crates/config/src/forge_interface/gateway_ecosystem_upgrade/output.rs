@@ -62,6 +62,7 @@ pub struct GatewayEcosystemUpgradeDeployedAddresses {
     pub rollup_l1_da_validator_addr: Address,
     pub validator_timelock_addr: Address,
     pub validium_l1_da_validator_addr: Address,
+    pub l1_bytecodes_supplier_addr: Address,
 
     pub bridgehub: GatewayEcosystemUpgradeBridgehub,
     pub bridges: GatewayEcosystemUpgradeBridges,
@@ -70,32 +71,32 @@ pub struct GatewayEcosystemUpgradeDeployedAddresses {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GatewayEcosystemUpgradeBridgehub {
-    bridgehub_implementation_addr: Address,
-    ctm_deployment_tracker_implementation_addr: Address,
-    ctm_deployment_tracker_proxy_addr: Address,
-    message_root_implementation_addr: Address,
-    message_root_proxy_addr: Address,
+    pub bridgehub_implementation_addr: Address,
+    pub ctm_deployment_tracker_implementation_addr: Address,
+    pub ctm_deployment_tracker_proxy_addr: Address,
+    pub message_root_implementation_addr: Address,
+    pub message_root_proxy_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GatewayEcosystemUpgradeBridges {
-    erc20_bridge_implementation_addr: Address,
-    l1_nullifier_implementation_addr: Address,
-    shared_bridge_implementation_addr: Address,
-    shared_bridge_proxy_addr: Address,
+    pub erc20_bridge_implementation_addr: Address,
+    pub l1_nullifier_implementation_addr: Address,
+    pub shared_bridge_implementation_addr: Address,
+    pub shared_bridge_proxy_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GatewayEcosystemUpgradeStateTransition {
-    admin_facet_addr: Address,
-    default_upgrade_addr: Address,
-    diamond_init_addr: Address,
-    executor_facet_addr: Address,
-    genesis_upgrade_addr: Address,
-    getters_facet_addr: Address,
-    mailbox_facet_addr: Address,
-    state_transition_implementation_addr: Address,
-    verifier_addr: Address,
+    pub admin_facet_addr: Address,
+    pub default_upgrade_addr: Address,
+    pub diamond_init_addr: Address,
+    pub executor_facet_addr: Address,
+    pub genesis_upgrade_addr: Address,
+    pub getters_facet_addr: Address,
+    pub mailbox_facet_addr: Address,
+    pub state_transition_implementation_addr: Address,
+    pub verifier_addr: Address,
 }
 
 impl ZkToolboxConfig for GatewayEcosystemUpgradeOutput {}
