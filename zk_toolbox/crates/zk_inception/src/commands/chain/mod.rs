@@ -83,7 +83,7 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::DeployMulticall3(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Multicall3).await
         }
-        ChainCommands::Upgrader(args) => {
+        ChainCommands::DeployUpgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await
         }
         ChainCommands::InitializeBridges(args) => {

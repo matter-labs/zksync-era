@@ -455,6 +455,7 @@ contracts to be deployed.
 - `--from-file <PATH>` — Set attester committee to committee specified in yaml file at `PATH`.  
   Mutually exclusive with `--from-genesis`. File format is specified in
   `zk_inception/src/commands/consensus/proto/mod.proto`. Example:
+
   ```yaml
   attesters:
     - key: attester:public:secp256k1:0339d4b0cdd9896d3929631a4e5e9a5b4919f52592bec571d70bb0e50a3a824714
