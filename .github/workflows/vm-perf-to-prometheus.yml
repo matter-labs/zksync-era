@@ -33,7 +33,7 @@ jobs:
         run: |
           run_retried docker compose pull zk
           docker compose up -d zk
-          ci_run ./zkstack_cli/zkstack/install --path ./zkstack_cli/zkstack/install || true
+          ci_run ./zkstack_cli/zkstack/install --path ./zkstack_cli/zkstack/zkstackup || true
           ci_run zkstackup --local
           ci_run zkstack dev contracts
 
