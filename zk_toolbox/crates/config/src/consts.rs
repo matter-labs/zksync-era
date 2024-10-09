@@ -62,6 +62,8 @@ pub const DEFAULT_EXPLORER_WORKER_PORT: u16 = 3001;
 pub const DEFAULT_EXPLORER_API_PORT: u16 = 3002;
 /// Default port for the explorer data fetcher service
 pub const DEFAULT_EXPLORER_DATA_FETCHER_PORT: u16 = 3040;
+/// Default port for consensus service
+pub const DEFAULT_CONSENSUS_PORT: u16 = 3054;
 
 pub const EXPLORER_API_DOCKER_IMAGE: &str = "matterlabs/block-explorer-api";
 pub const EXPLORER_DATA_FETCHER_DOCKER_IMAGE: &str = "matterlabs/block-explorer-data-fetcher";
