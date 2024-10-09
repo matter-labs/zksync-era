@@ -1,4 +1,4 @@
-#! /bin/bash
+#!/bin/bash
 
 # Colors for the terminal output
 RED='\033[0;31m'
