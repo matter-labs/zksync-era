@@ -1,5 +1,6 @@
 import * as fs from 'fs';
-import * as zksync from 'zksync-ethers';
+// import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
 import * as hre from 'hardhat';
 import { ZkSyncArtifact } from '@matterlabs/hardhat-zksync-solc/dist/src/types';

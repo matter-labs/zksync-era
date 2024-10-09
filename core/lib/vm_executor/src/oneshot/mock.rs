@@ -8,7 +8,7 @@ use zksync_multivm::interface::{
     ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
     TxExecutionArgs, TxExecutionMode, VmExecutionResultAndLogs,
 };
-use zksync_types::{l2::L2Tx, Transaction};
+use zksync_types::{ExternalTx, Transaction};
 
 type TxResponseFn = dyn Fn(&Transaction, &OneshotEnv) -> VmExecutionResultAndLogs + Send + Sync;
 
@@ -120,7 +120,7 @@ where
         &self,
         _storage: S,
         env: OneshotEnv,
-        tx: L2Tx,
+        tx: ExternalTx,
         _validation_params: ValidationParams,
     ) -> anyhow::Result<Result<(), ValidationError>> {
         Ok(

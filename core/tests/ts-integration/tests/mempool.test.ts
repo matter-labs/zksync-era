@@ -3,7 +3,8 @@
  * scheduled, processed and/or postponed.
  */
 import { TestMaster } from '../src';
-import * as zksync from 'zksync-ethers';
+// import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
 
 describe('Tests for the mempool behavior', () => {
     let testMaster: TestMaster;
