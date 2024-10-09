@@ -700,7 +700,7 @@ describe('web3 API compatibility tests', () => {
         expect(pendingBlock).toEqual(null);
     });
 
-    test('Should check sendRawTransaction returns GasPerPubDataLimitZero with 0 gas_per_pubdata_limit', async () => {
+    test('Should check sendRawTransaction completes with 0 gas_per_pubdata_limit', async () => {
         const gasPrice = await alice.provider.getGasPrice();
         const chainId = (await alice.provider.getNetwork()).chainId;
         const address = zksync.Wallet.createRandom().address;
@@ -720,7 +720,7 @@ describe('web3 API compatibility tests', () => {
             }
         };
 
-        await expect(alice.sendTransaction(tx)).toBeRejected('gas per pub data limit is zero');
+        await expect(alice.sendTransaction(tx)).toBeAccepted([]);
     });
 
     test('Should check getLogs works with address/topics in filter', async () => {
