@@ -42,7 +42,7 @@ pub use self::{
     block::{BlockInfo, ResolvedBlockInfo},
     contracts::{
         BaseSystemContractsProvider, CallOrExecute, ContractsKind, EstimateGas,
-        MockBaseSystemContractsProvider, MultiVMBaseSystemContracts,
+        MultiVMBaseSystemContracts,
     },
     env::OneshotEnvParameters,
     mock::MockOneshotExecutor,

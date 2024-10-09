@@ -152,16 +152,3 @@ impl<C: ContractsKind> BaseSystemContractsProvider<C> for MultiVMBaseSystemContr
             .get_by_protocol_version(block_info.protocol_version(), block_info.use_evm_emulator()))
     }
 }
-
-#[derive(Debug)]
-pub struct MockBaseSystemContractsProvider(pub BaseSystemContracts);
-
-#[async_trait]
-impl<C: ContractsKind> BaseSystemContractsProvider<C> for MockBaseSystemContractsProvider {
-    async fn base_system_contracts(
-        &self,
-        _block_info: &ResolvedBlockInfo,
-    ) -> anyhow::Result<BaseSystemContracts> {
-        Ok(self.0.clone())
-    }
-}
