@@ -115,3 +115,18 @@ pub fn new_line() {
         CliclackTheme.bar_color(&ThemeState::Submit).apply_to(S_BAR)
     ))
 }
+
+pub fn bordered_box(msg: &str) {
+    let longest_line = msg.lines().map(|line| line.len()).max().unwrap_or(0);
+    let border = "─".repeat(longest_line);
+    let boxed_info = format!(
+        "┌{}┐\n{}\n└{}┘\n",
+        border,
+        msg.lines()
+            .map(|line| format!("{:<width$}", line, width = longest_line))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        border
+    );
+    term_write(boxed_info);
+}

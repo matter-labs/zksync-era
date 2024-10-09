@@ -28,6 +28,18 @@ pub struct StatusArgs {
     pub url: Option<String>,
 }
 
+pub fn bordered_box(msg: &str) -> String {
+    let longest_line = msg.lines().map(|line| line.len()).max().unwrap_or(0);
+    let width = longest_line + 2;
+    let border = "─".repeat(width);
+    let boxed_msg = msg
+        .lines()
+        .map(|line| format!("│ {:longest_line$} │", line))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("┌{}┐\n{}\n└{}┘\n", border, boxed_msg, border)
+}
+
 fn print_status(shell: &Shell, health_check_url: String) -> anyhow::Result<()> {
     let response = Cmd::new(cmd!(shell, "curl {health_check_url}")).run_with_output()?;
     let response = String::from_utf8(response.stdout)?;
@@ -40,14 +52,12 @@ fn print_status(shell: &Shell, health_check_url: String) -> anyhow::Result<()> {
         logger::warn(format!("System Status: {}\n", status_response.status));
     }
 
-    let mut components_info = String::from("Components:");
-
+    let mut components_info = String::from("Components:\n");
     let mut not_ready_components = Vec::new();
 
     for (component_name, component) in status_response.components {
         let readable_name = deslugify(&component_name);
-        let mut component_info =
-            format!("\n  {}:\n    - Status: {}", readable_name, component.status);
+        let mut component_info = format!("{}:\n  - Status: {}", readable_name, component.status);
 
         if let Some(details) = &component.details {
             for (key, value) in details.as_object().unwrap() {
@@ -56,11 +66,11 @@ fn print_status(shell: &Shell, health_check_url: String) -> anyhow::Result<()> {
             }
         }
 
-        components_info.push_str(&component_info);
-
         if component.status.to_lowercase() != "ready" {
             not_ready_components.push(readable_name);
         }
+
+        components_info.push_str(&bordered_box(&component_info));
     }
 
     logger::info(components_info);
