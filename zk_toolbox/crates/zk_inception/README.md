@@ -480,7 +480,6 @@ Prover related commands
 ###### **Subcommands:**
 
 - `init` — Initialize prover
-- `generate-sk` — Generate setup keys
 - `run` — Run prover
 - `init-bellman-cuda` — Initialize bellman-cuda
 

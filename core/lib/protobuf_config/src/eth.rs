@@ -115,6 +115,9 @@ impl ProtoRepr for proto::Sender {
                 .parse(),
             tx_aggregation_only_prove_and_execute: self.tx_aggregation_paused.unwrap_or(false),
             tx_aggregation_paused: self.tx_aggregation_only_prove_and_execute.unwrap_or(false),
+            time_in_mempool_in_l1_blocks_cap: self
+                .time_in_mempool_in_l1_blocks_cap
+                .unwrap_or(Self::Type::default_time_in_mempool_in_l1_blocks_cap()),
         })
     }
 
@@ -147,6 +150,7 @@ impl ProtoRepr for proto::Sender {
             ),
             tx_aggregation_only_prove_and_execute: Some(this.tx_aggregation_only_prove_and_execute),
             tx_aggregation_paused: Some(this.tx_aggregation_paused),
+            time_in_mempool_in_l1_blocks_cap: Some(this.time_in_mempool_in_l1_blocks_cap),
         }
     }
 }
@@ -161,9 +165,9 @@ impl ProtoRepr for proto::GasAdjuster {
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("max_base_fee_samples")?,
             pricing_formula_parameter_a: *required(&self.pricing_formula_parameter_a)
-                .context("pricing_formula_parameter_a")?,
+                .unwrap_or(&Self::Type::default_pricing_formula_parameter_a()),
             pricing_formula_parameter_b: *required(&self.pricing_formula_parameter_b)
-                .context("pricing_formula_parameter_b")?,
+                .unwrap_or(&Self::Type::default_pricing_formula_parameter_b()),
             internal_l1_pricing_multiplier: *required(&self.internal_l1_pricing_multiplier)
                 .context("internal_l1_pricing_multiplier")?,
             internal_enforced_l1_gas_price: self.internal_enforced_l1_gas_price,
