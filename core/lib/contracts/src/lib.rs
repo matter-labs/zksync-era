@@ -272,9 +272,7 @@ impl SystemContractsRepo {
 }
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
-    let artifacts_path =
-        Path::new("contracts/system-contracts/bootloader/build/artifacts/").to_path_buf();
-
+    let artifacts_path = "contracts/system-contracts/bootloader/build/artifacts/";
     read_yul_bytecode(artifacts_path, bootloader_type)
 }
 
@@ -292,7 +290,7 @@ pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
     read_zbin_bytecode_from_path(bytecode_path)
 }
 
-pub fn read_yul_bytecode(relative_artifacts_path: PathBuf, name: &str) -> Vec<u8> {
+pub fn read_yul_bytecode(relative_artifacts_path: &str, name: &str) -> Vec<u8> {
     let artifacts_path = Path::new(&home_path()).join(relative_artifacts_path);
     read_yul_bytecode_by_path(artifacts_path, name)
 }

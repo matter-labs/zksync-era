@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use ethabi::Contract;
 use once_cell::sync::Lazy;
 use zksync_contracts::{
@@ -62,9 +60,7 @@ pub(crate) fn read_test_contract() -> Vec<u8> {
 }
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
-    let artifacts_path =
-        Path::new("contracts/system-contracts/bootloader/tests/artifacts/").to_path_buf();
-
+    let artifacts_path = "contracts/system-contracts/bootloader/tests/artifacts/";
     let bootloader_code = read_yul_bytecode(artifacts_path, test);
 
     let bootloader_hash = hash_bytecode(&bootloader_code);
