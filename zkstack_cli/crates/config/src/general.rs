@@ -6,7 +6,7 @@ use url::Url;
 use xshell::Shell;
 use zksync_config::configs::object_store::ObjectStoreMode;
 pub use zksync_config::configs::GeneralConfig;
-use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
+use zksync_protobuf_config::{encode_yaml_repr, read_yaml_repr};
 
 use crate::{
     consts::GENERAL_FILE,
@@ -137,7 +137,7 @@ impl SaveConfig for GeneralConfig {
 impl ReadConfig for GeneralConfig {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let path = shell.current_dir().join(path);
-        decode_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path, false)
+        read_yaml_repr::<zksync_protobuf_config::proto::general::GeneralConfig>(&path, false)
     }
 }
 

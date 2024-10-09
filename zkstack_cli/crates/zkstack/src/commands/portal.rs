@@ -107,7 +107,7 @@ async fn validate_portal_config(
             continue;
         }
         // Append missing chain, chain might not be initialized, so ignoring errors
-        if let Some(chain_config) = ecosystem_config.load_chain(Some(chain_name.clone())) {
+        if let Ok(chain_config) = ecosystem_config.load_chain(Some(chain_name.clone())) {
             if let Ok(portal_chain_config) = build_portal_chain_config(&chain_config).await {
                 portal_config.add_chain_config(&portal_chain_config);
             }
