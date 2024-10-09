@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input\n            FROM\n                l1_batches\n            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            WHERE\n                number = 0\n                OR eth_commit_tx_id IS NOT NULL\n                AND commitment IS NOT NULL\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
+  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                aggregation_root,\n                local_root,\n                state_diff_hash,\n                data_availability.inclusion_data\n            FROM\n                l1_batches\n            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            LEFT JOIN\n                data_availability\n                ON data_availability.l1_batch_number = l1_batches.number\n            WHERE\n                number = 0\n                OR eth_commit_tx_id IS NOT NULL\n                AND commitment IS NOT NULL\n            ORDER BY\n                number DESC\n            LIMIT\n                1\n            ",
   "describe": {
     "columns": [
       {
@@ -137,6 +137,26 @@
         "ordinal": 26,
         "name": "pubdata_input",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 27,
+        "name": "aggregation_root",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 28,
+        "name": "local_root",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 29,
+        "name": "state_diff_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 30,
+        "name": "inclusion_data",
+        "type_info": "Bytea"
       }
     ],
     "parameters": {
@@ -169,8 +189,12 @@
       false,
       true,
       true,
+      true,
+      true,
+      true,
+      true,
       true
     ]
   },
-  "hash": "9ece18b3a36cbaeaa99ca3db466b9fabba23fa52a17a54146931476681edbd24"
+  "hash": "b67453994b96bf8926081017598d3d0247d434aa7aea281ccfb5476c6bfcb994"
 }

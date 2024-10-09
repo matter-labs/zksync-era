@@ -6,6 +6,7 @@ use tokio::sync::mpsc;
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
+        pubdata::{pubdata_params_to_builder, PubdataBuilder},
         storage::{ReadStorage, StoragePtr, StorageView, StorageViewStats},
         utils::DivergenceHandler,
         BatchTransactionExecutionResult, BytecodeCompressionError, CompressedBytecodeInfo,
@@ -17,7 +18,7 @@ use zksync_multivm::{
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVMTracer,
 };
-use zksync_types::{vm::FastVmMode, Transaction};
+use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
 
 use super::{
     executor::{Command, MainBatchExecutor},
@@ -115,6 +116,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
         storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
+        pubdata_params: PubdataParams,
     ) -> Box<dyn BatchExecutor<S>> {
         // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
         // until a previous command is processed), capacity 1 is enough for the commands channel.
@@ -129,8 +131,14 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
             _tracer: PhantomData::<Tr>,
         };
 
-        let handle =
-            tokio::task::spawn_blocking(move || executor.run(storage, l1_batch_params, system_env));
+        let handle = tokio::task::spawn_blocking(move || {
+            executor.run(
+                storage,
+                l1_batch_params,
+                system_env,
+                Some(pubdata_params_to_builder(pubdata_params)),
+            )
+        });
         Box::new(MainBatchExecutor::new(handle, commands_sender))
     }
 }
@@ -157,19 +165,27 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage_ptr: StoragePtr<StorageView<S>>,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
         mode: FastVmMode,
     ) -> Self {
         match mode {
-            FastVmMode::Old => {
-                Self::Legacy(LegacyVmInstance::new(l1_batch_env, system_env, storage_ptr))
-            }
-            FastVmMode::New => {
-                Self::Fast(FastVmInstance::fast(l1_batch_env, system_env, storage_ptr))
-            }
+            FastVmMode::Old => Self::Legacy(LegacyVmInstance::new(
+                l1_batch_env,
+                system_env,
+                storage_ptr,
+                pubdata_builder,
+            )),
+            FastVmMode::New => Self::Fast(FastVmInstance::fast(
+                l1_batch_env,
+                system_env,
+                storage_ptr,
+                pubdata_builder,
+            )),
             FastVmMode::Shadow => Self::Fast(FastVmInstance::shadowed(
                 l1_batch_env,
                 system_env,
                 storage_ptr,
+                pubdata_builder,
             )),
         }
     }
@@ -255,6 +271,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> anyhow::Result<StorageView<S>> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
 
@@ -263,6 +280,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             l1_batch_params,
             system_env,
             storage_view.clone(),
+            pubdata_builder,
             self.fast_vm_mode,
         );
         let mut batch_finished = false;

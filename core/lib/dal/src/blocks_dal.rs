@@ -334,10 +334,17 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                aggregation_root,
+                local_root,
+                state_diff_hash,
+                data_availability.inclusion_data
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            LEFT JOIN
+                data_availability
+                ON data_availability.l1_batch_number = l1_batches.number
             WHERE
                 number = $1
             "#,
@@ -718,6 +725,8 @@ impl BlocksDal<'_, '_> {
                 fair_pubdata_price,
                 gas_limit,
                 logs_bloom,
+                l2_da_validator_address,
+                pubdata_type,
                 created_at,
                 updated_at
             )
@@ -741,6 +750,8 @@ impl BlocksDal<'_, '_> {
                 $16,
                 $17,
                 $18,
+                $19,
+                $20,
                 NOW(),
                 NOW()
             )
@@ -773,6 +784,11 @@ impl BlocksDal<'_, '_> {
             l2_block_header.batch_fee_input.fair_pubdata_price() as i64,
             l2_block_header.gas_limit as i64,
             l2_block_header.logs_bloom.as_bytes(),
+            l2_block_header
+                .pubdata_params
+                .l2_da_validator_address
+                .as_bytes(),
+            l2_block_header.pubdata_params.pubdata_type.to_string(),
         );
 
         instrumentation.with(query).execute(self.storage).await?;
@@ -801,7 +817,9 @@ impl BlocksDal<'_, '_> {
                 virtual_blocks,
                 fair_pubdata_price,
                 gas_limit,
-                logs_bloom
+                logs_bloom,
+                l2_da_validator_address,
+                pubdata_type
             FROM
                 miniblocks
             ORDER BY
@@ -842,7 +860,9 @@ impl BlocksDal<'_, '_> {
                 virtual_blocks,
                 fair_pubdata_price,
                 gas_limit,
-                logs_bloom
+                logs_bloom,
+                l2_da_validator_address,
+                pubdata_type
             FROM
                 miniblocks
             WHERE
@@ -939,9 +959,12 @@ impl BlocksDal<'_, '_> {
                 compressed_state_diffs = $7,
                 compressed_initial_writes = $8,
                 compressed_repeated_writes = $9,
+                state_diff_hash = $10,
+                aggregation_root = $11,
+                local_root = $12,
                 updated_at = NOW()
             WHERE
-                number = $10
+                number = $13
                 AND commitment IS NULL
             "#,
             commitment_artifacts.commitment_hash.commitment.as_bytes(),
@@ -959,6 +982,9 @@ impl BlocksDal<'_, '_> {
             commitment_artifacts.compressed_state_diffs,
             commitment_artifacts.compressed_initial_writes,
             commitment_artifacts.compressed_repeated_writes,
+            commitment_artifacts.state_diff_hash.as_bytes(),
+            commitment_artifacts.aggregation_root.as_bytes(),
+            commitment_artifacts.local_root.as_bytes(),
             i64::from(number.0),
         )
         .instrument("save_l1_batch_commitment_artifacts")
@@ -1065,10 +1091,17 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                aggregation_root,
+                local_root,
+                state_diff_hash,
+                data_availability.inclusion_data
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            LEFT JOIN
+                data_availability
+                ON data_availability.l1_batch_number = l1_batches.number
             WHERE
                 number = 0
                 OR eth_commit_tx_id IS NOT NULL
@@ -1252,10 +1285,17 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                aggregation_root,
+                local_root,
+                state_diff_hash,
+                data_availability.inclusion_data
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+            LEFT JOIN
+                data_availability
+                ON data_availability.l1_batch_number = l1_batches.number
             WHERE
                 eth_commit_tx_id IS NOT NULL
                 AND eth_prove_tx_id IS NULL
@@ -1333,7 +1373,11 @@ impl BlocksDal<'_, '_> {
                 protocol_version,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                aggregation_root,
+                local_root,
+                state_diff_hash,
+                data_availability.inclusion_data
             FROM
                 (
                     SELECT
@@ -1354,6 +1398,7 @@ impl BlocksDal<'_, '_> {
                         $2
                 ) inn
             LEFT JOIN commitments ON commitments.l1_batch_number = inn.number
+            LEFT JOIN data_availability ON data_availability.l1_batch_number = inn.number
             WHERE
                 number - row_number = $1
             "#,
@@ -1407,10 +1452,17 @@ impl BlocksDal<'_, '_> {
                         system_logs,
                         events_queue_commitment,
                         bootloader_initial_content_commitment,
-                        pubdata_input
+                        pubdata_input,
+                        aggregation_root,
+                        local_root,
+                        state_diff_hash,
+                        data_availability.inclusion_data
                     FROM
                         l1_batches
                     LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                    LEFT JOIN
+                        data_availability
+                        ON data_availability.l1_batch_number = l1_batches.number
                     WHERE
                         eth_prove_tx_id IS NOT NULL
                         AND eth_execute_tx_id IS NULL
@@ -1535,10 +1587,17 @@ impl BlocksDal<'_, '_> {
                     system_logs,
                     events_queue_commitment,
                     bootloader_initial_content_commitment,
-                    pubdata_input
+                    pubdata_input,
+                    aggregation_root,
+                    local_root,
+                    state_diff_hash,
+                    data_availability.inclusion_data
                 FROM
                     l1_batches
                 LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
+                LEFT JOIN
+                    data_availability
+                    ON data_availability.l1_batch_number = l1_batches.number
                 WHERE
                     number BETWEEN $1 AND $2
                 ORDER BY
@@ -1600,11 +1659,18 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                aggregation_root,
+                local_root,
+                state_diff_hash,
+                data_availability.inclusion_data
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number
             JOIN protocol_versions ON protocol_versions.id = l1_batches.protocol_version
+            LEFT JOIN
+                data_availability
+                ON data_availability.l1_batch_number = l1_batches.number
             WHERE
                 eth_commit_tx_id IS NULL
                 AND number != 0
@@ -1679,7 +1745,11 @@ impl BlocksDal<'_, '_> {
                 system_logs,
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
-                pubdata_input
+                pubdata_input,
+                aggregation_root,
+                local_root,
+                state_diff_hash,
+                data_availability.inclusion_data
             FROM
                 l1_batches
             LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number

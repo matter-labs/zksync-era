@@ -3,6 +3,7 @@ pub mod contracts;
 pub mod crypto;
 pub mod ethereum;
 pub mod fees;
+pub mod message_root;
 pub mod system_context;
 pub mod system_logs;
 pub mod trusted_slots;

@@ -182,6 +182,7 @@ pub(super) fn mock_l2_block_header(l2_block_number: L2BlockNumber) -> L2BlockHea
         virtual_blocks: 0,
         gas_limit: 0,
         logs_bloom: Default::default(),
+        pubdata_params: Default::default(),
     }
 }
 

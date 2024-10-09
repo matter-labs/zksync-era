@@ -70,6 +70,7 @@ async fn request_tee_proof_inputs() {
             chain_id: Default::default(),
         },
         vec![(H256([1; 32]), vec![0, 1, 2, 3, 4])],
+        Default::default(),
     );
     let tvi = TeeVerifierInput::V1(tvi);
 

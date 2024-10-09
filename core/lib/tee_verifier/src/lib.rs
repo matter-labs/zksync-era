@@ -13,6 +13,7 @@ use zksync_merkle_tree::{
 };
 use zksync_multivm::{
     interface::{
+        pubdata::pubdata_params_to_builder,
         storage::{InMemoryStorage, ReadStorage, StorageView},
         FinishedL1Batch, L2BlockEnv, VmFactory, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
@@ -70,7 +71,12 @@ impl Verify for V1TeeVerifierInput {
         let storage_view = Rc::new(RefCell::new(StorageView::new(&raw_storage)));
 
         let batch_number = self.l1_batch_env.number;
-        let vm = LegacyVmInstance::new(self.l1_batch_env, self.system_env, storage_view);
+        let vm = LegacyVmInstance::new(
+            self.l1_batch_env,
+            self.system_env,
+            storage_view,
+            Some(pubdata_params_to_builder(self.pubdata_params)),
+        );
 
         let vm_out = execute_vm(self.l2_blocks_execution_data, vm)?;
 
@@ -314,6 +320,7 @@ mod tests {
                 chain_id: Default::default(),
             },
             vec![(H256([1; 32]), vec![0, 1, 2, 3, 4])],
+            Default::default(),
         );
         let tvi = TeeVerifierInput::new(tvi);
         let serialized = <TeeVerifierInput as StoredObject>::serialize(&tvi)

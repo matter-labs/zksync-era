@@ -8613,8 +8613,10 @@ dependencies = [
  "thiserror",
  "tracing",
  "zksync_contracts",
+ "zksync_mini_merkle_tree",
  "zksync_system_constants",
  "zksync_types",
+ "zksync_utils",
 ]
 
 [[package]]

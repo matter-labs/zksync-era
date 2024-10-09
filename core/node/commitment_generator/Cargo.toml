@@ -20,6 +20,7 @@ zksync_utils.workspace = true
 zksync_eth_client.workspace = true
 zksync_contracts.workspace = true
 zksync_multivm.workspace = true
+zksync_system_constants.workspace = true
 circuit_sequencer_api_1_4_0.workspace = true
 circuit_sequencer_api_1_4_1.workspace = true
 circuit_sequencer_api_1_5_0.workspace = true

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
@@ -7,6 +7,7 @@ use zksync_types::{
     Transaction, H256,
 };
 use zksync_utils::{be_words_to_bytes, h256_to_u256, u256_to_h256};
+use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use crate::{
     glue::GlueInto,
@@ -38,6 +39,8 @@ pub(crate) enum MultiVMSubversion {
     SmallBootloaderMemory,
     /// The final correct version of v1.5.0
     IncreasedBootloaderMemory,
+    /// VM for post-gateway versions.
+    Gateway,
 }
 
 impl MultiVMSubversion {
@@ -55,6 +58,7 @@ impl TryFrom<VmVersion> for MultiVMSubversion {
         match value {
             VmVersion::Vm1_5_0SmallBootloaderMemory => Ok(Self::SmallBootloaderMemory),
             VmVersion::Vm1_5_0IncreasedBootloaderMemory => Ok(Self::IncreasedBootloaderMemory),
+            VmVersion::VmGateway => Ok(Self::Gateway),
             _ => Err(VmVersionIsNotVm150Error),
         }
     }
@@ -185,12 +189,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
-            pubdata_input: Some(
-                self.bootloader_state
-                    .get_pubdata_information()
-                    .clone()
-                    .build_pubdata(false),
-            ),
+            pubdata_input: Some(self.bootloader_state.settlement_layer_pubdata()),
             state_diffs: Some(
                 self.bootloader_state
                     .get_pubdata_information()
@@ -202,12 +201,18 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
-    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<S>,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) -> Self {
         let vm_version: VmVersion = system_env.version.into();
         Self::new_with_subversion(
             batch_env,
             system_env,
             storage,
+            pubdata_builder,
             vm_version.try_into().expect("Incorrect 1.5.0 VmVersion"),
         )
     }
@@ -218,9 +223,12 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<S>,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
         subversion: MultiVMSubversion,
     ) -> Self {
-        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
+        let pubdata_builder = pubdata_builder.expect("pubdata_builder is required");
+        let (state, bootloader_state) =
+            new_vm_state(storage.clone(), &system_env, &batch_env, pubdata_builder);
         Self {
             bootloader_state,
             state,

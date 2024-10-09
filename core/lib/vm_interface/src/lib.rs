@@ -41,6 +41,7 @@ pub use crate::{
 };
 
 pub mod executor;
+pub mod pubdata;
 pub mod storage;
 mod types;
 pub mod utils;

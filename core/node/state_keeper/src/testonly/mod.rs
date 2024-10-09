@@ -14,9 +14,9 @@ use zksync_multivm::interface::{
 use zksync_state::OwnedStorage;
 use zksync_test_account::Account;
 use zksync_types::{
-    fee::Fee, utils::storage_key_for_standard_token_balance, AccountTreeId, Address, Execute,
-    L1BatchNumber, L2BlockNumber, PriorityOpId, StorageLog, Transaction, L2_BASE_TOKEN_ADDRESS,
-    SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
+    commitment::PubdataParams, fee::Fee, utils::storage_key_for_standard_token_balance,
+    AccountTreeId, Address, Execute, L1BatchNumber, L2BlockNumber, PriorityOpId, StorageLog,
+    Transaction, L2_BASE_TOKEN_ADDRESS, SYSTEM_CONTEXT_MINIMAL_BASE_FEE, U256,
 };
 use zksync_utils::u256_to_h256;
 
@@ -50,6 +50,7 @@ impl BatchExecutorFactory<OwnedStorage> for MockBatchExecutor {
         _storage: OwnedStorage,
         _l1_batch_env: L1BatchEnv,
         _system_env: SystemEnv,
+        _pubdata_params: PubdataParams,
     ) -> Box<dyn BatchExecutor<OwnedStorage>> {
         Box::new(Self)
     }
