@@ -29,14 +29,14 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo $HOME/.local/bin >> $GITHUB_PATH
-          echo $(pwd)/zkstack_cli/zkstackup >> $GITHUB_PATH
+          
 
       - name: init
         run: |
           run_retried docker compose pull zk
           docker compose up -d zk
 
-          ci_run zkstackup --local
+          ci_run ./zkstack_cli/zkstackup/zkstackup --local
 
       - name: build contracts
         run: |
