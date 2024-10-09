@@ -81,7 +81,7 @@ jobs:
           ci_run sleep 90
       - name: Run Gateway
         run: |
-          curl -v -X POST --header 'Content-Type: application/json' --url http://127.0.0.1:3421/proof_generation_data --data '{}'
+          curl -v --header 'Content-Type: application/json' --url http://127.0.0.1:3421/proof_generation_data --data '{}'
           ci_run zk_inception prover run --component=gateway --docker=false &
           ci_run sleep 60
       - name: Run Prover Job Monitor
@@ -120,7 +120,7 @@ jobs:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
           BATCH_NUMBER: 1
           INTERVAL: 30
-          TIMEOUT: 1500
+          TIMEOUT: 1200
         run: |
           ci_run chmod +x ./bin/prover_checkers/prover_jobs_status_checker
           
