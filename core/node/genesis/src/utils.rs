@@ -52,6 +52,11 @@ pub fn merkle_tree_metadata_from_deployed_contracts(contracts: &[DeployedContrac
         .iter()
         .enumerate()
         .map(|(index, log)| {
+            tracing::info!(
+                "Log {index}: key={:?}, value={:?}",
+                u256_to_h256(log.key),
+                u256_to_h256(log.written_value)
+            );
             TreeInstruction::write(
                 StorageKey::new(AccountTreeId::new(log.address), u256_to_h256(log.key))
                     .hashed_key_u256(),
