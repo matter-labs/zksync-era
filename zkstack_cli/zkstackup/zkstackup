@@ -174,7 +174,7 @@ install_from_repo() {
 
 add_bin_folder_to_path() {
   if [[ ":$PATH:" == *":${BIN_DIR}:"* ]]; then
-    echo "zkstackup: found ${BIN_DIR} in PATH"
+    echo "found ${BIN_DIR} in PATH"
     exit 0
   fi
 
@@ -192,28 +192,27 @@ add_bin_folder_to_path() {
     PROFILE="$HOME/.profile"
     ;;
   *)
-    echo "zkstackup: could not detect shell, manually add ${BIN_DIR} to your PATH."
+    echo "could not detect shell, manually add ${BIN_DIR} to your PATH."
     exit 1
     ;;
   esac
 
   if [[ ! -f "$PROFILE" ]]; then
-    echo "zkstackup: Profile file $PROFILE does not exist, creating it."
+    echo "Profile file $PROFILE does not exist, creating it."
     touch "$PROFILE"
   fi
 
   if [[ "$SHELL" == *"/fish"* ]]; then
     echo -e "\n# Added by zkstackup\nfish_add_path -a $BIN_DIR" >>"$PROFILE"
-    echo "zkstackup: Added $BIN_DIR to PATH in $PROFILE using fish_add_path."
+    echo "Added $BIN_DIR to PATH in $PROFILE using fish_add_path."
   else
     echo -e "\n# Added by zkstackup\nexport PATH=\"\$PATH:$BIN_DIR\"" >>"$PROFILE"
-    echo "zkstackup: Added $BIN_DIR to PATH in $PROFILE."
+    echo "Added $BIN_DIR to PATH in $PROFILE."
   fi
 
   echo
-  echo "Added zkstackup to PATH."
-  echo "Run 'source $PROFILE' or start a new terminal session to use zkstackup."
-  echo "Then run 'zkstackup' to install ZK Stack CLI."
+  echo "Added zkstack to PATH."
+  echo "Run 'source $PROFILE' or start a new terminal session to use zkstack."
 }
 
 ensure() {
