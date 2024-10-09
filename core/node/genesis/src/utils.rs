@@ -77,6 +77,10 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
         // TODO(EVM-579): make sure that the logic is compatible with Era.
         get_system_context_init_logs(L2ChainId::from(DEFAULT_ERA_CHAIN_ID))
     ;
+    tracing::info!(
+        "system_context_init_logs_len {}",
+        system_context_init_logs.len()
+    );
 
     let known_code_storage_logs: Vec<_> = system_contracts
         .iter()
@@ -89,6 +93,10 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
         })
         .dedup_by(|a, b| a == b)
         .collect();
+    tracing::info!(
+        "known_code_storage_logs_len {}",
+        known_code_storage_logs.len()
+    );
 
     let storage_logs: Vec<_> = system_contracts
         .iter()
@@ -100,6 +108,7 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
         .chain(system_context_init_logs)
         .chain(known_code_storage_logs)
         .collect();
+    tracing::info!("storage_logs_len: {}", storage_logs.len());
 
     storage_logs
 }
