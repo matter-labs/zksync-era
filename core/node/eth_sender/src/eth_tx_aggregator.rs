@@ -144,19 +144,19 @@ impl EthTxAggregator {
     }
 
     pub(super) async fn get_multicall_data(&mut self) -> Result<MulticallData, EthSenderError> {
-        let calldata = self.generate_calldata_for_multicall();
+        let (calldata, evm_emulator_hash_requested) = self.generate_calldata_for_multicall();
         let args = CallFunctionArgs::new(&self.functions.aggregate3.name, calldata).for_contract(
             self.l1_multicall3_address,
             &self.functions.multicall_contract,
         );
         let aggregate3_result: Token = args.call((*self.eth_client).as_ref()).await?;
-        self.parse_multicall_data(aggregate3_result)
+        self.parse_multicall_data(aggregate3_result, evm_emulator_hash_requested)
     }
 
     // Multicall's aggregate function accepts 1 argument - arrays of different contract calls.
     // The role of the method below is to tokenize input for multicall, which is actually a vector of tokens.
     // Each token describes a specific contract call.
-    pub(super) fn generate_calldata_for_multicall(&self) -> Vec<Token> {
+    pub(super) fn generate_calldata_for_multicall(&self) -> (Vec<Token>, bool) {
         const ALLOW_FAILURE: bool = false;
 
         // First zksync contract call
@@ -215,14 +215,31 @@ impl EthTxAggregator {
             calldata: get_protocol_version_input,
         };
 
-        // Convert structs into tokens and return vector with them
-        vec![
+        let mut token_vec = vec![
             get_bootloader_hash_call.into_token(),
             get_default_aa_hash_call.into_token(),
             get_verifier_params_call.into_token(),
             get_verifier_call.into_token(),
             get_protocol_version_call.into_token(),
-        ]
+        ];
+
+        let mut evm_emulator_hash_requested = false;
+        let get_l2_evm_emulator_hash_input = self
+            .functions
+            .get_evm_emulator_bytecode_hash
+            .as_ref()
+            .and_then(|f| f.encode_input(&[]).ok());
+        if let Some(input) = get_l2_evm_emulator_hash_input {
+            let call = Multicall3Call {
+                target: self.state_transition_chain_contract,
+                allow_failure: ALLOW_FAILURE,
+                calldata: input,
+            };
+            token_vec.insert(2, call.into_token());
+            evm_emulator_hash_requested = true;
+        }
+
+        (token_vec, evm_emulator_hash_requested)
     }
 
     // The role of the method below is to de-tokenize multicall call's result, which is actually a token.
@@ -230,6 +247,7 @@ impl EthTxAggregator {
     pub(super) fn parse_multicall_data(
         &self,
         token: Token,
+        evm_emulator_hash_requested: bool,
     ) -> Result<MulticallData, EthSenderError> {
         let parse_error = |tokens: &[Token]| {
             Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
@@ -238,8 +256,9 @@ impl EthTxAggregator {
         };
 
         if let Token::Array(call_results) = token {
-            // 5 calls are aggregated in multicall
-            if call_results.len() != 5 {
+            let number_of_calls = if evm_emulator_hash_requested { 6 } else { 5 };
+            // 5 or 6 calls are aggregated in multicall
+            if call_results.len() != number_of_calls {
                 return parse_error(&call_results);
             }
             let mut call_results_iterator = call_results.into_iter();
@@ -268,12 +287,31 @@ impl EthTxAggregator {
                 )));
             }
             let default_aa = H256::from_slice(&multicall3_default_aa);
+
+            let evm_emulator = if evm_emulator_hash_requested {
+                let multicall3_evm_emulator =
+                    Multicall3Result::from_token(call_results_iterator.next().unwrap())?
+                        .return_data;
+                if multicall3_evm_emulator.len() != 32 {
+                    return Err(EthSenderError::Parse(Web3ContractError::InvalidOutputType(
+                        format!(
+                            "multicall3 EVM emulator hash data is not of the len of 32: {:?}",
+                            multicall3_evm_emulator
+                        ),
+                    )));
+                }
+                Some(H256::from_slice(&multicall3_evm_emulator))
+            } else {
+                None
+            };
+
             let base_system_contracts_hashes = BaseSystemContractsHashes {
                 bootloader,
                 default_aa,
+                evm_emulator,
             };
 
-            call_results_iterator.next().unwrap();
+            call_results_iterator.next().unwrap(); // FIXME: why is this value requested?
 
             let multicall3_verifier_address =
                 Multicall3Result::from_token(call_results_iterator.next().unwrap())?.return_data;

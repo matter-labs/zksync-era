@@ -44,13 +44,14 @@ impl TxSender {
     pub async fn get_txs_fee_in_wei(
         &self,
         tx: Transaction,
+        block_args: BlockArgs,
         estimated_fee_scale_factor: f64,
         acceptable_overestimation: u64,
         state_override: Option<StateOverride>,
         kind: BinarySearchKind,
     ) -> Result<Fee, SubmitTxError> {
         let estimation_started_at = Instant::now();
-        let mut estimator = GasEstimator::new(self, tx, state_override).await?;
+        let mut estimator = GasEstimator::new(self, tx, block_args, state_override).await?;
         estimator.adjust_transaction_fee();
 
         let initial_estimate = estimator.initialize().await?;
@@ -309,16 +310,10 @@ impl<'a> GasEstimator<'a> {
     pub(super) async fn new(
         sender: &'a TxSender,
         mut transaction: Transaction,
+        block_args: BlockArgs,
         state_override: Option<StateOverride>,
     ) -> Result<Self, SubmitTxError> {
-        let mut connection = sender.acquire_replica_connection().await?;
-        let block_args = BlockArgs::pending(&mut connection).await?;
-        let protocol_version = connection
-            .blocks_dal()
-            .pending_protocol_version()
-            .await
-            .context("failed getting pending protocol version")?;
-        drop(connection);
+        let protocol_version = block_args.protocol_version();
 
         let max_gas_limit = get_max_batch_gas_limit(protocol_version.into());
         let fee_input = adjust_pubdata_price_for_tx(

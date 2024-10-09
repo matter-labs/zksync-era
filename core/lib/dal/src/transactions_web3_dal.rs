@@ -608,6 +608,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn getting_evm_deployment_tx() {
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+        let mut tx = mock_l2_transaction();
+        tx.execute.contract_address = None;
+        let tx_hash = tx.hash();
+        prepare_transactions(&mut conn, vec![tx.clone()]).await;
+
+        let fetched_tx = conn
+            .transactions_dal()
+            .get_tx_by_hash(tx_hash)
+            .await
+            .unwrap()
+            .expect("no transaction");
+        let mut fetched_tx = L2Tx::try_from(fetched_tx).unwrap();
+        assert_eq!(fetched_tx.execute.contract_address, None);
+        fetched_tx.raw_bytes = tx.raw_bytes.clone();
+        assert_eq!(fetched_tx, tx);
+
+        let web3_tx = conn
+            .transactions_web3_dal()
+            .get_transaction_by_position(L2BlockNumber(1), 0, L2ChainId::from(270))
+            .await;
+        let web3_tx = web3_tx.unwrap().expect("no transaction");
+        assert_eq!(web3_tx.hash, tx_hash);
+        assert_eq!(web3_tx.to, None);
+    }
+
+    #[tokio::test]
     async fn getting_receipts() {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
@@ -621,7 +654,7 @@ mod tests {
         let tx2 = mock_l2_transaction();
         let tx2_hash = tx2.hash();
 
-        prepare_transactions(&mut conn, vec![tx1.clone(), tx2.clone()]).await;
+        prepare_transactions(&mut conn, vec![tx1, tx2]).await;
 
         let mut receipts = conn
             .transactions_web3_dal()
@@ -634,6 +667,31 @@ mod tests {
         assert_eq!(receipts.len(), 2);
         assert_eq!(receipts[0].transaction_hash, tx1_hash);
         assert_eq!(receipts[1].transaction_hash, tx2_hash);
+    }
+
+    #[tokio::test]
+    async fn getting_receipt_for_evm_deployment_tx() {
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let mut tx = mock_l2_transaction();
+        let tx_hash = tx.hash();
+        tx.execute.contract_address = None;
+        prepare_transactions(&mut conn, vec![tx]).await;
+
+        let receipts = conn
+            .transactions_web3_dal()
+            .get_transaction_receipts(&[tx_hash])
+            .await
+            .unwrap();
+        assert_eq!(receipts.len(), 1);
+        let receipt = receipts.into_iter().next().unwrap();
+        assert_eq!(receipt.transaction_hash, tx_hash);
+        assert_eq!(receipt.to, Some(Address::zero()));
     }
 
     #[tokio::test]

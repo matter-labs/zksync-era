@@ -482,7 +482,7 @@ impl TestAccount for K256PrivateKey {
             }),
             ..CallRequest::default()
         };
-        request.try_into().unwrap()
+        L1Tx::from_request(request, false).unwrap()
     }
 
     fn query_counter_value(&self) -> CallRequest {
