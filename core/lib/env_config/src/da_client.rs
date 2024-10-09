@@ -89,7 +89,6 @@ mod tests {
     fn expected_avail_da_layer_config(
         api_node_url: &str,
         bridge_api_url: &str,
-        seed: &str,
         app_id: u32,
         timeout: usize,
         max_retries: usize,
@@ -100,7 +99,6 @@ mod tests {
         DAClientConfig::Avail(AvailConfig {
             api_node_url: Some(api_node_url.to_string()),
             bridge_api_url: bridge_api_url.to_string(),
-            seed: Some(seed.to_string()),
             app_id: Some(app_id),
             timeout,
             max_retries,
