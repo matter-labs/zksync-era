@@ -10,6 +10,8 @@ use xshell::{cmd, Shell};
 
 use crate::messages::{MSG_API_CONFIG_NOT_FOUND_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_STATUS_URL_HELP};
 
+const DEFAULT_LINE_WIDTH: usize = 32;
+
 #[derive(Deserialize, Debug)]
 struct StatusResponse {
     status: String,
@@ -28,6 +30,78 @@ pub struct StatusArgs {
     pub url: Option<String>,
 }
 
+struct BoxProperties {
+    longest_line: usize,
+    border: String,
+    boxed_msg: Vec<String>,
+}
+
+impl BoxProperties {
+    fn new(msg: &str) -> Self {
+        let longest_line = msg
+            .lines()
+            .map(|line| line.len())
+            .max()
+            .unwrap_or(0)
+            .max(DEFAULT_LINE_WIDTH);
+        let width = longest_line + 2;
+        let border = "─".repeat(width);
+        let boxed_msg = msg
+            .lines()
+            .map(|line| format!("│ {:longest_line$} │", line))
+            .collect();
+        Self {
+            longest_line,
+            border,
+            boxed_msg,
+        }
+    }
+}
+
+fn single_bordered_box(msg: &str) -> String {
+    let properties = BoxProperties::new(msg);
+    format!(
+        "┌{}┐\n{}\n└{}┘\n",
+        properties.border,
+        properties.boxed_msg.join("\n"),
+        properties.border
+    )
+}
+
+fn bordered_boxes(msg1: &str, msg2: Option<&String>) -> String {
+    if msg2.is_none() {
+        return single_bordered_box(msg1);
+    }
+
+    let properties1 = BoxProperties::new(msg1);
+    let properties2 = BoxProperties::new(msg2.unwrap());
+
+    let max_lines = properties1.boxed_msg.len().max(properties2.boxed_msg.len());
+    let header = format!("┌{}┐  ┌{}┐\n", properties1.border, properties2.border);
+    let footer = format!("└{}┘  └{}┘\n", properties1.border, properties2.border);
+
+    let empty_line1 = format!(
+        "│ {:longest_line$} │",
+        "",
+        longest_line = properties1.longest_line
+    );
+    let empty_line2 = format!(
+        "│ {:longest_line$} │",
+        "",
+        longest_line = properties2.longest_line
+    );
+
+    let boxed_info: Vec<String> = (0..max_lines)
+        .map(|i| {
+            let line1 = properties1.boxed_msg.get(i).unwrap_or(&empty_line1);
+            let line2 = properties2.boxed_msg.get(i).unwrap_or(&empty_line2);
+            format!("{}  {}", line1, line2)
+        })
+        .collect();
+
+    format!("{}{}\n{}", header, boxed_info.join("\n"), footer)
+}
+
 fn print_status(shell: &Shell, health_check_url: String) -> anyhow::Result<()> {
     let response = Cmd::new(cmd!(shell, "curl {health_check_url}")).run_with_output()?;
     let response = String::from_utf8(response.stdout)?;
@@ -40,27 +114,37 @@ fn print_status(shell: &Shell, health_check_url: String) -> anyhow::Result<()> {
         logger::warn(format!("System Status: {}\n", status_response.status));
     }
 
-    let mut components_info = String::from("Components:");
-
+    let mut components_info = String::from("Components:\n");
+    let mut components = Vec::new();
     let mut not_ready_components = Vec::new();
 
     for (component_name, component) in status_response.components {
         let readable_name = deslugify(&component_name);
-        let mut component_info =
-            format!("\n  {}:\n    - Status: {}", readable_name, component.status);
+        let mut component_info = format!("{}:\n  - Status: {}", readable_name, component.status);
 
         if let Some(details) = &component.details {
             for (key, value) in details.as_object().unwrap() {
                 let deslugified_key = deslugify(key);
-                component_info.push_str(&format!("\n    - {}: {}", deslugified_key, value));
+                component_info.push_str(&format!("\n  - {}: {}", deslugified_key, value));
             }
         }
-
-        components_info.push_str(&component_info);
 
         if component.status.to_lowercase() != "ready" {
             not_ready_components.push(readable_name);
         }
+
+        components.push(component_info);
+    }
+
+    components.sort_by(|a, b| {
+        a.lines()
+            .count()
+            .cmp(&b.lines().count())
+            .then_with(|| a.cmp(b))
+    });
+
+    for chunk in components.chunks(2) {
+        components_info.push_str(&bordered_boxes(&chunk[0], chunk.get(1)));
     }
 
     logger::info(components_info);
