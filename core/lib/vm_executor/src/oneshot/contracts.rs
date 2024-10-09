@@ -10,22 +10,34 @@ use crate::shared::Sealed;
 /// Kind of base system contracts used as a marker in the [`BaseSystemContractsProvider`] trait.
 pub trait ContractsKind: fmt::Debug + Sealed {}
 
-/// Marker for base system contracts used for gas estimation.
+/// Marker for [`BaseSystemContracts`] used for gas estimation.
 #[derive(Debug)]
 pub struct EstimateGas(());
 
 impl Sealed for EstimateGas {}
 impl ContractsKind for EstimateGas {}
 
-/// Marker for base system contracts used for calls and/or transaction execution.
+/// Marker for [`BaseSystemContracts`] used for calls and transaction execution.
 #[derive(Debug)]
 pub struct CallOrExecute(());
 
 impl Sealed for CallOrExecute {}
 impl ContractsKind for CallOrExecute {}
 
+/// Provider of [`BaseSystemContracts`] for oneshot execution.
+///
+/// The main implementation of this trait is [`MultiVMBaseSystemContracts`], which selects contracts
+/// based on [`ProtocolVersionId`].
 #[async_trait]
 pub trait BaseSystemContractsProvider<C: ContractsKind>: fmt::Debug + Send + Sync {
+    /// Returns base system contracts for executing a transaction on top of the provided block.
+    ///
+    /// Implementations are encouraged to cache returned contracts for performance; caching is **not** performed
+    /// by the caller.
+    ///
+    /// # Errors
+    ///
+    /// Returned errors are treated as unrecoverable for a particular execution, but further executions are not affected.
     async fn base_system_contracts(
         &self,
         block_info: &ResolvedBlockInfo,
@@ -102,7 +114,7 @@ impl<C: ContractsKind> MultiVMBaseSystemContracts<C> {
 }
 
 impl MultiVMBaseSystemContracts<EstimateGas> {
-    /// System contracts (mainly, bootloader) are tuned to provide accurate execution metrics.
+    /// Returned system contracts (mainly the bootloader) are tuned to provide accurate execution metrics.
     pub fn load_estimate_gas_blocking() -> Self {
         Self {
             pre_virtual_blocks: BaseSystemContracts::estimate_gas_pre_virtual_blocks(),
@@ -122,8 +134,7 @@ impl MultiVMBaseSystemContracts<EstimateGas> {
 }
 
 impl MultiVMBaseSystemContracts<CallOrExecute> {
-    /// System contracts (mainly, bootloader) for these params tuned to provide better UX
-    /// experience (e.g. revert messages).
+    /// Returned system contracts (mainly the bootloader) are tuned to provide better UX (e.g. revert messages).
     pub fn load_eth_call_blocking() -> Self {
         Self {
             pre_virtual_blocks: BaseSystemContracts::playground_pre_virtual_blocks(),
