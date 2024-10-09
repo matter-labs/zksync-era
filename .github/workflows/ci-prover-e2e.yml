@@ -100,12 +100,9 @@ jobs:
       - name: Run Witness Generator
         run: |
           ci_run zk_inception prover run --component=witness-generator --round=all-rounds --docker=false &
-      - name: Run Witness Vector Generator
+      - name: Run Circuit Prover
         run: |
-          ci_run zk_inception prover run --component=witness-vector-generator --threads=8 --docker=false &
-      - name: Run Prover
-        run: |
-          ci_run zk_inception prover run --component=prover --docker=false &
+          ci_run cargo run --release --manifest-path=prover/crates/bin/circuit_prover/Cargo.toml &
           
           # Capture the PID of the prover run process
           PROVER_PID=$!
