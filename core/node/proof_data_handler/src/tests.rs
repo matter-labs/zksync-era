@@ -62,6 +62,7 @@ async fn request_tee_proof_inputs() {
                     code: vec![U256([1; 4])],
                     hash: H256([1; 32]),
                 },
+                evm_emulator: None,
             },
             bootloader_gas_limit: 0,
             execution_mode: TxExecutionMode::VerifyExecute,

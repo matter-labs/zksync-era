@@ -56,6 +56,7 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         pubdata_params: PubdataParams::default(),
     }
 }
+
 pub(crate) fn create_l1_batch_header(number: u32) -> L1BatchHeader {
     L1BatchHeader::new(
         L1BatchNumber(number),
@@ -63,6 +64,7 @@ pub(crate) fn create_l1_batch_header(number: u32) -> L1BatchHeader {
         BaseSystemContractsHashes {
             bootloader: H256::repeat_byte(1),
             default_aa: H256::repeat_byte(42),
+            evm_emulator: Some(H256::repeat_byte(43)),
         },
         ProtocolVersionId::latest(),
     )
