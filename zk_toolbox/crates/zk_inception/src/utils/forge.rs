@@ -1,6 +1,6 @@
-use anyhow::anyhow;
-use common::forge::ForgeScript;
-use ethers::types::{H256, U256};
+use anyhow::Context as _;
+use common::{forge::ForgeScript, wallets::Wallet};
+use ethers::types::U256;
 
 use crate::{
     consts::MINIMUM_BALANCE_FOR_WALLET,
@@ -9,10 +9,14 @@ use crate::{
 
 pub fn fill_forge_private_key(
     mut forge: ForgeScript,
-    private_key: Option<H256>,
+    wallet: Option<&Wallet>,
 ) -> anyhow::Result<ForgeScript> {
     if !forge.wallet_args_passed() {
-        forge = forge.with_private_key(private_key.ok_or(anyhow!(MSG_DEPLOYER_PK_NOT_SET_ERR))?);
+        forge = forge.with_private_key(
+            wallet
+                .and_then(|w| w.private_key_h256())
+                .context(MSG_DEPLOYER_PK_NOT_SET_ERR)?,
+        );
     }
     Ok(forge)
 }

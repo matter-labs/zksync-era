@@ -1,13 +1,10 @@
 use common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     spinner::Spinner,
+    wallets::Wallet,
 };
 use config::{forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig};
-use ethers::{
-    abi::parse_abi,
-    contract::BaseContract,
-    types::{Address, H256},
-};
+use ethers::{abi::parse_abi, contract::BaseContract, types::Address};
 use lazy_static::lazy_static;
 use xshell::Shell;
 
@@ -31,7 +28,7 @@ pub async fn accept_admin(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     admin: Address,
-    governor: Option<H256>,
+    governor: &Wallet,
     target_address: Address,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
@@ -62,7 +59,7 @@ pub async fn accept_owner(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     governor_contract: Address,
-    governor: Option<H256>,
+    governor: &Wallet,
     target_address: Address,
     forge_args: &ForgeScriptArgs,
     l1_rpc_url: String,
@@ -89,10 +86,10 @@ pub async fn accept_owner(
 
 async fn accept_ownership(
     shell: &Shell,
-    governor: Option<H256>,
+    governor: &Wallet,
     mut forge: ForgeScript,
 ) -> anyhow::Result<()> {
-    forge = fill_forge_private_key(forge, governor)?;
+    forge = fill_forge_private_key(forge, Some(governor))?;
     check_the_balance(&forge).await?;
     let spinner = Spinner::new(MSG_ACCEPTING_GOVERNANCE_SPINNER);
     forge.run(shell)?;
