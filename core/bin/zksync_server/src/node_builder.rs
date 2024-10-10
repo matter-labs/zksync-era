@@ -289,6 +289,7 @@ impl MainNodeBuilder {
         self.node.add_layer(ProofDataHandlerLayer::new(
             try_load_config!(self.configs.proof_data_handler_config),
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
         ));
         Ok(self)
     }

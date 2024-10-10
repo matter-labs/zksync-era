@@ -12,7 +12,7 @@ use zksync_prover_interface::api::{
     ProofGenerationDataRequest, RegisterTeeAttestationRequest, SubmitProofRequest,
     SubmitTeeProofRequest, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
 };
-use zksync_types::commitment::L1BatchCommitmentMode;
+use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 #[cfg(test)]
 mod tests;
@@ -27,11 +27,18 @@ pub async fn run_server(
     blob_store: Arc<dyn ObjectStore>,
     connection_pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
+    l2_chain_id: L2ChainId,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
     tracing::debug!("Starting proof data handler server on {bind_address}");
-    let app = create_proof_processing_router(blob_store, connection_pool, config, commitment_mode);
+    let app = create_proof_processing_router(
+        blob_store,
+        connection_pool,
+        config,
+        commitment_mode,
+        l2_chain_id,
+    );
 
     let listener = tokio::net::TcpListener::bind(bind_address)
         .await
@@ -54,6 +61,7 @@ fn create_proof_processing_router(
     connection_pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
+    l2_chain_id: L2ChainId,
 ) -> Router {
     let get_proof_gen_processor = RequestProcessor::new(
         blob_store.clone(),
@@ -88,7 +96,7 @@ fn create_proof_processing_router(
 
     if config.tee_support {
         let get_tee_proof_gen_processor =
-            TeeRequestProcessor::new(blob_store, connection_pool, config.clone());
+            TeeRequestProcessor::new(blob_store, connection_pool, config.clone(), l2_chain_id);
         let submit_tee_proof_processor = get_tee_proof_gen_processor.clone();
         let register_tee_attestation_processor = get_tee_proof_gen_processor.clone();
 

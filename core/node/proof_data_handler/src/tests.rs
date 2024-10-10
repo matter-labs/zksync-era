@@ -6,6 +6,7 @@ use axum::{
 };
 use serde_json::json;
 use tower::ServiceExt;
+use zksync_basic_types::L2ChainId;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, CoreDal};
 use zksync_object_store::MockObjectStore;
@@ -27,6 +28,7 @@ async fn request_tee_proof_inputs() {
             tee_support: true,
         },
         L1BatchCommitmentMode::Rollup,
+        L2ChainId::default(),
     );
     let test_cases = vec![
         (json!({ "tee_type": "sgx" }), StatusCode::NO_CONTENT),
@@ -81,6 +83,7 @@ async fn submit_tee_proof() {
             tee_support: true,
         },
         L1BatchCommitmentMode::Rollup,
+        L2ChainId::default(),
     );
 
     // this should fail because we haven't saved the attestation for the pubkey yet

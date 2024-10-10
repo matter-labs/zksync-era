@@ -208,7 +208,6 @@ async fn get_updates_manager_witness_input_data(
     output: &L1BatchOutput,
 ) -> anyhow::Result<VMRunWitnessInputData> {
     let initial_heap_content = output.batch.final_bootloader_memory.clone().unwrap(); // might be just empty
-    let l2_chain_id = system_env.chain_id;
     let default_aa = system_env.base_system_smart_contracts.hashes().default_aa;
     let evm_emulator = system_env.base_system_smart_contracts.hashes().evm_emulator;
     let bootloader = system_env.base_system_smart_contracts.hashes().bootloader;
@@ -276,7 +275,6 @@ async fn get_updates_manager_witness_input_data(
         storage_refunds,
         pubdata_costs,
         witness_block_state,
-        l2_chain_id,
     })
 }
 

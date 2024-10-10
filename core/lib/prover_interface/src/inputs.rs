@@ -6,8 +6,7 @@ use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_object_store::{_reexports::BoxedError, serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
     basic_fri_types::Eip4844Blobs, block::L2BlockExecutionData,
-    witness_block_state::WitnessStorageState, L1BatchNumber, L2ChainId, ProtocolVersionId, H256,
-    U256,
+    witness_block_state::WitnessStorageState, L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 
 const HASH_LEN: usize = H256::len_bytes();
@@ -150,7 +149,6 @@ pub struct VMRunWitnessInputData {
     pub storage_refunds: Vec<u32>,
     pub pubdata_costs: Vec<i32>,
     pub witness_block_state: WitnessStorageState,
-    pub l2_chain_id: L2ChainId,
 }
 
 // skip_serializing_if for field evm_emulator_code_hash doesn't work fine with bincode,

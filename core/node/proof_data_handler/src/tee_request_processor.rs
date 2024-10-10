@@ -13,7 +13,7 @@ use zksync_prover_interface::{
         TeeVerifierInput, V1TeeVerifierInput, VMRunWitnessInputData, WitnessInputMerklePaths,
     },
 };
-use zksync_types::{tee_types::TeeType, L1BatchNumber};
+use zksync_types::{tee_types::TeeType, L1BatchNumber, L2ChainId};
 use zksync_vm_executor::storage::L1BatchParamsProvider;
 
 use crate::errors::RequestProcessorError;
@@ -23,6 +23,7 @@ pub(crate) struct TeeRequestProcessor {
     blob_store: Arc<dyn ObjectStore>,
     pool: ConnectionPool<Core>,
     config: ProofDataHandlerConfig,
+    l2_chain_id: L2ChainId,
 }
 
 impl TeeRequestProcessor {
@@ -30,11 +31,13 @@ impl TeeRequestProcessor {
         blob_store: Arc<dyn ObjectStore>,
         pool: ConnectionPool<Core>,
         config: ProofDataHandlerConfig,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
             blob_store,
             pool,
             config,
+            l2_chain_id,
         }
     }
 
@@ -132,7 +135,7 @@ impl TeeRequestProcessor {
                 &mut connection,
                 l1_batch_number,
                 validation_computational_gas_limit,
-                vm_run_data.l2_chain_id,
+                self.l2_chain_id,
             )
             .await
             .map_err(|err| RequestProcessorError::GeneralError(err.to_string()))?
