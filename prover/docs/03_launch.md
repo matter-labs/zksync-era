@@ -15,7 +15,7 @@ It will create a config similar to `dev`, but with:
 
 You can always switch back to dev config via `zk env dev`.
 
-**Important:** If you change environments, you have to do `zk init` again.
+**Important:** If you change environments, you have to run `zk init` again.
 
 ## Enter the prover workspace
 
@@ -91,10 +91,10 @@ Prover can prove any kinds of circuits, so you only need a single instance.
 ### Proof compressor
 
 ⚠️ Both prover and proof compressor require 24GB of VRAM, and currently it's not possible to make them use different
-GPU. So unless you have a GPU with 48GB of VRAM, you won't be able to run both at the same time.
+GPUs. So unless you have a GPU with 48GB of VRAM, you won't be able to run both at the same time.
 
 You should wait until the proof is generated, and once you see in the server logs that it tries to find available
-compressor, you can shut the prover down, and run the proof compressor:
+compressor, you can shut the prover down and run the proof compressor:
 
 ```
 zk f cargo run --features "gpu" --release --bin zksync_proof_fri_compressor
