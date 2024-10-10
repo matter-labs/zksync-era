@@ -49,6 +49,8 @@ pub struct ValidationTracer<H> {
     computational_gas_used: u32,
     computational_gas_limit: u32,
     timestamp_asserter_address: Option<Address>,
+    timestamp_asserter_min_range_sec: u32,
+    timestamp_asserter_min_time_till_end_sec: u32,
     vm_version: VmVersion,
     pub result: Arc<OnceCell<ViolatedValidationRule>>,
     pub traces: Arc<Mutex<ValidationTraces>>,
@@ -82,6 +84,9 @@ impl<H> ValidationTracer<H> {
                 computational_gas_used: 0,
                 computational_gas_limit: params.computational_gas_limit,
                 timestamp_asserter_address: params.timestamp_asserter_address,
+                timestamp_asserter_min_range_sec: params.timestamp_asserter_min_range_sec,
+                timestamp_asserter_min_time_till_end_sec: params
+                    .timestamp_asserter_min_time_till_end_sec,
                 vm_version,
                 result: result.clone(),
                 traces: traces.clone(),
@@ -210,6 +215,8 @@ impl<H> ValidationTracer<H> {
             trusted_address_slots: self.trusted_address_slots.clone(),
             computational_gas_limit: self.computational_gas_limit,
             timestamp_asserter_address: self.timestamp_asserter_address,
+            timestamp_asserter_min_range_sec: self.timestamp_asserter_min_range_sec,
+            timestamp_asserter_min_time_till_end_sec: self.timestamp_asserter_min_time_till_end_sec,
         }
     }
 }

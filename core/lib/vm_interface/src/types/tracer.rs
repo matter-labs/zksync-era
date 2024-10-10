@@ -60,6 +60,10 @@ pub struct ValidationParams {
     /// Address of the timestamp asserter. This contract is allowed to touch block.timestamp regardless
     /// of the calling context.
     pub timestamp_asserter_address: Option<Address>,
+    /// Minimum difference in seconds between the range start and range end
+    pub timestamp_asserter_min_range_sec: u32,
+    /// Minimum time between current block.timestamp and the end of the asserted range
+    pub timestamp_asserter_min_time_till_end_sec: u32,
 }
 
 /// Rules that can be violated when validating a transaction.

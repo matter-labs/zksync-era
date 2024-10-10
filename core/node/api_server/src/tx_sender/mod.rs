@@ -4,7 +4,10 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use tokio::sync::RwLock;
-use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
+use zksync_config::configs::{
+    api::Web3JsonRpcConfig,
+    chain::{StateKeeperConfig, TimestampAsserterConfig},
+};
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
@@ -182,7 +185,9 @@ impl TxSenderBuilder {
             executor_options,
             storage_caches,
             missed_storage_invocation_limit,
-            self.config.timestamp_asserter_addr,
+            self.config.timestamp_asserter_address,
+            self.config.timestamp_asserter_min_range_sec,
+            self.config.timestamp_asserter_min_time_till_end_sec,
         );
 
         TxSender(Arc::new(TxSenderInner {
@@ -212,7 +217,9 @@ pub struct TxSenderConfig {
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
     pub whitelisted_tokens_for_aa: Vec<Address>,
-    pub timestamp_asserter_addr: Option<Address>,
+    pub timestamp_asserter_address: Option<Address>,
+    pub timestamp_asserter_min_range_sec: u32,
+    pub timestamp_asserter_min_time_till_end_sec: u32,
 }
 
 impl TxSenderConfig {
@@ -222,6 +229,7 @@ impl TxSenderConfig {
         fee_account_addr: Address,
         chain_id: L2ChainId,
         timestamp_asserter_addr: Option<Address>,
+        timestamp_asserter_config: TimestampAsserterConfig,
     ) -> Self {
         Self {
             fee_account_addr,
@@ -233,7 +241,10 @@ impl TxSenderConfig {
                 .validation_computational_gas_limit,
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
-            timestamp_asserter_addr,
+            timestamp_asserter_address: timestamp_asserter_addr,
+            timestamp_asserter_min_range_sec: timestamp_asserter_config.min_range_sec,
+            timestamp_asserter_min_time_till_end_sec: timestamp_asserter_config
+                .min_time_till_end_sec,
         }
     }
 }

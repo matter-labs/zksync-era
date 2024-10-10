@@ -101,6 +101,8 @@ pub(crate) struct SandboxExecutor {
     pub(super) options: SandboxExecutorOptions,
     storage_caches: Option<PostgresStorageCaches>,
     pub(super) timestamp_asserter_address: Option<Address>,
+    pub(super) timestamp_asserter_min_range_sec: u32,
+    pub(super) timestamp_asserter_min_time_till_end_sec: u32,
 }
 
 impl SandboxExecutor {
@@ -109,6 +111,8 @@ impl SandboxExecutor {
         caches: PostgresStorageCaches,
         missed_storage_invocation_limit: usize,
         timestamp_asserter_address: Option<Address>,
+        timestamp_asserter_min_range_sec: u32,
+        timestamp_asserter_min_time_till_end_sec: u32,
     ) -> Self {
         let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
         executor
@@ -118,6 +122,8 @@ impl SandboxExecutor {
             options,
             storage_caches: Some(caches),
             timestamp_asserter_address,
+            timestamp_asserter_min_range_sec,
+            timestamp_asserter_min_time_till_end_sec,
         }
     }
 
@@ -127,6 +133,8 @@ impl SandboxExecutor {
             options: SandboxExecutorOptions::mock().await,
             storage_caches: None,
             timestamp_asserter_address: None,
+            timestamp_asserter_min_range_sec: 0,
+            timestamp_asserter_min_time_till_end_sec: 0,
         }
     }
 
