@@ -196,8 +196,8 @@ impl EcosystemConfig {
 
     pub fn get_wallets(&self) -> anyhow::Result<WalletsConfig> {
         let path = self.config.join(WALLETS_FILE);
-        if let Ok(wallets) = WalletsConfig::read(self.get_shell(), &path) {
-            return Ok(wallets);
+        if self.get_shell().path_exists(&path) {
+            return WalletsConfig::read(self.get_shell(), &path);
         }
         if self.wallet_creation == WalletCreation::Localhost {
             // Use 0 id for ecosystem  wallets

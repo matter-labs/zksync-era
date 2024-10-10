@@ -87,8 +87,8 @@ impl ChainConfig {
 
     pub fn get_wallets_config(&self) -> anyhow::Result<WalletsConfig> {
         let path = self.configs.join(WALLETS_FILE);
-        if let Ok(wallets) = WalletsConfig::read(self.get_shell(), &path) {
-            return Ok(wallets);
+        if self.get_shell().path_exists(&path) {
+            return WalletsConfig::read(self.get_shell(), &path);
         }
         if self.wallet_creation == WalletCreation::Localhost {
             let wallets = create_localhost_wallets(self.get_shell(), &self.link_to_code, self.id)?;
