@@ -18,3 +18,20 @@ impl FromStr for SeedPhrase {
         Ok(SeedPhrase(s.parse()?))
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct PrivateKey(pub Secret<String>);
+
+impl PartialEq for PrivateKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.expose_secret().eq(other.0.expose_secret())
+    }
+}
+
+impl FromStr for PrivateKey {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(PrivateKey(s.parse()?))
+    }
+}
