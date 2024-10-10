@@ -51,7 +51,7 @@ fn test_l1_tx_execution() {
 
     let account = &mut vm.rich_accounts[0];
     let deploy_tx = account.get_deploy_tx(
-        &TestContract::counter().bytecode,
+        TestContract::counter().bytecode,
         None,
         TxType::L1 { serial_id: 1 },
     );

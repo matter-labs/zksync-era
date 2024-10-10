@@ -53,11 +53,11 @@ fn test_send_or_transfer(test_option: TestOptions) {
         .with_random_rich_accounts(1)
         .with_custom_contracts(vec![
             ContractToDeploy::new(
-                TestContract::transfer_test().bytecode.clone(),
+                TestContract::transfer_test().bytecode.to_vec(),
                 test_contract_address,
             ),
             ContractToDeploy::new(
-                TestContract::transfer_recipient().bytecode.clone(),
+                TestContract::transfer_recipient().bytecode.to_vec(),
                 recipient_address,
             ),
         ])
@@ -139,11 +139,11 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
         .with_random_rich_accounts(1)
         .with_custom_contracts(vec![
             ContractToDeploy::new(
-                TestContract::transfer_test().bytecode.clone(),
+                TestContract::transfer_test().bytecode.to_vec(),
                 test_contract_address,
             ),
             ContractToDeploy::new(
-                TestContract::reentrant_recipient().bytecode.clone(),
+                TestContract::reentrant_recipient().bytecode.to_vec(),
                 reentrant_recipient_address,
             ),
         ])

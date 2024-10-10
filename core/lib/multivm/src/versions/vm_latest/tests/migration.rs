@@ -30,7 +30,7 @@ fn test_migration_for_system_context_aa_interaction() {
     // the upgrade transaction is there or not.
     let account = &mut vm.rich_accounts[0];
     let DeployContractsTx { tx, .. } =
-        account.get_deploy_tx(&TestContract::counter().bytecode, None, TxType::L2);
+        account.get_deploy_tx(TestContract::counter().bytecode, None, TxType::L2);
 
     vm.vm.push_transaction(tx);
     let result = vm.vm.execute(VmExecutionMode::OneTx);

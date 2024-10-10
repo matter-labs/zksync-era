@@ -170,7 +170,7 @@ fn known_bytecodes_without_base_system_contracts<S: WriteStorage, H: HistoryMode
 /// Counter test contract bytecode inflated by appending lots of `NOP` opcodes at the end. This leads to non-trivial
 /// decommitment cost (>10,000 gas).
 fn inflated_counter_bytecode() -> Vec<u8> {
-    let mut counter_bytecode = TestContract::counter().bytecode.clone();
+    let mut counter_bytecode = TestContract::counter().bytecode.to_vec();
     counter_bytecode.extend(
         iter::repeat(EncodingModeProduction::nop_encoding().to_be_bytes())
             .take(10_000)
@@ -193,7 +193,7 @@ fn execute_proxy_counter(gas: u32) -> (VmTester<HistoryDisabled>, U256, VmExecut
 
     let account = &mut vm.rich_accounts[0];
     let deploy_tx = account.get_deploy_tx(
-        &TestContract::proxy_counter().bytecode,
+        TestContract::proxy_counter().bytecode,
         Some(&[Token::Address(counter_address)]),
         TxType::L2,
     );

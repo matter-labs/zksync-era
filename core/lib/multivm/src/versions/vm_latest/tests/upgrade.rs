@@ -33,7 +33,7 @@ fn test_protocol_upgrade_is_first() {
         .with_random_rich_accounts(1)
         .build();
 
-    let bytecode_hash = hash_bytecode(&TestContract::counter().bytecode);
+    let bytecode_hash = hash_bytecode(TestContract::counter().bytecode);
     vm.vm
         .storage
         .borrow_mut()
@@ -69,7 +69,7 @@ fn test_protocol_upgrade_is_first() {
 
     let normal_l1_transaction = vm.rich_accounts[0]
         .get_deploy_tx(
-            &TestContract::counter().bytecode,
+            TestContract::counter().bytecode,
             None,
             TxType::L1 { serial_id: 0 },
         )
@@ -129,7 +129,7 @@ fn test_force_deploy_upgrade() {
         .build();
 
     let storage_view = vm.storage.clone();
-    let bytecode_hash = hash_bytecode(&TestContract::counter().bytecode);
+    let bytecode_hash = hash_bytecode(TestContract::counter().bytecode);
 
     let known_code_key = get_known_code_key(&bytecode_hash);
     // It is generally expected that all the keys will be set as known prior to the protocol upgrade.
@@ -177,9 +177,9 @@ fn test_complex_upgrader() {
         .build();
 
     let storage_view = vm.storage.clone();
-    let upgrade_bytecode = TestContract::complex_upgrade().bytecode.clone();
+    let upgrade_bytecode = TestContract::complex_upgrade().bytecode.to_vec();
     let bytecode_hash = hash_bytecode(&upgrade_bytecode);
-    let msg_sender_test_hash = hash_bytecode(&TestContract::msg_sender_test().bytecode);
+    let msg_sender_test_hash = hash_bytecode(TestContract::msg_sender_test().bytecode);
 
     // Let's assume that the bytecode for the implementation of the complex upgrade
     // is already deployed in some address in user space
@@ -206,7 +206,7 @@ fn test_complex_upgrader() {
             ),
             (
                 h256_to_u256(msg_sender_test_hash),
-                bytes_to_be_words(TestContract::msg_sender_test().bytecode.clone()),
+                bytes_to_be_words(TestContract::msg_sender_test().bytecode.to_vec()),
             ),
         ],
         Timestamp(0),

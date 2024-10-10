@@ -52,7 +52,7 @@ fn test_max_depth() {
 
 #[test]
 fn test_basic_behavior() {
-    let contract = TestContract::counter().bytecode.clone();
+    let contract = TestContract::counter().bytecode.to_vec();
     let address = Address::random();
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()

@@ -18,7 +18,7 @@ struct TestTxInfo {
 }
 
 fn test_storage(txs: Vec<TestTxInfo>) -> u32 {
-    let bytecode = TestContract::storage_test().bytecode.clone();
+    let bytecode = TestContract::storage_test().bytecode.to_vec();
     let test_contract_address = Address::random();
 
     // In this test, we aim to test whether a simple account interaction (without any fee logic)

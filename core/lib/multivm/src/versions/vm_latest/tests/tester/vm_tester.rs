@@ -46,7 +46,7 @@ impl<H: HistoryMode> VmTester<H> {
             .deployer
             .as_mut()
             .expect("You have to initialize builder with deployer")
-            .get_deploy_tx(&TestContract::counter().bytecode, None, TxType::L2)
+            .get_deploy_tx(TestContract::counter().bytecode, None, TxType::L2)
             .tx;
         let nonce = tx.nonce().unwrap().0.into();
         self.vm.push_transaction(tx);

@@ -22,10 +22,10 @@ fn generate_large_bytecode() -> Vec<u8> {
 #[test]
 fn test_code_oracle() {
     let precompiles_contract_address = Address::random();
-    let precompile_contract_bytecode = TestContract::precompiles_test().bytecode.clone();
+    let precompile_contract_bytecode = TestContract::precompiles_test().bytecode.to_vec();
 
     // Filling the zkevm bytecode
-    let normal_zkevm_bytecode = &TestContract::counter().bytecode;
+    let normal_zkevm_bytecode = TestContract::counter().bytecode;
     let normal_zkevm_bytecode_hash = hash_bytecode(normal_zkevm_bytecode);
     let normal_zkevm_bytecode_keccak_hash = keccak256(normal_zkevm_bytecode);
     let mut storage = get_empty_storage();
@@ -50,7 +50,7 @@ fn test_code_oracle() {
     let precompile_contract = TestContract::precompiles_test();
     let call_code_oracle_function = precompile_contract.function("callCodeOracle");
 
-    vm.vm.insert_bytecodes([normal_zkevm_bytecode.as_slice()]);
+    vm.vm.insert_bytecodes([normal_zkevm_bytecode]);
     let account = &mut vm.rich_accounts[0];
 
     // Firstly, let's ensure that the contract works.
@@ -114,7 +114,7 @@ fn find_code_oracle_cost_log(
 #[test]
 fn test_code_oracle_big_bytecode() {
     let precompiles_contract_address = Address::random();
-    let precompile_contract_bytecode = TestContract::precompiles_test().bytecode.clone();
+    let precompile_contract_bytecode = TestContract::precompiles_test().bytecode.to_vec();
 
     let big_zkevm_bytecode = generate_large_bytecode();
     let big_zkevm_bytecode_hash = hash_bytecode(&big_zkevm_bytecode);
@@ -174,7 +174,7 @@ fn test_code_oracle_big_bytecode() {
 fn refunds_in_code_oracle() {
     let precompiles_contract_address = Address::random();
 
-    let normal_zkevm_bytecode = &TestContract::counter().bytecode;
+    let normal_zkevm_bytecode = TestContract::counter().bytecode;
     let normal_zkevm_bytecode_hash = hash_bytecode(normal_zkevm_bytecode);
     let normal_zkevm_bytecode_keccak_hash = keccak256(normal_zkevm_bytecode);
     let mut storage = get_empty_storage();
@@ -195,13 +195,13 @@ fn refunds_in_code_oracle() {
             .with_execution_mode(TxExecutionMode::VerifyExecute)
             .with_random_rich_accounts(1)
             .with_custom_contracts(vec![ContractToDeploy::new(
-                TestContract::precompiles_test().bytecode.clone(),
+                TestContract::precompiles_test().bytecode.to_vec(),
                 precompiles_contract_address,
             )])
             .with_storage(storage.clone())
             .build();
 
-        vm.vm.insert_bytecodes([normal_zkevm_bytecode.as_slice()]);
+        vm.vm.insert_bytecodes([normal_zkevm_bytecode]);
 
         let account = &mut vm.rich_accounts[0];
         if decommit {

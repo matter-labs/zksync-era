@@ -13,7 +13,7 @@ use crate::{
 #[test]
 fn test_tracing_of_execution_errors() {
     let contract_address = H160::random();
-    let bytecode = TestContract::reverts_test().bytecode.clone();
+    let bytecode = TestContract::reverts_test().bytecode.to_vec();
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())

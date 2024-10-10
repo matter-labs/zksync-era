@@ -85,7 +85,7 @@ fn test_vm_loadnext_rollbacks() {
         address,
         ..
     } = account.get_deploy_tx_with_factory_deps(
-        &loadnext_contract.bytecode,
+        loadnext_contract.bytecode,
         Some(loadnext_constructor_data),
         loadnext_contract.factory_deps(),
         TxType::L2,
@@ -196,7 +196,7 @@ fn test_layered_rollback() {
         address,
         ..
     } = account.get_deploy_tx(
-        &TestContract::load_test().bytecode,
+        TestContract::load_test().bytecode,
         Some(&[Token::Uint(0.into())]),
         TxType::L2,
     );
@@ -261,7 +261,7 @@ fn test_layered_rollback() {
 
 #[test]
 fn rollback_in_call_mode() {
-    let counter_bytecode = TestContract::counter().bytecode.clone();
+    let counter_bytecode = TestContract::counter().bytecode.to_vec();
     let counter_address = Address::repeat_byte(1);
 
     let mut vm = VmTesterBuilder::new(HistoryEnabled)

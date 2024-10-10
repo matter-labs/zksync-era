@@ -25,10 +25,10 @@ fn generate_large_bytecode() -> Vec<u8> {
 #[test]
 fn test_code_oracle() {
     let precompiles_contract_address = Address::random();
-    let precompile_contract_bytecode = TestContract::precompiles_test().bytecode.clone();
+    let precompile_contract_bytecode = TestContract::precompiles_test().bytecode.to_vec();
 
     // Filling the zkevm bytecode
-    let normal_zkevm_bytecode = &TestContract::counter().bytecode;
+    let normal_zkevm_bytecode = TestContract::counter().bytecode;
     let normal_zkevm_bytecode_hash = hash_bytecode(normal_zkevm_bytecode);
     let normal_zkevm_bytecode_keccak_hash = keccak256(normal_zkevm_bytecode);
     let mut storage = get_empty_storage();
@@ -57,7 +57,7 @@ fn test_code_oracle() {
     vm.vm.state.decommittment_processor.populate(
         vec![(
             h256_to_u256(normal_zkevm_bytecode_hash),
-            bytes_to_be_words(normal_zkevm_bytecode.clone()),
+            bytes_to_be_words(normal_zkevm_bytecode.to_vec()),
         )],
         Timestamp(0),
     );
@@ -125,7 +125,7 @@ fn find_code_oracle_cost_log(
 #[test]
 fn test_code_oracle_big_bytecode() {
     let precompiles_contract_address = Address::random();
-    let precompile_contract_bytecode = TestContract::precompiles_test().bytecode.clone();
+    let precompile_contract_bytecode = TestContract::precompiles_test().bytecode.to_vec();
 
     let big_zkevm_bytecode = generate_large_bytecode();
     let big_zkevm_bytecode_hash = hash_bytecode(&big_zkevm_bytecode);
@@ -189,10 +189,10 @@ fn test_code_oracle_big_bytecode() {
 fn refunds_in_code_oracle() {
     let precompiles_contract_address = Address::random();
 
-    let normal_zkevm_bytecode = &TestContract::counter().bytecode;
+    let normal_zkevm_bytecode = TestContract::counter().bytecode;
     let normal_zkevm_bytecode_hash = hash_bytecode(normal_zkevm_bytecode);
     let normal_zkevm_bytecode_keccak_hash = keccak256(normal_zkevm_bytecode);
-    let normal_zkevm_bytecode_words = bytes_to_be_words(normal_zkevm_bytecode.clone());
+    let normal_zkevm_bytecode_words = bytes_to_be_words(normal_zkevm_bytecode.to_vec());
     let mut storage = get_empty_storage();
     storage.set_value(
         get_known_code_key(&normal_zkevm_bytecode_hash),
@@ -211,7 +211,7 @@ fn refunds_in_code_oracle() {
             .with_execution_mode(TxExecutionMode::VerifyExecute)
             .with_random_rich_accounts(1)
             .with_custom_contracts(vec![(
-                TestContract::precompiles_test().bytecode.clone(),
+                TestContract::precompiles_test().bytecode.to_vec(),
                 precompiles_contract_address,
                 false,
             )])

@@ -366,7 +366,7 @@ impl AccountExt for Account {
         let loadnext_contract = TestContract::load_test();
         let loadnext_constructor_data = &[Token::Uint(U256::from(100))];
         self.get_deploy_tx_with_factory_deps(
-            &loadnext_contract.bytecode,
+            loadnext_contract.bytecode,
             Some(loadnext_constructor_data),
             loadnext_contract.factory_deps(),
             TxType::L2,
@@ -462,11 +462,11 @@ impl AccountExt for Account {
     }
 
     fn deploy_failed_call_tx(&mut self) -> DeployContractsTx {
-        self.get_deploy_tx(&TestContract::failed_call().bytecode, None, TxType::L2)
+        self.get_deploy_tx(TestContract::failed_call().bytecode, None, TxType::L2)
     }
 
     fn deploy_storage_tester(&mut self) -> DeployContractsTx {
-        self.get_deploy_tx(&TestContract::storage_test().bytecode, None, TxType::L2)
+        self.get_deploy_tx(TestContract::storage_test().bytecode, None, TxType::L2)
     }
 
     fn test_transient_store(&mut self, address: Address) -> Transaction {
@@ -498,7 +498,7 @@ impl AccountExt for Account {
     }
 
     fn deploy_precompiles_test(&mut self) -> DeployContractsTx {
-        self.get_deploy_tx(&TestContract::precompiles_test().bytecode, None, TxType::L2)
+        self.get_deploy_tx(TestContract::precompiles_test().bytecode, None, TxType::L2)
     }
 
     fn test_decommit(

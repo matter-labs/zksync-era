@@ -39,7 +39,7 @@ fn test_require_eip712() {
     let mut private_account = Account::random();
     let beneficiary = Account::random();
 
-    let bytecode = TestContract::many_owners().bytecode.clone();
+    let bytecode = TestContract::many_owners().bytecode.to_vec();
     let mut vm = VmTesterBuilder::new(HistoryDisabled)
         .with_empty_in_memory_storage()
         .with_custom_contracts(vec![(bytecode, account_abstraction.address, true)])

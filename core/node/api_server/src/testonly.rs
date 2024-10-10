@@ -91,7 +91,7 @@ impl StateBuilder {
         self.inner.insert(
             Self::LOAD_TEST_ADDRESS,
             OverrideAccount {
-                code: Some(Bytecode::new(TestContract::load_test().bytecode.clone()).unwrap()),
+                code: Some(Bytecode::new(TestContract::load_test().bytecode.to_vec()).unwrap()),
                 state: Some(OverrideState::State(state)),
                 ..OverrideAccount::default()
             },
@@ -107,21 +107,21 @@ impl StateBuilder {
     pub fn with_expensive_contract(self) -> Self {
         self.with_contract(
             Self::EXPENSIVE_CONTRACT_ADDRESS,
-            TestContract::expensive().bytecode.clone(),
+            TestContract::expensive().bytecode.to_vec(),
         )
     }
 
     pub fn with_precompiles_contract(self) -> Self {
         self.with_contract(
             Self::PRECOMPILES_CONTRACT_ADDRESS,
-            TestContract::precompiles_test().bytecode.clone(),
+            TestContract::precompiles_test().bytecode.to_vec(),
         )
     }
 
     pub fn with_counter_contract(self, initial_value: u64) -> Self {
         let mut this = self.with_contract(
             Self::COUNTER_CONTRACT_ADDRESS,
-            TestContract::counter().bytecode.clone(),
+            TestContract::counter().bytecode.to_vec(),
         );
         if initial_value != 0 {
             let state = HashMap::from([(H256::zero(), H256::from_low_u64_be(initial_value))]);
@@ -136,7 +136,7 @@ impl StateBuilder {
     pub fn with_infinite_loop_contract(self) -> Self {
         self.with_contract(
             Self::INFINITE_LOOP_CONTRACT_ADDRESS,
-            TestContract::infinite_loop().bytecode.clone(),
+            TestContract::infinite_loop().bytecode.to_vec(),
         )
     }
 

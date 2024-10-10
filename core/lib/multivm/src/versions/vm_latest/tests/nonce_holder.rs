@@ -44,7 +44,7 @@ fn test_nonce_holder() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_deployer()
         .with_custom_contracts(vec![(
-            TestContract::nonce_holder().bytecode.clone(),
+            TestContract::nonce_holder().bytecode.to_vec(),
             account.address,
             true,
         )])

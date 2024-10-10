@@ -220,7 +220,7 @@ async fn decommitting_contract() {
     let res = executor.execute_tx(deploy_tx.tx).await.unwrap();
     assert_succeeded(&res);
 
-    let keccak_bytecode_hash = web3::keccak256(&TestContract::precompiles_test().bytecode);
+    let keccak_bytecode_hash = web3::keccak256(TestContract::precompiles_test().bytecode);
     let test_tx = alice.test_decommit(
         deploy_tx.address,
         deploy_tx.bytecode_hash,

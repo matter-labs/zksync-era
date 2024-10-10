@@ -11,7 +11,7 @@ use crate::{
 };
 
 fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 {
-    let bytecode = TestContract::storage_test().bytecode.clone();
+    let bytecode = TestContract::storage_test().bytecode.to_vec();
 
     let test_contract_address = Address::random();
 

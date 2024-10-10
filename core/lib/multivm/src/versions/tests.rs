@@ -66,7 +66,7 @@ impl Harness {
             alice: Account::random(),
             bob: Account::random(),
             storage_contract: ContractToDeploy::new(
-                TestContract::storage_test().bytecode.clone(),
+                TestContract::storage_test().bytecode.to_vec(),
                 Self::STORAGE_CONTRACT_ADDRESS,
             ),
             storage_contract_abi: &TestContract::storage_test().abi,
@@ -169,7 +169,7 @@ impl Harness {
         self.new_block(vm, &[out_of_gas_transfer.hash(), simple_write_tx.hash()]);
 
         let deploy_tx = self.alice.get_deploy_tx(
-            &TestContract::load_test().bytecode,
+            TestContract::load_test().bytecode,
             Some(&[ethabi::Token::Uint(100.into())]),
             TxType::L2,
         );

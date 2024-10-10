@@ -28,7 +28,7 @@ pub struct TestContract {
     /// Web3 ABI of this contract.
     pub abi: ethabi::Contract,
     /// EraVM bytecode of this contract.
-    pub bytecode: Vec<u8>, // FIXME: change to &[u8]?
+    pub bytecode: &'static [u8],
     /// Contract dependencies (i.e., potential factory deps to be included in the contract deployment / transactions).
     pub dependencies: Vec<TestContract>,
 }
@@ -38,7 +38,7 @@ impl TestContract {
         let abi = serde_json::from_str(raw.abi).expect("failed parsing contract ABI");
         Self {
             abi,
-            bytecode: raw.bytecode.to_vec(),
+            bytecode: raw.bytecode,
             dependencies: vec![],
         }
     }

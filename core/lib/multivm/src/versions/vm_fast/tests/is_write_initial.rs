@@ -30,7 +30,7 @@ fn test_is_write_initial_behaviour() {
         .is_write_initial(&nonce_key));
 
     let tx = account
-        .get_deploy_tx(&TestContract::counter().bytecode, None, TxType::L2)
+        .get_deploy_tx(TestContract::counter().bytecode, None, TxType::L2)
         .tx;
     vm.vm.push_transaction(tx);
     vm.vm.execute(VmExecutionMode::OneTx);

@@ -272,7 +272,7 @@ impl AccountLifespan {
 
         let mut builder = wallet
             .start_deploy_contract()
-            .bytecode(self.wallet.test_contract.bytecode.clone())
+            .bytecode(self.wallet.test_contract.bytecode.to_vec())
             .constructor_calldata(constructor_calldata);
 
         let fee = builder

@@ -29,7 +29,7 @@ fn test_protocol_upgrade_is_first() {
         .with_random_rich_accounts(1)
         .build();
 
-    let bytecode_hash = hash_bytecode(&TestContract::counter().bytecode);
+    let bytecode_hash = hash_bytecode(TestContract::counter().bytecode);
     vm.storage
         .borrow_mut()
         .set_value(get_known_code_key(&bytecode_hash), u256_to_h256(1.into()));
@@ -64,7 +64,7 @@ fn test_protocol_upgrade_is_first() {
 
     let normal_l1_transaction = vm.rich_accounts[0]
         .get_deploy_tx(
-            &TestContract::counter().bytecode,
+            TestContract::counter().bytecode,
             None,
             TxType::L1 { serial_id: 0 },
         )
@@ -124,7 +124,7 @@ fn test_force_deploy_upgrade() {
         .build();
 
     let storage_view = vm.storage.clone();
-    let bytecode_hash = hash_bytecode(&TestContract::counter().bytecode);
+    let bytecode_hash = hash_bytecode(TestContract::counter().bytecode);
 
     let known_code_key = get_known_code_key(&bytecode_hash);
     // It is generally expected that all the keys will be set as known prior to the protocol upgrade.
@@ -175,9 +175,9 @@ fn test_complex_upgrader() {
         .with_random_rich_accounts(1)
         .build();
 
-    let upgrade_bytecode = TestContract::complex_upgrade().bytecode.clone();
+    let upgrade_bytecode = TestContract::complex_upgrade().bytecode.to_vec();
     let bytecode_hash = hash_bytecode(&upgrade_bytecode);
-    let msg_sender_test_hash = hash_bytecode(&TestContract::msg_sender_test().bytecode);
+    let msg_sender_test_hash = hash_bytecode(TestContract::msg_sender_test().bytecode);
 
     // Let's assume that the bytecode for the implementation of the complex upgrade
     // is already deployed in some address in user space
@@ -195,7 +195,7 @@ fn test_complex_upgrader() {
         storage.store_factory_dep(bytecode_hash, upgrade_bytecode);
         storage.store_factory_dep(
             msg_sender_test_hash,
-            TestContract::msg_sender_test().bytecode.clone(),
+            TestContract::msg_sender_test().bytecode.to_vec(),
         );
     }
 

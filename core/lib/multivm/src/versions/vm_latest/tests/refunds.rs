@@ -29,7 +29,7 @@ fn test_predetermined_refunded_gas() {
         tx,
         bytecode_hash: _,
         address: _,
-    } = account.get_deploy_tx(&TestContract::counter().bytecode, None, TxType::L2);
+    } = account.get_deploy_tx(TestContract::counter().bytecode, None, TxType::L2);
     vm.vm.push_transaction(tx.clone());
     let result = vm.vm.execute(VmExecutionMode::OneTx);
 
@@ -177,7 +177,7 @@ fn negative_pubdata_for_transaction() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
         .with_custom_contracts(vec![(
-            TestContract::expensive().bytecode.clone(),
+            TestContract::expensive().bytecode.to_vec(),
             expensive_contract_address,
             false,
         )])

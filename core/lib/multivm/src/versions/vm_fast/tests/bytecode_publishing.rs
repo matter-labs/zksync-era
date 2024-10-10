@@ -16,10 +16,10 @@ fn test_bytecode_publishing() {
         .with_random_rich_accounts(1)
         .build();
 
-    let counter = &TestContract::counter().bytecode;
+    let counter = TestContract::counter().bytecode;
     let account = &mut vm.rich_accounts[0];
 
-    let compressed_bytecode = bytecode::compress(counter.clone()).unwrap().compressed;
+    let compressed_bytecode = bytecode::compress(counter.to_vec()).unwrap().compressed;
 
     let DeployContractsTx { tx, .. } = account.get_deploy_tx(counter, None, TxType::L2);
     vm.vm.push_transaction(tx);

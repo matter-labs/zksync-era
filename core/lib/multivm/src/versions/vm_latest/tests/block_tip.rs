@@ -117,7 +117,7 @@ struct StatisticsTagged {
 
 fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
     let mut storage = get_empty_storage();
-    let complex_upgrade_code = TestContract::complex_upgrade().bytecode.clone();
+    let complex_upgrade_code = TestContract::complex_upgrade().bytecode.to_vec();
 
     // For this test we'll just put the bytecode onto the force deployer address
     storage.borrow_mut().set_value(
