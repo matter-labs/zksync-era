@@ -234,14 +234,6 @@ fn map_log_tree(
             }
             TreeInstruction::Read(key)
         }
-        (true, StorageLogKind::RepeatedWrite, TreeLogEntry::Read { .. }) => {
-            tracing::error!(
-                ?storage_log,
-                ?tree_log_entry,
-                "Failed to map LogQuery to TreeInstruction"
-            );
-            anyhow::bail!("Failed to map LogQuery to TreeInstruction");
-        }
         (false, _, TreeLogEntry::ReadMissingKey { .. }) => TreeInstruction::Read(key),
         (true, _, TreeLogEntry::Read { .. })
         | (true, _, TreeLogEntry::ReadMissingKey)
