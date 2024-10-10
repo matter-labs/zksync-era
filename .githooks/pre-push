@@ -6,14 +6,15 @@
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Prompt to install zkstack
+# Common prompts
 INSTALL_PROPT="Please install ZK Stack CLI using zkstackup from https://github.com/matter-labs/zksync-era/tree/main/zkstack_cli/zkstackup"
+FORMAT_PROMPT="Please format the code via 'zkstack dev fmt', cannot push unformatted code"
 
 # Check that prettier formatting rules are not violated.
 if which zkstack >/dev/null; then
   if ! zkstack dev fmt --check; then
       echo -e "${RED}Push error!${NC}"
-      echo "Please format the code via 'zkstack dev fmt', cannot push unformatted code"
+      echo -e "${FORMAT_PROMPT}"
       exit 1
   fi
 else
@@ -23,7 +24,7 @@ else
 
     if ! zk_supervisor fmt --check; then
       echo -e "${RED}Push error!${NC}"
-      echo "Please format the code via 'zkstack dev fmt', cannot push unformatted code"
+      echo -e "${FORMAT_PROMPT}"
       exit 1
     fi
   else
