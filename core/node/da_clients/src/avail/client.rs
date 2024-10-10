@@ -289,10 +289,9 @@ impl DataAvailabilityClient for AvailClient {
             .await; // usually takes 15 mins on Hex
             retries += 1;
             if retries > self.config.max_retries {
-                return Err(DAError {
-                    error: anyhow!("Failed to get inclusion data"),
-                    is_retriable: true,
-                });
+                return Err(to_retriable_da_error(anyhow!(
+                    "Failed to get inclusion data"
+                )));
             }
         }
         let attestation_data: MerkleProofInput = MerkleProofInput {
@@ -306,7 +305,6 @@ impl DataAvailabilityClient for AvailClient {
             leaf_index: bridge_api_data.leaf_index.unwrap(),
         };
         Ok(Some(InclusionData {
-            // convert vec<token> into vec<u8>
             data: ethabi::encode(&attestation_data.into_tokens()),
         }))
     }

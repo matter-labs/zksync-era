@@ -102,7 +102,6 @@ categories = ["cryptography"]
 
 [workspace.dependencies]
 # "External" dependencies
-alloy = { version = "0.1", features = ["serde", "sol-types"] }
 anyhow = "1"
 assert_matches = "1.5"
 async-trait = "0.1"
