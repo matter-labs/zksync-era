@@ -81,6 +81,7 @@ parse_args() {
       ;;
     -g | --global)
       BIN_DIR="/usr/local"
+      ;;
     -h | --help)
       usage
       exit 0
