@@ -51,7 +51,7 @@ jobs:
         shell: bash
         run: |
           ci_run zkt || ci_run zkstackup --local
-          ci_run zk_supervisor contracts --system-contracts || ci_run zkstack dev contracts --system-contracts
+          ci_run zk_supervisor contracts --system-contracts || ci_run /root/.local/bin/zkstack dev contracts --system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
           ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee base-opcodes || touch base-opcodes
 
@@ -63,7 +63,7 @@ jobs:
         shell: bash
         run: |
           ci_run zkstackup --local
-          ci_run zkstack dev contracts --system-contracts
+          ci_run /root/.local/bin/zkstack dev contracts --system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee pr-iai
           ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee pr-opcodes || touch pr-opcodes
 
