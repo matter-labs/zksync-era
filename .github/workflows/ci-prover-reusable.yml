@@ -38,7 +38,7 @@ jobs:
 
       - name: Database setup
         run: |
-          ci_run /root/.local/bin/zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
+          ci_run zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
 
       - name: Formatting
         run: ci_run bash -c "cd prover && cargo fmt --check"
@@ -78,4 +78,4 @@ jobs:
       - name: Prover unit tests
         run: |
           # Not all tests are enabled, since prover and setup_key_generator_and_server requires bellman-cuda to be present
-          ci_run /root/.local/bin/zkstack dev test prover
+          ci_run zkstack dev test prover
