@@ -171,43 +171,6 @@ export function prepareDefaultCalldataForL2upgrade(forcedDeployments: ForceDeplo
     return complexUpgraderCalldata;
 }
 
-interface GovernanceTx {
-    scheduleCalldata: string;
-    executeCalldata: string;
-    operation: any;
-}
-
-function prepareGovernanceTxs(target: string, data: BytesLike): GovernanceTx {
-    const govCall = {
-        target: target,
-        value: 0,
-        data: data
-    };
-
-    const operation = {
-        calls: [govCall],
-        predecessor: ethers.constants.HashZero,
-        salt: ethers.constants.HashZero
-    };
-
-    const governance = new GovernanceFactory();
-
-    // Get transaction data of the `scheduleTransparent`
-    const scheduleCalldata = governance.interface.encodeFunctionData('scheduleTransparent', [
-        operation,
-        0 // delay
-    ]);
-
-    // Get transaction data of the `execute`
-    const executeCalldata = governance.interface.encodeFunctionData('execute', [operation]);
-
-    return {
-        scheduleCalldata,
-        executeCalldata,
-        operation
-    };
-}
-
 function prepareChainAdminCalldata(target: string, data: BytesLike): string {
     const call = {
         target: target,
@@ -247,9 +210,6 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         newProtocolVersion
     ]);
 
-    const { scheduleCalldata: stmScheduleTransparentOperation, executeCalldata: stmExecuteOperation } =
-        prepareGovernanceTxs(stmAddress, stmUpgradeCalldata);
-
     // Prepare calldata for upgrading diamond proxy
     let adminFacet = new AdminFacetFactory();
     const diamondProxyUpgradeCalldata = adminFacet.interface.encodeFunctionData('upgradeChainFromVersion', [
@@ -257,30 +217,12 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
         diamondCut
     ]);
 
-    const {
-        scheduleCalldata: scheduleTransparentOperation,
-        executeCalldata: executeOperation,
-        operation: governanceOperation
-    } = prepareGovernanceTxs(zksyncAddress, diamondProxyUpgradeCalldata);
-
-    const newExecuteChainUpgradeCalldata = prepareChainAdminCalldata(zksyncAddress, diamondProxyUpgradeCalldata);
-
-    const legacyScheduleTransparentOperation = adminFacet.interface.encodeFunctionData('executeUpgrade', [diamondCut]);
-    const { scheduleCalldata: legacyScheduleOperation, executeCalldata: legacyExecuteOperation } = prepareGovernanceTxs(
-        zksyncAddress,
-        legacyScheduleTransparentOperation
-    );
+    const chainAdminUpgradeCalldata = prepareChainAdminCalldata(zksyncAddress, diamondProxyUpgradeCalldata);
 
     let result: any = {
-        stmScheduleTransparentOperation,
-        stmExecuteOperation,
-        scheduleTransparentOperation,
-        executeOperation,
-        newExecuteChainUpgradeCalldata,
-        diamondCut,
-        governanceOperation,
-        legacyScheduleOperation,
-        legacyExecuteOperation
+        stmUpgradeCalldata,
+        chainAdminUpgradeCalldata,
+        diamondCut
     };
 
     if (prepareDirectOperation) {
@@ -290,13 +232,9 @@ export function prepareTransparentUpgradeCalldataForNewGovernance(
 
         const stmDirecUpgradeCalldata = stm.interface.encodeFunctionData('executeUpgrade', [chainId, diamondCut]);
 
-        const { scheduleCalldata: stmScheduleOperationDirect, executeCalldata: stmExecuteOperationDirect } =
-            prepareGovernanceTxs(stmAddress, stmDirecUpgradeCalldata);
-
         result = {
             ...result,
-            stmScheduleOperationDirect,
-            stmExecuteOperationDirect
+            stmDirecUpgradeCalldata
         };
     }
 
