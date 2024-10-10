@@ -306,7 +306,7 @@ mod tests {
     use zksync_contracts::{BaseSystemContracts, SystemContractCode};
     use zksync_multivm::interface::{L1BatchEnv, SystemEnv, TxExecutionMode};
     use zksync_prover_interface::inputs::{TeeVerifierInput, VMRunWitnessInputData};
-    use zksync_types::{L2ChainId, U256};
+    use zksync_types::U256;
 
     use super::*;
 
