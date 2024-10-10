@@ -261,7 +261,7 @@ pub struct L1BatchMetadataHashes {
     pub aux_hash: H256,
 }
 
-/// Version 2 of the data used as input for the TEE verifier.
+/// Version 1 of the data used as input for the TEE verifier.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct V1TeeVerifierInput {
     pub vm_run_data: VMRunWitnessInputData,
