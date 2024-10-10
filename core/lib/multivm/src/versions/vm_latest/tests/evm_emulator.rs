@@ -6,9 +6,11 @@ use zksync_contracts::{load_contract, read_bytecode, SystemContractCode};
 use zksync_system_constants::{
     CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L2_BASE_TOKEN_ADDRESS,
 };
+use zksync_test_account::TxType;
 use zksync_types::{
-    get_code_key, get_known_code_key, utils::key_for_eth_balance, AccountTreeId, Address, Execute,
-    StorageKey, H256, U256,
+    get_code_key, get_known_code_key,
+    utils::{key_for_eth_balance, storage_key_for_eth_balance},
+    AccountTreeId, Address, Execute, StorageKey, H256, U256,
 };
 use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 
@@ -29,6 +31,7 @@ const MOCK_KNOWN_CODE_STORAGE_PATH: &str = "etc/contracts-test-data/artifacts-zk
 const MOCK_EMULATOR_PATH: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockEvmEmulator.json";
 const RECURSIVE_CONTRACT_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/NativeRecursiveContract.json";
+const INCREMENTING_CONTRACT_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/IncrementingContract.json";
 
 fn override_system_contracts(storage: &mut InMemoryStorage) {
     let mock_deployer = read_bytecode(MOCK_DEPLOYER_PATH);
@@ -71,6 +74,11 @@ impl EvmTestBuilder {
 
     fn with_mock_deployer(mut self) -> Self {
         override_system_contracts(&mut self.storage);
+        self
+    }
+
+    fn with_evm_address(mut self, address: Address) -> Self {
+        self.evm_contract_addresses.push(address);
         self
     }
 
@@ -282,6 +290,42 @@ fn mock_emulator_with_recursion(deploy_emulator: bool, is_external: bool) {
 }
 
 #[test]
+fn calling_to_mock_emulator_from_native_contract() {
+    let recipient_address = Address::repeat_byte(0x12);
+    let mut vm = EvmTestBuilder::new(true, recipient_address).build();
+    let account = &mut vm.rich_accounts[0];
+
+    // Deploy a native contract.
+    let native_contract = read_bytecode(RECURSIVE_CONTRACT_PATH);
+    let native_contract_abi = load_contract(RECURSIVE_CONTRACT_PATH);
+    let deploy_tx = account.get_deploy_tx(
+        &native_contract,
+        Some(&[Token::Address(recipient_address)]),
+        TxType::L2,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(deploy_tx.tx, true);
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+
+    // Call from the native contract to the EVM emulator.
+    let test_fn = native_contract_abi.function("recurse").unwrap();
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(deploy_tx.address),
+            calldata: test_fn.encode_input(&[Token::Uint(50.into())]).unwrap(),
+            value: Default::default(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+}
+
+#[test]
 fn mock_emulator_with_deployment() {
     let contract_address = Address::repeat_byte(0xaa);
     let mut vm = EvmTestBuilder::new(true, contract_address)
@@ -318,4 +362,82 @@ fn mock_emulator_with_deployment() {
         factory_deps,
         HashMap::from([(new_evm_bytecode_hash, new_evm_bytecode)])
     );
+}
+
+#[test]
+fn mock_emulator_with_delegate_call() {
+    let evm_contract_address = Address::repeat_byte(0xaa);
+    let other_evm_contract_address = Address::repeat_byte(0xbb);
+    let mut builder = EvmTestBuilder::new(true, evm_contract_address);
+    builder.storage.set_value(
+        storage_key_for_eth_balance(&evm_contract_address),
+        H256::from_low_u64_be(1_000_000),
+    );
+    builder.storage.set_value(
+        storage_key_for_eth_balance(&other_evm_contract_address),
+        H256::from_low_u64_be(2_000_000),
+    );
+    let mut vm = builder.with_evm_address(other_evm_contract_address).build();
+    let account = &mut vm.rich_accounts[0];
+
+    // Deploy a native contract.
+    let native_contract = read_bytecode(INCREMENTING_CONTRACT_PATH);
+    let native_contract_abi = load_contract(INCREMENTING_CONTRACT_PATH);
+    let deploy_tx = account.get_deploy_tx(&native_contract, None, TxType::L2);
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(deploy_tx.tx, true);
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+
+    let test_fn = native_contract_abi.function("testDelegateCall").unwrap();
+    // Delegate to the native contract from EVM.
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(evm_contract_address),
+            calldata: test_fn
+                .encode_input(&[Token::Address(deploy_tx.address)])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
+
+    // Delegate to EVM from the native contract.
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(deploy_tx.address),
+            calldata: test_fn
+                .encode_input(&[Token::Address(evm_contract_address)])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
+
+    // Delegate to EVM from EVM.
+    let test_tx = account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(evm_contract_address),
+            calldata: test_fn
+                .encode_input(&[Token::Address(other_evm_contract_address)])
+                .unwrap(),
+            value: 0.into(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(test_tx, true);
+    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
 }

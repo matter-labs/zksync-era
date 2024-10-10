@@ -101,12 +101,44 @@ interface IRecursiveContract {
     function recurse(uint _depth) external returns (uint);
 }
 
+/// Native incrementing library. Not actually a library to simplify deployment.
+contract IncrementingContract {
+    // Should not collide with other storage slots
+    uint constant INCREMENTED_SLOT = 0x123;
+
+    function increment(address _thisAddress, uint _thisBalance) external {
+        require(msg.sender == tx.origin, "msg.sender not retained");
+        require(address(this) == _thisAddress, "this address");
+        require(address(this).balance == _thisBalance, "this balance");
+        assembly {
+            sstore(INCREMENTED_SLOT, add(sload(INCREMENTED_SLOT), 1))
+        }
+    }
+
+    /// Tests delegation to a native or EVM contract at the specified target.
+    function testDelegateCall(address _target) external {
+        uint valueSnapshot = getIncrementedValue();
+        (bool success, ) = _target.delegatecall(abi.encodeCall(
+            IncrementingContract.increment,
+            (address(this), address(this).balance)
+        ));
+        require(success, "delegatecall reverted");
+        require(getIncrementedValue() == valueSnapshot + 1, "invalid value");
+    }
+
+    function getIncrementedValue() internal view returns (uint _value) {
+        assembly {
+            _value := sload(INCREMENTED_SLOT)
+        }
+    }
+}
+
 uint constant EVM_EMULATOR_STIPEND = 1 << 30;
 
 /**
  * Mock EVM emulator used in low-level tests.
  */
-contract MockEvmEmulator is IRecursiveContract {
+contract MockEvmEmulator is IRecursiveContract, IncrementingContract {
     IAccountCodeStorage constant ACCOUNT_CODE_STORAGE_CONTRACT = IAccountCodeStorage(address(0x8002));
 
     /// Set to `true` for testing logic sanity.
@@ -153,7 +185,7 @@ contract MockEvmEmulator is IRecursiveContract {
     }
 
     function testExternalRecursion(uint _depth, uint _expectedValue) external validEvmEntry returns (uint) {
-        recursionTarget = new NativeRecursiveContract();
+        recursionTarget = new NativeRecursiveContract(IRecursiveContract(this));
         uint returnedValue = recurse(_depth);
         recursionTarget = this; // This won't work on revert, but for tests, it's good enough
         require(returnedValue == _expectedValue, "incorrect recursion");
@@ -182,14 +214,14 @@ contract MockEvmEmulator is IRecursiveContract {
 }
 
 contract NativeRecursiveContract is IRecursiveContract {
-    IRecursiveContract caller;
+    IRecursiveContract target;
 
-    constructor() {
-        caller = IRecursiveContract(msg.sender);
+    constructor(IRecursiveContract _target) {
+        target = _target;
     }
 
     function recurse(uint _depth) external returns (uint) {
         require(gasleft() < EVM_EMULATOR_STIPEND, "stipend spilled to native contract");
-        return (_depth <= 1) ? 1 : caller.recurse(_depth - 1) * _depth;
+        return (_depth <= 1) ? 1 : target.recurse(_depth - 1) * _depth;
     }
 }
