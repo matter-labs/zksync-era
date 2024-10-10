@@ -21,6 +21,11 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
+      - name: Print PATH env
+        run: |
+          echo $PATH
+          ci_run echo $PATH
+
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
