@@ -25,11 +25,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         app_id: None,
                         timeout: *required(&conf.timeout).context("timeout")? as usize,
                         max_retries: *required(&conf.max_retries).context("max_retries")? as usize,
-                        gas_relay_mode: conf
-                            .gas_relay_mode
-                            .context("gas_relay_mode")
-                            .unwrap_or(false),
-                        // if gas_relay_mode is true, then we need to set the gas_relay_api_url and gas_relay_api_key
+                        gas_relay_mode: true,
                         gas_relay_api_url: Some(
                             required(&conf.gas_relay_api_url)
                                 .context("gas_relay_api_url")?
@@ -49,11 +45,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         app_id: Some(*required(&conf.app_id).context("app_id")?),
                         timeout: *required(&conf.timeout).context("timeout")? as usize,
                         max_retries: *required(&conf.max_retries).context("max_retries")? as usize,
-                        gas_relay_mode: conf
-                            .gas_relay_mode
-                            .context("gas_relay_mode")
-                            .unwrap_or(false),
-                        // if gas_relay_mode is not true, then the gas_relay_api_url is not required
+                        gas_relay_mode: false,
                         gas_relay_api_url: None,
                     }
                 })
