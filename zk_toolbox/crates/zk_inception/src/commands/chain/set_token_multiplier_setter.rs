@@ -1,15 +1,15 @@
 use anyhow::Context;
 use common::{
-    config::global_config,
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     logger,
     spinner::Spinner,
+    wallets::Wallet,
 };
 use config::{forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, EcosystemConfig};
 use ethers::{abi::parse_abi, contract::BaseContract, utils::hex};
 use lazy_static::lazy_static;
 use xshell::Shell;
-use zksync_basic_types::{Address, H256};
+use zksync_basic_types::Address;
 
 use crate::{
     messages::{
@@ -30,10 +30,9 @@ lazy_static! {
 }
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let contracts_config = chain_config.get_contracts_config()?;
     let l1_url = chain_config
@@ -54,7 +53,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     set_token_multiplier_setter(
         shell,
         &ecosystem_config,
-        chain_config.get_wallets_config()?.governor_private_key(),
+        &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.chain_admin_addr,
         token_multiplier_setter_address,
         &args.clone(),
@@ -74,7 +73,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 pub async fn set_token_multiplier_setter(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
-    governor: Option<H256>,
+    governor: &Wallet,
     chain_admin_address: Address,
     target_address: Address,
     forge_args: &ForgeScriptArgs,
@@ -107,10 +106,10 @@ pub async fn set_token_multiplier_setter(
 
 async fn update_token_multiplier_setter(
     shell: &Shell,
-    governor: Option<H256>,
+    governor: &Wallet,
     mut forge: ForgeScript,
 ) -> anyhow::Result<()> {
-    forge = fill_forge_private_key(forge, governor)?;
+    forge = fill_forge_private_key(forge, Some(governor))?;
     check_the_balance(&forge).await?;
     forge.run(shell)?;
     Ok(())

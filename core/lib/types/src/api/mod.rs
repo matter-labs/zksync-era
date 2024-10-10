@@ -13,7 +13,10 @@ use zksync_contracts::BaseSystemContractsHashes;
 pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
-use crate::{protocol_version::L1VerifierConfig, Address, L2BlockNumber, ProtocolVersionId};
+use crate::{
+    debug_flat_call::DebugCallFlat, protocol_version::L1VerifierConfig, Address, L2BlockNumber,
+    ProtocolVersionId,
+};
 
 pub mod en;
 pub mod state_override;
@@ -602,6 +605,7 @@ pub struct ResultDebugCall {
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub enum DebugCallType {
     #[default]
     Call,
@@ -639,7 +643,7 @@ pub struct ProtocolVersion {
     /// Verifier configuration
     #[deprecated]
     pub verification_keys_hashes: Option<L1VerifierConfig>,
-    /// Hashes of base system contracts (bootloader and default account)
+    /// Hashes of base system contracts (bootloader, default account and evm simulator)
     #[deprecated]
     pub base_system_contracts: Option<BaseSystemContractsHashes>,
     /// Bootloader code hash
@@ -648,6 +652,9 @@ pub struct ProtocolVersion {
     /// Default account code hash
     #[serde(rename = "defaultAccountCodeHash")]
     pub default_account_code_hash: Option<H256>,
+    /// EVM emulator code hash
+    #[serde(rename = "evmSimulatorCodeHash")]
+    pub evm_emulator_code_hash: Option<H256>,
     /// L2 Upgrade transaction hash
     #[deprecated]
     pub l2_system_upgrade_tx_hash: Option<H256>,
@@ -663,6 +670,7 @@ impl ProtocolVersion {
         timestamp: u64,
         bootloader_code_hash: H256,
         default_account_code_hash: H256,
+        evm_emulator_code_hash: Option<H256>,
         l2_system_upgrade_tx_hash: Option<H256>,
     ) -> Self {
         Self {
@@ -673,9 +681,11 @@ impl ProtocolVersion {
             base_system_contracts: Some(BaseSystemContractsHashes {
                 bootloader: bootloader_code_hash,
                 default_aa: default_account_code_hash,
+                evm_emulator: evm_emulator_code_hash,
             }),
             bootloader_code_hash: Some(bootloader_code_hash),
             default_account_code_hash: Some(default_account_code_hash),
+            evm_emulator_code_hash,
             l2_system_upgrade_tx_hash,
             l2_system_upgrade_tx_hash_new: l2_system_upgrade_tx_hash,
         }
@@ -691,6 +701,13 @@ impl ProtocolVersion {
             .or_else(|| self.base_system_contracts.map(|hashes| hashes.default_aa))
     }
 
+    pub fn evm_emulator_code_hash(&self) -> Option<H256> {
+        self.evm_emulator_code_hash.or_else(|| {
+            self.base_system_contracts
+                .and_then(|hashes| hashes.evm_emulator)
+        })
+    }
+
     pub fn minor_version(&self) -> Option<u16> {
         self.minor_version.or(self.version_id)
     }
@@ -701,19 +718,20 @@ impl ProtocolVersion {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub enum SupportedTracers {
     CallTracer,
+    FlatCallTracer,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct CallTracerConfig {
     pub only_top_call: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(rename_all = "camelCase")]
 pub struct TracerConfig {
     pub tracer: SupportedTracers,
@@ -721,11 +739,70 @@ pub struct TracerConfig {
     pub tracer_config: CallTracerConfig,
 }
 
+impl Default for TracerConfig {
+    fn default() -> Self {
+        TracerConfig {
+            tracer: SupportedTracers::CallTracer,
+            tracer_config: CallTracerConfig {
+                only_top_call: false,
+            },
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum BlockStatus {
     Sealed,
     Verified,
+}
+
+/// Result tracers need to have a nested result field for compatibility. So we have two different
+/// structs 1 for blocks tracing and one for txs and call tracing
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum CallTracerBlockResult {
+    CallTrace(Vec<ResultDebugCall>),
+    FlatCallTrace(Vec<DebugCallFlat>),
+}
+
+impl CallTracerBlockResult {
+    pub fn unwrap_flat(self) -> Vec<DebugCallFlat> {
+        match self {
+            Self::CallTrace(_) => panic!("Result is a FlatCallTrace"),
+            Self::FlatCallTrace(trace) => trace,
+        }
+    }
+
+    pub fn unwrap_default(self) -> Vec<ResultDebugCall> {
+        match self {
+            Self::CallTrace(trace) => trace,
+            Self::FlatCallTrace(_) => panic!("Result is a CallTrace"),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum CallTracerResult {
+    CallTrace(DebugCall),
+    FlatCallTrace(Vec<DebugCallFlat>),
+}
+
+impl CallTracerResult {
+    pub fn unwrap_flat(self) -> Vec<DebugCallFlat> {
+        match self {
+            Self::CallTrace(_) => panic!("Result is a FlatCallTrace"),
+            Self::FlatCallTrace(trace) => trace,
+        }
+    }
+
+    pub fn unwrap_default(self) -> DebugCall {
+        match self {
+            Self::CallTrace(trace) => trace,
+            Self::FlatCallTrace(_) => panic!("Result is a CallTrace"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -853,6 +930,7 @@ mod tests {
             base_system_contracts: Some(Default::default()),
             bootloader_code_hash: Some(Default::default()),
             default_account_code_hash: Some(Default::default()),
+            evm_emulator_code_hash: Some(Default::default()),
             l2_system_upgrade_tx_hash: Default::default(),
             l2_system_upgrade_tx_hash_new: Default::default(),
         };

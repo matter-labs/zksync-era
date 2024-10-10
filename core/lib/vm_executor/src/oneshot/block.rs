@@ -133,26 +133,33 @@ impl BlockInfo {
         let protocol_version = l2_block_header
             .protocol_version
             .unwrap_or(ProtocolVersionId::last_potentially_undefined());
-
+        // We cannot use the EVM emulator mentioned in the block as is because of batch vs playground settings etc.
+        // Instead, we just check whether EVM emulation in general is enabled for a block, and store this binary flag for further use.
+        let use_evm_emulator = l2_block_header
+            .base_system_contracts_hashes
+            .evm_emulator
+            .is_some();
         Ok(ResolvedBlockInfo {
             state_l2_block_number,
             state_l2_block_hash: l2_block_header.hash,
             vm_l1_batch_number,
             l1_batch_timestamp,
             protocol_version,
+            use_evm_emulator,
             is_pending: self.is_pending_l2_block(),
         })
     }
 }
 
 /// Resolved [`BlockInfo`] containing additional data from VM state.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ResolvedBlockInfo {
     state_l2_block_number: L2BlockNumber,
     state_l2_block_hash: H256,
     vm_l1_batch_number: L1BatchNumber,
     l1_batch_timestamp: u64,
     protocol_version: ProtocolVersionId,
+    use_evm_emulator: bool,
     is_pending: bool,
 }
 
@@ -160,6 +167,14 @@ impl ResolvedBlockInfo {
     /// L2 block number (as stored in Postgres). This number may differ from `block.number` provided to the VM.
     pub fn state_l2_block_number(&self) -> L2BlockNumber {
         self.state_l2_block_number
+    }
+
+    pub fn protocol_version(&self) -> ProtocolVersionId {
+        self.protocol_version
+    }
+
+    pub fn use_evm_emulator(&self) -> bool {
+        self.use_evm_emulator
     }
 }
 
@@ -213,7 +228,10 @@ impl<T> OneshotEnvParameters<T> {
             version: resolved_block_info.protocol_version,
             base_system_smart_contracts: self
                 .base_system_contracts
-                .get_by_protocol_version(resolved_block_info.protocol_version)
+                .get_by_protocol_version(
+                    resolved_block_info.protocol_version,
+                    resolved_block_info.use_evm_emulator,
+                )
                 .clone(),
             bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
             execution_mode,

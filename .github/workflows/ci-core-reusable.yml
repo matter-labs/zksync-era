@@ -168,6 +168,7 @@ jobs:
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
+          echo "GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}" >> .env
           echo RUN_CONTRACT_VERIFICATION_TEST=true >> $GITHUB_ENV
 
       - name: Start services
@@ -185,6 +186,7 @@ jobs:
           SNAPSHOT_RECOVERY_LOGS_DIR=logs/snapshot_recovery/
           GENESIS_RECOVERY_LOGS_DIR=logs/genesis_recovery/
           EXTERNAL_NODE_LOGS_DIR=logs/external_node
+          FEES_LOGS_DIR=logs/fees
           REVERT_LOGS_DIR=logs/revert
 
           mkdir -p $SERVER_LOGS_DIR
@@ -193,6 +195,7 @@ jobs:
           mkdir -p $SNAPSHOT_RECOVERY_LOGS_DIR
           mkdir -p $GENESIS_RECOVERY_LOGS_DIR
           mkdir -p $EXTERNAL_NODE_LOGS_DIR
+          mkdir -p $FEES_LOGS_DIR
           mkdir -p $REVERT_LOGS_DIR
 
           echo "SERVER_LOGS_DIR=$SERVER_LOGS_DIR" >> $GITHUB_ENV
@@ -201,6 +204,7 @@ jobs:
           echo "SNAPSHOT_RECOVERY_LOGS_DIR=$SNAPSHOT_RECOVERY_LOGS_DIR" >> $GITHUB_ENV
           echo "GENESIS_RECOVERY_LOGS_DIR=$GENESIS_RECOVERY_LOGS_DIR" >> $GITHUB_ENV
           echo "EXTERNAL_NODE_LOGS_DIR=$EXTERNAL_NODE_LOGS_DIR" >> $GITHUB_ENV
+          echo "FEES_LOGS_DIR=$FEES_LOGS_DIR" >> $GITHUB_ENV
           echo "REVERT_LOGS_DIR=$REVERT_LOGS_DIR" >> $GITHUB_ENV
 
       - name: Initialize ecosystem
@@ -213,16 +217,14 @@ jobs:
           --deploy-ecosystem --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_era \
-          --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --prover-db-name=zksync_prover_localhost_era \
           --ignore-prerequisites --verbose \
           --observability=false
 
       - name: Read Custom Token address and set as environment variable
         run: |
-          address=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
-          echo "address=$address"
-          echo "address=$address" >> $GITHUB_ENV
+          CUSTOM_TOKEN_ADDRESS=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
+          echo "CUSTOM_TOKEN_ADDRESS=$CUSTOM_TOKEN_ADDRESS"
+          echo "CUSTOM_TOKEN_ADDRESS=$CUSTOM_TOKEN_ADDRESS" >> $GITHUB_ENV
 
       - name: Create and initialize Validium chain
         run: |
@@ -243,9 +245,6 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_validium \
-          --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --prover-db-name=zksync_prover_localhost_validium \
-          --port-offset 2000 \
           --chain validium
 
       - name: Create and initialize chain with Custom Token
@@ -256,7 +255,7 @@ jobs:
           --prover-mode no-proofs \
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode rollup \
-          --base-token-address ${{ env.address }} \
+          --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
           --base-token-price-nominator 3 \
           --base-token-price-denominator 2 \
           --set-as-default false \
@@ -267,9 +266,6 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_custom_token \
-          --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --prover-db-name=zksync_prover_localhost_custom_token \
-          --port-offset 3000 \
           --chain custom_token
 
       - name: Create and register chain with transactions signed "offline"
@@ -315,7 +311,7 @@ jobs:
           --prover-mode no-proofs \
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode validium \
-          --base-token-address ${{ env.address }} \
+          --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
           --base-token-price-nominator 3 \
           --base-token-price-denominator 2 \
           --set-as-default false \
@@ -326,10 +322,12 @@ jobs:
           --l1-rpc-url=http://localhost:8545 \
           --server-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --server-db-name=zksync_server_localhost_consensus \
-          --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
-          --prover-db-name=zksync_prover_localhost_consensus \
-          --port-offset 4000 \
           --chain consensus
+
+      - name: Export chain list to environment variable
+        run: |
+          CHAINS="era,validium,custom_token,consensus"
+          echo "CHAINS=$CHAINS" >> $GITHUB_ENV
 
       - name: Build test dependencies
         run: |
@@ -351,25 +349,13 @@ jobs:
 
           ci_run sleep 5
 
+      - name: Setup attester committee for the consensus chain
+        run: |
+          ci_run zk_inception consensus set-attester-committee --chain consensus --from-genesis &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log 
+
       - name: Run integration tests
         run: |
-          PASSED_ENV_VARS="RUN_CONTRACT_VERIFICATION_TEST" \
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain era &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/rollup.log &
-          PID1=$!
-
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain validium &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/validium.log &
-          PID2=$!
-
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain custom_token &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/custom_token.log &
-          PID3=$!
-
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --chain consensus &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log &
-          PID4=$!
-
-          wait $PID1
-          wait $PID2
-          wait $PID3
-          wait $PID4
+          ci_run ./bin/run_on_all_chains.sh "zk_supervisor test integration --no-deps --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
       - name: Init external nodes
         run: |
@@ -391,42 +377,11 @@ jobs:
 
       - name: Run recovery tests (from snapshot)
         run: |
-
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain era &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/rollup.log &
-          PID1=$!
-
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain validium &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/validium.log &
-          PID2=$!
-
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain custom_token &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/custom_token.log &
-          PID3=$!
-
-          ci_run zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose --chain consensus &> ${{ env.SNAPSHOT_RECOVERY_LOGS_DIR }}/consensus.log &
-          PID4=$!
-
-          wait $PID1
-          wait $PID2
-          wait $PID3
-          wait $PID4
+          ci_run ./bin/run_on_all_chains.sh "zk_supervisor test recovery --snapshot --no-deps --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
       - name: Run recovery tests (from genesis)
         run: |
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain era &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/rollup.log &
-          PID1=$!
-
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain validium &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/validium.log &
-          PID2=$!
-
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain custom_token &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/custom_token.log &
-          PID3=$!
-
-          ci_run zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose --chain consensus &> ${{ env.GENESIS_RECOVERY_LOGS_DIR }}/consensus.log &
-          PID4=$!
-
-          wait $PID1
-          wait $PID2
-          wait $PID3
-          wait $PID4
+          ci_run ./bin/run_on_all_chains.sh "zk_supervisor test recovery --no-deps --no-kill --ignore-prerequisites --verbose" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
       - name: Run external node server
         run: |
@@ -437,45 +392,19 @@ jobs:
 
       - name: Run integration tests en
         run: |
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain era &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/rollup.log &
-          PID1=$!
+          ci_run ./bin/run_on_all_chains.sh "zk_supervisor test integration --no-deps --ignore-prerequisites --external-node" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain validium &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/validium.log &
-          PID2=$!
-
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain custom_token &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/custom_token.log &
-          PID3=$!
-
-          ci_run zk_supervisor test integration --no-deps --ignore-prerequisites --external-node --chain consensus &> ${{ env.INTEGRATION_TESTS_EN_LOGS_DIR }}/consensus.log &
-          PID4=$!
-
-          wait $PID1
-          wait $PID2
-          wait $PID3
-          wait $PID4
+      - name: Fee projection tests
+        run: |
+          ci_run killall -INT zksync_server || true
+          ci_run ./bin/run_on_all_chains.sh "zk_supervisor test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
       - name: Run revert tests
         run: |
           ci_run killall -INT zksync_server || true
           ci_run killall -INT zksync_external_node || true
 
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain era &> ${{ env.REVERT_LOGS_DIR }}/rollup.log &
-          PID1=$!
-
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain validium &> ${{ env.REVERT_LOGS_DIR }}/validium.log &
-          PID2=$!
-
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain custom_token &> ${{ env.REVERT_LOGS_DIR }}/custom_token.log &
-          PID3=$!
-
-          ci_run zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites --chain consensus &> ${{ env.REVERT_LOGS_DIR }}/consensus.log &
-          PID4=$!
-
-          wait $PID1
-          wait $PID2
-          wait $PID3
-          wait $PID4
-
+          ci_run ./bin/run_on_all_chains.sh "zk_supervisor test revert --no-deps --external-node --no-kill --ignore-prerequisites" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
 
       # Upgrade tests should run last, because as soon as they
       # finish the bootloader will be different

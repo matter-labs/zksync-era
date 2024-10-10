@@ -5,24 +5,22 @@ use common::db::DatabaseConfig;
 use xshell::Shell;
 use zksync_basic_types::url::SensitiveUrl;
 pub use zksync_config::configs::Secrets as SecretsConfig;
-use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
+use zksync_protobuf_config::{encode_yaml_repr, read_yaml_repr};
 
 use crate::{
     consts::SECRETS_FILE,
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig},
 };
 
-pub fn set_databases(
+pub fn set_server_database(
     secrets: &mut SecretsConfig,
     server_db_config: &DatabaseConfig,
-    prover_db_config: &DatabaseConfig,
 ) -> anyhow::Result<()> {
     let database = secrets
         .database
         .as_mut()
-        .context("Databases must be presented")?;
+        .context("Server database must be presented")?;
     database.server_url = Some(SensitiveUrl::from(server_db_config.full_url()));
-    database.prover_url = Some(SensitiveUrl::from(prover_db_config.full_url()));
     Ok(())
 }
 
@@ -33,7 +31,7 @@ pub fn set_prover_database(
     let database = secrets
         .database
         .as_mut()
-        .context("Databases must be presented")?;
+        .context("Prover database must be presented")?;
     database.prover_url = Some(SensitiveUrl::from(prover_db_config.full_url()));
     Ok(())
 }
@@ -61,6 +59,6 @@ impl SaveConfig for SecretsConfig {
 impl ReadConfig for SecretsConfig {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let path = shell.current_dir().join(path);
-        decode_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&path, false)
+        read_yaml_repr::<zksync_protobuf_config::proto::secrets::Secrets>(&path, false)
     }
 }

@@ -55,9 +55,11 @@ impl TeeVerifierInputProducerDal<'_, '_> {
         sqlx::query!(
             r#"
             INSERT INTO
-                tee_verifier_input_producer_jobs (l1_batch_number, status, created_at, updated_at)
+            tee_verifier_input_producer_jobs (
+                l1_batch_number, status, created_at, updated_at
+            )
             VALUES
-                ($1, $2, NOW(), NOW())
+            ($1, $2, NOW(), NOW())
             ON CONFLICT (l1_batch_number) DO NOTHING
             "#,
             i64::from(l1_batch_number.0),
@@ -104,10 +106,10 @@ impl TeeVerifierInputProducerDal<'_, '_> {
                     LIMIT
                         1
                     FOR UPDATE
-                        SKIP LOCKED
+                    SKIP LOCKED
                 )
             RETURNING
-                tee_verifier_input_producer_jobs.l1_batch_number
+            tee_verifier_input_producer_jobs.l1_batch_number
             "#,
             TeeVerifierInputProducerJobStatus::InProgress as TeeVerifierInputProducerJobStatus,
             TeeVerifierInputProducerJobStatus::Queued as TeeVerifierInputProducerJobStatus,
@@ -197,7 +199,7 @@ impl TeeVerifierInputProducerDal<'_, '_> {
                 l1_batch_number = $2
                 AND status != $5
             RETURNING
-                tee_verifier_input_producer_jobs.attempts
+            tee_verifier_input_producer_jobs.attempts
             "#,
             TeeVerifierInputProducerJobStatus::Failed as TeeVerifierInputProducerJobStatus,
             i64::from(l1_batch_number.0),

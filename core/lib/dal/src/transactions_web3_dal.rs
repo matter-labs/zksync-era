@@ -49,42 +49,43 @@ impl TransactionsWeb3Dal<'_, '_> {
             StorageTransactionReceipt,
             r#"
             WITH
-                events AS (
-                    SELECT DISTINCT
-                        ON (events.tx_hash) *
-                    FROM
-                        events
-                    WHERE
-                        events.address = $1
-                        AND events.topic1 = $2
-                        AND events.tx_hash = ANY ($3)
-                    ORDER BY
-                        events.tx_hash,
-                        events.event_index_in_tx DESC
-                )
+            events AS (
+                SELECT DISTINCT
+                ON (events.tx_hash) *
+                FROM
+                    events
+                WHERE
+                    events.address = $1
+                    AND events.topic1 = $2
+                    AND events.tx_hash = ANY($3)
+                ORDER BY
+                    events.tx_hash,
+                    events.event_index_in_tx DESC
+            )
+            
             SELECT
                 transactions.hash AS tx_hash,
-                transactions.index_in_block AS index_in_block,
-                transactions.l1_batch_tx_index AS l1_batch_tx_index,
+                transactions.index_in_block,
+                transactions.l1_batch_tx_index,
                 transactions.miniblock_number AS "block_number!",
-                transactions.error AS error,
-                transactions.effective_gas_price AS effective_gas_price,
-                transactions.initiator_address AS initiator_address,
+                transactions.error,
+                transactions.effective_gas_price,
+                transactions.initiator_address,
                 transactions.data -> 'to' AS "transfer_to?",
                 transactions.data -> 'contractAddress' AS "execute_contract_address?",
                 transactions.tx_format AS "tx_format?",
-                transactions.refunded_gas AS refunded_gas,
-                transactions.gas_limit AS gas_limit,
+                transactions.refunded_gas,
+                transactions.gas_limit,
                 miniblocks.hash AS "block_hash",
                 miniblocks.l1_batch_number AS "l1_batch_number?",
                 events.topic4 AS "contract_address?",
                 miniblocks.timestamp AS "block_timestamp?"
             FROM
                 transactions
-                JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-                LEFT JOIN events ON events.tx_hash = transactions.hash
+            JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+            LEFT JOIN events ON events.tx_hash = transactions.hash
             WHERE
-                transactions.hash = ANY ($3)
+                transactions.hash = ANY($3)
                 AND transactions.data != '{}'::jsonb
             "#,
             // ^ Filter out transactions with pruned data, which would lead to potentially incomplete / bogus
@@ -302,17 +303,20 @@ impl TransactionsWeb3Dal<'_, '_> {
                 execute_tx.tx_hash AS "eth_execute_tx_hash?"
             FROM
                 transactions
-                LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
-                LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
-                LEFT JOIN eth_txs_history AS commit_tx ON (
+            LEFT JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+            LEFT JOIN l1_batches ON l1_batches.number = miniblocks.l1_batch_number
+            LEFT JOIN eth_txs_history AS commit_tx
+                ON (
                     l1_batches.eth_commit_tx_id = commit_tx.eth_tx_id
                     AND commit_tx.confirmed_at IS NOT NULL
                 )
-                LEFT JOIN eth_txs_history AS prove_tx ON (
+            LEFT JOIN eth_txs_history AS prove_tx
+                ON (
                     l1_batches.eth_prove_tx_id = prove_tx.eth_tx_id
                     AND prove_tx.confirmed_at IS NOT NULL
                 )
-                LEFT JOIN eth_txs_history AS execute_tx ON (
+            LEFT JOIN eth_txs_history AS execute_tx
+                ON (
                     l1_batches.eth_execute_tx_id = execute_tx.eth_tx_id
                     AND execute_tx.confirmed_at IS NOT NULL
                 )
@@ -439,7 +443,7 @@ impl TransactionsWeb3Dal<'_, '_> {
                 transactions.*
             FROM
                 transactions
-                INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
+            INNER JOIN miniblocks ON miniblocks.number = transactions.miniblock_number
             WHERE
                 miniblocks.number BETWEEN $1 AND $2
             ORDER BY
@@ -604,6 +608,39 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn getting_evm_deployment_tx() {
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+        let mut tx = mock_l2_transaction();
+        tx.execute.contract_address = None;
+        let tx_hash = tx.hash();
+        prepare_transactions(&mut conn, vec![tx.clone()]).await;
+
+        let fetched_tx = conn
+            .transactions_dal()
+            .get_tx_by_hash(tx_hash)
+            .await
+            .unwrap()
+            .expect("no transaction");
+        let mut fetched_tx = L2Tx::try_from(fetched_tx).unwrap();
+        assert_eq!(fetched_tx.execute.contract_address, None);
+        fetched_tx.raw_bytes = tx.raw_bytes.clone();
+        assert_eq!(fetched_tx, tx);
+
+        let web3_tx = conn
+            .transactions_web3_dal()
+            .get_transaction_by_position(L2BlockNumber(1), 0, L2ChainId::from(270))
+            .await;
+        let web3_tx = web3_tx.unwrap().expect("no transaction");
+        assert_eq!(web3_tx.hash, tx_hash);
+        assert_eq!(web3_tx.to, None);
+    }
+
+    #[tokio::test]
     async fn getting_receipts() {
         let connection_pool = ConnectionPool::<Core>::test_pool().await;
         let mut conn = connection_pool.connection().await.unwrap();
@@ -617,7 +654,7 @@ mod tests {
         let tx2 = mock_l2_transaction();
         let tx2_hash = tx2.hash();
 
-        prepare_transactions(&mut conn, vec![tx1.clone(), tx2.clone()]).await;
+        prepare_transactions(&mut conn, vec![tx1, tx2]).await;
 
         let mut receipts = conn
             .transactions_web3_dal()
@@ -630,6 +667,31 @@ mod tests {
         assert_eq!(receipts.len(), 2);
         assert_eq!(receipts[0].transaction_hash, tx1_hash);
         assert_eq!(receipts[1].transaction_hash, tx2_hash);
+    }
+
+    #[tokio::test]
+    async fn getting_receipt_for_evm_deployment_tx() {
+        let connection_pool = ConnectionPool::<Core>::test_pool().await;
+        let mut conn = connection_pool.connection().await.unwrap();
+        conn.protocol_versions_dal()
+            .save_protocol_version_with_tx(&ProtocolVersion::default())
+            .await
+            .unwrap();
+
+        let mut tx = mock_l2_transaction();
+        let tx_hash = tx.hash();
+        tx.execute.contract_address = None;
+        prepare_transactions(&mut conn, vec![tx]).await;
+
+        let receipts = conn
+            .transactions_web3_dal()
+            .get_transaction_receipts(&[tx_hash])
+            .await
+            .unwrap();
+        assert_eq!(receipts.len(), 1);
+        let receipt = receipts.into_iter().next().unwrap();
+        assert_eq!(receipt.transaction_hash, tx_hash);
+        assert_eq!(receipt.to, Some(Address::zero()));
     }
 
     #[tokio::test]

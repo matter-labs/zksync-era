@@ -3,7 +3,6 @@ use std::path::Path;
 use anyhow::Context;
 use common::{
     cmd::Cmd,
-    config::global_config,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
@@ -36,6 +35,7 @@ pub enum Deploy2ContractsOption {
     Upgrader,
     InitiailizeBridges,
     ConsensusRegistry,
+    Multicall3,
 }
 
 pub async fn run(
@@ -43,10 +43,9 @@ pub async fn run(
     shell: &Shell,
     deploy_option: Deploy2ContractsOption,
 ) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
 
     let mut contracts = chain_config.get_contracts_config()?;
@@ -76,6 +75,16 @@ pub async fn run(
         }
         Deploy2ContractsOption::ConsensusRegistry => {
             deploy_consensus_registry(
+                shell,
+                &chain_config,
+                &ecosystem_config,
+                &mut contracts,
+                args,
+            )
+            .await?;
+        }
+        Deploy2ContractsOption::Multicall3 => {
+            deploy_multicall3(
                 shell,
                 &chain_config,
                 &ecosystem_config,
@@ -186,6 +195,24 @@ pub async fn deploy_consensus_registry(
     .await
 }
 
+pub async fn deploy_multicall3(
+    shell: &Shell,
+    chain_config: &ChainConfig,
+    ecosystem_config: &EcosystemConfig,
+    contracts_config: &mut ContractsConfig,
+    forge_args: ForgeScriptArgs,
+) -> anyhow::Result<()> {
+    build_and_deploy(
+        shell,
+        chain_config,
+        ecosystem_config,
+        forge_args,
+        Some("runDeployMulticall3"),
+        |shell, out| contracts_config.set_multicall3(&Multicall3Output::read(shell, out)?),
+    )
+    .await
+}
+
 pub async fn deploy_l2_contracts(
     shell: &Shell,
     chain_config: &ChainConfig,
@@ -250,10 +277,7 @@ async fn call_forge(
         forge = forge.with_signature(signature);
     }
 
-    forge = fill_forge_private_key(
-        forge,
-        ecosystem_config.get_wallets()?.governor_private_key(),
-    )?;
+    forge = fill_forge_private_key(forge, Some(&ecosystem_config.get_wallets()?.governor))?;
 
     check_the_balance(&forge).await?;
     forge.run(shell)?;

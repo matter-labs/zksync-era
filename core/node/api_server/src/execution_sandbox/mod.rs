@@ -10,7 +10,7 @@ use zksync_multivm::utils::get_eth_call_gas_limit;
 use zksync_types::{
     api, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber, ProtocolVersionId, U256,
 };
-use zksync_vm_executor::oneshot::BlockInfo;
+use zksync_vm_executor::oneshot::{BlockInfo, ResolvedBlockInfo};
 
 use self::vm_metrics::SandboxStage;
 pub(super) use self::{
@@ -285,19 +285,30 @@ pub enum BlockArgsError {
 }
 
 /// Information about a block provided to VM.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct BlockArgs {
     inner: BlockInfo,
+    resolved: ResolvedBlockInfo,
     block_id: api::BlockId,
 }
 
 impl BlockArgs {
     pub async fn pending(connection: &mut Connection<'_, Core>) -> anyhow::Result<Self> {
         let inner = BlockInfo::pending(connection).await?;
+        let resolved = inner.resolve(connection).await?;
         Ok(Self {
             inner,
+            resolved,
             block_id: api::BlockId::Number(api::BlockNumber::Pending),
         })
+    }
+
+    pub fn protocol_version(&self) -> ProtocolVersionId {
+        self.resolved.protocol_version()
+    }
+
+    pub fn use_evm_emulator(&self) -> bool {
+        self.resolved.use_evm_emulator()
     }
 
     /// Loads block information from DB.
@@ -326,8 +337,10 @@ impl BlockArgs {
             return Err(BlockArgsError::Missing);
         };
 
+        let inner = BlockInfo::for_existing_block(connection, block_number).await?;
         Ok(Self {
-            inner: BlockInfo::for_existing_block(connection, block_number).await?,
+            inner,
+            resolved: inner.resolve(connection).await?,
             block_id,
         })
     }

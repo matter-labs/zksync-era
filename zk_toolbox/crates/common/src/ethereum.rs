@@ -6,18 +6,17 @@ use ethers::{
     middleware::MiddlewareBuilder,
     prelude::{Http, LocalWallet, Provider, Signer, SignerMiddleware},
     providers::Middleware,
-    types::{Address, TransactionRequest, H256},
+    types::{Address, TransactionRequest},
 };
 use types::TokenInfo;
 
-use crate::wallets::Wallet;
+use crate::{logger, wallets::Wallet};
 
 pub fn create_ethers_client(
-    private_key: H256,
+    mut wallet: LocalWallet,
     l1_rpc: String,
     chain_id: Option<u64>,
 ) -> anyhow::Result<SignerMiddleware<Provider<Http>, ethers::prelude::Wallet<SigningKey>>> {
-    let mut wallet = LocalWallet::from_bytes(private_key.as_bytes())?;
     if let Some(chain_id) = chain_id {
         wallet = wallet.with_chain_id(chain_id);
     }
@@ -103,13 +102,12 @@ pub async fn mint_token(
 
     let mut pending_txs = vec![];
     for call in &pending_calls {
-        pending_txs.push(
-            call.send()
-                .await?
-                // It's safe to set such low number of confirmations and low interval for localhost
-                .confirmations(3)
-                .interval(Duration::from_millis(30)),
-        );
+        let call = call.send().await;
+        match call {
+            // It's safe to set such low number of confirmations and low interval for localhost
+            Ok(call) => pending_txs.push(call.confirmations(3).interval(Duration::from_millis(30))),
+            Err(e) => logger::error(format!("Minting is not successful {e}")),
+        }
     }
 
     futures::future::join_all(pending_txs).await;

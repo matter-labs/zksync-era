@@ -1,31 +1,70 @@
 use ethers::{
-    core::rand::Rng,
+    core::rand::{CryptoRng, Rng},
     signers::{coins_bip39::English, LocalWallet, MnemonicBuilder, Signer},
     types::{Address, H256},
 };
 use serde::{Deserialize, Serialize};
+use types::parse_h256;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Wallet {
+#[derive(Serialize, Deserialize)]
+struct WalletSerde {
     pub address: Address,
     pub private_key: Option<H256>,
 }
 
-impl Wallet {
-    pub fn random(rng: &mut impl Rng) -> Self {
-        let private_key = H256::random_using(rng);
-        let local_wallet = LocalWallet::from_bytes(private_key.as_bytes()).unwrap();
+#[derive(Debug, Clone)]
+pub struct Wallet {
+    pub address: Address,
+    pub private_key: Option<LocalWallet>,
+}
 
-        Self {
-            address: Address::from_slice(local_wallet.address().as_bytes()),
-            private_key: Some(private_key),
+impl<'de> Deserialize<'de> for Wallet {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let x = WalletSerde::deserialize(d)?;
+        Ok(match x.private_key {
+            None => Self {
+                address: x.address,
+                private_key: None,
+            },
+            Some(k) => {
+                let k = LocalWallet::from_bytes(k.as_bytes()).map_err(serde::de::Error::custom)?;
+                if k.address() != x.address {
+                    return Err(serde::de::Error::custom(format!(
+                        "address does not match private key: got address {:#x}, want {:#x}",
+                        x.address,
+                        k.address(),
+                    )));
+                }
+                Self::new(k)
+            }
+        })
+    }
+}
+
+impl Serialize for Wallet {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        WalletSerde {
+            address: self.address,
+            private_key: self.private_key_h256(),
         }
+        .serialize(s)
+    }
+}
+
+impl Wallet {
+    pub fn private_key_h256(&self) -> Option<H256> {
+        self.private_key
+            .as_ref()
+            .map(|k| parse_h256(k.signer().to_bytes().as_slice()).unwrap())
     }
 
-    pub fn new_with_key(private_key: H256) -> Self {
-        let local_wallet = LocalWallet::from_bytes(private_key.as_bytes()).unwrap();
+    pub fn random(rng: &mut (impl Rng + CryptoRng)) -> Self {
+        Self::new(LocalWallet::new(rng))
+    }
+
+    pub fn new(private_key: LocalWallet) -> Self {
         Self {
-            address: Address::from_slice(local_wallet.address().as_bytes()),
+            address: private_key.address(),
             private_key: Some(private_key),
         }
     }
@@ -35,14 +74,13 @@ impl Wallet {
             .phrase(mnemonic)
             .derivation_path(&format!("{}/{}", base_path, index))?
             .build()?;
-        let private_key = H256::from_slice(&wallet.signer().to_bytes());
-        Ok(Self::new_with_key(private_key))
+        Ok(Self::new(wallet))
     }
 
     pub fn empty() -> Self {
         Self {
             address: Address::zero(),
-            private_key: Some(H256::zero()),
+            private_key: None,
         }
     }
 }

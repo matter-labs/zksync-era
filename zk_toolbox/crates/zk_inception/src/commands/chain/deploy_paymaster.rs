@@ -1,8 +1,5 @@
 use anyhow::Context;
-use common::{
-    config::global_config,
-    forge::{Forge, ForgeScriptArgs},
-};
+use common::forge::{Forge, ForgeScriptArgs};
 use config::{
     forge_interface::{
         paymaster::{DeployPaymasterInput, DeployPaymasterOutput},
@@ -19,10 +16,9 @@ use crate::{
 };
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
-    let chain_name = global_config().chain_name.clone();
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(chain_name)
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_INITIALIZED)?;
     let mut contracts = chain_config.get_contracts_config()?;
     deploy_paymaster(shell, &chain_config, &mut contracts, args, None, true).await?;
@@ -60,10 +56,7 @@ pub async fn deploy_paymaster(
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {
-        forge = fill_forge_private_key(
-            forge,
-            chain_config.get_wallets_config()?.governor_private_key(),
-        )?;
+        forge = fill_forge_private_key(forge, Some(&chain_config.get_wallets_config()?.governor))?;
     }
 
     if broadcast {

@@ -19,7 +19,7 @@ use zksync_config::{
 };
 use zksync_consensus_crypto::TextFmt;
 use zksync_consensus_roles as roles;
-use zksync_core_leftovers::temp_config_store::{decode_yaml_repr, read_yaml_repr};
+use zksync_core_leftovers::temp_config_store::read_yaml_repr;
 #[cfg(test)]
 use zksync_dal::{ConnectionPool, Core};
 use zksync_metadata_calculator::MetadataCalculatorRecoveryConfig;
@@ -327,6 +327,10 @@ pub(crate) struct OptionalENConfig {
     /// The max possible number of gas that `eth_estimateGas` is allowed to overestimate.
     #[serde(default = "OptionalENConfig::default_estimate_gas_acceptable_overestimation")]
     pub estimate_gas_acceptable_overestimation: u32,
+    /// Enables optimizations for the binary search of the gas limit in `eth_estimateGas`. These optimizations are currently
+    /// considered experimental.
+    #[serde(default)]
+    pub estimate_gas_optimize_search: bool,
     /// The multiplier to use when suggesting gas price. Should be higher than one,
     /// otherwise if the L1 prices soar, the suggested gas price won't be sufficient to be included in block.
     #[serde(default = "OptionalENConfig::default_gas_price_scale_factor")]
@@ -441,6 +445,8 @@ pub(crate) struct OptionalENConfig {
     /// Gateway RPC URL, needed for operating during migration.
     #[allow(dead_code)]
     pub gateway_url: Option<SensitiveUrl>,
+    /// Interval for bridge addresses refreshing in seconds.
+    bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
 }
 
 impl OptionalENConfig {
@@ -558,6 +564,11 @@ impl OptionalENConfig {
                 web3_json_rpc.estimate_gas_acceptable_overestimation,
                 default_estimate_gas_acceptable_overestimation
             ),
+            estimate_gas_optimize_search: general_config
+                .api_config
+                .as_ref()
+                .map(|a| a.web3_json_rpc.estimate_gas_optimize_search)
+                .unwrap_or_default(),
             gas_price_scale_factor: load_config_or_default!(
                 general_config.api_config,
                 web3_json_rpc.gas_price_scale_factor,
@@ -666,6 +677,7 @@ impl OptionalENConfig {
             api_namespaces,
             contracts_diamond_proxy_addr: None,
             gateway_url: enconfig.gateway_url.clone(),
+            bridge_addresses_refresh_interval_sec: enconfig.bridge_addresses_refresh_interval_sec,
         })
     }
 
@@ -890,6 +902,11 @@ impl OptionalENConfig {
 
     pub fn pruning_data_retention(&self) -> Duration {
         Duration::from_secs(self.pruning_data_retention_sec)
+    }
+
+    pub fn bridge_addresses_refresh_interval(&self) -> Option<Duration> {
+        self.bridge_addresses_refresh_interval_sec
+            .map(|n| Duration::from_secs(n.get()))
     }
 
     #[cfg(test)]
@@ -1149,9 +1166,8 @@ pub(crate) fn read_consensus_secrets() -> anyhow::Result<Option<ConsensusSecrets
     let Ok(path) = env::var("EN_CONSENSUS_SECRETS_PATH") else {
         return Ok(None);
     };
-    let cfg = std::fs::read_to_string(&path).context(path)?;
     Ok(Some(
-        decode_yaml_repr::<proto::secrets::ConsensusSecrets>(&cfg)
+        read_yaml_repr::<proto::secrets::ConsensusSecrets>(&path.into())
             .context("failed decoding YAML")?,
     ))
 }
@@ -1160,9 +1176,8 @@ pub(crate) fn read_consensus_config() -> anyhow::Result<Option<ConsensusConfig>>
     let Ok(path) = env::var("EN_CONSENSUS_CONFIG_PATH") else {
         return Ok(None);
     };
-    let cfg = std::fs::read_to_string(&path).context(path)?;
     Ok(Some(
-        decode_yaml_repr::<proto::consensus::Config>(&cfg).context("failed decoding YAML")?,
+        read_yaml_repr::<proto::consensus::Config>(&path.into()).context("failed decoding YAML")?,
     ))
 }
 
@@ -1253,16 +1268,16 @@ impl ExternalNodeConfig<()> {
         secrets_configs_path: PathBuf,
         consensus_config_path: Option<PathBuf>,
     ) -> anyhow::Result<Self> {
-        let general_config = read_yaml_repr::<proto::general::GeneralConfig>(general_config_path)
+        let general_config = read_yaml_repr::<proto::general::GeneralConfig>(&general_config_path)
             .context("failed decoding general YAML config")?;
         let external_node_config =
-            read_yaml_repr::<proto::en::ExternalNode>(external_node_config_path)
+            read_yaml_repr::<proto::en::ExternalNode>(&external_node_config_path)
                 .context("failed decoding external node YAML config")?;
-        let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(secrets_configs_path)
+        let secrets_config = read_yaml_repr::<proto::secrets::Secrets>(&secrets_configs_path)
             .context("failed decoding secrets YAML config")?;
 
         let consensus = consensus_config_path
-            .map(read_yaml_repr::<proto::consensus::Config>)
+            .map(|path| read_yaml_repr::<proto::consensus::Config>(&path))
             .transpose()
             .context("failed decoding consensus YAML config")?;
         let consensus_secrets = secrets_config.consensus.clone();
@@ -1382,6 +1397,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             estimate_gas_acceptable_overestimation: config
                 .optional
                 .estimate_gas_acceptable_overestimation,
+            estimate_gas_optimize_search: config.optional.estimate_gas_optimize_search,
             bridge_addresses: BridgeAddresses {
                 l1_erc20_default_bridge: config.remote.l1_erc20_bridge_proxy_addr,
                 l2_erc20_default_bridge: config.remote.l2_erc20_bridge_addr,

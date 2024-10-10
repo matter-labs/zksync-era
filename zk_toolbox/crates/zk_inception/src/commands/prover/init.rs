@@ -39,7 +39,7 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     let default_compressor_key_path = get_default_compressor_keys_path(&ecosystem_config)?;
 
     let chain_config = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let args = args.fill_values_with_prompt(shell, &default_compressor_key_path, &chain_config)?;
 

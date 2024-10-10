@@ -1,9 +1,7 @@
 use anyhow::Context;
-use common::{
-    check_prerequisites, cmd::Cmd, config::global_config, spinner::Spinner, WGET_PREREQUISITE,
-};
+use common::spinner::Spinner;
 use config::{get_link_to_prover, EcosystemConfig, GeneralConfig};
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use super::args::compressor_keys::CompressorKeysArgs;
 use crate::messages::{
@@ -14,7 +12,7 @@ use crate::messages::{
 pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
     let chain_config = ecosystem_config
-        .load_chain(global_config().chain_name.clone())
+        .load_current_chain()
         .context(MSG_CHAIN_NOT_FOUND_ERR)?;
     let mut general_config = chain_config.get_general_config()?;
 
@@ -37,7 +35,6 @@ pub(crate) fn download_compressor_key(
     general_config: &mut GeneralConfig,
     path: &str,
 ) -> anyhow::Result<()> {
-    check_prerequisites(shell, &WGET_PREREQUISITE, false);
     let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER);
     let mut compressor_config: zksync_config::configs::FriProofCompressorConfig = general_config
         .proof_compressor_config
@@ -49,14 +46,13 @@ pub(crate) fn download_compressor_key(
 
     let url = compressor_config.universal_setup_download_url;
     let path = std::path::Path::new(path);
-    let parent = path.parent().expect(MSG_SETUP_KEY_PATH_ERROR);
-    let file_name = path.file_name().expect(MSG_SETUP_KEY_PATH_ERROR);
 
-    Cmd::new(cmd!(shell, "wget {url} -P {parent}")).run()?;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(600))
+        .build()?;
 
-    if file_name != "setup_2^24.key" {
-        Cmd::new(cmd!(shell, "mv {parent}/setup_2^24.key {path}")).run()?;
-    }
+    let response = client.get(url).send()?.bytes()?;
+    shell.write_file(path, &response)?;
 
     spinner.finish();
     Ok(())

@@ -32,9 +32,11 @@ git_version_macro = { path = "crates/git_version_macro" }
 zksync_config = { path = "../core/lib/config" }
 zksync_protobuf_config = { path = "../core/lib/protobuf_config" }
 zksync_basic_types = { path = "../core/lib/basic_types" }
-zksync_consensus_roles = "=0.1.1"
-zksync_consensus_crypto = "=0.1.1"
-zksync_protobuf = "=0.1.1"
+zksync_consensus_roles = "=0.5.0"
+zksync_consensus_crypto = "=0.5.0"
+zksync_consensus_utils = "=0.5.0"
+zksync_protobuf = "=0.5.0"
+zksync_protobuf_build = "=0.5.0"
 
 # External dependencies
 anyhow = "1.0.82"
@@ -43,11 +45,13 @@ slugify-rs = "0.0.3"
 cliclack = "0.2.5"
 console = "0.15.8"
 chrono = "0.4.38"
+eyre = "0.6.12"
 ethers = "2.0"
 futures = "0.3.30"
 human-panic = "2.0"
 lazy_static = "1.4.0"
 once_cell = "1.19.0"
+prost = "0.12.1"
 rand = "0.8.5"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
