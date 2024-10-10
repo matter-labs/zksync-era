@@ -23,7 +23,7 @@ impl IntoResponse for RequestProcessorError {
             RequestProcessorError::GeneralError(err) => {
                 tracing::error!("Error: {:?}", err);
                 (
-                    StatusCode::BAD_GATEWAY,
+                    StatusCode::INTERNAL_SERVER_ERROR,
                     "An internal error occurred".to_owned(),
                 )
             }
