@@ -31,12 +31,12 @@ impl Tracer for ValidationTracer {
 }
 
 impl TracerExt for ValidationTracer {
-    fn enter_validation(&mut self) {
-        self.in_validation = true;
-    }
-
-    fn exit_validation(&mut self) {
-        self.in_validation = false;
+    fn on_bootloader_hook(&mut self, hook: super::hook::Hook) {
+        match hook {
+            super::hook::Hook::AccountValidationEntered => self.in_validation = true,
+            super::hook::Hook::ValidationExited => self.in_validation = false,
+            _ => {}
+        }
     }
 }
 
