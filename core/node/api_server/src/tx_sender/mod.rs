@@ -111,7 +111,7 @@ impl SandboxExecutorOptions {
         let call_contracts =
             tokio::task::spawn_blocking(MultiVMBaseSystemContracts::load_eth_call_blocking)
                 .await
-                .context("failed loading base contracts for gas estimation")?;
+                .context("failed loading base contracts for calls / tx execution")?;
 
         Ok(Self {
             estimate_gas: OneshotEnvParameters::new(
