@@ -51,20 +51,16 @@ impl TeeRequestProcessor {
         let mut missing_range: Option<(L1BatchNumber, L1BatchNumber)> = None;
 
         let result = loop {
-            let l1_batch_number = match self
+            let l1_batch_number = self
                 .lock_batch_for_proving(request.tee_type, min_batch_number)
-                .await?
-            {
-                Some(number) => number,
-                None => break Ok(Json(TeeProofGenerationDataResponse(None))),
-            };
+                .await?;
 
             match self
                 .tee_verifier_input_for_existing_batch(l1_batch_number)
                 .await
             {
                 Ok(input) => {
-                    break Ok(Json(TeeProofGenerationDataResponse(Some(Box::new(input)))));
+                    break Ok(Json(TeeProofGenerationDataResponse(Box::new(input))));
                 }
                 Err(RequestProcessorError::ObjectStore(ObjectStoreError::KeyNotFound(_))) => {
                     missing_range = match missing_range {
@@ -156,7 +152,7 @@ impl TeeRequestProcessor {
         &self,
         tee_type: TeeType,
         min_batch_number: Option<L1BatchNumber>,
-    ) -> Result<Option<L1BatchNumber>, RequestProcessorError> {
+    ) -> Result<L1BatchNumber, RequestProcessorError> {
         let result = self
             .pool
             .connection()

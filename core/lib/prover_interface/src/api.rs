@@ -31,7 +31,7 @@ pub enum ProofGenerationDataResponse {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct TeeProofGenerationDataResponse(pub Option<Box<TeeVerifierInput>>);
+pub struct TeeProofGenerationDataResponse(pub Box<TeeVerifierInput>);
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SubmitProofResponse {
