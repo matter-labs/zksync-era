@@ -40,7 +40,7 @@ on:
 jobs:
   get-protocol-version:
     name: Get protocol version
-    runs-on: [ matterlabs-ci-runner-high-performance ]
+    runs-on: [matterlabs-ci-runner-high-performance]
     outputs:
       protocol_version: ${{ steps.protocolversion.outputs.protocol_version }}
     steps:
@@ -86,7 +86,7 @@ jobs:
     needs: get-protocol-version
     env:
       PROTOCOL_VERSION: ${{ needs.get-protocol-version.outputs.protocol_version }}
-    runs-on: [ matterlabs-ci-runner-high-performance ]
+    runs-on: [matterlabs-ci-runner-high-performance]
     strategy:
       matrix:
         components:
@@ -96,6 +96,7 @@ jobs:
           - prover-fri-gateway
           - prover-job-monitor
           - proof-fri-gpu-compressor
+          - prover-autoscaler
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
@@ -166,7 +167,7 @@ jobs:
 
   copy-images:
     name: Copy images between docker registries
-    needs: [ build-images, get-protocol-version ]
+    needs: [build-images, get-protocol-version]
     env:
       PROTOCOL_VERSION: ${{ needs.get-protocol-version.outputs.protocol_version }}
     runs-on: matterlabs-ci-runner
