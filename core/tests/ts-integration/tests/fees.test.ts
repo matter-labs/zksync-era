@@ -278,7 +278,6 @@ testFees('Test fees', function () {
     });
 
     afterAll(async () => {
-        await testMaster.deinitialize();
         await mainNode.killAndWaitForShutdown();
         // Returning the pubdata price to the default one
 
@@ -287,6 +286,7 @@ testFees('Test fees', function () {
         deleteInternalEnforcedL1GasPrice(pathToHome, fileConfig);
         deleteInternalEnforcedPubdataPrice(pathToHome, fileConfig);
         mainNode = await mainNodeSpawner.spawnMainNode();
+        await testMaster.deinitialize();
         __ZKSYNC_TEST_CONTEXT_OWNER__.setL2NodePid(mainNode.proc.pid!);
     });
 });

@@ -397,7 +397,7 @@ jobs:
       - name: Fee projection tests
         run: |
           ci_run killall -INT zksync_server || true
-          ci_run ./bin/run_on_all_chains.sh "zk_supervisor test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.INTEGRATION_TESTS_LOGS_DIR }}
+          ci_run ./bin/run_on_all_chains.sh "zk_supervisor test fees --no-deps --no-kill" ${{ env.CHAINS }} ${{ env.FEES_LOGS_DIR }}
 
       - name: Run revert tests
         run: |
