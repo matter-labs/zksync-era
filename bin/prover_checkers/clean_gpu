@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 
-cd $ZKSYNC_HOME
-compose_file="${RUNNER_COMPOSE_FILE:-docker-compose.yml}"
-
 # Get a list of PIDs using the GPU
-pids=$(docker-compose -f $compose_file exec -T zk nvidia-smi --query-compute-apps=pid --format=csv,noheader)
+pids=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader)
 
 # Check if there are any processes using the GPU
 if [ -z "$pids" ]; then
