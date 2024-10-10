@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
-use zksync_consensus_storage::{BatchStore, BlockStore};
+use zksync_consensus_storage::BlockStore;
 use zksync_dal::consensus_dal;
 use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender, SyncState};
 use zksync_types::L2BlockNumber;
@@ -32,8 +32,13 @@ impl EN {
     /// Task running a consensus node for the external node.
     /// It may be a validator, but it cannot be a leader (cannot propose blocks).
     ///
-    /// NOTE: Before starting the consensus node it fetches all the blocks
+    /// If `enable_pregenesis` is false,
+    /// before starting the consensus node it fetches all the blocks
     /// older than consensus genesis from the main node using json RPC.
+    /// NOTE: currently `enable_pregenesis` is hardcoded to `false` in `era.rs`.
+    ///   True is used only in tests. Once the `block_metadata` RPC is enabled everywhere
+    ///   this flag should be removed and fetching pregenesis blocks will always be done
+    ///   over the gossip network.
     pub async fn run(
         self,
         ctx: &ctx::Ctx,
@@ -41,6 +46,7 @@ impl EN {
         cfg: ConsensusConfig,
         secrets: ConsensusSecrets,
         build_version: Option<semver::Version>,
+        enable_pregenesis: bool,
     ) -> anyhow::Result<()> {
         let attester = config::attester_key(&secrets).context("attester_key")?;
 
@@ -72,13 +78,15 @@ impl EN {
             drop(conn);
 
             // Fetch blocks before the genesis.
-            self.fetch_blocks(
-                ctx,
-                &mut payload_queue,
-                Some(global_config.genesis.first_block),
-            )
-            .await
-            .wrap("fetch_blocks()")?;
+            if !enable_pregenesis {
+                self.fetch_blocks(
+                    ctx,
+                    &mut payload_queue,
+                    Some(global_config.genesis.first_block),
+                )
+                .await
+                .wrap("fetch_blocks()")?;
+            }
 
             // Monitor the genesis of the main node.
             // If it changes, it means that a hard fork occurred and we need to reset the consensus state.
@@ -102,19 +110,19 @@ impl EN {
 
             // Run consensus component.
             // External nodes have a payload queue which they use to fetch data from the main node.
-            let (store, runner) = Store::new(ctx, self.pool.clone(), Some(payload_queue))
-                .await
-                .wrap("Store::new()")?;
+            let (store, runner) = Store::new(
+                ctx,
+                self.pool.clone(),
+                Some(payload_queue),
+                Some(self.client.clone()),
+            )
+            .await
+            .wrap("Store::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
 
             let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
                 .await
                 .wrap("BlockStore::new()")?;
-            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
-
-            let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
-                .await
-                .wrap("BatchStore::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
 
             let attestation = Arc::new(attestation::Controller::new(attester));
@@ -127,7 +135,6 @@ impl EN {
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets, &global_config, build_version)?,
                 block_store,
-                batch_store,
                 validator: config::validator_key(&secrets)
                     .context("validator_key")?
                     .map(|key| executor::Validator {
@@ -210,10 +217,13 @@ impl EN {
                 "waiting for hash of batch {:?}",
                 status.next_batch_to_attest
             );
-            let hash = self
-                .pool
-                .wait_for_batch_hash(ctx, status.next_batch_to_attest)
-                .await?;
+            let hash = consensus_dal::batch_hash(
+                &self
+                    .pool
+                    .wait_for_batch_info(ctx, status.next_batch_to_attest, POLL_INTERVAL)
+                    .await
+                    .wrap("wait_for_batch_info()")?,
+            );
             let Some(committee) = registry
                 .attester_committee_for(
                     ctx,

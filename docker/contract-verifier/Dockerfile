@@ -91,6 +91,10 @@ RUN mkdir -p /etc/vyper-bin/0.3.10 \
     && wget -O vyper0.3.10 https://github.com/vyperlang/vyper/releases/download/v0.3.10/vyper.0.3.10%2Bcommit.91361694.linux \
     && mv vyper0.3.10 /etc/vyper-bin/0.3.10/vyper \
     && chmod +x /etc/vyper-bin/0.3.10/vyper
+RUN mkdir -p /etc/vyper-bin/0.4.0 \
+    && wget -O vyper0.4.0 https://github.com/vyperlang/vyper/releases/download/v0.4.0/vyper.0.4.0+commit.e9db8d9f.linux \
+    && mv vyper0.4.0 /etc/vyper-bin/0.4.0/vyper \
+    && chmod +x /etc/vyper-bin/0.4.0/vyper
 
 COPY --from=builder /usr/src/zksync/target/release/zksync_contract_verifier /usr/bin/
 COPY contracts/system-contracts/bootloader/build/artifacts/ /contracts/system-contracts/bootloader/build/artifacts/

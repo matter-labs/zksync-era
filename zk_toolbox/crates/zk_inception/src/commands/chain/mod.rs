@@ -53,6 +53,9 @@ pub enum ChainCommands {
     /// Deploy L2 consensus registry
     #[command(alias = "consensus")]
     DeployConsensusRegistry(ForgeScriptArgs),
+    /// Deploy L2 multicall3
+    #[command(alias = "multicall3")]
+    DeployMulticall3(ForgeScriptArgs),
     /// Deploy Default Upgrader
     #[command(alias = "upgrader")]
     DeployUpgrader(ForgeScriptArgs),
@@ -76,6 +79,9 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::AcceptChainOwnership(args) => accept_chain_ownership::run(args, shell).await,
         ChainCommands::DeployConsensusRegistry(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::ConsensusRegistry).await
+        }
+        ChainCommands::DeployMulticall3(args) => {
+            deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Multicall3).await
         }
         ChainCommands::DeployUpgrader(args) => {
             deploy_l2_contracts::run(args, shell, Deploy2ContractsOption::Upgrader).await

@@ -1,15 +1,24 @@
 use anyhow::Context as _;
+use zksync_consensus_crypto::keccak256::Keccak256;
 use zksync_consensus_roles::{attester, validator};
-use zksync_consensus_storage::{BlockStoreState, ReplicaState};
+use zksync_consensus_storage::{BlockStoreState, Last, ReplicaState};
 use zksync_db_connection::{
     connection::Connection,
     error::{DalError, DalResult, SqlxContext},
     instrument::{InstrumentExt, Instrumented},
 };
-use zksync_types::L2BlockNumber;
+use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
+use zksync_types::{L1BatchNumber, L2BlockNumber};
 
-pub use crate::consensus::{proto, AttestationStatus, GlobalConfig, Payload};
+pub use crate::consensus::{proto, AttestationStatus, BlockMetadata, GlobalConfig, Payload};
 use crate::{Core, CoreDal};
+
+#[cfg(test)]
+mod tests;
+
+pub fn batch_hash(info: &StoredBatchInfo) -> attester::BatchHash {
+    attester::BatchHash(Keccak256::from_bytes(info.hash().0))
+}
 
 /// Storage access methods for `zksync_core::consensus` module.
 #[derive(Debug)]
@@ -305,47 +314,63 @@ impl ConsensusDal<'_, '_> {
         Ok(next)
     }
 
-    /// Fetches the last consensus certificate.
+    /// Fetches the block store state.
+    /// The blocks that are available to consensus are either pre-genesis or
+    /// have a consensus certificate.
     /// Currently, certificates are NOT generated synchronously with L2 blocks,
-    /// so it might NOT be the certificate for the last L2 block.
-    pub async fn block_certificates_range(&mut self) -> anyhow::Result<BlockStoreState> {
-        // It cannot be older than genesis first block.
-        let mut start = self
+    /// so the `BlockStoreState.last` might be different than the last block in storage.
+    pub async fn block_store_state(&mut self) -> anyhow::Result<BlockStoreState> {
+        let first = self.first_block().await.context("first_block()")?;
+        let cfg = self
             .global_config()
-            .await?
-            .context("genesis()")?
-            .genesis
-            .first_block;
-        start = start.max(self.first_block().await.context("first_block()")?);
-        let row = sqlx::query!(
+            .await
+            .context("global_config()")?
+            .context("global config is missing")?;
+
+        // If there is a cert in storage, then the block range visible to consensus
+        // is [first block, block of last cert].
+        if let Some(row) = sqlx::query!(
             r#"
             SELECT
                 certificate
             FROM
                 miniblocks_consensus
-            WHERE
-                number >= $1
             ORDER BY
                 number DESC
             LIMIT
                 1
             "#,
-            i64::try_from(start.0)?,
         )
         .instrument("block_certificate_range")
         .report_latency()
         .fetch_optional(self.storage)
-        .await?;
-        Ok(BlockStoreState {
-            first: start,
-            last: row
-                .map(|row| {
+        .await?
+        {
+            return Ok(BlockStoreState {
+                first,
+                last: Some(Last::Final(
                     zksync_protobuf::serde::Deserialize {
                         deny_unknown_fields: true,
                     }
-                    .proto_fmt(row.certificate)
-                })
-                .transpose()?,
+                    .proto_fmt(row.certificate)?,
+                )),
+            });
+        }
+
+        // Otherwise it is [first block, min(genesis.first_block-1,last block)].
+        let next = self
+            .next_block()
+            .await
+            .context("next_block()")?
+            .min(cfg.genesis.first_block);
+        Ok(BlockStoreState {
+            first,
+            // unwrap is ok, because `next > first >= 0`.
+            last: if next > first {
+                Some(Last::PreGenesis(next.prev().unwrap()))
+            } else {
+                None
+            },
         })
     }
 
@@ -461,6 +486,19 @@ impl ConsensusDal<'_, '_> {
             .next())
     }
 
+    /// Fetches L2 block metadata for the given block number.
+    pub async fn block_metadata(
+        &mut self,
+        n: validator::BlockNumber,
+    ) -> anyhow::Result<Option<BlockMetadata>> {
+        let Some(b) = self.block_payload(n).await.context("block_payload()")? else {
+            return Ok(None);
+        };
+        Ok(Some(BlockMetadata {
+            payload_hash: b.encode().hash(),
+        }))
+    }
+
     /// Inserts a certificate for the L2 block `cert.header().number`.
     /// Fails if certificate doesn't match the stored block.
     pub async fn insert_block_certificate(
@@ -558,15 +596,29 @@ impl ConsensusDal<'_, '_> {
         ))
     }
 
+    /// Fetches the L1 batch info for the given number.
+    pub async fn batch_info(
+        &mut self,
+        number: attester::BatchNumber,
+    ) -> anyhow::Result<Option<StoredBatchInfo>> {
+        let n = L1BatchNumber(number.0.try_into().context("overflow")?);
+        Ok(self
+            .storage
+            .blocks_dal()
+            .get_l1_batch_metadata(n)
+            .await
+            .context("get_l1_batch_metadata()")?
+            .map(|x| StoredBatchInfo::from(&x)))
+    }
+
     /// Inserts a certificate for the L1 batch.
     /// Noop if a certificate for the same L1 batch is already present.
     /// Verification against previously stored attester committee is performed.
-    /// Batch hash is not verified - it cannot be performed due to circular dependency on
-    /// `zksync_l1_contract_interface`.
+    /// Batch hash verification is performed.
     pub async fn insert_batch_certificate(
         &mut self,
         cert: &attester::BatchQC,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), InsertCertificateError> {
         let cfg = self
             .global_config()
             .await
@@ -577,6 +629,16 @@ impl ConsensusDal<'_, '_> {
             .await
             .context("attester_committee()")?
             .context("attester committee is missing")?;
+        let hash = batch_hash(
+            &self
+                .batch_info(cert.message.number)
+                .await
+                .context("batch()")?
+                .context("batch is missing")?,
+        );
+        if cert.message.hash != hash {
+            return Err(InsertCertificateError::PayloadMismatch);
+        }
         cert.verify(cfg.genesis.hash(), &committee)
             .context("cert.verify()")?;
         sqlx::query!(
@@ -709,160 +771,5 @@ impl ConsensusDal<'_, '_> {
             // * the registry contract needs to be deployed before we can start operating on it
             next_batch_to_attest: next_batch_to_attest.max(attester::BatchNumber(1)),
         }))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use rand::Rng as _;
-    use zksync_consensus_roles::{attester, validator};
-    use zksync_consensus_storage::ReplicaState;
-    use zksync_types::ProtocolVersion;
-
-    use super::GlobalConfig;
-    use crate::{
-        tests::{create_l1_batch_header, create_l2_block_header},
-        ConnectionPool, Core, CoreDal,
-    };
-
-    #[tokio::test]
-    async fn replica_state_read_write() {
-        let rng = &mut rand::thread_rng();
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-        assert_eq!(None, conn.consensus_dal().global_config().await.unwrap());
-        for n in 0..3 {
-            let setup = validator::testonly::Setup::new(rng, 3);
-            let mut genesis = (*setup.genesis).clone();
-            genesis.fork_number = validator::ForkNumber(n);
-            let cfg = GlobalConfig {
-                genesis: genesis.with_hash(),
-                registry_address: Some(rng.gen()),
-                seed_peers: [].into(), // TODO: rng.gen() for Host
-            };
-            conn.consensus_dal()
-                .try_update_global_config(&cfg)
-                .await
-                .unwrap();
-            assert_eq!(
-                cfg,
-                conn.consensus_dal().global_config().await.unwrap().unwrap()
-            );
-            assert_eq!(
-                ReplicaState::default(),
-                conn.consensus_dal().replica_state().await.unwrap()
-            );
-            for _ in 0..5 {
-                let want: ReplicaState = rng.gen();
-                conn.consensus_dal().set_replica_state(&want).await.unwrap();
-                assert_eq!(
-                    cfg,
-                    conn.consensus_dal().global_config().await.unwrap().unwrap()
-                );
-                assert_eq!(want, conn.consensus_dal().replica_state().await.unwrap());
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn test_batch_certificate() {
-        let rng = &mut rand::thread_rng();
-        let setup = validator::testonly::Setup::new(rng, 3);
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-        let cfg = GlobalConfig {
-            genesis: setup.genesis.clone(),
-            registry_address: Some(rng.gen()),
-            seed_peers: [].into(),
-        };
-        conn.consensus_dal()
-            .try_update_global_config(&cfg)
-            .await
-            .unwrap();
-
-        let mut make_cert = |number: attester::BatchNumber| {
-            let m = attester::Batch {
-                genesis: setup.genesis.hash(),
-                hash: rng.gen(),
-                number,
-            };
-            let mut sigs = attester::MultiSig::default();
-            for k in &setup.attester_keys {
-                sigs.add(k.public(), k.sign_msg(m.clone()).sig);
-            }
-            attester::BatchQC {
-                message: m,
-                signatures: sigs,
-            }
-        };
-
-        // Required for inserting l2 blocks
-        conn.protocol_versions_dal()
-            .save_protocol_version_with_tx(&ProtocolVersion::default())
-            .await
-            .unwrap();
-
-        // Insert some mock L2 blocks and L1 batches
-        let mut block_number = 0;
-        let mut batch_number = 0;
-        for _ in 0..3 {
-            for _ in 0..3 {
-                block_number += 1;
-                let l2_block = create_l2_block_header(block_number);
-                conn.blocks_dal().insert_l2_block(&l2_block).await.unwrap();
-            }
-            batch_number += 1;
-            let l1_batch = create_l1_batch_header(batch_number);
-            conn.blocks_dal()
-                .insert_mock_l1_batch(&l1_batch)
-                .await
-                .unwrap();
-            conn.blocks_dal()
-                .mark_l2_blocks_as_executed_in_l1_batch(l1_batch.number)
-                .await
-                .unwrap();
-        }
-
-        let n = attester::BatchNumber(batch_number.into());
-
-        // Insert a batch certificate for the last L1 batch.
-        let want = make_cert(n);
-        conn.consensus_dal()
-            .upsert_attester_committee(n, setup.genesis.attesters.as_ref().unwrap())
-            .await
-            .unwrap();
-        conn.consensus_dal()
-            .insert_batch_certificate(&want)
-            .await
-            .unwrap();
-
-        // Reinserting a cert should fail.
-        assert!(conn
-            .consensus_dal()
-            .insert_batch_certificate(&make_cert(n))
-            .await
-            .is_err());
-
-        // Retrieve the latest certificate.
-        let got_n = conn
-            .consensus_dal()
-            .last_batch_certificate_number()
-            .await
-            .unwrap()
-            .unwrap();
-        let got = conn
-            .consensus_dal()
-            .batch_certificate(got_n)
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(got, want);
-
-        // Try insert batch certificate for non-existing batch
-        assert!(conn
-            .consensus_dal()
-            .insert_batch_certificate(&make_cert(n.next()))
-            .await
-            .is_err());
     }
 }
