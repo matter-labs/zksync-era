@@ -77,21 +77,19 @@ jobs:
           ci_run zk_inception prover setup-keys --mode=download --region=us --verbose
       - name: Run server
         run: |
-          ci_run zk_inception server --uring --chain=provers --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &
-          ci_run sleep 60
+          ci_run zk_inception server --uring --chain=provers --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>logs/server.log & &
       - name: Run Gateway
         run: |
-          ci_run zk_inception prover run --component=gateway --docker=false &
-          ci_run sleep 60
+          ci_run zk_inception prover run --component=gateway --docker=false &>logs/gateway.log &
       - name: Run Prover Job Monitor
         run: |
-          ci_run zk_inception prover run --component=prover-job-monitor --docker=false &
+          ci_run zk_inception prover run --component=prover-job-monitor --docker=false &>logs/prover-job-monitor.log &
       - name: Wait for batch to be available
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
           BATCH_NUMBER: 1
           INTERVAL: 30
-          TIMEOUT: 300
+          TIMEOUT: 900
         run: |
           ci_run chmod +x ./bin/prover_checkers/batch_availability_checker
           
@@ -99,14 +97,13 @@ jobs:
           ci_run ./bin/prover_checkers/batch_availability_checker
       - name: Run Witness Generator
         run: |
-          ci_run zk_inception prover run --component=witness-generator --round=all-rounds --docker=false &
+          ci_run zk_inception prover run --component=witness-generator --round=all-rounds --docker=false &>logs/witness-generator.log &
       - name: Run WVG
         run: |
-          ci_run zk_inception prover run --component=witness-vector-generator --threads=10 --docker=false &
+          ci_run zk_inception prover run --component=witness-vector-generator --threads=10 --docker=false &>logs/witness-vector-generator.log &
       - name: Run Prover
         run: |
           ci_run zk_inception prover run --component=prover --docker=false &
-          ci_run sleep 180
       - name: Wait for prover jobs to finish
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
@@ -137,3 +134,10 @@ jobs:
           
           PASSED_ENV_VARS="URL,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/batch_l1_status_checker
+
+      - name: Upload logs
+        uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
+        if: always()
+        with:
+          name: logs
+          path: logs
