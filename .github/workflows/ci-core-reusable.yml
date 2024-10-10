@@ -58,7 +58,7 @@ jobs:
       - name: Init
         run: |
           ci_run run_retried rustup show
-          ci_run zkstackup --local
+          ci_run ./zkstack_cli/zkstackup/zkstackup --local
 
       - name: Build contracts
         run: |
@@ -120,7 +120,7 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
-          ci_run zkstackup --local
+          ci_run ./zkstack_cli/zkstackup/zkstackup --local
 
       - name: Create and initialize legacy chain
         run: |
@@ -188,7 +188,7 @@ jobs:
           ci_localnet_up
 
       - name: Build ZK Stack CLI
-        run: ci_run bash -c "zkstackup --local"
+        run: ci_run bash -c "./zkstack_cli/zkstackup/zkstackup --local"
 
       - name: Create log directories
         run: |
