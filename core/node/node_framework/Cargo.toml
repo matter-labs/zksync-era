@@ -45,7 +45,6 @@ zksync_node_sync.workspace = true
 zksync_node_api_server.workspace = true
 zksync_node_consensus.workspace = true
 zksync_contract_verification_server.workspace = true
-zksync_tee_verifier_input_producer.workspace = true
 zksync_queued_job_processor.workspace = true
 zksync_reorg_detector.workspace = true
 zksync_vm_runner.workspace = true

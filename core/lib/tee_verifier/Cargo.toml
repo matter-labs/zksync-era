@@ -11,18 +11,21 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
-zksync_multivm.workspace = true
 zksync_config.workspace = true
 zksync_crypto_primitives.workspace = true
 zksync_merkle_tree.workspace = true
-zksync_object_store.workspace = true
+zksync_multivm.workspace = true
 zksync_prover_interface.workspace = true
 zksync_types.workspace = true
 zksync_utils.workspace = true
 
 anyhow.workspace = true
+once_cell.workspace = true
 serde.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
 zksync_contracts.workspace = true
+zksync_prover_interface.workspace = true
+
+bincode.workspace = true
