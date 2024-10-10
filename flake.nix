@@ -91,7 +91,7 @@
                 ./Cargo.toml
                 ./core
                 ./prover
-                ./zk_toolbox
+                ./zkstack_cli
                 ./.github/release-please/manifest.json
               ];
             };

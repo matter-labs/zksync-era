@@ -27,6 +27,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo CI=1 >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
+          echo $(pwd)/zkstack_cli/zkstackup >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
@@ -61,9 +62,12 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
-          ci_run zkt
+          ci_run zkstackup -g
           ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zk_supervisor contracts 
+
+      - name: build contracts
+        run: |
+          ci_run zkstack dev contracts 
 
       - name: update-image
         run: |

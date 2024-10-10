@@ -51,19 +51,19 @@ export function runServerInBackground({
     stdio,
     cwd,
     env,
-    useZkInception,
+    useZkStack,
     chain
 }: {
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
     env?: Parameters<typeof background>[0]['env'];
-    useZkInception?: boolean;
+    useZkStack?: boolean;
     chain?: string;
 }): ChildProcessWithoutNullStreams {
     let command = '';
-    if (useZkInception) {
-        command = 'zk_inception server';
+    if (useZkStack) {
+        command = 'zkstack server';
         if (chain) {
             command += ` --chain ${chain}`;
         }
@@ -78,19 +78,19 @@ export function runExternalNodeInBackground({
     stdio,
     cwd,
     env,
-    useZkInception,
+    useZkStack,
     chain
 }: {
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
     env?: Parameters<typeof background>[0]['env'];
-    useZkInception?: boolean;
+    useZkStack?: boolean;
     chain?: string;
 }): ChildProcessWithoutNullStreams {
     let command = '';
-    if (useZkInception) {
-        command = 'zk_inception external-node run';
+    if (useZkStack) {
+        command = 'zkstack external-node run';
         command += chain ? ` --chain ${chain}` : '';
     } else {
         command = 'zk external-node';
@@ -334,7 +334,7 @@ export class NodeSpawner {
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
             env: env,
-            useZkInception: fileConfig.loadFromFile,
+            useZkStack: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
 
@@ -362,7 +362,7 @@ export class NodeSpawner {
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
             env,
-            useZkInception: fileConfig.loadFromFile,
+            useZkStack: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
 

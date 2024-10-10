@@ -7,19 +7,19 @@ export function runServerInBackground({
     components,
     stdio,
     cwd,
-    useZkInception,
+    useZkStack,
     chain
 }: {
     components?: string[];
     stdio: any;
     cwd?: Parameters<typeof background>[0]['cwd'];
-    useZkInception?: boolean;
+    useZkStack?: boolean;
     chain?: string;
 }) {
     let command = '';
 
-    if (useZkInception) {
-        command = 'zk_inception server';
+    if (useZkStack) {
+        command = 'zkstack server';
         command += chain ? ` --chain ${chain}` : '';
     } else {
         command = 'cd $ZKSYNC_HOME && cargo run --bin zksync_server --release --';
@@ -71,8 +71,8 @@ export interface Contracts {
     stateTransitonManager: any;
 }
 
-export function initContracts(pathToHome: string, zkToolbox: boolean): Contracts {
-    if (zkToolbox) {
+export function initContracts(pathToHome: string, zkStack: boolean): Contracts {
+    if (zkStack) {
         const CONTRACTS_FOLDER = `${pathToHome}/contracts`;
         return {
             l1DefaultUpgradeAbi: new ethers.Interface(

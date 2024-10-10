@@ -17,4 +17,4 @@
 - [ ] PR title corresponds to the body of PR (we generate changelog entries from PRs).
 - [ ] Tests for the changes have been added / updated.
 - [ ] Documentation comments have been added / updated.
-- [ ] Code has been formatted via `zk_supervisor fmt` and `zk_supervisor lint`.
+- [ ] Code has been formatted via `zkstack dev fmt` and `zkstack dev lint`.

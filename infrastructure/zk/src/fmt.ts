@@ -48,7 +48,7 @@ export async function rustfmt(check: boolean = false) {
     const dirs = [
         process.env.ZKSYNC_HOME as string,
         `${process.env.ZKSYNC_HOME}/prover`,
-        `${process.env.ZKSYNC_HOME}/zk_toolbox`
+        `${process.env.ZKSYNC_HOME}/zkstack_cli`
     ];
 
     for (const dir of dirs) {

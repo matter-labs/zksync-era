@@ -16,6 +16,7 @@ jobs:
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
+          echo $(pwd)/zkstack_cli/zkstackup >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
           echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
@@ -31,9 +32,12 @@ jobs:
           docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
 
       - name: Init
+        run: |          
+          ci_run ./zkstack_cli/zkstackup/zkstackup -g --path ./ 
+
+      - name: Database setup
         run: |
-          ci_run zkt
-          ci_run zk_supervisor db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
+          ci_run zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
 
       - name: Formatting
         run: ci_run bash -c "cd prover && cargo fmt --check"
@@ -67,10 +71,10 @@ jobs:
 
       - name: Init
         run: |
-          ci_run zkt
+          ci_run ./zkstack_cli/zkstackup/zkstackup -g --path ./ 
           ci_run run_retried rustup show
 
       - name: Prover unit tests
         run: |
           # Not all tests are enabled, since prover and setup_key_generator_and_server requires bellman-cuda to be present
-          ci_run zk_supervisor test prover
+          ci_run zkstack dev test prover
