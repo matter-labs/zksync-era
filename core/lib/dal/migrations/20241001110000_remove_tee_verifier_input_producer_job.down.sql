@@ -1,4 +1,4 @@
-CREATE TABLE tee_proof_generation_details (
+CREATE TABLE tee_verifier_input_producer_jobs (
     l1_batch_number BIGINT NOT NULL,
     status TEXT NOT NULL,
     signature BYTEA,
@@ -13,6 +13,8 @@ CREATE TABLE tee_proof_generation_details (
     CONSTRAINT tee_proof_generation_details_pubkey_fkey FOREIGN KEY (pubkey) REFERENCES tee_attestations(pubkey) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_tee_proof_generation_details_status_prover_taken_at
-    ON tee_proof_generation_details (prover_taken_at)
-    WHERE status = 'picked_by_prover';
+ALTER TABLE tee_proof_generation_details
+    ADD CONSTRAINT tee_proof_generation_details_l1_batch_number_fkey
+    FOREIGN KEY (l1_batch_number)
+    REFERENCES tee_verifier_input_producer_jobs(l1_batch_number)
+    ON DELETE CASCADE;
