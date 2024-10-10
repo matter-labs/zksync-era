@@ -97,6 +97,7 @@ fn test_send_or_transfer(test_option: TestOptions) {
     assert_eq!(new_recipient_balance, value);
 }
 
+#[ignore] // FIXME: re-enable once zksolc errors can be suppressed
 #[test]
 fn test_send_and_transfer() {
     test_send_or_transfer(TestOptions::Send(U256::zero()));
@@ -196,6 +197,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
 }
 
+#[ignore] // FIXME: re-enable once zksolc errors can be suppressed
 #[test]
 fn test_reentrancy_protection_send_and_transfer() {
     test_reentrancy_protection_send_or_transfer(TestOptions::Send(U256::zero()));
