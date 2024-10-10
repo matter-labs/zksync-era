@@ -5,8 +5,8 @@ use zksync_vm2::interface::{
 use super::vm::TracerExt;
 
 pub struct ValidationTracer {
-    pub probably_out_of_gas: bool,
-    pub in_validation: bool,
+    probably_out_of_gas: bool,
+    in_validation: bool,
 }
 
 impl Default for ValidationTracer {
@@ -24,13 +24,6 @@ impl Tracer for ValidationTracer {
             return;
         }
         match OP::VALUE {
-            /* TODO this does not work because there is some Ret(Normal) before exit_validation
-            NearCall | FarCall(_) | Ret(Normal) => {
-                if self.probably_out_of_gas {
-                    dbg!("out of gas canceled");
-                }
-                self.probably_out_of_gas = false
-            }*/
             Ret(Panic) if state.current_frame().gas() == 0 => self.probably_out_of_gas = true,
             _ => {}
         }
@@ -44,5 +37,11 @@ impl TracerExt for ValidationTracer {
 
     fn exit_validation(&mut self) {
         self.in_validation = false;
+    }
+}
+
+impl ValidationTracer {
+    pub fn probably_out_of_gas(&self) -> bool {
+        self.probably_out_of_gas
     }
 }

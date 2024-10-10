@@ -258,13 +258,18 @@ where
                     vm.push_transaction(transaction);
                     let mut tracer =
                         zksync_multivm::vm_fast::validation_tracer::ValidationTracer::default();
-                    vm.inspect(&mut tracer, VmExecutionMode::OneTx);
-                    if tracer.probably_out_of_gas {
-                        Err(ValidationError::ViolatedRule(
-                            ViolatedValidationRule::TookTooManyComputationalGas(1),
-                        ))
-                    } else {
-                        Ok(())
+                    let result_and_logs = vm.inspect(&mut tracer, VmExecutionMode::OneTx);
+                    match result_and_logs.result {
+                        ExecutionResult::Halt { reason } => {
+                            if tracer.probably_out_of_gas() {
+                                Err(ValidationError::ViolatedRule(
+                                    ViolatedValidationRule::TookTooManyComputationalGas(1),
+                                ))
+                            } else {
+                                Err(ValidationError::FailedTx(reason))
+                            }
+                        }
+                        ExecutionResult::Revert { .. } | ExecutionResult::Success { .. } => Ok(()),
                     }
                 }
 
