@@ -171,6 +171,20 @@ impl TestContract {
         &CONTRACT
     }
 
+    /// Returns a mock version of `ContractDeployer`.
+    pub fn mock_deployer() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::mock_evm::MockContractDeployer));
+        &CONTRACT
+    }
+
+    /// Returns a mock version of `KnownCodeStorage`.
+    pub fn mock_known_code_storage() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::mock_evm::MockKnownCodeStorage));
+        &CONTRACT
+    }
+
     /// Returns all factory deps for this contract deployment (including its own bytecode).
     pub fn factory_deps(&self) -> Vec<Vec<u8>> {
         let mut deps = vec![];
