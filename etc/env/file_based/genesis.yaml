@@ -13,3 +13,5 @@ prover:
   recursion_scheduler_level_vk_hash: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
   dummy_verifier: true
 l1_batch_commit_data_generator_mode: Rollup
+# Uncomment to enable EVM emulation (requires to run genesis)
+# evm_emulator_hash: 0x01000e53aa35d9d19fa99341c2e2901cf93b3668f01569dd5c6ca409c7696b91

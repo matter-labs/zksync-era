@@ -71,12 +71,14 @@ pub static GAS_TEST_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(|| {
 
     let bytecode = read_sys_contract_bytecode("", "DefaultAccount", ContractLanguage::Sol);
     let hash = hash_bytecode(&bytecode);
+
     BaseSystemContracts {
         default_aa: SystemContractCode {
             code: bytes_to_be_words(bytecode),
             hash,
         },
         bootloader,
+        evm_emulator: None,
     }
 });
 
@@ -221,6 +223,7 @@ pub(super) fn execute_internal_transfer_test() -> u32 {
     let base_system_smart_contracts = BaseSystemContracts {
         bootloader,
         default_aa,
+        evm_emulator: None,
     };
 
     let system_env = SystemEnv {
