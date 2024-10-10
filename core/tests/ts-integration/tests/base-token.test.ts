@@ -39,9 +39,8 @@ describe('base ERC20 contract checks', () => {
         const numerator = Number(await zksyncContract.baseTokenGasPriceMultiplierNominator());
         const denominator = Number(await zksyncContract.baseTokenGasPriceMultiplierDenominator());
 
-        // checking that the numerator and denominator don't have their default values
-        expect(numerator).toBe(3);
-        expect(denominator).toBe(2);
+        expect(numerator).toBe(314);
+        expect(denominator).toBe(1000);
     });
 
     test('Can perform a deposit', async () => {
