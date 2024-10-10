@@ -143,10 +143,12 @@ impl ForgeScript {
     }
 
     // Do not start the script if balance is not enough
-    pub fn private_key(&self) -> Option<H256> {
+    pub fn private_key(&self) -> Option<LocalWallet> {
         self.args.args.iter().find_map(|a| {
             if let ForgeScriptArg::PrivateKey { private_key } = a {
-                Some(H256::from_str(private_key).unwrap())
+                let key = H256::from_str(private_key).unwrap();
+                let key = LocalWallet::from_bytes(key.as_bytes()).unwrap();
+                Some(key)
             } else {
                 None
             }
@@ -164,11 +166,7 @@ impl ForgeScript {
     }
 
     pub fn address(&self) -> Option<Address> {
-        self.private_key().and_then(|a| {
-            LocalWallet::from_bytes(a.as_bytes())
-                .ok()
-                .map(|a| Address::from_slice(a.address().as_bytes()))
-        })
+        self.private_key().map(|k| k.address())
     }
 
     pub async fn get_the_balance(&self) -> anyhow::Result<Option<U256>> {
