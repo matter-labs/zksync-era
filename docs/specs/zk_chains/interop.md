@@ -3,39 +3,47 @@
 ## Introduction
 
 In the Shared bridge document we described how the L1 smart contracts work to support multiple chains, and we emphasized
-that the core feature is hyperbridging, but we did not outline the hyperbridges themselves. This is because hyperbridges
-are mostly L2 contracts. In this document we describe what hyperbridges are, and specify the necessary infrastructure.
+that the core feature is interop. Interop happens via the same L1->L2 interface as described in the L1SharedBridge doc.
+There is (with the interop upgrade) a Bridgehub, AssetRouter, NativeTokenVault and Nullifier deployed on every L2, and
+they serve the same feature as their L1 counterparts. Namely:
 
-### Hyperbridge description
+- The Bridgehub is used to start the transaction.
+- The AssetRouter and NativeTokenVault are the bridge contract that handle the tokens.
+- The Nullifier is used to prevent reexecution of xL2 txs.
 
-Hyperbridges are trustless and cheap general native bridges between ZK Chains, allowing cross-chain function calls.
-Trustlessness is achieved by relying on the main ZK Chain bridge to send a compressed message to L1, which is then sent
-to and expanded on the destination ZK Chain.
+### Interop process
 
-Technically they are a system of smart contracts that build on top of the enshrined L1<>L2 validating bridges, and can
-interpret messages sent from L2 to L2 by verifying Merkle proofs. They are built alongside the protocol, they can
-transfer the native asset of the ecosystem, and they can be used for asynchronous function calls between ZK Chains.
+![Interop](./img/hyperbridging.png)
 
-![Hyperbridges](./img/hyperbridges.png)
+The interop process has 7 main steps, each with its substeps:
 
-The trustless nature of hyperbridges allows the ecosystem to resemble a single VM. To illustrate imagine a new ZK Chain
-joining the ecosystem. We will want ether/Dai/etc. to be accessible on this ZK Chain. This can be done automatically.
-There will be a central erc20 deployer contract in the ecosystem, which will deploy the new ERC20 contract via the
-hyperbridge. After the contract is deployed it will be able to interact other Dai contracts in the ecosystem.
+1. Starting the transaction on the sending chain
 
-### High Level design
+   - The user/calls calls the Bridgehub contract. If they want to use a bridge they call
+     `requestL2TransactionTwoBridges`, if they want to make a direct call they call `requestL2TransactionDirect`
+     function.
+   - The Bridgehub collects the base token fees necessary for the interop tx to be processed on the destination chain,
+     and if using the TwoBridges method the calldata and the destination contract ( for more data see Shared bridge
+     doc).
+   - The Bridgehub emits a `NewPriorityRequest` event, this is the same as the one in our Mailbox contract. This event
+     specifies the xL2 txs, which uses the same format as L1->L2 txs. This event can be picked up and used to receive
+     the txs.
+   - This new priority request is sent as an L2->L1 message, it is included in the chains merkle tree of emitted txs.
 
-![Hyperbridging](./img/hyperbridging.png)
+2. The chain settles its proof on L1 or the Gateway, whichever is used as the settlement layer for the chain.
+3. On the Settlement Layer (SL), the MessageRoot is updated in the MessageRoot contract. The new data includes all the
+   L2->L1 messages that are emitted from the settling chain.
+4. The receiving chain picks up the updated MessgeRoot from the Settlement Layer.
+5. Now the xL2 txs can be imported on the destination chain. Along with the txs, a merkle proof needs to be sent to link
+   it to the MessageRoot.
+6. Receiving the tx on the destination chain
 
-### L1
+   - On the destination chain the xL2 txs is verified. This means the merkle proof is checked agains the MessageRoot.
+     This shows the the xL2 txs was indeed sent.
+   - After this the txs can be executed. The tx hash is stored in the L2Nullifier contract, so that the txs cannot be
+     replayed.
+   - The specified contract is called, with the calldata, and the message sender =
+     `keccak256(originalMessageSender, originChainId) >> 160`. This is to prevent the collision of the msg.sender
+     addresses.
 
-For the larger context see the [Shared Bridge](./shared_bridge.md) document, here we will focus on
-
-- HyperMailbox (part of Bridgehub). Contains the Hyperroot, root of Merkle tree of Hyperlogs. Hyperlogs are the L2->L1
-  SysLogs that record the sent hyperbridge messages from the L2s.
-
-### L2 Contracts
-
-- Outbox system contract. It collects the hyperbridge txs into the hyperlog of the ZK Chain.
-- Inbox system contract. This is where the hyperroot is imported and sent to L1 for settlement. Merkle proofs are
-  verified here, tx calls are started from here, nullifiers are stored here (add epochs later)
+7. The destination chain settles on the SL and the MessageRoot that it imported is checked.
