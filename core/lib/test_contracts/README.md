@@ -12,5 +12,5 @@ Some of the commonly used contracts included into this crate are:
 
 ## Building
 
-Building the library requires `yarn` installed globally. If there are any issues during build, it could be useful
+Building the library relies on `foundry-compilers`; it doesn't require any external tools. If there are any issues during build, it may be useful
 to inspect build artifacts, which are located in one of `target/{debug,release}/build/zksync_test_contracts-$random_numbers` directories.

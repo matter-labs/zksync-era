@@ -7,8 +7,9 @@ use std::{
 };
 
 use foundry_compilers::{
-    artifacts::zksolc::output_selection::{
-        FileOutputSelection, OutputSelection, OutputSelectionFlag,
+    artifacts::{
+        zksolc::output_selection::{FileOutputSelection, OutputSelection, OutputSelectionFlag},
+        Remapping,
     },
     solc,
     zksolc::{settings::Optimizer, ZkSettings, ZkSolcCompiler, ZkSolcSettings},
@@ -77,15 +78,19 @@ fn save_artifacts(
     }
 }
 
+/// `zksolc` compiler settings.
+///
 fn compiler_settings() -> ZkSolcSettings {
     ZkSolcSettings {
         cli_settings: solc::CliSettings::default(),
         settings: ZkSettings {
-            via_ir: Some(true),
+            // Optimizer must be enabled; otherwise, system calls work incorrectly for whatever reason
             optimizer: Optimizer {
                 enabled: Some(true),
                 ..Optimizer::default()
             },
+            // Required by optimizer
+            via_ir: Some(true),
             output_selection: OutputSelection {
                 all: Some(FileOutputSelection {
                     per_file: None,
@@ -103,6 +108,14 @@ fn main() {
     let temp_dir = PathBuf::from(env::var("OUT_DIR").expect("no `OUT_DIR` provided"));
     let paths = ProjectPathsConfig::builder()
         .sources(Path::new(env!("CARGO_MANIFEST_DIR")).join("contracts"))
+        .remapping(Remapping {
+            context: None,
+            name: "@openzeppelin/contracts".into(),
+            path: format!(
+                "{}/contract-libs/openzeppelin-contracts/contracts",
+                env!("CARGO_MANIFEST_DIR")
+            ),
+        })
         .artifacts(temp_dir.join("artifacts"))
         .cache(temp_dir.join("cache"))
         .build()
