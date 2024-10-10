@@ -283,12 +283,13 @@ impl Task for Scaler {
     async fn invoke(&self) -> anyhow::Result<()> {
         let queue = self.queuer.get_queue().await.unwrap();
 
-        // TODO: Check that clusters data is ready.
-        let clusters = self.watcher.clusters.lock().await;
+        let guard = self.watcher.data.lock().await;
+        watcher::check_is_ready(&guard.is_ready)?;
+
         for (ns, ppv) in &self.namespaces {
             let q = queue.queue.get(ppv).cloned().unwrap_or(0);
             if q > 0 {
-                let provers = self.run(ns, q, &clusters);
+                let provers = self.run(ns, q, &guard.clusters);
                 for (k, num) in &provers {
                     AUTOSCALER_METRICS.provers[&(k.cluster.clone(), ns.clone(), k.gpu)]
                         .set(*num as u64);
@@ -309,7 +310,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        cluster_types::{self, Deployment, Namespace, Pod},
+        cluster_types::{Deployment, Namespace, Pod},
         global::{queuer, watcher},
     };
 
@@ -317,9 +318,7 @@ mod tests {
     fn test_run() {
         let watcher = watcher::Watcher {
             cluster_agents: vec![],
-            clusters: Arc::new(Mutex::new(cluster_types::Clusters {
-                ..Default::default()
-            })),
+            data: Arc::new(Mutex::new(watcher::WatchedData::default())),
         };
         let queuer = queuer::Queuer {
             prover_job_monitor_url: "".to_string(),
