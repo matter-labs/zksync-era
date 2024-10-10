@@ -185,7 +185,7 @@ jobs:
           ci_localnet_up
 
       - name: Build ZK Stack CLI
-        run: ci_run bash -c "./zkstack_cli/zkstackup/zkstackup --local"
+        run: ci_run bash -c "./zkstack_cli/zkstackup/zkstackup -g"
 
       - name: Create log directories
         run: |

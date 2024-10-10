@@ -35,7 +35,7 @@ jobs:
           run_retried docker compose pull zk
           docker compose up -d zk
 
-          ci_run zkstackup --local
+          ci_run zkstackup -g
 
       - name: build contracts
         run: |
