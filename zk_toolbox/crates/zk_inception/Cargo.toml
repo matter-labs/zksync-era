@@ -39,6 +39,7 @@ zksync_protobuf.workspace = true
 zksync_protobuf_config.workspace = true
 prost.workspace = true
 secrecy.workspace = true
+reqwest = "0.12.8"
 
 [dev-dependencies]
 rand.workspace = true

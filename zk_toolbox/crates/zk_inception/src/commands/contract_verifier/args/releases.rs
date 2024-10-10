@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
-use common::{cmd::Cmd, spinner::Spinner};
+use common::spinner::Spinner;
 use serde::Deserialize;
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use crate::messages::{MSG_INVALID_ARCH_ERR, MSG_NO_RELEASES_FOUND_ERR};
 
@@ -76,22 +76,19 @@ fn get_compatible_archs(asset_name: &str) -> anyhow::Result<Vec<Arch>> {
 
 fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Version>> {
     if repo == "ethereum/solc-bin" {
-        return get_solc_releases(shell, arch);
+        return get_solc_releases(arch);
     }
 
-    let mut cmd = cmd!(
-        shell,
-        "curl -f https://api.github.com/repos/{repo}/releases"
-    );
+    let client = reqwest::blocking::Client::new();
+    let mut request = client
+        .get(format!("https://api.github.com/repos/{repo}/releases"))
+        .header("User-Agent", "zkstack");
 
     if let Ok(token) = shell.var("GITHUB_TOKEN") {
-        cmd = cmd.args(vec![
-            "-H".to_string(),
-            format!("Authorization: Bearer {}", token),
-        ]);
+        request = request.header("Authorization", format!("Bearer {}", token));
     }
 
-    let response = String::from_utf8(Cmd::new(cmd).run_with_output()?.stdout)?;
+    let response = request.send()?.text()?;
     let releases: Vec<GitHubRelease> = serde_json::from_str(&response)?;
 
     let mut versions = vec![];
@@ -115,7 +112,7 @@ fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Ver
     Ok(versions)
 }
 
-fn get_solc_releases(shell: &Shell, arch: Arch) -> anyhow::Result<Vec<Version>> {
+fn get_solc_releases(arch: Arch) -> anyhow::Result<Vec<Version>> {
     let (arch_str, compatible_archs) = match arch {
         Arch::LinuxAmd => ("linux-amd64", vec![Arch::LinuxAmd, Arch::LinuxArm]),
         Arch::LinuxArm => ("linux-amd64", vec![Arch::LinuxAmd, Arch::LinuxArm]),
@@ -123,13 +120,15 @@ fn get_solc_releases(shell: &Shell, arch: Arch) -> anyhow::Result<Vec<Version>> 
         Arch::MacosArm => ("macosx-amd64", vec![Arch::MacosAmd, Arch::MacosArm]),
     };
 
-    let response: std::process::Output = Cmd::new(cmd!(
-        shell,
-        "curl https://raw.githubusercontent.com/ethereum/solc-bin/gh-pages/{arch_str}/list.json"
-    ))
-    .run_with_output()?;
+    let client = reqwest::blocking::Client::new();
+    let response = client
+        .get(format!(
+            "https://raw.githubusercontent.com/ethereum/solc-bin/gh-pages/{arch_str}/list.json"
+        ))
+        .header("User-Agent", "zkstack")
+        .send()?
+        .text()?;
 
-    let response = String::from_utf8(response.stdout)?;
     let solc_list: SolcList = serde_json::from_str(&response)?;
 
     let mut versions = vec![];
