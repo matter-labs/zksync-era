@@ -116,9 +116,9 @@ be able to leverage them when available).
 
   - The user wants to bridge to chain with the provided `L2TransactionRequestTwoBridgesOuter.chainId`.
   - Two bridges are called, the baseTokenBridge (i.e. the L1SharedBridge or L1AssetRouter after the Gateway upgrade) and
-    an arbitrary second bridge. The Bridgehub will provide the original caller to both bridges, which can request that
-    the appropriate amount of tokens are transferred from the user to the bridge. The user has to set the appropriate
-    allowance for both bridges. (Often the bridges coincide, but they don't have to).
+    an arbitrary second bridge. The Bridgehub will provide the original caller address to both bridges, which can
+    request that the appropriate amount of tokens are transferred from the caller to the bridge. The caller has to set
+    the appropriate allowance for both bridges. (Often the bridges coincide, but they don't have to).
   - The `L2TransactionRequestTwoBridgesOuter.mintValue` is the amount of baseTokens that will be minted on L2. This is
     the amount of tokens that the baseTokenBridge will request from the user. If the baseToken is Eth, it will be
     forwarded to the baseTokenBridge.
@@ -138,6 +138,11 @@ be able to leverage them when available).
     bridge. This is the arbitrary calldata that is passed from the Bridgehub to the second bridge.
   - The secondBridge returns the `L2TransactionRequestTwoBridgesInner` struct to the Bridgehub. This is also passed to
     the Mailbox as input. This is where the destination contract, calldata, factoryDeps are determined on the L2.
+
+  This setup allows the user to bridge the baseToken of the origin chain A to a chain B with some other baseToken, by
+  specifying the A's token in the secondBridgeValue, which will be minted on the destination chain as an ERC20 token,
+  and specifying the amount of B's token in the mintValue, which will be minted as the baseToken and used to cover the
+  gas costs.
 
 #### Main asset shared bridges L2TransactionRequestTwoBridgesInner
 
