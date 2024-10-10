@@ -29,7 +29,9 @@ use zksync_types::{
     MAX_NEW_FACTORY_DEPS, U256,
 };
 use zksync_utils::h256_to_u256;
-use zksync_vm_executor::oneshot::{CallOrExecute, EstimateGas, OneshotEnvParameters};
+use zksync_vm_executor::oneshot::{
+    CallOrExecute, EstimateGas, MultiVMBaseSystemContracts, OneshotEnvParameters,
+};
 
 pub(super) use self::{gas_estimation::BinarySearchKind, result::SubmitTxError};
 use self::{master_pool_sink::MasterPoolSink, result::ApiCallResult, tx_sink::TxSink};
@@ -102,15 +104,28 @@ impl SandboxExecutorOptions {
         operator_account: AccountTreeId,
         validation_computational_gas_limit: u32,
     ) -> anyhow::Result<Self> {
+        let estimate_gas_contracts =
+            tokio::task::spawn_blocking(MultiVMBaseSystemContracts::load_estimate_gas_blocking)
+                .await
+                .context("failed loading base contracts for gas estimation")?;
+        let call_contracts =
+            tokio::task::spawn_blocking(MultiVMBaseSystemContracts::load_eth_call_blocking)
+                .await
+                .context("failed loading base contracts for calls / tx execution")?;
+
         Ok(Self {
-            estimate_gas: OneshotEnvParameters::for_gas_estimation(chain_id, operator_account)
-                .await?,
-            eth_call: OneshotEnvParameters::for_execution(
+            estimate_gas: OneshotEnvParameters::new(
+                Arc::new(estimate_gas_contracts),
+                chain_id,
+                operator_account,
+                u32::MAX,
+            ),
+            eth_call: OneshotEnvParameters::new(
+                Arc::new(call_contracts),
                 chain_id,
                 operator_account,
                 validation_computational_gas_limit,
-            )
-            .await?,
+            ),
         })
     }
 

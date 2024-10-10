@@ -262,7 +262,7 @@ impl DebugNamespace {
         let call = L2Tx::from_request(
             request.into(),
             MAX_ENCODED_TX_SIZE,
-            false, // Even with EVM emulation enabled, calls must specify `to` field
+            block_args.use_evm_emulator(),
         )?;
 
         let vm_permit = self
