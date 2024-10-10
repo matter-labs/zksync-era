@@ -30,7 +30,7 @@ pub async fn run_server(
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     let bind_address = SocketAddr::from(([0, 0, 0, 0], config.http_port));
-    tracing::debug!("Starting proof data handler server on {bind_address}");
+    tracing::info!("Starting proof data handler server on {bind_address}");
     let app = create_proof_processing_router(blob_store, connection_pool, config, commitment_mode);
 
     let listener = tokio::net::TcpListener::bind(bind_address)
