@@ -1,4 +1,7 @@
-use std::cmp;
+use std::{
+    cmp,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use zk_evm_1_5_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
@@ -104,6 +107,20 @@ impl<H: HistoryMode> ValidationTracer<H> {
                             &calldata[calldata.len() - 64..calldata.len() - 32],
                         );
                         let end = U256::from_big_endian(&calldata[calldata.len() - 32..]);
+
+                        if start.as_u32() - end.as_u32() < self.timestamp_asserter_min_range_sec {
+                            return Err(ViolatedValidationRule::TimestampAssertionInvalidRange);
+                        }
+
+                        let now = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .expect("Incorrect system time")
+                            .as_secs();
+
+                        if end.as_u32() < now as u32 + self.timestamp_asserter_min_time_till_end_sec
+                        {
+                            return Err(ViolatedValidationRule::TimestampAssertionInvalidRange);
+                        }
 
                         {
                             let mut traces_mut = self.traces.lock().unwrap();

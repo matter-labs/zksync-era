@@ -589,7 +589,11 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
     );
     storage
         .transactions_dal()
-        .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+        .insert_transaction_l2(
+            &tx,
+            TransactionExecutionMetrics::default(),
+            ValidationTraces::default(),
+        )
         .await
         .unwrap();
 

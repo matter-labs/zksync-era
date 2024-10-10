@@ -77,6 +77,8 @@ pub enum ViolatedValidationRule {
     TouchedDisallowedContext,
     /// The transaction used too much gas during validation.
     TookTooManyComputationalGas(u32),
+    /// The transaction passed incorrect parameters into timestamp asserter
+    TimestampAssertionInvalidRange,
 }
 
 impl fmt::Display for ViolatedValidationRule {
@@ -97,6 +99,9 @@ impl fmt::Display for ViolatedValidationRule {
                     f,
                     "Took too many computational gas, allowed limit: {gas_limit}"
                 )
+            }
+            ViolatedValidationRule::TimestampAssertionInvalidRange => {
+                write!(f, "Invalid range used with timestamp asserter")
             }
         }
     }
