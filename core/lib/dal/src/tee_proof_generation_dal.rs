@@ -36,7 +36,7 @@ impl TeeProofGenerationDal<'_, '_> {
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = min_batch_number.map_or(0, |num| i64::from(num.0));
-        let query = sqlx::query!(
+        let batch_number = sqlx::query!(
             r#"
             WITH upsert AS (
                 SELECT
@@ -72,7 +72,7 @@ impl TeeProofGenerationDal<'_, '_> {
                     )
                 FETCH FIRST ROW ONLY
             )
-            
+
             INSERT INTO
             tee_proof_generation_details (
                 l1_batch_number, tee_type, status, created_at, updated_at, prover_taken_at
@@ -100,16 +100,14 @@ impl TeeProofGenerationDal<'_, '_> {
             TeeProofGenerationJobStatus::Unpicked.to_string(),
             processing_timeout,
             min_batch_number
-        );
-
-        let batch_number = Instrumented::new("lock_batch_for_proving")
-            .with_arg("tee_type", &tee_type)
-            .with_arg("processing_timeout", &processing_timeout)
-            .with_arg("l1_batch_number", &min_batch_number)
-            .with(query)
-            .fetch_optional(self.storage)
-            .await?
-            .map(|row| L1BatchNumber(row.l1_batch_number as u32));
+        )
+        .instrument("lock_batch_for_proving")
+        .with_arg("tee_type", &tee_type)
+        .with_arg("processing_timeout", &processing_timeout)
+        .with_arg("l1_batch_number", &min_batch_number)
+        .fetch_optional(self.storage)
+        .await?
+        .map(|row| L1BatchNumber(row.l1_batch_number as u32));
 
         Ok(batch_number)
     }
