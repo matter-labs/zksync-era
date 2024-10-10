@@ -17,7 +17,7 @@ const IMAGES = [
     'proof-fri-gpu-compressor',
     'snapshots-creator',
     'verified-sources-fetcher',
-    'prover-autoscaler',
+    'prover-autoscaler'
 ];
 
 const DOCKER_REGISTRIES = ['us-docker.pkg.dev/matterlabs-infra/matterlabs-docker', 'matterlabs'];
@@ -78,7 +78,7 @@ function defaultTagList(image: string, imageTagSha: string, imageTagShaTS: strin
         'prover-fri-gateway',
         'prover-job-monitor',
         'snapshots-creator',
-        'prover-autoscaler',
+        'prover-autoscaler'
     ].includes(image)
         ? ['latest', 'latest2.0', `2.0-${imageTagSha}`, `${imageTagSha}`, `2.0-${imageTagShaTS}`, `${imageTagShaTS}`]
         : [`latest2.0`, 'latest'];
