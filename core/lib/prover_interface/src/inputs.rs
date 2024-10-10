@@ -213,6 +213,25 @@ pub struct WitnessInputData {
     pub eip_4844_blobs: Eip4844Blobs,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WitnessInputDataLegacy {
+    pub vm_run_data: VMRunWitnessInputDataLegacy,
+    pub merkle_paths: WitnessInputMerklePaths,
+    pub previous_batch_metadata: L1BatchMetadataHashes,
+    pub eip_4844_blobs: Eip4844Blobs,
+}
+
+impl From<WitnessInputDataLegacy> for WitnessInputData {
+    fn from(value: WitnessInputDataLegacy) -> Self {
+        Self {
+            vm_run_data: value.vm_run_data.into(),
+            merkle_paths: value.merkle_paths,
+            previous_batch_metadata: value.previous_batch_metadata,
+            eip_4844_blobs: value.eip_4844_blobs,
+        }
+    }
+}
+
 impl StoredObject for WitnessInputData {
     const BUCKET: Bucket = Bucket::WitnessInput;
 
@@ -222,7 +241,17 @@ impl StoredObject for WitnessInputData {
         format!("witness_inputs_{key}.bin")
     }
 
-    serialize_using_bincode!();
+    fn serialize(&self) -> Result<Vec<u8>, BoxedError> {
+        zksync_object_store::bincode::serialize(self).map_err(Into::into)
+    }
+
+    fn deserialize(bytes: Vec<u8>) -> Result<Self, BoxedError> {
+        zksync_object_store::bincode::deserialize::<WitnessInputData>(&bytes).or_else(|_| {
+            zksync_object_store::bincode::deserialize::<WitnessInputDataLegacy>(&bytes)
+                .map(Into::into)
+                .map_err(Into::into)
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
