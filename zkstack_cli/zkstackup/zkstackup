@@ -143,6 +143,7 @@ install_local() {
   for bin in "${BINS[@]}"; do
     say "Installing $bin"
     ensure cargo install --root $LOCAL_DIR --path ./crates/$bin --force
+    chmod +x "$BIN_DIR/$bin"
   done
 }
 
