@@ -59,7 +59,7 @@ pub async fn init_configs(
 
     // Initialize general config
     let mut general_config = chain_config.get_general_config()?;
-  
+
     if general_config.proof_data_handler_config.is_some() && general_config.prover_gateway.is_some()
     {
         let proof_data_handler_config = general_config.proof_data_handler_config.clone().unwrap();
@@ -70,8 +70,7 @@ pub async fn init_configs(
 
         general_config.prover_gateway = Some(prover_gateway);
     }
-
-    // TODO: This is a temporary solution. We should allocate consensus port using `EcosystemPorts::allocate_ports_in_yaml`
+// TODO: This is a temporary solution. We should allocate consensus port using `EcosystemPorts::allocate_ports_in_yaml`
     let offset = ((chain_config.id - 1) * 100) as u16;
     let consensus_port_range = DEFAULT_CONSENSUS_PORT + offset..PORT_RANGE_END;
     let consensus_port =
