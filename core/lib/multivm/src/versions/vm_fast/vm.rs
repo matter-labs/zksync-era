@@ -85,6 +85,23 @@ impl VmRunResult {
     }
 }
 
+pub trait TracerExt: Tracer {
+    fn enter_validation(&mut self) {}
+    fn exit_validation(&mut self) {}
+}
+
+impl TracerExt for () {}
+impl<A: TracerExt, B: TracerExt> TracerExt for (A, B) {
+    fn enter_validation(&mut self) {
+        self.0.enter_validation();
+        self.1.enter_validation();
+    }
+    fn exit_validation(&mut self) {
+        self.0.exit_validation();
+        self.1.exit_validation();
+    }
+}
+
 /// Fast VM wrapper.
 ///
 /// The wrapper is parametric by the storage and tracer types. Besides the [`Tracer`] trait, a tracer must have `'static` lifetime
@@ -93,7 +110,6 @@ impl VmRunResult {
 pub struct Vm<S, Tr = ()> {
     pub(crate) world: World<S, FullTracer<Tr>>,
     pub(crate) inner: VirtualMachine<FullTracer<Tr>, World<S, FullTracer<Tr>>>,
-    gas_for_account_validation: u32,
     pub(crate) bootloader_state: BootloaderState,
     pub(crate) batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
@@ -102,7 +118,7 @@ pub struct Vm<S, Tr = ()> {
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
-impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
+impl<S: ReadStorage, Tr: TracerExt> Vm<S, Tr> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
         let default_aa_code_hash = system_env
             .base_system_smart_contracts
@@ -146,7 +162,6 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
         let mut this = Self {
             world: World::new(storage, program_cache),
             inner,
-            gas_for_account_validation: system_env.default_validation_computational_gas_limit,
             bootloader_state: BootloaderState::new(
                 system_env.execution_mode,
                 bootloader_memory.clone(),
@@ -168,6 +183,14 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
         tracer: &mut (Tr, CircuitsTracer),
         track_refunds: bool,
     ) -> VmRunResult {
+        struct AccountValidationGasSplit {
+            gas_given: u32,
+            gas_hidden: u32,
+        }
+        let mut gas_left_for_account_validation =
+            self.system_env.default_validation_computational_gas_limit;
+        let mut account_validation_gas_split = None;
+
         let mut refunds = Refunds {
             gas_refunded: 0,
             operator_suggested_refund: 0,
@@ -200,8 +223,32 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
             };
 
             match Hook::from_u32(hook) {
-                Hook::AccountValidationEntered | Hook::AccountValidationExited => {
-                    // TODO (PLA-908): implement account validation
+                Hook::AccountValidationEntered => {
+                    assert!(
+                        account_validation_gas_split.is_none(),
+                        "Account validation can't be nested"
+                    );
+                    tracer.enter_validation();
+                    let gas = self.gas_remaining();
+                    let gas_given = gas.min(gas_left_for_account_validation);
+                    account_validation_gas_split = Some(AccountValidationGasSplit {
+                        gas_given,
+                        gas_hidden: gas - gas_given,
+                    });
+                    self.inner.current_frame().set_gas(gas_given);
+                }
+
+                Hook::ValidationExited => {
+                    tracer.exit_validation();
+                    if let Some(AccountValidationGasSplit {
+                        gas_given,
+                        gas_hidden,
+                    }) = account_validation_gas_split.take()
+                    {
+                        let gas_left = self.inner.current_frame().gas();
+                        gas_left_for_account_validation -= gas_given - gas_left;
+                        self.inner.current_frame().set_gas(gas_left + gas_hidden);
+                    }
                 }
                 Hook::TxHasEnded => {
                     if let VmExecutionMode::OneTx = execution_mode {
@@ -552,7 +599,7 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
 impl<S, Tr> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
 where
     S: ReadStorage,
-    Tr: Tracer + Default + 'static,
+    Tr: TracerExt + Default + 'static,
 {
     fn new(
         batch_env: L1BatchEnv,
@@ -564,7 +611,7 @@ where
     }
 }
 
-impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
+impl<S: ReadStorage, Tr: TracerExt + Default + 'static> VmInterface for Vm<S, Tr> {
     type TracerDispatcher = Tr;
 
     fn push_transaction(&mut self, tx: zksync_types::Transaction) {
@@ -715,10 +762,9 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
 #[derive(Debug)]
 struct VmSnapshot {
     bootloader_snapshot: BootloaderStateSnapshot,
-    gas_for_account_validation: u32,
 }
 
-impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterfaceHistoryEnabled for Vm<S, Tr> {
+impl<S: ReadStorage, Tr: TracerExt + Default + 'static> VmInterfaceHistoryEnabled for Vm<S, Tr> {
     fn make_snapshot(&mut self) {
         assert!(
             self.snapshot.is_none(),
@@ -728,19 +774,16 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterfaceHistoryEnabled f
         self.inner.make_snapshot();
         self.snapshot = Some(VmSnapshot {
             bootloader_snapshot: self.bootloader_state.get_snapshot(),
-            gas_for_account_validation: self.gas_for_account_validation,
         });
     }
 
     fn rollback_to_the_latest_snapshot(&mut self) {
         let VmSnapshot {
             bootloader_snapshot,
-            gas_for_account_validation,
         } = self.snapshot.take().expect("no snapshots to rollback to");
 
         self.inner.rollback();
         self.bootloader_state.apply_snapshot(bootloader_snapshot);
-        self.gas_for_account_validation = gas_for_account_validation;
     }
 
     fn pop_snapshot_no_rollback(&mut self) {
@@ -758,10 +801,6 @@ impl<S: ReadStorage> VmTrackingContracts for Vm<S> {
 impl<S: fmt::Debug, Tr: fmt::Debug> fmt::Debug for Vm<S, Tr> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Vm")
-            .field(
-                "gas_for_account_validation",
-                &self.gas_for_account_validation,
-            )
             .field("bootloader_state", &self.bootloader_state)
             .field("storage", &self.world.storage)
             .field("program_cache", &self.world.program_cache)

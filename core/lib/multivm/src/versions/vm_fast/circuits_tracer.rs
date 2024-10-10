@@ -2,6 +2,7 @@ use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset:
 use zksync_vm2::interface::{CycleStats, Opcode, OpcodeType, StateInterface, Tracer};
 use zksync_vm_interface::CircuitStatistic;
 
+use super::Tracer as TracerExt;
 use crate::vm_latest::tracers::circuits_capacity::*;
 
 /// VM tracer tracking [`CircuitStatistic`]s. Statistics generally depend on the number of time some opcodes were invoked,
@@ -124,6 +125,8 @@ impl Tracer for CircuitsTracer {
         }
     }
 }
+
+impl TracerExt for CircuitsTracer {}
 
 impl CircuitsTracer {
     /// Obtains the current circuit stats from this tracer.
