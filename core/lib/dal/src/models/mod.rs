@@ -1,7 +1,6 @@
 pub mod storage_block;
-use anyhow::Context as _;
 use zksync_db_connection::error::SqlxContext;
-use zksync_types::{ProtocolVersionId, H160, H256};
+use zksync_types::ProtocolVersionId;
 
 mod call;
 pub mod storage_base_token_ratio;
@@ -18,18 +17,6 @@ pub mod storage_verification_request;
 
 #[cfg(test)]
 mod tests;
-
-pub(crate) fn parse_h256(bytes: &[u8]) -> anyhow::Result<H256> {
-    Ok(<[u8; 32]>::try_from(bytes).context("invalid size")?.into())
-}
-
-fn parse_h256_opt(bytes: Option<&[u8]>) -> anyhow::Result<H256> {
-    parse_h256(bytes.context("missing data")?)
-}
-
-pub(crate) fn parse_h160(bytes: &[u8]) -> anyhow::Result<H160> {
-    Ok(<[u8; 20]>::try_from(bytes).context("invalid size")?.into())
-}
 
 pub(crate) fn parse_protocol_version(raw: i32) -> sqlx::Result<ProtocolVersionId> {
     u16::try_from(raw)
