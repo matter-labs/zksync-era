@@ -67,6 +67,7 @@ parse_args() {
       ;;
     -g | --global)
       LOCAL_DIR="/usr/local"
+      BIN_DIR="$LOCAL_DIR/bin"
       ;;
     -r | --repo)
       shift
