@@ -60,7 +60,9 @@ impl TeeRequestProcessor {
                 .tee_verifier_input_for_existing_batch(l1_batch_number)
                 .await
             {
-                Ok(input) => break Ok(Json(TeeProofGenerationDataResponse(Some(Box::new(input))))),
+                Ok(input) => {
+                    break Ok(Json(TeeProofGenerationDataResponse(Some(Box::new(input)))));
+                }
                 Err(RequestProcessorError::ObjectStore(ObjectStoreError::KeyNotFound(_))) => {
                     missing_range = match missing_range {
                         Some((start, _)) => Some((start, l1_batch_number)),

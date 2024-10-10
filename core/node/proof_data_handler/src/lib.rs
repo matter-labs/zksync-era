@@ -1,7 +1,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Context as _;
-use axum::{extract::Path, routing::post, Json, Router};
+use axum::{extract::Path, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 use request_processor::RequestProcessor;
 use tee_request_processor::TeeRequestProcessor;
 use tokio::sync::watch;
@@ -10,7 +10,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
     ProofGenerationDataRequest, RegisterTeeAttestationRequest, SubmitProofRequest,
-    SubmitTeeProofRequest, TeeProofGenerationDataRequest,
+    SubmitTeeProofRequest, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
 };
 use zksync_types::commitment::L1BatchCommitmentMode;
 
@@ -96,9 +96,15 @@ fn create_proof_processing_router(
             "/tee/proof_inputs",
             post(
                 move |payload: Json<TeeProofGenerationDataRequest>| async move {
-                    get_tee_proof_gen_processor
+                    let result: Result<Json<zksync_prover_interface::api::TeeProofGenerationDataResponse>, errors::RequestProcessorError> = get_tee_proof_gen_processor
                         .get_proof_generation_data(payload)
-                        .await
+                        .await;
+
+                    match result {
+                        Ok(Json(TeeProofGenerationDataResponse(None))) => (StatusCode::NO_CONTENT, Json("No new TeeVerifierInputs are available yet")).into_response(),
+                        Ok(data) => (StatusCode::OK, data).into_response(),
+                        Err(e) => e.into_response(),
+                    }
                 },
             ),
         )

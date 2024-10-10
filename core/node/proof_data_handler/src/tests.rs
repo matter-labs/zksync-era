@@ -16,14 +16,11 @@ use crate::create_proof_processing_router;
 
 #[tokio::test]
 async fn request_tee_proof_inputs() {
-    let batch_number = L1BatchNumber::from(1);
     let db_conn_pool = ConnectionPool::test_pool().await;
-
-    mock_tee_batch_status(db_conn_pool.clone(), batch_number).await;
 
     let app = create_proof_processing_router(
         MockObjectStore::arc(),
-        db_conn_pool,
+        db_conn_pool.clone(),
         ProofDataHandlerConfig {
             http_port: 1337,
             proof_generation_timeout_in_secs: 10,
@@ -32,7 +29,7 @@ async fn request_tee_proof_inputs() {
         L1BatchCommitmentMode::Rollup,
     );
     let test_cases = vec![
-        (json!({ "tee_type": "sgx" }), StatusCode::OK),
+        (json!({ "tee_type": "sgx" }), StatusCode::NO_CONTENT),
         (
             json!({ "tee_type": "Sgx" }),
             StatusCode::UNPROCESSABLE_ENTITY,

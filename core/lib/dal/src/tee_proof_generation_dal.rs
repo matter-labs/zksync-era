@@ -194,38 +194,6 @@ impl TeeProofGenerationDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn insert_tee_proof_generation_job(
-        &mut self,
-        batch_number: L1BatchNumber,
-        tee_type: TeeType,
-    ) -> DalResult<()> {
-        let batch_number = i64::from(batch_number.0);
-        let query = sqlx::query!(
-            r#"
-            INSERT INTO
-            tee_proof_generation_details (
-                l1_batch_number, tee_type, status, created_at, updated_at
-            )
-            VALUES
-            ($1, $2, $3, NOW(), NOW())
-            ON CONFLICT (l1_batch_number, tee_type) DO NOTHING
-            "#,
-            batch_number,
-            tee_type.to_string(),
-            TeeProofGenerationJobStatus::Unpicked.to_string(),
-        );
-        let instrumentation = Instrumented::new("insert_tee_proof_generation_job")
-            .with_arg("l1_batch_number", &batch_number)
-            .with_arg("tee_type", &tee_type);
-        instrumentation
-            .clone()
-            .with(query)
-            .execute(self.storage)
-            .await?;
-
-        Ok(())
-    }
-
     pub async fn save_attestation(&mut self, pubkey: &[u8], attestation: &[u8]) -> DalResult<()> {
         let query = sqlx::query!(
             r#"
@@ -289,6 +257,40 @@ impl TeeProofGenerationDal<'_, '_> {
         Ok(proofs)
     }
 
+    /// For testing purposes only.
+    pub async fn insert_tee_proof_generation_job(
+        &mut self,
+        batch_number: L1BatchNumber,
+        tee_type: TeeType,
+    ) -> DalResult<()> {
+        let batch_number = i64::from(batch_number.0);
+        let query = sqlx::query!(
+            r#"
+            INSERT INTO
+            tee_proof_generation_details (
+                l1_batch_number, tee_type, status, created_at, updated_at
+            )
+            VALUES
+            ($1, $2, $3, NOW(), NOW())
+            ON CONFLICT (l1_batch_number, tee_type) DO NOTHING
+            "#,
+            batch_number,
+            tee_type.to_string(),
+            TeeProofGenerationJobStatus::Unpicked.to_string(),
+        );
+        let instrumentation = Instrumented::new("insert_tee_proof_generation_job")
+            .with_arg("l1_batch_number", &batch_number)
+            .with_arg("tee_type", &tee_type);
+        instrumentation
+            .clone()
+            .with(query)
+            .execute(self.storage)
+            .await?;
+
+        Ok(())
+    }
+
+    /// For testing purposes only.
     pub async fn get_oldest_unpicked_batch(&mut self) -> DalResult<Option<L1BatchNumber>> {
         let query = sqlx::query!(
             r#"
