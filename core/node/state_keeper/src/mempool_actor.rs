@@ -158,7 +158,7 @@ async fn get_transaction_nonces(
 
 #[cfg(test)]
 mod tests {
-    use zksync_multivm::interface::TransactionExecutionMetrics;
+    use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
     use zksync_node_fee_model::MockBatchFeeParamsProvider;
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_node_test_utils::create_l2_transaction;
@@ -246,7 +246,11 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &transaction,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         drop(storage);
@@ -302,7 +306,11 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &transaction,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         drop(storage);
@@ -355,7 +363,11 @@ mod tests {
             .unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &transaction,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         drop(storage);

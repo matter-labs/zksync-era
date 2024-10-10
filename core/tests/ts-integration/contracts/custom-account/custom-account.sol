@@ -9,6 +9,10 @@ import './SystemContractsCaller.sol';
 
 import './interfaces/IAccount.sol';
 
+interface ITimestampAsserter {
+	function assertTimestampInRange(uint256 start, uint256 end) external view;
+}
+
 contract CustomAccount is IAccount {
 	event BootloaderBalance(uint256);
 
@@ -18,15 +22,23 @@ contract CustomAccount is IAccount {
 	uint256 public gasToSpent;
 
 	bytes32 public lastTxHash;
+	address public timestampAsserterAddress;
 
-	constructor(bool _violateValidationRules) {
+	constructor(bool _violateValidationRules, address _timestampAsserterAddress) {
 		violateValidationRules = _violateValidationRules;
+		timestampAsserterAddress = _timestampAsserterAddress;
 	}
 
 	// bytes4(keccak256("isValidSignature(bytes32,bytes)")
 	bytes4 constant EIP1271_SUCCESS_RETURN_VALUE = 0x1626ba7e;
 
 	function validateTransaction(bytes32 _txHash, bytes32 _suggestedSignedTxHash, Transaction calldata _transaction) external payable override returns (bytes4 magic) {
+		ITimestampAsserter timestampAsserter = ITimestampAsserter(timestampAsserterAddress);
+		// This assertion exists to ensure that block.timestamp can be asserted in AA by using
+		// ITimestampAsserter contract
+		// 2555971200 is a number of seconds up to 30/12/2050
+		timestampAsserter.assertTimestampInRange(0, 2555971200);
+
 		magic = _validateTransaction(_suggestedSignedTxHash, _transaction);
 		lastTxHash = _txHash;
 

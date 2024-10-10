@@ -68,6 +68,9 @@ pub struct StorageTransaction {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 
+    pub block_timestamp_range_start: Option<NaiveDateTime>,
+    pub block_timestamp_range_end: Option<NaiveDateTime>,
+
     // DEPRECATED.
     pub l1_block_number: Option<i32>,
 }

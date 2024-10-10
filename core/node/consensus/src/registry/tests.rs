@@ -80,7 +80,7 @@ async fn test_attester_committee() {
             .wrap("wait_for_batch_info()")?;
 
         // Read the attester committee using the vm.
-        let batch = attester::BatchNumber(node.last_batch().0.into());
+        let batch = attester::BatchNumber(node.last_batch().0);
         assert_eq!(
             Some(committee),
             registry

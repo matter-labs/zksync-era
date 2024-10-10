@@ -5,7 +5,7 @@ use tracing::Instrument;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::interface::{
     executor::TransactionValidator,
-    tracer::{ValidationError as RawValidationError, ValidationParams},
+    tracer::{ValidationError as RawValidationError, ValidationParams, ValidationTraces},
 };
 use zksync_types::{
     api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Address,
@@ -39,13 +39,16 @@ impl SandboxExecutor {
         block_args: BlockArgs,
         fee_input: BatchFeeInput,
         whitelisted_tokens_for_aa: &[Address],
-    ) -> Result<(), ValidationError> {
+    ) -> Result<ValidationTraces, ValidationError> {
         let total_latency = SANDBOX_METRICS.sandbox[&SandboxStage::ValidateInSandbox].start();
         let validation_params = get_validation_params(
             &mut connection,
             &tx,
             self.options.eth_call.validation_computational_gas_limit(),
             whitelisted_tokens_for_aa,
+            self.timestamp_asserter_address,
+            self.timestamp_asserter_min_range_sec,
+            self.timestamp_asserter_min_time_till_end_sec,
         )
         .await
         .context("failed getting validation params")?;
@@ -80,6 +83,9 @@ pub(super) async fn get_validation_params(
     tx: &L2Tx,
     computational_gas_limit: u32,
     whitelisted_tokens_for_aa: &[Address],
+    timestamp_asserter_address: Option<Address>,
+    timestamp_asserter_min_range_sec: u32,
+    timestamp_asserter_min_time_till_end_sec: u32,
 ) -> anyhow::Result<ValidationParams> {
     let method_latency = EXECUTION_METRICS.get_validation_params.start();
     let user_address = tx.common_data.initiator_address;
@@ -126,5 +132,8 @@ pub(super) async fn get_validation_params(
         trusted_addresses,
         trusted_address_slots,
         computational_gas_limit,
+        timestamp_asserter_address,
+        timestamp_asserter_min_range_sec,
+        timestamp_asserter_min_time_till_end_sec,
     })
 }

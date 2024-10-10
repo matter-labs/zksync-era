@@ -18,8 +18,8 @@ use zksync_config::{
 };
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
 use zksync_multivm::interface::{
-    TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
-    VmExecutionMetrics,
+    tracer::ValidationTraces, TransactionExecutionMetrics, TransactionExecutionResult,
+    TxExecutionStatus, VmEvent, VmExecutionMetrics,
 };
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
@@ -318,7 +318,11 @@ async fn store_custom_l2_block(
         let l2_tx = result.transaction.clone().try_into().unwrap();
         let tx_submission_result = storage
             .transactions_dal()
-            .insert_transaction_l2(&l2_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &l2_tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         assert_matches!(tx_submission_result, L2TxSubmissionResult::Added);
@@ -721,7 +725,11 @@ impl HttpTest for TransactionCountTest {
         pending_tx.common_data.nonce = Nonce(2);
         storage
             .transactions_dal()
-            .insert_transaction_l2(&pending_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &pending_tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
 
@@ -801,7 +809,11 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         let mut storage = pool.connection().await?;
         storage
             .transactions_dal()
-            .insert_transaction_l2(&pending_tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &pending_tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
 

@@ -94,6 +94,7 @@ export interface TestEnvironment {
      */
     baseToken: Token;
     healthcheckPort: string;
+    timestampAsserterAddress: string;
 }
 
 /**

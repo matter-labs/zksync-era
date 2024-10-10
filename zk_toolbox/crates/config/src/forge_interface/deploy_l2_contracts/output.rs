@@ -8,6 +8,8 @@ impl ZkToolboxConfig for DefaultL2UpgradeOutput {}
 impl ZkToolboxConfig for ConsensusRegistryOutput {}
 impl ZkToolboxConfig for Multicall3Output {}
 
+impl ZkToolboxConfig for TimestampAsserterOutput {}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitializeBridgeOutput {
     pub l2_shared_bridge_implementation: Address,
@@ -28,4 +30,9 @@ pub struct ConsensusRegistryOutput {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Multicall3Output {
     pub multicall3: Address,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimestampAsserterOutput {
+    pub timestamp_asserter: Address,
 }
