@@ -3,8 +3,7 @@ use std::collections::BTreeMap;
 use ethabi::Contract;
 use once_cell::sync::Lazy;
 use zksync_contracts::{
-    load_contract, read_bytecode, read_bytecode_from_path, read_zbin_bytecode, BaseSystemContracts,
-    SystemContractCode,
+    load_contract, read_bytecode, read_yul_bytecode, BaseSystemContracts, SystemContractCode,
 };
 use zksync_types::{
     utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H160, H256,
@@ -65,16 +64,8 @@ pub(crate) fn read_test_contract() -> Vec<u8> {
 }
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
-    let bootloader_code = if let Some(contract) = read_bytecode_from_path(format!(
-        "contracts/system-contracts/zkout/{test}.yul/contracts-preprocessed/bootloader/{test}.yul.json",
-    )){
-        contract
-    } else  {
-        read_zbin_bytecode(format!(
-            "contracts/system-contracts/bootloader/tests/artifacts/{}.yul.zbin",
-            test
-        ))
-    };
+    let artifacts_path = "contracts/system-contracts/bootloader/tests/artifacts/";
+    let bootloader_code = read_yul_bytecode(artifacts_path, test);
 
     let bootloader_hash = hash_bytecode(&bootloader_code);
     SystemContractCode {

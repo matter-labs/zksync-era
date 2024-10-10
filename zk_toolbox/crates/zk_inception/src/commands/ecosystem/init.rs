@@ -150,10 +150,7 @@ async fn deploy_erc20(
         .with_rpc_url(l1_rpc_url)
         .with_broadcast();
 
-    forge = fill_forge_private_key(
-        forge,
-        ecosystem_config.get_wallets()?.deployer_private_key(),
-    )?;
+    forge = fill_forge_private_key(forge, ecosystem_config.get_wallets()?.deployer.as_ref())?;
 
     let spinner = Spinner::new(MSG_DEPLOYING_ERC20_SPINNER);
     check_the_balance(&forge).await?;
@@ -261,7 +258,7 @@ async fn deploy_ecosystem_inner(
         shell,
         config,
         contracts_config.l1.governance_addr,
-        config.get_wallets()?.governor_private_key(),
+        &config.get_wallets()?.governor,
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
@@ -272,7 +269,7 @@ async fn deploy_ecosystem_inner(
         shell,
         config,
         contracts_config.l1.chain_admin_addr,
-        config.get_wallets()?.governor_private_key(),
+        &config.get_wallets()?.governor,
         contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
         &forge_args,
         l1_rpc_url.clone(),
@@ -283,7 +280,7 @@ async fn deploy_ecosystem_inner(
         shell,
         config,
         contracts_config.l1.governance_addr,
-        config.get_wallets()?.governor_private_key(),
+        &config.get_wallets()?.governor,
         contracts_config.bridges.shared.l1_address,
         &forge_args,
         l1_rpc_url.clone(),
@@ -294,7 +291,7 @@ async fn deploy_ecosystem_inner(
         shell,
         config,
         contracts_config.l1.chain_admin_addr,
-        config.get_wallets()?.governor_private_key(),
+        &config.get_wallets()?.governor,
         contracts_config.bridges.shared.l1_address,
         &forge_args,
         l1_rpc_url.clone(),
@@ -305,7 +302,7 @@ async fn deploy_ecosystem_inner(
         shell,
         config,
         contracts_config.l1.governance_addr,
-        config.get_wallets()?.governor_private_key(),
+        &config.get_wallets()?.governor,
         contracts_config
             .ecosystem_contracts
             .state_transition_proxy_addr,
@@ -318,7 +315,7 @@ async fn deploy_ecosystem_inner(
         shell,
         config,
         contracts_config.l1.chain_admin_addr,
-        config.get_wallets()?.governor_private_key(),
+        &config.get_wallets()?.governor,
         contracts_config
             .ecosystem_contracts
             .state_transition_proxy_addr,

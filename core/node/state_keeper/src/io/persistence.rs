@@ -397,7 +397,7 @@ mod tests {
         let mut output_handler = OutputHandler::new(Box::new(persistence))
             .with_handler(Box::new(TreeWritesPersistence::new(pool.clone())));
         tokio::spawn(l2_block_sealer.run());
-        execute_mock_batch(&mut output_handler).await;
+        execute_mock_batch(&mut output_handler, &pool).await;
 
         // Check that L2 block #1 and L1 batch #1 are persisted.
         let mut storage = pool.connection().await.unwrap();
@@ -446,9 +446,25 @@ mod tests {
         assert_eq!(actual_index, expected_index);
     }
 
-    async fn execute_mock_batch(output_handler: &mut OutputHandler) -> H256 {
+    async fn execute_mock_batch(
+        output_handler: &mut OutputHandler,
+        pool: &ConnectionPool<Core>,
+    ) -> H256 {
         let l1_batch_env = default_l1_batch_env(1, 1, Address::random());
         let mut updates = UpdatesManager::new(&l1_batch_env, &default_system_env());
+        pool.connection()
+            .await
+            .unwrap()
+            .blocks_dal()
+            .insert_l1_batch(
+                l1_batch_env.number,
+                l1_batch_env.timestamp,
+                None,
+                l1_batch_env.fee_account,
+                l1_batch_env.fee_input,
+            )
+            .await
+            .unwrap();
 
         let tx = create_transaction(10, 100);
         let tx_hash = tx.hash();
@@ -533,7 +549,7 @@ mod tests {
         let mut output_handler = OutputHandler::new(Box::new(persistence));
         tokio::spawn(l2_block_sealer.run());
 
-        let tx_hash = execute_mock_batch(&mut output_handler).await;
+        let tx_hash = execute_mock_batch(&mut output_handler, &pool).await;
 
         // Check that the transaction is persisted.
         let mut storage = pool.connection().await.unwrap();
