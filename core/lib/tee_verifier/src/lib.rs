@@ -65,6 +65,11 @@ impl Verify for V1TeeVerifierInput {
             .is_write_initial
             .into_iter();
 
+        // We need to define storage slots read during batch execution, and their initial state;
+        // hence, the use of both read_storage_ops and initial_writes_ops.
+        // StorageSnapshot also requires providing enumeration indices,
+        // but they only matter at the end of execution when creating pubdata for the batch,
+        // which is irrelevant in this case. Thus, enumeration indices are set to dummy values.
         let storage = read_storage_ops
             .enumerate()
             .map(|(i, (hash, bytes))| (hash.hashed_key(), Some((bytes, i as u64 + 1u64))))
