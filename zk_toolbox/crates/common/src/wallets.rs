@@ -30,7 +30,7 @@ impl<'de> Deserialize<'de> for Wallet {
                 let k = LocalWallet::from_bytes(k.as_bytes()).map_err(serde::de::Error::custom)?;
                 if k.address() != x.address {
                     return Err(serde::de::Error::custom(format!(
-                        "address does not match private key: got address {}, want {}",
+                        "address does not match private key: got address {:#x}, want {:#x}",
                         x.address,
                         k.address(),
                     )));
