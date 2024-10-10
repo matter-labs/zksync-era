@@ -11,7 +11,7 @@ use zksync_eth_client::{
     EthInterface,
 };
 use zksync_types::{
-    ethabi::Contract,
+    ethabi::{decode, Contract, ParamType, Token},
     web3::{BlockId, BlockNumber, FilterBuilder, Log},
     Address, SLChainId, H256, U256,
 };
@@ -294,7 +294,9 @@ impl EthClient for EthHttpQueryClient {
         let mut preimages = HashMap::new();
         for log in logs {
             let hash = log.topics[1];
-            let preimage = log.data.0;
+            let preimage = decode(&[ParamType::Bytes], &log.data.0).expect("Invalid encoding");
+            assert_eq!(preimage.len(), 1);
+            let preimage = preimage[0].clone().into_bytes().unwrap();
             preimages.insert(hash, preimage);
         }
 

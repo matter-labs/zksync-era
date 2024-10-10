@@ -148,6 +148,17 @@ impl ProtocolUpgrade {
                 )
                 .await?;
 
+            println!(
+                "{} -- {}",
+                factory_deps.len(),
+                upgrade.l2_protocol_upgrade_tx.factory_deps.len()
+            );
+
+            assert_eq!(
+                factory_deps.len(),
+                upgrade.l2_protocol_upgrade_tx.factory_deps.len()
+            );
+
             Some(
                 Transaction::try_from(abi::Transaction::L1 {
                     tx: upgrade.l2_protocol_upgrade_tx,
@@ -161,6 +172,8 @@ impl ProtocolUpgrade {
         } else {
             None
         };
+
+        println!("Yay, passed this one");
 
         Ok(Self {
             version: ProtocolSemanticVersion::try_from_packed(upgrade.new_protocol_version)
