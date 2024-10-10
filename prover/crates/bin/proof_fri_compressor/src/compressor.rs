@@ -107,6 +107,8 @@ impl ProofCompressor {
             );
 
             if step_idx + 1 == num_compression_steps {
+                std::fs::write("compression_proof.bin", bincode::serialize(&proof).unwrap())
+                    .unwrap();
                 input = CompressionInput::CompressionWrapper(
                     Some(proof),
                     vk,
