@@ -5,44 +5,16 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use zksync_types::{Execute, H256, U256};
 
-macro_rules! include_contract {
-    ($file_name:tt :: $contract_name:tt) => {
-        include_str!(concat!(
-            env!("OUT_DIR"),
-            "/artifacts-zk/contracts/",
-            $file_name,
-            ".sol/",
-            stringify!($contract_name),
-            ".json"
-        ))
-    };
+mod raw {
+    #![allow(unused, non_upper_case_globals)]
+    include!(concat!(env!("OUT_DIR"), "/raw_contracts.rs"));
 }
 
-const COMPLEX_UPGRADE_CONTRACT: &str =
-    include_contract!("complex-upgrade/complex-upgrade"::ComplexUpgrade);
-const CONTEXT_CONTRACT: &str = include_contract!("context/context"::Context);
-const COUNTER_CONTRACT: &str = include_contract!("counter/counter"::Counter);
-const EXPENSIVE_CONTRACT: &str = include_contract!("expensive/expensive"::Expensive);
-const FAILED_CALL_CONTRACT: &str = include_contract!("failed-call/failed_call"::FailedCall);
-const INFINITE_LOOP_CONTRACT: &str = include_contract!("infinite/infinite"::InfiniteLoop);
-const LOAD_TEST_CONTRACT: &str = include_contract!("loadnext/loadnext_contract"::LoadnextContract);
-const LOAD_TEST_DEPLOYED_CONTRACT: &str = include_contract!("loadnext/loadnext_contract"::Foo);
-const MANY_OWNERS_CONTRACT: &str =
-    include_contract!("custom-account/many-owners-custom-account"::ManyOwnersCustomAccount);
-const MSG_SENDER_TEST_CONTRACT: &str =
-    include_contract!("complex-upgrade/msg-sender"::MsgSenderTest);
-const NONCE_HOLDER_CONTRACT: &str =
-    include_contract!("custom-account/nonce-holder-test"::NonceHolderTest);
-const PRECOMPILES_CONTRACT: &str = include_contract!("precompiles/precompiles"::Precompiles);
-const PROXY_COUNTER_CONTRACT: &str = include_contract!("counter/proxy_counter"::ProxyCounter);
-const SIMPLE_TRANSFER_CONTRACT: &str =
-    include_contract!("simple-transfer/simple-transfer"::SimpleTransfer);
-const REENTRANT_RECIPIENT_CONTRACT: &str =
-    include_contract!("transfer/transfer"::ReentrantRecipient);
-const REVERTS_TEST_CONTRACT: &str = include_contract!("error/error"::SimpleRequire);
-const STORAGE_TEST_CONTRACT: &str = include_contract!("storage/storage"::StorageTester);
-const TRANSFER_RECIPIENT_CONTRACT: &str = include_contract!("transfer/transfer"::Recipient);
-const TRANSFER_TEST_CONTRACT: &str = include_contract!("transfer/transfer"::TransferTest);
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RawContract {
+    pub abi: &'static str,
+    pub bytecode: &'static [u8],
+}
 
 /// Test contract consisting of deployable EraVM bytecode and Web3 ABI.
 #[derive(Debug, Clone)]
@@ -51,28 +23,17 @@ pub struct TestContract {
     /// Web3 ABI of this contract.
     pub abi: ethabi::Contract,
     /// EraVM bytecode of this contract.
-    pub bytecode: Vec<u8>,
+    pub bytecode: Vec<u8>, // FIXME: change to &[u8]?
     /// Contract dependencies (i.e., potential factory deps to be included in the contract deployment / transactions).
     pub dependencies: Vec<TestContract>,
 }
 
 impl TestContract {
-    fn new(full_abi: &str) -> Self {
-        let mut raw: serde_json::Value =
-            serde_json::from_str(full_abi).expect("failed reading contract ABI");
-        let raw = raw.as_object_mut().expect("contract is not an object");
-        let abi = raw.remove("abi").expect("contract doesn't contain ABI");
-        let abi = serde_json::from_value(abi).expect("failed parsing contract ABI");
-        let bytecode = raw
-            .get("bytecode")
-            .expect("contract doesn't contain bytecode")
-            .as_str()
-            .expect("bytecode is not a string");
-        let bytecode = bytecode.strip_prefix("0x").unwrap_or(bytecode);
-        let bytecode = hex::decode(bytecode).expect("invalid bytecode");
+    fn new(raw: RawContract) -> Self {
+        let abi = serde_json::from_str(raw.abi).expect("failed parsing contract ABI");
         Self {
             abi,
-            bytecode,
+            bytecode: raw.bytecode.to_vec(),
             dependencies: vec![],
         }
     }
@@ -80,19 +41,21 @@ impl TestContract {
     /// Returns a contract used to test complex system contract upgrades.
     pub fn complex_upgrade() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
-            Lazy::new(|| TestContract::new(COMPLEX_UPGRADE_CONTRACT));
+            Lazy::new(|| TestContract::new(raw::complex_upgrade::ComplexUpgrade));
         &CONTRACT
     }
 
     /// Returns a contract used to test context methods.
     pub fn context_test() -> &'static Self {
-        static CONTRACT: Lazy<TestContract> = Lazy::new(|| TestContract::new(CONTEXT_CONTRACT));
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::context::Context));
         &CONTRACT
     }
 
     /// Returns a simple counter contract.
     pub fn counter() -> &'static Self {
-        static CONTRACT: Lazy<TestContract> = Lazy::new(|| TestContract::new(COUNTER_CONTRACT));
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::counter::Counter));
         &CONTRACT
     }
 
@@ -100,8 +63,8 @@ impl TestContract {
     /// (storage reads / writes, hashing, recursion via far calls etc.).
     pub fn load_test() -> &'static Self {
         static CONTRACT: Lazy<TestContract> = Lazy::new(|| {
-            let mut contract = TestContract::new(LOAD_TEST_CONTRACT);
-            contract.dependencies = vec![TestContract::new(LOAD_TEST_DEPLOYED_CONTRACT)];
+            let mut contract = TestContract::new(raw::loadnext::LoadnextContract);
+            contract.dependencies = vec![TestContract::new(raw::loadnext::Foo)];
             contract
         });
         &CONTRACT
@@ -109,93 +72,97 @@ impl TestContract {
 
     /// Returns a contract with expensive storage operations.
     pub fn expensive() -> &'static Self {
-        static CONTRACT: Lazy<TestContract> = Lazy::new(|| TestContract::new(EXPENSIVE_CONTRACT));
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::expensive::Expensive));
         &CONTRACT
     }
 
     pub fn failed_call() -> &'static Self {
-        static CONTRACT: Lazy<TestContract> = Lazy::new(|| TestContract::new(FAILED_CALL_CONTRACT));
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::failed_call::FailedCall));
         &CONTRACT
     }
 
     /// Returns a contract with an infinite loop (useful for testing out-of-gas reverts).
     pub fn infinite_loop() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
-            Lazy::new(|| TestContract::new(INFINITE_LOOP_CONTRACT));
+            Lazy::new(|| TestContract::new(raw::infinite::InfiniteLoop));
         &CONTRACT
     }
 
     /// Returns a custom account with multiple owners.
     pub fn many_owners() -> &'static Self {
-        static CONTRACT: Lazy<TestContract> = Lazy::new(|| TestContract::new(MANY_OWNERS_CONTRACT));
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::custom_account::ManyOwnersCustomAccount));
         &CONTRACT
     }
 
     /// Returns a contract testing `msg.sender` value.
     pub fn msg_sender_test() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
-            Lazy::new(|| TestContract::new(MSG_SENDER_TEST_CONTRACT));
+            Lazy::new(|| TestContract::new(raw::complex_upgrade::MsgSenderTest));
         &CONTRACT
     }
 
     pub fn nonce_holder() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
-            Lazy::new(|| TestContract::new(NONCE_HOLDER_CONTRACT));
+            Lazy::new(|| TestContract::new(raw::custom_account::NonceHolderTest));
         &CONTRACT
     }
 
     /// Returns a contract testing precompiles.
     pub fn precompiles_test() -> &'static Self {
-        static CONTRACT: Lazy<TestContract> = Lazy::new(|| TestContract::new(PRECOMPILES_CONTRACT));
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::precompiles::Precompiles));
         &CONTRACT
     }
 
     /// Returns a contract proxying calls to a [counter](Self::counter()).
     pub fn proxy_counter() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
-            Lazy::new(|| TestContract::new(PROXY_COUNTER_CONTRACT));
+            Lazy::new(|| TestContract::new(raw::counter::ProxyCounter));
         &CONTRACT
     }
 
     /// Returns a reentrant recipient for transfers.
     pub fn reentrant_recipient() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
-            Lazy::new(|| TestContract::new(REENTRANT_RECIPIENT_CONTRACT));
+            Lazy::new(|| TestContract::new(raw::transfer::ReentrantRecipient));
         &CONTRACT
     }
 
     /// Returns a contract testing reverts.
     pub fn reverts_test() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
-            Lazy::new(|| TestContract::new(REVERTS_TEST_CONTRACT));
+            Lazy::new(|| TestContract::new(raw::error::SimpleRequire));
         &CONTRACT
     }
 
     /// Returns a simple fungible token contract.
     pub fn simple_transfer() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
-            Lazy::new(|| TestContract::new(SIMPLE_TRANSFER_CONTRACT));
+            Lazy::new(|| TestContract::new(raw::simple_transfer::SimpleTransfer));
         &CONTRACT
     }
 
     /// Returns a contract testing storage operations.
     pub fn storage_test() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
-            Lazy::new(|| TestContract::new(STORAGE_TEST_CONTRACT));
+            Lazy::new(|| TestContract::new(raw::storage::StorageTester));
         &CONTRACT
     }
 
     /// Returns a contract for testing base token transfers.
     pub fn transfer_test() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
-            Lazy::new(|| TestContract::new(TRANSFER_TEST_CONTRACT));
+            Lazy::new(|| TestContract::new(raw::transfer::TransferTest));
         &CONTRACT
     }
 
     /// Returns a test recipient for the [transfer test](Self::transfer_test()) contract.
     pub fn transfer_recipient() -> &'static Self {
         static CONTRACT: Lazy<TestContract> =
-            Lazy::new(|| TestContract::new(TRANSFER_RECIPIENT_CONTRACT));
+            Lazy::new(|| TestContract::new(raw::transfer::Recipient));
         &CONTRACT
     }
 
@@ -208,7 +175,7 @@ impl TestContract {
 
     fn insert_factory_deps(&self, dest: &mut Vec<Vec<u8>>) {
         for deployed in &self.dependencies {
-            dest.push(deployed.bytecode.clone());
+            dest.push(deployed.bytecode.to_vec());
             deployed.insert_factory_deps(dest);
         }
     }
@@ -220,7 +187,7 @@ impl TestContract {
 
     /// Generates the `Execute` payload for deploying this contract with custom salt.
     pub fn deploy_payload_with_salt(&self, salt: H256, args: &[Token]) -> Execute {
-        let mut execute = Execute::for_deploy(salt, self.bytecode.clone(), args);
+        let mut execute = Execute::for_deploy(salt, self.bytecode.to_vec(), args);
         execute.factory_deps.extend(self.factory_deps());
         execute
     }

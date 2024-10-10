@@ -1,118 +1,126 @@
 use std::{
-    env, fs,
-    path::Path,
-    process::{Command, Output},
+    collections::{HashMap, HashSet},
+    env,
+    fs::File,
+    io::{BufWriter, Write},
+    path::{Path, PathBuf},
 };
 
-fn assert_output_success(output: &Output, cmd: &str) {
-    if !output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        panic!(
-            "`{cmd}` failed with {status}\n---- stdout ---- \n{stdout}\n---- stderr ----\n{stderr}",
-            status = output.status
-        );
+use foundry_compilers::{
+    artifacts::zksolc::output_selection::{
+        FileOutputSelection, OutputSelection, OutputSelectionFlag,
+    },
+    solc,
+    zksolc::{settings::Optimizer, ZkSettings, ZkSolcCompiler, ZkSolcSettings},
+    zksync,
+    zksync::artifact_output::zk::{ZkArtifactOutput, ZkContractArtifact},
+    ArtifactId, ProjectBuilder, ProjectPathsConfig,
+};
+
+#[derive(Debug)]
+struct ContractEntry {
+    abi: String,
+    bytecode: Vec<u8>,
+}
+
+impl ContractEntry {
+    fn new(artifact: ZkContractArtifact) -> Option<Self> {
+        let abi = artifact.abi.expect("no ABI");
+        let abi = serde_json::to_string(&abi).expect("cannot serialize ABI to string");
+        let bytecode = artifact.bytecode?; // Bytecode is `None` for interfaces
+        let bytecode = bytecode
+            .object
+            .into_bytes()
+            .expect("bytecode is not fully compiled")
+            .into();
+        Some(Self { abi, bytecode })
     }
 }
 
-fn check_yarn() {
-    let output = Command::new("yarn")
-        .arg("--version")
-        .output()
-        .expect("failed running `yarn --version`");
-    assert_output_success(&output, "yarn --version");
-    let yarn_version = output.stdout;
-    let yarn_version = String::from_utf8(yarn_version).expect("yarn version is not UFT-8");
-    assert!(
-        yarn_version.starts_with("1."),
-        "Unsupported yarn version: {yarn_version}"
-    );
-}
+fn save_artifacts(
+    output: &mut impl Write,
+    artifacts: impl Iterator<Item = (ArtifactId, ZkContractArtifact)>,
+) {
+    let source_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("contracts");
+    let mut modules = HashMap::<_, HashMap<_, _>>::new();
 
-fn copy_recursively(src_dir: &Path, dest_dir: &Path) {
-    fs::create_dir_all(dest_dir).unwrap_or_else(|err| {
-        panic!(
-            "failed creating destination dir `{}`: {err}",
-            dest_dir.display()
-        );
-    });
-    for entry in fs::read_dir(src_dir).expect("failed reading source dir") {
-        let entry = entry.unwrap();
-        let dest_path = dest_dir.join(entry.file_name());
-        if entry.file_type().unwrap().is_dir() {
-            copy_recursively(&entry.path(), &dest_path);
-        } else {
-            fs::copy(entry.path(), &dest_path).unwrap_or_else(|err| {
-                panic!(
-                    "failed copying `{}` to `{}`: {err}",
-                    entry.path().display(),
-                    dest_path.display()
-                );
-            });
+    for (id, artifact) in artifacts {
+        let Ok(path_in_sources) = id.source.strip_prefix(&source_dir) else {
+            continue; // The artifact doesn't correspond to a source contract
+        };
+        let contract_dir = path_in_sources.iter().next().expect("no dir");
+        let module_name = contract_dir
+            .to_str()
+            .expect("contract dir is not UTF-8")
+            .replace('-', "_");
+        if let Some(entry) = ContractEntry::new(artifact) {
+            modules
+                .entry(module_name)
+                .or_default()
+                .insert(id.name, entry);
         }
     }
-}
 
-fn copy_contract_files(out_dir: &str) {
-    const COPIED_FILES: &[&str] = &["package.json", "yarn.lock", "hardhat.config.ts"];
-    const COPIED_DIRS: &[&str] = &["contracts"];
-
-    let crate_dir = env::var("CARGO_MANIFEST_DIR").expect("no `CARGO_MANIFEST_DIR` provided");
-
-    for &copied_file in COPIED_FILES {
-        let src = Path::new(&crate_dir).join(copied_file);
-        let dest = Path::new(&out_dir).join(copied_file);
-
-        if fs::exists(&dest).unwrap_or(false) {
-            fs::remove_file(&dest).unwrap_or_else(|err| {
-                panic!("failed removing `{}`: {err}", dest.display());
-            });
+    for (module_name, module_entries) in modules {
+        writeln!(output, "pub(crate) mod {module_name} {{").unwrap();
+        for (contract_name, entry) in module_entries {
+            writeln!(
+                output,
+                "    pub(crate) const {contract_name}: crate::contracts::RawContract = crate::contracts::RawContract {{"
+            )
+            .unwrap();
+            writeln!(output, "        abi: r#\"{}\"#,", entry.abi).unwrap(); // ABI shouldn't include '"#' combinations for this to work
+            writeln!(output, "        bytecode: &{:?},", entry.bytecode).unwrap();
+            writeln!(output, "    }};").unwrap();
         }
-        fs::copy(&src, &dest).unwrap_or_else(|err| {
-            panic!("failed copying `{copied_file}`: {err}");
-        });
-    }
-    for &copied_dir in COPIED_DIRS {
-        let src = Path::new(&crate_dir).join(copied_dir);
-        let dest = Path::new(&out_dir).join(copied_dir);
-
-        if fs::exists(&dest).unwrap_or(false) {
-            fs::remove_dir_all(&dest).unwrap_or_else(|err| {
-                panic!("failed removing `{}`: {err}", dest.display());
-            });
-        }
-        copy_recursively(&src, &dest);
+        writeln!(output, "}}").unwrap();
     }
 }
 
-fn install_yarn_deps(working_dir: &str) {
-    let output = Command::new("yarn")
-        .current_dir(working_dir)
-        .args(["--non-interactive", "install"])
-        .output()
-        .expect("failed running `yarn install`");
-    assert_output_success(&output, "yarn install");
-}
-
-fn compile_contracts(working_dir: &str) {
-    let output = Command::new("yarn")
-        .current_dir(working_dir)
-        .args(["--non-interactive", "run", "build"])
-        .output()
-        .expect("failed running `yarn run build`");
-    assert_output_success(&output, "yarn run build");
+fn compiler_settings() -> ZkSolcSettings {
+    ZkSolcSettings {
+        cli_settings: solc::CliSettings::default(),
+        settings: ZkSettings {
+            via_ir: Some(true),
+            optimizer: Optimizer {
+                enabled: Some(true),
+                ..Optimizer::default()
+            },
+            output_selection: OutputSelection {
+                all: Some(FileOutputSelection {
+                    per_file: None,
+                    per_contract: Some(HashSet::from([OutputSelectionFlag::ABI])),
+                }),
+            },
+            enable_eravm_extensions: true,
+            ..ZkSettings::default()
+        },
+    }
 }
 
 fn main() {
-    check_yarn();
+    let settings = compiler_settings();
+    let temp_dir = PathBuf::from(env::var("OUT_DIR").expect("no `OUT_DIR` provided"));
+    let paths = ProjectPathsConfig::builder()
+        .sources(Path::new(env!("CARGO_MANIFEST_DIR")).join("contracts"))
+        .artifacts(temp_dir.join("artifacts"))
+        .cache(temp_dir.join("cache"))
+        .build()
+        .unwrap();
 
-    println!("cargo::rerun-if-changed=package.json");
-    println!("cargo::rerun-if-changed=yarn.lock");
-    println!("cargo::rerun-if-changed=hardhat.config.ts");
-    println!("cargo::rerun-if-changed=contracts");
+    let project = ProjectBuilder::<ZkSolcCompiler, _>::new(ZkArtifactOutput::default())
+        .paths(paths)
+        .settings(settings)
+        .build(ZkSolcCompiler::default())
+        .unwrap();
+    let output = zksync::project_compile(&project).unwrap();
+    output.assert_success();
 
-    let temp_dir = env::var("OUT_DIR").expect("no `OUT_DIR` provided");
-    copy_contract_files(&temp_dir);
-    install_yarn_deps(&temp_dir);
-    compile_contracts(&temp_dir);
+    let module_path = temp_dir.join("raw_contracts.rs");
+    let module = File::create(&module_path).expect("failed creating output Rust module");
+    let mut module = BufWriter::new(module);
+    save_artifacts(&mut module, output.into_artifacts());
+
+    // Tell Cargo that if a source file changes, to rerun this build script.
+    project.rerun_if_sources_changed();
 }

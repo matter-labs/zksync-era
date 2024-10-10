@@ -200,6 +200,8 @@ trybuild = "1.0"
 vise = "0.2.0"
 vise-exporter = "0.2.0"
 
+foundry-compilers = { version = "0.11.1", git = "https://github.com/Moonsong-Labs/compilers.git", rev = "b2aca7f87e0484d1e202d77a4ada8b46b059da6d" }
+
 # DA clients' dependencies
 # Avail
 base58 = "0.2.0"
