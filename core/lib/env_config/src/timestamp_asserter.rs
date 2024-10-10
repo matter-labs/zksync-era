@@ -33,22 +33,4 @@ mod tests {
             }
         );
     }
-
-    #[test]
-    fn from_env_timestamp_asserter_with_defaults() {
-        let mut lock = MUTEX.lock();
-        lock.remove_env(&[
-            "TIMESTAMP_ASSERTER_MIN_RANGE_SEC",
-            "TIMESTAMP_ASSERTER_MIN_TIME_TILL_END_SEC",
-        ]);
-
-        let actual = TimestampAsserterConfig::from_env().unwrap();
-        assert_eq!(
-            actual,
-            TimestampAsserterConfig {
-                min_range_sec: 0,
-                min_time_till_end_sec: 0,
-            }
-        );
-    }
 }

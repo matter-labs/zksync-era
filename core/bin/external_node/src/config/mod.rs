@@ -116,6 +116,7 @@ pub(crate) struct RemoteENConfig {
     pub l1_weth_bridge_addr: Option<Address>,
     pub l2_weth_bridge_addr: Option<Address>,
     pub l2_testnet_paymaster_addr: Option<Address>,
+    pub l2_timestamp_asserter_addr: Option<Address>,
     pub base_token_addr: Address,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
     pub dummy_verifier: bool,
@@ -140,6 +141,10 @@ impl RemoteENConfig {
         let diamond_proxy_addr = client
             .get_main_contract()
             .rpc_context("get_main_contract")
+            .await?;
+        let timestamp_asserter_address = client
+            .get_timestamp_asserter()
+            .rpc_context("get_timestamp_asserter")
             .await?;
         let base_token_addr = match client.get_base_token_l1_address().await {
             Err(ClientError::Call(err))
@@ -200,6 +205,7 @@ impl RemoteENConfig {
                 .as_ref()
                 .map(|a| a.dummy_verifier)
                 .unwrap_or_default(),
+            l2_timestamp_asserter_addr: timestamp_asserter_address,
         })
     }
 
@@ -220,6 +226,7 @@ impl RemoteENConfig {
             l2_shared_bridge_addr: Some(Address::repeat_byte(6)),
             l1_batch_commit_data_generator_mode: L1BatchCommitmentMode::Rollup,
             dummy_verifier: true,
+            l2_timestamp_asserter_addr: None,
         }
     }
 }
@@ -447,6 +454,10 @@ pub(crate) struct OptionalENConfig {
     pub gateway_url: Option<SensitiveUrl>,
     /// Interval for bridge addresses refreshing in seconds.
     bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
+    /// Minimum difference in seconds between the range start and range end for TimestampAsserter
+    pub timestamp_asserter_min_range_sec: u32,
+    /// Minimum time between current block.timestamp and the end of the asserted range for TimestampAsserter
+    pub timestamp_asserter_min_time_till_end_sec: u32,
 }
 
 impl OptionalENConfig {
@@ -678,6 +689,16 @@ impl OptionalENConfig {
             contracts_diamond_proxy_addr: None,
             gateway_url: enconfig.gateway_url.clone(),
             bridge_addresses_refresh_interval_sec: enconfig.bridge_addresses_refresh_interval_sec,
+            timestamp_asserter_min_range_sec: general_config
+                .timestamp_asserter_config
+                .as_ref()
+                .map(|x| x.min_range_sec)
+                .unwrap_or(0),
+            timestamp_asserter_min_time_till_end_sec: general_config
+                .timestamp_asserter_config
+                .as_ref()
+                .map(|x| x.min_time_till_end_sec)
+                .unwrap_or(0),
         })
     }
 
@@ -1417,6 +1438,7 @@ impl From<&ExternalNodeConfig> for InternalApiConfig {
             filters_disabled: config.optional.filters_disabled,
             dummy_verifier: config.remote.dummy_verifier,
             l1_batch_commit_data_generator_mode: config.remote.l1_batch_commit_data_generator_mode,
+            timestamp_asserter_address: config.remote.l2_timestamp_asserter_addr,
         }
     }
 }
@@ -1439,9 +1461,11 @@ impl From<&ExternalNodeConfig> for TxSenderConfig {
             chain_id: config.required.l2_chain_id,
             // Does not matter for EN.
             whitelisted_tokens_for_aa: Default::default(),
-            timestamp_asserter_address: None,
-            timestamp_asserter_min_range_sec: 0,
-            timestamp_asserter_min_time_till_end_sec: 0,
+            timestamp_asserter_address: config.remote.l2_timestamp_asserter_addr,
+            timestamp_asserter_min_range_sec: config.optional.timestamp_asserter_min_range_sec,
+            timestamp_asserter_min_time_till_end_sec: config
+                .optional
+                .timestamp_asserter_min_time_till_end_sec,
         }
     }
 }

@@ -87,7 +87,7 @@ async function loadTestEnvironmentFromFile(fileConfig: FileConfig): Promise<Test
     let configsFolderSuffix = nodeMode == NodeMode.External ? 'external_node' : undefined;
     let generalConfig = loadConfig({ pathToHome, chain, config: 'general.yaml', configsFolderSuffix });
     let secretsConfig = loadConfig({ pathToHome, chain, config: 'secrets.yaml', configsFolderSuffix });
-    let contracts = loadConfig({ pathToHome, chain, config: 'contracts.yaml', configsFolderSuffix });
+    let contracts = loadConfig({ pathToHome, chain, config: 'contracts.yaml' });
 
     const network = ecosystem.l1_network.toLowerCase();
     let mainWalletPK = getMainWalletPk(pathToHome);
