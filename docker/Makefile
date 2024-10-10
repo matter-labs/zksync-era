@@ -66,7 +66,7 @@ prepare-contracts: check-tools check-contracts
 	@cd ../ && \
 	export ZKSYNC_HOME=$$(pwd) && \
 	export PATH=$$PATH:$${ZKSYNC_HOME}/bin:$${ZKSYNC_HOME}/zkstack_cli/zkstackup && \
-	zkstackup -g || true && \
+	zkstackup -g --path ./ || true && \
 	zkstack dev contracts && \
 	mkdir -p contracts/l1-contracts/artifacts
 
