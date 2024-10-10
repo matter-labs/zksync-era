@@ -104,7 +104,7 @@ fn create_proof_processing_router(
             "/tee/proof_inputs",
             post(
                 move |payload: Json<TeeProofGenerationDataRequest>| async move {
-                    let result: Result<Json<zksync_prover_interface::api::TeeProofGenerationDataResponse>, errors::RequestProcessorError> = get_tee_proof_gen_processor
+                    let result = get_tee_proof_gen_processor
                         .get_proof_generation_data(payload)
                         .await;
 
