@@ -62,6 +62,7 @@ jobs:
 
       - name: Build contracts
         run: |
+          ci_run echo $PATH
           ci_run zkstack dev contracts
 
       - name: Contracts unit tests
