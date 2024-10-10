@@ -33,10 +33,8 @@ jobs:
           docker-compose -f ${RUNNER_COMPOSE_FILE} --profile runner up -d --wait
           ci_run sccache --start-server
           
-          echo $(pwd)
-          
-          chmod +x prover_checkers/clean_gpu
-          prover_checkers/clean_gpu
+          chmod +x ./bin/prover_checkers/clean_gpu
+          ./bin/prover_checkers/clean_gpu
 
       - name: Init
         run: |
@@ -125,8 +123,8 @@ jobs:
 
       - name: Kill prover & start compressor
         run: |
-          chmod +x ./prover_checkers/clean_gpu
-          ./prover_checkers/clean_gpu
+          chmod +x ./bin/prover_checkers/clean_gpu
+          ./bin/prover_checkers/clean_gpu
           
           ci_run zk_inception prover run --component=compressor --docker=false &
           ci_run sleep 420
