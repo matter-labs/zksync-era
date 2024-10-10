@@ -1,20 +1,19 @@
-use std::{fmt::Debug, sync::Arc};
-
-use alloy::{
-    primitives::{B256, U256},
-    sol,
-    sol_types::SolValue,
-};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
+use std::{fmt::Debug, sync::Arc};
 use subxt_signer::ExposeSecret;
 use zksync_config::configs::da_client::avail::{AvailConfig, AvailSecrets, GasRelayAPIKey};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
+};
+use zksync_types::{
+    ethabi::{self, Token},
+    web3::contract::{Tokenizable, Tokenize},
+    H256, U256,
 };
 
 use crate::avail::sdk::RawAvailClient;
@@ -31,14 +30,14 @@ pub struct AvailClient {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct BridgeAPIResponse {
-    blob_root: Option<B256>,
-    bridge_root: Option<B256>,
+    blob_root: Option<H256>,
+    bridge_root: Option<H256>,
     data_root_index: Option<U256>,
-    data_root_proof: Option<Vec<B256>>,
-    leaf: Option<B256>,
+    data_root_proof: Option<Vec<H256>>,
+    leaf: Option<H256>,
     leaf_index: Option<U256>,
-    leaf_proof: Option<Vec<B256>>,
-    range_hash: Option<B256>,
+    leaf_proof: Option<Vec<H256>>,
+    range_hash: Option<H256>,
     error: Option<String>,
 }
 
@@ -54,29 +53,53 @@ pub struct GasRelayAPIStatusResponse {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct GasRelayAPISubmission {
-    block_hash: Option<B256>,
+    block_hash: Option<H256>,
     extrinsic_index: Option<u64>,
 }
 
-sol! {
-    #[derive(Deserialize, Serialize, Debug)]
-    struct MerkleProofInput {
-        // proof of inclusion for the data root
-        bytes32[] dataRootProof;
-        // proof of inclusion of leaf within blob/bridge root
-        bytes32[] leafProof;
-        // abi.encodePacked(startBlock, endBlock) of header range commitment on vectorx
-        bytes32 rangeHash;
-        // index of the data root in the commitment tree
-        uint256 dataRootIndex;
-        // blob root to check proof against, or reconstruct the data root
-        bytes32 blobRoot;
-        // bridge root to check proof against, or reconstruct the data root
-        bytes32 bridgeRoot;
-        // leaf being proven
-        bytes32 leaf;
-        // index of the leaf in the blob/bridge root tree
-        uint256 leafIndex;
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct MerkleProofInput {
+    // proof of inclusion for the data root
+    data_root_proof: Vec<H256>,
+    // proof of inclusion of leaf within blob/bridge root
+    leaf_proof: Vec<H256>,
+    // abi.encodePacked(startBlock, endBlock) of header range commitment on vectorx
+    range_hash: H256,
+    // index of the data root in the commitment tree
+    data_root_index: U256,
+    // blob root to check proof against, or reconstruct the data root
+    blob_root: H256,
+    // bridge root to check proof against, or reconstruct the data root
+    bridge_root: H256,
+    // leaf being proven
+    leaf: H256,
+    // index of the leaf in the blob/bridge root tree
+    leaf_index: U256,
+}
+
+impl Tokenize for MerkleProofInput {
+    fn into_tokens(self) -> Vec<Token> {
+        vec![Token::Tuple(vec![
+            Token::Array(
+                self.data_root_proof
+                    .iter()
+                    .map(|x| Token::FixedBytes(x.as_bytes().to_vec()))
+                    .collect(),
+            ),
+            Token::Array(
+                self.leaf_proof
+                    .iter()
+                    .map(|x| Token::FixedBytes(x.as_bytes().to_vec()))
+                    .collect(),
+            ),
+            Token::FixedBytes(self.range_hash.as_bytes().to_vec()),
+            Token::Uint(self.data_root_index),
+            Token::FixedBytes(self.blob_root.as_bytes().to_vec()),
+            Token::FixedBytes(self.bridge_root.as_bytes().to_vec()),
+            Token::FixedBytes(self.leaf.as_bytes().to_vec()),
+            Token::Uint(self.leaf_index),
+        ])]
     }
 }
 
@@ -273,17 +296,18 @@ impl DataAvailabilityClient for AvailClient {
             }
         }
         let attestation_data: MerkleProofInput = MerkleProofInput {
-            dataRootProof: bridge_api_data.data_root_proof.unwrap(),
-            leafProof: bridge_api_data.leaf_proof.unwrap(),
-            rangeHash: bridge_api_data.range_hash.unwrap(),
-            dataRootIndex: bridge_api_data.data_root_index.unwrap(),
-            blobRoot: bridge_api_data.blob_root.unwrap(),
-            bridgeRoot: bridge_api_data.bridge_root.unwrap(),
+            data_root_proof: bridge_api_data.data_root_proof.unwrap(),
+            leaf_proof: bridge_api_data.leaf_proof.unwrap(),
+            range_hash: bridge_api_data.range_hash.unwrap(),
+            data_root_index: bridge_api_data.data_root_index.unwrap(),
+            blob_root: bridge_api_data.blob_root.unwrap(),
+            bridge_root: bridge_api_data.bridge_root.unwrap(),
             leaf: bridge_api_data.leaf.unwrap(),
-            leafIndex: bridge_api_data.leaf_index.unwrap(),
+            leaf_index: bridge_api_data.leaf_index.unwrap(),
         };
         Ok(Some(InclusionData {
-            data: attestation_data.abi_encode(),
+            // convert vec<token> into vec<u8>
+            data: ethabi::encode(&attestation_data.into_tokens()),
         }))
     }
 
