@@ -31,7 +31,7 @@ jobs:
 
       - name: Build
         run: |
-          ci_run ./zkstack_cli/zkstackup/zkstackup --local
+          ci_run ./zkstack_cli/zkstackup/zkstackup -g --path ./ 
           ci_run yarn install
           ci_run git config --global --add safe.directory /usr/src/zksync
 

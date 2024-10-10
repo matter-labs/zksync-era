@@ -79,6 +79,8 @@ parse_args() {
       shift
       ZKSTACKUP_PATH=$1
       ;;
+    -g | --global)
+      BIN_DIR="/usr/local"
     -h | --help)
       usage
       exit 0

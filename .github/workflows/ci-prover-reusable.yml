@@ -34,7 +34,7 @@ jobs:
 
       - name: Init
         run: |          
-          ci_run ./zkstack_cli/zkstackup/zkstackup --local
+          ci_run ./zkstack_cli/zkstackup/zkstackup -g --path ./ 
 
       - name: Database setup
         run: |
@@ -72,7 +72,7 @@ jobs:
 
       - name: Init
         run: |
-          ci_run ./zkstack_cli/zkstackup/zkstackup --local
+          ci_run ./zkstack_cli/zkstackup/zkstackup -g --path ./ 
           ci_run run_retried rustup show
 
       - name: Prover unit tests
