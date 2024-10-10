@@ -56,6 +56,7 @@ pub struct Scaler {
 
     /// Which cluster to use first.
     cluster_priorities: HashMap<String, u32>,
+    max_provers: HashMap<String, HashMap<Gpu, u32>>,
     prover_speed: HashMap<Gpu, u32>,
     long_pending_duration: chrono::Duration,
 }
@@ -87,6 +88,7 @@ impl Scaler {
             watcher,
             queuer,
             cluster_priorities: config.cluster_priorities,
+            max_provers: config.max_provers,
             prover_speed: config.prover_speed,
             long_pending_duration: chrono::Duration::seconds(
                 config.long_pending_duration.whole_seconds(),
@@ -112,7 +114,12 @@ impl Scaler {
             let e = gp_map.entry(gpu).or_insert(GPUPool {
                 name: cluster.name.clone(),
                 gpu,
-                max_pool_size: 100, // TODO: get from the agent.
+                max_pool_size: self
+                    .max_provers
+                    .get(&cluster.name)
+                    .and_then(|inner_map| inner_map.get(&gpu))
+                    .copied()
+                    .unwrap_or(0),
                 ..Default::default()
             });
 

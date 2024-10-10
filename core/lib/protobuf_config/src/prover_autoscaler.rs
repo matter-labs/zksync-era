@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Context as _;
 use time::Duration;
 use zksync_config::configs::{self, prover_autoscaler::Gpu};
@@ -92,6 +94,15 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                 Some(s) => Duration::seconds(s.into()),
                 None => Self::Type::default_long_pending_duration(),
             },
+            max_provers: self.max_provers.iter().fold(HashMap::new(), |mut acc, e| {
+                let (cluster_and_gpu, max) = e.read().expect("max_provers");
+                if let Some((cluster, gpu)) = cluster_and_gpu.split_once('/') {
+                    acc.entry(cluster.to_string())
+                        .or_insert_with(HashMap::new)
+                        .insert(gpu.parse().expect("max_provers/gpu"), max);
+                }
+                acc
+            }),
         })
     }
 
@@ -117,6 +128,15 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                 .map(|(k, v)| proto::ProverSpeed::build(&(*k, *v)))
                 .collect(),
             long_pending_duration_s: Some(this.long_pending_duration.whole_seconds() as u32),
+            max_provers: this
+                .max_provers
+                .iter()
+                .flat_map(|(cluster, inner_map)| {
+                    inner_map.iter().map(move |(gpu, max)| {
+                        proto::MaxProver::build(&(format!("{}/{}", cluster, gpu), *max))
+                    })
+                })
+                .collect(),
         }
     }
 }
@@ -167,6 +187,24 @@ impl ProtoRepr for proto::ProverSpeed {
         Self {
             gpu: Some(this.0.to_string()),
             speed: Some(this.1),
+        }
+    }
+}
+
+impl ProtoRepr for proto::MaxProver {
+    type Type = (String, u32);
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok((
+            required(&self.cluster_and_gpu)
+                .context("cluster_and_gpu")?
+                .parse()?,
+            *required(&self.max).context("max")?,
+        ))
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            cluster_and_gpu: Some(this.0.to_string()),
+            max: Some(this.1),
         }
     }
 }
