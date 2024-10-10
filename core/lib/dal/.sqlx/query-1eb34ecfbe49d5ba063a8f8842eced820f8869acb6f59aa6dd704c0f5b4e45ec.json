@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                storage_refunds,\n                pubdata_costs\n            FROM\n                l1_batches\n            WHERE\n                number = $1\n            ",
+  "query": "\n            SELECT\n                storage_refunds,\n                pubdata_costs\n            FROM\n                l1_batches\n            WHERE\n                is_sealed\n                AND number = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       true
     ]
   },
-  "hash": "cf20dfb2b3d6a770b6f56417d407ad3caf76ed9fed031da9e04313073af2fb4a"
+  "hash": "1eb34ecfbe49d5ba063a8f8842eced820f8869acb6f59aa6dd704c0f5b4e45ec"
 }
