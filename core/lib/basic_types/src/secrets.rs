@@ -20,18 +20,18 @@ impl FromStr for SeedPhrase {
 }
 
 #[derive(Debug, Clone)]
-pub struct AuthToken(pub Secret<String>);
+pub struct PrivateKey(pub Secret<String>);
 
-impl PartialEq for AuthToken {
+impl PartialEq for PrivateKey {
     fn eq(&self, other: &Self) -> bool {
         self.0.expose_secret().eq(other.0.expose_secret())
     }
 }
 
-impl FromStr for AuthToken {
+impl FromStr for PrivateKey {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(AuthToken(s.parse()?))
+        Ok(PrivateKey(s.parse()?))
     }
 }

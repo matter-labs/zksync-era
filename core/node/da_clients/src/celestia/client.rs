@@ -1,39 +1,46 @@
 use std::{
     fmt::{Debug, Formatter},
+    str::FromStr,
     sync::Arc,
+    time,
 };
 
 use async_trait::async_trait;
-use celestia_rpc::{BlobClient, Client};
-use celestia_types::{blob::Commitment, nmt::Namespace, Blob, TxConfig};
+use celestia_types::{blob::Commitment, nmt::Namespace, Blob};
 use serde::{Deserialize, Serialize};
 use subxt_signer::ExposeSecret;
+use tonic::transport::Endpoint;
 use zksync_config::configs::da_client::celestia::{CelestiaConfig, CelestiaSecrets};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 
-use crate::utils::to_non_retriable_da_error;
+use crate::{
+    celestia::sdk::{BlobTxHash, RawCelestiaClient},
+    utils::to_non_retriable_da_error,
+};
 
 /// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.
 #[derive(Clone)]
 pub struct CelestiaClient {
     config: CelestiaConfig,
-    client: Arc<Client>,
+    client: Arc<RawCelestiaClient>,
 }
 
 impl CelestiaClient {
     pub async fn new(config: CelestiaConfig, secrets: CelestiaSecrets) -> anyhow::Result<Self> {
-        let client = Client::new(
-            &config.api_node_url,
-            Some(secrets.auth_token.0.expose_secret()),
-        )
-        .await
-        .expect("could not create Celestia client");
+        let grpc_channel = Endpoint::from_str(config.api_node_url.clone().as_str())?
+            .timeout(time::Duration::from_millis(config.timeout_ms))
+            .connect()
+            .await?;
+
+        let private_key = secrets.private_key.0.expose_secret().to_string();
+        let client = RawCelestiaClient::new(grpc_channel, private_key, config.chain_id.clone())
+            .expect("could not create Celestia client");
 
         Ok(Self {
-            config: config.clone(),
+            config,
             client: Arc::new(client),
         })
     }
@@ -58,9 +65,16 @@ impl DataAvailabilityClient for CelestiaClient {
         let blob = Blob::new(namespace, data).map_err(to_non_retriable_da_error)?;
 
         let commitment = blob.commitment;
+        let blob_tx = self
+            .client
+            .prepare(vec![blob])
+            .await
+            .map_err(to_non_retriable_da_error)?;
+
+        let blob_tx_hash = BlobTxHash::compute(&blob_tx);
         let height = self
             .client
-            .blob_submit(&[blob], TxConfig::default())
+            .submit(blob_tx_hash, blob_tx)
             .await
             .map_err(to_non_retriable_da_error)?;
 

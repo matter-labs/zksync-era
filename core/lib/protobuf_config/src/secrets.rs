@@ -3,7 +3,7 @@ use std::str::FromStr;
 use anyhow::Context;
 use secrecy::ExposeSecret;
 use zksync_basic_types::{
-    secrets::{AuthToken, SeedPhrase},
+    secrets::{PrivateKey, SeedPhrase},
     url::SensitiveUrl,
 };
 use zksync_config::configs::{
@@ -110,8 +110,8 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                 .unwrap(),
             }),
             DaSecrets::Celestia(celestia) => DataAvailabilitySecrets::Celestia(CelestiaSecrets {
-                auth_token: AuthToken::from_str(
-                    required(&celestia.auth_token).context("auth_token")?,
+                private_key: PrivateKey::from_str(
+                    required(&celestia.private_key).context("private_key")?,
                 )
                 .unwrap(),
             }),
@@ -127,7 +127,7 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
             })),
             DataAvailabilitySecrets::Celestia(config) => {
                 Some(DaSecrets::Celestia(proto::CelestiaSecret {
-                    auth_token: Some(config.auth_token.0.expose_secret().to_string()),
+                    private_key: Some(config.private_key.0.expose_secret().to_string()),
                 }))
             }
         };

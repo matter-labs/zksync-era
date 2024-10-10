@@ -16,6 +16,8 @@ message AvailConfig {
 message CelestiaConfig {
   optional string api_node_url = 1;
   optional string namespace = 2;
+  optional string chain_id = 3;
+  optional uint64 timeout_ms = 4;
 }
 
 message DataAvailabilityClient {

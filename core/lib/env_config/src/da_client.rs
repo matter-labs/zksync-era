@@ -39,11 +39,11 @@ impl FromEnv for DataAvailabilitySecrets {
                 Self::Avail(AvailSecrets { seed_phrase })
             }
             CELESTIA_CLIENT_CONFIG_NAME => {
-                let auth_token = env::var("DA_SECRETS_AUTH_TOKEN")
-                    .map_err(|e| anyhow::format_err!("auth token not found: {}", e))?
+                let private_key = env::var("DA_SECRETS_PRIVATE_KEY")
+                    .map_err(|e| anyhow::format_err!("private key not found: {}", e))?
                     .parse()
                     .map_err(|e| anyhow::format_err!("failed to parse the auth token: {}", e))?;
-                Self::Celestia(CelestiaSecrets { auth_token })
+                Self::Celestia(CelestiaSecrets { private_key })
             }
 
             _ => anyhow::bail!("Unknown DA client name: {}", client_tag),
@@ -163,10 +163,17 @@ mod tests {
         );
     }
 
-    fn expected_celestia_da_layer_config(api_node_url: &str, namespace: &str) -> DAClientConfig {
+    fn expected_celestia_da_layer_config(
+        api_node_url: &str,
+        namespace: &str,
+        chain_id: &str,
+        timeout_ms: u64,
+    ) -> DAClientConfig {
         DAClientConfig::Celestia(CelestiaConfig {
             api_node_url: api_node_url.to_string(),
             namespace: namespace.to_string(),
+            chain_id: chain_id.to_string(),
+            timeout_ms,
         })
     }
 
@@ -177,13 +184,20 @@ mod tests {
             DA_CLIENT="Celestia"
             DA_API_NODE_URL="localhost:12345"
             DA_NAMESPACE="0x1234567890abcdef"
+            DA_CHAIN_ID="mocha-4"
+            DA_TIMEOUT_MS="7000"
         "#;
         lock.set_env(config);
 
         let actual = DAClientConfig::from_env().unwrap();
         assert_eq!(
             actual,
-            expected_celestia_da_layer_config("localhost:12345", "0x1234567890abcdef")
+            expected_celestia_da_layer_config(
+                "localhost:12345",
+                "0x1234567890abcdef",
+                "mocha-4",
+                7000
+            )
         );
     }
 
@@ -192,7 +206,7 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             DA_CLIENT="Celestia"
-            DA_SECRETS_AUTH_TOKEN="0xf55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
+            DA_SECRETS_PRIVATE_KEY="f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
         "#;
 
         lock.set_env(config);
@@ -203,8 +217,8 @@ mod tests {
             panic!("expected Celestia config")
         };
         assert_eq!(
-            actual.auth_token,
-            "0xf55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
+            actual.private_key,
+            "f55baf7c0e4e33b1d78fbf52f069c426bc36cff1aceb9bc8f45d14c07f034d73"
                 .parse()
                 .unwrap()
         );
