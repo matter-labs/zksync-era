@@ -1,23 +1,13 @@
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    net::SocketAddr,
-};
-
 use anyhow::Context as _;
 use config::ChainConfig;
 use secrecy::{ExposeSecret, Secret};
 use zksync_config::configs::consensus::{
-    AttesterPublicKey, AttesterSecretKey, ConsensusConfig, ConsensusSecrets, GenesisSpec, Host,
-    NodePublicKey, NodeSecretKey, ProtocolVersion, ValidatorPublicKey, ValidatorSecretKey,
-    WeightedAttester, WeightedValidator,
+    AttesterPublicKey, AttesterSecretKey, ConsensusSecrets, GenesisSpec, NodePublicKey,
+    NodeSecretKey, ProtocolVersion, ValidatorPublicKey, ValidatorSecretKey, WeightedAttester,
+    WeightedValidator,
 };
 use zksync_consensus_crypto::{Text, TextFmt};
 use zksync_consensus_roles::{attester, node, validator};
-
-use crate::consts::{
-    CONSENSUS_PUBLIC_ADDRESS_HOST, CONSENSUS_SERVER_ADDRESS_HOST, GOSSIP_DYNAMIC_INBOUND_LIMIT,
-    MAX_BATCH_SIZE, MAX_PAYLOAD_SIZE,
-};
 
 pub(crate) fn parse_attester_committee(
     attesters: &[WeightedAttester],
@@ -46,32 +36,6 @@ pub struct ConsensusSecretKeys {
 pub struct ConsensusPublicKeys {
     validator_key: validator::PublicKey,
     attester_key: attester::PublicKey,
-}
-
-pub fn get_consensus_config(
-    chain_config: &ChainConfig,
-    consensus_port: u16,
-    consensus_keys: Option<ConsensusSecretKeys>,
-    gossip_static_outbound: Option<BTreeMap<NodePublicKey, Host>>,
-) -> anyhow::Result<ConsensusConfig> {
-    let genesis_spec =
-        consensus_keys.map(|consensus_keys| get_genesis_specs(chain_config, &consensus_keys));
-
-    let public_addr = SocketAddr::new(CONSENSUS_PUBLIC_ADDRESS_HOST, consensus_port);
-    let server_addr = SocketAddr::new(CONSENSUS_SERVER_ADDRESS_HOST, consensus_port);
-
-    Ok(ConsensusConfig {
-        server_addr,
-        public_addr: Host(public_addr.encode()),
-        genesis_spec,
-        max_payload_size: MAX_PAYLOAD_SIZE,
-        gossip_dynamic_inbound_limit: GOSSIP_DYNAMIC_INBOUND_LIMIT,
-        max_batch_size: MAX_BATCH_SIZE,
-        gossip_static_inbound: BTreeSet::new(),
-        gossip_static_outbound: gossip_static_outbound.unwrap_or_default(),
-        rpc: None,
-        debug_page_addr: None,
-    })
 }
 
 pub fn generate_consensus_keys() -> ConsensusSecretKeys {
