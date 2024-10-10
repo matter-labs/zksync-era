@@ -43,7 +43,7 @@ You can also access a debug page with more information about the node [here](htt
 
 The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be accessed on port `3061`.
 
-> \[!NOTE\]
+> [!NOTE]
 >
 > The node will recover from a snapshot on it's first run, this may take up to 10h. Before the recovery is finished, the
 > API server won't serve any requests.
@@ -52,7 +52,7 @@ The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be ac
 
 ### System Requirements
 
-> \[!NOTE\]
+> [!NOTE]
 >
 > Those are requirements for nodes that use snapshots recovery and history pruning (the default for docker-compose
 > setup).
