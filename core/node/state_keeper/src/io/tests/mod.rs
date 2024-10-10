@@ -556,3 +556,53 @@ async fn different_timestamp_for_l2_blocks_in_same_batch(commitment_mode: L1Batc
         .expect("no new L2 block params");
     assert!(l2_block_params.timestamp > current_timestamp);
 }
+
+#[test_casing(2, COMMITMENT_MODES)]
+#[tokio::test]
+async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMode) {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let tester = Tester::new(commitment_mode);
+    tester.genesis(&connection_pool).await;
+    let mut storage = connection_pool.connection().await.unwrap();
+
+    let (mut mempool, mut mempool_guard) =
+        tester.create_test_mempool_io(connection_pool.clone()).await;
+    let (cursor, _) = mempool.initialize().await.unwrap();
+
+    // Insert a transaction into the mempool in order to open a new batch.
+    let tx_filter = l2_tx_filter(
+        &tester.create_batch_fee_input_provider().await,
+        ProtocolVersionId::latest().into(),
+    )
+    .await
+    .unwrap();
+    let tx = tester.insert_tx(
+        &mut mempool_guard,
+        tx_filter.fee_per_gas,
+        tx_filter.gas_per_pubdata,
+    );
+    storage
+        .transactions_dal()
+        .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+        .await
+        .unwrap();
+
+    let old_l1_batch_params = mempool
+        .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
+        .await
+        .unwrap()
+        .expect("no batch params generated");
+
+    // Restart
+    drop((mempool, mempool_guard, cursor));
+    let (mut mempool, _) = tester.create_test_mempool_io(connection_pool.clone()).await;
+    let (cursor, _) = mempool.initialize().await.unwrap();
+
+    let new_l1_batch_params = mempool
+        .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
+        .await
+        .unwrap()
+        .expect("no batch params generated");
+
+    assert_eq!(old_l1_batch_params, new_l1_batch_params);
+}
