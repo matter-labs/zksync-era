@@ -1,0 +1,20 @@
+#!/bin/bash/env bash
+
+# Get a list of PIDs using the GPU
+pids=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader)
+
+# Check if there are any processes using the GPU
+if [ -z "$pids" ]; then
+  echo "No processes are currently using the GPU."
+  exit 0
+fi
+
+echo "Processes using the GPU: $pids"
+
+# Loop through each PID and kill the process
+for pid in $pids; do
+  echo "Killing process with PID: $pid"
+  kill -9 $pid
+done
+
+echo "All GPU processes have been killed."
