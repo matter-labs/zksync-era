@@ -10,7 +10,7 @@ use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
 use zksync_prover_interface::api::{
     ProofGenerationDataRequest, RegisterTeeAttestationRequest, SubmitProofRequest,
-    SubmitTeeProofRequest, TeeProofGenerationDataRequest, TeeProofGenerationDataResponse,
+    SubmitTeeProofRequest, TeeProofGenerationDataRequest,
 };
 use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
@@ -109,7 +109,6 @@ fn create_proof_processing_router(
                         .await;
 
                     match result {
-                        Ok(Json(TeeProofGenerationDataResponse(None))) => (StatusCode::NO_CONTENT, Json("No new TeeVerifierInputs are available yet")).into_response(),
                         Ok(data) => (StatusCode::OK, data).into_response(),
                         Err(e) => e.into_response(),
                     }
