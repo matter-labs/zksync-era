@@ -144,12 +144,16 @@ impl FactoryDepsDal<'_, '_> {
             return Ok(deps);
         }
 
+        println!("Hi!!!2");
+
         let error_msg = format!("Could not find either of the following factoey deps: bootloader {bootloader_hash:?} or {default_aa_hash:?}");
 
         let Some(protocol_version) = protocol_version else {
             // TODO: refactor
             return None.context(error_msg);
         };
+
+        println!("Hi!!!3");
 
         let upgrade_tx = self
             .storage
@@ -158,10 +162,13 @@ impl FactoryDepsDal<'_, '_> {
             .await?
             .context(error_msg.clone())?;
 
+        println!("Hi!!!10");
         if upgrade_tx.execute.factory_deps.len() < 2 {
             // TODO: refactor
             return None.context(error_msg);
         }
+
+        println!("Hi!!!");
 
         let bootloader_preimage = upgrade_tx.execute.factory_deps[0].clone();
         let default_aa_preimage = upgrade_tx.execute.factory_deps[1].clone();
@@ -172,6 +179,8 @@ impl FactoryDepsDal<'_, '_> {
             // TODO: refactor
             return None.context(error_msg);
         }
+
+        println!("Hi1212121!!!");
 
         Ok(BaseSystemContracts {
             bootloader: SystemContractCode {

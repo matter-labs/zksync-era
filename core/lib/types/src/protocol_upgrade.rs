@@ -136,6 +136,7 @@ impl ProtocolUpgrade {
         let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
 
         let tx = if upgrade.l2_protocol_upgrade_tx.tx_type != U256::zero() {
+            println!("{:#?}", upgrade.l2_protocol_upgrade_tx);
             let factory_deps = preimage_oracle
                 .get_protocol_upgrade_preimages(
                     upgrade
