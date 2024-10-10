@@ -76,6 +76,7 @@ mod tests {
                 factory_deps_cache_size_mb: Some(128),
                 initial_writes_cache_size_mb: Some(32),
                 latest_values_cache_size_mb: Some(256),
+                latest_values_max_block_lag: Some(NonZeroU32::new(50).unwrap()),
                 fee_history_limit: Some(100),
                 max_batch_request_size: Some(200),
                 max_response_body_size_mb: Some(10),
@@ -136,6 +137,7 @@ mod tests {
             API_WEB3_JSON_RPC_FACTORY_DEPS_CACHE_SIZE_MB=128
             API_WEB3_JSON_RPC_INITIAL_WRITES_CACHE_SIZE_MB=32
             API_WEB3_JSON_RPC_LATEST_VALUES_CACHE_SIZE_MB=256
+            API_WEB3_JSON_RPC_LATEST_VALUES_MAX_BLOCK_LAG=50
             API_WEB3_JSON_RPC_FEE_HISTORY_LIMIT=100
             API_WEB3_JSON_RPC_MAX_BATCH_REQUEST_SIZE=200
             API_WEB3_JSON_RPC_WEBSOCKET_REQUESTS_PER_MINUTE_LIMIT=10

@@ -462,7 +462,7 @@ async fn wait_for_cache_update(values_cache: &ValuesCache, target_l2_block: L2Bl
 
 fn test_values_cache(pool: &ConnectionPool<Core>, rt_handle: Handle) {
     let mut caches = PostgresStorageCaches::new(1_024, 1_024);
-    let task = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone());
+    let task = caches.configure_storage_values_cache(1_024 * 1_024, 5, pool.clone());
     let (stop_sender, stop_receiver) = watch::channel(false);
     let update_task_handle = tokio::task::spawn(task.run(stop_receiver));
 
@@ -595,7 +595,7 @@ fn mini_fuzz_values_cache_inner(
     mut rt_handle: Handle,
 ) {
     let mut caches = PostgresStorageCaches::new(1_024, 1_024);
-    let _ = caches.configure_storage_values_cache(1_024 * 1_024, pool.clone());
+    let _ = caches.configure_storage_values_cache(1_024 * 1_024, 5, pool.clone());
     let values_cache = caches.values.as_ref().unwrap().cache.clone();
 
     let mut connection = rt_handle.block_on(pool.connection()).unwrap();

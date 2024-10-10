@@ -189,6 +189,10 @@ pub struct Web3JsonRpcConfig {
     /// Latest values cache size in MiBs. The default value is 128 MiB. If set to 0, the latest
     /// values cache will be disabled.
     pub latest_values_cache_size_mb: Option<usize>,
+    /// Maximum lag in the number of blocks for the latest values cache after which the cache is reset. Greater values
+    /// lead to increased the cache update latency, i.e., less storage queries being processed by the cache. OTOH, smaller values
+    /// can lead to spurious resets when Postgres lags for whatever reason (e.g., when sealing L1 batches).
+    pub latest_values_max_block_lag: Option<NonZeroU32>,
     /// Limit for fee history block range.
     pub fee_history_limit: Option<u64>,
     /// Maximum number of requests in a single batch JSON RPC request. Default is 500.
@@ -243,20 +247,21 @@ impl Web3JsonRpcConfig {
             estimate_gas_acceptable_overestimation: 1000,
             estimate_gas_optimize_search: false,
             max_tx_size: 1000000,
-            vm_execution_cache_misses_limit: Default::default(),
-            vm_concurrency_limit: Default::default(),
-            factory_deps_cache_size_mb: Default::default(),
-            initial_writes_cache_size_mb: Default::default(),
-            latest_values_cache_size_mb: Default::default(),
-            fee_history_limit: Default::default(),
-            max_batch_request_size: Default::default(),
-            max_response_body_size_mb: Default::default(),
+            vm_execution_cache_misses_limit: None,
+            vm_concurrency_limit: None,
+            factory_deps_cache_size_mb: None,
+            initial_writes_cache_size_mb: None,
+            latest_values_cache_size_mb: None,
+            latest_values_max_block_lag: None,
+            fee_history_limit: None,
+            max_batch_request_size: None,
+            max_response_body_size_mb: None,
             max_response_body_size_overrides_mb: MaxResponseSizeOverrides::empty(),
-            websocket_requests_per_minute_limit: Default::default(),
-            mempool_cache_update_interval: Default::default(),
-            mempool_cache_size: Default::default(),
+            websocket_requests_per_minute_limit: None,
+            mempool_cache_update_interval: None,
+            mempool_cache_size: None,
             tree_api_url: None,
-            whitelisted_tokens_for_aa: Default::default(),
+            whitelisted_tokens_for_aa: vec![],
             api_namespaces: None,
             extended_api_tracing: false,
         }
@@ -306,6 +311,11 @@ impl Web3JsonRpcConfig {
     /// Returns the size of latest values cache in bytes.
     pub fn latest_values_cache_size(&self) -> usize {
         self.latest_values_cache_size_mb.unwrap_or(128) * super::BYTES_IN_MEGABYTE
+    }
+
+    /// Returns the maximum lag in the number of blocks for the latest values cache.
+    pub fn latest_values_max_block_lag(&self) -> u32 {
+        self.latest_values_max_block_lag.map_or(20, NonZeroU32::get)
     }
 
     pub fn fee_history_limit(&self) -> u64 {

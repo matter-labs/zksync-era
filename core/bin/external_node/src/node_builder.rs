@@ -378,6 +378,7 @@ impl ExternalNodeBuilder {
             factory_deps_cache_size: self.config.optional.factory_deps_cache_size() as u64,
             initial_writes_cache_size: self.config.optional.initial_writes_cache_size() as u64,
             latest_values_cache_size: self.config.optional.latest_values_cache_size() as u64,
+            latest_values_max_block_lag: 20, // reasonable default
         };
         let max_vm_concurrency = self.config.optional.vm_concurrency_limit;
         let tx_sender_layer = TxSenderLayer::new(

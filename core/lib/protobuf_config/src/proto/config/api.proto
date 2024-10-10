@@ -41,6 +41,7 @@ message Web3JsonRpc {
   repeated string api_namespaces = 32; // Optional, if empty all namespaces are available
   optional bool extended_api_tracing = 33; // optional, default false
   optional bool estimate_gas_optimize_search = 34; // optional, default false
+  optional uint32 latest_values_max_block_lag = 35; // optional
 
   reserved 15; reserved "l1_to_l2_transactions_compatibility_mode";
   reserved 11; reserved "request_timeout";

@@ -1,4 +1,4 @@
-use std::num::NonZeroUsize;
+use std::num::{NonZeroU32, NonZeroUsize};
 
 use anyhow::Context as _;
 use zksync_config::configs::{api, ApiConfig};
@@ -113,6 +113,11 @@ impl ProtoRepr for proto::Web3JsonRpc {
                 .map(|x| x.try_into())
                 .transpose()
                 .context("latest_values_cache_size_mb")?,
+            latest_values_max_block_lag: self
+                .latest_values_max_block_lag
+                .map(|x| x.try_into())
+                .transpose()
+                .context("latest_values_max_block_lag")?,
             fee_history_limit: self.fee_history_limit,
             max_batch_request_size: self
                 .max_batch_request_size
@@ -183,6 +188,7 @@ impl ProtoRepr for proto::Web3JsonRpc {
             latest_values_cache_size_mb: this
                 .latest_values_cache_size_mb
                 .map(|x| x.try_into().unwrap()),
+            latest_values_max_block_lag: this.latest_values_max_block_lag.map(NonZeroU32::get),
             fee_history_limit: this.fee_history_limit,
             max_batch_request_size: this.max_batch_request_size.map(|x| x.try_into().unwrap()),
             max_response_body_size_mb: this
