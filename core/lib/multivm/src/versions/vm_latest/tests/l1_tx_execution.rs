@@ -1,3 +1,4 @@
+use assert_matches::assert_matches;
 use ethabi::Token;
 use zksync_contracts::l1_messenger_contract;
 use zksync_system_constants::{BOOTLOADER_ADDRESS, L1_MESSENGER_ADDRESS};
@@ -5,12 +6,15 @@ use zksync_test_account::Account;
 use zksync_types::{
     get_code_key, get_known_code_key,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    Execute, ExecuteTransactionCommon, K256PrivateKey, U256,
+    Address, Execute, ExecuteTransactionCommon, K256PrivateKey, U256,
 };
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    interface::{
+        ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
+        VmRevertReason,
+    },
     utils::StorageWritesDeduplicator,
     vm_latest::{
         tests::{
@@ -193,4 +197,40 @@ fn test_l1_tx_execution_high_gas_limit() {
     let res = vm.vm.execute(VmExecutionMode::OneTx);
 
     assert!(res.result.is_failed(), "The transaction should've failed");
+}
+
+#[test]
+fn test_l1_tx_execution_gas_estimation_with_low_gas() {
+    let counter_contract = read_test_contract();
+    let counter_address = Address::repeat_byte(0x11);
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
+        .with_execution_mode(TxExecutionMode::EstimateFee)
+        .with_custom_contracts(vec![(counter_contract, counter_address, false)])
+        .with_random_rich_accounts(1)
+        .build();
+
+    let account = &mut vm.rich_accounts[0];
+    let mut tx = account.get_test_contract_transaction(
+        counter_address,
+        false,
+        None,
+        false,
+        TxType::L1 { serial_id: 0 },
+    );
+    let ExecuteTransactionCommon::L1(data) = &mut tx.common_data else {
+        unreachable!();
+    };
+    // This gas limit is chosen so that transaction starts getting executed by the bootloader, but then runs out of gas
+    // before its execution result is posted.
+    data.gas_limit = 15_000.into();
+
+    vm.vm.push_transaction(tx);
+    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    assert_matches!(
+        &res.result,
+        ExecutionResult::Revert { output: VmRevertReason::General { msg, .. } }
+            if msg.contains("reverted with empty reason")
+    );
 }

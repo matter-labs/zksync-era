@@ -5,16 +5,15 @@ use tracing::Instrument;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::interface::{
     executor::TransactionValidator,
+    storage::StorageWithOverrides,
     tracer::{ValidationError as RawValidationError, ValidationParams},
 };
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Address,
-    TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS,
+    fee_model::BatchFeeInput, l2::L2Tx, Address, TRUSTED_ADDRESS_SLOTS, TRUSTED_TOKEN_SLOTS,
 };
 
 use super::{
     execute::{SandboxAction, SandboxExecutor},
-    storage::StorageWithOverrides,
     vm_metrics::{SandboxStage, EXECUTION_METRICS, SANDBOX_METRICS},
     BlockArgs, VmPermit,
 };
@@ -57,7 +56,7 @@ impl SandboxExecutor {
         let SandboxAction::Execution { tx, .. } = action else {
             unreachable!(); // by construction
         };
-        let storage = StorageWithOverrides::new(storage, &StateOverride::default());
+        let storage = StorageWithOverrides::new(storage);
 
         let stage_latency = SANDBOX_METRICS.sandbox[&SandboxStage::Validation].start();
         let validation_result = self
