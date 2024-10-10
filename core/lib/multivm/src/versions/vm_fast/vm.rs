@@ -88,19 +88,14 @@ impl VmRunResult {
 }
 
 pub trait TracerExt: Tracer {
-    fn enter_validation(&mut self) {}
-    fn exit_validation(&mut self) {}
+    fn on_bootloader_hook(&mut self, #[allow(unused_variables)] hook: Hook) {}
 }
 
 impl TracerExt for () {}
 impl<A: TracerExt, B: TracerExt> TracerExt for (A, B) {
-    fn enter_validation(&mut self) {
-        self.0.enter_validation();
-        self.1.enter_validation();
-    }
-    fn exit_validation(&mut self) {
-        self.0.exit_validation();
-        self.1.exit_validation();
+    fn on_bootloader_hook(&mut self, hook: Hook) {
+        self.0.on_bootloader_hook(hook);
+        self.1.on_bootloader_hook(hook);
     }
 }
 
@@ -230,13 +225,14 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
                 }
             };
 
-            match Hook::from_u32(hook) {
+            let hook = Hook::from_u32(hook);
+            tracer.on_bootloader_hook(hook);
+            match hook {
                 Hook::AccountValidationEntered => {
                     assert!(
                         account_validation_gas_split.is_none(),
                         "Account validation can't be nested"
                     );
-                    tracer.enter_validation();
                     let gas = self.gas_remaining();
                     let gas_given = gas.min(gas_left_for_account_validation);
                     account_validation_gas_split = Some(AccountValidationGasSplit {
@@ -247,7 +243,6 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
                 }
 
                 Hook::ValidationExited => {
-                    tracer.exit_validation();
                     if let Some(AccountValidationGasSplit {
                         gas_given,
                         gas_hidden,
