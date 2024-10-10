@@ -2641,9 +2641,9 @@ dependencies = [
 
 [[package]]
 name = "js-sys"
-version = "0.3.70"
+version = "0.3.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1868808506b929d7b0cfa8f75951347aa71bb21144b7791bae35d9bccfcfe37a"
+checksum = "0cb94a0ffd3f3ee755c20f7d8752f45cac88605a4dcf808abcff72873296ec7b"
 dependencies = [
  "wasm-bindgen",
 ]
@@ -5168,8 +5168,8 @@ dependencies = [
 
 [[package]]
 name = "sqruff-lib"
-version = "0.18.8"
-source = "git+https://github.com/quarylabs/sqruff#871a46706c203549128206c63314495fde3af211"
+version = "0.19.0"
+source = "git+https://github.com/quarylabs/sqruff#67249fab8dc675218fc4e0c36032a274f3bb04f8"
 dependencies = [
  "ahash",
  "anstyle",
@@ -5202,8 +5202,8 @@ dependencies = [
 
 [[package]]
 name = "sqruff-lib-core"
-version = "0.18.8"
-source = "git+https://github.com/quarylabs/sqruff#871a46706c203549128206c63314495fde3af211"
+version = "0.19.0"
+source = "git+https://github.com/quarylabs/sqruff#67249fab8dc675218fc4e0c36032a274f3bb04f8"
 dependencies = [
  "ahash",
  "enum_dispatch",
@@ -5222,8 +5222,8 @@ dependencies = [
 
 [[package]]
 name = "sqruff-lib-dialects"
-version = "0.18.8"
-source = "git+https://github.com/quarylabs/sqruff#871a46706c203549128206c63314495fde3af211"
+version = "0.19.0"
+source = "git+https://github.com/quarylabs/sqruff#67249fab8dc675218fc4e0c36032a274f3bb04f8"
 dependencies = [
  "ahash",
  "itertools 0.13.0",
@@ -6191,9 +6191,9 @@ checksum = "b8dad83b4f25e74f184f64c43b150b91efe7647395b42289f38e50566d82855b"
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.93"
+version = "0.2.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a82edfc16a6c469f5f44dc7b571814045d60404b55a0ee849f9bcfa2e63dd9b5"
+checksum = "ef073ced962d62984fb38a36e5fdc1a2b23c9e0e1fa0689bb97afa4202ef6887"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -6202,9 +6202,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-backend"
-version = "0.2.93"
+version = "0.2.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9de396da306523044d3302746f1208fa71d7532227f15e347e2d93e4145dd77b"
+checksum = "c4bfab14ef75323f4eb75fa52ee0a3fb59611977fd3240da19b2cf36ff85030e"
 dependencies = [
  "bumpalo",
  "log",
@@ -6217,9 +6217,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-futures"
-version = "0.4.43"
+version = "0.4.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61e9300f63a621e96ed275155c108eb6f843b6a26d053f122ab69724559dc8ed"
+checksum = "65471f79c1022ffa5291d33520cbbb53b7687b01c2f8e83b57d102eed7ed479d"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -6229,9 +6229,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.93"
+version = "0.2.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "585c4c91a46b072c92e908d99cb1dcdf95c5218eeb6f3bf1efa991ee7a68cccf"
+checksum = "a7bec9830f60924d9ceb3ef99d55c155be8afa76954edffbb5936ff4509474e7"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -6239,9 +6239,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.93"
+version = "0.2.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "afc340c74d9005395cf9dd098506f7f44e38f2b4a21c6aaacf9a105ea5e1e836"
+checksum = "4c74f6e152a76a2ad448e223b0fc0b6b5747649c3d769cc6bf45737bf97d0ed6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6252,15 +6252,15 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.93"
+version = "0.2.94"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c62a0a307cb4a311d3a07867860911ca130c3494e8c2719593806c08bc5d0484"
+checksum = "a42f6c679374623f295a8623adfe63d9284091245c3504bde47c17a3ce2777d9"
 
 [[package]]
 name = "web-sys"
-version = "0.3.70"
+version = "0.3.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26fdeaafd9bd129f65e7c031593c24d62186301e0c72c8978fa1678be7d532c0"
+checksum = "44188d185b5bdcae1052d08bcbcf9091a5524038d4572cc4f4f2bb9d5554ddd9"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -6760,9 +6760,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_concurrency"
-version = "0.3.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4724d51934e475c846ba9e6ed169e25587385188b928a9ecfbbf616092a1c17"
+checksum = "035269d811b3770debca372141ab64cad067dce8e58cb39a48cb7617d30c626b"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -6798,9 +6798,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_crypto"
-version = "0.3.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a7760e7a140f16f0435fbf2ad9a4b09feaad74568d05b553751d222f4803a42e"
+checksum = "49e38d1b5ed28c66e785caff53ea4863375555d818aafa03290397192dd3e665"
 dependencies = [
  "anyhow",
  "blst",
@@ -6819,9 +6819,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_roles"
-version = "0.3.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96f903187836210602beba27655e111e22efb229ef90bd2a95a3d6799b31685c"
+checksum = "e49fbd4e69b276058f3dfc06cf6ada0e8caa6ed826e81289e4d596da95a0f17a"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6841,9 +6841,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_consensus_utils"
-version = "0.3.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1020308512c01ab80327fb874b5b61c6fd513a6b26c8a5fce3e077600da04e4b"
+checksum = "10bac8f471b182d4fa3d40cf158aac3624fe636a1ff0b4cf3fe26a0e20c68a42"
 dependencies = [
  "anyhow",
  "rand",
@@ -6892,9 +6892,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf"
-version = "0.3.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d2d9ce9b9697daae6023c8da5cfe8764690a9d9c91ff32b8e1e54a7c8301fb3"
+checksum = "abd55c64f54cb10967a435422f66ff5880ae14a232b245517c7ce38da32e0cab"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -6913,9 +6913,9 @@ dependencies = [
 
 [[package]]
 name = "zksync_protobuf_build"
-version = "0.3.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "903c23a12e160a703f9b68d0dd961daa24156af912ca1bc9efb74969f3acc645"
+checksum = "4121952bcaf711005dd554612fc6e2de9b30cb58088508df87f1d38046ce8ac8"
 dependencies = [
  "anyhow",
  "heck",
