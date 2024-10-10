@@ -381,6 +381,8 @@ impl ProtocolVersionsDal<'_, '_> {
                 protocol_version
             FROM
                 l1_batches
+            WHERE
+                is_sealed
             ORDER BY
                 number DESC
             LIMIT

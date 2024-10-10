@@ -1,13 +1,11 @@
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
-    api::en, Address, L1BatchNumber, L2BlockNumber, ProtocolVersionId, Transaction, H256,
+    api::en, parse_h160, parse_h256, parse_h256_opt, Address, L1BatchNumber, L2BlockNumber,
+    ProtocolVersionId, Transaction, H256,
 };
 
-use crate::{
-    consensus_dal::Payload,
-    models::{parse_h160, parse_h256, parse_h256_opt, parse_protocol_version},
-};
+use crate::{consensus_dal::Payload, models::parse_protocol_version};
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub(crate) struct StorageSyncBlock {

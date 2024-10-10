@@ -5,7 +5,7 @@ use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_config::configs::consensus::{ConsensusConfig, ConsensusSecrets};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
-use zksync_consensus_storage::{BatchStore, BlockStore};
+use zksync_consensus_storage::BlockStore;
 use zksync_dal::consensus_dal;
 
 use crate::{
@@ -43,7 +43,7 @@ pub async fn run_main_node(
         }
 
         // The main node doesn't have a payload queue as it produces all the L2 blocks itself.
-        let (store, runner) = Store::new(ctx, pool.clone(), None)
+        let (store, runner) = Store::new(ctx, pool.clone(), None, None)
             .await
             .wrap("Store::new()")?;
         s.spawn_bg(runner.run(ctx));
@@ -67,11 +67,6 @@ pub async fn run_main_node(
             .wrap("BlockStore::new()")?;
         s.spawn_bg(runner.run(ctx));
 
-        let (batch_store, runner) = BatchStore::new(ctx, Box::new(store.clone()))
-            .await
-            .wrap("BatchStore::new()")?;
-        s.spawn_bg(runner.run(ctx));
-
         let attestation = Arc::new(attestation::Controller::new(attester));
         s.spawn_bg(run_attestation_controller(
             ctx,
@@ -83,7 +78,6 @@ pub async fn run_main_node(
         let executor = executor::Executor {
             config: config::executor(&cfg, &secrets, &global_config, None)?,
             block_store,
-            batch_store,
             validator: Some(executor::Validator {
                 key: validator_key,
                 replica_store: Box::new(store.clone()),
@@ -135,9 +129,10 @@ async fn run_attestation_controller(
                 "waiting for hash of batch {:?}",
                 status.next_batch_to_attest
             );
-            let hash = pool
-                .wait_for_batch_hash(ctx, status.next_batch_to_attest)
+            let info = pool
+                .wait_for_batch_info(ctx, status.next_batch_to_attest, POLL_INTERVAL)
                 .await?;
+            let hash = consensus_dal::batch_hash(&info);
             let Some(committee) = registry
                 .attester_committee_for(ctx, registry_addr, status.next_batch_to_attest)
                 .await
