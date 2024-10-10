@@ -277,10 +277,7 @@ async fn call_forge(
         forge = forge.with_signature(signature);
     }
 
-    forge = fill_forge_private_key(
-        forge,
-        ecosystem_config.get_wallets()?.governor_private_key(),
-    )?;
+    forge = fill_forge_private_key(forge, Some(&ecosystem_config.get_wallets()?.governor))?;
 
     check_the_balance(&forge).await?;
     forge.run(shell)?;
