@@ -171,6 +171,7 @@ sqlx = "0.8.1"
 static_assertions = "1.1"
 structopt = "0.3.20"
 strum = "0.26"
+strum_macros = "0.26.4"
 tempfile = "3.0.2"
 test-casing = "0.1.2"
 test-log = "0.2.15"
@@ -184,7 +185,7 @@ tower-http = "0.5.2"
 tracing = "0.1"
 tracing-subscriber = "0.3"
 tracing-opentelemetry = "0.25.0"
-time = "0.3.36" # Has to be same as used by `tracing-subscriber`
+time = "0.3.36"                                                               # Has to be same as used by `tracing-subscriber`
 url = "2"
 web3 = "0.19.0"
 fraction = "0.15.3"
@@ -230,16 +231,16 @@ zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.5" }
 zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "a233d44bbe61dc6a758a754c3b78fe4f83e56699" }
 
 # Consensus dependencies.
-zksync_concurrency = "=0.3.0"
-zksync_consensus_bft = "=0.3.0"
-zksync_consensus_crypto = "=0.3.0"
-zksync_consensus_executor = "=0.3.0"
-zksync_consensus_network = "=0.3.0"
-zksync_consensus_roles = "=0.3.0"
-zksync_consensus_storage = "=0.3.0"
-zksync_consensus_utils = "=0.3.0"
-zksync_protobuf = "=0.3.0"
-zksync_protobuf_build = "=0.3.0"
+zksync_concurrency = "=0.5.0"
+zksync_consensus_bft = "=0.5.0"
+zksync_consensus_crypto = "=0.5.0"
+zksync_consensus_executor = "=0.5.0"
+zksync_consensus_network = "=0.5.0"
+zksync_consensus_roles = "=0.5.0"
+zksync_consensus_storage = "=0.5.0"
+zksync_consensus_utils = "=0.5.0"
+zksync_protobuf = "=0.5.0"
+zksync_protobuf_build = "=0.5.0"
 
 # "Local" dependencies
 zksync_multivm = { version = "0.1.0", path = "core/lib/multivm" }

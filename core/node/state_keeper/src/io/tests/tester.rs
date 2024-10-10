@@ -156,7 +156,7 @@ impl Tester {
                     patch: 0.into(),
                 },
                 &self.base_system_contracts,
-                &get_system_smart_contracts(),
+                &get_system_smart_contracts(false),
                 L1VerifierConfig::default(),
             )
             .await

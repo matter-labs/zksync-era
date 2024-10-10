@@ -98,7 +98,7 @@ fn test_require_eip712() {
     let aa_tx = private_account.sign_legacy_tx(aa_raw_tx);
     let (tx_request, hash) = TransactionRequest::from_bytes(&aa_tx, L2ChainId::from(270)).unwrap();
 
-    let mut l2_tx: L2Tx = L2Tx::from_request(tx_request, 10000).unwrap();
+    let mut l2_tx: L2Tx = L2Tx::from_request(tx_request, 10000, false).unwrap();
     l2_tx.set_input(aa_tx, hash);
     // Pretend that operator is malicious and sets the initiator to the AA account.
     l2_tx.common_data.initiator_address = account_abstraction.address;
@@ -148,7 +148,7 @@ fn test_require_eip712() {
     let (aa_txn_request, aa_hash) =
         TransactionRequest::from_bytes(&encoded_tx, L2ChainId::from(chain_id)).unwrap();
 
-    let mut l2_tx = L2Tx::from_request(aa_txn_request, 100000).unwrap();
+    let mut l2_tx = L2Tx::from_request(aa_txn_request, 100000, false).unwrap();
     l2_tx.set_input(encoded_tx, aa_hash);
 
     let transaction: Transaction = l2_tx.into();

@@ -37,10 +37,10 @@ once_cell.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 vise.workspace = true
+ethabi.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true
 pretty_assertions.workspace = true
 zksync_test_account.workspace = true
-ethabi.workspace = true
 zksync_eth_signer.workspace = true
