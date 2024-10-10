@@ -2,7 +2,7 @@ use std::{path::PathBuf, str::FromStr};
 
 use zksync_protobuf::testonly::{test_encode_all_formats, ReprConv};
 
-use crate::{decode_yaml_repr, proto};
+use crate::{proto, read_yaml_repr};
 
 /// Tests config <-> proto (boilerplate) conversions.
 #[test]
@@ -60,14 +60,11 @@ fn test_encoding() {
 #[test]
 fn verify_file_parsing() {
     let base_path = PathBuf::from_str("../../../etc/env/file_based/").unwrap();
-    decode_yaml_repr::<proto::general::GeneralConfig>(&base_path.join("general.yaml"), true)
-        .unwrap();
+    read_yaml_repr::<proto::general::GeneralConfig>(&base_path.join("general.yaml"), true).unwrap();
     // It's allowed to have unknown fields in wallets, e.g. we keep private key for fee account
-    decode_yaml_repr::<proto::wallets::Wallets>(&base_path.join("wallets.yaml"), false).unwrap();
-    decode_yaml_repr::<proto::genesis::Genesis>(&base_path.join("genesis.yaml"), true).unwrap();
-    decode_yaml_repr::<proto::contracts::Contracts>(&base_path.join("contracts.yaml"), true)
-        .unwrap();
-    decode_yaml_repr::<proto::secrets::Secrets>(&base_path.join("secrets.yaml"), true).unwrap();
-    decode_yaml_repr::<proto::en::ExternalNode>(&base_path.join("external_node.yaml"), true)
-        .unwrap();
+    read_yaml_repr::<proto::wallets::Wallets>(&base_path.join("wallets.yaml"), false).unwrap();
+    read_yaml_repr::<proto::genesis::Genesis>(&base_path.join("genesis.yaml"), true).unwrap();
+    read_yaml_repr::<proto::contracts::Contracts>(&base_path.join("contracts.yaml"), true).unwrap();
+    read_yaml_repr::<proto::secrets::Secrets>(&base_path.join("secrets.yaml"), true).unwrap();
+    read_yaml_repr::<proto::en::ExternalNode>(&base_path.join("external_node.yaml"), true).unwrap();
 }

@@ -30,7 +30,7 @@ mod wallet;
 pub enum TestCommands {
     #[clap(about = MSG_INTEGRATION_TESTS_ABOUT, alias = "i")]
     Integration(IntegrationArgs),
-    #[clap(about = "Run fees test", alias = "i")]
+    #[clap(about = "Run fees test", alias = "f")]
     Fees(FeesArgs),
     #[clap(about = MSG_REVERT_TEST_ABOUT, alias = "r")]
     Revert(RevertArgs),
@@ -40,7 +40,7 @@ pub enum TestCommands {
     Upgrade(UpgradeArgs),
     #[clap(about = MSG_BUILD_ABOUT)]
     Build,
-    #[clap(about = MSG_RUST_TEST_ABOUT, alias = "unit")]
+    #[clap(about = MSG_RUST_TEST_ABOUT, alias = "unit", allow_hyphen_values(true))]
     Rust(RustArgs),
     #[clap(about = MSG_L1_CONTRACTS_ABOUT, alias = "l1")]
     L1Contracts,

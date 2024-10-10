@@ -1,10 +1,11 @@
-use std::{borrow::Borrow, collections::HashMap, sync::Arc};
+use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 
 /// Consensus registry contract operations.
 /// Includes code duplicated from `zksync_node_consensus::registry::abi`.
 use anyhow::Context as _;
 use common::logger;
 use config::EcosystemConfig;
+use conv::*;
 use ethers::{
     abi::Detokenize,
     contract::{FunctionCall, Multicall},
@@ -18,6 +19,11 @@ use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
 
 use crate::{messages, utils::consensus::parse_attester_committee};
+
+mod conv;
+mod proto;
+#[cfg(test)]
+mod tests;
 
 #[allow(warnings)]
 mod abi {
@@ -65,11 +71,25 @@ fn encode_validator_pop(pop: &validator::ProofOfPossession) -> abi::Bls12381Sign
     }
 }
 
+#[derive(clap::Args, Debug)]
+#[group(required = true, multiple = false)]
+pub struct SetAttesterCommitteeCommand {
+    /// Sets the attester committee in the consensus registry contract to
+    /// `consensus.genesis_spec.attesters` in general.yaml.
+    #[clap(long)]
+    from_genesis: bool,
+    /// Sets the attester committee in the consensus registry contract to
+    /// the committee in the yaml file.
+    /// File format is definied in `commands/consensus/proto/mod.proto`.
+    #[clap(long)]
+    from_file: Option<PathBuf>,
+}
+
 #[derive(clap::Subcommand, Debug)]
 pub enum Command {
     /// Sets the attester committee in the consensus registry contract to
     /// `consensus.genesis_spec.attesters` in general.yaml.
-    SetAttesterCommittee,
+    SetAttesterCommittee(SetAttesterCommitteeCommand),
     /// Fetches the attester committee from the consensus registry contract.
     GetAttesterCommittee,
 }
@@ -173,7 +193,8 @@ impl Setup {
     }
 
     fn new(shell: &Shell) -> anyhow::Result<Self> {
-        let ecosystem_config = EcosystemConfig::from_file(shell)?;
+        let ecosystem_config =
+            EcosystemConfig::from_file(shell).context("EcosystemConfig::from_file()")?;
         let chain = ecosystem_config
             .load_current_chain()
             .context(messages::MSG_CHAIN_NOT_INITIALIZED)?;
@@ -227,9 +248,21 @@ impl Setup {
         attester::Committee::new(attesters.into_iter()).context("attester::Committee::new()")
     }
 
-    async fn set_attester_committee(&self) -> anyhow::Result<attester::Committee> {
+    fn read_attester_committee(
+        &self,
+        opts: &SetAttesterCommitteeCommand,
+    ) -> anyhow::Result<attester::Committee> {
         // Fetch the desired state.
-        let want = (|| {
+        if let Some(path) = &opts.from_file {
+            let yaml = std::fs::read_to_string(path).context("read_to_string()")?;
+            let file: SetAttesterCommitteeFile = zksync_protobuf::serde::Deserialize {
+                deny_unknown_fields: true,
+            }
+            .proto_fmt_from_yaml(&yaml)
+            .context("proto_fmt_from_yaml()")?;
+            return Ok(file.attesters);
+        }
+        let attesters = (|| {
             Some(
                 &self
                     .general
@@ -241,8 +274,10 @@ impl Setup {
             )
         })()
         .context(messages::MSG_CONSENSUS_GENESIS_SPEC_ATTESTERS_MISSING_IN_GENERAL_YAML)?;
-        let want = parse_attester_committee(want).context("parse_attester_committee()")?;
+        parse_attester_committee(attesters).context("parse_attester_committee()")
+    }
 
+    async fn set_attester_committee(&self, want: &attester::Committee) -> anyhow::Result<()> {
         let provider = self.provider().context("provider()")?;
         let block_id = self.last_block(&provider).await.context("last_block()")?;
         let governor = self.governor().context("governor()")?;
@@ -337,7 +372,7 @@ impl Setup {
         )
         .await?;
         txs.wait(&provider).await.context("wait()")?;
-        Ok(want)
+        Ok(())
     }
 }
 
@@ -345,8 +380,11 @@ impl Command {
     pub(crate) async fn run(self, shell: &Shell) -> anyhow::Result<()> {
         let setup = Setup::new(shell).context("Setup::new()")?;
         match self {
-            Self::SetAttesterCommittee => {
-                let want = setup.set_attester_committee().await?;
+            Self::SetAttesterCommittee(opts) => {
+                let want = setup
+                    .read_attester_committee(&opts)
+                    .context("read_attester_committee()")?;
+                setup.set_attester_committee(&want).await?;
                 let got = setup.get_attester_committee().await?;
                 anyhow::ensure!(
                     got == want,
