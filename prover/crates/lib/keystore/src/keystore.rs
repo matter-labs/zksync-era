@@ -519,7 +519,7 @@ impl Keystore {
         &self,
         setup_data: GpuProverSetupData<CompressionTreeHasherForWrapper>,
     ) -> anyhow::Result<()> {
-        let filepath = self.basedir.join("compression_wrapper_setup_data.json");
+        let filepath = self.basedir.join("compression_wrapper_setup_data.bin");
         tracing::info!(
             "saving FFLONK compression wrapper setup data to: {:?}",
             filepath

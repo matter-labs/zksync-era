@@ -73,7 +73,7 @@ impl ProofCompressor {
         ZkSyncCompressionProofForWrapper,
         ZkSyncCompressionVerificationKeyForWrapper,
     ) {
-        let bytes = std::fs::read("data/compression_wrapper_5_setup_data.bin").unwrap();
+        let bytes = std::fs::read("data/keys/compression_wrapper_setup_data.bin").unwrap();
         println!("Compression wrapper setup data loaded");
         let setup_data = bincode::deserialize(&bytes).unwrap();
 
