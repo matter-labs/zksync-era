@@ -72,7 +72,7 @@ impl TeeProofGenerationDal<'_, '_> {
                     )
                 FETCH FIRST ROW ONLY
             )
-
+            
             INSERT INTO
             tee_proof_generation_details (
                 l1_batch_number, tee_type, status, created_at, updated_at, prover_taken_at
