@@ -86,7 +86,6 @@ jobs:
       - name: Run Prover Job Monitor
         run: |
           ci_run zk_inception prover run --component=prover-job-monitor --docker=false &>prover_logs/prover-job-monitor.log &
-          echo $!
       - name: Wait for batch to be available
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
@@ -107,6 +106,11 @@ jobs:
       - name: Run Prover
         run: |
           ci_run zk_inception prover run --component=prover --docker=false &>prover_logs/prover.log &
+          
+          echo $!
+          nvidia-smi
+          fuser -v /dev/nvidia*
+          ps ax
       - name: Wait for prover jobs to finish
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
@@ -121,14 +125,9 @@ jobs:
 
       - name: Kill prover & start compressor
         run: |
-          nvidia-smi
-          fuser -v /dev/nvidia*
-          ps ax
           
           chmod +x ./bin/prover_checkers/clean_gpu
           ./bin/prover_checkers/clean_gpu
-          
-          nvidia-smi
           
           ci_run zk_inception prover run --component=compressor --docker=false &
           ci_run sleep 420
