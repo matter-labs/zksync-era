@@ -108,7 +108,6 @@ uint constant EVM_EMULATOR_STIPEND = 1 << 30;
  */
 contract MockEvmEmulator is IRecursiveContract {
     IAccountCodeStorage constant ACCOUNT_CODE_STORAGE_CONTRACT = IAccountCodeStorage(address(0x8002));
-    address constant CODE_ORACLE_ADDR = address(0x8012);
 
     /// Set to `true` for testing logic sanity.
     bool isUserSpace;
@@ -143,7 +142,7 @@ contract MockEvmEmulator is IRecursiveContract {
             return 1;
         } else {
             IRecursiveContract target = (address(recursionTarget) == address(0)) ? this : recursionTarget;
-            // The real emulator deducts the stipend when performing far calls, so we emulate this behavior as well.
+            // The real emulator limits amount of gas when performing far calls by EVM gas, so we emulate this behavior as well.
             uint gasToSend = isUserSpace ? gasleft() : (gasleft() - EVM_EMULATOR_STIPEND);
             return target.recurse{gas: gasToSend}(_depth - 1) * _depth;
         }
