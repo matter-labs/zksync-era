@@ -22,8 +22,7 @@ use zksync_prover_interface::inputs::{
     StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
 };
 use zksync_types::{
-    block::L2BlockExecutionData, L1BatchNumber, StorageLog, StorageLogKind, StorageValue,
-    Transaction, H256,
+    block::L2BlockExecutionData, L1BatchNumber, StorageLog, StorageValue, Transaction, H256,
 };
 use zksync_utils::u256_to_h256;
 
