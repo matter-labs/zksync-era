@@ -11,7 +11,7 @@ use ethers::{
     contract::{FunctionCall, Multicall},
     middleware::{Middleware, NonceManagerMiddleware, SignerMiddleware},
     providers::{Http, JsonRpcClient, PendingTransaction, Provider, RawCall as _},
-    signers::{LocalWallet, Signer as _},
+    signers::Signer as _,
     types::{Address, BlockId, H256},
 };
 use xshell::Shell;
@@ -182,9 +182,7 @@ impl Setup {
             .governor
             .private_key
             .context(messages::MSG_GOVERNOR_PRIVATE_KEY_NOT_SET)?;
-        let governor = LocalWallet::from_bytes(governor.as_bytes())
-            .context("LocalWallet::from_bytes()")?
-            .with_chain_id(self.genesis.l2_chain_id.as_u64());
+        let governor = governor.with_chain_id(self.genesis.l2_chain_id.as_u64());
         let provider = self.provider().context("provider()")?;
         let signer = SignerMiddleware::new(provider, governor.clone());
         // Allows us to send next transaction without waiting for the previous to complete.

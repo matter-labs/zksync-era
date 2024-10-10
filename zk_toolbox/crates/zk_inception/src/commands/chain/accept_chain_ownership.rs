@@ -30,7 +30,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         shell,
         &ecosystem_config,
         contracts.l1.chain_admin_addr,
-        chain_config.get_wallets_config()?.governor_private_key(),
+        &chain_config.get_wallets_config()?.governor,
         contracts.l1.diamond_proxy_addr,
         &args,
         l1_rpc_url.clone(),
