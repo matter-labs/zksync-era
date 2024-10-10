@@ -236,6 +236,19 @@ impl StateKeeperIO for ExternalIO {
                     "L2 block number mismatch: expected {}, got {first_l2_block_number}",
                     cursor.next_l2_block
                 );
+
+                self.pool
+                    .connection()
+                    .await?
+                    .blocks_dal()
+                    .insert_l1_batch(
+                        cursor.l1_batch,
+                        params.first_l2_block.timestamp,
+                        None,
+                        params.operator_address,
+                        params.fee_input,
+                    )
+                    .await?;
                 return Ok(Some(params));
             }
             other => {
