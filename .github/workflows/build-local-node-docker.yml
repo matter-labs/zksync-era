@@ -68,7 +68,7 @@ jobs:
 
       - name: build contracts
         run: |
-          ci_run zkstack dev contracts 
+          ci_run /root/.local/bin/zkstack dev contracts 
 
       - name: update-image
         run: |
