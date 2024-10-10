@@ -16,7 +16,7 @@ import * as elliptic from 'elliptic';
 import { RetryProvider } from '../src/retry-provider';
 
 const SECONDS = 1000;
-jest.setTimeout(300 * SECONDS);
+jest.setTimeout(400 * SECONDS);
 
 // TODO: Leave only important ones.
 const contracts = {

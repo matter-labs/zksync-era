@@ -1,7 +1,7 @@
 use ethabi::Contract;
 use once_cell::sync::Lazy;
 use zksync_contracts::{
-    load_contract, read_bytecode, read_yul_bytecode, read_zbin_bytecode, BaseSystemContracts,
+    load_contract, read_bootloader_code, read_bytecode, read_zbin_bytecode, BaseSystemContracts,
     SystemContractCode,
 };
 use zksync_types::{
@@ -60,8 +60,7 @@ pub(crate) fn read_test_contract() -> Vec<u8> {
 }
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
-    let artifacts_path = "contracts/system-contracts/bootloader/tests/artifacts/";
-    let bootloader_code = read_yul_bytecode(artifacts_path, test);
+    let bootloader_code = read_bootloader_code(test);
 
     let bootloader_hash = hash_bytecode(&bootloader_code);
     SystemContractCode {
