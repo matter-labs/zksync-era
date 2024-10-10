@@ -8,7 +8,7 @@ use zksync_consensus_roles::{
     validator::testonly::{Setup, SetupSpec},
 };
 use zksync_dal::consensus_dal;
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::ProtocolVersionId;
 use zksync_web3_decl::namespaces::EnNamespaceClient as _;
 
@@ -79,7 +79,7 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
         let status = fetch_status().await?;
         assert_eq!(
             status.next_batch_to_attest,
-            attester::BatchNumber(first_batch.0.into())
+            attester::BatchNumber(first_batch.0)
         );
 
         tracing::info!("Insert a cert");
@@ -237,7 +237,7 @@ async fn test_multiple_attesters(version: ProtocolVersionId, pregenesis: bool) {
         }
 
         tracing::info!("Wait for the batches to be attested");
-        let want_last = attester::BatchNumber(validator.last_sealed_batch().0.into());
+        let want_last = attester::BatchNumber(validator.last_sealed_batch().0);
         validator_pool
             .wait_for_batch_certificates_and_verify(ctx, want_last, Some(registry_addr))
             .await?;

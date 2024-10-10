@@ -1,7 +1,7 @@
 use rand::Rng as _;
 use zksync_concurrency::{ctx, scope, time};
 use zksync_consensus_roles::{attester, validator::testonly::Setup};
-use zksync_test_account::Account;
+use zksync_test_contracts::Account;
 use zksync_types::ProtocolVersionId;
 
 use super::*;
@@ -80,7 +80,7 @@ async fn test_attester_committee() {
             .wrap("wait_for_batch_info()")?;
 
         // Read the attester committee using the vm.
-        let batch = attester::BatchNumber(node.last_batch().0.into());
+        let batch = attester::BatchNumber(node.last_batch().0);
         assert_eq!(
             Some(committee),
             registry

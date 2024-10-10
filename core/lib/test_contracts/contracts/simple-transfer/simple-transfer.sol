@@ -19,13 +19,15 @@ contract SimpleTransfer {
     // Function to withdraw Ether to the owner's address
     function withdraw(uint _amount) public onlyOwner {
         require(address(this).balance >= _amount, "Insufficient balance in contract");
-        payable(owner).transfer(_amount);
+        (bool success, ) = owner.call{value: _amount}("");
+        require(success, "transfer reverted");
     }
 
     // Function to transfer Ether from this contract to any address
     function transfer(address _to, uint _amount) public onlyOwner {
         require(address(this).balance >= _amount, "Insufficient balance in contract");
-        payable(_to).transfer(_amount);
+        (bool success, ) = _to.call{value: _amount}("");
+        require(success, "transfer reverted");
     }
 
     // Function to check the contract's balance

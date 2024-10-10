@@ -128,7 +128,6 @@ jobs:
             --legacy-bridge
 
           ci_run zk_inception ecosystem init --dev --verbose
-          ci_run zk_supervisor contracts --test-contracts
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server

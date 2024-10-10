@@ -1,10 +1,7 @@
 use std::collections::BTreeMap;
 
-use ethabi::Contract;
 use once_cell::sync::Lazy;
-use zksync_contracts::{
-    load_contract, read_bytecode, read_zbin_bytecode, BaseSystemContracts, SystemContractCode,
-};
+use zksync_contracts::{read_zbin_bytecode, BaseSystemContracts, SystemContractCode};
 use zksync_types::{
     utils::storage_key_for_standard_token_balance, AccountTreeId, Address, StorageKey, H160, H256,
     U256,
@@ -59,10 +56,6 @@ pub(crate) fn get_balance(
         .unwrap_or_else(|| h256_to_u256(main_storage.read_value(&key)))
 }
 
-pub(crate) fn read_test_contract() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json")
-}
-
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
     let bootloader_code = read_zbin_bytecode(format!(
         "contracts/system-contracts/bootloader/tests/artifacts/{}.yul.zbin",
@@ -74,64 +67,4 @@ pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
         code: bytes_to_be_words(bootloader_code),
         hash: bootloader_hash,
     }
-}
-
-pub(crate) fn read_error_contract() -> Vec<u8> {
-    read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/error/error.sol/SimpleRequire.json",
-    )
-}
-
-pub(crate) fn get_execute_error_calldata() -> Vec<u8> {
-    let test_contract = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/error/error.sol/SimpleRequire.json",
-    );
-
-    let function = test_contract.function("require_short").unwrap();
-
-    function
-        .encode_input(&[])
-        .expect("failed to encode parameters")
-}
-
-pub(crate) fn read_many_owners_custom_account_contract() -> (Vec<u8>, Contract) {
-    let path = "etc/contracts-test-data/artifacts-zk/contracts/custom-account/many-owners-custom-account.sol/ManyOwnersCustomAccount.json";
-    (read_bytecode(path), load_contract(path))
-}
-
-pub(crate) fn read_precompiles_contract() -> Vec<u8> {
-    read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
-    )
-}
-
-pub(crate) fn load_precompiles_contract() -> Contract {
-    load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
-    )
-}
-
-pub(crate) fn read_nonce_holder_tester() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/custom-account/nonce-holder-test.sol/NonceHolderTest.json")
-}
-
-pub(crate) fn read_complex_upgrade() -> Vec<u8> {
-    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json")
-}
-
-pub(crate) fn get_complex_upgrade_abi() -> Contract {
-    load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json"
-    )
-}
-
-pub(crate) fn read_expensive_contract() -> (Vec<u8>, Contract) {
-    const PATH: &str =
-        "etc/contracts-test-data/artifacts-zk/contracts/expensive/expensive.sol/Expensive.json";
-    (read_bytecode(PATH), load_contract(PATH))
-}
-
-pub(crate) fn read_proxy_counter_contract() -> (Vec<u8>, Contract) {
-    const PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/counter/proxy_counter.sol/ProxyCounter.json";
-    (read_bytecode(PATH), load_contract(PATH))
 }
