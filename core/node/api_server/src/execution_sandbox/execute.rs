@@ -175,7 +175,7 @@ impl SandboxExecutor {
         let initialization_stage = SANDBOX_METRICS.sandbox[&SandboxStage::Initialization].start();
         let resolve_started_at = Instant::now();
         let resolve_time = resolve_started_at.elapsed();
-        let resolved_block_info = block_args.inner.resolve(&mut connection).await?;
+        let resolved_block_info = &block_args.resolved;
         // We don't want to emit too many logs.
         if resolve_time > Duration::from_millis(10) {
             tracing::debug!("Resolved block numbers (took {resolve_time:?})");
@@ -185,7 +185,7 @@ impl SandboxExecutor {
             SandboxAction::Execution { fee_input, tx } => {
                 self.options
                     .eth_call
-                    .to_execute_env(&mut connection, &resolved_block_info, *fee_input, tx)
+                    .to_execute_env(&mut connection, resolved_block_info, *fee_input, tx)
                     .await?
             }
             &SandboxAction::Call {
@@ -197,7 +197,7 @@ impl SandboxExecutor {
                     .eth_call
                     .to_call_env(
                         &mut connection,
-                        &resolved_block_info,
+                        resolved_block_info,
                         fee_input,
                         enforced_base_fee,
                     )
@@ -210,7 +210,7 @@ impl SandboxExecutor {
             } => {
                 self.options
                     .estimate_gas
-                    .to_env(&mut connection, &resolved_block_info, fee_input, base_fee)
+                    .to_env(&mut connection, resolved_block_info, fee_input, base_fee)
                     .await?
             }
         };

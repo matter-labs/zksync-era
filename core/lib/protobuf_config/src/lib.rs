@@ -12,11 +12,14 @@ mod commitment_generator;
 mod consensus;
 mod contract_verifier;
 mod contracts;
+mod da_client;
 mod da_dispatcher;
 mod database;
 mod en;
 mod eth;
 mod experimental;
+mod external_price_api_client;
+mod external_proof_integration_api;
 mod general;
 mod genesis;
 mod house_keeper;
@@ -25,15 +28,12 @@ mod observability;
 mod proof_data_handler;
 pub mod proto;
 mod prover;
+mod prover_autoscaler;
+mod prover_job_monitor;
 mod pruning;
 mod secrets;
-mod snapshots_creator;
-
-mod da_client;
-mod external_price_api_client;
-mod external_proof_integration_api;
-mod prover_job_monitor;
 mod snapshot_recovery;
+mod snapshots_creator;
 #[cfg(test)]
 mod tests;
 mod utils;
@@ -71,17 +71,16 @@ pub fn read_optional_repr<P: ProtoRepr>(field: &Option<P>) -> Option<P::Type> {
         .flatten()
 }
 
-pub fn decode_yaml_repr<T: ProtoRepr>(
+/// Reads a yaml file.
+pub fn read_yaml_repr<T: ProtoRepr>(
     path: &PathBuf,
     deny_unknown_fields: bool,
 ) -> anyhow::Result<T::Type> {
     let yaml = std::fs::read_to_string(path).with_context(|| path.display().to_string())?;
-    let d = serde_yaml::Deserializer::from_str(&yaml);
-    let this: T = zksync_protobuf::serde::Deserialize {
+    zksync_protobuf::serde::Deserialize {
         deny_unknown_fields,
     }
-    .proto(d)?;
-    this.read()
+    .proto_repr_from_yaml::<T>(&yaml)
 }
 
 pub fn encode_yaml_repr<T: ProtoRepr>(value: &T::Type) -> anyhow::Result<Vec<u8>> {

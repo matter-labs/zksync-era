@@ -8,7 +8,7 @@ use std::{
 use zksync_multivm::interface::storage::ReadStorage;
 use zksync_types::{
     api::state_override::{OverrideState, StateOverride},
-    get_code_key, get_nonce_key,
+    get_code_key, get_known_code_key, get_nonce_key,
     utils::{decompose_full_nonce, nonces_to_full_nonce, storage_key_for_eth_balance},
     AccountTreeId, StorageKey, StorageValue, H256,
 };
@@ -56,6 +56,9 @@ impl<S: ReadStorage> StorageWithOverrides<S> {
                 let code_key = get_code_key(account);
                 let code_hash = code.hash();
                 self.overridden_slots.insert(code_key, code_hash);
+                let known_code_key = get_known_code_key(&code_hash);
+                self.overridden_slots
+                    .insert(known_code_key, H256::from_low_u64_be(1));
                 self.store_factory_dep(code_hash, code.clone().into_bytes());
             }
 

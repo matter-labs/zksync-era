@@ -127,7 +127,7 @@ impl ChainCreateArgs {
                 .ask()
             });
 
-        let wallet_path: Option<PathBuf> = if self.wallet_creation == Some(WalletCreation::InFile) {
+        let wallet_path: Option<PathBuf> = if wallet_creation == WalletCreation::InFile {
             Some(self.wallet_path.unwrap_or_else(|| {
                 Prompt::new(MSG_WALLET_PATH_PROMPT)
                     .validate_with(|val: &String| {

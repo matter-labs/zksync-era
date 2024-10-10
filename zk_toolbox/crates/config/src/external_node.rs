@@ -2,7 +2,7 @@ use std::path::Path;
 
 use xshell::Shell;
 pub use zksync_config::configs::en_config::ENConfig;
-use zksync_protobuf_config::{decode_yaml_repr, encode_yaml_repr};
+use zksync_protobuf_config::{encode_yaml_repr, read_yaml_repr};
 
 use crate::{
     consts::EN_CONFIG_FILE,
@@ -23,6 +23,6 @@ impl SaveConfig for ENConfig {
 impl ReadConfig for ENConfig {
     fn read(shell: &Shell, path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let path = shell.current_dir().join(path);
-        decode_yaml_repr::<zksync_protobuf_config::proto::en::ExternalNode>(&path, false)
+        read_yaml_repr::<zksync_protobuf_config::proto::en::ExternalNode>(&path, false)
     }
 }

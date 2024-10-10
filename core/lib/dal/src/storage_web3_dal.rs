@@ -178,6 +178,8 @@ impl StorageWeb3Dal<'_, '_> {
                             MAX(number) + 1
                         FROM
                             l1_batches
+                        WHERE
+                            is_sealed
                     ),
                     (
                         SELECT
@@ -253,7 +255,7 @@ impl StorageWeb3Dal<'_, '_> {
                     LIMIT
                         1
                 ) t
-                JOIN factory_deps ON value = factory_deps.bytecode_hash
+            JOIN factory_deps ON value = factory_deps.bytecode_hash
             WHERE
                 value != $3
             "#,

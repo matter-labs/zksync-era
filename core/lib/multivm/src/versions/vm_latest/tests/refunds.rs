@@ -62,7 +62,7 @@ fn test_predetermined_refunded_gas() {
         .with_rich_accounts(vec![account.clone()])
         .build();
 
-    let tx: TransactionData = tx.into();
+    let tx = TransactionData::new(tx, false);
     // Overhead
     let overhead = tx.overhead_gas();
     vm.vm

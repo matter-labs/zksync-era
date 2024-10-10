@@ -1,9 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fmt,
-    ops::Range,
-    path::Path,
-};
+use std::{collections::HashMap, fmt, ops::Range, path::Path};
 
 use anyhow::{bail, Context, Result};
 use config::{
@@ -21,10 +16,6 @@ pub struct EcosystemPorts {
 }
 
 impl EcosystemPorts {
-    pub fn get_assigned_ports(&self) -> HashSet<u16> {
-        self.ports.keys().cloned().collect()
-    }
-
     pub fn is_port_assigned(&self, port: u16) -> bool {
         self.ports.contains_key(&port)
     }
@@ -178,7 +169,7 @@ impl EcosystemPortsScanner {
         // - Ecosystem directory (docker-compose files)
         let mut dirs = vec![ecosystem_config.config.clone()];
         for chain in ecosystem_config.list_of_chains() {
-            if let Some(chain_config) = ecosystem_config.load_chain(Some(chain)) {
+            if let Ok(chain_config) = ecosystem_config.load_chain(Some(chain)) {
                 dirs.push(chain_config.configs.clone());
                 if let Some(external_node_config_path) = &chain_config.external_node_config_path {
                     dirs.push(external_node_config_path.clone());
