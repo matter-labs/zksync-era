@@ -109,8 +109,14 @@ fn create_proof_processing_router(
                         .await;
 
                     match result {
-                        Ok(Json(TeeProofGenerationDataResponse(None))) => (StatusCode::NO_CONTENT, Json("No new TeeVerifierInputs are available yet")).into_response(),
-                        Ok(data) => (StatusCode::OK, data).into_response(),
+                        Ok(data) => match data {
+                            Json(TeeProofGenerationDataResponse::VerifierInputReady(input)) => {
+                                (StatusCode::OK, Json(TeeProofGenerationDataResponse::VerifierInputReady(input))).into_response()
+                            }
+                            Json(TeeProofGenerationDataResponse::VerifierInputNotReady) => {
+                                (StatusCode::NO_CONTENT, Json(TeeProofGenerationDataResponse::VerifierInputNotReady)).into_response()
+                            }
+                        }
                         Err(e) => e.into_response(),
                     }
                 },

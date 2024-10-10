@@ -8,7 +8,7 @@ use zksync_node_framework::{
     wiring_layer::{WiringError, WiringLayer},
     IntoContext,
 };
-use zksync_prover_interface::inputs::TeeVerifierInput;
+use zksync_prover_interface::{api::TeeProofGenerationDataResponse, inputs::TeeVerifierInput};
 use zksync_tee_verifier::Verify;
 use zksync_types::L1BatchNumber;
 
@@ -91,7 +91,7 @@ impl TeeProver {
 
     async fn step(&self, public_key: &PublicKey) -> Result<Option<L1BatchNumber>, TeeProverError> {
         match self.api_client.get_job(self.config.tee_type).await? {
-            Some(job) => {
+            TeeProofGenerationDataResponse::VerifierInputReady(job) => {
                 let (signature, batch_number, root_hash) = self.verify(*job)?;
                 self.api_client
                     .submit_proof(
@@ -104,7 +104,7 @@ impl TeeProver {
                     .await?;
                 Ok(Some(batch_number))
             }
-            None => {
+            TeeProofGenerationDataResponse::VerifierInputNotReady => {
                 tracing::trace!("There are currently no pending batches to be proven");
                 Ok(None)
             }

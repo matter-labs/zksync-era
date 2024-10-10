@@ -47,7 +47,7 @@ impl FromEnv for TeeProverConfig {
     /// export TEE_PROVER_SIGNING_KEY="b50b38c8d396c88728fc032ece558ebda96907a0b1a9340289715eef7bf29deb"
     /// export TEE_PROVER_ATTESTATION_QUOTE_FILE_PATH="/tmp/test"  # run `echo test > /tmp/test` beforehand
     /// export TEE_PROVER_TEE_TYPE="sgx"
-    /// export TEE_PROVER_API_URL="http://127.0.0.1:3320"
+    /// export TEE_PROVER_API_URL="http://127.0.0.1:3421"
     /// export TEE_PROVER_MAX_RETRIES=10
     /// export TEE_PROVER_INITIAL_RETRY_BACKOFF_SEC=1
     /// export TEE_PROVER_RETRY_BACKOFF_MULTIPLIER=2.0

@@ -56,7 +56,7 @@ impl TeeRequestProcessor {
                 .await?
             {
                 Some(number) => number,
-                None => break Ok(Json(TeeProofGenerationDataResponse(None))),
+                None => break Ok(Json(TeeProofGenerationDataResponse::VerifierInputNotReady)),
             };
 
             match self
@@ -64,7 +64,9 @@ impl TeeRequestProcessor {
                 .await
             {
                 Ok(input) => {
-                    break Ok(Json(TeeProofGenerationDataResponse(Some(Box::new(input)))));
+                    break Ok(Json(TeeProofGenerationDataResponse::VerifierInputReady(
+                        Box::new(input),
+                    )));
                 }
                 Err(RequestProcessorError::ObjectStore(ObjectStoreError::KeyNotFound(_))) => {
                     missing_range = match missing_range {
