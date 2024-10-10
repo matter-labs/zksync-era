@@ -106,6 +106,12 @@ contract IncrementingContract {
     // Should not collide with other storage slots
     uint constant INCREMENTED_SLOT = 0x123;
 
+    function getIncrementedValue() public view returns (uint _value) {
+        assembly {
+            _value := sload(INCREMENTED_SLOT)
+        }
+    }
+
     function increment(address _thisAddress, uint _thisBalance) external {
         require(msg.sender == tx.origin, "msg.sender not retained");
         require(address(this) == _thisAddress, "this address");
@@ -126,10 +132,20 @@ contract IncrementingContract {
         require(getIncrementedValue() == valueSnapshot + 1, "invalid value");
     }
 
-    function getIncrementedValue() internal view returns (uint _value) {
-        assembly {
-            _value := sload(INCREMENTED_SLOT)
-        }
+    function testStaticCall(address _target, uint _expectedValue) external {
+        (bool success, bytes memory rawValue) = _target.staticcall(abi.encodeCall(
+            this.getIncrementedValue,
+            ()
+        ));
+        require(success, "static call reverted");
+        (uint value) = abi.decode(rawValue, (uint));
+        require(value == _expectedValue, "value mismatch");
+
+        (success, ) = _target.staticcall(abi.encodeCall(
+            IncrementingContract.increment,
+            (address(this), address(this).balance)
+        ));
+        require(!success, "staticcall should've reverted");
     }
 }
 

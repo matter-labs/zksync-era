@@ -391,29 +391,29 @@ fn mock_emulator_with_delegate_call() {
 
     let test_fn = native_contract_abi.function("testDelegateCall").unwrap();
     // Delegate to the native contract from EVM.
-    let test_tx = account.get_l2_tx_for_execute(
-        Execute {
-            contract_address: Some(evm_contract_address),
-            calldata: test_fn
-                .encode_input(&[Token::Address(deploy_tx.address)])
-                .unwrap(),
-            value: 0.into(),
-            factory_deps: vec![],
-        },
-        None,
-    );
-    let (_, vm_result) = vm
-        .vm
-        .execute_transaction_with_bytecode_compression(test_tx, true);
-    assert!(!vm_result.result.is_failed(), "{vm_result:?}");
-
+    test_delegate_call(&mut vm, test_fn, evm_contract_address, deploy_tx.address);
     // Delegate to EVM from the native contract.
+    test_delegate_call(&mut vm, test_fn, deploy_tx.address, evm_contract_address);
+    // Delegate to EVM from EVM.
+    test_delegate_call(
+        &mut vm,
+        test_fn,
+        evm_contract_address,
+        other_evm_contract_address,
+    );
+}
+
+fn test_delegate_call(
+    vm: &mut VmTester<HistoryEnabled>,
+    test_fn: &ethabi::Function,
+    from: Address,
+    to: Address,
+) {
+    let account = &mut vm.rich_accounts[0];
     let test_tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: Some(deploy_tx.address),
-            calldata: test_fn
-                .encode_input(&[Token::Address(evm_contract_address)])
-                .unwrap(),
+            contract_address: Some(from),
+            calldata: test_fn.encode_input(&[Token::Address(to)]).unwrap(),
             value: 0.into(),
             factory_deps: vec![],
         },
@@ -423,13 +423,77 @@ fn mock_emulator_with_delegate_call() {
         .vm
         .execute_transaction_with_bytecode_compression(test_tx, true);
     assert!(!vm_result.result.is_failed(), "{vm_result:?}");
+}
 
-    // Delegate to EVM from EVM.
+#[test]
+fn mock_emulator_with_static_call() {
+    let evm_contract_address = Address::repeat_byte(0xaa);
+    let other_evm_contract_address = Address::repeat_byte(0xbb);
+    let mut builder = EvmTestBuilder::new(true, evm_contract_address);
+    builder.storage.set_value(
+        storage_key_for_eth_balance(&evm_contract_address),
+        H256::from_low_u64_be(1_000_000),
+    );
+    builder.storage.set_value(
+        storage_key_for_eth_balance(&other_evm_contract_address),
+        H256::from_low_u64_be(2_000_000),
+    );
+    // Set differing read values for tested contracts. The slot index is defined in the contract.
+    let value_slot = H256::from_low_u64_be(0x123);
+    builder.storage.set_value(
+        StorageKey::new(AccountTreeId::new(evm_contract_address), value_slot),
+        H256::from_low_u64_be(100),
+    );
+    builder.storage.set_value(
+        StorageKey::new(AccountTreeId::new(other_evm_contract_address), value_slot),
+        H256::from_low_u64_be(200),
+    );
+    let mut vm = builder.with_evm_address(other_evm_contract_address).build();
+    let account = &mut vm.rich_accounts[0];
+
+    // Deploy a native contract.
+    let native_contract = read_bytecode(INCREMENTING_CONTRACT_PATH);
+    let native_contract_abi = load_contract(INCREMENTING_CONTRACT_PATH);
+    let deploy_tx = account.get_deploy_tx(&native_contract, None, TxType::L2);
+    let (_, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(deploy_tx.tx, true);
+    assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
+
+    let test_fn = native_contract_abi.function("testStaticCall").unwrap();
+    // Call to the native contract from EVM.
+    test_static_call(&mut vm, test_fn, evm_contract_address, deploy_tx.address, 0);
+    // Call to EVM from the native contract.
+    test_static_call(
+        &mut vm,
+        test_fn,
+        deploy_tx.address,
+        evm_contract_address,
+        100,
+    );
+    // Call to EVM from EVM.
+    test_static_call(
+        &mut vm,
+        test_fn,
+        evm_contract_address,
+        other_evm_contract_address,
+        200,
+    );
+}
+
+fn test_static_call(
+    vm: &mut VmTester<HistoryEnabled>,
+    test_fn: &ethabi::Function,
+    from: Address,
+    to: Address,
+    expected_value: u64,
+) {
+    let account = &mut vm.rich_accounts[0];
     let test_tx = account.get_l2_tx_for_execute(
         Execute {
-            contract_address: Some(evm_contract_address),
+            contract_address: Some(from),
             calldata: test_fn
-                .encode_input(&[Token::Address(other_evm_contract_address)])
+                .encode_input(&[Token::Address(to), Token::Uint(expected_value.into())])
                 .unwrap(),
             value: 0.into(),
             factory_deps: vec![],
