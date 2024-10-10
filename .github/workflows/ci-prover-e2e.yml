@@ -120,8 +120,8 @@ jobs:
 
       - name: Kill prover & start compressor
         run: |
-          ci_run chmod +x ./bin/prover_checkers/clean_gpu
-          ci_run ./bin/prover_checkers/clean_gpu
+          chmod +x ./prover_checkers/clean_gpu
+          ./prover_checkers/clean_gpu
           
           ci_run zk_inception prover run --component=compressor --docker=false &
           ci_run sleep 420
