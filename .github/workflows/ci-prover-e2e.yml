@@ -32,9 +32,6 @@ jobs:
           mkdir -p ./volumes/postgres ./volumes/reth/data
           docker-compose -f ${RUNNER_COMPOSE_FILE} --profile runner up -d --wait
           ci_run sccache --start-server
-          
-          chmod +x ./bin/prover_checkers/clean_gpu
-          ./bin/prover_checkers/clean_gpu
 
       - name: Init
         run: |
@@ -123,8 +120,12 @@ jobs:
 
       - name: Kill prover & start compressor
         run: |
+          nvidia-smi
+          
           chmod +x ./bin/prover_checkers/clean_gpu
           ./bin/prover_checkers/clean_gpu
+          
+          nvidia-smi
           
           ci_run zk_inception prover run --component=compressor --docker=false &
           ci_run sleep 420
