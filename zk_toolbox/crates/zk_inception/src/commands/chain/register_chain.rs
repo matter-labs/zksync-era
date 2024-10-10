@@ -81,7 +81,7 @@ pub async fn register_chain(
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {
-        forge = fill_forge_private_key(forge, config.get_wallets()?.governor_private_key())?;
+        forge = fill_forge_private_key(forge, Some(&config.get_wallets()?.governor))?;
         check_the_balance(&forge).await?;
     }
 
