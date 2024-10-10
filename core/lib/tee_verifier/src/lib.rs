@@ -320,7 +320,7 @@ mod tests {
                 protocol_version: Default::default(),
                 bootloader_code: vec![],
                 default_account_code_hash: Default::default(),
-                evm_emulator_code_hash: None,
+                evm_emulator_code_hash: Some(Default::default()),
                 storage_refunds: vec![],
                 pubdata_costs: vec![],
                 witness_block_state: Default::default(),
