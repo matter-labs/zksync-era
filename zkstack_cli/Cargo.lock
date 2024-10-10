@@ -6719,6 +6719,7 @@ dependencies = [
  "lazy_static",
  "prost 0.12.6",
  "rand",
+ "reqwest 0.12.8",
  "secrecy",
  "serde",
  "serde_json",
