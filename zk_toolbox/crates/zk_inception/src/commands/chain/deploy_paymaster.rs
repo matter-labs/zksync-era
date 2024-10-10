@@ -56,10 +56,7 @@ pub async fn deploy_paymaster(
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {
-        forge = fill_forge_private_key(
-            forge,
-            chain_config.get_wallets_config()?.governor_private_key(),
-        )?;
+        forge = fill_forge_private_key(forge, Some(&chain_config.get_wallets_config()?.governor))?;
     }
 
     if broadcast {

@@ -43,10 +43,11 @@ impl TestWallets {
     }
 
     pub fn get_test_pk(&self, chain_config: &ChainConfig) -> anyhow::Result<String> {
-        self.get_test_wallet(chain_config)?
-            .private_key
-            .ok_or(anyhow::Error::msg("Private key not found"))
-            .map(|pk| pk.encode_hex::<String>())
+        Ok(self
+            .get_test_wallet(chain_config)?
+            .private_key_h256()
+            .context("Private key not found")?
+            .encode_hex())
     }
 
     pub async fn init_test_wallet(

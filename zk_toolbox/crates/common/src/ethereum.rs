@@ -6,18 +6,17 @@ use ethers::{
     middleware::MiddlewareBuilder,
     prelude::{Http, LocalWallet, Provider, Signer, SignerMiddleware},
     providers::Middleware,
-    types::{Address, TransactionRequest, H256},
+    types::{Address, TransactionRequest},
 };
 use types::TokenInfo;
 
 use crate::{logger, wallets::Wallet};
 
 pub fn create_ethers_client(
-    private_key: H256,
+    mut wallet: LocalWallet,
     l1_rpc: String,
     chain_id: Option<u64>,
 ) -> anyhow::Result<SignerMiddleware<Provider<Http>, ethers::prelude::Wallet<SigningKey>>> {
-    let mut wallet = LocalWallet::from_bytes(private_key.as_bytes())?;
     if let Some(chain_id) = chain_id {
         wallet = wallet.with_chain_id(chain_id);
     }
