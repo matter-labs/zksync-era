@@ -33,4 +33,4 @@
 1. [ZK Chain ecosystem](./zk_chains/README.md)
    - [Overview](./zk_chains/overview.md)
    - [Shared Bridge](./zk_chains/shared_bridge.md)
-   - [Hyperbridges](./zk_chains/hyperbridges.md)
+   - [Interop](./zk_chains/interop.md)

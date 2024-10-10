@@ -17,7 +17,7 @@ If you want to know more about ZK Chains, check this
 We want to create a system where:
 
 - ZK Chains should be launched permissionlessly within the ecosystem.
-- Hyperbridges should enable unified liquidity for assets across the ecosystem.
+- Interop should enable unified liquidity for assets across the ecosystem.
 - Multi-chain smart contracts need to be easy to develop, which means easy access to traditional bridges, and other
   supporting architecture.
 
@@ -58,20 +58,19 @@ be able to leverage them when available).
 #### Bridgehub
 
 - Acts as a hub for bridges, so that they have a single point of communication with all ZK Chain contracts. This allows
-  L1 assets to be locked in the same contract for all ZK Chains, including L3s and validiums. The `Bridgehub` also
-  implements the following:
+  L1 assets to be locked in the same contract for all ZK Chains. The `Bridgehub` also implements the following features:
 - `Registry` This is where ZK Chains can register, starting in a permissioned manner, but with the goal to be
-  permissionless in the future. This is where their `chainID` is determined. L3s will also register here. This
-  `Registry` is also where State Transition contracts should register. Each chain has to specify its desired ST when
-  registering (Initially, only one will be available).
+  permissionless in the future. This is where their `chainID` is determined. Chains on Gateway will also register here.
+  This `Registry` is also where Chain Type Manager contracts should register. Each chain has to specify its desired CTM
+  when registering (Initially, only one will be available).
 
   ```
   function newChain(
           uint256 _chainId,
-          address _stateTransition
+          address _chainTypeManager
       ) external returns (uint256 chainId);
 
-  function newStateTransition(address _stateTransition) external;
+  function newChainTypeManager(address _chainTypeManager) external;
   ```
 
 - `BridgehubMailbox` routes messages to the Diamond proxy’s Mailbox facet based on chainID
@@ -79,43 +78,73 @@ be able to leverage them when available).
   - Same as the current zkEVM
     [Mailbox](https://github.com/matter-labs/era-contracts/blob/main/l1-contracts/contracts/zksync/facets/Mailbox.sol),
     just with chainId,
-  - Ether needs to be deposited and withdrawn from here.
   - This is where L2 transactions can be requested.
 
   ```
-  function requestL2Transaction(
-          uint256 _chainId,
-          address _contractL2,
-          uint256 _l2Value,
-          bytes calldata _calldata,
-          uint256 _l2GasLimit,
-          uint256 _l2GasPerPubdataByteLimit,
-          bytes[] calldata _factoryDeps,
-          address _refundRecipient
-      ) public payable override returns (bytes32 canonicalTxHash) {
-          address proofChain = bridgeheadStorage.proofChain[_chainId];
-          canonicalTxHash = IProofChain(proofChain).requestL2TransactionBridgehead(
-              _chainId,
-              msg.value,
-              msg.sender,
-              _contractL2,
-              _l2Value,
-              _calldata,
-              _l2GasLimit,
-              _l2GasPerPubdataByteLimit,
-              _factoryDeps,
-              _refundRecipient
-          );
-      }
+    function requestL2TransactionTwoBridges(
+        L2TransactionRequestTwoBridgesOuter calldata _request
+    )
   ```
 
-- `Hypermailbox`
-  - This will allow general message passing (L2<>L2, L2<>L3, etc). This is where the `Mailbox` sends the `Hyperlogs`.
-    `Hyperlogs` are commitments to these messages sent from a single ZK Chain. `Hyperlogs` are aggregated into a
-    `HyperRoot` in the `HyperMailbox`.
-  - This component has not been implemented yet
+  ```
+  struct L2TransactionRequestTwoBridgesOuter {
+    uint256 chainId;
+    uint256 mintValue;
+    uint256 l2Value;
+    uint256 l2GasLimit;
+    uint256 l2GasPerPubdataByteLimit;
+    address refundRecipient;
+    address secondBridgeAddress;
+    uint256 secondBridgeValue;
+    bytes secondBridgeCalldata;
+  }
+  ```
 
-#### Main asset shared bridges
+```
+  struct L2TransactionRequestTwoBridgesInner {
+    bytes32 magicValue;
+    address l2Contract;
+    bytes l2Calldata;
+    bytes[] factoryDeps;
+    bytes32 txDataHash;
+}
+```
+
+- The `requestL2TransactionTwoBridges` function should be used most of the time when bridging to a chain ( the exeption
+  is when the user bridges directly to a contract on the L2, without using a bridge contract on L1). The logic of it is
+  the following:
+
+  - The user wants to bridge to chain with the provided `L2TransactionRequestTwoBridgesOuter.chainId`.
+  - Two bridges are called, the baseTokenBridge (i.e. the L1SharedBridge or L1AssetRouter after the Gateway upgrade) and
+    an arbitrary second bridge. The Bridgehub will provide the original caller address to both bridges, which can
+    request that the appropriate amount of tokens are transferred from the caller to the bridge. The caller has to set
+    the appropriate allowance for both bridges. (Often the bridges coincide, but they don't have to).
+  - The `L2TransactionRequestTwoBridgesOuter.mintValue` is the amount of baseTokens that will be minted on L2. This is
+    the amount of tokens that the baseTokenBridge will request from the user. If the baseToken is Eth, it will be
+    forwarded to the baseTokenBridge.
+  - The `L2TransactionRequestTwoBridgesOuter.l2Value` is the amount of tokens that will be deposited on L2. The second
+    bridge and the Mailbox receives this as an input (although our second bridge does not use the value).
+  - The `L2TransactionRequestTwoBridgesOuter.l2GasLimit` is the maximum amount of gas that will be spent on L2 to
+    complete the transaction. The Mailbox receives this as an input.
+  - The `L2TransactionRequestTwoBridgesOuter.l2GasPerPubdataByteLimit` is the maximum amount of gas per pubdata byte
+    that will be spent on L2 to complete the transaction. The Mailbox receives this as an input.
+  - The `L2TransactionRequestTwoBridgesOuter.refundRecipient` is the address that will be refunded for the gas spent on
+    L2. The Mailbox receives this as an input.
+  - The `L2TransactionRequestTwoBridgesOuter.secondBridgeAddress` is the address of the second bridge that will be
+    called. This is the arbitrary address that is called from the Bridgehub.
+  - The `L2TransactionRequestTwoBridgesOuter.secondBridgeValue` is the amount of tokens that will be deposited on L2.
+    The second bridge receives this value as the baseToken (i.e. Eth on L1).
+  - The `L2TransactionRequestTwoBridgesOuter.secondBridgeCalldata` is the calldata that will be passed to the second
+    bridge. This is the arbitrary calldata that is passed from the Bridgehub to the second bridge.
+  - The secondBridge returns the `L2TransactionRequestTwoBridgesInner` struct to the Bridgehub. This is also passed to
+    the Mailbox as input. This is where the destination contract, calldata, factoryDeps are determined on the L2.
+
+  This setup allows the user to bridge the baseToken of the origin chain A to a chain B with some other baseToken, by
+  specifying the A's token in the secondBridgeValue, which will be minted on the destination chain as an ERC20 token,
+  and specifying the amount of B's token in the mintValue, which will be minted as the baseToken and used to cover the
+  gas costs.
+
+#### Main asset shared bridges L2TransactionRequestTwoBridgesInner
 
 - Some assets have to be natively supported (ETH, WETH) and it also makes sense to support some generally accepted token
   standards (ERC20 tokens), as this makes it easy to bridge those tokens (and ensures a single version of them exists on
@@ -147,25 +176,18 @@ be able to leverage them when available).
           );
   ```
 
-This topic is now covered more thoroughly by the Custom native token discussion.
+#### Chain Type Manager
 
-[Custom native token compatible with Hyperbridging](https://www.notion.so/Custom-native-token-compatible-with-Hyperbridging-54e190a1a76f44248cf84a38304a0641?pvs=21)
-
-#### State Transition
-
-- `StateTransition` A state transition manages proof verification and DA for multiple chains. It also implements the
+- `ChainTypeManager` A chain type manager manages proof verification and DA for multiple chains. It also implements the
   following functionalities:
-  - `StateTransitionRegistry` The ST is shared for multiple chains, so initialization and upgrades have to be the same
-    for all chains. Registration is not permissionless but happens based on the registrations in the bridgehub’s
-    `Registry`. At registration a `DiamondProxy` is deployed and initialized with the appropriate `Facets` for each ZK
-    Chain.
+  - `ChainTypeRegistry` The ST is shared for multiple chains, so initialization and upgrades have to be the same for all
+    chains. Registration is not permissionless but happens based on the registrations in the bridgehub’s `Registry`. At
+    registration a `DiamondProxy` is deployed and initialized with the appropriate `Facets` for each ZK Chain.
   - `Facets` and `Verifier` are shared across chains that relies on the same ST: `Base`, `Executor` , `Getters`, `Admin`
     , `Mailbox.`The `Verifier` is the contract that actually verifies the proof, and is called by the `Executor`.
   - Upgrade Mechanism The system requires all chains to be up-to-date with the latest implementation, so whenever an
     update is needed, we have to “force” each chain to update, but due to decentralization, we have to give each chain a
-    time frame (more information in the
-    [Upgrade Mechanism](https://www.notion.so/ZK-Stack-shared-bridge-alpha-version-a37c4746f8b54fb899d67e474bfac3bb?pvs=21)
-    section). This is done in the update mechanism contract, this is where the bootloader and system contracts are
+    time frame. This is done in the update mechanism contract, this is where the bootloader and system contracts are
     published, and the `ProposedUpgrade` is stored. Then each chain can call this upgrade for themselves as needed.
     After the deadline is over, the not-updated chains are frozen, that is, cannot post new proofs. Frozen chains can
     unfreeze by updating their proof system.
@@ -180,6 +202,7 @@ This topic is now covered more thoroughly by the Custom native token discussion.
 
 - A chain might implement its own specific consensus mechanism. This needs its own contracts. Only this contract will be
   able to submit proofs to the State Transition contract.
+- DA contracts.
 - Currently, the `ValidatorTimelock` is an example of such a contract.
 
 ### Components interactions
@@ -198,22 +221,6 @@ predefined facets which are made available by the ST contract. These facets cont
 features required to process proofs. The chain ID is set in the VM in a special system transaction sent from L1.
 
 <!--![newChain.png](./img/newChain.png) Image outdated-->
-
-#### WETH Contract
-
-Ether, the native gas token is part of the core system contracts, so deploying it is not necessary. But WETH is just a
-smart contract, it needs to be deployed and initialised. This happens from the L1 WETH bridge. This deploys on L2 the
-corresponding bridge and ERC20 contract. This is deployed from L1, but the L2 address is known at deployment time.
-
-![deployWeth.png](./img/deployWeth.png)
-
-#### Deposit WETH
-
-The user can deposit WETH into the ecosystem using the WETH bridge on L1. The destination chain ID has to be specified.
-The Bridgehub unwraps the WETH, and keeps the ETH, and send a message to the destination L2 to mint WETH to the
-specified address.
-
-![depositWeth.png](./img/depositWeth.png)
 
 ---
 
