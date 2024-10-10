@@ -265,6 +265,7 @@ where
                                 Err(ValidationError::FailedTx(reason))
                             }
                         }
+                        // We don't check that the transaction is valid, just that validation doesn't break any rules.
                         ExecutionResult::Revert { .. } | ExecutionResult::Success { .. } => Ok(()),
                     }
                 }
