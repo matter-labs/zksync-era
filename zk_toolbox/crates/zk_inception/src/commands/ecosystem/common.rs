@@ -54,7 +54,7 @@ pub async fn deploy_l1(
     if let Some(address) = sender {
         forge = forge.with_sender(address);
     } else {
-        forge = fill_forge_private_key(forge, wallets_config.deployer_private_key())?;
+        forge = fill_forge_private_key(forge, wallets_config.deployer.as_ref())?;
     }
 
     if broadcast {

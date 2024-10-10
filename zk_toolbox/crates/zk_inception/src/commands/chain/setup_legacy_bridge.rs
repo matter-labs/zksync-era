@@ -59,10 +59,7 @@ pub async fn setup_legacy_bridge(
         )
         .with_broadcast();
 
-    forge = fill_forge_private_key(
-        forge,
-        ecosystem_config.get_wallets()?.governor_private_key(),
-    )?;
+    forge = fill_forge_private_key(forge, Some(&ecosystem_config.get_wallets()?.governor))?;
 
     let spinner = Spinner::new(MSG_DEPLOYING_PAYMASTER);
     check_the_balance(&forge).await?;

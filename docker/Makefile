@@ -55,7 +55,7 @@ check-tools: check-nodejs check-yarn check-rust check-sqlx-cli check-docker chec
 
 # Check that contracts are checkout properly
 check-contracts:
-	@if [ ! -d ../contracts/l1-contracts/lib/forge-std/foundry.toml ] || [ -z "$$(ls -A ../contracts/l1-contracts/lib/forge-std/foundry.toml)" ]; then \
+	@if [ -z "$$(ls -A ../contracts/l1-contracts/lib/forge-std/foundry.toml)" ]; then \
 		echo "l1-contracts git submodule is missing. Please re-download repo with 'git clone --recurse-submodules https://github.com/matter-labs/zksync-era.git'"; \
 		exit 1; \
 	fi
@@ -65,7 +65,7 @@ check-contracts:
 prepare-contracts: check-tools check-contracts
 	@cd ../ && \
 	export ZKSYNC_HOME=$$(pwd) && \
-	export PATH=$$PATH:$${ZKSYNC_HOME}/bin && \
+	export PATH=$$PATH:$${ZKSYNC_HOME}/bin:$${ZKSYNC_HOME}/zkstack_cli/zkstackup && \
 	zkt || true && \
 	zk_supervisor contracts && \
 	mkdir -p contracts/l1-contracts/artifacts

@@ -10,5 +10,5 @@ pub use prover_mode::*;
 pub use token_info::*;
 pub use wallet_creation::*;
 pub use zksync_basic_types::{
-    commitment::L1BatchCommitmentMode, protocol_version::ProtocolSemanticVersion,
+    commitment::L1BatchCommitmentMode, parse_h256, protocol_version::ProtocolSemanticVersion,
 };
