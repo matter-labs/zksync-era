@@ -23,6 +23,7 @@ zksync_prover_keystore.workspace = true
 zksync_utils.workspace = true
 zkevm_test_harness.workspace = true
 circuit_definitions = { workspace = true, features = ["log_tracing"] }
+proof-compression-gpu.workspace = true
 
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }
@@ -30,6 +31,8 @@ tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 toml_edit.workspace = true
 indicatif.workspace = true
+bincode.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

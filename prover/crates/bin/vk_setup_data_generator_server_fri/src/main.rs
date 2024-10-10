@@ -4,9 +4,14 @@
 use std::{collections::HashMap, path::PathBuf};
 
 use anyhow::Context as _;
+use circuit_definitions::{
+    circuit_definitions::aux_layer::{ZkSyncCompressionProof, ZkSyncCompressionVerificationKey},
+    snark_wrapper::franklin_crypto,
+};
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
+use proof_compression_gpu::{CompressionInput, CompressionMode};
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
     compute_setups::{
@@ -21,7 +26,7 @@ use zkevm_test_harness::{
 };
 use zksync_prover_fri_types::{
     circuit_definitions::circuit_definitions::recursion_layer::ZkSyncRecursionLayerStorageType,
-    ProverServiceDataKey,
+    FriProofWrapper, ProverServiceDataKey,
 };
 use zksync_prover_keystore::{
     keystore::Keystore,
@@ -182,6 +187,12 @@ enum Command {
         #[arg(long)]
         path: Option<String>,
     },
+    /// Generates setup keys (used by the FFLONK prover).
+    #[command(name = "generate-sk-fflonk")]
+    GenerateFflonkSetupKeys {
+        #[arg(long)]
+        path: Option<String>,
+    },
 }
 
 fn print_stats(digests: HashMap<String, String>) -> anyhow::Result<()> {
@@ -236,6 +247,27 @@ fn generate_setup_keys(
     Ok(())
 }
 
+fn generate_fflonk_setup_keys(keystore: &Keystore) -> anyhow::Result<()> {
+    let mut setup_data = None;
+    let worker = franklin_crypto::boojum::worker::Worker::new();
+    let proof_bytes = std::fs::read("data/compression_proof.bin").unwrap();
+    let proof: ZkSyncCompressionProof = bincode::deserialize(&proof_bytes).unwrap();
+    let vk_bytes = std::fs::read("data/compression_vk.json").unwrap();
+    let vk: ZkSyncCompressionVerificationKey = serde_json::from_slice(&vk_bytes).unwrap();
+    let input = CompressionInput::CompressionWrapper(Some(proof), vk, CompressionMode::Five);
+    proof_compression_gpu::prove_compression_wrapper_circuit(
+        input.into_compression_wrapper_circuit(),
+        &mut setup_data,
+        &worker,
+    );
+    if let Some(setup_data) = setup_data {
+        keystore.save_setup_data_for_fflonk(setup_data)?;
+    } else {
+        unreachable!("Proof compression was supposed to produce setup data but did not")
+    };
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -279,6 +311,10 @@ fn main() -> anyhow::Result<()> {
                 ),
             };
             generate_setup_keys(&generator, &options)
+        }
+        Command::GenerateFflonkSetupKeys { path } => {
+            let keystore = keystore_from_optional_path(path, None);
+            generate_fflonk_setup_keys(&keystore)
         }
     }
 }

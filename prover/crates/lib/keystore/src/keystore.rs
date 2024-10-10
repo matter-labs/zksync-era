@@ -10,13 +10,14 @@ use anyhow::Context as _;
 use circuit_definitions::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     circuit_definitions::{
-        aux_layer::ZkSyncSnarkWrapperVK,
+        aux_layer::{compression_modes::CompressionTreeHasherForWrapper, ZkSyncSnarkWrapperVK},
         base_layer::ZkSyncBaseLayerVerificationKey,
         recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionLayerVerificationKey},
     },
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use shivini::cs::GpuProverSetupData;
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
 use zksync_basic_types::basic_fri_types::AggregationRound;
 use zksync_prover_fri_types::ProverServiceDataKey;
@@ -512,5 +513,19 @@ impl Keystore {
             mapping.insert(key, setup_data);
         }
         Ok(mapping)
+    }
+
+    pub fn save_setup_data_for_fflonk(
+        &self,
+        setup_data: GpuProverSetupData<CompressionTreeHasherForWrapper>,
+    ) -> anyhow::Result<()> {
+        let filepath = self.basedir.join("compression_wrapper_setup_data.json");
+        tracing::info!(
+            "saving FFLONK compression wrapper setup data to: {:?}",
+            filepath
+        );
+        let serialized_setup_data = bincode::serialize(&setup_data)?;
+        fs::write(filepath.clone(), serialized_setup_data)
+            .with_context(|| format!("Failed saving setup data at path: {filepath:?}"))
     }
 }

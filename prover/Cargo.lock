@@ -8332,10 +8332,13 @@ name = "zksync_vk_setup_data_generator_server_fri"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bincode",
  "circuit_definitions",
  "clap 4.5.4",
  "indicatif",
+ "proof-compression-gpu",
  "proptest",
+ "serde_json",
  "toml_edit 0.14.4",
  "tracing",
  "tracing-subscriber",
