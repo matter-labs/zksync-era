@@ -148,6 +148,30 @@ impl StateKeeperIO for MempoolIO {
         cursor: &IoCursor,
         max_wait: Duration,
     ) -> anyhow::Result<Option<L1BatchParams>> {
+        // Check if there is an existing unsealed batch
+        if let Some(unsealed_storage_batch) = self
+            .pool
+            .connection_tagged("state_keeper")
+            .await?
+            .blocks_dal()
+            .get_unsealed_l1_batch()
+            .await?
+        {
+            return Ok(Some(L1BatchParams {
+                protocol_version: unsealed_storage_batch
+                    .protocol_version
+                    .expect("unsealed batch is missing protocol version"),
+                validation_computational_gas_limit: self.validation_computational_gas_limit,
+                operator_address: unsealed_storage_batch.fee_address,
+                fee_input: unsealed_storage_batch.fee_input,
+                first_l2_block: L2BlockParams {
+                    timestamp: unsealed_storage_batch.timestamp,
+                    // This value is effectively ignored by the protocol.
+                    virtual_blocks: 1,
+                },
+            }));
+        }
+
         let deadline = Instant::now() + max_wait;
 
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
@@ -190,6 +214,19 @@ impl StateKeeperIO for MempoolIO {
                 tokio::time::sleep(self.delay_interval).await;
                 continue;
             }
+
+            self.pool
+                .connection()
+                .await?
+                .blocks_dal()
+                .insert_l1_batch(
+                    cursor.l1_batch,
+                    timestamp,
+                    Some(protocol_version),
+                    self.fee_account,
+                    self.filter.fee_input,
+                )
+                .await?;
 
             return Ok(Some(L1BatchParams {
                 protocol_version,
