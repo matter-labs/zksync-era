@@ -7,8 +7,15 @@ use common::{
 };
 use config::{
     forge_interface::{
-        gateway_chain_upgrade::{input::GatewayChainUpgradeInput, output::GatewayChainUpgradeOutput}, gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput, gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput}, script_params::{GATEWAY_PREPARATION, GATEWAY_UPGRADE_CHAIN_PARAMS}
-    }, traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath}, ChainConfig, EcosystemConfig
+        gateway_chain_upgrade::{
+            input::GatewayChainUpgradeInput, output::GatewayChainUpgradeOutput,
+        },
+        gateway_ecosystem_upgrade::output::GatewayEcosystemUpgradeOutput,
+        gateway_preparation::{input::GatewayPreparationConfig, output::GatewayPreparationOutput},
+        script_params::{GATEWAY_PREPARATION, GATEWAY_UPGRADE_CHAIN_PARAMS},
+    },
+    traits::{ReadConfig, ReadConfigWithBasePath, SaveConfig, SaveConfigWithBasePath},
+    ChainConfig, EcosystemConfig,
 };
 use ethers::{
     abi::parse_abi,
@@ -28,7 +35,9 @@ use zksync_types::{L2ChainId, H160, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
-    accept_ownership::admin_execute_calls, messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED}, utils::forge::{check_the_balance, fill_forge_private_key}
+    accept_ownership::{admin_execute_upgrade, admin_schedule_upgrade},
+    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
+    utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
 #[derive(
@@ -39,13 +48,13 @@ pub enum GatewayChainUpgradeStage {
     AdaptConfig,
 
     // Does not require admin, still needs to be done to update configs, etc
-    PrepareStage1, 
+    PrepareStage1,
 
     // Should be executed after Stage1 of the governance upgrade
     FinalizeStage1,
 
     // Mainly about changing configs
-    FinalizeStage2, 
+    FinalizeStage2,
 
     // For tests in case a chain missed the correct window for the upgrade
     // and needs to execute after Stage2
@@ -89,35 +98,28 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
         .expose_str()
         .to_string();
 
-
     match args.chain_upgrade_stage {
-        GatewayChainUpgradeStage::AdaptConfig => {
-            adapt_config(shell, chain_config).await
-        }
+        GatewayChainUpgradeStage::AdaptConfig => adapt_config(shell, chain_config).await,
         GatewayChainUpgradeStage::PrepareStage1 => {
             prepare_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
         }
         GatewayChainUpgradeStage::FinalizeStage1 => {
             finalize_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
-        },
+        }
         GatewayChainUpgradeStage::FinalizeStage2 => {
             panic!("Not supported");
-        },
+        }
         GatewayChainUpgradeStage::KeepUpStage2 => {
             panic!("Not supported");
         }
     }
-  
+
     // // TODO: this has to be done as the final stage of the chain upgrade.
     // contracts_config.bridges.l1_nullifier_addr = Some(contracts_config.bridges.shared.l1_address);
     // contracts_config.bridges.shared.l1_address = gateway_ecosystem_preparation_output.deployed_addresses.bridges.shared_bridge_proxy_addr;
-
 }
 
-async fn adapt_config(
-    shell: &Shell,
-    chain_config: ChainConfig,
-) -> anyhow::Result<()> {
+async fn adapt_config(shell: &Shell, chain_config: ChainConfig) -> anyhow::Result<()> {
     println!("Adapting config");
     let mut contracts_config = chain_config.get_contracts_config()?;
 
@@ -134,14 +136,12 @@ async fn prepare_stage1(
     args: GatewayUpgradeArgs,
     ecosystem_config: EcosystemConfig,
     chain_config: ChainConfig,
-    l1_url: String
+    l1_url: String,
 ) -> anyhow::Result<()> {
     let chain_upgrade_config_path =
         GATEWAY_UPGRADE_CHAIN_PARAMS.input(&ecosystem_config.link_to_code);
 
-    let gateway_upgrade_input = GatewayChainUpgradeInput::new(
-        &chain_config
-    );
+    let gateway_upgrade_input = GatewayChainUpgradeInput::new(&chain_config);
     gateway_upgrade_input.save(shell, chain_upgrade_config_path.clone())?;
 
     let mut forge = Forge::new(&ecosystem_config.path_to_l1_foundry())
@@ -170,35 +170,79 @@ async fn prepare_stage1(
         GATEWAY_UPGRADE_CHAIN_PARAMS.output(&ecosystem_config.link_to_code),
     )?;
 
-    let gateway_ecosystem_preparation_output = GatewayEcosystemUpgradeOutput::read_with_base_path(shell, ecosystem_config.config)?;
+    let gateway_ecosystem_preparation_output =
+        GatewayEcosystemUpgradeOutput::read_with_base_path(shell, ecosystem_config.config)?;
 
-    // No need to save it, we have enough for now 
+    // No need to save it, we have enough for now
 
     let mut contracts_config = chain_config.get_contracts_config()?;
 
-    contracts_config.user_facing_bridgehub = Some(contracts_config.ecosystem_contracts.bridgehub_proxy_addr);
+    contracts_config.user_facing_bridgehub =
+        Some(contracts_config.ecosystem_contracts.bridgehub_proxy_addr);
     contracts_config.user_facing_diamond_proxy = Some(contracts_config.l1.diamond_proxy_addr);
-    contracts_config.ecosystem_contracts.stm_deployment_tracker_proxy_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.bridgehub.ctm_deployment_tracker_proxy_addr);
+    contracts_config
+        .ecosystem_contracts
+        .stm_deployment_tracker_proxy_addr = Some(
+        gateway_ecosystem_preparation_output
+            .deployed_addresses
+            .bridgehub
+            .ctm_deployment_tracker_proxy_addr,
+    );
     // This is force deployment data for creating new contracts, not really relevant here tbh,
-    contracts_config.ecosystem_contracts.force_deployments_data = Some(hex::encode(&gateway_ecosystem_preparation_output.contracts_config.force_deployments_data.0));
-    contracts_config.ecosystem_contracts.native_token_vault_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.native_token_vault_addr);
-    contracts_config.ecosystem_contracts.l1_bytecodes_supplier_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.l1_bytecodes_supplier_addr);
-    contracts_config.l1.access_control_restriction_addr = Some(chain_output.access_control_restriction);
+    contracts_config.ecosystem_contracts.force_deployments_data = Some(hex::encode(
+        &gateway_ecosystem_preparation_output
+            .contracts_config
+            .force_deployments_data
+            .0,
+    ));
+    contracts_config.ecosystem_contracts.native_token_vault_addr = Some(
+        gateway_ecosystem_preparation_output
+            .deployed_addresses
+            .native_token_vault_addr,
+    );
+    contracts_config
+        .ecosystem_contracts
+        .l1_bytecodes_supplier_addr = Some(
+        gateway_ecosystem_preparation_output
+            .deployed_addresses
+            .l1_bytecodes_supplier_addr,
+    );
+    contracts_config.l1.access_control_restriction_addr =
+        Some(chain_output.access_control_restriction);
     contracts_config.l1.chain_admin_addr = chain_output.chain_admin_addr;
 
     // TODO: this field is probably not needed at all
     contracts_config.l1.chain_proxy_admin_addr = Some(H160::zero());
 
-    contracts_config.l1.rollup_l1_da_validator_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.rollup_l1_da_validator_addr);
-    contracts_config.l1.validium_l1_da_validator_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.validium_l1_da_validator_addr);
+    contracts_config.l1.rollup_l1_da_validator_addr = Some(
+        gateway_ecosystem_preparation_output
+            .deployed_addresses
+            .rollup_l1_da_validator_addr,
+    );
+    contracts_config.l1.validium_l1_da_validator_addr = Some(
+        gateway_ecosystem_preparation_output
+            .deployed_addresses
+            .validium_l1_da_validator_addr,
+    );
 
-    let validum = chain_config.get_genesis_config()?.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Validium;
+    let validum = chain_config
+        .get_genesis_config()?
+        .l1_batch_commit_data_generator_mode
+        == L1BatchCommitmentMode::Validium;
 
     // We do not use chain output because IMHO we should delete it altogether from there
     contracts_config.l2.da_validator_addr = if validum {
-        Some(gateway_ecosystem_preparation_output.contracts_config.expected_rollup_l2_da_validator)
+        Some(
+            gateway_ecosystem_preparation_output
+                .contracts_config
+                .expected_rollup_l2_da_validator,
+        )
     } else {
-        Some(gateway_ecosystem_preparation_output.contracts_config.expected_validium_l2_da_validator)
+        Some(
+            gateway_ecosystem_preparation_output
+                .contracts_config
+                .expected_validium_l2_da_validator,
+        )
     };
     contracts_config.l2.l2_native_token_vault_proxy_addr = Some(L2_NATIVE_TOKEN_VAULT_ADDRESS);
     contracts_config.l2.legacy_shared_bridge_addr = contracts_config.bridges.shared.l2_address;
@@ -213,21 +257,38 @@ async fn finalize_stage1(
     args: GatewayUpgradeArgs,
     ecosystem_config: EcosystemConfig,
     chain_config: ChainConfig,
-    l1_url: String
+    l1_url: String,
 ) -> anyhow::Result<()> {
     println!("Finalizing stage1 of chain upgrade!");
 
-    let gateway_ecosystem_preparation_output = GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
+    let gateway_ecosystem_preparation_output =
+        GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
+    admin_schedule_upgrade(
+        shell,
+        &ecosystem_config,
+        &chain_config.get_contracts_config()?,
+        // TODO: maybe not have it as a constant
+        U256::from(0x1900000000 as u64),
+        // We only do instant upgrades for now
+        U256::zero(),
+        chain_config.get_wallets_config()?.governor_private_key(),
+        &args.forge_args,
+        l1_url.clone(),
+    )
+    .await?;
 
-    admin_execute_calls(
+    admin_execute_upgrade(
         shell,
         &ecosystem_config,
         &chain_config.get_contracts_config()?,
         chain_config.get_wallets_config()?.governor_private_key(),
-        gateway_ecosystem_preparation_output.chain_upgrade_diamond_cut.0,
+        gateway_ecosystem_preparation_output
+            .chain_upgrade_diamond_cut
+            .0,
         &args.forge_args,
-        l1_url
-    ).await?;
+        l1_url,
+    )
+    .await?;
 
     println!("done!");
 

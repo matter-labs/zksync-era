@@ -44,10 +44,19 @@ impl GatewayPreparationConfig {
             shared_bridge_proxy_addr: contracts.bridges.shared.l1_address,
             governance: ecosystem_contracts_config.l1.governance_addr,
             gateway_diamond_cut_data: gateway_config.diamond_cut_data.clone(),
-            chain_proxy_admin: chain_contracts_config.l1.chain_proxy_admin_addr.expect("chain_proxy_admin_addr"),
+            chain_proxy_admin: chain_contracts_config
+                .l1
+                .chain_proxy_admin_addr
+                .expect("chain_proxy_admin_addr"),
             chain_admin: chain_contracts_config.l1.chain_admin_addr,
-            access_control_restriction: chain_contracts_config.l1.access_control_restriction_addr.expect("access_control_restriction_addr"),
-            l1_nullifier_proxy_addr: chain_contracts_config.bridges.l1_nullifier_addr.expect("l1_nullifier_addr"),
+            access_control_restriction: chain_contracts_config
+                .l1
+                .access_control_restriction_addr
+                .expect("access_control_restriction_addr"),
+            l1_nullifier_proxy_addr: chain_contracts_config
+                .bridges
+                .l1_nullifier_addr
+                .expect("l1_nullifier_addr"),
             l1_diamond_cut_data: hex::decode(
                 ecosystem_contracts_config
                     .ecosystem_contracts

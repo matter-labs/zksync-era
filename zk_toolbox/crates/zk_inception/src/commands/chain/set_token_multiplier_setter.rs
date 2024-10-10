@@ -53,7 +53,10 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         shell,
         &ecosystem_config,
         chain_config.get_wallets_config()?.governor_private_key(),
-        contracts_config.l1.access_control_restriction_addr.context("access_control_restriction_addr")?,
+        contracts_config
+            .l1
+            .access_control_restriction_addr
+            .context("access_control_restriction_addr")?,
         contracts_config.l1.diamond_proxy_addr,
         token_multiplier_setter_address,
         &args.clone(),

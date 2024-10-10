@@ -3,7 +3,10 @@ use common::{
     forge::{Forge, ForgeScript, ForgeScriptArgs},
     spinner::Spinner,
 };
-use config::{forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ContractsConfig, EcosystemConfig};
+use config::{
+    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ContractsConfig,
+    EcosystemConfig,
+};
 use ethers::{
     abi::{parse_abi, Token, Tokenize},
     contract::BaseContract,
@@ -12,6 +15,7 @@ use ethers::{
 use lazy_static::lazy_static;
 use xshell::Shell;
 use zksync_config::configs::chain;
+use zksync_types::U256;
 
 use crate::{
     messages::MSG_ACCEPTING_GOVERNANCE_SPINNER,
@@ -25,7 +29,8 @@ lazy_static! {
             "function chainAdminAcceptAdmin(address admin, address target) public",
             "function setDAValidatorPair(address chainAdmin, address target, address l1DaValidator, address l2DaValidator) public",
             "function governanceExecuteCalls(bytes calldata callsToExecute, address target) public",
-            "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)"
+            "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)",
+            "function adminScheduleUpgrade(address adminAddr, address accessControlRestriction, uint256 newProtocolVersion, uint256 timestamp)"
         ])
         .unwrap(),
     );
@@ -149,7 +154,7 @@ pub async fn governance_execute_calls(
     let calldata = ACCEPT_ADMIN
         .encode(
             "governanceExecuteCalls",
-            (Token::Bytes(encoded_calls),governance_address,)
+            (Token::Bytes(encoded_calls), governance_address),
         )
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
@@ -166,7 +171,7 @@ pub async fn governance_execute_calls(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn admin_execute_calls(
+pub async fn admin_execute_upgrade(
     shell: &Shell,
     ecosystem_config: &EcosystemConfig,
     chain_contracts_config: &ContractsConfig,
@@ -180,9 +185,12 @@ pub async fn admin_execute_calls(
     forge_args.resume = false;
 
     let admin_addr = chain_contracts_config.l1.chain_admin_addr;
-    let access_control_restriction = chain_contracts_config.l1.access_control_restriction_addr.context("no access_control_restriction_addr")?;
+    let access_control_restriction = chain_contracts_config
+        .l1
+        .access_control_restriction_addr
+        .context("no access_control_restriction_addr")?;
     let diamond_proxy = chain_contracts_config.l1.diamond_proxy_addr;
-    
+
     let calldata = ACCEPT_ADMIN
         .encode(
             "adminExecuteUpgrade",
@@ -190,8 +198,53 @@ pub async fn admin_execute_calls(
                 Token::Bytes(upgrade_diamond_cut),
                 admin_addr,
                 access_control_restriction,
-                diamond_proxy
-            )
+                diamond_proxy,
+            ),
+        )
+        .unwrap();
+    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let forge = Forge::new(&foundry_contracts_path)
+        .script(
+            &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_broadcast()
+        .with_calldata(&calldata);
+    accept_ownership(shell, governor, forge).await
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn admin_schedule_upgrade(
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+    chain_contracts_config: &ContractsConfig,
+    new_protocol_version: U256,
+    timestamp: U256,
+    governor: Option<H256>,
+    forge_args: &ForgeScriptArgs,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    // resume doesn't properly work here.
+    let mut forge_args = forge_args.clone();
+    forge_args.resume = false;
+
+    let admin_addr = chain_contracts_config.l1.chain_admin_addr;
+    let access_control_restriction = chain_contracts_config
+        .l1
+        .access_control_restriction_addr
+        .context("no access_control_restriction_addr")?;
+
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "adminScheduleUpgrade",
+            (
+                admin_addr,
+                access_control_restriction,
+                new_protocol_version,
+                timestamp,
+            ),
         )
         .unwrap();
     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();

@@ -746,9 +746,7 @@ fn upgrade_timestamp_log(eth_block: u64) -> Log {
 }
 
 fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
-    let abi::Transaction::L1 {
-        tx, factory_deps, ..
-    } = upgrade
+    let abi::Transaction::L1 { tx, .. } = upgrade
         .tx
         .map(|tx| Transaction::from(tx).try_into().unwrap())
         .unwrap_or(abi::Transaction::L1 {
@@ -761,7 +759,6 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
     };
     ProposedUpgrade {
         l2_protocol_upgrade_tx: tx,
-        factory_deps,
         bootloader_hash: upgrade.bootloader_code_hash.unwrap_or_default().into(),
         default_account_hash: upgrade.default_account_code_hash.unwrap_or_default().into(),
         verifier: upgrade.verifier_address.unwrap_or_default(),

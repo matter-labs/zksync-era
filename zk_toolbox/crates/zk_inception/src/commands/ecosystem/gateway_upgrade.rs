@@ -165,7 +165,7 @@ async fn governance_stage_1(
         GATEWAY_UPGRADE_ECOSYSTEM_PARAMS.output(&ecosystem_config.link_to_code),
     )?;
     previous_output.save_with_base_path(shell, &ecosystem_config.config)?;
- 
+
     // These are ABI-encoded
     let stage1_calls = previous_output.governance_stage1_calls;
 
@@ -175,21 +175,45 @@ async fn governance_stage_1(
         ecosystem_config.get_wallets()?.governor_private_key(),
         stage1_calls.0,
         &init_args.forge_args.clone(),
-        init_args.l1_rpc_url.clone()
-    ).await?;
+        init_args.l1_rpc_url.clone(),
+    )
+    .await?;
 
-    let gateway_ecosystem_preparation_output = GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
-
+    let gateway_ecosystem_preparation_output =
+        GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
 
     let mut contracts_config = ecosystem_config.get_contracts_config()?;
 
-    contracts_config.user_facing_bridgehub = Some(contracts_config.ecosystem_contracts.bridgehub_proxy_addr);
+    contracts_config.user_facing_bridgehub =
+        Some(contracts_config.ecosystem_contracts.bridgehub_proxy_addr);
     contracts_config.user_facing_diamond_proxy = Some(contracts_config.l1.diamond_proxy_addr);
-    contracts_config.ecosystem_contracts.stm_deployment_tracker_proxy_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.bridgehub.ctm_deployment_tracker_proxy_addr);
+    contracts_config
+        .ecosystem_contracts
+        .stm_deployment_tracker_proxy_addr = Some(
+        gateway_ecosystem_preparation_output
+            .deployed_addresses
+            .bridgehub
+            .ctm_deployment_tracker_proxy_addr,
+    );
     // This is force deployment data for creating new contracts, not really relevant here tbh,
-    contracts_config.ecosystem_contracts.force_deployments_data = Some(hex::encode(&gateway_ecosystem_preparation_output.contracts_config.force_deployments_data.0));
-    contracts_config.ecosystem_contracts.native_token_vault_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.native_token_vault_addr);
-    contracts_config.ecosystem_contracts.l1_bytecodes_supplier_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.l1_bytecodes_supplier_addr);
+    contracts_config.ecosystem_contracts.force_deployments_data = Some(hex::encode(
+        &gateway_ecosystem_preparation_output
+            .contracts_config
+            .force_deployments_data
+            .0,
+    ));
+    contracts_config.ecosystem_contracts.native_token_vault_addr = Some(
+        gateway_ecosystem_preparation_output
+            .deployed_addresses
+            .native_token_vault_addr,
+    );
+    contracts_config
+        .ecosystem_contracts
+        .l1_bytecodes_supplier_addr = Some(
+        gateway_ecosystem_preparation_output
+            .deployed_addresses
+            .l1_bytecodes_supplier_addr,
+    );
 
     // TODO: we do not yet update the chain admin of the ecosystem
     // contracts_config.l1.access_control_restriction_addr = Some(chain_output.access_control_restriction);
@@ -197,8 +221,16 @@ async fn governance_stage_1(
     // TODO: this field is probably not needed at all
     contracts_config.l1.chain_proxy_admin_addr = Some(H160::zero());
 
-    contracts_config.l1.rollup_l1_da_validator_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.rollup_l1_da_validator_addr);
-    contracts_config.l1.validium_l1_da_validator_addr = Some(gateway_ecosystem_preparation_output.deployed_addresses.validium_l1_da_validator_addr);
+    contracts_config.l1.rollup_l1_da_validator_addr = Some(
+        gateway_ecosystem_preparation_output
+            .deployed_addresses
+            .rollup_l1_da_validator_addr,
+    );
+    contracts_config.l1.validium_l1_da_validator_addr = Some(
+        gateway_ecosystem_preparation_output
+            .deployed_addresses
+            .validium_l1_da_validator_addr,
+    );
 
     // This value is meaningless for the ecosystem, but we'll populate it for consistency
     contracts_config.l2.da_validator_addr = Some(H160::zero());
@@ -206,7 +238,6 @@ async fn governance_stage_1(
     contracts_config.l2.legacy_shared_bridge_addr = contracts_config.bridges.shared.l2_address;
 
     contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
-
 
     Ok(())
 }

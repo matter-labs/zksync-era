@@ -44,10 +44,12 @@ impl ContractsConfig {
             .deployed_addresses
             .bridges
             .shared_bridge_proxy_addr;
-        self.bridges.l1_nullifier_addr = Some(deploy_l1_output
-            .deployed_addresses
-            .bridges
-            .l1_nullifier_proxy_addr);
+        self.bridges.l1_nullifier_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .bridges
+                .l1_nullifier_proxy_addr,
+        );
         self.ecosystem_contracts.bridgehub_proxy_addr = deploy_l1_output
             .deployed_addresses
             .bridgehub
@@ -61,14 +63,18 @@ impl ContractsConfig {
             .transparent_proxy_admin_addr;
         self.ecosystem_contracts.l1_bytecodes_supplier_addr =
             Some(deploy_l1_output.deployed_addresses.bytecodes_supplier);
-        self.ecosystem_contracts.stm_deployment_tracker_proxy_addr = Some(deploy_l1_output
-            .deployed_addresses
-            .bridgehub
-            .ctm_deployment_tracker_proxy_addr);
-        self.ecosystem_contracts.force_deployments_data = Some(deploy_l1_output
-            .contracts_config
-            .force_deployments_data
-            .clone());
+        self.ecosystem_contracts.stm_deployment_tracker_proxy_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .bridgehub
+                .ctm_deployment_tracker_proxy_addr,
+        );
+        self.ecosystem_contracts.force_deployments_data = Some(
+            deploy_l1_output
+                .contracts_config
+                .force_deployments_data
+                .clone(),
+        );
         self.l1.default_upgrade_addr = deploy_l1_output
             .deployed_addresses
             .state_transition
@@ -92,22 +98,30 @@ impl ContractsConfig {
         self.ecosystem_contracts
             .diamond_cut_data
             .clone_from(&deploy_l1_output.contracts_config.diamond_cut_data);
-        self.l1.rollup_l1_da_validator_addr = Some(deploy_l1_output
-            .deployed_addresses
-            .rollup_l1_da_validator_addr);
-        self.l1.validium_l1_da_validator_addr = Some(deploy_l1_output
-            .deployed_addresses
-            .validium_l1_da_validator_addr);
+        self.l1.rollup_l1_da_validator_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .rollup_l1_da_validator_addr,
+        );
+        self.l1.validium_l1_da_validator_addr = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .validium_l1_da_validator_addr,
+        );
         self.l1.chain_admin_addr = deploy_l1_output.deployed_addresses.chain_admin;
 
-        self.user_facing_bridgehub = Some(deploy_l1_output
-            .deployed_addresses
-            .bridgehub
-            .bridgehub_proxy_addr);
-        self.user_facing_diamond_proxy = Some(deploy_l1_output
-            .deployed_addresses
-            .state_transition
-            .diamond_proxy_addr);
+        self.user_facing_bridgehub = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .bridgehub
+                .bridgehub_proxy_addr,
+        );
+        self.user_facing_diamond_proxy = Some(
+            deploy_l1_output
+                .deployed_addresses
+                .state_transition
+                .diamond_proxy_addr,
+        );
     }
 
     pub fn set_chain_contracts(&mut self, register_chain_output: &RegisterChainOutput) {
@@ -117,7 +131,8 @@ impl ContractsConfig {
         self.l1.access_control_restriction_addr =
             Some(register_chain_output.access_control_restriction_addr);
         self.l1.chain_proxy_admin_addr = Some(register_chain_output.chain_proxy_admin_addr);
-        self.l2.legacy_shared_bridge_addr = Some(register_chain_output.l2_legacy_shared_bridge_addr);
+        self.l2.legacy_shared_bridge_addr =
+            Some(register_chain_output.l2_legacy_shared_bridge_addr);
 
         self.user_facing_diamond_proxy = Some(register_chain_output.diamond_proxy_addr);
     }

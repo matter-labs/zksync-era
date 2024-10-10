@@ -195,7 +195,6 @@ pub struct VerifierParams {
 /// `ProposedUpgrade` from, `l1-contracts/contracts/upgrades/BazeZkSyncUpgrade.sol`.
 pub struct ProposedUpgrade {
     pub l2_protocol_upgrade_tx: Box<L2CanonicalTransaction>,
-    pub factory_deps: Vec<Vec<u8>>,
     pub bootloader_hash: [u8; 32],
     pub default_account_hash: [u8; 32],
     pub verifier: Address,
@@ -253,16 +252,15 @@ impl ProposedUpgrade {
     /// RLP schema of the `ProposedUpgrade`.
     pub fn schema() -> ParamType {
         ParamType::Tuple(vec![
-            L2CanonicalTransaction::schema(),          // transaction data
-            ParamType::Array(ParamType::Bytes.into()), // factory deps
-            ParamType::FixedBytes(32),                 // bootloader code hash
-            ParamType::FixedBytes(32),                 // default account code hash
-            ParamType::Address,                        // verifier address
-            VerifierParams::schema(),                  // verifier params
-            ParamType::Bytes,                          // l1 custom data
-            ParamType::Bytes,                          // l1 post-upgrade custom data
-            ParamType::Uint(256),                      // timestamp
-            ParamType::Uint(256),                      // version id
+            L2CanonicalTransaction::schema(), // transaction data
+            ParamType::FixedBytes(32),        // bootloader code hash
+            ParamType::FixedBytes(32),        // default account code hash
+            ParamType::Address,               // verifier address
+            VerifierParams::schema(),         // verifier params
+            ParamType::Bytes,                 // l1 custom data
+            ParamType::Bytes,                 // l1 post-upgrade custom data
+            ParamType::Uint(256),             // timestamp
+            ParamType::Uint(256),             // version id
         ])
     }
 
@@ -270,12 +268,6 @@ impl ProposedUpgrade {
     pub fn encode(&self) -> Token {
         Token::Tuple(vec![
             self.l2_protocol_upgrade_tx.encode(),
-            Token::Array(
-                self.factory_deps
-                    .iter()
-                    .map(|b| Token::Bytes(b.clone()))
-                    .collect(),
-            ),
             Token::FixedBytes(self.bootloader_hash.into()),
             Token::FixedBytes(self.default_account_hash.into()),
             Token::Address(self.verifier),
@@ -291,21 +283,13 @@ impl ProposedUpgrade {
     /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
-        anyhow::ensure!(tokens.len() == 10);
+        anyhow::ensure!(tokens.len() == 9);
         let mut t = tokens.into_iter();
         let mut next = || t.next().unwrap();
         Ok(Self {
             l2_protocol_upgrade_tx: L2CanonicalTransaction::decode(next())
                 .context("l2_protocol_upgrade_tx")?
                 .into(),
-            factory_deps: next()
-                .into_array()
-                .context("factory_deps")?
-                .into_iter()
-                .enumerate()
-                .map(|(i, b)| b.into_bytes().context(i))
-                .collect::<Result<_, _>>()
-                .context("factory_deps")?,
             bootloader_hash: next()
                 .into_fixed_bytes()
                 .and_then(|b| b.try_into().ok())

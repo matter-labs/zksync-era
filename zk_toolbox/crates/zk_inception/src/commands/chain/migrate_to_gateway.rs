@@ -101,8 +101,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
 
     let chain_contracts_config = chain_config.get_contracts_config().unwrap();
     let chain_admin_addr = chain_contracts_config.l1.chain_admin_addr;
-    let chain_access_control_restriction =
-        chain_contracts_config.l1.access_control_restriction_addr.context("chain_access_control_restriction")?;
+    let chain_access_control_restriction = chain_contracts_config
+        .l1
+        .access_control_restriction_addr
+        .context("chain_access_control_restriction")?;
 
     println!("Whitelisting the chains' addresseses...");
     call_script(
@@ -213,7 +215,10 @@ pub async fn run(args: MigrateToGatewayArgs, shell: &Shell) -> anyhow::Result<()
                     chain_access_control_restriction,
                     U256::from(chain_config.chain_id.0),
                     gateway_da_validator_address,
-                    chain_contracts_config.l2.da_validator_addr.context("da_validator_addr")?,
+                    chain_contracts_config
+                        .l2
+                        .da_validator_addr
+                        .context("da_validator_addr")?,
                     new_diamond_proxy_address,
                 ),
             )
