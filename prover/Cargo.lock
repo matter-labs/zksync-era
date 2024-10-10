@@ -8339,6 +8339,7 @@ dependencies = [
  "proof-compression-gpu",
  "proptest",
  "serde_json",
+ "shivini",
  "toml_edit 0.14.4",
  "tracing",
  "tracing-subscriber",

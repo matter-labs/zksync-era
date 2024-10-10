@@ -24,6 +24,7 @@ zksync_utils.workspace = true
 zkevm_test_harness.workspace = true
 circuit_definitions = { workspace = true, features = ["log_tracing"] }
 proof-compression-gpu.workspace = true
+shivini.workspace = true
 
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }
