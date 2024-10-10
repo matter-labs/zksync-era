@@ -132,3 +132,11 @@ Special privacy explorer allows people to see their "slice" of the blockchain:
 * all transactions that were "touching" their account (any transaction that returned an Event with their account in the indexed field)
 
 For the not-logged-in users, explorer displays very general statistics (like info about most recent blocks, number of transactions etc - but without transactoins themselves).
+
+
+
+## TODOs
+
+* Figure out what to do with Smart accounts (how can they "verify")
+* what about L1 priority queue?
+* 
