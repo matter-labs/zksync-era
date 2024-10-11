@@ -111,6 +111,7 @@ pub struct Vm<S, Tr = ()> {
     pub(crate) batch_env: L1BatchEnv,
     pub(crate) system_env: SystemEnv,
     snapshot: Option<VmSnapshot>,
+    stop_after_validation: bool,
     #[cfg(test)]
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
@@ -173,6 +174,7 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
             system_env,
             batch_env,
             snapshot: None,
+            stop_after_validation: false,
             #[cfg(test)]
             enforced_state_diffs: None,
         };
@@ -251,6 +253,11 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
                         let gas_left = self.inner.current_frame().gas();
                         gas_left_for_account_validation -= gas_given - gas_left;
                         self.inner.current_frame().set_gas(gas_left + gas_hidden);
+                    }
+                }
+                Hook::ValidationStepEnded => {
+                    if self.stop_after_validation {
+                        break (ExecutionResult::Success { output: vec![] }, false);
                     }
                 }
                 Hook::TxHasEnded => {
@@ -388,7 +395,7 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
                     self.write_to_bootloader_heap(memory_to_apply);
                 }
 
-                Hook::PaymasterValidationEntered | Hook::ValidationStepEnded => { /* unused */ }
+                Hook::PaymasterValidationEntered => { /* unused */ }
                 Hook::DebugLog => {
                     let (log, log_arg) = self.get_debug_log();
                     let last_tx = self.bootloader_state.last_l2_block().txs.last();
@@ -407,6 +414,10 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
             refunds,
             pubdata_published,
         }
+    }
+
+    pub fn stop_after_validation(&mut self) {
+        self.stop_after_validation = true;
     }
 
     fn get_hook_params(&self) -> [U256; 3] {
