@@ -211,7 +211,7 @@ parity-scale-codec = { version = "3.6.9", default-features = false }
 subxt-signer = { version = "0.34", default-features = false }
 
 # Celestia
-celestia-types = "0.6.0"
+celestia-types = "0.6.1"
 bech32 = "0.11.0"
 ripemd = "0.1.3"
 k256 = "0.13.4"
