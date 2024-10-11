@@ -54,6 +54,7 @@ services:
     profiles:
       - runner
     network_mode: host
+    pid: host
     deploy:
       resources:
         reservations:
