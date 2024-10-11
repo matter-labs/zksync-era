@@ -42,7 +42,10 @@ use zksync_types::{
     AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog, H256,
     U256, U64,
 };
-use zksync_utils::{bytecode::hash_evm_bytecode, u256_to_h256};
+use zksync_utils::{
+    bytecode::{hash_bytecode, hash_evm_bytecode},
+    u256_to_h256,
+};
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
@@ -629,7 +632,7 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
         let address = Address::repeat_byte(1);
         let code_key = get_code_key(&address);
-        let code_hash = H256::repeat_byte(2);
+        let code_hash = hash_bytecode(&[0; 32]);
         let balance_key = storage_key_for_eth_balance(&address);
         let logs = vec![
             StorageLog::new_write_log(code_key, code_hash),
