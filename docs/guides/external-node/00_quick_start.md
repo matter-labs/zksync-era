@@ -6,6 +6,8 @@ Install `docker compose` and `Docker`
 
 ## Running ZKsync node locally
 
+These commands start ZKsync node locally inside docker.
+
 To start a mainnet instance, run:
 
 ```sh
@@ -34,9 +36,10 @@ cd docker-compose-examples
 sudo docker compose --file testnet-external-node-docker-compose.yml down --volumes
 ```
 
-You can see the status of the node (after recovery) in [local grafana dashboard](http://localhost:3000/dashboards).
+### Observability
 
-Those commands start ZKsync node locally inside docker.
+You can see the status of the node (after recovery) in [local grafana dashboard](http://localhost:3000/dashboards). You
+can also access a debug page with more information about the node [here](http://localhost:5000).
 
 The HTTP JSON-RPC API can be accessed on port `3060` and WebSocket API can be accessed on port `3061`.
 

@@ -18,7 +18,7 @@ pub mod yaml;
 
 pub use prerequisites::{
     check_general_prerequisites, check_prerequisites, GCLOUD_PREREQUISITE, GPU_PREREQUISITES,
-    PROVER_CLI_PREREQUISITE, WGET_PREREQUISITE,
+    PROVER_CLI_PREREQUISITE,
 };
 pub use prompt::{init_prompt_theme, Prompt, PromptConfirm, PromptSelect};
 pub use term::{error, logger, spinner};
