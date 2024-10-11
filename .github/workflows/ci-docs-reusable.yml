@@ -35,4 +35,5 @@ jobs:
 
       - name: Lints
         run: |
+          ci_run zk_supervisor fmt --check
           ci_run zk_supervisor lint -t md --check
