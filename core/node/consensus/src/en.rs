@@ -21,6 +21,10 @@ use crate::{
     storage::{self, ConnectionPool},
 };
 
+/// If less than TEMPORARY_FETCHER_THRESHOLD certificates are missing,
+/// the temporary fetcher will stop fetching blocks.
+pub(crate) const TEMPORARY_FETCHER_THRESHOLD: u64 = 10;
+
 /// External node.
 pub(super) struct EN {
     pub(super) pool: ConnectionPool,
@@ -374,16 +378,19 @@ impl EN {
 
     /// Fetches blocks from the main node directly, until the certificates
     /// are backfilled. This allows for smooth transition from json RPC to p2p block syncing.
-    async fn temporary_block_fetcher(&self, ctx: &ctx::Ctx, store: &Store) -> ctx::Result<()> {
+    pub(crate) async fn temporary_block_fetcher(
+        &self,
+        ctx: &ctx::Ctx,
+        store: &Store,
+    ) -> ctx::Result<()> {
         const MAX_CONCURRENT_REQUESTS: usize = 30;
-        const MAX_MISSING_CERTS: u64 = 10;
         scope::run!(ctx, |ctx, s| async {
             let (send, mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
             s.spawn(async {
                 let Some(mut next) = store.next_block(ctx).await? else {
                     return Ok(());
                 };
-                while store.persisted().borrow().next().0 + MAX_MISSING_CERTS < next.0 {
+                while store.persisted().borrow().next().0 + TEMPORARY_FETCHER_THRESHOLD < next.0 {
                     let n = L2BlockNumber(next.0.try_into().context("overflow")?);
                     self.sync_state.wait_for_main_node_block(ctx, n).await?;
                     send.send(ctx, s.spawn(self.fetch_block(ctx, n))).await?;
