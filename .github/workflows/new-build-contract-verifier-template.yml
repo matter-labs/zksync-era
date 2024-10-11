@@ -39,6 +39,7 @@ jobs:
           echo CI=1 >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
           echo $(pwd)/zkstack_cli/zkstackup >> $GITHUB_PATH
+          echo $HOME/.local/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
@@ -129,7 +130,7 @@ jobs:
         run: |
           mkdir -p ./volumes/postgres
           docker compose up -d postgres
-          zkstackup -g --path ./ || true
+          zkstackup --path ./ || true
 
       - name: build contracts
         shell: bash
