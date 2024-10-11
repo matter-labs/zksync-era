@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
+use itertools::Itertools;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
@@ -96,7 +97,7 @@ impl MempoolFetcher {
             .await
             .context("failed creating L2 transaction filter")?;
 
-            let transactions = storage
+            let transactions_with_constraints = storage
                 .transactions_dal()
                 .sync_mempool(
                     &mempool_info.stashed_accounts,
@@ -107,6 +108,12 @@ impl MempoolFetcher {
                 )
                 .await
                 .context("failed syncing mempool")?;
+
+            let transactions = transactions_with_constraints
+                .iter()
+                .map(|(t, _c)| t)
+                .collect_vec();
+
             let nonces = get_transaction_nonces(&mut storage, &transactions).await?;
             drop(storage);
 
@@ -116,7 +123,7 @@ impl MempoolFetcher {
                 self.transaction_hashes_sender.send(transaction_hashes).ok();
             }
             let all_transactions_loaded = transactions.len() < self.sync_batch_size;
-            self.mempool.insert(transactions, nonces);
+            self.mempool.insert(transactions_with_constraints, nonces);
             latency.observe();
 
             if all_transactions_loaded {
@@ -130,7 +137,7 @@ impl MempoolFetcher {
 /// Loads nonces for all distinct `transactions` initiators from the storage.
 async fn get_transaction_nonces(
     storage: &mut Connection<'_, Core>,
-    transactions: &[Transaction],
+    transactions: &[&Transaction],
 ) -> anyhow::Result<HashMap<Address, Nonce>> {
     let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
         .iter()

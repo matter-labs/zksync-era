@@ -2,6 +2,7 @@ use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
 
 use zksync_types::{
     l1::L1Tx, l2::L2Tx, Address, ExecuteTransactionCommon, Nonce, PriorityOpId, Transaction,
+    TransactionTimeRangeConstraint,
 };
 
 use crate::types::{AccountTransactions, L2TxFilter, MempoolScore};
@@ -54,10 +55,10 @@ impl MempoolStore {
     /// in other cases mempool relies on state keeper and its internal state to keep that info up to date
     pub fn insert(
         &mut self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<(Transaction, TransactionTimeRangeConstraint)>,
         initial_nonces: HashMap<Address, Nonce>,
     ) {
-        for transaction in transactions {
+        for (transaction, constraint) in transactions {
             let Transaction {
                 common_data,
                 execute,
@@ -85,6 +86,7 @@ impl MempoolStore {
                             received_timestamp_ms,
                             raw_bytes,
                         },
+                        constraint,
                         &initial_nonces,
                     );
                 }
@@ -98,17 +100,18 @@ impl MempoolStore {
     fn insert_l2_transaction(
         &mut self,
         transaction: L2Tx,
+        constraint: TransactionTimeRangeConstraint,
         initial_nonces: &HashMap<Address, Nonce>,
     ) {
         let account = transaction.initiator_account();
 
         let metadata = match self.l2_transactions_per_account.entry(account) {
-            hash_map::Entry::Occupied(mut txs) => txs.get_mut().insert(transaction),
+            hash_map::Entry::Occupied(mut txs) => txs.get_mut().insert(transaction, constraint),
             hash_map::Entry::Vacant(entry) => {
                 let account_nonce = initial_nonces.get(&account).cloned().unwrap_or(Nonce(0));
                 entry
                     .insert(AccountTransactions::new(account_nonce))
-                    .insert(transaction)
+                    .insert(transaction, constraint)
             }
         };
         if let Some(score) = metadata.previous_score {
@@ -182,12 +185,13 @@ impl MempoolStore {
     /// When a state_keeper starts the block over after a rejected transaction,
     /// we have to rollback the nonces/ids in the mempool and
     /// reinsert the transactions from the block back into mempool.
-    pub fn rollback(&mut self, tx: &Transaction) {
+    pub fn rollback(&mut self, tx: &Transaction) -> TransactionTimeRangeConstraint {
         // rolling back the nonces and priority ids
         match &tx.common_data {
             ExecuteTransactionCommon::L1(data) => {
                 // reset next priority id
                 self.next_priority_id = self.next_priority_id.min(data.serial_id);
+                TransactionTimeRangeConstraint::default()
             }
             ExecuteTransactionCommon::L2(_) => {
                 if let Some(score) = self
@@ -197,7 +201,9 @@ impl MempoolStore {
                     .reset(tx)
                 {
                     self.l2_priority_queue.remove(&score);
+                    return score.time_range_constraint;
                 }
+                TransactionTimeRangeConstraint::default()
             }
             ExecuteTransactionCommon::ProtocolUpgrade(_) => {
                 panic!("Protocol upgrade tx is not supposed to be in mempool");

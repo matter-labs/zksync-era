@@ -12,7 +12,8 @@ use zksync_db_connection::{
 use zksync_types::{
     block::L2BlockExecutionData, l1::L1Tx, l2::L2Tx, protocol_upgrade::ProtocolUpgradeTx, Address,
     ExecuteTransactionCommon, L1BatchNumber, L1BlockNumber, L2BlockNumber, PriorityOpId,
-    ProtocolVersionId, Transaction, H256, PROTOCOL_UPGRADE_TX_TYPE, U256,
+    ProtocolVersionId, Transaction, TransactionTimeRangeConstraint, H256, PROTOCOL_UPGRADE_TX_TYPE,
+    U256,
 };
 use zksync_utils::u256_to_big_decimal;
 use zksync_vm_interface::{
@@ -1745,7 +1746,7 @@ impl TransactionsDal<'_, '_> {
         gas_per_pubdata: u32,
         fee_per_gas: u64,
         limit: usize,
-    ) -> DalResult<Vec<Transaction>> {
+    ) -> DalResult<Vec<(Transaction, TransactionTimeRangeConstraint)>> {
         let stashed_addresses: Vec<_> = stashed_accounts.iter().map(Address::as_bytes).collect();
         sqlx::query!(
             r#"
@@ -1844,7 +1845,10 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        let transactions = transactions.into_iter().map(|tx| tx.into()).collect();
+        let transactions = transactions
+            .into_iter()
+            .map(|tx| (tx.clone().into(), tx.into()))
+            .collect();
         Ok(transactions)
     }
 

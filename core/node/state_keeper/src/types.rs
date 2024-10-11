@@ -6,7 +6,9 @@ use std::{
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_mempool::{L2TxFilter, MempoolInfo, MempoolStore};
 use zksync_multivm::interface::{VmExecutionMetrics, VmExecutionResultAndLogs};
-use zksync_types::{block::BlockGasCount, Address, Nonce, PriorityOpId, Transaction};
+use zksync_types::{
+    block::BlockGasCount, Address, Nonce, PriorityOpId, Transaction, TransactionTimeRangeConstraint,
+};
 
 use super::{
     metrics::StateKeeperGauges,
@@ -30,7 +32,11 @@ impl MempoolGuard {
         Self(Arc::new(Mutex::new(store)))
     }
 
-    pub fn insert(&mut self, transactions: Vec<Transaction>, nonces: HashMap<Address, Nonce>) {
+    pub fn insert(
+        &mut self,
+        transactions: Vec<(Transaction, TransactionTimeRangeConstraint)>,
+        nonces: HashMap<Address, Nonce>,
+    ) {
         self.0
             .lock()
             .expect("failed to acquire mempool lock")
@@ -51,11 +57,11 @@ impl MempoolGuard {
             .next_transaction(filter)
     }
 
-    pub fn rollback(&mut self, rejected: &Transaction) {
+    pub fn rollback(&mut self, rejected: &Transaction) -> TransactionTimeRangeConstraint {
         self.0
             .lock()
             .expect("failed to acquire mempool lock")
-            .rollback(rejected);
+            .rollback(rejected)
     }
 
     pub fn get_mempool_info(&mut self) -> MempoolInfo {

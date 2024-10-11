@@ -300,9 +300,9 @@ impl StateKeeperIO for MempoolIO {
 
     async fn rollback(&mut self, tx: Transaction) -> anyhow::Result<()> {
         // Reset nonces in the mempool.
-        self.mempool.rollback(&tx);
+        let constraint = self.mempool.rollback(&tx);
         // Insert the transaction back.
-        self.mempool.insert(vec![tx], HashMap::new());
+        self.mempool.insert(vec![(tx, constraint)], HashMap::new());
         Ok(())
     }
 

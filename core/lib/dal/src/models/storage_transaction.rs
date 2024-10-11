@@ -12,9 +12,9 @@ use zksync_types::{
     transaction_request::PaymasterParams,
     web3::Bytes,
     Address, Execute, ExecuteTransactionCommon, L1TxCommonData, L2ChainId, L2TxCommonData, Nonce,
-    PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction, EIP_1559_TX_TYPE,
-    EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160, H256, PRIORITY_OPERATION_L2_TX_TYPE,
-    PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
+    PackedEthSignature, PriorityOpId, ProtocolVersionId, Transaction,
+    TransactionTimeRangeConstraint, EIP_1559_TX_TYPE, EIP_2930_TX_TYPE, EIP_712_TX_TYPE, H160,
+    H256, PRIORITY_OPERATION_L2_TX_TYPE, PROTOCOL_UPGRADE_TX_TYPE, U256, U64,
 };
 use zksync_utils::{bigdecimal_to_u256, h256_to_account_address};
 use zksync_vm_interface::Call;
@@ -320,6 +320,15 @@ impl From<StorageTransaction> for Transaction {
                 execute,
                 received_timestamp_ms,
             },
+        }
+    }
+}
+
+impl From<StorageTransaction> for TransactionTimeRangeConstraint {
+    fn from(tx: StorageTransaction) -> Self {
+        Self {
+            range_start: tx.block_timestamp_range_start,
+            range_end: tx.block_timestamp_range_end,
         }
     }
 }
