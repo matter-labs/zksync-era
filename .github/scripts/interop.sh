@@ -7,7 +7,7 @@ zk_inception ecosystem init --deploy-paymaster --deploy-erc20 \
             --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
             --prover-db-name=zksync_prover_localhost_era \
             --ignore-prerequisites --observability=false --skip-submodules-checkout \
-            --chain era \
+            --chain era # --no-port-reallocation
             # --skip-contract-compilation-override \
 
 zk_inception chain create \

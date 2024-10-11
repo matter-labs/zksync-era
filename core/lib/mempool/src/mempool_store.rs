@@ -166,10 +166,16 @@ impl MempoolStore {
                 .iter()
                 .rfind(|el| el.matches_filter(filter))
                 .is_some()
+            || self
+                .xl2_priority_queue
+                .iter()
+                .rfind(|el| el.matches_filter(filter))
+                .is_some()
     }
 
     /// Returns next transaction for execution from mempool
     pub fn next_transaction(&mut self, filter: &L2TxFilter) -> Option<Transaction> {
+        // println!("kl todo next transaction 0");
         if let Some(transaction) = self.l1_transactions.remove(&self.next_priority_id) {
             self.next_priority_id += 1;
             return Some(transaction.into());

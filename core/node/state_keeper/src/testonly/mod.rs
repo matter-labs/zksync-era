@@ -183,3 +183,15 @@ pub fn l1_transaction(account: &mut Account, serial_id: PriorityOpId) -> Transac
         serial_id.0,
     )
 }
+
+pub fn xl2_transaction(account: &mut Account, gas_limit: u32) -> Transaction {
+    account.get_xl2_tx_for_execute(
+        Execute {
+            contract_address: Some(Address::random()),
+            calldata: vec![],
+            value: U256::from("0x100000000000000000000000000000000"),
+            factory_deps: vec![],
+        },
+        Some(fee(gas_limit)),
+    )
+}

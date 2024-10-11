@@ -8,8 +8,8 @@ use zksync_system_constants::{
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE,
 };
 use zksync_types::{
-    abi, fee::Fee, l2::L2Tx, utils::deployed_address_create, Address, Execute, K256PrivateKey,
-    L2ChainId, Nonce, Transaction, H256, PRIORITY_OPERATION_L2_TX_TYPE, U256,
+    abi, fee::Fee, l2::L2Tx, utils::deployed_address_create, xl2::XL2Tx, Address, Execute,
+    K256PrivateKey, L2ChainId, Nonce, Transaction, H256, PRIORITY_OPERATION_L2_TX_TYPE, U256,
 };
 use zksync_utils::{address_to_u256, bytecode::hash_bytecode, h256_to_u256};
 
@@ -60,6 +60,12 @@ impl Account {
         tx
     }
 
+    pub fn get_xl2_tx_for_execute(&mut self, execute: Execute, fee: Option<Fee>) -> Transaction {
+        let tx = self.get_xl2_tx_for_execute_with_nonce(execute, fee, self.nonce);
+        self.nonce += 1;
+        tx
+    }
+
     pub fn get_l2_tx_for_execute_with_nonce(
         &mut self,
         execute: Execute,
@@ -82,6 +88,34 @@ impl Account {
             &self.private_key,
             factory_deps,
             Default::default(),
+        )
+        .expect("should create a signed execute transaction")
+        .into()
+    }
+
+    pub fn get_xl2_tx_for_execute_with_nonce(
+        &mut self,
+        execute: Execute,
+        fee: Option<Fee>,
+        nonce: Nonce,
+    ) -> Transaction {
+        let Execute {
+            contract_address,
+            calldata,
+            value,
+            factory_deps,
+        } = execute;
+        XL2Tx::new_signed(
+            contract_address.unwrap(),
+            calldata,
+            nonce,
+            fee.unwrap_or_else(Self::default_fee),
+            value,
+            contract_address.unwrap(), // kl todo
+            value,
+            factory_deps,
+            Default::default(),
+            L2ChainId::default(),
         )
         .expect("should create a signed execute transaction")
         .into()

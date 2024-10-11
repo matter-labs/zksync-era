@@ -2,6 +2,7 @@
 
 use std::convert::TryFrom;
 
+use anyhow::Context as _;
 // use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{Address, L1BlockNumber, PriorityOpId, H160, H256, U256, U64};
@@ -18,13 +19,14 @@ use crate::{
     fee::Fee,
     helpers::unix_timestamp_ms,
     l1::{OpProcessingType, PriorityQueueType},
-    l2::TransactionType,
+    l2::{error::SignError, TransactionType},
     priority_op_onchain_data::{PriorityOpOnchainData, PriorityOpOnchainMetadata},
     transaction_request::PaymasterParams,
     tx::Execute,
     web3::Bytes,
     ExecuteTransactionCommon, // INTEROP_TX_TYPE,
     InputData,
+    L2ChainId,
     // xl2::error::XL2TxParseError,
     Nonce,
     INTEROP_TX_TYPE,
@@ -246,7 +248,7 @@ impl From<XL2Tx> for TransactionRequest {
             r: None,
             s: None,
             raw: None,
-            transaction_type: None,
+            transaction_type: Some(U64([INTEROP_TX_TYPE as u64])),
             access_list: None,
             eip712_meta: None,
             chain_id: Some(270), // todo
@@ -385,6 +387,7 @@ impl XL2Tx {
     }
 
     pub fn set_input(&mut self, input: Vec<u8>, hash: H256) {
+        self.common_data.canonical_tx_hash = hash;
         self.common_data.input = Some(InputData { hash, data: input })
     }
 
@@ -445,5 +448,50 @@ impl XL2Tx {
             },
             received_timestamp_ms: unix_timestamp_ms(),
         }
+    }
+
+    pub fn new_signed(
+        contract_address: Address,
+        calldata: Vec<u8>,
+        nonce: Nonce,
+        fee: Fee,
+        full_fee: U256,
+        initiator_address: Address,
+        value: U256,
+        factory_deps: Vec<Vec<u8>>,
+        merkle_proof: Vec<u8>,
+        chain_id: L2ChainId,
+    ) -> Result<Self, SignError> {
+        let mut tx = Self::new(
+            contract_address,
+            calldata.clone(),
+            nonce,
+            fee,
+            full_fee,
+            initiator_address,
+            value,
+            factory_deps,
+            merkle_proof,
+        );
+        tx.common_data.to_mint = U256::try_from(value.full_mul(U256::from(3))).unwrap();
+        let mut req: TransactionRequest = tx.into();
+        req.chain_id = Some(chain_id.as_u64());
+        // let data = req
+        //     .get_default_signed_message()
+        //     .context("get_default_signed_message()")?;
+        // let raw: Vec<u8> = req.get_rlp().context("get_rlp")?;
+        // let (req, _) =
+        //     TransactionRequest::from_bytes_unverified(&raw).context("from_bytes_unverified()")?;
+        let default_signed_message = req.get_default_signed_message().unwrap();
+        let hash = req
+            .get_tx_hash_with_signed_message(default_signed_message)
+            .unwrap()
+            .expect("get_tx_hash_with_signed_message");
+        let mut tx = XL2Tx::from_request_unverified(req).context("from_request_unverified()")?;
+        tx.set_input(calldata, hash);
+        println!("tx.common_data: {:?}", tx.common_data);
+        println!("tx.execute: {:?}", value);
+        println!("tx.common_data.to_mint: {:?}", tx.common_data.to_mint);
+        Ok(tx)
     }
 }

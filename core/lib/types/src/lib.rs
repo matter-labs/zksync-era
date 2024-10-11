@@ -26,6 +26,7 @@ use crate::{
     api::TransactionRequest,
     l2::{L2Tx, TransactionType},
     protocol_upgrade::ProtocolUpgradeTxCommonData,
+    transaction_request::SerializationTransactionError,
     xl2::XL2Tx,
 };
 pub use crate::{Nonce, H256, U256, U64};
@@ -186,6 +187,20 @@ impl ExternalTx {
             }
         }
     }
+
+    pub fn from_request(
+        value: TransactionRequest,
+        max_tx_size: usize,
+    ) -> Result<Self, SerializationTransactionError> {
+        // println!("kl to from request {:?}", value);
+        if value.transaction_type.is_some() {
+            // println!("kl to from request XL2Tx");
+            XL2Tx::from_request(value, max_tx_size).map(ExternalTx::XL2Tx)
+        } else {
+            // println!("kl to from request L2Tx {:?}", L2Tx::from_request(value.clone(), max_tx_size));
+            L2Tx::from_request(value, max_tx_size).map(ExternalTx::L2Tx)
+        }
+    }
 }
 
 impl From<ExternalTx> for TransactionRequest {
@@ -254,6 +269,13 @@ impl Transaction {
 
     pub fn is_l1(&self) -> bool {
         matches!(self.common_data, ExecuteTransactionCommon::L1(_))
+    }
+
+    pub fn is_xl2(&self) -> bool {
+        if matches!(self.common_data, ExecuteTransactionCommon::XL2(_)) {
+            return true;
+        }
+        matches!(self.common_data, ExecuteTransactionCommon::XL2(_))
     }
 
     pub fn tx_format(&self) -> TransactionType {
@@ -375,7 +397,7 @@ impl fmt::Display for ExecuteTransactionCommon {
         match self {
             ExecuteTransactionCommon::L1(data) => write!(f, "L1TxCommonData: {:?}", data),
             ExecuteTransactionCommon::L2(data) => write!(f, "L2TxCommonData: {:?}", data),
-            ExecuteTransactionCommon::XL2(data) => write!(f, "L2TxCommonData: {:?}", data),
+            ExecuteTransactionCommon::XL2(data) => write!(f, "XL2TxCommonData: {:?}", data),
             ExecuteTransactionCommon::ProtocolUpgrade(data) => {
                 write!(f, "ProtocolUpgradeTxCommonData: {:?}", data)
             }
@@ -568,6 +590,7 @@ impl TryFrom<abi::Transaction> for Transaction {
                 }
             }
             abi::Transaction::L2(raw) => {
+                // println!("kl todo parsing l2 tx");
                 let (req, hash) =
                     transaction_request::TransactionRequest::from_bytes_unverified(&raw)?;
                 let mut tx = L2Tx::from_request_unverified(req)?;
@@ -575,6 +598,7 @@ impl TryFrom<abi::Transaction> for Transaction {
                 tx.into()
             }
             abi::Transaction::XL2(raw) => {
+                // println!("kl todo parsing xl2 tx");
                 let (req, hash) =
                     transaction_request::TransactionRequest::from_bytes_unverified(&raw)?;
                 let mut tx = XL2Tx::from_request_unverified(req)?;

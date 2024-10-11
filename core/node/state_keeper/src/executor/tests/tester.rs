@@ -389,6 +389,7 @@ pub trait AccountLoadNextExecutable {
     /// Returns a valid `execute` transaction.
     /// Automatically increments nonce of the account.
     fn execute(&mut self) -> Transaction;
+    fn xl2_execute(&mut self) -> Transaction;
     /// Returns an `execute` transaction with custom factory deps (which aren't used in a transaction,
     /// so they are mostly useful to test bytecode compression).
     fn execute_with_factory_deps(&mut self, factory_deps: Vec<Vec<u8>>) -> Transaction;
@@ -450,12 +451,16 @@ impl AccountLoadNextExecutable for Account {
         self.execute_with_gas_limit(1_000_000)
     }
 
+    fn xl2_execute(&mut self) -> Transaction {
+        testonly::xl2_transaction(self, 1_000_000)
+    }
+
     fn execute_with_factory_deps(&mut self, factory_deps: Vec<Vec<u8>>) -> Transaction {
         self.get_l2_tx_for_execute(
             Execute {
                 contract_address: Some(Address::random()),
                 calldata: vec![],
-                value: Default::default(),
+                value: U256::from(1_000_000_000),
                 factory_deps,
             },
             Some(testonly::fee(30_000_000)),

@@ -1,11 +1,11 @@
-id: 2
-name: era
-chain_id: 272
+id: 3
+name: second
+chain_id: 505
 prover_version: NoProofs
-configs: /Users/kalmanlajko/programming/zksync/tmp2/zksync-era/./chains/era/configs/
-rocks_db_path: ./chains/era/db/
+configs: /Users/kalmanlajko/programming/zksync/tmp2/zksync-era/./chains/second/configs/
+rocks_db_path: ./chains/second/db/
 external_node_config_path: null
-artifacts_path: ./chains/era/artifacts/
+artifacts_path: ./chains/second/artifacts/
 l1_batch_commit_data_generator_mode: Rollup
 base_token:
   address: '0x0000000000000000000000000000000000000001'
