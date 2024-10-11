@@ -156,7 +156,7 @@ async fn prepapre_upgrde_call(
     let full_data = zksync_contracts::deployer_contract()
         .function("forceDeployOnAddresses")
         .unwrap()
-        .encode_input(&force_deployments_as_tokens)
+        .encode_input(&[Token::Array(force_deployments_as_tokens)])
         .unwrap();
 
     Ok(full_data)
