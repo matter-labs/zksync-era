@@ -105,10 +105,7 @@ jobs:
           ci_run zk_inception prover run --component=witness-generator --round=all-rounds --docker=false &>prover_logs/witness-generator.log &
       - name: Run WVG
         run: |
-          ci_run zk_inception prover run --component=witness-vector-generator --threads=10 --docker=false &>prover_logs/witness-vector-generator.log &
-      - name: Run Prover
-        run: |
-          ci_run zk_inception prover run --component=prover --docker=false &>prover_logs/prover.log &
+          ci_run zk_inception prover run --component=circuit-prover --witness-vector-generator-count=10 --docker=false &>prover_logs/circuit_prover.log &
       - name: Wait for prover jobs to finish
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
@@ -131,14 +128,17 @@ jobs:
       - name: Wait for batch to be executed on L1
         env:
             DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
+            BATCH_NUMBER: 1
             INTERVAL: 30
             TIMEOUT: 600
         run: |
           ci_run chmod +x ./bin/prover_checkers/batch_l1_status_checker
           
-          echo URL=$(grep "http_url" ./chains/provers/configs/general.yaml | awk '{ print $2 }') >> $GITHUB_ENV
+          echo "URL=$(grep "http_url" ./chains/provers/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
           
-          PASSED_ENV_VARS="DATABASE_URL,URL,INTERVAL,TIMEOUT" \
+          echo $URL
+          
+          PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/batch_l1_status_checker
 
       - name: Upload logs
