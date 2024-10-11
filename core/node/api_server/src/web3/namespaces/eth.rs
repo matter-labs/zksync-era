@@ -21,7 +21,7 @@ use zksync_web3_decl::{
 use crate::{
     execution_sandbox::BlockArgs,
     tx_sender::BinarySearchKind,
-    utils::open_readonly_transaction,
+    utils::{open_readonly_transaction, prepare_evm_bytecode},
     web3::{backend_jsonrpsee::MethodTracer, metrics::API_METRICS, state::RpcState, TypedFilter},
 };
 
@@ -385,6 +385,8 @@ impl EthNamespace {
         address: Address,
         block_id: Option<BlockId>,
     ) -> Result<Bytes, Web3Error> {
+        const EVM_BYTECODE_MARKER: u8 = 2;
+
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
 
@@ -397,7 +399,22 @@ impl EthNamespace {
             .get_contract_code_unchecked(address, block_number)
             .await
             .map_err(DalError::generalize)?;
-        Ok(contract_code.unwrap_or_default().into())
+        let Some(contract_code) = contract_code else {
+            return Ok(Bytes::default());
+        };
+        // Check if the bytecode is an EVM bytecode, and if so, pre-process it correspondingly.
+        let prepared_bytecode = if contract_code.bytecode_hash.as_bytes()[0] == EVM_BYTECODE_MARKER
+        {
+            prepare_evm_bytecode(&contract_code.bytecode).with_context(|| {
+                format!(
+                    "malformed EVM bytecode at address {address:?}, hash = {:?}",
+                    contract_code.bytecode_hash
+                )
+            })?
+        } else {
+            contract_code.bytecode
+        };
+        Ok(prepared_bytecode.into())
     }
 
     pub fn chain_id_impl(&self) -> U64 {
