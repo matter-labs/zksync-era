@@ -109,7 +109,7 @@ impl RawCelestiaClient {
     ) -> anyhow::Result<u64> {
         let mut client: TxClient<Channel> = TxClient::new(self.grpc_channel.clone());
         let hex_encoded_tx_hash = self.broadcast_tx(&mut client, blob_tx).await?;
-        if hex_encoded_tx_hash != blob_tx_hash.clone().to_hex() {
+        if hex_encoded_tx_hash != blob_tx_hash.clone().hex() {
             tracing::error!(
                 "tx hash {} returned from celestia app is not the same as \
                  the locally calculated one {}; submission file has invalid data",
@@ -589,7 +589,7 @@ impl BlobTxHash {
         Self(sha2.into())
     }
 
-    pub(super) fn to_hex(self) -> String {
+    pub(super) fn hex(self) -> String {
         hex::encode(self.0)
     }
 }
