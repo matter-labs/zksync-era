@@ -1,5 +1,6 @@
 // FIXME: move to basic_types?
 
+use zk_evm::k256::sha2::{Digest, Sha256};
 use zksync_basic_types::H256;
 
 use crate::bytes_to_chunks;
@@ -40,6 +41,7 @@ pub fn validate_bytecode(code: &[u8]) -> Result<(), InvalidBytecodeError> {
     Ok(())
 }
 
+/// Hashes the provided EraVM bytecode.
 pub fn hash_bytecode(code: &[u8]) -> H256 {
     let chunked_code = bytes_to_chunks(code);
     let hash = zk_evm::zkevm_opcode_defs::utils::bytecode_to_code_hash(&chunked_code)
@@ -54,4 +56,22 @@ pub fn bytecode_len_in_words(bytecodehash: &H256) -> u16 {
 
 pub fn bytecode_len_in_bytes(bytecodehash: H256) -> usize {
     bytecode_len_in_words(&bytecodehash) as usize * 32
+}
+
+/// Hashes the provided EVM bytecode.
+pub fn hash_evm_bytecode(bytecode: &[u8]) -> H256 {
+    const EVM_BYTECODE_MARKER: u8 = 2;
+
+    let mut hasher = Sha256::new();
+    let len = bytecode.len() as u16;
+    hasher.update(bytecode);
+    let result = hasher.finalize();
+
+    let mut output = [0u8; 32];
+    output[..].copy_from_slice(result.as_slice());
+    output[0] = EVM_BYTECODE_MARKER;
+    output[1] = 0;
+    output[2..4].copy_from_slice(&len.to_be_bytes());
+
+    H256(output)
 }

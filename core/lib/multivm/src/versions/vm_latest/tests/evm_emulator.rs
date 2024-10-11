@@ -2,13 +2,17 @@ use ethabi::Token;
 use zksync_contracts::read_bytecode;
 use zksync_system_constants::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
 use zksync_types::{get_code_key, get_known_code_key, Execute, H256};
-use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, h256_to_u256};
+use zksync_utils::{
+    be_words_to_bytes,
+    bytecode::{hash_bytecode, hash_evm_bytecode},
+    h256_to_u256,
+};
 use zksync_vm_interface::VmInterfaceExt;
 
 use crate::{
     interface::{storage::InMemoryStorage, TxExecutionMode},
     versions::testonly::default_system_env,
-    vm_latest::{tests::tester::VmTesterBuilder, utils::hash_evm_bytecode, HistoryEnabled},
+    vm_latest::{tests::tester::VmTesterBuilder, HistoryEnabled},
 };
 
 const MOCK_DEPLOYER_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockContractDeployer.json";
