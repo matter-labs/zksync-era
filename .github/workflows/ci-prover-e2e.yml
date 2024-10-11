@@ -109,7 +109,6 @@ jobs:
           
           echo $!
           nvidia-smi
-          fuser -v /dev/nvidia*
           ps ax
       - name: Wait for prover jobs to finish
         env:
