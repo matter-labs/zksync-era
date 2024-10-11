@@ -90,7 +90,7 @@ impl EvmTestBuilder {
         let mut storage = self.storage;
         let mut system_env = default_system_env();
         if self.deploy_emulator {
-            let evm_bytecode: Vec<_> = (0..=u8::MAX).collect();
+            let evm_bytecode: Vec<_> = (0..32).collect();
             let evm_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
             storage.set_value(
                 get_known_code_key(&evm_bytecode_hash),
