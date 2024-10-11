@@ -85,9 +85,7 @@ jobs:
           ci_run zk_inception server --uring --chain=provers --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
       - name: Run Gateway
         run: |
-          ci_run zk_inception prover run --component=gateway --docker=false &
-          
-          ci_run sleep 120
+          ci_run zk_inception prover run --component=gateway --docker=false &>prover_logs/gateway.log &
       - name: Run Prover Job Monitor
         run: |
           ci_run zk_inception prover run --component=prover-job-monitor --docker=false &>prover_logs/prover-job-monitor.log &

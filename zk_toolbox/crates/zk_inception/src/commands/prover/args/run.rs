@@ -249,7 +249,14 @@ pub struct CircuitProverArgs {
 }
 
 impl CircuitProverArgs {
-    pub fn fill_values_with_prompt(self) -> anyhow::Result<CircuitProverArgs> {
+    pub fn fill_values_with_prompt(
+        self,
+        component: ProverComponent,
+    ) -> anyhow::Result<CircuitProverArgs> {
+        if component != ProverComponent::CircuitProver {
+            return Ok(Self::default());
+        }
+
         let witness_vector_generator_count =
             self.witness_vector_generator_count.unwrap_or_else(|| {
                 Prompt::new("Number of WVG jobs to run in parallel")
@@ -285,7 +292,9 @@ impl ProverRunArgs {
             .witness_vector_generator_args
             .fill_values_with_prompt(component)?;
 
-        let circuit_prover_args = self.circuit_prover_args.fill_values_with_prompt()?;
+        let circuit_prover_args = self
+            .circuit_prover_args
+            .fill_values_with_prompt(component)?;
 
         let docker = self.docker.unwrap_or_else(|| {
             Prompt::new("Do you want to run Docker image for the component?")
