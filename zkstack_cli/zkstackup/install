@@ -13,7 +13,7 @@ main() {
   mkdir -p "$BIN_DIR"
 
   if [ -n "$ZKSTACKUP_PATH" ]; then
-    cp -r "$ZKSTACKUP_PATH/zkstackup" "$BIN_DIR"
+    cp -r "$ZKSTACKUP_PATH" "$BIN_DIR"
   else
     curl -sSfL "$BIN_URL" -o "$BIN_PATH"
   fi

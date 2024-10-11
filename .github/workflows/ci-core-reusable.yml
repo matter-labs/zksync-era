@@ -59,7 +59,7 @@ jobs:
       
       - name: Install zkstack
         run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
           ci_run zkstackup -g --path ./
 
       - name: Build contracts
@@ -123,7 +123,7 @@ jobs:
 
       - name: Install zkstack
         run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./ || true
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --path ./
   
 
@@ -193,7 +193,7 @@ jobs:
 
       - name: Install zkstack
         run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path ./ || true
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --path ./
   
       - name: Create log directories
