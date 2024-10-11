@@ -5,14 +5,14 @@ use jsonrpsee::core::RpcResult;
 use jsonrpsee::proc_macros::rpc;
 use zksync_types::{
     api::{
-        state_override::StateOverride, BlockDetails, BridgeAddresses, L1BatchDetails,
-        L1ProcessingDetails, L2ToL1LogProof, LeafAggProof, Proof, ProtocolVersion,
+        state_override::StateOverride, BlockDetails, BridgeAddresses, ChainAggProof,
+        L1BatchDetails, L1ProcessingDetails, L2ToL1LogProof, Proof, ProtocolVersion,
         TransactionDetailedResult, TransactionDetails,
     },
     fee::Fee,
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     transaction_request::CallRequest,
-    Address, L1BatchNumber, L2BlockNumber, H256, U256, U64,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, H256, U256, U64,
 };
 
 use crate::{
@@ -84,13 +84,12 @@ pub trait ZksNamespace {
         index: Option<usize>,
     ) -> RpcResult<Option<L2ToL1LogProof>>;
 
-    #[method(name = "getAggBatchInclusionProof")]
-    async fn get_aggregated_batch_inclusion_proof(
+    #[method(name = "getChainLogProof")]
+    async fn get_chain_log_proof(
         &self,
-        message_root_addr: Address,
-        batch_number: L1BatchNumber,
-        chain_id: u32,
-    ) -> RpcResult<Option<LeafAggProof>>;
+        l1_batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
+    ) -> RpcResult<Option<ChainAggProof>>;
 
     #[method(name = "L1BatchNumber")]
     async fn get_l1_batch_number(&self) -> RpcResult<U64>;

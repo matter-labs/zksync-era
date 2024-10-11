@@ -10,6 +10,7 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { scaledGasPrice, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
 import { L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
+import { sleep } from 'zksync-ethers/build/utils';
 
 describe('L1 ERC20 contract checks', () => {
     let testMaster: TestMaster;
@@ -186,6 +187,9 @@ describe('L1 ERC20 contract checks', () => {
             }
         );
 
+        // Sleep to give some time for eth watch to process events, l2 l1 log proof will be available only after it's done.
+        await sleep(3000);
+
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([l1BalanceChange]);
     });
 
@@ -217,6 +221,8 @@ describe('L1 ERC20 contract checks', () => {
         const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
         const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
         await waitForBlockToBeFinalizedOnL1(alice, l2TxReceipt!.blockNumber);
+        // Sleep to give some time for eth watch to process events, l2 l1 log proof will be available only after it's done.
+        await sleep(3000);
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
         await expect(alice.getBalanceL1(tokenDetails.l1Address)).resolves.toEqual(initialBalance);

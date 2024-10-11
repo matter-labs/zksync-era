@@ -9,6 +9,7 @@ mod snapshots;
 mod unstable;
 mod web3;
 mod zks;
+mod zks_utils;
 
 pub(super) use self::{
     debug::DebugNamespace, en::EnNamespace, eth::EthNamespace, net::NetNamespace,

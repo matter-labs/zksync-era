@@ -10,12 +10,13 @@ use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_types::{
     abi,
     abi::ProposedUpgrade,
+    api::Log,
     ethabi,
     ethabi::Token,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
-    web3::{contract::Tokenizable, BlockNumber, Log},
+    web3::{contract::Tokenizable, BlockNumber},
     Address, Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion,
     ProtocolVersionId, SLChainId, Transaction, H256, U256, U64,
 };
