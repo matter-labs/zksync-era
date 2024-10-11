@@ -35,7 +35,7 @@ use zksync_types::{web3::keccak256, Address, L2ChainId, H160, L2_NATIVE_TOKEN_VA
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
-    accept_ownership::{admin_execute_upgrade, admin_schedule_upgrade, admin_update_validator},
+    accept_ownership::{admin_execute_upgrade, admin_schedule_upgrade, admin_update_validator, set_da_validator_pair},
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
@@ -349,9 +349,27 @@ async fn finalize_stage1(
             .chain_upgrade_diamond_cut
             .0,
         &args.forge_args,
-        l1_url,
+        l1_url.clone(),
     )
     .await?;
+
+    let l1_da_validator_contract = if chain_config.get_genesis_config()?.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
+        ecosystem_config.get_contracts_config()?.l1.rollup_l1_da_validator_addr
+    } else {
+        ecosystem_config.get_contracts_config()?.l1.validium_l1_da_validator_addr
+    }.context("l1 da validator")?;
+
+    set_da_validator_pair(
+        shell,
+        &ecosystem_config,
+        contracts_config.l1.chain_admin_addr,
+        chain_config.get_wallets_config()?.governor_private_key(),
+        contracts_config.l1.diamond_proxy_addr,
+        l1_da_validator_contract,
+        contracts_config.l2.da_validator_addr.context("l2_da_validator_addr")?,
+        &args.forge_args,
+        l1_url,
+    ).await?;
 
     contracts_config.save_with_base_path(shell, chain_config.configs)?;
 
