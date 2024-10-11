@@ -3,17 +3,15 @@ use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 /// Consensus registry contract operations.
 /// Includes code duplicated from `zksync_node_consensus::registry::abi`.
 use anyhow::Context as _;
-use common::logger;
-use common::wallets::Wallet;
+use common::{logger, wallets::Wallet};
 use config::EcosystemConfig;
 use conv::*;
 use ethers::{
-    signers::LocalWallet,
     abi::Detokenize,
     contract::{FunctionCall, Multicall},
     middleware::{Middleware, NonceManagerMiddleware, SignerMiddleware},
     providers::{Http, JsonRpcClient, PendingTransaction, Provider, RawCall as _},
-    signers::Signer as _,
+    signers::{LocalWallet, Signer as _},
     types::{Address, BlockId, H256},
 };
 use xshell::Shell;
@@ -282,13 +280,24 @@ impl Setup {
         let provider = self.provider().context("provider()")?;
         let block_id = self.last_block(&provider).await.context("last_block()")?;
         let governor = self.governor().context("governor()")?;
-        let signer = self.signer(governor.private_key.clone().context(messages::MSG_GOVERNOR_PRIVATE_KEY_NOT_SET)?)?;
-        let consensus_registry = self.consensus_registry(signer.clone()).context("consensus_registry()")?;
+        let signer = self.signer(
+            governor
+                .private_key
+                .clone()
+                .context(messages::MSG_GOVERNOR_PRIVATE_KEY_NOT_SET)?,
+        )?;
+        let consensus_registry = self
+            .consensus_registry(signer.clone())
+            .context("consensus_registry()")?;
         let mut multicall = self.multicall(signer).context("multicall()")?;
 
         let owner = consensus_registry.owner().call().await.context("owner()")?;
         if owner != governor.address {
-            anyhow::bail!("governor ({:#x}) is different than the consensus registry owner ({:#x})", governor.address, owner);
+            anyhow::bail!(
+                "governor ({:#x}) is different than the consensus registry owner ({:#x})",
+                governor.address,
+                owner
+            );
         }
 
         // Fetch contract state.
