@@ -12,6 +12,7 @@ use zksync_multivm::{
         ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, SystemEnv, VmFactory,
         VmInterface, VmInterfaceHistoryEnabled,
     },
+    is_supported_by_fast_vm,
     tracers::CallTracer,
     vm_fast,
     vm_latest::HistoryEnabled,
@@ -159,6 +160,10 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         storage_ptr: StoragePtr<StorageView<S>>,
         mode: FastVmMode,
     ) -> Self {
+        if !is_supported_by_fast_vm(system_env.version) {
+            return Self::Legacy(LegacyVmInstance::new(l1_batch_env, system_env, storage_ptr));
+        }
+
         match mode {
             FastVmMode::Old => {
                 Self::Legacy(LegacyVmInstance::new(l1_batch_env, system_env, storage_ptr))
@@ -441,5 +446,52 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                 call_traces: vec![],
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use assert_matches::assert_matches;
+    use zksync_multivm::interface::{storage::InMemoryStorage, TxExecutionMode};
+    use zksync_types::ProtocolVersionId;
+
+    use super::*;
+    use crate::testonly::{default_l1_batch_env, default_system_env, FAST_VM_MODES};
+
+    #[test]
+    fn selecting_vm_for_execution() {
+        let l1_batch_env = default_l1_batch_env(1);
+        let mut system_env = SystemEnv {
+            version: ProtocolVersionId::Version22,
+            ..default_system_env(TxExecutionMode::VerifyExecute)
+        };
+        let storage = StorageView::new(InMemoryStorage::default()).to_rc_ptr();
+        for mode in FAST_VM_MODES {
+            let vm = BatchVm::<_, ()>::new(
+                l1_batch_env.clone(),
+                system_env.clone(),
+                storage.clone(),
+                mode,
+            );
+            assert_matches!(vm, BatchVm::Legacy(_));
+        }
+
+        system_env.version = ProtocolVersionId::latest();
+        let vm = BatchVm::<_, ()>::new(
+            l1_batch_env.clone(),
+            system_env.clone(),
+            storage.clone(),
+            FastVmMode::Old,
+        );
+        assert_matches!(vm, BatchVm::Legacy(_));
+        let vm = BatchVm::<_, ()>::new(
+            l1_batch_env.clone(),
+            system_env.clone(),
+            storage.clone(),
+            FastVmMode::New,
+        );
+        assert_matches!(vm, BatchVm::Fast(FastVmInstance::Fast(_)));
+        let vm = BatchVm::<_, ()>::new(l1_batch_env, system_env, storage, FastVmMode::Shadow);
+        assert_matches!(vm, BatchVm::Fast(FastVmInstance::Shadowed(_)));
     }
 }
