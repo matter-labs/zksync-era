@@ -21,6 +21,7 @@ use zksync_multivm::interface::{
     TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
     VmExecutionMetrics,
 };
+use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
@@ -32,6 +33,7 @@ use zksync_system_constants::{
 use zksync_types::{
     api,
     block::{pack_block_info, L2BlockHeader},
+    fee_model::{BatchFeeInput, FeeParams},
     get_nonce_key,
     l2::L2Tx,
     storage::get_code_key,
@@ -50,7 +52,7 @@ use zksync_web3_decl::{
         http_client::HttpClient,
         rpc_params,
         types::{
-            error::{ErrorCode, OVERSIZED_RESPONSE_CODE},
+            error::{ErrorCode, INVALID_PARAMS_CODE, OVERSIZED_RESPONSE_CODE},
             ErrorObjectOwned,
         },
     },
@@ -426,6 +428,14 @@ async fn store_events(
         )
         .await?;
     Ok((tx_location, events))
+}
+
+fn scaled_sensible_fee_input(scale: f64) -> BatchFeeInput {
+    <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
+        FeeParams::sensible_v1_default(),
+        scale,
+        scale,
+    )
 }
 
 #[derive(Debug)]
@@ -1101,4 +1111,115 @@ impl HttpTest for GenesisConfigTest {
 #[tokio::test]
 async fn tracing_genesis_config() {
     test_http_server(GenesisConfigTest).await;
+}
+
+#[derive(Debug)]
+struct FeeHistoryTest;
+
+#[async_trait]
+impl HttpTest for FeeHistoryTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut connection = pool.connection().await?;
+        let block1 = L2BlockHeader {
+            batch_fee_input: scaled_sensible_fee_input(1.0),
+            base_fee_per_gas: 100,
+            ..create_l2_block(1)
+        };
+        store_custom_l2_block(&mut connection, &block1, &[]).await?;
+        let block2 = L2BlockHeader {
+            batch_fee_input: scaled_sensible_fee_input(2.0),
+            base_fee_per_gas: 200,
+            ..create_l2_block(2)
+        };
+        store_custom_l2_block(&mut connection, &block2, &[]).await?;
+
+        let all_pubdata_prices = [
+            0,
+            block1.batch_fee_input.fair_pubdata_price(),
+            block2.batch_fee_input.fair_pubdata_price(),
+        ]
+        .map(U256::from);
+
+        let history = client
+            .fee_history(1_000.into(), api::BlockNumber::Latest, vec![])
+            .await?;
+        assert_eq!(history.inner.oldest_block, 0.into());
+        assert_eq!(
+            history.inner.base_fee_per_gas,
+            [0, 100, 200, 200].map(U256::from) // The latest value is duplicated
+        );
+        assert_eq!(history.l2_pubdata_price, all_pubdata_prices);
+        // Values below are not filled.
+        assert_eq!(history.inner.gas_used_ratio, [0.0; 3]);
+        assert_eq!(history.inner.base_fee_per_blob_gas, [U256::zero(); 4]);
+        assert_eq!(history.inner.blob_gas_used_ratio, [0.0; 3]);
+
+        // Check supplying hexadecimal block count
+        let hex_history: api::FeeHistory = client
+            .request(
+                "eth_feeHistory",
+                rpc_params!["0xaa", "latest", [] as [f64; 0]],
+            )
+            .await?;
+        assert_eq!(hex_history, history);
+
+        // ...and explicitly decimal count (which should've been supplied in the first call) for exhaustiveness
+        let dec_history: api::FeeHistory = client
+            .request(
+                "eth_feeHistory",
+                rpc_params![1_000, "latest", [] as [f64; 0]],
+            )
+            .await?;
+        assert_eq!(dec_history, history);
+
+        // Check partial histories: blocks 0..=1
+        let history = client
+            .fee_history(1_000.into(), api::BlockNumber::Number(1.into()), vec![])
+            .await?;
+        assert_eq!(history.inner.oldest_block, 0.into());
+        assert_eq!(
+            history.inner.base_fee_per_gas,
+            [0, 100, 100].map(U256::from)
+        );
+        assert_eq!(history.l2_pubdata_price, all_pubdata_prices[..2]);
+
+        // Blocks 1..=2
+        let history = client
+            .fee_history(2.into(), api::BlockNumber::Latest, vec![])
+            .await?;
+        assert_eq!(history.inner.oldest_block, 1.into());
+        assert_eq!(
+            history.inner.base_fee_per_gas,
+            [100, 200, 200].map(U256::from)
+        );
+        assert_eq!(history.l2_pubdata_price, all_pubdata_prices[1..]);
+
+        // Blocks 1..=1
+        let history = client
+            .fee_history(1.into(), api::BlockNumber::Number(1.into()), vec![])
+            .await?;
+        assert_eq!(history.inner.oldest_block, 1.into());
+        assert_eq!(history.inner.base_fee_per_gas, [100, 100].map(U256::from));
+        assert_eq!(history.l2_pubdata_price, all_pubdata_prices[1..2]);
+
+        // Non-existing newest block.
+        let err = client
+            .fee_history(1000.into(), api::BlockNumber::Number(100.into()), vec![])
+            .await
+            .unwrap_err();
+        assert_matches!(
+            err,
+            ClientError::Call(err) if err.code() == INVALID_PARAMS_CODE
+        );
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn getting_fee_history() {
+    test_http_server(FeeHistoryTest).await;
 }
