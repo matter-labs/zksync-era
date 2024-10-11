@@ -190,7 +190,7 @@ zk_inception prover run
 ```
 
 Specify the prover component with `--component <component>`. Components:
-`gateway, witness-generator, witness-vector-generator, prover, compressor`.
+`gateway, witness-generator, witness-vector-generator, prover, compressor, prover-job-monitor`.
 
 For `witness-vector-generator`, specify the number of WVG jobs with `--threads <threads>`.
 
