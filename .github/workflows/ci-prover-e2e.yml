@@ -121,8 +121,8 @@ jobs:
       - name: Kill prover & start compressor
         run: |
           
-          chmod +x ./bin/prover_checkers/clean_gpu
-          sudo ./bin/prover_checkers/clean_gpu
+          chmod +x ./bin/prover_checkers/kill_prover
+          sudo ./bin/prover_checkers/kill_prover
           
           ci_run zk_inception prover run --component=compressor --docker=false &>prover_logs/compressor.log &
       - name: Wait for batch to be executed on L1
