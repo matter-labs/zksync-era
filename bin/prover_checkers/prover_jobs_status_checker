@@ -31,7 +31,9 @@ while true; do
     else
         STATUS=$(psql $DATABASE_URL -c "SELECT COUNT(*), status FROM prover_jobs_fri WHERE l1_batch_number = $BATCH_NUMBER GROUP BY status;" -t -A)
         MEMORY=$(cat /proc/meminfo | grep "Mem");
+        CPU=$(ps -eo pcpu,pid,user,args | sort -r -k1 | less | awk 'NR<=10');
         echo "Current memory usage is $MEMORY"
+        echo "Current CPU usage is $CPU"
         echo "Current status is $STATUS"
         echo "Retrying in $INTERVAL seconds..."
     fi
