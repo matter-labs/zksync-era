@@ -351,6 +351,7 @@ pub(super) const MSG_RUNNING_PROVER_JOB_MONITOR: &str = "Running prover job moni
 pub(super) const MSG_RUNNING_WITNESS_GENERATOR: &str = "Running witness generator";
 pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR: &str = "Running witness vector generator";
 pub(super) const MSG_RUNNING_PROVER: &str = "Running prover";
+pub(super) const MSG_RUNNING_CIRCUIT_PROVER: &str = "Running circuit prover";
 pub(super) const MSG_RUNNING_COMPRESSOR: &str = "Running compressor";
 pub(super) const MSG_RUN_COMPONENT_PROMPT: &str = "What component do you want to run?";
 pub(super) const MSG_RUNNING_PROVER_GATEWAY_ERR: &str = "Failed to run prover gateway";
@@ -359,6 +360,7 @@ pub(super) const MSG_RUNNING_WITNESS_VECTOR_GENERATOR_ERR: &str =
     "Failed to run witness vector generator";
 pub(super) const MSG_RUNNING_COMPRESSOR_ERR: &str = "Failed to run compressor";
 pub(super) const MSG_RUNNING_PROVER_ERR: &str = "Failed to run prover";
+pub(super) const MSG_RUNNING_CIRCUIT_PROVER_ERR: &str = "Failed to run circuit prover";
 pub(super) const MSG_PROOF_STORE_CONFIG_PROMPT: &str =
     "Select where you would like to store the proofs";
 pub(super) const MSG_PROOF_STORE_DIR_PROMPT: &str =
