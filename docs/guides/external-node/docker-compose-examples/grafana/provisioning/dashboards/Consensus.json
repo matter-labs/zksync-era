@@ -24,7 +24,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 3,
+  "id": 2,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -1005,7 +1005,7 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
-      "description": "Rate of RPC client requests, in packets per second.",
+      "description": "Rate of RPC client requests, in requests per second.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1054,7 +1054,7 @@
               }
             ]
           },
-          "unit": "pps"
+          "unit": "reqps"
         },
         "overrides": []
       },
@@ -1098,7 +1098,7 @@
         "type": "prometheus",
         "uid": "PBFA97CFB590B2093"
       },
-      "description": "Rate of RPC server responses, in packets per second.",
+      "description": "Rate of RPC server responses, in requests per second.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1147,7 +1147,7 @@
               }
             ]
           },
-          "unit": "pps"
+          "unit": "reqps"
         },
         "overrides": []
       },
@@ -1202,6 +1202,6 @@
   "timezone": "",
   "title": "Consensus",
   "uid": "STAAEORNk",
-  "version": 4,
+  "version": 2,
   "weekStart": ""
 }
