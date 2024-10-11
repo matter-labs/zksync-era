@@ -88,10 +88,8 @@ impl ProverComponent {
         if self == &Self::Prover || self == &Self::Compressor || self == &Self::CircuitProver {
             if in_docker {
                 application_args.push("--gpus=all".to_string());
-            } else {
-                if self != &Self::CircuitProver {
-                    application_args.push("--features=gpu".to_string());
-                }
+            } else if self != &Self::CircuitProver {
+                application_args.push("--features=gpu".to_string());
             }
         }
 
