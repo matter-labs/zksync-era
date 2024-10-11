@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
+BIN_URL="https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkstackup/zkstackup"
+
 HOME_DIR=${XDG_CONFIG_HOME:-$HOME}
 BIN_DIR="$HOME_DIR/.local/bin"
-
-BIN_URL="https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkstackup/zkstackup"
 BIN_PATH="$BIN_DIR/zkstackup"
 
 main() {
@@ -81,6 +81,7 @@ parse_args() {
       ;;
     -g | --global)
       BIN_DIR="/usr/local"
+      BIN_PATH="$BIN_DIR/zkstackup"
       ;;
     -h | --help)
       usage
