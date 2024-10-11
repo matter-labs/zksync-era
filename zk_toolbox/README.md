@@ -353,6 +353,24 @@ Possible commands:
 - `l1-contracts`: Run L1 contracts tests.
 - `prover`: Run prover tests.
 
+#### Loadtest
+
+The current load test implementation supports only the legacy bridge. To use it, you need to create a new chain with
+legacy bridge support.
+
+```
+zk_inception chain create --legacy-bridge
+zk_inception chain init
+```
+
+After initializing the chain with a legacy bridge, you can run the load test against this chain.
+
+```
+zk_supervisor test loadtest
+```
+
+WARNING!!!: Never use legacy bridges in non-testing environments.
+
 ### Snapshot Commands
 
 Create a snapshot of the current chain:
