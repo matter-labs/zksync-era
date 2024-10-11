@@ -455,8 +455,10 @@ pub(crate) struct OptionalENConfig {
     /// Interval for bridge addresses refreshing in seconds.
     bridge_addresses_refresh_interval_sec: Option<NonZeroU64>,
     /// Minimum difference in seconds between the range start and range end for TimestampAsserter
+    #[serde(default = "OptionalENConfig::default_timestamp_asserter_min_range_sec")]
     pub timestamp_asserter_min_range_sec: u32,
     /// Minimum time between current block.timestamp and the end of the asserted range for TimestampAsserter
+    #[serde(default = "OptionalENConfig::default_timestamp_asserter_min_time_till_end_sec")]
     pub timestamp_asserter_min_time_till_end_sec: u32,
 }
 
@@ -831,6 +833,14 @@ impl OptionalENConfig {
 
     fn default_pruning_data_retention_sec() -> u64 {
         3_600 * 24 * 7 // 7 days
+    }
+
+    const fn default_timestamp_asserter_min_range_sec() -> u32 {
+        10 * 60
+    }
+
+    const fn default_timestamp_asserter_min_time_till_end_sec() -> u32 {
+        2 * 60
     }
 
     fn from_env() -> anyhow::Result<Self> {
