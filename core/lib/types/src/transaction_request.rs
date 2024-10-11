@@ -809,6 +809,7 @@ impl TransactionRequest {
 impl L2Tx {
     pub(crate) fn from_request_unverified(
         mut value: TransactionRequest,
+        allow_no_target: bool,
     ) -> Result<Self, SerializationTransactionError> {
         let fee = value.get_fee_data_checked()?;
         let nonce = value.get_nonce_checked()?;
@@ -817,8 +818,7 @@ impl L2Tx {
         let meta = value.eip712_meta.take().unwrap_or_default();
         validate_factory_deps(&meta.factory_deps)?;
 
-        // TODO: Remove this check when evm equivalence gets enabled
-        if value.to.is_none() {
+        if value.to.is_none() && !allow_no_target {
             return Err(SerializationTransactionError::ToAddressIsNull);
         }
 
@@ -848,11 +848,18 @@ impl L2Tx {
         Ok(tx)
     }
 
+    /// Converts a request into a transaction.
+    ///
+    /// # Arguments
+    ///
+    /// - `allow_no_target` enables / disables transactions without target (i.e., `to` field).
+    ///   This field can only be absent for EVM deployment transactions.
     pub fn from_request(
-        value: TransactionRequest,
+        request: TransactionRequest,
         max_tx_size: usize,
+        allow_no_target: bool,
     ) -> Result<Self, SerializationTransactionError> {
-        let tx = Self::from_request_unverified(value)?;
+        let tx = Self::from_request_unverified(request, allow_no_target)?;
         tx.check_encoded_size(max_tx_size)?;
         Ok(tx)
     }
@@ -916,11 +923,19 @@ impl From<CallRequest> for TransactionRequest {
     }
 }
 
-impl TryFrom<CallRequest> for L1Tx {
-    type Error = SerializationTransactionError;
-    fn try_from(tx: CallRequest) -> Result<Self, Self::Error> {
+impl L1Tx {
+    /// Converts a request into a transaction.
+    ///
+    /// # Arguments
+    ///
+    /// - `allow_no_target` enables / disables transactions without target (i.e., `to` field).
+    ///   This field can only be absent for EVM deployment transactions.
+    pub fn from_request(
+        request: CallRequest,
+        allow_no_target: bool,
+    ) -> Result<Self, SerializationTransactionError> {
         // L1 transactions have no limitations on the transaction size.
-        let tx: L2Tx = L2Tx::from_request(tx.into(), MAX_ENCODED_TX_SIZE)?;
+        let tx: L2Tx = L2Tx::from_request(request.into(), MAX_ENCODED_TX_SIZE, allow_no_target)?;
 
         // Note, that while the user has theoretically provided the fee for ETH on L1,
         // the payment to the operator as well as refunds happen on L2 and so all the ETH
@@ -1316,7 +1331,7 @@ mod tests {
             ..Default::default()
         };
         let execute_tx1: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx1, usize::MAX);
+            L2Tx::from_request(tx1, usize::MAX, true);
         assert!(execute_tx1.is_ok());
 
         let tx2 = TransactionRequest {
@@ -1327,7 +1342,7 @@ mod tests {
             ..Default::default()
         };
         let execute_tx2: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx2, usize::MAX);
+            L2Tx::from_request(tx2, usize::MAX, true);
         assert_eq!(
             execute_tx2.unwrap_err(),
             SerializationTransactionError::TooBigNonce
@@ -1344,7 +1359,7 @@ mod tests {
             ..Default::default()
         };
         let execute_tx1: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx1, usize::MAX);
+            L2Tx::from_request(tx1, usize::MAX, true);
         assert_eq!(
             execute_tx1.unwrap_err(),
             SerializationTransactionError::MaxFeePerGasNotU64
@@ -1358,7 +1373,7 @@ mod tests {
             ..Default::default()
         };
         let execute_tx2: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx2, usize::MAX);
+            L2Tx::from_request(tx2, usize::MAX, true);
         assert_eq!(
             execute_tx2.unwrap_err(),
             SerializationTransactionError::MaxPriorityFeePerGasNotU64
@@ -1376,7 +1391,7 @@ mod tests {
         };
 
         let execute_tx3: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(tx3, usize::MAX);
+            L2Tx::from_request(tx3, usize::MAX, true);
         assert_eq!(
             execute_tx3.unwrap_err(),
             SerializationTransactionError::MaxFeePerPubdataByteNotU64
@@ -1432,7 +1447,7 @@ mod tests {
         let request =
             TransactionRequest::from_bytes(data.as_slice(), L2ChainId::from(270)).unwrap();
         assert_matches!(
-            L2Tx::from_request(request.0, random_tx_max_size),
+            L2Tx::from_request(request.0, random_tx_max_size, true),
             Err(SerializationTransactionError::OversizedData(_, _))
         )
     }
@@ -1458,7 +1473,7 @@ mod tests {
         };
 
         let try_to_l2_tx: Result<L2Tx, SerializationTransactionError> =
-            L2Tx::from_request(call_request.into(), random_tx_max_size);
+            L2Tx::from_request(call_request.into(), random_tx_max_size, true);
 
         assert_matches!(
             try_to_l2_tx,
@@ -1483,15 +1498,20 @@ mod tests {
             access_list: None,
             eip712_meta: None,
         };
-        let l2_tx = L2Tx::from_request(call_request_with_nonce.clone().into(), MAX_ENCODED_TX_SIZE)
-            .unwrap();
+        let l2_tx = L2Tx::from_request(
+            call_request_with_nonce.clone().into(),
+            MAX_ENCODED_TX_SIZE,
+            true,
+        )
+        .unwrap();
         assert_eq!(l2_tx.nonce(), Nonce(123u32));
 
         let mut call_request_without_nonce = call_request_with_nonce;
         call_request_without_nonce.nonce = None;
 
         let l2_tx =
-            L2Tx::from_request(call_request_without_nonce.into(), MAX_ENCODED_TX_SIZE).unwrap();
+            L2Tx::from_request(call_request_without_nonce.into(), MAX_ENCODED_TX_SIZE, true)
+                .unwrap();
         assert_eq!(l2_tx.nonce(), Nonce(0u32));
     }
 

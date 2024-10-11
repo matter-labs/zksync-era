@@ -1,6 +1,5 @@
 use common::wallets::Wallet;
-use ethers::types::H256;
-use rand::Rng;
+use rand::{CryptoRng, Rng};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -20,7 +19,7 @@ pub struct WalletsConfig {
 
 impl WalletsConfig {
     /// Generate random wallets
-    pub fn random(rng: &mut impl Rng) -> Self {
+    pub fn random(rng: &mut (impl CryptoRng + Rng)) -> Self {
         Self {
             deployer: Some(Wallet::random(rng)),
             operator: Wallet::random(rng),
@@ -41,13 +40,6 @@ impl WalletsConfig {
             governor: Wallet::empty(),
             token_multiplier_setter: Some(Wallet::empty()),
         }
-    }
-    pub fn deployer_private_key(&self) -> Option<H256> {
-        self.deployer.as_ref().and_then(|wallet| wallet.private_key)
-    }
-
-    pub fn governor_private_key(&self) -> Option<H256> {
-        self.governor.private_key
     }
 }
 

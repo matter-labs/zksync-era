@@ -89,7 +89,8 @@ fn download_binary(
 
     let spinner = Spinner::new(&msg_downloading_binary_spinner(name, version));
     Cmd::new(cmd!(shell, "mkdir -p {path}")).run()?;
-    Cmd::new(cmd!(shell, "wget {url} -O {binary_path}")).run()?;
+    let response = reqwest::blocking::get(url)?.bytes()?;
+    shell.write_file(binary_path.clone(), &response)?;
     Cmd::new(cmd!(shell, "chmod +x {binary_path}")).run()?;
     spinner.finish();
 

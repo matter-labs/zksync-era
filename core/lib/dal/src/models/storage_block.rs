@@ -6,7 +6,7 @@ use thiserror::Error;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
-    block::{L1BatchHeader, L2BlockHeader},
+    block::{L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
@@ -44,6 +44,7 @@ pub(crate) struct StorageL1BatchHeader {
     pub used_contract_hashes: serde_json::Value,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub evm_emulator_code_hash: Option<Vec<u8>>,
     pub protocol_version: Option<i32>,
 
     // `system_logs` are introduced as part of boojum and will be absent in all batches generated prior to boojum.
@@ -52,6 +53,7 @@ pub(crate) struct StorageL1BatchHeader {
     // will be exactly 7 (or 8 in the event of a protocol upgrade) system logs.
     pub system_logs: Vec<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub fee_address: Vec<u8>,
 }
 
 impl StorageL1BatchHeader {
@@ -82,12 +84,14 @@ impl StorageL1BatchHeader {
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 self.bootloader_code_hash,
                 self.default_aa_code_hash,
+                self.evm_emulator_code_hash,
             ),
             system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
             protocol_version: self
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
             pubdata_input: self.pubdata_input,
+            fee_address: Address::from_slice(&self.fee_address),
         }
     }
 }
@@ -103,6 +107,7 @@ fn convert_l2_to_l1_logs(raw_logs: Vec<Vec<u8>>) -> Vec<L2ToL1Log> {
 fn convert_base_system_contracts_hashes(
     bootloader_code_hash: Option<Vec<u8>>,
     default_aa_code_hash: Option<Vec<u8>>,
+    evm_emulator_code_hash: Option<Vec<u8>>,
 ) -> BaseSystemContractsHashes {
     BaseSystemContractsHashes {
         bootloader: bootloader_code_hash
@@ -111,6 +116,7 @@ fn convert_base_system_contracts_hashes(
         default_aa: default_aa_code_hash
             .map(|hash| H256::from_slice(&hash))
             .expect("should not be none"),
+        evm_emulator: evm_emulator_code_hash.map(|hash| H256::from_slice(&hash)),
     }
 }
 
@@ -134,6 +140,7 @@ pub(crate) struct StorageL1Batch {
     pub zkporter_is_available: Option<bool>,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub evm_emulator_code_hash: Option<Vec<u8>>,
 
     pub l2_to_l1_messages: Vec<Vec<u8>>,
     pub l2_l1_merkle_root: Option<Vec<u8>>,
@@ -147,6 +154,7 @@ pub(crate) struct StorageL1Batch {
     pub events_queue_commitment: Option<Vec<u8>>,
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub fee_address: Vec<u8>,
 }
 
 impl StorageL1Batch {
@@ -177,12 +185,14 @@ impl StorageL1Batch {
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 self.bootloader_code_hash,
                 self.default_aa_code_hash,
+                self.evm_emulator_code_hash,
             ),
             system_logs: system_logs.into_iter().map(SystemL2ToL1Log).collect(),
             protocol_version: self
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
             pubdata_input: self.pubdata_input,
+            fee_address: Address::from_slice(&self.fee_address),
         }
     }
 }
@@ -240,6 +250,10 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
                         .default_aa_code_hash
                         .ok_or(L1BatchMetadataError::Incomplete("default_aa_code_hash"))?,
                 ),
+                evm_emulator_code_hash: batch
+                    .evm_emulator_code_hash
+                    .as_deref()
+                    .map(H256::from_slice),
                 protocol_version: batch
                     .protocol_version
                     .map(|v| (v as u16).try_into().unwrap()),
@@ -250,6 +264,38 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
         })
+    }
+}
+
+/// Partial projection of the columns corresponding to an unsealed [`L1BatchHeader`].
+#[derive(Debug, Clone)]
+pub(crate) struct UnsealedStorageL1Batch {
+    pub number: i64,
+    pub timestamp: i64,
+    pub protocol_version: Option<i32>,
+    pub fee_address: Vec<u8>,
+    pub l1_gas_price: i64,
+    pub l2_fair_gas_price: i64,
+    pub fair_pubdata_price: Option<i64>,
+}
+
+impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
+    fn from(batch: UnsealedStorageL1Batch) -> Self {
+        let protocol_version: Option<ProtocolVersionId> = batch
+            .protocol_version
+            .map(|v| (v as u16).try_into().unwrap());
+        Self {
+            number: L1BatchNumber(batch.number as u32),
+            timestamp: batch.timestamp as u64,
+            protocol_version,
+            fee_address: Address::from_slice(&batch.fee_address),
+            fee_input: BatchFeeInput::for_protocol_version(
+                protocol_version.unwrap_or_else(ProtocolVersionId::last_potentially_undefined),
+                batch.l2_fair_gas_price as u64,
+                batch.fair_pubdata_price.map(|p| p as u64),
+                batch.l1_gas_price as u64,
+            ),
+        }
     }
 }
 
@@ -275,6 +321,7 @@ pub(crate) struct StorageBlockDetails {
     pub fair_pubdata_price: Option<i64>,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub evm_emulator_code_hash: Option<Vec<u8>>,
     pub fee_account_address: Vec<u8>,
     pub protocol_version: Option<i32>,
 }
@@ -320,6 +367,7 @@ impl From<StorageBlockDetails> for api::BlockDetails {
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 details.bootloader_code_hash,
                 details.default_aa_code_hash,
+                details.evm_emulator_code_hash,
             ),
         };
         api::BlockDetails {
@@ -352,6 +400,7 @@ pub(crate) struct StorageL1BatchDetails {
     pub fair_pubdata_price: Option<i64>,
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub evm_emulator_code_hash: Option<Vec<u8>>,
 }
 
 impl From<StorageL1BatchDetails> for api::L1BatchDetails {
@@ -395,6 +444,7 @@ impl From<StorageL1BatchDetails> for api::L1BatchDetails {
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 details.bootloader_code_hash,
                 details.default_aa_code_hash,
+                details.evm_emulator_code_hash,
             ),
         };
         api::L1BatchDetails {
@@ -418,6 +468,7 @@ pub(crate) struct StorageL2BlockHeader {
     // L2 gas price assumed in the corresponding batch
     pub bootloader_code_hash: Option<Vec<u8>>,
     pub default_aa_code_hash: Option<Vec<u8>>,
+    pub evm_emulator_code_hash: Option<Vec<u8>>,
     pub protocol_version: Option<i32>,
 
     pub fair_pubdata_price: Option<i64>,
@@ -471,6 +522,7 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
             base_system_contracts_hashes: convert_base_system_contracts_hashes(
                 row.bootloader_code_hash,
                 row.default_aa_code_hash,
+                row.evm_emulator_code_hash,
             ),
             gas_per_pubdata_limit: row.gas_per_pubdata_limit as u64,
             protocol_version,
