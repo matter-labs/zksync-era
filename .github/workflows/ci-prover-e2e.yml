@@ -108,6 +108,9 @@ jobs:
           ci_run zk_inception prover run --component=prover --docker=false &>prover_logs/prover.log &
           
           echo $!
+          
+          ci_run sleep 120
+          
           nvidia-smi
           ci_run nvidia-smi
           ps ax
