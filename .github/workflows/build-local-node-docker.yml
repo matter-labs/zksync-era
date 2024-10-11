@@ -27,7 +27,6 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo CI=1 >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
-          echo $(pwd)/zkstack_cli/zkstackup >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
@@ -54,6 +53,11 @@ jobs:
           mkdir -p ./volumes/postgres
           run_retried docker compose pull zk postgres
           docker compose up -d zk postgres
+        
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          ci_run zkstackup -g
 
       - name: init
         run: |
@@ -62,7 +66,6 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
           ci_run zk
-          ci_run zkstackup -g
           ci_run cp etc/tokens/{test,localhost}.json
 
       - name: build contracts
