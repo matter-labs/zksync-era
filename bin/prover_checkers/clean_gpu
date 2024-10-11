@@ -9,7 +9,9 @@ if [ -z "$pids" ]; then
   exit 0
 fi
 
-echo "Processes using the GPU: $pids"
+processes=$(ps ax | grep -E 'zksync_prover_fri --config-path|zk_inception prover run --component=prover --docker=false' | grep -v grep)
+
+echo "Processes using the GPU: $processes"
 
 # Loop through each PID and kill the process
 for pid in $pids; do

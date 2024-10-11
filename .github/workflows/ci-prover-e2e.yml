@@ -32,9 +32,6 @@ jobs:
           mkdir -p ./volumes/postgres ./volumes/reth/data
           docker-compose -f ${RUNNER_COMPOSE_FILE} --profile runner up -d --wait
           ci_run sccache --start-server
-          
-          chmod +x ./bin/prover_checkers/clean_gpu
-          sudo ./bin/prover_checkers/clean_gpu
 
       - name: Init
         run: |
@@ -73,6 +70,9 @@ jobs:
 
           ci_run zk_inception ecosystem init --dev --verbose
           ci_run zk_inception prover init --dev --verbose
+          
+          
+          echo $(grep "http_url" ./chains/provers/configs/general.yaml | awk '{ print $2 }')
       - name: Build prover binaries
         run: |
           ci_run cargo build --release --workspace --manifest-path=prover/Cargo.toml
@@ -108,11 +108,7 @@ jobs:
           ci_run zk_inception prover run --component=witness-vector-generator --threads=10 --docker=false &>prover_logs/witness-vector-generator.log &
       - name: Run Prover
         run: |
-          ci_run zk_inception prover run --component=prover --docker=false &
-          
-          ci_run sleep 120
-          
-          ps ax | grep -E 'zksync_prover_fri --config-path|zk_inception prover run --component=prover --docker=false' | grep -v grep | awk '{print $1}'
+          ci_run zk_inception prover run --component=prover --docker=false &>prover_logs/prover.log &
       - name: Wait for prover jobs to finish
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
@@ -130,20 +126,19 @@ jobs:
           
           chmod +x ./bin/prover_checkers/clean_gpu
           sudo ./bin/prover_checkers/clean_gpu
-          nvidia-smi
           
-          ci_run zk_inception prover run --component=compressor --docker=false &
-          ci_run sleep 420
+          ci_run zk_inception prover run --component=compressor --docker=false &>prover_logs/compressor.log &
       - name: Wait for batch to be executed on L1
         env:
             DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
-            URL: http://127.0.0.1:3052/
             INTERVAL: 30
             TIMEOUT: 600
         run: |
           ci_run chmod +x ./bin/prover_checkers/batch_l1_status_checker
           
-          PASSED_ENV_VARS="URL,INTERVAL,TIMEOUT" \
+          echo URL=$(grep "http_url" ./chains/provers/configs/general.yaml | awk '{ print $2 }') >> $GITHUB_ENV
+          
+          PASSED_ENV_VARS="DATABASE_URL,URL,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/batch_l1_status_checker
 
       - name: Upload logs
