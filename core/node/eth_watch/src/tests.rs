@@ -303,6 +303,7 @@ async fn create_test_watcher(
         connection_pool,
         std::time::Duration::from_nanos(1),
         SyncMerkleTree::from_hashes(std::iter::empty(), None),
+        None,
     )
     .await
     .unwrap();
@@ -409,6 +410,7 @@ async fn test_normal_operation_upgrade_timestamp() {
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
         SyncMerkleTree::from_hashes(std::iter::empty(), None),
+        None,
     )
     .await
     .unwrap();

@@ -18,7 +18,7 @@ use config::{
     ChainConfig, EcosystemConfig,
 };
 use ethers::{
-    abi::parse_abi,
+    abi::{encode, parse_abi},
     contract::BaseContract,
     providers::{Http, Middleware, Provider},
     types::Bytes,
@@ -31,7 +31,7 @@ use types::L1BatchCommitmentMode;
 use xshell::Shell;
 use zksync_basic_types::{settlement::SettlementMode, H256, U256, U64};
 use zksync_config::configs::{chain, eth_sender::PubdataSendingMode};
-use zksync_types::{L2ChainId, H160, L2_NATIVE_TOKEN_VAULT_ADDRESS};
+use zksync_types::{web3::keccak256, Address, L2ChainId, H160, L2_NATIVE_TOKEN_VAULT_ADDRESS};
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
@@ -119,11 +119,26 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
     // contracts_config.bridges.shared.l1_address = gateway_ecosystem_preparation_output.deployed_addresses.bridges.shared_bridge_proxy_addr;
 }
 
+fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
+    let encoded_data = encode(&[
+        ethers::abi::Token::Uint(l1_chain_id),
+        ethers::abi::Token::Address(L2_NATIVE_TOKEN_VAULT_ADDRESS),
+        ethers::abi::Token::Address(addr),
+    ]);
+
+    H256(keccak256(&encoded_data))
+}
+
 async fn adapt_config(shell: &Shell, chain_config: ChainConfig) -> anyhow::Result<()> {
     println!("Adapting config");
     let mut contracts_config = chain_config.get_contracts_config()?;
+    let genesis_config = chain_config.get_genesis_config()?;
 
     contracts_config.l2.legacy_shared_bridge_addr = contracts_config.bridges.shared.l2_address;
+    contracts_config.l1.base_token_asset_id = Some(encode_ntv_asset_id(
+        genesis_config.l1_chain_id.0.into(),
+        contracts_config.l1.base_token_addr,
+    ));
 
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
     println!("Done");

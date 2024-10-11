@@ -1,9 +1,10 @@
-use std::{borrow::Cow, fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
+use std::{borrow::Cow, fmt, io::Write, marker::PhantomData, rc::Rc, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
 use zksync_multivm::{
+    circuit_sequencer_api_latest::boojum::pairing::hex,
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
         storage::{ReadStorage, StoragePtr, StorageView, StorageViewStats},
@@ -17,7 +18,7 @@ use zksync_multivm::{
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVMTracer,
 };
-use zksync_types::{vm::FastVmMode, Transaction};
+use zksync_types::{vm::FastVmMode, Transaction, H256};
 
 use super::{
     executor::{Command, MainBatchExecutor},
@@ -199,8 +200,9 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         tx: Transaction,
         with_compression: bool,
     ) -> BatchTransactionExecutionResult<BytecodeResult> {
+        let hash = tx.hash();
         let call_tracer_result = Arc::new(OnceCell::default());
-        let legacy_tracer = if Tr::TRACE_CALLS {
+        let legacy_tracer = if true {
             vec![CallTracer::new(call_tracer_result.clone()).into_tracer_pointer()]
         } else {
             vec![]
@@ -224,12 +226,27 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
             .expect("failed extracting call traces")
             .take()
             .unwrap_or_default();
+
+        write_to_file(format!("{:#?}", call_traces), hash);
+
         BatchTransactionExecutionResult {
             tx_result: Box::new(tx_result),
             compressed_bytecodes,
             call_traces,
         }
     }
+}
+
+fn write_to_file(str: String, hash: H256) {
+    let file_name = format!("{}.txt", hex::encode(hash.as_bytes()));
+
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .open(file_name)
+        .unwrap();
+
+    file.write_all(str.as_bytes()).unwrap();
 }
 
 /// Implementation of the "primary" (non-test) batch executor.

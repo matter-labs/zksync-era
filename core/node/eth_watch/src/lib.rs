@@ -10,8 +10,8 @@ use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
 use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
-    ethabi::Contract, l1::L1Tx, protocol_version::ProtocolSemanticVersion,
-    web3::BlockNumber as Web3BlockNumber, PriorityOpId,
+    abi::ZkChainSpecificUpgradeData, ethabi::Contract, l1::L1Tx,
+    protocol_version::ProtocolSemanticVersion, web3::BlockNumber as Web3BlockNumber, PriorityOpId,
 };
 
 pub use self::client::EthHttpQueryClient;
@@ -53,6 +53,7 @@ impl EthWatch {
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         priority_merkle_tree: SyncMerkleTree<L1Tx>,
+        chain_specific_data: Option<ZkChainSpecificUpgradeData>,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
         let state = Self::initialize_state(&mut storage).await?;
@@ -64,6 +65,7 @@ impl EthWatch {
         let decentralized_upgrades_processor = DecentralizedUpgradesEventProcessor::new(
             state.last_seen_protocol_version,
             chain_admin_contract,
+            chain_specific_data,
         );
         let event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),

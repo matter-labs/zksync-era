@@ -229,6 +229,8 @@ pub struct L1Contracts {
     pub validator_timelock_addr: Address,
     pub base_token_addr: Address,
     // `Option` to be able to parse configs from previous protocol version
+    pub base_token_asset_id: Option<H256>,
+    // `Option` to be able to parse configs from previous protocol version
     pub rollup_l1_da_validator_addr: Option<Address>,
     // `Option` to be able to parse configs from previous protocol version
     pub validium_l1_da_validator_addr: Option<Address>,

@@ -1,6 +1,7 @@
 use std::convert::{TryFrom, TryInto};
 
 use anyhow::Context as _;
+use ethabi::{decode, encode};
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::{
     ethabi,
@@ -15,7 +16,10 @@ use zksync_contracts::{
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use crate::{
-    abi,
+    abi::{
+        self, ForceDeployment, GatewayUpgradeEncodedInput, ProposedUpgrade,
+        ZkChainSpecificUpgradeData,
+    },
     ethabi::{ParamType, Token},
     web3::Log,
     Address, Execute, ExecuteTransactionCommon, Transaction, TransactionType, H256, U256,
@@ -104,10 +108,65 @@ pub trait ProtocolUpgradePreimageOracle: Send + Sync {
         -> anyhow::Result<Vec<Vec<u8>>>;
 }
 
+/// Some upgrades have chain-dependent calldata
+/// that has to be prepared properly
+async fn prepapre_upgrde_call(
+    proposed_upgrade: &ProposedUpgrade,
+    chain_specific: Option<ZkChainSpecificUpgradeData>,
+) -> anyhow::Result<Vec<u8>> {
+    // No upgrade
+    if proposed_upgrade.l2_protocol_upgrade_tx.tx_type == U256::zero() {
+        return Ok(vec![]);
+    }
+
+    let minor_version = proposed_upgrade.l2_protocol_upgrade_tx.nonce;
+    if ProtocolVersionId::try_from_minor_version(minor_version.as_u32()).unwrap()
+        != ProtocolVersionId::gateway_upgrade()
+    {
+        // We'll just keep it the same
+        return Ok(proposed_upgrade.l2_protocol_upgrade_tx.data.clone());
+    }
+
+    // For gateway upgrade, things are bit more complex
+    let mut encoded_input = GatewayUpgradeEncodedInput::decode(
+        decode(
+            &[GatewayUpgradeEncodedInput::schema()],
+            &proposed_upgrade.post_upgrade_calldata,
+        )?[0]
+            .clone(),
+    )?;
+
+    let gateway_upgrade_calldata = encode(&[
+        Token::Address(encoded_input.ctm_deployer),
+        Token::Bytes(encoded_input.fixed_force_deployments_data),
+        Token::Bytes(chain_specific.context("chain_specific")?.encode_bytes()),
+    ]);
+
+    // May not be very idiomatic, but we do it in the same way as it was done in Solidity
+    // for easier review
+    encoded_input.force_deployments[encoded_input.l2_gateway_upgrade_position].input =
+        gateway_upgrade_calldata;
+
+    let force_deployments_as_tokens: Vec<_> = encoded_input
+        .force_deployments
+        .iter()
+        .map(ForceDeployment::encode)
+        .collect();
+
+    let full_data = zksync_contracts::deployer_contract()
+        .function("forceDeployOnAddresses")
+        .unwrap()
+        .encode_input(&force_deployments_as_tokens)
+        .unwrap();
+
+    Ok(full_data)
+}
+
 impl ProtocolUpgrade {
     pub async fn try_from_diamond_cut(
         diamond_cut_data: &[u8],
         preimage_oracle: &dyn ProtocolUpgradePreimageOracle,
+        chain_specific: Option<ZkChainSpecificUpgradeData>,
     ) -> anyhow::Result<Self> {
         // Unwraps are safe because we have validated the input against the function signature.
         let diamond_cut_tokens = DIAMOND_CUT.decode_input(diamond_cut_data)?[0]
@@ -117,6 +176,7 @@ impl ProtocolUpgrade {
         Self::try_from_init_calldata(
             &diamond_cut_tokens[2].clone().into_bytes().unwrap(),
             preimage_oracle,
+            chain_specific,
         )
         .await
     }
@@ -125,13 +185,15 @@ impl ProtocolUpgrade {
     async fn try_from_init_calldata(
         init_calldata: &[u8],
         preimage_oracle: &dyn ProtocolUpgradePreimageOracle,
+        chain_specific: Option<ZkChainSpecificUpgradeData>,
     ) -> anyhow::Result<Self> {
         let upgrade = ethabi::decode(
             &[abi::ProposedUpgrade::schema()],
             init_calldata.get(4..).context("need >= 4 bytes")?,
         )
         .context("ethabi::decode()")?;
-        let upgrade = abi::ProposedUpgrade::decode(upgrade.into_iter().next().unwrap()).unwrap();
+        let mut upgrade =
+            abi::ProposedUpgrade::decode(upgrade.into_iter().next().unwrap()).unwrap();
         let bootloader_hash = H256::from_slice(&upgrade.bootloader_hash);
         let default_account_hash = H256::from_slice(&upgrade.default_account_hash);
 
@@ -158,6 +220,9 @@ impl ProtocolUpgrade {
                 factory_deps.len(),
                 upgrade.l2_protocol_upgrade_tx.factory_deps.len()
             );
+
+            upgrade.l2_protocol_upgrade_tx.data =
+                prepapre_upgrde_call(&upgrade, chain_specific).await?;
 
             Some(
                 Transaction::try_from(abi::Transaction::L1 {

@@ -1,7 +1,9 @@
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
 use zksync_contracts::chain_admin_contract;
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
-use zksync_types::{settlement::SettlementMode, web3::contract};
+use zksync_types::{
+    abi::ZkChainSpecificUpgradeData, settlement::SettlementMode, web3::contract, Address,
+};
 
 use crate::{
     implementations::resources::{
@@ -127,6 +129,13 @@ impl WiringLayer for EthWatchLayer {
             main_pool,
             self.eth_watch_config.poll_interval(),
             priority_tree,
+            ZkChainSpecificUpgradeData::from_partial_components(
+                self.contracts_config.base_token_asset_id,
+                self.contracts_config.l2_legacy_shared_bridge_addr,
+                // FIXME: the following is not correct, but this is how it is done in
+                // contracts for now (also incorrect)
+                Some(Address::zero()),
+            ),
         )
         .await?;
 

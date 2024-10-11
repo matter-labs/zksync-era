@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use zksync_config::configs::{ContractsConfig, EcosystemContracts};
 use zksync_protobuf::{repr::ProtoRepr, required};
 
-use crate::{parse_h160, proto::contracts as proto};
+use crate::{parse_h160, parse_h256, proto::contracts as proto};
 
 impl ProtoRepr for proto::Contracts {
     type Type = ContractsConfig;
@@ -111,6 +111,12 @@ impl ProtoRepr for proto::Contracts {
                 .map(|x| parse_h160(x))
                 .transpose()
                 .context("base_token_addr")?,
+            base_token_asset_id: l1
+                .base_token_asset_id
+                .as_ref()
+                .map(|x| parse_h256(x))
+                .transpose()
+                .context("base_token_asset_id")?,
             user_facing_bridgehub_proxy_addr: self
                 .user_facing_bridgehub
                 .as_ref()
@@ -170,6 +176,7 @@ impl ProtoRepr for proto::Contracts {
                 default_upgrade_addr: Some(format!("{:?}", this.default_upgrade_addr)),
                 multicall3_addr: Some(format!("{:?}", this.l1_multicall3_addr)),
                 base_token_addr: this.base_token_addr.map(|a| format!("{:?}", a)),
+                base_token_asset_id: this.base_token_asset_id.map(|x| format!("{:?}", x)),
                 chain_admin_addr: this.chain_admin_addr.map(|a| format!("{:?}", a)),
             }),
             l2: Some(proto::L2 {

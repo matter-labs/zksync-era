@@ -63,6 +63,9 @@ impl FromEnvVariant for ContractsConfig {
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
+    use zksync_basic_types::H256;
     use zksync_config::configs::EcosystemContracts;
     use zksync_system_constants::SHARED_BRIDGE_ETHER_TOKEN_ADDRESS;
 
@@ -96,6 +99,12 @@ mod tests {
                 )),
             }),
             base_token_addr: Some(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS),
+            base_token_asset_id: Some(
+                H256::from_str(
+                    "0x0000000000000000000000000000000000000001000000000000000000000000",
+                )
+                .unwrap(),
+            ),
             user_facing_bridgehub_proxy_addr: Some(addr(
                 "0x35ea7f92f4c5f433efe15284e99c040110cf6297",
             )),
@@ -132,6 +141,7 @@ CONTRACTS_BRIDGEHUB_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
 CONTRACTS_STATE_TRANSITION_PROXY_ADDR="0xd90f1c081c6117241624e97cb6147257c3cb2097"
 CONTRACTS_TRANSPARENT_PROXY_ADMIN_ADDR="0xdd6fa5c14e7550b4caf2aa2818d24c69cbc347e5"
 CONTRACTS_BASE_TOKEN_ADDR="0x0000000000000000000000000000000000000001"
+CONTRACTS_BASE_TOKEN_ADDR="0x0000000000000000000000000000000000000001000000000000000000000000"
 CONTRACTS_USER_FACING_BRIDGEHUB_PROXY_ADDR="0x35ea7f92f4c5f433efe15284e99c040110cf6297"
 CONTRACTS_USER_FACING_DIAMOND_PROXY_ADDR="0xF00B988a98Ca742e7958DeF9F7823b5908715f4a
 CONTRACTS_L2_NATIVE_TOKEN_VAULT_PROXY_ADDR="0xfc073319977e314f251eae6ae6be76b0b3baeecf"
