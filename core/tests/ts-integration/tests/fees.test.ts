@@ -69,7 +69,6 @@ testFees('Test fees', function () {
     let ethClientWeb3Url: string;
     let apiWeb3JsonRpcHttpUrl: string;
     let mainNodeSpawner: NodeSpawner;
-    let mainNode: Node<NodeType.MAIN>;
 
     const fileConfig = shouldLoadConfigFromFile();
     const pathToHome = path.join(__dirname, '../../../..');
@@ -124,7 +123,7 @@ testFees('Test fees', function () {
             baseTokenAddress
         });
 
-        mainNode = await mainNodeSpawner.spawnMainNode();
+        await mainNodeSpawner.killAndSpawnMainNode();
 
         alice = testMaster.mainAccount();
         tokenDetails = testMaster.environment().erc20Token;
@@ -210,8 +209,7 @@ testFees('Test fees', function () {
         ];
         for (const gasPrice of L1_GAS_PRICES_TO_TEST) {
             // For the sake of simplicity, we'll use the same pubdata price as the L1 gas price.
-            await mainNode.killAndWaitForShutdown();
-            mainNode = await mainNodeSpawner.spawnMainNode({
+            await mainNodeSpawner.killAndSpawnMainNode({
                 newL1GasPrice: gasPrice,
                 newPubdataPrice: gasPrice
             });
@@ -252,9 +250,7 @@ testFees('Test fees', function () {
     test('Test gas price expected value', async () => {
         const receiver = ethers.Wallet.createRandom().address;
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
-
-        await mainNode.killAndWaitForShutdown();
-        mainNode = await mainNodeSpawner.spawnMainNode({
+        await mainNodeSpawner.killAndSpawnMainNode({
             newL1GasPrice: l1GasPrice,
             newPubdataPrice: l1GasPrice
         });
@@ -287,9 +283,10 @@ testFees('Test fees', function () {
 
         console.log('feeParams', feeParams);
         console.log('receipt', receipt);
-        console.log('gas price', await alice._providerL2().getGasPrice());
+        console.log('gas price');
         console.log(await alice._providerL2().getFeeParams());
         expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
+        expect(await alice._providerL2().getGasPrice()).toBe(BigInt(expectedConvertedGasPrice));
     });
 
     test('Test base token ratio fluctuations', async () => {
@@ -297,8 +294,7 @@ testFees('Test fees', function () {
 
         if (isETHBasedChain) return;
 
-        await mainNode.killAndWaitForShutdown();
-        mainNode = await mainNodeSpawner.spawnMainNode({
+        await mainNodeSpawner.killAndSpawnMainNode({
             newL1GasPrice: l1GasPrice,
             newPubdataPrice: l1GasPrice,
             externalPriceApiClientForcedNumerator: 300,
@@ -369,8 +365,7 @@ testFees('Test fees', function () {
         // that the gasLimit is indeed over u32::MAX, which is the most important tested property.
         const requiredPubdataPrice = minimalL2GasPrice * 100_000n;
 
-        await mainNode.killAndWaitForShutdown();
-        mainNode = await mainNodeSpawner.spawnMainNode({
+        await mainNodeSpawner.killAndSpawnMainNode({
             newL1GasPrice: requiredPubdataPrice,
             newPubdataPrice: requiredPubdataPrice
         });
@@ -415,11 +410,10 @@ testFees('Test fees', function () {
 
     afterAll(async () => {
         await testMaster.deinitialize();
-        await mainNode.killAndWaitForShutdown();
         // Returning the pubdata price to the default one
         // Spawning with no options restores defaults.
-        mainNode = await mainNodeSpawner.spawnMainNode();
-        __ZKSYNC_TEST_CONTEXT_OWNER__.setL2NodePid(mainNode.proc.pid!);
+        await mainNodeSpawner.killAndSpawnMainNode();
+        __ZKSYNC_TEST_CONTEXT_OWNER__.setL2NodePid(mainNodeSpawner.mainNode!.proc.pid!);
     });
 });
 

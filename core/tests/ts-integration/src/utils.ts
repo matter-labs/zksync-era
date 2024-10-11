@@ -99,9 +99,20 @@ export class Node<TYPE extends NodeType> {
     }
 }
 
+interface MainNodeOptions {
+    newL1GasPrice?: bigint;
+    newPubdataPrice?: bigint;
+    customBaseToken?: boolean;
+    externalPriceApiClientForcedNumerator?: number;
+    externalPriceApiClientForcedDenominator?: number;
+    externalPriceApiClientForcedFluctuation?: number;
+    baseTokenPricePollingIntervalMs?: number;
+    baseTokenAdjusterL1UpdateDeviationPercentage?: number;
+}
 export class NodeSpawner {
     private readonly generalConfigPath: string | undefined;
     private readonly originalConfig: string | undefined;
+    public mainNode: Node<NodeType.MAIN> | null;
 
     public constructor(
         private readonly pathToHome: string,
@@ -110,6 +121,7 @@ export class NodeSpawner {
         private readonly options: MainNodeSpawnOptions,
         private env?: ProcessEnvOptions['env']
     ) {
+        this.mainNode = null;
         if (fileConfig.loadFromFile) {
             this.generalConfigPath = getConfigPath({
                 pathToHome,
@@ -121,18 +133,15 @@ export class NodeSpawner {
         }
     }
 
-    public async spawnMainNode(
-        overrides: {
-            newL1GasPrice?: bigint;
-            newPubdataPrice?: bigint;
-            customBaseToken?: boolean;
-            externalPriceApiClientForcedNumerator?: number;
-            externalPriceApiClientForcedDenominator?: number;
-            externalPriceApiClientForcedFluctuation?: number;
-            baseTokenPricePollingIntervalMs?: number;
-            baseTokenAdjusterL1UpdateDeviationPercentage?: number;
-        } | null = null
-    ): Promise<Node<NodeType.MAIN>> {
+    public async killAndSpawnMainNode(configOverrides: MainNodeOptions | null = null): Promise<void> {
+        if (this.mainNode != null) {
+            await this.mainNode.killAndWaitForShutdown();
+            this.mainNode = null;
+        }
+        this.mainNode = await this.spawnMainNode(configOverrides);
+    }
+
+    private async spawnMainNode(overrides: MainNodeOptions | null): Promise<Node<NodeType.MAIN>> {
         const env = this.env ?? process.env;
         const { fileConfig, pathToHome, options, logs } = this;
 
