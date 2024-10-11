@@ -3,7 +3,7 @@ use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 /// Consensus registry contract operations.
 /// Includes code duplicated from `zksync_node_consensus::registry::abi`.
 use anyhow::Context as _;
-use common::logger;
+use common::{logger, wallets::Wallet};
 use config::EcosystemConfig;
 use conv::*;
 use ethers::{
@@ -11,7 +11,7 @@ use ethers::{
     contract::{FunctionCall, Multicall},
     middleware::{Middleware, NonceManagerMiddleware, SignerMiddleware},
     providers::{Http, JsonRpcClient, PendingTransaction, Provider, RawCall as _},
-    signers::Signer as _,
+    signers::{LocalWallet, Signer as _},
     types::{Address, BlockId, H256},
 };
 use xshell::Shell;
@@ -174,19 +174,20 @@ impl Setup {
         )?)
     }
 
-    fn governor(&self) -> anyhow::Result<Arc<impl Middleware>> {
-        let governor = self
+    fn governor(&self) -> anyhow::Result<Wallet> {
+        Ok(self
             .chain
             .get_wallets_config()
             .context("get_wallets_config()")?
-            .governor
-            .private_key
-            .context(messages::MSG_GOVERNOR_PRIVATE_KEY_NOT_SET)?;
-        let governor = governor.with_chain_id(self.genesis.l2_chain_id.as_u64());
+            .governor)
+    }
+
+    fn signer(&self, wallet: LocalWallet) -> anyhow::Result<Arc<impl Middleware>> {
+        let wallet = wallet.with_chain_id(self.genesis.l2_chain_id.as_u64());
         let provider = self.provider().context("provider()")?;
-        let signer = SignerMiddleware::new(provider, governor.clone());
+        let signer = SignerMiddleware::new(provider, wallet.clone());
         // Allows us to send next transaction without waiting for the previous to complete.
-        let signer = NonceManagerMiddleware::new(signer, governor.address());
+        let signer = NonceManagerMiddleware::new(signer, wallet.address());
         Ok(Arc::new(signer))
     }
 
@@ -279,10 +280,25 @@ impl Setup {
         let provider = self.provider().context("provider()")?;
         let block_id = self.last_block(&provider).await.context("last_block()")?;
         let governor = self.governor().context("governor()")?;
+        let signer = self.signer(
+            governor
+                .private_key
+                .clone()
+                .context(messages::MSG_GOVERNOR_PRIVATE_KEY_NOT_SET)?,
+        )?;
         let consensus_registry = self
-            .consensus_registry(governor.clone())
+            .consensus_registry(signer.clone())
             .context("consensus_registry()")?;
-        let mut multicall = self.multicall(governor.clone()).context("multicall()")?;
+        let mut multicall = self.multicall(signer).context("multicall()")?;
+
+        let owner = consensus_registry.owner().call().await.context("owner()")?;
+        if owner != governor.address {
+            anyhow::bail!(
+                "governor ({:#x}) is different than the consensus registry owner ({:#x})",
+                governor.address,
+                owner
+            );
+        }
 
         // Fetch contract state.
         let n: usize = consensus_registry
