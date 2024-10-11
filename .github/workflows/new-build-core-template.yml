@@ -134,7 +134,7 @@ jobs:
         run: |
           mkdir -p ./volumes/postgres
           docker compose up -d postgres
-          zkstackup || true
+          zkstackup -g --path ./ || true
 
       - name: build contracts
         shell: bash
