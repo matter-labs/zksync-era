@@ -4,7 +4,8 @@ use common::{
     spinner::Spinner,
 };
 use config::{
-    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ChainConfig, ContractsConfig, EcosystemConfig
+    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ChainConfig, ContractsConfig,
+    EcosystemConfig,
 };
 use ethers::{
     abi::{parse_abi, Token, Tokenize},
@@ -260,7 +261,6 @@ pub async fn admin_schedule_upgrade(
     accept_ownership(shell, governor, forge).await
 }
 
-
 #[allow(clippy::too_many_arguments)]
 pub async fn admin_update_validator(
     shell: &Shell,
@@ -310,7 +310,6 @@ pub async fn admin_update_validator(
         .with_calldata(&calldata);
     accept_ownership(shell, governor, forge).await
 }
-
 
 async fn accept_ownership(
     shell: &Shell,

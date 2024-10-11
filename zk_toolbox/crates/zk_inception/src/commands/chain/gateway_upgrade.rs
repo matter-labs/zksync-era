@@ -284,10 +284,10 @@ async fn finalize_stage1(
     let new_validator_timelock = gateway_ecosystem_preparation_output
         .deployed_addresses
         .validator_timelock_addr;
-    
+
     let validators = [
         chain_config.get_wallets_config()?.operator.address,
-        chain_config.get_wallets_config()?.blob_operator.address,    
+        chain_config.get_wallets_config()?.blob_operator.address,
     ];
 
     println!("Setting new validators!");
@@ -302,9 +302,10 @@ async fn finalize_stage1(
             false,
             chain_config.get_wallets_config()?.governor_private_key(),
             &args.forge_args,
-            l1_url.clone()
-        ).await?;
-        
+            l1_url.clone(),
+        )
+        .await?;
+
         admin_update_validator(
             shell,
             &ecosystem_config,
@@ -314,17 +315,16 @@ async fn finalize_stage1(
             true,
             chain_config.get_wallets_config()?.governor_private_key(),
             &args.forge_args,
-            l1_url.clone()
-        ).await?;
+            l1_url.clone(),
+        )
+        .await?;
     }
 
     println!("Setting new validators done!");
 
-    contracts_config.l1.validator_timelock_addr = 
-        gateway_ecosystem_preparation_output
-            .deployed_addresses
-            .validator_timelock_addr
-    ;
+    contracts_config.l1.validator_timelock_addr = gateway_ecosystem_preparation_output
+        .deployed_addresses
+        .validator_timelock_addr;
 
     admin_schedule_upgrade(
         shell,
@@ -352,7 +352,7 @@ async fn finalize_stage1(
         l1_url,
     )
     .await?;
-    
+
     contracts_config.save_with_base_path(shell, chain_config.configs)?;
 
     println!("done!");
