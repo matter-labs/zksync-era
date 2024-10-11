@@ -39,6 +39,12 @@ check_yarn_version() {
 # and it will be hard for them to see what went wrong.
 check_subdirectory
 check_yarn_version
+
+if which zkstackup >/dev/null; then
+    git config --local core.hooksPath ||
+    git config --local core.hooksPath ./.githooks
+fi
+
 if [ -z "$1" ]; then
     cd $ZKSYNC_HOME
     run_retried yarn install --frozen-lockfile && yarn utils build && yarn zk build
