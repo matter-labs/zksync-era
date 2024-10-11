@@ -33,12 +33,12 @@ use super::{
         tx::v1beta1::{
             mode_info::{Single, Sum},
             service_client::ServiceClient as TxClient,
-            AuthInfo, Fee, ModeInfo, SignDoc, SignerInfo, Tx, TxBody,
+            AuthInfo, BroadcastMode, BroadcastTxRequest, Fee, GetTxRequest, ModeInfo, SignDoc,
+            SignerInfo, Tx, TxBody,
         },
     },
     tendermint::types::{Blob as PbBlob, BlobTx},
 };
-use crate::celestia::cosmos::tx::v1beta1::{BroadcastMode, BroadcastTxRequest, GetTxRequest};
 
 const UNITS_SUFFIX: &str = "utia";
 pub const ADDRESS_LENGTH: usize = 20;
