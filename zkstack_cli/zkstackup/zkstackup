@@ -125,6 +125,11 @@ install_local() {
     exit 1
   fi
 
+  if [ "$ZKSTACKUP_PATH" = "./" ]; then
+    git config --local core.hooksPath ||
+    git config --local core.hooksPath ./.githooks
+  fi
+
   if [ -n "$ZKSTACKUP_BRANCH" ] || [ -n "$ZKSTACKUP_COMMIT" ] || [ -n "$ZKSTACKUP_VERSION" ] || [ -n "$ZKSTACKUP_REPO" ]; then
     warn "Ignoring --repo, --branch, --commit and --version arguments when installing from local path"
   fi
