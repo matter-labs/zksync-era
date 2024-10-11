@@ -129,6 +129,10 @@ jobs:
         run: |
           mkdir -p ./volumes/postgres
           docker compose up -d postgres
+
+      - name: Install zkstack
+        run: |  
+          ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup
           zkstackup --path ./ || true
 
       - name: build contracts
