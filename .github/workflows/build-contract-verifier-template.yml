@@ -47,7 +47,6 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo CI=1 >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
-          echo $(pwd)/zkstack_cli/zkstackup >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
@@ -114,9 +113,13 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/sdk/binaryen
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
-          ci_run ./zkstack_cli/zkstackup/zkstackup -g --path ./  || true
           ci_run ./bin/zk || true
           ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+
+      - name: install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path $ZKSYNC_HOME || true
+          ci_run zkstackup -g --path $ZKSYNC_HOME
 
       - name: build contracts
         if: env.BUILD_CONTRACTS == 'true'

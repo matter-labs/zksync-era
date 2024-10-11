@@ -16,7 +16,6 @@ jobs:
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
-          echo $(pwd)/zkstack_cli/zkstackup >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
           echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
@@ -31,9 +30,10 @@ jobs:
           mkdir -p ./volumes/postgres
           docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
 
-      - name: Init
-        run: |          
-          ci_run ./zkstack_cli/zkstackup/zkstackup -g --path ./ 
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path $ZKSYNC_HOME
+          ci_run zkstackup -g --path $ZKSYNC_HOME
 
       - name: Database setup
         run: |
@@ -69,9 +69,13 @@ jobs:
           mkdir -p ./volumes/postgres
           docker-compose -f ${RUNNER_COMPOSE_FILE} up --build -d zk postgres
 
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path $ZKSYNC_HOME || true
+          ci_run zkstackup -g --path $ZKSYNC_HOME
+
       - name: Init
         run: |
-          ci_run ./zkstack_cli/zkstackup/zkstackup -g --path ./ 
           ci_run run_retried rustup show
 
       - name: Prover unit tests

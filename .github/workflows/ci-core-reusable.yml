@@ -25,7 +25,6 @@ jobs:
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
-          echo $(pwd)/zkstack_cli/zkstackup >> $GITHUB_PATH
           echo IN_DOCKER=1 >> .env
           echo "SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage" >> .env
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
@@ -57,7 +56,11 @@ jobs:
       - name: Init
         run: |
           ci_run run_retried rustup show
-          ci_run ./zkstack_cli/zkstackup/zkstackup -g --path ./ 
+      
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path $ZKSYNC_HOME
+          ci_run zkstackup -g --path $ZKSYNC_HOME
 
       - name: Build contracts
         run: |
@@ -118,7 +121,11 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/system-contracts
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts
 
-          ci_run ./zkstack_cli/zkstackup/zkstackup -g --path ./ 
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path $ZKSYNC_HOME || true
+          ci_run zkstackup -g --path $ZKSYNC_HOME
+  
 
       - name: Create and initialize legacy chain
         run: |
@@ -184,9 +191,11 @@ jobs:
         run: |
           ci_localnet_up
 
-      - name: Build ZK Stack CLI
-        run: ci_run bash -c "./zkstack_cli/zkstackup/zkstackup -g --path ./"
-
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path $ZKSYNC_HOME || true
+          ci_run zkstackup -g --path $ZKSYNC_HOME
+  
       - name: Create log directories
         run: |
           SERVER_LOGS_DIR=logs/server
