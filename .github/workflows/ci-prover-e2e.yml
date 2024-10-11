@@ -105,13 +105,14 @@ jobs:
           ci_run zk_inception prover run --component=witness-generator --round=all-rounds --docker=false &>prover_logs/witness-generator.log &
       - name: Run Circuit Prover
         run: |
-          ci_run zk_inception prover run --component=circuit-prover --witness-vector-generator-count=10 --docker=false &>prover_logs/circuit_prover.log &
+          ci_run zk_inception prover run --component=witness-vector-generator --threads=10 --docker=false &>prover_logs/wvg.log
+          ci_run zk_inception prover run --component=prover --docker=false &>prover_logs/prover.log &
       - name: Wait for prover jobs to finish
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
           BATCH_NUMBER: 1
           INTERVAL: 30
-          TIMEOUT: 1500
+          TIMEOUT: 1800
         run: |
           ci_run chmod +x ./bin/prover_checkers/prover_jobs_status_checker
           
