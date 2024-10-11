@@ -4,8 +4,7 @@ use common::{
     spinner::Spinner,
 };
 use config::{
-    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ContractsConfig,
-    EcosystemConfig,
+    forge_interface::script_params::ACCEPT_GOVERNANCE_SCRIPT_PARAMS, ChainConfig, ContractsConfig, EcosystemConfig
 };
 use ethers::{
     abi::{parse_abi, Token, Tokenize},
@@ -30,7 +29,8 @@ lazy_static! {
             "function setDAValidatorPair(address chainAdmin, address target, address l1DaValidator, address l2DaValidator) public",
             "function governanceExecuteCalls(bytes calldata callsToExecute, address target) public",
             "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)",
-            "function adminScheduleUpgrade(address adminAddr, address accessControlRestriction, uint256 newProtocolVersion, uint256 timestamp)"
+            "function adminScheduleUpgrade(address adminAddr, address accessControlRestriction, uint256 newProtocolVersion, uint256 timestamp)",
+            "function updateValidator(address adminAddr,address accessControlRestriction,address validatorTimelock,uint256 chainId,address validatorAddress,bool addValidator) public"
         ])
         .unwrap(),
     );
@@ -259,6 +259,58 @@ pub async fn admin_schedule_upgrade(
         .with_calldata(&calldata);
     accept_ownership(shell, governor, forge).await
 }
+
+
+#[allow(clippy::too_many_arguments)]
+pub async fn admin_update_validator(
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+    chain_config: &ChainConfig,
+    validator_timelock: Address,
+    validator: Address,
+    add_validator: bool,
+    governor: Option<H256>,
+    forge_args: &ForgeScriptArgs,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    // resume doesn't properly work here.
+    let mut forge_args = forge_args.clone();
+    forge_args.resume = false;
+
+    let chain_contracts_config = chain_config.get_contracts_config()?;
+
+    let admin_addr = chain_contracts_config.l1.chain_admin_addr;
+    let access_control_restriction = chain_contracts_config
+        .l1
+        .access_control_restriction_addr
+        .context("no access_control_restriction_addr")?;
+
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "updateValidator",
+            (
+                admin_addr,
+                access_control_restriction,
+                validator_timelock,
+                chain_config.chain_id.0,
+                validator,
+                add_validator,
+            ),
+        )
+        .unwrap();
+    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let forge = Forge::new(&foundry_contracts_path)
+        .script(
+            &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_broadcast()
+        .with_calldata(&calldata);
+    accept_ownership(shell, governor, forge).await
+}
+
 
 async fn accept_ownership(
     shell: &Shell,

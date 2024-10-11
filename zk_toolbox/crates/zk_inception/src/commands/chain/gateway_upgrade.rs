@@ -35,7 +35,7 @@ use zksync_types::{web3::keccak256, Address, L2ChainId, H160, L2_NATIVE_TOKEN_VA
 use zksync_web3_decl::client::{Client, L2};
 
 use crate::{
-    accept_ownership::{admin_execute_upgrade, admin_schedule_upgrade},
+    accept_ownership::{admin_execute_upgrade, admin_schedule_upgrade, admin_update_validator},
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
@@ -279,6 +279,46 @@ async fn finalize_stage1(
     let mut contracts_config = chain_config.get_contracts_config()?;
     let gateway_ecosystem_preparation_output =
         GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
+
+    let old_validator_timelock = contracts_config.l1.validator_timelock_addr;
+    let new_validator_timelock = gateway_ecosystem_preparation_output
+        .deployed_addresses
+        .validator_timelock_addr;
+    
+    let validators = [
+        chain_config.get_wallets_config()?.operator.address,
+        chain_config.get_wallets_config()?.blob_operator.address,    
+    ];
+
+    println!("Setting new validators!");
+    // TODO: these can be done in a single operation
+    for val in validators {
+        admin_update_validator(
+            shell,
+            &ecosystem_config,
+            &chain_config,
+            old_validator_timelock,
+            val,
+            false,
+            chain_config.get_wallets_config()?.governor_private_key(),
+            &args.forge_args,
+            l1_url.clone()
+        ).await?;
+        
+        admin_update_validator(
+            shell,
+            &ecosystem_config,
+            &chain_config,
+            new_validator_timelock,
+            val,
+            true,
+            chain_config.get_wallets_config()?.governor_private_key(),
+            &args.forge_args,
+            l1_url.clone()
+        ).await?;
+    }
+
+    println!("Setting new validators done!");
 
     contracts_config.l1.validator_timelock_addr = 
         gateway_ecosystem_preparation_output
