@@ -103,7 +103,7 @@ jobs:
       - name: Run Witness Generator
         run: |
           ci_run zk_inception prover run --component=witness-generator --round=all-rounds --docker=false &>prover_logs/witness-generator.log &
-      - name: Run WVG
+      - name: Run Circuit Prover
         run: |
           ci_run zk_inception prover run --component=circuit-prover --witness-vector-generator-count=10 --docker=false &>prover_logs/circuit_prover.log &
       - name: Wait for prover jobs to finish
