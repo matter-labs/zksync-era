@@ -246,7 +246,7 @@ async fn prepare_stage1(
         == L1BatchCommitmentMode::Validium;
 
     // We do not use chain output because IMHO we should delete it altogether from there
-    contracts_config.l2.da_validator_addr = if validum {
+    contracts_config.l2.da_validator_addr = if !validum {
         Some(
             gateway_ecosystem_preparation_output
                 .contracts_config
@@ -276,8 +276,16 @@ async fn finalize_stage1(
 ) -> anyhow::Result<()> {
     println!("Finalizing stage1 of chain upgrade!");
 
+    let mut contracts_config = chain_config.get_contracts_config()?;
     let gateway_ecosystem_preparation_output =
         GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
+
+    contracts_config.l1.validator_timelock_addr = 
+        gateway_ecosystem_preparation_output
+            .deployed_addresses
+            .validator_timelock_addr
+    ;
+
     admin_schedule_upgrade(
         shell,
         &ecosystem_config,
@@ -304,6 +312,8 @@ async fn finalize_stage1(
         l1_url,
     )
     .await?;
+    
+    contracts_config.save_with_base_path(shell, chain_config.configs)?;
 
     println!("done!");
 
