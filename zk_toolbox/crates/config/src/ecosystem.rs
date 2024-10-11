@@ -14,7 +14,7 @@ use crate::{
     consts::{
         CONFIGS_PATH, CONFIG_NAME, CONTRACTS_FILE, ECOSYSTEM_PATH, ERA_CHAIN_ID,
         ERC20_CONFIGS_FILE, ERC20_DEPLOYMENT_FILE, INITIAL_DEPLOYMENT_FILE, L1_CONTRACTS_FOUNDRY,
-        LOCAL_ARTIFACTS_PATH, LOCAL_DB_PATH, WALLETS_FILE,
+        LOCAL_ARTIFACTS_PATH, LOCAL_DB_PATH, LOCAL_TRANSACTIONS_PATH, WALLETS_FILE,
     },
     create_localhost_wallets,
     forge_interface::deploy_ecosystem::{
@@ -242,6 +242,10 @@ impl EcosystemConfig {
 
     pub fn get_chain_rocks_db_path(&self, chain_name: &str) -> PathBuf {
         self.chains.join(chain_name).join(LOCAL_DB_PATH)
+    }
+
+    pub fn get_chain_transactions_path(&self, chain_name: &str) -> PathBuf {
+        self.chains.join(chain_name).join(LOCAL_TRANSACTIONS_PATH)
     }
 
     pub fn get_chain_artifacts_path(&self, chain_name: &str) -> PathBuf {

@@ -20,6 +20,7 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
+use ethers::utils::hex::ToHexExt;
 use xshell::{cmd, Shell};
 
 use crate::{
@@ -37,6 +38,9 @@ pub enum Deploy2ContractsOption {
     ConsensusRegistry,
     Multicall3,
 }
+
+const DEPLOY_L2_TXS_CONTRACT_FOLDER_SRC: &str =
+    "contracts/l1-contracts/broadcast/DeployL2Contracts.sol";
 
 pub async fn run(
     args: ForgeScriptArgs,
@@ -277,13 +281,38 @@ async fn call_forge(
         forge = forge.with_signature(signature);
     }
 
-    forge = fill_forge_private_key(
-        forge,
-        ecosystem_config.get_wallets()?.governor_private_key(),
+    if !forge_args.unlocked_passed() {
+        forge = fill_forge_private_key(
+            forge,
+            ecosystem_config.get_wallets()?.governor_private_key(),
+        )?;
+        check_the_balance(&forge).await?;
+    } else {
+        forge = forge.with_sender(
+            ecosystem_config
+                .get_wallets()?
+                .governor
+                .address
+                .encode_hex_upper(),
+        );
+    }
+
+    forge.run(shell)?;
+
+    let txs_out_dir = ecosystem_config.get_chain_transactions_path(&chain_config.name);
+    let l1_chain_id = chain_config.l1_network.chain_id();
+    let run_latest_file = format!("{}-latest.json", signature.unwrap_or("run"));
+    let txs_file = format!("{}-txs.json", signature.unwrap_or("runDeployL2Contracts"));
+    shell.create_dir(txs_out_dir.clone())?;
+    shell.copy_file(
+        ecosystem_config
+            .link_to_code
+            .join(DEPLOY_L2_TXS_CONTRACT_FOLDER_SRC)
+            .join(l1_chain_id.to_string())
+            .join(run_latest_file),
+        txs_out_dir.join(txs_file),
     )?;
 
-    check_the_balance(&forge).await?;
-    forge.run(shell)?;
     Ok(())
 }
 

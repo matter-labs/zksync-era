@@ -3,7 +3,6 @@ use common::{git, logger, spinner::Spinner};
 use config::{
     copy_configs, traits::SaveConfigWithBasePath, update_from_chain_config, EcosystemConfig,
 };
-use ethers::utils::hex::ToHex;
 use xshell::Shell;
 
 use crate::{
@@ -52,7 +51,6 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
     spinner.finish();
 
     let spinner = Spinner::new(MSG_BUILDING_CHAIN_REGISTRATION_TXNS_SPINNER);
-    let governor: String = config.get_wallets()?.governor.address.encode_hex_upper();
 
     register_chain(
         shell,
@@ -61,7 +59,6 @@ pub(crate) async fn run(args: BuildTransactionsArgs, shell: &Shell) -> anyhow::R
         &chain_config,
         &mut contracts_config,
         args.l1_rpc_url.clone(),
-        Some(governor),
         false,
     )
     .await?;

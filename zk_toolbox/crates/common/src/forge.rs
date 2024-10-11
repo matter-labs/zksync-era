@@ -386,6 +386,10 @@ impl ForgeScriptArgs {
             .iter()
             .any(|arg| WALLET_ARGS.contains(&arg.as_ref()))
     }
+
+    pub fn unlocked_passed(&self) -> bool {
+        self.additional_args.iter().any(|arg| arg == "--unlocked")
+    }
 }
 
 #[derive(Debug, Clone, ValueEnum, Display, Serialize, Deserialize, Default)]

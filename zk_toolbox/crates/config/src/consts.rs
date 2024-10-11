@@ -38,6 +38,7 @@ pub(crate) const LOCAL_CONFIGS_PATH: &str = "configs/";
 pub(crate) const LOCAL_GENERATED_PATH: &str = ".generated/";
 pub(crate) const LOCAL_DB_PATH: &str = "db/";
 pub(crate) const LOCAL_ARTIFACTS_PATH: &str = "artifacts/";
+pub(crate) const LOCAL_TRANSACTIONS_PATH: &str = "transactions/";
 
 /// Name of apps config file
 pub const APPS_CONFIG_FILE: &str = "apps.yaml";

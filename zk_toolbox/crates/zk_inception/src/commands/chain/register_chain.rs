@@ -12,6 +12,7 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
+use ethers::utils::hex::ToHex;
 use xshell::Shell;
 
 use crate::{
@@ -21,6 +22,11 @@ use crate::{
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
+
+const RUN_LATEST_FILE_SRC: &str = "run-latest.json";
+const REGISTER_CHAIN_TXNS_FOLDER_SRC: &str =
+    "contracts/l1-contracts/broadcast/RegisterHyperchain.s.sol";
+const REGISTER_CHAIN_TXNS_FILE_DST: &str = "runRegisterHyperchain-txns.json";
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
@@ -43,7 +49,6 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         &chain_config,
         &mut contracts,
         l1_rpc_url,
-        None,
         true,
     )
     .await?;
@@ -61,7 +66,6 @@ pub async fn register_chain(
     chain_config: &ChainConfig,
     contracts: &mut ContractsConfig,
     l1_rpc_url: String,
-    sender: Option<String>,
     broadcast: bool,
 ) -> anyhow::Result<()> {
     let deploy_config_path = REGISTER_CHAIN_SCRIPT_PARAMS.input(&config.link_to_code);
@@ -77,12 +81,11 @@ pub async fn register_chain(
     if broadcast {
         forge = forge.with_broadcast();
     }
-
-    if let Some(address) = sender {
-        forge = forge.with_sender(address);
-    } else {
+    if !forge_args.unlocked_passed() {
         forge = fill_forge_private_key(forge, config.get_wallets()?.governor_private_key())?;
         check_the_balance(&forge).await?;
+    } else {
+        forge = forge.with_sender(config.get_wallets()?.governor.address.encode_hex_upper());
     }
 
     forge.run(shell)?;
@@ -92,5 +95,19 @@ pub async fn register_chain(
         REGISTER_CHAIN_SCRIPT_PARAMS.output(&chain_config.link_to_code),
     )?;
     contracts.set_chain_contracts(&register_chain_output);
+
+    // Save transactions:
+    let txs_out_dir = config.get_chain_transactions_path(&chain_config.name);
+    let l1_chain_id = config.l1_network.chain_id();
+    shell.create_dir(txs_out_dir.clone())?;
+    shell.copy_file(
+        config
+            .link_to_code
+            .join(REGISTER_CHAIN_TXNS_FOLDER_SRC)
+            .join(l1_chain_id.to_string())
+            .join(RUN_LATEST_FILE_SRC),
+        txs_out_dir.join(REGISTER_CHAIN_TXNS_FILE_DST),
+    )?;
+
     Ok(())
 }

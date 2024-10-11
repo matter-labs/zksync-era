@@ -94,7 +94,6 @@ pub async fn init(
         chain_config,
         &mut contracts_config,
         init_args.l1_rpc_url.clone(),
-        None,
         true,
     )
     .await?;
