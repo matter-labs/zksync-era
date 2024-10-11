@@ -8734,6 +8734,7 @@ dependencies = [
  "zksync_types",
  "zksync_utils",
  "zksync_vlog",
+ "zksync_vm2",
 ]
 
 [[package]]
