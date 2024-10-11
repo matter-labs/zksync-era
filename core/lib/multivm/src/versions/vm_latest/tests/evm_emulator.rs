@@ -55,7 +55,7 @@ fn tracing_evm_contract_deployment() {
         .build();
     let account = &mut vm.rich_accounts[0];
 
-    let args = [Token::Bytes((0..=u8::MAX).collect())];
+    let args = [Token::Bytes((0..32).collect())];
     let evm_bytecode = ethabi::encode(&args);
     let expected_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
     let execute = Execute::for_deploy(expected_bytecode_hash, vec![0; 32], &args);

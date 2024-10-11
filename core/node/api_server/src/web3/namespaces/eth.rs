@@ -12,7 +12,7 @@ use zksync_types::{
     web3::{self, Bytes, SyncInfo, SyncState},
     AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
 };
-use zksync_utils::u256_to_h256;
+use zksync_utils::{bytecode::BytecodeMarker, u256_to_h256};
 use zksync_web3_decl::{
     error::Web3Error,
     types::{Address, Block, Filter, FilterChanges, Log, U64},
@@ -385,8 +385,6 @@ impl EthNamespace {
         address: Address,
         block_id: Option<BlockId>,
     ) -> Result<Bytes, Web3Error> {
-        const EVM_BYTECODE_MARKER: u8 = 2;
-
         let block_id = block_id.unwrap_or(BlockId::Number(BlockNumber::Pending));
         self.current_method().set_block_id(block_id);
 
@@ -403,8 +401,8 @@ impl EthNamespace {
             return Ok(Bytes::default());
         };
         // Check if the bytecode is an EVM bytecode, and if so, pre-process it correspondingly.
-        let prepared_bytecode = if contract_code.bytecode_hash.as_bytes()[0] == EVM_BYTECODE_MARKER
-        {
+        let marker = BytecodeMarker::new(contract_code.bytecode_hash);
+        let prepared_bytecode = if marker == Some(BytecodeMarker::Evm) {
             prepare_evm_bytecode(&contract_code.bytecode).with_context(|| {
                 format!(
                     "malformed EVM bytecode at address {address:?}, hash = {:?}",
