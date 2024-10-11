@@ -68,6 +68,18 @@ pub struct L1BatchHeader {
     pub fee_address: Address,
 }
 
+impl L1BatchHeader {
+    pub fn to_unsealed_header(&self, fee_input: BatchFeeInput) -> UnsealedL1BatchHeader {
+        UnsealedL1BatchHeader {
+            number: self.number,
+            timestamp: self.timestamp,
+            protocol_version: self.protocol_version,
+            fee_address: self.fee_address,
+            fee_input,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnsealedL1BatchHeader {
     pub number: L1BatchNumber,

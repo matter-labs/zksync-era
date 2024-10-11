@@ -1,12 +1,14 @@
-{ cargoArtifacts
-, craneLib
+{ craneLib
 , commonArgs
 }:
 craneLib.buildPackage (commonArgs // {
   pname = "zksync";
   version = (builtins.fromTOML (builtins.readFile ../../core/bin/zksync_tee_prover/Cargo.toml)).package.version;
   cargoExtraArgs = "--all";
-  inherit cargoArtifacts;
+
+  cargoArtifacts = craneLib.buildDepsOnly (commonArgs // {
+    pname = "zksync-era-workspace";
+  });
 
   outputs = [
     "out"
