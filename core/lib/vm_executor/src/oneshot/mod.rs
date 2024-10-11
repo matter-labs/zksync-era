@@ -233,7 +233,7 @@ where
                             }
                         }
                         ExecutionResult::Revert { output } => {
-                            Err(ValidationError::FailedTx(Halt::ValidationFailed(output)))
+                            unreachable!("Revert can only happen at the end of a transaction")
                         }
                         ExecutionResult::Success { .. } => Ok(()),
                     }
