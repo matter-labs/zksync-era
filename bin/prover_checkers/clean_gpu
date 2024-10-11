@@ -14,7 +14,7 @@ echo "Processes using the GPU: $pids"
 # Loop through each PID and kill the process
 for pid in $pids; do
   echo "Killing process with PID: $pid"
-  kill -9 $pid
+  sudo kill -9 $pid
 done
 
 echo "All GPU processes have been killed."
