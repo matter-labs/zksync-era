@@ -57,7 +57,7 @@ pub async fn init_configs(
     }
 
     let mut general_config = chain_config.get_general_config()?;
-  
+
     if general_config.proof_data_handler_config.is_some() && general_config.prover_gateway.is_some()
     {
         let proof_data_handler_config = general_config.proof_data_handler_config.clone().unwrap();
