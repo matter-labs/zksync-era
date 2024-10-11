@@ -126,8 +126,10 @@ install_local() {
   fi
 
   if [ "$ZKSTACKUP_PATH" = "./" ]; then
-    git config --local core.hooksPath ||
-    git config --local core.hooksPath ./.githooks
+    if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      git config --local core.hooksPath ||
+      git config --local core.hooksPath ./.githooks
+    fi
   fi
 
   if [ -n "$ZKSTACKUP_BRANCH" ] || [ -n "$ZKSTACKUP_COMMIT" ] || [ -n "$ZKSTACKUP_VERSION" ] || [ -n "$ZKSTACKUP_REPO" ]; then
