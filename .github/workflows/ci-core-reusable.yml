@@ -59,8 +59,8 @@ jobs:
       
       - name: Install zkstack
         run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path $ZKSYNC_HOME
-          ci_run zkstackup -g --path $ZKSYNC_HOME
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./
+          ci_run zkstackup -g --path ./
 
       - name: Build contracts
         run: |
@@ -123,8 +123,8 @@ jobs:
 
       - name: Install zkstack
         run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path $ZKSYNC_HOME || true
-          ci_run zkstackup -g --path $ZKSYNC_HOME
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./ || true
+          ci_run zkstackup -g --path ./
   
 
       - name: Create and initialize legacy chain
@@ -193,8 +193,8 @@ jobs:
 
       - name: Install zkstack
         run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path $ZKSYNC_HOME || true
-          ci_run zkstackup -g --path $ZKSYNC_HOME
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./ || true
+          ci_run zkstackup -g --path ./
   
       - name: Create log directories
         run: |

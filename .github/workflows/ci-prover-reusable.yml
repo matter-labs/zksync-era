@@ -32,8 +32,8 @@ jobs:
 
       - name: Install zkstack
         run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path $ZKSYNC_HOME
-          ci_run zkstackup -g --path $ZKSYNC_HOME
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./
+          ci_run zkstackup -g --path ./
 
       - name: Database setup
         run: |
@@ -71,8 +71,8 @@ jobs:
 
       - name: Install zkstack
         run: |
-          ci_run ./zkstack_cli/zkstackup/install -g --path $ZKSYNC_HOME || true
-          ci_run zkstackup -g --path $ZKSYNC_HOME
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./ || true
+          ci_run zkstackup -g --path ./
 
       - name: Init
         run: |
