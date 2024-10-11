@@ -456,13 +456,7 @@ mod tests {
             .await
             .unwrap()
             .blocks_dal()
-            .insert_l1_batch(
-                l1_batch_env.number,
-                l1_batch_env.timestamp,
-                None,
-                l1_batch_env.fee_account,
-                l1_batch_env.fee_input,
-            )
+            .insert_l1_batch(l1_batch_env.into_unsealed_header(None))
             .await
             .unwrap();
 

@@ -39,7 +39,7 @@ jobs:
               - '!prover/**'
   setup:
     name: Setup
-    runs-on: [ matterlabs-deployer-stage ]
+    runs-on: [matterlabs-deployer-stage]
     outputs:
       image_tag_suffix: ${{ steps.generate-tag-suffix.outputs.image_tag_suffix }}
       prover_fri_gpu_key_id: ${{ steps.extract-prover-fri-setup-key-ids.outputs.gpu_short_commit_sha }}
@@ -58,11 +58,10 @@ jobs:
         run: |
           ./prover/extract-setup-data-keys.sh >> $GITHUB_OUTPUT
 
-
   build-push-core-images:
     name: Build and push images
-    needs: [ setup, changed_files ]
-    uses: ./.github/workflows/build-core-template.yml
+    needs: [setup, changed_files]
+    uses: ./.github/workflows/new-build-core-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -72,7 +71,7 @@ jobs:
 
   build-push-tee-prover-images:
     name: Build and push images
-    needs: [ setup, changed_files ]
+    needs: [setup, changed_files]
     uses: ./.github/workflows/build-tee-prover-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:
@@ -84,8 +83,8 @@ jobs:
 
   build-push-contract-verifier:
     name: Build and push images
-    needs: [ setup, changed_files ]
-    uses: ./.github/workflows/build-contract-verifier-template.yml
+    needs: [setup, changed_files]
+    uses: ./.github/workflows/new-build-contract-verifier-template.yml
     if: needs.changed_files.outputs.core == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -95,8 +94,8 @@ jobs:
 
   build-push-prover-images:
     name: Build and push images
-    needs: [ setup, changed_files ]
-    uses: ./.github/workflows/build-prover-template.yml
+    needs: [setup, changed_files]
+    uses: ./.github/workflows/new-build-prover-template.yml
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}
@@ -108,12 +107,11 @@ jobs:
 
   build-push-witness-generator-image-avx512:
     name: Build and push prover images with avx512 instructions
-    needs: [ setup, changed_files ]
-    uses: ./.github/workflows/build-witness-generator-template.yml
+    needs: [setup, changed_files]
+    uses: ./.github/workflows/new-build-witness-generator-template.yml
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
       image_tag_suffix: ${{ needs.setup.outputs.image_tag_suffix }}-avx512
-      ERA_BELLMAN_CUDA_RELEASE: ${{ vars.ERA_BELLMAN_CUDA_RELEASE }}
       CUDA_ARCH: "60;70;75;80;89"
       WITNESS_GENERATOR_RUST_FLAGS: "-Ctarget_feature=+avx512bw,+avx512cd,+avx512dq,+avx512f,+avx512vl "
     secrets:
@@ -122,7 +120,7 @@ jobs:
 
   build-gar-prover-fri-gpu-and-circuit-prover-gpu-gar:
     name: Build GAR prover FRI GPU
-    needs: [ setup, build-push-prover-images ]
+    needs: [setup, build-push-prover-images]
     uses: ./.github/workflows/build-prover-fri-gpu-gar-and-circuit-prover-gpu-gar.yml
     if: needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true'
     with:
