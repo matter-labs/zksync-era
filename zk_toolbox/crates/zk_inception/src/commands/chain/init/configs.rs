@@ -2,7 +2,7 @@ use anyhow::Context;
 use common::logger;
 use config::{
     copy_configs, set_l1_rpc_url, traits::SaveConfigWithBasePath, update_from_chain_config,
-    ChainConfig, ContractsConfig, EcosystemConfig, DEFAULT_CONSENSUS_PORT,
+    ChainConfig, ContractsConfig, EcosystemConfig,
 };
 use ethers::types::Address;
 use xshell::Shell;
@@ -15,13 +15,12 @@ use crate::{
         },
         portal::update_portal_config,
     },
-    defaults::PORT_RANGE_END,
     messages::{
-        MSG_CHAIN_CONFIGS_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR,
+        MSG_CHAIN_CONFIGS_INITIALIZED, MSG_CHAIN_NOT_FOUND_ERR, MSG_CONSENSUS_CONFIG_MISSING_ERR,
         MSG_PORTAL_FAILED_TO_CREATE_CONFIG_ERR,
     },
     utils::{
-        consensus::{generate_consensus_keys, get_consensus_config, get_consensus_secrets},
+        consensus::{generate_consensus_keys, get_consensus_secrets, get_genesis_specs},
         ports::EcosystemPortsScanner,
     },
 };
@@ -57,22 +56,14 @@ pub async fn init_configs(
         )?;
     }
 
-    // Initialize general config
     let mut general_config = chain_config.get_general_config()?;
-
-    // TODO: This is a temporary solution. We should allocate consensus port using `EcosystemPorts::allocate_ports_in_yaml`
-    let offset = ((chain_config.id - 1) * 100) as u16;
-    let consensus_port_range = DEFAULT_CONSENSUS_PORT + offset..PORT_RANGE_END;
-    let consensus_port =
-        ecosystem_ports.allocate_port(consensus_port_range, "Consensus".to_string())?;
+    let mut consensus_config = general_config
+        .consensus_config
+        .context(MSG_CONSENSUS_CONFIG_MISSING_ERR)?;
 
     let consensus_keys = generate_consensus_keys();
-    let consensus_config = get_consensus_config(
-        chain_config,
-        consensus_port,
-        Some(consensus_keys.clone()),
-        None,
-    )?;
+    consensus_config.genesis_spec = Some(get_genesis_specs(chain_config, &consensus_keys));
+
     general_config.consensus_config = Some(consensus_config);
     general_config.save_with_base_path(shell, &chain_config.configs)?;
 

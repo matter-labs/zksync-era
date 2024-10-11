@@ -606,3 +606,37 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
 
     assert_eq!(old_l1_batch_params, new_l1_batch_params);
 }
+
+#[test_casing(2, COMMITMENT_MODES)]
+#[tokio::test]
+async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let mut tester = Tester::new(commitment_mode);
+    tester.genesis(&connection_pool).await;
+    let fee_input = BatchFeeInput::pubdata_independent(55, 555, 5555);
+    let tx_result = tester
+        .insert_l2_block(&connection_pool, 1, 5, fee_input)
+        .await;
+    tester
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .await;
+    // Pre-insert L2 block without its unsealed L1 batch counterpart
+    tester.set_timestamp(2);
+    tester
+        .insert_l2_block(&connection_pool, 2, 5, fee_input)
+        .await;
+
+    let (mut mempool, _) = tester.create_test_mempool_io(connection_pool.clone()).await;
+    // Initialization is supposed to recognize that the current L1 batch is not present in the DB and
+    // insert it itself.
+    let (cursor, _) = mempool.initialize().await.unwrap();
+
+    // Make sure we are able to fetch the newly inserted batch's params
+    let l1_batch_params = mempool
+        .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
+        .await
+        .unwrap()
+        .expect("no batch params generated");
+    assert_eq!(l1_batch_params.fee_input, fee_input);
+    assert_eq!(l1_batch_params.first_l2_block.timestamp, 2);
+}
