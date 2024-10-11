@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Get a list of PIDs using the GPU
-pids=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader)
+pids=$(ps ax | grep -E 'zksync_prover_fri|zk_inception prover run --component=prover --docker=false' | grep -v grep | awk '{print $1}')
 
 # Check if there are any processes using the GPU
 if [ -z "$pids" ]; then

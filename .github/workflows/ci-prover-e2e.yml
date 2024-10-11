@@ -111,8 +111,7 @@ jobs:
           
           ci_run sleep 120
           
-          nvidia-smi
-          ci_run nvidia-smi
+          ps ax | grep -E 'zksync_prover_fri|zk_inception prover run --component=prover --docker=false' | grep -v grep | awk '{print $1}'
           ps ax
       - name: Wait for prover jobs to finish
         env:
