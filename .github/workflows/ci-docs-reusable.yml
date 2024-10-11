@@ -36,4 +36,5 @@ jobs:
 
       - name: Lints
         run: |
+          ci_run zkstack dev fmt --check
           ci_run zkstack dev lint -t md --check
