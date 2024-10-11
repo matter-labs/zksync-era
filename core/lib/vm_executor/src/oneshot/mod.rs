@@ -20,9 +20,9 @@ use zksync_multivm::{
         storage::{ReadStorage, StorageView, StorageWithOverrides},
         tracer::{ValidationError, ValidationParams, ViolatedValidationRule},
         utils::{DivergenceHandler, ShadowVm},
-        Call, ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
-        StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode, VmFactory,
-        VmInterface,
+        Call, ExecutionResult, Halt, OneshotEnv, OneshotTracingParams,
+        OneshotTransactionExecutionResult, StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode,
+        VmExecutionMode, VmFactory, VmInterface,
     },
     is_supported_by_fast_vm,
     tracers::{CallTracer, StorageInvocations, TracerDispatcher, ValidationTracer},
@@ -251,6 +251,7 @@ where
                 }
 
                 Vm::Fast(FastVmInstance::Fast(vm)) => {
+                    vm.stop_after_validation();
                     vm.push_transaction(transaction);
                     let mut tracer =
                         zksync_multivm::vm_fast::validation_tracer::ValidationTracer::default();
@@ -265,8 +266,10 @@ where
                                 Err(ValidationError::FailedTx(reason))
                             }
                         }
-                        // We don't check that the transaction is valid, just that validation doesn't break any rules.
-                        ExecutionResult::Revert { .. } | ExecutionResult::Success { .. } => Ok(()),
+                        ExecutionResult::Revert { output } => {
+                            Err(ValidationError::FailedTx(Halt::ValidationFailed(output)))
+                        }
+                        ExecutionResult::Success { .. } => Ok(()),
                     }
                 }
 
