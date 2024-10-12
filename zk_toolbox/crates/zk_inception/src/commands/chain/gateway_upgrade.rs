@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
@@ -20,10 +20,10 @@ use config::{
     ChainConfig, EcosystemConfig,
 };
 use ethers::{
-    abi::{encode, parse_abi, Token},
+    abi::{decode, encode, parse_abi, ParamType, Token},
     contract::BaseContract,
     providers::{Http, Middleware, Provider},
-    types::Bytes,
+    types::{transaction::eip2718::TypedTransaction, Bytes, NameOrAddress, TransactionRequest},
     utils::hex,
 };
 use lazy_static::lazy_static;
@@ -418,31 +418,26 @@ async fn finalize_stage1(
         l1_url,
     ).await?;
 
-    // let eth_client = Client::<L1>::http(secrets_config.l1.context("l1 secrets")?.l1_rpc_url.clone())
-    //     .context("Ethereum client")?
-    //     .build();
     // FIXME: use some struct from zksync-era
     let provider = ethers::providers::Provider::new_client(
-        secrets_config.l1.context("l1 secrets")?.l1_rpc_url.clone().expose_str(), 
+        secrets_config.l1.clone().context("l1 secrets")?.l1_rpc_url.clone().expose_str(), 
         109, 
-        0
+        100
     ).unwrap();
-    let chain = ethers::contract::Contract::new(
-        contracts_config.l1.diamond_proxy_addr,
-        ZK_CHAIN.clone(),
-        Arc::new(provider)
-    );
+    let result1 = provider.call(&TypedTransaction::Legacy(TransactionRequest {
+        to: Some(NameOrAddress::Address(contracts_config.l1.diamond_proxy_addr)),
+        // TODO: maybe use a contract, but for some reason it did not work
+        data: Some(Bytes::from_str("f4ff5e2e").unwrap()),
+        ..TransactionRequest::default()
+    }), None).await?;
+    let priority_tree_start_index = decode(&[ParamType::Uint(32)], &result1)?.pop().unwrap().into_uint().unwrap();
 
-    let data = chain.method::<(), Token>("getPriorityTreeStartIndex", ()).unwrap().call().await?;
-    let priority_tree_start_index = data.into_uint().expect("bad data");
-    // let priority_tree_start_index = 
-
-
-    geneal_config.eth.context("general_config_eth")?.sender.context("eth sender")?.priority_tree_start_index = Some(
+    geneal_config.eth.as_mut().context("general_config_eth")?.sender.as_mut().context("eth sender")?.priority_tree_start_index = Some(
         priority_tree_start_index.as_usize()
     );
 
-    contracts_config.save_with_base_path(shell, chain_config.configs)?;
+    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+    geneal_config.save_with_base_path(shell, &chain_config.configs)?;
 
     println!("done!");
 
