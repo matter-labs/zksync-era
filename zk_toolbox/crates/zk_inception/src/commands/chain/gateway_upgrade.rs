@@ -50,6 +50,9 @@ pub enum GatewayChainUpgradeStage {
     // Does not require admin, still needs to be done to update configs, etc
     PrepareStage1,
 
+    // Used to schedule an upgrade.
+    ScheduleStage1,
+
     // Should be executed after Stage1 of the governance upgrade
     FinalizeStage1,
 
@@ -103,6 +106,7 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
         GatewayChainUpgradeStage::PrepareStage1 => {
             prepare_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
         }
+        GatewayChainUpgradeStage::ScheduleStage1 => schedule_stage1(shell, args, ecosystem_config, chain_config, l1_url).await,
         GatewayChainUpgradeStage::FinalizeStage1 => {
             finalize_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
         }
@@ -263,6 +267,35 @@ async fn prepare_stage1(
     contracts_config.l2.legacy_shared_bridge_addr = contracts_config.bridges.shared.l2_address;
 
     contracts_config.save_with_base_path(shell, chain_config.configs)?;
+
+    Ok(())
+}
+
+
+async fn schedule_stage1(
+    shell: &Shell,
+    args: GatewayUpgradeArgs,
+    ecosystem_config: EcosystemConfig,
+    chain_config: ChainConfig,
+    l1_url: String,
+) -> anyhow::Result<()> {
+    println!("Schedule stage1 of the upgrade!!");
+
+    admin_schedule_upgrade(
+        shell,
+        &ecosystem_config,
+        &chain_config.get_contracts_config()?,
+        // TODO: maybe not have it as a constant
+        U256::from(0x1900000000 as u64),
+        // We only do instant upgrades for now
+        U256::zero(),
+        chain_config.get_wallets_config()?.governor_private_key(),
+        &args.forge_args,
+        l1_url.clone(),
+    )
+    .await?;
+
+    println!("done!");
 
     Ok(())
 }
