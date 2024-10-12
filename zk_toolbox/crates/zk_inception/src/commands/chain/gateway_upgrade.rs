@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use common::{
@@ -18,7 +20,7 @@ use config::{
     ChainConfig, EcosystemConfig,
 };
 use ethers::{
-    abi::{encode, parse_abi},
+    abi::{encode, parse_abi, Token},
     contract::BaseContract,
     providers::{Http, Middleware, Provider},
     types::Bytes,
@@ -32,13 +34,23 @@ use xshell::Shell;
 use zksync_basic_types::{settlement::SettlementMode, H256, U256, U64};
 use zksync_config::configs::{chain, eth_sender::PubdataSendingMode};
 use zksync_types::{web3::keccak256, Address, L2ChainId, H160, L2_NATIVE_TOKEN_VAULT_ADDRESS};
-use zksync_web3_decl::client::{Client, L2};
+use zksync_web3_decl::{client::{Client, L1, L2}, jsonrpsee::http_client::HttpClient};
 
 use crate::{
     accept_ownership::{admin_execute_upgrade, admin_schedule_upgrade, admin_update_validator, set_da_validator_pair},
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
+
+lazy_static! {
+    static ref ZK_CHAIN: BaseContract = BaseContract::from(
+        parse_abi(&[
+            "function getPriorityTreeStartIndex() public",
+        ])
+        .unwrap(),
+    );
+}
+
 
 #[derive(
     Debug, Serialize, Deserialize, Clone, Copy, ValueEnum, EnumIter, strum::Display, PartialEq, Eq,
@@ -309,7 +321,9 @@ async fn finalize_stage1(
 ) -> anyhow::Result<()> {
     println!("Finalizing stage1 of chain upgrade!");
 
+    let mut geneal_config = chain_config.get_general_config()?;
     let mut contracts_config = chain_config.get_contracts_config()?;
+    let secrets_config = chain_config.get_secrets_config()?;
     let gateway_ecosystem_preparation_output =
         GatewayEcosystemUpgradeOutput::read_with_base_path(shell, &ecosystem_config.config)?;
 
@@ -403,6 +417,30 @@ async fn finalize_stage1(
         &args.forge_args,
         l1_url,
     ).await?;
+
+    // let eth_client = Client::<L1>::http(secrets_config.l1.context("l1 secrets")?.l1_rpc_url.clone())
+    //     .context("Ethereum client")?
+    //     .build();
+    // FIXME: use some struct from zksync-era
+    let provider = ethers::providers::Provider::new_client(
+        secrets_config.l1.context("l1 secrets")?.l1_rpc_url.clone().expose_str(), 
+        109, 
+        0
+    ).unwrap();
+    let chain = ethers::contract::Contract::new(
+        contracts_config.l1.diamond_proxy_addr,
+        ZK_CHAIN.clone(),
+        Arc::new(provider)
+    );
+
+    let data = chain.method::<(), Token>("getPriorityTreeStartIndex", ()).unwrap().call().await?;
+    let priority_tree_start_index = data.into_uint().expect("bad data");
+    // let priority_tree_start_index = 
+
+
+    geneal_config.eth.context("general_config_eth")?.sender.context("eth sender")?.priority_tree_start_index = Some(
+        priority_tree_start_index.as_usize()
+    );
 
     contracts_config.save_with_base_path(shell, chain_config.configs)?;
 
