@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Get a list of PIDs using the GPU
-pids=$(ps ax | grep -E 'zksync_circuit_prover|zk_inception prover run --component=circuit-prover' | grep -v grep | awk '{print $1}')
+pids=$(ps ax | grep -E 'zksync_prover_fri --config-path|zk_inception prover run --component=prover --docker' | grep -v grep | awk '{print $1}')
 
 # Check if there are any processes using the GPU
 if [ -z "$pids" ]; then
@@ -9,7 +9,7 @@ if [ -z "$pids" ]; then
   exit 0
 fi
 
-processes=$(ps ax | grep -E 'zksync_circuit_prover|zk_inception prover run --component=circuit-prover' | grep -v grep)
+processes=$(ps ax | grep -E 'zksync_prover_fri --config-path|zk_inception prover run --component=prover --docker' | grep -v grep)
 
 echo "Processes using the GPU: $processes"
 

@@ -71,8 +71,7 @@ jobs:
           ci_run zk_inception ecosystem init --dev --verbose
           ci_run zk_inception prover init --dev --verbose
           
-          
-          echo $(grep "http_url" ./chains/provers/configs/general.yaml | awk '{ print $2 }')
+          echo "URL=$(grep "http_url" ./chains/provers/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
       - name: Build prover binaries
         run: |
           ci_run cargo build --release --workspace --manifest-path=prover/Cargo.toml
@@ -134,10 +133,6 @@ jobs:
             TIMEOUT: 600
         run: |
           ci_run chmod +x ./bin/prover_checkers/batch_l1_status_checker
-          
-          echo "URL=$(grep "http_url" ./chains/provers/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
-          
-          echo $URL
           
           PASSED_ENV_VARS="BATCH_NUMBER,DATABASE_URL,URL,INTERVAL,TIMEOUT" \
           ci_run ./bin/prover_checkers/batch_l1_status_checker
