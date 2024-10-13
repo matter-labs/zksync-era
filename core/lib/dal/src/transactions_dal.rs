@@ -620,6 +620,7 @@ impl TransactionsDal<'_, '_> {
         let refund_recipient = tx.common_data.refund_recipient.as_bytes();
         let paymaster_address = H160::zero();
         let paymaster = paymaster_address.0.as_ref();
+        let merkle_proof = tx.common_data.merkle_proof.clone();
         // let paymaster_input = &tx.common_data.paymaster_params.paymaster_input;
         let secs = (tx.received_timestamp_ms / 1000) as i64;
         let nanosecs = ((tx.received_timestamp_ms % 1000) * 1_000_000) as u32;
@@ -653,6 +654,7 @@ impl TransactionsDal<'_, '_> {
                 value,
                 paymaster,
                 paymaster_input,
+                merkle_proof,
                 execution_info,
                 received_at,
                 l1_tx_mint,
@@ -676,6 +678,7 @@ impl TransactionsDal<'_, '_> {
                 $11,
                 $12,
                 $13,
+                $20,
                 JSONB_BUILD_OBJECT(
                     'gas_used',
                     $14::BIGINT,
@@ -704,6 +707,7 @@ impl TransactionsDal<'_, '_> {
             value = $11,
             paymaster = $12,
             paymaster_input = $13,
+            merkle_proof = $20,
             execution_info
             = JSONB_BUILD_OBJECT(
                 'gas_used',
@@ -754,7 +758,8 @@ impl TransactionsDal<'_, '_> {
             exec_info.contracts_used as i32,
             received_at,
             to_mint,
-            refund_recipient
+            refund_recipient,
+            &merkle_proof as &[u8],
         )
         .instrument("insert_transaction_xl2")
         .with_arg("tx_hash", &tx_hash)
@@ -1420,6 +1425,7 @@ impl TransactionsDal<'_, '_> {
         let mut xl2_errors = Vec::with_capacity(xl2_txs_len);
         let mut xl2_effective_gas_prices = Vec::with_capacity(xl2_txs_len);
         let mut xl2_refunded_gas = Vec::with_capacity(xl2_txs_len);
+        let mut merkle_proof = Vec::with_capacity(xl2_txs_len);
         let paymaster = H160::zero();
         let paymaster_input: Vec<u8> = vec![0u8; 32];
 
@@ -1475,6 +1481,7 @@ impl TransactionsDal<'_, '_> {
             // ));
             xl2_gas_per_pubdata_limit.push(u256_to_big_decimal(common_data.gas_per_pubdata_limit));
             xl2_refunded_gas.push(refunded_gas);
+            merkle_proof.push(&common_data.merkle_proof[..]);
         }
 
         let query = sqlx::query!(
@@ -1495,6 +1502,7 @@ impl TransactionsDal<'_, '_> {
                 value,
                 paymaster,
                 paymaster_input,
+                merkle_proof,
                 execution_info,
                 miniblock_number,
                 index_in_block,
@@ -1520,6 +1528,7 @@ impl TransactionsDal<'_, '_> {
                 data_table.value,
                 data_table.paymaster,
                 data_table.paymaster_input,
+                data_table.merkle_proof,
                 data_table.new_execution_info,
                 $19,
                 data_table.index_in_block,
@@ -1545,6 +1554,7 @@ impl TransactionsDal<'_, '_> {
                         UNNEST($11::numeric []) AS value,
                         UNNEST($12::bytea []) AS paymaster,
                         UNNEST($13::bytea []) AS paymaster_input,
+                        UNNEST($20::bytea []) AS merkle_proof,
                         UNNEST($14::jsonb []) AS new_execution_info,
                         UNNEST($15::integer []) AS index_in_block,
                         UNNEST($16::varchar []) AS error,
@@ -1573,6 +1583,7 @@ impl TransactionsDal<'_, '_> {
             &xl2_effective_gas_prices,
             &xl2_refunded_gas,
             l2_block_number.0 as i32,
+            &merkle_proof as &[&[u8]],
         );
 
         instrumentation.with(query).execute(self.storage).await?;

@@ -30,7 +30,7 @@ import {
 } from '../src/constants';
 import { RetryProvider } from '../src/retry-provider';
 import { ETH_ADDRESS_IN_CONTRACTS } from 'zksync-ethers/build/utils';
-import { waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
+import { waitForBlockToBeFinalizedOnL1, waitUntilBlockFinalized } from '../src/helpers';
 // import { cwd } from 'process';
 
 export function readContract(path: string, fileName: string, contractName?: string) {
@@ -76,7 +76,7 @@ describe('Interop checks', () => {
     let assetId: string;
     // let baseTokenDetails: Token;
     let aliceErc20: zksync.Contract;
-    let aliceErc20OtherChain: zksync.Contract;
+    let tokenErc20OtherChain: zksync.Contract;
     // let l2NativeTokenVault: ethers.Contract;
 
     beforeAll(async () => {
@@ -152,16 +152,12 @@ describe('Interop checks', () => {
         );
         assetId = await l2NativeTokenVault.assetId(tokenDetails.l2Address);
         let tokenAddressOtherChain = await l2NativeTokenVaultOtherChain.tokenAddress(assetId);
-        aliceErc20OtherChain = new zksync.Contract(tokenAddressOtherChain, zksync.utils.IERC20, bobOtherChain);
-
-        // console.log('kl todo token assetId', assetId);
-        // console.log('kl todo tokenAddressOtherChain', tokenAddressOtherChain);
-        // console.log("kl todo bobOtherChain", bobOtherChain.address);
+        tokenErc20OtherChain = new zksync.Contract(tokenAddressOtherChain, zksync.utils.IERC20, bobOtherChain);
 
         // we might rerun the code multiple times, so we need to check if the token is already deployed
         let tokenBalanceBefore;
         if (tokenAddressOtherChain !== ethers.ZeroAddress) {
-            tokenBalanceBefore = await aliceErc20OtherChain.balanceOf(bobOtherChain.address);
+            tokenBalanceBefore = await tokenErc20OtherChain.balanceOf(bobOtherChain.address);
         } else {
             tokenBalanceBefore = 0;
         }
@@ -202,58 +198,56 @@ describe('Interop checks', () => {
             0
         );
 
-        // console.log('kl todo message', message);
-        let decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode([BRIDGEHUB_L2_TRANSACTION_REQUEST_ABI], message);
-
-        const xl2Input = {
-            sender: decodedRequest[0][0],
-            contractL2: decodedRequest[0][1],
-            mintValue: decodedRequest[0][2],
-            l2Value: decodedRequest[0][3],
-            l2Calldata: decodedRequest[0][4],
-            l2GasLimit: decodedRequest[0][5],
-            l2GasPerPubdataByteLimit: decodedRequest[0][6],
-            factoryDeps: decodedRequest[0][7],
-            refundRecipient: decodedRequest[0][8]
-        };
-        const tx2 = await l1Mailbox.requestXL2TransactionOnL1(xl2Input);
-        await new Promise((resolve) => setTimeout(resolve, 10000));
-        tokenAddressOtherChain = await l2NativeTokenVaultOtherChain.tokenAddress(assetId);
-        aliceErc20OtherChain = new zksync.Contract(tokenAddressOtherChain, zksync.utils.IERC20, bobOtherChain);
-        const tokenBalanceAfter = await aliceErc20OtherChain.balanceOf(bobOtherChain.address);
-        expect(tokenBalanceAfter).toBeGreaterThan(tokenBalanceBefore);
-
-        // console.log('kl todo tx2', tx2);
-
         // to just test the receive part
         // let message = ethers.ZeroHash;
         // const l2TxNumberInBlock = 0;
         // const l1BatchNumber = 0;
         // const l2MessageIndex = 0;
 
-        // const log = {
-        //     l2ShardId: 0,
-        //     isService: true,
-        //     txNumberInBatch: l2TxNumberInBlock,
-        //     sender: L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
-        //     key: ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [alice.address])),
-        //     value: ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['bytes'], [message]))
-        // };
-        // const L2LogString =
-        //     'tuple(uint8 l2ShardId,bool isService,uint16 txNumberInBatch,address sender,bytes32 key,bytes32 value)';
-        // const leafHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode([L2LogString], [log]));
+        let decodedRequest =ethers.AbiCoder.defaultAbiCoder().decode([BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI], "0x" + message.slice(2));
+
+        const xl2Input = {
+            txType: decodedRequest[0][0],
+            from: decodedRequest[0][1],
+            to: decodedRequest[0][2],
+            gasLimit: decodedRequest[0][3],
+            gasPerPubdataByteLimit: decodedRequest[0][4],
+            maxFeePerGas: decodedRequest[0][5],
+            maxPriorityFeePerGas: decodedRequest[0][6],
+            paymaster: decodedRequest[0][7],
+            nonce: decodedRequest[0][8],
+            value: decodedRequest[0][9],
+            reserved: [decodedRequest[0][10][0], decodedRequest[0][10][1], decodedRequest[0][10][2], decodedRequest[0][10][3]],
+            data: decodedRequest[0][11],
+            signature: decodedRequest[0][12],
+            factoryDeps: decodedRequest[0][13],
+            paymasterInput: decodedRequest[0][14],
+            reservedDynamic: decodedRequest[0][15]
+        };
+
+        const log = {
+            l2ShardId: 0,
+            isService: true,
+            txNumberInBatch: l2TxNumberInBlock,
+            sender: L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
+            key: ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [alice.address])),
+            value: ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['bytes'], [message]))
+        };
+        const L2LogString =
+            'tuple(uint8 l2ShardId,bool isService,uint16 txNumberInBatch,address sender,bytes32 key,bytes32 value)';
+        const leafHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode([L2LogString], [log]));
         // // const proof1 =  ethers.ZeroHash + ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [271]).slice(2);
         // // const proof1 = ethers.ZeroHash + ethers.AbiCoder.defaultAbiCoder().encode(['bytes'], [ethers.ZeroHash]).slice(2);
         // console.log('kl todo leafHash', leafHash);
-        // const proof1 =
-        //     ethers.ZeroHash +
-        //     ethers.AbiCoder.defaultAbiCoder()
-        //         // .encode(['uint256', 'uint256', 'uint256', 'uint256', 'uint256'], [1, 2, 3, 4, 5])
-        //         .encode(
-        //             ['uint256', 'uint256', 'uint256', 'bytes32'],
-        //             [sendingChainId, l1BatchNumber, l2MessageIndex, leafHash]
-        //         )
-        //         .slice(2);
+        const proof1 =
+            ethers.ZeroHash +
+            ethers.AbiCoder.defaultAbiCoder()
+                // .encode(['uint256', 'uint256', 'uint256', 'uint256', 'uint256'], [1, 2, 3, 4, 5])
+                .encode(
+                    ['uint256', 'uint256', 'uint256', 'bytes32'],
+                    [sendingChainId, l1BatchNumber, l2MessageIndex, leafHash]
+                )
+                .slice(2);
 
         // to pring proof for debugging in bootloader tests
         // const result: string[] = [];
@@ -266,36 +260,48 @@ describe('Interop checks', () => {
         /// sending the interop tx
 
         {
-            // const sender = L2_ASSET_ROUTER_ADDRESS;
-            // const nonce = (await bobOtherChain.providerL1!.getTransactionCount(sender)) + 1;
-            // const interopTx = {
-            //     chainId: secondChainId,
-            //     // to: '0x0000000000000000000000000000000000020004',
-            //     to: bobOtherChain.address,
-            //     from: sender,
-            //     nonce: nonce,
-            //     calldata: message as ethers.BytesLike,
-            //     customData: {
-            //         paymaster_params: { paymaster: ethers.ZeroAddress, paymasterInput: '0x' },
-            //         merkleProof: proof1,
-            //         fullFee: '0xf000000000000000',
-            //         toMint: '0xf000000000000000000000000000000000',
-            //         refundRecipient: await alice.getAddress()
-            //         // customSignature: ethers.ZeroHash
-            //     },
-            //     maxFeePerGas: 276250000,
-            //     maxPriorityFeePerGas: 140000000,
-            //     gasLimit: '0x37E11D599',
-            //     type: INTEROP_TX_TYPE,
-            //     value: '0xf000000000000000'
-            // };
-            // const hexTx = zksync.utils.serializeEip712(interopTx);
+            const nonce = Math.floor(Math.random() * 1000000);
+
+            const interopTx = {
+                chainId: secondChainId,
+                to: "0x" + xl2Input.to.toString(16).padStart(40, '0'),
+                from: "0x" + xl2Input.from.toString(16).padStart(40, '0'),
+                data: xl2Input.data,
+                nonce: nonce,
+                customData: {
+                    paymaster_params: { paymaster: ethers.ZeroAddress, paymasterInput: '0x' },
+                    merkleProof: proof1,
+                    fullFee: '0xf000000000000000',
+                    toMint: '0xf000000000000000000000000000000000',
+                    refundRecipient: await alice.getAddress()
+                    // customSignature: ethers.ZeroHash
+                },
+                maxFeePerGas: 276250000,
+                maxPriorityFeePerGas: 140000000,
+                gasLimit: '0x37E11D599',
+                type: INTEROP_TX_TYPE,
+                value: "0x0" //'0xf000000000000000'
+            };
+            const hexTx = zksync.utils.serializeEip712(interopTx);
+            // console.log('kl todo interopTx', interopTx);
             // console.log('kl todo serialized tx', hexTx, nonce.toString(16));
             // const modified = {...interopTx, nonce: 123456};
             // console.log('kl todo serialized tx', zksync.utils.serializeEip712(modified), (123456).toString(16));
             // alice.provider.getRpcTransaction(interopTx);
-            // const tx = await l2ProviderOtherChain.broadcastTransaction(hexTx);
+            const tx = await l2ProviderOtherChain.broadcastTransaction(hexTx);
             // console.log('kl todo tx', tx);
+            await waitUntilBlockFinalized(bobOtherChain, tx.blockNumber!);
+            await new Promise((resolve) => setTimeout(resolve, 10000)); 
+
+            tokenAddressOtherChain = await l2NativeTokenVaultOtherChain.tokenAddress(assetId);
+            tokenErc20OtherChain = new zksync.Contract(tokenAddressOtherChain, zksync.utils.IERC20, bobOtherChain);
+            const tokenBalanceAfter = await tokenErc20OtherChain.balanceOf(bobOtherChain.address);
+            console.log('kl todo token assetId', assetId);
+            console.log('kl todo tokenAddressOtherChain', tokenAddressOtherChain);
+            console.log("kl todo bobOtherChain", bobOtherChain.address);
+            console.log('kl todo tokenBalanceBefore', tokenBalanceBefore);
+            console.log('kl todo tokenBalanceAfter', tokenBalanceAfter);
+            expect(tokenBalanceAfter).toBeGreaterThan(tokenBalanceBefore);
         }
     });
 });

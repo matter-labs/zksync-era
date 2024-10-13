@@ -189,7 +189,8 @@ impl TxSender {
                 )
             })?;
 
-        if !tx.is_l1() && account_code_hash == H256::zero() {
+        if !tx.is_l1() && !tx.is_xl2() && account_code_hash == H256::zero() {
+            // println!("kl todo ensure sufficient balance {:?} {:?}", tx.is_l1(), tx.is_xl2());
             let balance = match state_override
                 .and_then(|overrides| overrides.get(&tx.initiator_account()))
                 .and_then(|account| account.balance)

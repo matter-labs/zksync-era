@@ -771,7 +771,7 @@ impl TransactionRequest {
         }
     }
 
-    fn get_tx_hash_with_signed_message(
+    pub fn get_tx_hash_with_signed_message(
         &self,
         signed_message: H256,
     ) -> Result<Option<H256>, SerializationTransactionError> {
