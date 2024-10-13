@@ -859,6 +859,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "circuit_prover_v2"
+version = "0.1.0"
+
+[[package]]
 name = "circuit_sequencer_api"
 version = "0.133.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

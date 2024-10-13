@@ -469,6 +469,7 @@ impl Keystore {
         Self::save_json_pretty(self.get_base_path().join("commitments.json"), &commitments)
     }
 
+    #[cfg(feature = "gpu")]
     /// Async loads mapping of all circuits to setup key, if successful
     pub async fn load_all_setup_key_mapping(
         &self,

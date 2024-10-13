@@ -28,6 +28,7 @@ use zksync_prover_fri_types::{
     },
     FriProofWrapper,
 };
+#[cfg(feature = "gpu")]
 use zksync_prover_keystore::GoldilocksGpuProverSetupData;
 
 type Transcript = GoldilocksPoisedon2Transcript;
@@ -42,6 +43,7 @@ pub enum Circuit {
 }
 
 impl Circuit {
+    #[cfg(feature = "gpu")]
     pub fn prove(
         &self,
         witness_vector: WitnessVec<GoldilocksField>,
@@ -67,6 +69,7 @@ impl Circuit {
         }
     }
 
+    #[cfg(feature = "gpu")]
     fn prove_base(
         circuit: &ZkSyncBaseLayerCircuit,
         witness_vector: WitnessVec<GoldilocksField>,
@@ -92,6 +95,7 @@ impl Circuit {
         Ok(proof)
     }
 
+    #[cfg(feature = "gpu")]
     fn prove_recursive(
         circuit: &ZkSyncRecursiveLayerCircuit,
         witness_vector: WitnessVec<GoldilocksField>,
