@@ -34,23 +34,24 @@ use xshell::Shell;
 use zksync_basic_types::{settlement::SettlementMode, H256, U256, U64};
 use zksync_config::configs::{chain, eth_sender::PubdataSendingMode};
 use zksync_types::{web3::keccak256, Address, L2ChainId, H160, L2_NATIVE_TOKEN_VAULT_ADDRESS};
-use zksync_web3_decl::{client::{Client, L1, L2}, jsonrpsee::http_client::HttpClient};
+use zksync_web3_decl::{
+    client::{Client, L1, L2},
+    jsonrpsee::http_client::HttpClient,
+};
 
 use crate::{
-    accept_ownership::{admin_execute_upgrade, admin_schedule_upgrade, admin_update_validator, set_da_validator_pair},
+    accept_ownership::{
+        admin_execute_upgrade, admin_schedule_upgrade, admin_update_validator,
+        set_da_validator_pair,
+    },
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
 lazy_static! {
-    static ref ZK_CHAIN: BaseContract = BaseContract::from(
-        parse_abi(&[
-            "function getPriorityTreeStartIndex() public",
-        ])
-        .unwrap(),
-    );
+    static ref ZK_CHAIN: BaseContract =
+        BaseContract::from(parse_abi(&["function getPriorityTreeStartIndex() public",]).unwrap(),);
 }
-
 
 #[derive(
     Debug, Serialize, Deserialize, Clone, Copy, ValueEnum, EnumIter, strum::Display, PartialEq, Eq,
@@ -118,7 +119,9 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
         GatewayChainUpgradeStage::PrepareStage1 => {
             prepare_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
         }
-        GatewayChainUpgradeStage::ScheduleStage1 => schedule_stage1(shell, args, ecosystem_config, chain_config, l1_url).await,
+        GatewayChainUpgradeStage::ScheduleStage1 => {
+            schedule_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
+        }
         GatewayChainUpgradeStage::FinalizeStage1 => {
             finalize_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
         }
@@ -283,7 +286,6 @@ async fn prepare_stage1(
     Ok(())
 }
 
-
 async fn schedule_stage1(
     shell: &Shell,
     args: GatewayUpgradeArgs,
@@ -400,11 +402,22 @@ async fn finalize_stage1(
     )
     .await?;
 
-    let l1_da_validator_contract = if chain_config.get_genesis_config()?.l1_batch_commit_data_generator_mode == L1BatchCommitmentMode::Rollup {
-        ecosystem_config.get_contracts_config()?.l1.rollup_l1_da_validator_addr
+    let l1_da_validator_contract = if chain_config
+        .get_genesis_config()?
+        .l1_batch_commit_data_generator_mode
+        == L1BatchCommitmentMode::Rollup
+    {
+        ecosystem_config
+            .get_contracts_config()?
+            .l1
+            .rollup_l1_da_validator_addr
     } else {
-        ecosystem_config.get_contracts_config()?.l1.validium_l1_da_validator_addr
-    }.context("l1 da validator")?;
+        ecosystem_config
+            .get_contracts_config()?
+            .l1
+            .validium_l1_da_validator_addr
+    }
+    .context("l1 da validator")?;
 
     set_da_validator_pair(
         shell,
@@ -413,28 +426,55 @@ async fn finalize_stage1(
         chain_config.get_wallets_config()?.governor_private_key(),
         contracts_config.l1.diamond_proxy_addr,
         l1_da_validator_contract,
-        contracts_config.l2.da_validator_addr.context("l2_da_validator_addr")?,
+        contracts_config
+            .l2
+            .da_validator_addr
+            .context("l2_da_validator_addr")?,
         &args.forge_args,
         l1_url,
-    ).await?;
+    )
+    .await?;
 
     // FIXME: use some struct from zksync-era
     let provider = ethers::providers::Provider::new_client(
-        secrets_config.l1.clone().context("l1 secrets")?.l1_rpc_url.clone().expose_str(), 
-        109, 
-        100
-    ).unwrap();
-    let result1 = provider.call(&TypedTransaction::Legacy(TransactionRequest {
-        to: Some(NameOrAddress::Address(contracts_config.l1.diamond_proxy_addr)),
-        // TODO: maybe use a contract, but for some reason it did not work
-        data: Some(Bytes::from_str("f4ff5e2e").unwrap()),
-        ..TransactionRequest::default()
-    }), None).await?;
-    let priority_tree_start_index = decode(&[ParamType::Uint(32)], &result1)?.pop().unwrap().into_uint().unwrap();
+        secrets_config
+            .l1
+            .clone()
+            .context("l1 secrets")?
+            .l1_rpc_url
+            .clone()
+            .expose_str(),
+        109,
+        100,
+    )
+    .unwrap();
+    let result1 = provider
+        .call(
+            &TypedTransaction::Legacy(TransactionRequest {
+                to: Some(NameOrAddress::Address(
+                    contracts_config.l1.diamond_proxy_addr,
+                )),
+                // TODO: maybe use a contract, but for some reason it did not work
+                data: Some(Bytes::from_str("f4ff5e2e").unwrap()),
+                ..TransactionRequest::default()
+            }),
+            None,
+        )
+        .await?;
+    let priority_tree_start_index = decode(&[ParamType::Uint(32)], &result1)?
+        .pop()
+        .unwrap()
+        .into_uint()
+        .unwrap();
 
-    geneal_config.eth.as_mut().context("general_config_eth")?.sender.as_mut().context("eth sender")?.priority_tree_start_index = Some(
-        priority_tree_start_index.as_usize()
-    );
+    geneal_config
+        .eth
+        .as_mut()
+        .context("general_config_eth")?
+        .sender
+        .as_mut()
+        .context("eth sender")?
+        .priority_tree_start_index = Some(priority_tree_start_index.as_usize());
 
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
     geneal_config.save_with_base_path(shell, &chain_config.configs)?;
