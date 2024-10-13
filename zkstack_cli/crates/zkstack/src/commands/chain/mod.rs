@@ -2,6 +2,7 @@ use ::common::forge::ForgeScriptArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use args::{build_transactions::BuildTransactionsArgs, run_server::RunServerArgs};
 use clap::{command, Subcommand};
+use contract_verifier::ContractVerifierCommands;
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
@@ -14,6 +15,7 @@ mod accept_chain_ownership;
 pub(crate) mod args;
 mod build_transactions;
 mod common;
+pub mod contract_verifier;
 mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
@@ -67,6 +69,9 @@ pub enum ChainCommands {
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
     /// Run server
     Server(RunServerArgs),
+    /// Run contract verifier
+    #[command(subcommand)]
+    ContractVerifier(ContractVerifierCommands),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -97,5 +102,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
             set_token_multiplier_setter::run(args, shell).await
         }
         ChainCommands::Server(args) => server::run(shell, args),
+        ChainCommands::ContractVerifier(args) => contract_verifier::run(shell, args).await,
     }
 }

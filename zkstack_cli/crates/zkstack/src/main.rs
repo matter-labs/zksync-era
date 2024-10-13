@@ -1,7 +1,6 @@
 use clap::{command, Parser, Subcommand};
 use commands::{
     args::{ContainersArgs, UpdateArgs},
-    contract_verifier::ContractVerifierCommands,
     dev::DevCommands,
 };
 use common::{
@@ -59,9 +58,6 @@ pub enum InceptionSubcommands {
     /// Run containers for local development
     #[command(alias = "up")]
     Containers(ContainersArgs),
-    /// Run contract verifier
-    #[command(subcommand)]
-    ContractVerifier(ContractVerifierCommands),
     /// Run dapp-portal
     Portal,
     /// Run block-explorer
@@ -130,9 +126,6 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::Containers(args) => commands::containers::run(shell, args)?,
         InceptionSubcommands::ExternalNode(args) => {
             commands::external_node::run(shell, args).await?
-        }
-        InceptionSubcommands::ContractVerifier(args) => {
-            commands::contract_verifier::run(shell, args).await?
         }
         InceptionSubcommands::Explorer(args) => commands::explorer::run(shell, args).await?,
         InceptionSubcommands::Consensus(cmd) => cmd.run(shell).await?,
