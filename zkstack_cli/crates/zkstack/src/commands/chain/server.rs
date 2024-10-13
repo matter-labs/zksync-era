@@ -9,10 +9,11 @@ use config::{
 };
 use xshell::Shell;
 
-use crate::{
-    commands::args::RunServerArgs,
-    messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER},
+use crate::messages::{
+    MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER,
 };
+
+use super::args::run_server::RunServerArgs;
 
 pub fn run(shell: &Shell, args: RunServerArgs) -> anyhow::Result<()> {
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
