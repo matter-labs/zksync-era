@@ -15,6 +15,7 @@ mod accept_chain_ownership;
 pub(crate) mod args;
 mod build_transactions;
 mod common;
+mod consensus;
 pub mod contract_verifier;
 mod create;
 pub mod deploy_l2_contracts;
@@ -72,10 +73,12 @@ pub enum ChainCommands {
     /// Run contract verifier
     #[command(subcommand)]
     ContractVerifier(ContractVerifierCommands),
+    #[command(subcommand)]
+    Consensus(consensus::Command),
 }
 
-pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
-    match args {
+pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()> {
+    match cmd {
         ChainCommands::Create(args) => create::run(args, shell),
         ChainCommands::Init(args) => init::run(*args, shell).await,
         ChainCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
@@ -103,5 +106,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         }
         ChainCommands::Server(args) => server::run(shell, args),
         ChainCommands::ContractVerifier(args) => contract_verifier::run(shell, args).await,
+        ChainCommands::Consensus(cmd) => cmd.run(shell).await,
     }
 }
