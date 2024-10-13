@@ -15,8 +15,8 @@ use config::EcosystemConfig;
 use xshell::Shell;
 
 use crate::commands::{
-    args::RunServerArgs, chain::ChainCommands, consensus, ecosystem::EcosystemCommands,
-    explorer::ExplorerCommands, external_node::ExternalNodeCommands, prover::ProverCommands,
+    chain::ChainCommands, consensus, ecosystem::EcosystemCommands, explorer::ExplorerCommands,
+    external_node::ExternalNodeCommands, prover::ProverCommands,
 };
 
 pub mod accept_ownership;
@@ -53,8 +53,6 @@ pub enum InceptionSubcommands {
     /// Prover related commands
     #[command(subcommand, alias = "p")]
     Prover(ProverCommands),
-    /// Run server
-    Server(RunServerArgs),
     ///  External Node related commands
     #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),
@@ -129,7 +127,6 @@ async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Res
         InceptionSubcommands::Chain(args) => commands::chain::run(shell, *args).await?,
         InceptionSubcommands::Dev(args) => commands::dev::run(shell, args).await?,
         InceptionSubcommands::Prover(args) => commands::prover::run(shell, args).await?,
-        InceptionSubcommands::Server(args) => commands::server::run(shell, args)?,
         InceptionSubcommands::Containers(args) => commands::containers::run(shell, args)?,
         InceptionSubcommands::ExternalNode(args) => {
             commands::external_node::run(shell, args).await?

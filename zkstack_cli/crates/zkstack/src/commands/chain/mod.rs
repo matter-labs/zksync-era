@@ -1,6 +1,6 @@
 use ::common::forge::ForgeScriptArgs;
-use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
+use args::{build_transactions::BuildTransactionsArgs, run_server::RunServerArgs};
 use clap::{command, Subcommand};
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
@@ -20,6 +20,7 @@ pub mod deploy_paymaster;
 pub mod genesis;
 pub mod init;
 pub mod register_chain;
+mod server;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
 
@@ -64,6 +65,8 @@ pub enum ChainCommands {
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
+    /// Run server
+    Server(RunServerArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -93,5 +96,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
+        ChainCommands::Server(args) => server::run(shell, args),
     }
 }
