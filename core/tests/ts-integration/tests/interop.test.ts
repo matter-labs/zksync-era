@@ -10,7 +10,7 @@ import { Token } from '../src/types';
 
 // import * as zksync from 'zksync-ethers';
 import * as zksync from 'zksync-ethers-interop-support';
-import { Provider, Wallet } from 'ethers';
+import { Wallet } from 'ethers';
 // import { BigNumber, utils as etherUtils } from 'ethers';
 import * as ethers from 'ethers';
 import { scaledGasPrice } from '../src/helpers';
@@ -25,11 +25,11 @@ import {
     L2_NATIVE_TOKEN_VAULT_ADDRESS,
     REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
     L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
-    BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI,
-    BRIDGEHUB_L2_TRANSACTION_REQUEST_ABI
+    BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI
+    // BRIDGEHUB_L2_TRANSACTION_REQUEST_ABI
 } from '../src/constants';
 import { RetryProvider } from '../src/retry-provider';
-import { ETH_ADDRESS_IN_CONTRACTS } from 'zksync-ethers/build/utils';
+// import { ETH_ADDRESS_IN_CONTRACTS } from 'zksync-ethers/build/utils';
 import { waitForBlockToBeFinalizedOnL1, waitUntilBlockFinalized } from '../src/helpers';
 // import { cwd } from 'process';
 
@@ -71,11 +71,11 @@ describe('Interop checks', () => {
     // let secondChainId = 272;
     let secondChainId = 505;
     let l1Bridgehub: ethers.Contract;
-    let l1Mailbox: ethers.Contract;
+    // let l1Mailbox: ethers.Contract;
     let tokenDetails: Token;
     let assetId: string;
     // let baseTokenDetails: Token;
-    let aliceErc20: zksync.Contract;
+    // let aliceErc20: zksync.Contract;
     let tokenErc20OtherChain: zksync.Contract;
     // let l2NativeTokenVault: ethers.Contract;
 
@@ -109,11 +109,11 @@ describe('Interop checks', () => {
         const l1BridgehubAddress = await bridgeContracts.shared.BRIDGE_HUB();
         l1Bridgehub = new ethers.Contract(l1BridgehubAddress, bridgehubInterface, l1Wallet);
         const chainAddress = await l1Bridgehub.getHyperchain(secondChainId);
-        l1Mailbox = new ethers.Contract(chainAddress, mailboxInterface, l1Wallet);
+        // l1Mailbox = new ethers.Contract(chainAddress, mailboxInterface, l1Wallet);
 
         tokenDetails = testMaster.environment().erc20Token;
         // baseTokenDetails = testMaster.environment().baseToken;
-        aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);
+        // aliceErc20 = new zksync.Contract(tokenDetails.l2Address, zksync.utils.IERC20, alice);
     });
 
     test('Can perform a deposit', async () => {
@@ -197,6 +197,7 @@ describe('Interop checks', () => {
             tx1.hash,
             0
         );
+        console.log(proof.length);
 
         // to just test the receive part
         // let message = ethers.ZeroHash;
@@ -204,7 +205,10 @@ describe('Interop checks', () => {
         // const l1BatchNumber = 0;
         // const l2MessageIndex = 0;
 
-        let decodedRequest =ethers.AbiCoder.defaultAbiCoder().decode([BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI], "0x" + message.slice(2));
+        let decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode(
+            [BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI],
+            '0x' + message.slice(2)
+        );
 
         const xl2Input = {
             txType: decodedRequest[0][0],
@@ -217,7 +221,12 @@ describe('Interop checks', () => {
             paymaster: decodedRequest[0][7],
             nonce: decodedRequest[0][8],
             value: decodedRequest[0][9],
-            reserved: [decodedRequest[0][10][0], decodedRequest[0][10][1], decodedRequest[0][10][2], decodedRequest[0][10][3]],
+            reserved: [
+                decodedRequest[0][10][0],
+                decodedRequest[0][10][1],
+                decodedRequest[0][10][2],
+                decodedRequest[0][10][3]
+            ],
             data: decodedRequest[0][11],
             signature: decodedRequest[0][12],
             factoryDeps: decodedRequest[0][13],
@@ -264,8 +273,8 @@ describe('Interop checks', () => {
 
             const interopTx = {
                 chainId: secondChainId,
-                to: "0x" + xl2Input.to.toString(16).padStart(40, '0'),
-                from: "0x" + xl2Input.from.toString(16).padStart(40, '0'),
+                to: '0x' + xl2Input.to.toString(16).padStart(40, '0'),
+                from: '0x' + xl2Input.from.toString(16).padStart(40, '0'),
                 data: xl2Input.data,
                 nonce: nonce,
                 customData: {
@@ -280,7 +289,7 @@ describe('Interop checks', () => {
                 maxPriorityFeePerGas: 140000000,
                 gasLimit: '0x37E11D599',
                 type: INTEROP_TX_TYPE,
-                value: "0x0" //'0xf000000000000000'
+                value: '0x0' //'0xf000000000000000'
             };
             const hexTx = zksync.utils.serializeEip712(interopTx);
             // console.log('kl todo interopTx', interopTx);
@@ -291,14 +300,14 @@ describe('Interop checks', () => {
             const tx = await l2ProviderOtherChain.broadcastTransaction(hexTx);
             // console.log('kl todo tx', tx);
             await waitUntilBlockFinalized(bobOtherChain, tx.blockNumber!);
-            await new Promise((resolve) => setTimeout(resolve, 10000)); 
+            await new Promise((resolve) => setTimeout(resolve, 10000));
 
             tokenAddressOtherChain = await l2NativeTokenVaultOtherChain.tokenAddress(assetId);
             tokenErc20OtherChain = new zksync.Contract(tokenAddressOtherChain, zksync.utils.IERC20, bobOtherChain);
             const tokenBalanceAfter = await tokenErc20OtherChain.balanceOf(bobOtherChain.address);
             console.log('kl todo token assetId', assetId);
             console.log('kl todo tokenAddressOtherChain', tokenAddressOtherChain);
-            console.log("kl todo bobOtherChain", bobOtherChain.address);
+            console.log('kl todo bobOtherChain', bobOtherChain.address);
             console.log('kl todo tokenBalanceBefore', tokenBalanceBefore);
             console.log('kl todo tokenBalanceAfter', tokenBalanceAfter);
             expect(tokenBalanceAfter).toBeGreaterThan(tokenBalanceBefore);
