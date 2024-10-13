@@ -12,7 +12,7 @@ use zksync_da_client::{
 };
 use zksync_types::{
     ethabi::{self, Token},
-    web3::contract::{Tokenizable, Tokenize},
+    web3::contract::Tokenize,
     H256, U256,
 };
 
@@ -263,37 +263,24 @@ impl DataAvailabilityClient for AvailClient {
             "{}/eth/proof/{}?index={}",
             self.config.bridge_api_url, block_hash, tx_idx
         );
-        let mut response: reqwest::Response;
-        let mut retries = self.config.max_retries;
-        let mut response_text: String;
-        let mut bridge_api_data: BridgeAPIResponse;
-        loop {
-            response = self
-                .api_client
-                .get(&url)
-                .send()
-                .await
-                .map_err(to_retriable_da_error)?;
-            response_text = response.text().await.unwrap();
 
-            if let Ok(data) = serde_json::from_str::<BridgeAPIResponse>(&response_text) {
-                bridge_api_data = data;
-                if bridge_api_data.error.is_none() {
-                    break;
-                }
-            }
-
-            tokio::time::sleep(tokio::time::Duration::from_secs(
-                u64::try_from(480).unwrap(),
-            ))
-            .await; // usually takes 15 mins on Hex
-            retries += 1;
-            if retries > self.config.max_retries {
-                return Err(to_retriable_da_error(anyhow!(
-                    "Failed to get inclusion data"
-                )));
-            }
+        let response = self
+            .api_client
+            .get(&url)
+            .send()
+            .await
+            .map_err(to_retriable_da_error)?;
+        let bridge_api_data = response
+            .json::<BridgeAPIResponse>()
+            .await
+            .map_err(to_retriable_da_error)?;
+        if bridge_api_data.error.is_some() {
+            return Err(to_retriable_da_error(anyhow!(format!(
+                "Bridge API returned error: {}",
+                bridge_api_data.error.unwrap()
+            ))));
         }
+
         let attestation_data: MerkleProofInput = MerkleProofInput {
             data_root_proof: bridge_api_data.data_root_proof.unwrap(),
             leaf_proof: bridge_api_data.leaf_proof.unwrap(),

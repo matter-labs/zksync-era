@@ -10,6 +10,7 @@ use zksync_config::configs::{
     DatabaseSecrets, L1Secrets,
 };
 use zksync_protobuf::{required, ProtoRepr};
+use zksync_types::seed_phrase;
 
 use crate::{
     proto::{
@@ -103,20 +104,37 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
         let secrets = required(&self.da_secrets).context("config")?;
 
         let client = match secrets {
-            DaSecrets::Avail(avail_secret) => DataAvailabilitySecrets::Avail(AvailSecrets {
-                seed_phrase: Some(
-                    SeedPhrase::from_str(
-                        required(&avail_secret.seed_phrase).context("seed_phrase")?,
+            DaSecrets::Avail(avail_secret) => {
+                let seed_phrase = if avail_secret.seed_phrase.is_some() {
+                    Some(
+                        SeedPhrase::from_str(
+                            required(&avail_secret.seed_phrase).context("seed_phrase")?,
+                        )
+                        .unwrap(),
                     )
-                    .unwrap(),
-                ),
-                gas_relay_api_key: Some(
-                    GasRelayAPIKey::from_str(
-                        required(&avail_secret.gas_relay_api_key).context("seed_phrase")?,
+                } else {
+                    None
+                };
+                let gas_relay_api_key = if avail_secret.gas_relay_api_key.is_some() {
+                    Some(
+                        GasRelayAPIKey::from_str(
+                            required(&avail_secret.gas_relay_api_key).context("seed_phrase")?,
+                        )
+                        .unwrap(),
                     )
-                    .unwrap(),
-                ),
-            }),
+                } else {
+                    None
+                };
+                if seed_phrase.is_none() && gas_relay_api_key.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "At least one of seed_phrase or gas_relay_api_key must be provided"
+                    ));
+                }
+                DataAvailabilitySecrets::Avail(AvailSecrets {
+                    seed_phrase,
+                    gas_relay_api_key,
+                })
+            }
         };
 
         Ok(client)
