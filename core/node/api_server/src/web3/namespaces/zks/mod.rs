@@ -41,13 +41,15 @@ use crate::{
     web3::{
         backend_jsonrpsee::MethodTracer,
         metrics::API_METRICS,
-        namespaces::zks_utils::{
+        namespaces::zks::utils::{
             chain_id_leaf_preimage, get_chain_count, get_chain_id_from_index,
             get_chain_root_from_id,
         },
         RpcState,
     },
 };
+
+mod utils;
 
 #[derive(Debug)]
 pub(crate) struct ZksNamespace {
