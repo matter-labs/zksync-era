@@ -7,7 +7,7 @@ use zksync_types::{
         BlockId, BlockNumber, CallTracerBlockResult, CallTracerResult, DebugCall, DebugCallType,
         ResultDebugCall, SupportedTracers, TracerConfig,
     },
-    debug_flat_call::{Action, CallResult, DebugCallFlat},
+    debug_flat_call::{Action, CallResult, DebugCallFlat, ResultDebugCallFlat},
     l2::L2Tx,
     transaction_request::CallRequest,
     web3, H256, U256,
@@ -158,6 +158,7 @@ impl DebugNamespace {
 
         let mut connection = self.state.acquire_connection().await?;
         let block_number = self.state.resolve_block(&mut connection, block_id).await?;
+        // let block_hash = block_hash self.state.
         self.current_method()
             .set_block_diff(self.state.last_sealed_l2_block.diff(block_number));
 
@@ -178,19 +179,26 @@ impl DebugNamespace {
                     .collect(),
             ),
             SupportedTracers::FlatCallTracer => {
-                let mut flat_calls = vec![];
-                for (call, tx_hash, tx_index) in call_traces {
-                    let mut traces = vec![tx_index];
-                    Self::flatten_call(
-                        call,
-                        &mut flat_calls,
-                        &mut traces,
-                        options.tracer_config.only_top_call,
-                        tx_index,
-                        tx_hash,
-                    );
-                }
-                CallTracerBlockResult::FlatCallTrace(flat_calls)
+                let res = call_traces
+                    .into_iter()
+                    .map(|(call, tx_hash, tx_index)| {
+                        let mut traces = vec![tx_index];
+                        let mut flat_calls = vec![];
+                        Self::flatten_call(
+                            call,
+                            &mut flat_calls,
+                            &mut traces,
+                            options.tracer_config.only_top_call,
+                            tx_index,
+                            tx_hash,
+                        );
+                        ResultDebugCallFlat {
+                            tx_hash,
+                            result: flat_calls,
+                        }
+                    })
+                    .collect();
+                CallTracerBlockResult::FlatCallTrace(res)
             }
         };
         Ok(result)

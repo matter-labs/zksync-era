@@ -5,6 +5,13 @@ use crate::{api::DebugCallType, Address, H256};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ResultDebugCallFlat {
+    pub tx_hash: H256,
+    pub result: Vec<DebugCallFlat>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DebugCallFlat {
     pub action: Action,
     pub result: Option<CallResult>,
