@@ -17,9 +17,10 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     block::{
         BlockGasCount, L1BatchHeader, L1BatchStatistics, L1BatchTreeData, L2BlockHeader,
-        StorageOracleInfo,
+        StorageOracleInfo, UnsealedL1BatchHeader,
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
+    fee_model::BatchFeeInput,
     l2_to_l1_log::UserL2ToL1Log,
     writes::TreeWrite,
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
@@ -30,7 +31,9 @@ pub use crate::models::storage_block::{L1BatchMetadataError, L1BatchWithOptional
 use crate::{
     models::{
         parse_protocol_version,
-        storage_block::{StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader},
+        storage_block::{
+            StorageL1Batch, StorageL1BatchHeader, StorageL2BlockHeader, UnsealedStorageL1Batch,
+        },
         storage_event::StorageL2ToL1Log,
         storage_oracle_info::DbStorageOracleInfo,
     },
@@ -89,6 +92,8 @@ impl BlocksDal<'_, '_> {
                 COUNT(*) AS "count!"
             FROM
                 l1_batches
+            WHERE
+                is_sealed
             "#
         )
         .instrument("is_genesis_needed")
@@ -105,6 +110,8 @@ impl BlocksDal<'_, '_> {
                 MAX(number) AS "number"
             FROM
                 l1_batches
+            WHERE
+                is_sealed
             "#
         )
         .instrument("get_sealed_l1_batch_number")
@@ -140,6 +147,8 @@ impl BlocksDal<'_, '_> {
                 MIN(number) AS "number"
             FROM
                 l1_batches
+            WHERE
+                is_sealed
             "#
         )
         .instrument("get_earliest_l1_batch_number")
@@ -335,6 +344,7 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
+                fee_address,
                 aggregation_root,
                 local_root,
                 state_diff_hash,
@@ -346,7 +356,8 @@ impl BlocksDal<'_, '_> {
                 data_availability
                 ON data_availability.l1_batch_number = l1_batches.number
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(number.0)
         )
@@ -377,11 +388,13 @@ impl BlocksDal<'_, '_> {
                 evm_emulator_code_hash,
                 protocol_version,
                 system_logs,
-                pubdata_input
+                pubdata_input,
+                fee_address
             FROM
                 l1_batches
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(number.0)
         )
@@ -414,7 +427,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(number.0)
         )
@@ -445,7 +459,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(number.0)
         )
@@ -566,7 +581,109 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    /// Inserts an unsealed L1 batch with some basic information (i.e. runtime related data is either
+    /// null or set to default value for the corresponding type).
     pub async fn insert_l1_batch(
+        &mut self,
+        unsealed_batch_header: UnsealedL1BatchHeader,
+    ) -> DalResult<()> {
+        Self::insert_l1_batch_inner(unsealed_batch_header, self.storage).await
+    }
+
+    async fn insert_l1_batch_inner(
+        unsealed_batch_header: UnsealedL1BatchHeader,
+        conn: &mut Connection<'_, Core>,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            INSERT INTO
+            l1_batches (
+                number,
+                timestamp,
+                protocol_version,
+                fee_address,
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price,
+                l1_tx_count,
+                l2_tx_count,
+                bloom,
+                priority_ops_onchain_data,
+                initial_bootloader_heap_content,
+                used_contract_hashes,
+                created_at,
+                updated_at,
+                is_sealed
+            )
+            VALUES
+            (
+                $1,
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                0,
+                0,
+                ''::bytea,
+                '{}'::bytea [],
+                '{}'::jsonb,
+                '{}'::jsonb,
+                NOW(),
+                NOW(),
+                FALSE
+            )
+            "#,
+            i64::from(unsealed_batch_header.number.0),
+            unsealed_batch_header.timestamp as i64,
+            unsealed_batch_header.protocol_version.map(|v| v as i32),
+            unsealed_batch_header.fee_address.as_bytes(),
+            unsealed_batch_header.fee_input.l1_gas_price() as i64,
+            unsealed_batch_header.fee_input.fair_l2_gas_price() as i64,
+            unsealed_batch_header.fee_input.fair_pubdata_price() as i64,
+        )
+        .instrument("insert_l1_batch")
+        .with_arg("number", &unsealed_batch_header.number)
+        .execute(conn)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn ensure_unsealed_l1_batch_exists(
+        &mut self,
+        unsealed_batch: UnsealedL1BatchHeader,
+    ) -> anyhow::Result<()> {
+        let mut transaction = self.storage.start_transaction().await?;
+        let unsealed_batch_fetched = Self::get_unsealed_l1_batch_inner(&mut transaction).await?;
+
+        match unsealed_batch_fetched {
+            None => {
+                tracing::info!(
+                    "Unsealed batch #{} could not be found; inserting",
+                    unsealed_batch.number
+                );
+                Self::insert_l1_batch_inner(unsealed_batch, &mut transaction).await?;
+            }
+            Some(unsealed_batch_fetched) => {
+                if unsealed_batch_fetched.number != unsealed_batch.number {
+                    anyhow::bail!(
+                        "fetched unsealed L1 batch #{} does not conform to expected L1 batch #{}",
+                        unsealed_batch_fetched.number,
+                        unsealed_batch.number
+                    )
+                }
+            }
+        }
+
+        transaction.commit().await?;
+        Ok(())
+    }
+
+    /// Marks provided L1 batch as sealed and populates it with all the runtime information.
+    ///
+    /// Errors if the batch does not exist.
+    pub async fn mark_l1_batch_as_sealed(
         &mut self,
         header: &L1BatchHeader,
         initial_bootloader_contents: &[(usize, U256)],
@@ -574,9 +691,9 @@ impl BlocksDal<'_, '_> {
         storage_refunds: &[u32],
         pubdata_costs: &[i32],
         predicted_circuits_by_type: CircuitStatistic, // predicted number of circuits for each circuit type
-    ) -> DalResult<()> {
+    ) -> anyhow::Result<()> {
         let initial_bootloader_contents_len = initial_bootloader_contents.len();
-        let instrumentation = Instrumented::new("insert_l1_batch")
+        let instrumentation = Instrumented::new("mark_l1_batch_as_sealed")
             .with_arg("number", &header.number)
             .with_arg(
                 "initial_bootloader_contents.len",
@@ -603,63 +720,35 @@ impl BlocksDal<'_, '_> {
 
         let query = sqlx::query!(
             r#"
-            INSERT INTO
-            l1_batches (
-                number,
-                l1_tx_count,
-                l2_tx_count,
-                timestamp,
-                l2_to_l1_messages,
-                bloom,
-                priority_ops_onchain_data,
-                predicted_commit_gas_cost,
-                predicted_prove_gas_cost,
-                predicted_execute_gas_cost,
-                initial_bootloader_heap_content,
-                used_contract_hashes,
-                bootloader_code_hash,
-                default_aa_code_hash,
-                evm_emulator_code_hash,
-                protocol_version,
-                system_logs,
-                storage_refunds,
-                pubdata_costs,
-                pubdata_input,
-                predicted_circuits_by_type,
-                created_at,
-                updated_at
-            )
-            VALUES
-            (
-                $1,
-                $2,
-                $3,
-                $4,
-                $5,
-                $6,
-                $7,
-                $8,
-                $9,
-                $10,
-                $11,
-                $12,
-                $13,
-                $14,
-                $15,
-                $16,
-                $17,
-                $18,
-                $19,
-                $20,
-                $21,
-                NOW(),
-                NOW()
-            )
+            UPDATE l1_batches
+            SET
+                l1_tx_count = $2,
+                l2_tx_count = $3,
+                l2_to_l1_messages = $4,
+                bloom = $5,
+                priority_ops_onchain_data = $6,
+                predicted_commit_gas_cost = $7,
+                predicted_prove_gas_cost = $8,
+                predicted_execute_gas_cost = $9,
+                initial_bootloader_heap_content = $10,
+                used_contract_hashes = $11,
+                bootloader_code_hash = $12,
+                default_aa_code_hash = $13,
+                evm_emulator_code_hash = $14,
+                protocol_version = $15,
+                system_logs = $16,
+                storage_refunds = $17,
+                pubdata_costs = $18,
+                pubdata_input = $19,
+                predicted_circuits_by_type = $20,
+                updated_at = NOW(),
+                is_sealed = TRUE
+            WHERE
+                number = $1
             "#,
             i64::from(header.number.0),
             i32::from(header.l1_tx_count),
             i32::from(header.l2_tx_count),
-            header.timestamp as i64,
             &header.l2_to_l1_messages,
             header.bloom.as_bytes(),
             &priority_onchain_data,
@@ -682,13 +771,47 @@ impl BlocksDal<'_, '_> {
             pubdata_input,
             serde_json::to_value(predicted_circuits_by_type).unwrap(),
         );
+        let update_result = instrumentation.with(query).execute(self.storage).await?;
 
-        let mut transaction = self.storage.start_transaction().await?;
-        instrumentation
-            .with(query)
-            .execute(&mut transaction)
-            .await?;
-        transaction.commit().await
+        if update_result.rows_affected() == 0 {
+            anyhow::bail!(
+                "L1 batch sealing failed: batch #{} was not found",
+                header.number
+            );
+        }
+
+        Ok(())
+    }
+
+    pub async fn get_unsealed_l1_batch(&mut self) -> DalResult<Option<UnsealedL1BatchHeader>> {
+        Self::get_unsealed_l1_batch_inner(self.storage).await
+    }
+
+    async fn get_unsealed_l1_batch_inner(
+        conn: &mut Connection<'_, Core>,
+    ) -> DalResult<Option<UnsealedL1BatchHeader>> {
+        let batch = sqlx::query_as!(
+            UnsealedStorageL1Batch,
+            r#"
+            SELECT
+                number,
+                timestamp,
+                protocol_version,
+                fee_address,
+                l1_gas_price,
+                l2_fair_gas_price,
+                fair_pubdata_price
+            FROM
+                l1_batches
+            WHERE
+                NOT is_sealed
+            "#,
+        )
+        .instrument("get_unsealed_l1_batch")
+        .fetch_optional(conn)
+        .await?;
+
+        Ok(batch.map(|b| b.into()))
     }
 
     pub async fn insert_l2_block(&mut self, l2_block_header: &L2BlockHeader) -> DalResult<()> {
@@ -1092,6 +1215,7 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
+                fee_address,
                 aggregation_root,
                 local_root,
                 state_diff_hash,
@@ -1286,6 +1410,7 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
+                fee_address,
                 aggregation_root,
                 local_root,
                 state_diff_hash,
@@ -1374,6 +1499,7 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
+                fee_address,
                 aggregation_root,
                 local_root,
                 state_diff_hash,
@@ -1453,6 +1579,7 @@ impl BlocksDal<'_, '_> {
                         events_queue_commitment,
                         bootloader_initial_content_commitment,
                         pubdata_input,
+                        fee_address,
                         aggregation_root,
                         local_root,
                         state_diff_hash,
@@ -1588,6 +1715,7 @@ impl BlocksDal<'_, '_> {
                     events_queue_commitment,
                     bootloader_initial_content_commitment,
                     pubdata_input,
+                    fee_address,
                     aggregation_root,
                     local_root,
                     state_diff_hash,
@@ -1660,6 +1788,7 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
+                fee_address,
                 aggregation_root,
                 local_root,
                 state_diff_hash,
@@ -1746,6 +1875,7 @@ impl BlocksDal<'_, '_> {
                 events_queue_commitment,
                 bootloader_initial_content_commitment,
                 pubdata_input,
+                fee_address,
                 aggregation_root,
                 local_root,
                 state_diff_hash,
@@ -2124,20 +2254,6 @@ impl BlocksDal<'_, '_> {
         Ok(Some((L2BlockNumber(min as u32), L2BlockNumber(max as u32))))
     }
 
-    /// Returns `true` if there exists a non-sealed batch (i.e. there is one+ stored L2 block that isn't assigned
-    /// to any batch yet).
-    pub async fn pending_batch_exists(&mut self) -> DalResult<bool> {
-        let count = sqlx::query_scalar!(
-            "SELECT COUNT(miniblocks.number) FROM miniblocks WHERE l1_batch_number IS NULL"
-        )
-        .instrument("pending_batch_exists")
-        .fetch_one(self.storage)
-        .await?
-        .unwrap_or(0);
-
-        Ok(count != 0)
-    }
-
     // methods used for measuring Eth tx stage transition latencies
     // and emitting metrics base on these measured data
     pub async fn oldest_uncommitted_batch_timestamp(&mut self) -> DalResult<Option<u64>> {
@@ -2148,7 +2264,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                eth_commit_tx_id IS NULL
+                is_sealed
+                AND eth_commit_tx_id IS NULL
                 AND number > 0
             ORDER BY
                 number
@@ -2170,7 +2287,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                eth_prove_tx_id IS NULL
+                is_sealed
+                AND eth_prove_tx_id IS NULL
                 AND number > 0
             ORDER BY
                 number
@@ -2192,7 +2310,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                eth_execute_tx_id IS NULL
+                is_sealed
+                AND eth_execute_tx_id IS NULL
                 AND number > 0
             ORDER BY
                 number
@@ -2217,7 +2336,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                number = $1
+                is_sealed
+                AND number = $1
             "#,
             i64::from(l1_batch_number.0)
         )
@@ -2287,7 +2407,8 @@ impl BlocksDal<'_, '_> {
             FROM
                 l1_batches
             WHERE
-                protocol_version = $1
+                is_sealed
+                AND protocol_version = $1
             "#,
             protocol_version as i32
         )
@@ -2593,8 +2714,12 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> DalResult<()> {
+    pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
         self.insert_l1_batch(
+            header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
+        )
+        .await?;
+        self.mark_l1_batch_as_sealed(
             header,
             &[],
             Default::default(),
@@ -2905,7 +3030,13 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
+            .insert_l1_batch(
+                header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
+            )
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .mark_l1_batch_as_sealed(&header, &[], predicted_gas, &[], &[], Default::default())
             .await
             .unwrap();
 
@@ -2913,7 +3044,13 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(&header, &[], predicted_gas, &[], &[], Default::default())
+            .insert_l1_batch(
+                header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
+            )
+            .await
+            .unwrap();
+        conn.blocks_dal()
+            .mark_l1_batch_as_sealed(&header, &[], predicted_gas, &[], &[], Default::default())
             .await
             .unwrap();
 

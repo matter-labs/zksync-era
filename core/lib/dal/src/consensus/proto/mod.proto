@@ -6,6 +6,10 @@ import "zksync/roles/validator.proto";
 import "zksync/roles/attester.proto";
 import "zksync/roles/node.proto";
 
+message BlockMetadata {
+  optional roles.validator.PayloadHash payload_hash = 1; // required
+}
+
 message Payload {
   // zksync-era ProtocolVersionId
   optional uint32 protocol_version = 9; // required; u16

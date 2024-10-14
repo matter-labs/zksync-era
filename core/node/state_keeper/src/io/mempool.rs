@@ -14,6 +14,7 @@ use zksync_mempool::L2TxFilter;
 use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
+    block::UnsealedL1BatchHeader,
     commitment::{L1BatchCommitmentMode, PubdataParams},
     protocol_upgrade::ProtocolUpgradeTx,
     utils::display_timestamp,
@@ -135,6 +136,16 @@ impl StateKeeperIO for MempoolIO {
             gas_per_pubdata: gas_per_pubdata as u32,
         };
 
+        storage
+            .blocks_dal()
+            .ensure_unsealed_l1_batch_exists(
+                pending_batch_data
+                    .l1_batch_env
+                    .clone()
+                    .into_unsealed_header(Some(pending_batch_data.system_env.version)),
+            )
+            .await?;
+
         Ok((cursor, Some(pending_batch_data)))
     }
 
@@ -143,6 +154,44 @@ impl StateKeeperIO for MempoolIO {
         cursor: &IoCursor,
         max_wait: Duration,
     ) -> anyhow::Result<Option<L1BatchParams>> {
+        // Check if there is an existing unsealed batch
+        if let Some(unsealed_storage_batch) = self
+            .pool
+            .connection_tagged("state_keeper")
+            .await?
+            .blocks_dal()
+            .get_unsealed_l1_batch()
+            .await?
+        {
+            let protocol_version = unsealed_storage_batch
+                .protocol_version
+                .expect("unsealed batch is missing protocol version");
+            let pubdata_params = match (
+                protocol_version.is_pre_gateway(),
+                self.l2_da_validator_address,
+            ) {
+                (true, _) => PubdataParams::default(),
+                (false, Some(l2_da_validator_address)) => PubdataParams {
+                    l2_da_validator_address,
+                    pubdata_type: self.pubdata_type,
+                },
+                (false, None) => anyhow::bail!("L2 DA validator address not found"),
+            };
+
+            return Ok(Some(L1BatchParams {
+                protocol_version,
+                validation_computational_gas_limit: self.validation_computational_gas_limit,
+                operator_address: unsealed_storage_batch.fee_address,
+                fee_input: unsealed_storage_batch.fee_input,
+                first_l2_block: L2BlockParams {
+                    timestamp: unsealed_storage_batch.timestamp,
+                    // This value is effectively ignored by the protocol.
+                    virtual_blocks: 1,
+                },
+                pubdata_params,
+            }));
+        }
+
         let deadline = Instant::now() + max_wait;
 
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
@@ -197,6 +246,19 @@ impl StateKeeperIO for MempoolIO {
                 },
                 (false, None) => anyhow::bail!("L2 DA validator address not found"),
             };
+
+            self.pool
+                .connection_tagged("state_keeper")
+                .await?
+                .blocks_dal()
+                .insert_l1_batch(UnsealedL1BatchHeader {
+                    number: cursor.l1_batch,
+                    timestamp,
+                    protocol_version: Some(protocol_version),
+                    fee_address: self.fee_account,
+                    fee_input: self.filter.fee_input,
+                })
+                .await?;
 
             return Ok(Some(L1BatchParams {
                 protocol_version,

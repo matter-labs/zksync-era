@@ -70,6 +70,9 @@ message Config {
   reserved 3;
   reserved "validators";
 
+  // Port to listen on, for incoming TCP connections.
+  optional uint32 port = 12;
+
   // IP:port to listen on, for incoming TCP connections.
   // Use `0.0.0.0:<port>` to listen on all network interfaces (i.e. on all IPs exposed by this VM).
   optional string server_addr = 1; // required; IpAddr

@@ -132,6 +132,7 @@ impl UpdatesManager {
             protocol_version: Some(self.protocol_version()),
             system_logs: finished_batch.final_execution_state.system_logs.clone(),
             pubdata_input: finished_batch.pubdata_input.clone(),
+            fee_address: self.fee_account_address,
         };
 
         let final_bootloader_memory = finished_batch
@@ -141,7 +142,7 @@ impl UpdatesManager {
 
         transaction
             .blocks_dal()
-            .insert_l1_batch(
+            .mark_l1_batch_as_sealed(
                 &l1_batch,
                 &final_bootloader_memory,
                 self.pending_l1_gas_count(),

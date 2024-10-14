@@ -259,19 +259,19 @@ impl SystemContractsRepo {
                 "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
                 directory, name
             ))),
-            ContractLanguage::Yul => read_zbin_bytecode_from_path(self.root.join(format!(
-                "contracts-preprocessed/{0}artifacts/{1}.yul.zbin",
-                directory, name
-            ))),
+            ContractLanguage::Yul => {
+                let artifacts_path = self
+                    .root
+                    .join(format!("contracts-preprocessed/{}artifacts/", directory));
+                read_yul_bytecode_by_path(artifacts_path, name)
+            }
         }
     }
 }
 
 pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
-    read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/build/artifacts/{}.yul.zbin",
-        bootloader_type
-    ))
+    let artifacts_path = "contracts/system-contracts/bootloader/build/artifacts/";
+    read_yul_bytecode(artifacts_path, bootloader_type)
 }
 
 fn read_proved_batch_bootloader_bytecode() -> Vec<u8> {
@@ -288,10 +288,46 @@ pub fn read_zbin_bytecode(relative_zbin_path: impl AsRef<Path>) -> Vec<u8> {
     read_zbin_bytecode_from_path(bytecode_path)
 }
 
+pub fn read_yul_bytecode(relative_artifacts_path: &str, name: &str) -> Vec<u8> {
+    let artifacts_path = Path::new(&home_path()).join(relative_artifacts_path);
+    read_yul_bytecode_by_path(artifacts_path, name)
+}
+
+pub fn read_yul_bytecode_by_path(artifacts_path: PathBuf, name: &str) -> Vec<u8> {
+    let bytecode_path = artifacts_path.join(format!("{name}.yul/{name}.yul.zbin"));
+
+    // Legacy versions of zksolc use the following path for output data if a yul file is being compiled: <name>.yul.zbin
+    // New zksolc versions use <name>.yul/<name>.yul.zbin, for consistency with solidity files compilation.
+    // In addition, the output of the legacy zksolc in this case is a binary file, while in new versions it is hex encoded.
+    if fs::exists(&bytecode_path)
+        .unwrap_or_else(|err| panic!("Invalid path: {bytecode_path:?}, {err}"))
+    {
+        read_zbin_bytecode_from_hex_file(bytecode_path)
+    } else {
+        let bytecode_path_legacy = artifacts_path.join(format!("{name}.yul.zbin"));
+
+        if fs::exists(&bytecode_path_legacy)
+            .unwrap_or_else(|err| panic!("Invalid path: {bytecode_path_legacy:?}, {err}"))
+        {
+            read_zbin_bytecode_from_path(bytecode_path_legacy)
+        } else {
+            panic!("Can't find bytecode for '{name}' yul contract at {artifacts_path:?}")
+        }
+    }
+}
+
 /// Reads zbin bytecode from a given path.
 fn read_zbin_bytecode_from_path(bytecode_path: PathBuf) -> Vec<u8> {
     fs::read(&bytecode_path)
-        .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {:?}: {}", bytecode_path, err))
+        .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {bytecode_path:?}: {err}"))
+}
+
+/// Reads zbin bytecode from a given path as utf8 text file.
+fn read_zbin_bytecode_from_hex_file(bytecode_path: PathBuf) -> Vec<u8> {
+    let bytes = fs::read(&bytecode_path)
+        .unwrap_or_else(|err| panic!("Can't read .zbin bytecode at {bytecode_path:?}: {err}"));
+
+    hex::decode(bytes).unwrap_or_else(|err| panic!("Invalid input file: {bytecode_path:?}, {err}"))
 }
 
 /// Hash of code and code which consists of 32 bytes words

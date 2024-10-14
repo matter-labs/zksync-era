@@ -1,6 +1,6 @@
 use anyhow::Context as _;
 use rand::Rng as _;
-use test_casing::test_casing;
+use test_casing::{test_casing, Product};
 use tracing::Instrument as _;
 use zksync_concurrency::{ctx, error::Wrap, scope};
 use zksync_consensus_roles::{
@@ -9,10 +9,10 @@ use zksync_consensus_roles::{
 };
 use zksync_dal::consensus_dal;
 use zksync_test_account::Account;
-use zksync_types::{L1BatchNumber, ProtocolVersionId};
+use zksync_types::ProtocolVersionId;
 use zksync_web3_decl::namespaces::EnNamespaceClient as _;
 
-use super::VERSIONS;
+use super::{POLL_INTERVAL, PREGENESIS, VERSIONS};
 use crate::{
     mn::run_main_node,
     registry::{testonly, Registry},
@@ -34,13 +34,13 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
         s.spawn_bg(runner.run(ctx).instrument(tracing::info_span!("validator")));
 
         // Setup nontrivial genesis.
-        while sk.last_sealed_batch() < L1BatchNumber(3) {
+        while sk.last_sealed_batch() < attester::BatchNumber(3) {
             sk.push_random_blocks(rng, account, 10).await;
         }
         let mut setup = SetupSpec::new(rng, 3);
         setup.first_block = sk.last_block();
         let first_batch = sk.last_batch();
-        let setup = Setup::from(setup);
+        let setup = Setup::from_spec(rng, setup);
         let mut conn = pool.connection(ctx).await.wrap("connection()")?;
         conn.try_update_global_config(
             ctx,
@@ -54,7 +54,9 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
         .wrap("try_update_global_config()")?;
         // Make sure that the first_batch is actually sealed.
         sk.seal_batch().await;
-        pool.wait_for_batch(ctx, first_batch).await?;
+        pool.wait_for_batch_info(ctx, first_batch, POLL_INTERVAL)
+            .await
+            .wrap("wait_for_batch_info()")?;
 
         // Connect to API endpoint.
         let api = sk.connect(ctx).await?;
@@ -77,18 +79,18 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
         let status = fetch_status().await?;
         assert_eq!(
             status.next_batch_to_attest,
-            attester::BatchNumber(first_batch.0.into())
+            attester::BatchNumber(first_batch.0)
         );
 
         tracing::info!("Insert a cert");
         {
             let mut conn = pool.connection(ctx).await?;
             let number = status.next_batch_to_attest;
-            let hash = conn.batch_hash(ctx, number).await?.unwrap();
+            let info = conn.batch_info(ctx, number).await?.unwrap();
             let gcfg = conn.global_config(ctx).await?.unwrap();
             let m = attester::Batch {
                 number,
-                hash,
+                hash: consensus_dal::batch_hash(&info),
                 genesis: gcfg.genesis.hash(),
             };
             let mut sigs = attester::MultiSig::default();
@@ -124,9 +126,9 @@ async fn test_attestation_status_api(version: ProtocolVersionId) {
 // Test running a couple of attesters (which are also validators).
 // Main node is expected to collect all certificates.
 // External nodes are expected to just vote for the batch.
-#[test_casing(2, VERSIONS)]
+#[test_casing(4, Product((VERSIONS,PREGENESIS)))]
 #[tokio::test]
-async fn test_multiple_attesters(version: ProtocolVersionId) {
+async fn test_multiple_attesters(version: ProtocolVersionId, pregenesis: bool) {
     const NODES: usize = 4;
 
     zksync_concurrency::testonly::abort_on_panic();
@@ -135,7 +137,7 @@ async fn test_multiple_attesters(version: ProtocolVersionId) {
     let account = &mut Account::random();
     let to_fund = &[account.address];
     let setup = Setup::new(rng, 4);
-    let mut cfgs = new_configs(rng, &setup, NODES);
+    let mut cfgs = new_configs(rng, &setup, NODES, pregenesis);
     scope::run!(ctx, |ctx, s| async {
         let validator_pool = ConnectionPool::test(false, version).await;
         let (mut validator, runner) = StateKeeper::new(ctx, validator_pool.clone()).await?;
@@ -235,7 +237,7 @@ async fn test_multiple_attesters(version: ProtocolVersionId) {
         }
 
         tracing::info!("Wait for the batches to be attested");
-        let want_last = attester::BatchNumber(validator.last_sealed_batch().0.into());
+        let want_last = attester::BatchNumber(validator.last_sealed_batch().0);
         validator_pool
             .wait_for_batch_certificates_and_verify(ctx, want_last, Some(registry_addr))
             .await?;
