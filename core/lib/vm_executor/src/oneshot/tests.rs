@@ -1,87 +1,21 @@
 //! Oneshot executor tests.
 
 use assert_matches::assert_matches;
-use once_cell::sync::Lazy;
 use test_casing::{test_casing, Product};
-use zksync_contracts::BaseSystemContracts;
-use zksync_multivm::{
-    interface::{storage::InMemoryStorage, L1BatchEnv, L2BlockEnv, SystemEnv},
-    utils::derive_base_fee_and_gas_per_pubdata,
-    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
-    zk_evm_latest::ethereum_types::Address,
-};
-use zksync_types::{
-    block::L2BlockHasher, fee::Fee, fee_model::BatchFeeInput, transaction_request::PaymasterParams,
-    K256PrivateKey, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, H256,
-    ZKPORTER_IS_AVAILABLE,
-};
+use zksync_multivm::interface::storage::InMemoryStorage;
+use zksync_types::{ProtocolVersionId, H256};
 use zksync_utils::bytecode::hash_bytecode;
 
 use super::*;
-
-static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
-    Lazy::new(BaseSystemContracts::load_from_disk);
+use crate::testonly::{
+    create_l2_transaction, default_l1_batch_env, default_system_env, FAST_VM_MODES,
+};
 
 const EXEC_MODES: [TxExecutionMode; 3] = [
     TxExecutionMode::EstimateFee,
     TxExecutionMode::EthCall,
     TxExecutionMode::VerifyExecute,
 ];
-const FAST_VM_MODES: [FastVmMode; 3] = [FastVmMode::Old, FastVmMode::New, FastVmMode::Shadow];
-
-fn default_system_env(execution_mode: TxExecutionMode) -> SystemEnv {
-    SystemEnv {
-        zk_porter_available: ZKPORTER_IS_AVAILABLE,
-        version: ProtocolVersionId::latest(),
-        base_system_smart_contracts: BASE_SYSTEM_CONTRACTS.clone(),
-        bootloader_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-        execution_mode,
-        default_validation_computational_gas_limit: BATCH_COMPUTATIONAL_GAS_LIMIT,
-        chain_id: L2ChainId::default(),
-    }
-}
-
-fn default_l1_batch_env(number: u32) -> L1BatchEnv {
-    L1BatchEnv {
-        previous_batch_hash: Some(H256::zero()),
-        number: L1BatchNumber(number),
-        timestamp: number.into(),
-        fee_account: Address::repeat_byte(0x22),
-        enforced_base_fee: None,
-        first_l2_block: L2BlockEnv {
-            number,
-            timestamp: number.into(),
-            prev_block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(number - 1)),
-            max_virtual_blocks_to_create: 1,
-        },
-        fee_input: BatchFeeInput::sensible_l1_pegged_default(),
-    }
-}
-
-fn create_l2_transaction(value: U256, nonce: Nonce) -> L2Tx {
-    let (max_fee_per_gas, gas_per_pubdata_limit) = derive_base_fee_and_gas_per_pubdata(
-        BatchFeeInput::sensible_l1_pegged_default(),
-        ProtocolVersionId::latest().into(),
-    );
-    let fee = Fee {
-        gas_limit: 10_000_000.into(),
-        max_fee_per_gas: max_fee_per_gas.into(),
-        max_priority_fee_per_gas: 0_u64.into(),
-        gas_per_pubdata_limit: gas_per_pubdata_limit.into(),
-    };
-    L2Tx::new_signed(
-        Some(Address::random()),
-        vec![],
-        nonce,
-        fee,
-        value,
-        L2ChainId::default(),
-        &K256PrivateKey::random(),
-        vec![],
-        PaymasterParams::default(),
-    )
-    .unwrap()
-}
 
 #[test]
 fn selecting_vm_for_execution() {
