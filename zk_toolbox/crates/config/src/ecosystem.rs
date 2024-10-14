@@ -146,20 +146,20 @@ impl EcosystemConfig {
             .unwrap_or(self.default_chain.as_ref())
     }
 
-    pub fn load_chain(&self, name: Option<String>) -> Option<ChainConfig> {
+    pub fn load_chain(&self, name: Option<String>) -> anyhow::Result<ChainConfig> {
         let name = name.unwrap_or(self.default_chain.clone());
         self.load_chain_inner(&name)
     }
 
-    pub fn load_current_chain(&self) -> Option<ChainConfig> {
+    pub fn load_current_chain(&self) -> anyhow::Result<ChainConfig> {
         self.load_chain_inner(self.current_chain())
     }
 
-    fn load_chain_inner(&self, name: &str) -> Option<ChainConfig> {
+    fn load_chain_inner(&self, name: &str) -> anyhow::Result<ChainConfig> {
         let path = self.chains.join(name).join(CONFIG_NAME);
-        let config = ChainConfigInternal::read(self.get_shell(), path.clone()).ok()?;
+        let config = ChainConfigInternal::read(self.get_shell(), path.clone())?;
 
-        Some(ChainConfig {
+        Ok(ChainConfig {
             id: config.id,
             name: config.name,
             chain_id: config.chain_id,
@@ -196,8 +196,8 @@ impl EcosystemConfig {
 
     pub fn get_wallets(&self) -> anyhow::Result<WalletsConfig> {
         let path = self.config.join(WALLETS_FILE);
-        if let Ok(wallets) = WalletsConfig::read(self.get_shell(), &path) {
-            return Ok(wallets);
+        if self.get_shell().path_exists(&path) {
+            return WalletsConfig::read(self.get_shell(), &path);
         }
         if self.wallet_creation == WalletCreation::Localhost {
             // Use 0 id for ecosystem  wallets

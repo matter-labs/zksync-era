@@ -1,7 +1,7 @@
 use anyhow::Context;
-use common::{check_prerequisites, cmd::Cmd, spinner::Spinner, WGET_PREREQUISITE};
+use common::spinner::Spinner;
 use config::{get_link_to_prover, EcosystemConfig, GeneralConfig};
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use super::args::compressor_keys::CompressorKeysArgs;
 use crate::messages::{
@@ -35,7 +35,6 @@ pub(crate) fn download_compressor_key(
     general_config: &mut GeneralConfig,
     path: &str,
 ) -> anyhow::Result<()> {
-    check_prerequisites(shell, &WGET_PREREQUISITE, false);
     let spinner = Spinner::new(MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER);
     let mut compressor_config: zksync_config::configs::FriProofCompressorConfig = general_config
         .proof_compressor_config
@@ -47,14 +46,13 @@ pub(crate) fn download_compressor_key(
 
     let url = compressor_config.universal_setup_download_url;
     let path = std::path::Path::new(path);
-    let parent = path.parent().expect(MSG_SETUP_KEY_PATH_ERROR);
-    let file_name = path.file_name().expect(MSG_SETUP_KEY_PATH_ERROR);
 
-    Cmd::new(cmd!(shell, "wget {url} -P {parent}")).run()?;
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(600))
+        .build()?;
 
-    if file_name != "setup_2^24.key" {
-        Cmd::new(cmd!(shell, "mv {parent}/setup_2^24.key {path}")).run()?;
-    }
+    let response = client.get(url).send()?.bytes()?;
+    shell.write_file(path, &response)?;
 
     spinner.finish();
     Ok(())

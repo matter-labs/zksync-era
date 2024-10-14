@@ -16,10 +16,7 @@ use zksync_consensus_crypto::TextFmt as _;
 use zksync_consensus_network as network;
 use zksync_consensus_roles::{attester, validator, validator::testonly::Setup};
 use zksync_dal::{CoreDal, DalError};
-use zksync_l1_contract_interface::i_executor::structures::StoredBatchInfo;
-use zksync_metadata_calculator::{
-    LazyAsyncTreeReader, MetadataCalculator, MetadataCalculatorConfig,
-};
+use zksync_metadata_calculator::{MetadataCalculator, MetadataCalculatorConfig};
 use zksync_node_api_server::web3::{state::InternalApiConfig, testonly::TestServerBuilder};
 use zksync_node_genesis::GenesisParams;
 use zksync_node_sync::{
@@ -49,9 +46,8 @@ use zksync_types::{
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
 use crate::{
-    batch::{L1BatchCommit, L1BatchWithWitness, LastBlockCommit},
     en,
-    storage::ConnectionPool,
+    storage::{ConnectionPool, Store},
 };
 
 /// Fake StateKeeper for tests.
@@ -70,7 +66,6 @@ pub(super) struct StateKeeper {
     sync_state: SyncState,
     addr: sync::watch::Receiver<Option<std::net::SocketAddr>>,
     pool: ConnectionPool,
-    tree_reader: LazyAsyncTreeReader,
 }
 
 #[derive(Clone)]
@@ -78,6 +73,7 @@ pub(super) struct ConfigSet {
     net: network::Config,
     pub(super) config: config::ConsensusConfig,
     pub(super) secrets: config::ConsensusSecrets,
+    pub(super) enable_pregenesis: bool,
 }
 
 impl ConfigSet {
@@ -87,11 +83,17 @@ impl ConfigSet {
             config: make_config(&net, None),
             secrets: make_secrets(&net, None),
             net,
+            enable_pregenesis: self.enable_pregenesis,
         }
     }
 }
 
-pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) -> Vec<ConfigSet> {
+pub(super) fn new_configs(
+    rng: &mut impl Rng,
+    setup: &Setup,
+    seed_peers: usize,
+    pregenesis: bool,
+) -> Vec<ConfigSet> {
     let net_cfgs = network::testonly::new_configs(rng, setup, 0);
     let genesis_spec = config::GenesisSpec {
         chain_id: setup.genesis.chain_id.0.try_into().unwrap(),
@@ -131,6 +133,7 @@ pub(super) fn new_configs(rng: &mut impl Rng, setup: &Setup, seed_peers: usize) 
             config: make_config(&net, Some(genesis_spec.clone())),
             secrets: make_secrets(&net, setup.attester_keys.get(i).cloned()),
             net,
+            enable_pregenesis: pregenesis,
         })
         .collect()
 }
@@ -154,6 +157,7 @@ fn make_config(
     genesis_spec: Option<config::GenesisSpec>,
 ) -> config::ConsensusConfig {
     config::ConsensusConfig {
+        port: Some(cfg.server_addr.port()),
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
         max_payload_size: usize::MAX,
@@ -248,7 +252,6 @@ impl StateKeeper {
         let metadata_calculator = MetadataCalculator::new(config, None, pool.0.clone())
             .await
             .context("MetadataCalculator::new()")?;
-        let tree_reader = metadata_calculator.tree_reader();
         Ok((
             Self {
                 protocol_version,
@@ -261,7 +264,6 @@ impl StateKeeper {
                 sync_state: sync_state.clone(),
                 addr: addr.subscribe(),
                 pool: pool.clone(),
-                tree_reader,
             },
             StateKeeperRunner {
                 actions_queue,
@@ -369,51 +371,14 @@ impl StateKeeper {
     }
 
     /// Batch of the `last_block`.
-    pub fn last_batch(&self) -> L1BatchNumber {
-        self.last_batch
+    pub fn last_batch(&self) -> attester::BatchNumber {
+        attester::BatchNumber(self.last_batch.0.into())
     }
 
     /// Last L1 batch that has been sealed and will have
     /// metadata computed eventually.
-    pub fn last_sealed_batch(&self) -> L1BatchNumber {
-        self.last_batch - (!self.batch_sealed) as u32
-    }
-
-    /// Loads a commitment to L1 batch directly from the database.
-    // TODO: ideally, we should rather fake fetching it from Ethereum.
-    // We can use `zksync_eth_client::clients::MockEthereum` for that,
-    // which implements `EthInterface`. It should be enough to use
-    // `MockEthereum.with_call_handler()`.
-    pub async fn load_batch_commit(
-        &self,
-        ctx: &ctx::Ctx,
-        number: L1BatchNumber,
-    ) -> ctx::Result<L1BatchCommit> {
-        // TODO: we should mock the `eth_sender` as well.
-        let mut conn = self.pool.connection(ctx).await?;
-        let this = conn.batch(ctx, number).await?.context("missing batch")?;
-        let prev = conn
-            .batch(ctx, number - 1)
-            .await?
-            .context("missing batch")?;
-        Ok(L1BatchCommit {
-            number,
-            this_batch: LastBlockCommit {
-                info: StoredBatchInfo::from(&this).hash(),
-            },
-            prev_batch: LastBlockCommit {
-                info: StoredBatchInfo::from(&prev).hash(),
-            },
-        })
-    }
-
-    /// Loads an `L1BatchWithWitness`.
-    pub async fn load_batch_with_witness(
-        &self,
-        ctx: &ctx::Ctx,
-        n: L1BatchNumber,
-    ) -> ctx::Result<L1BatchWithWitness> {
-        L1BatchWithWitness::load(ctx, n, &self.pool, &self.tree_reader).await
+    pub fn last_sealed_batch(&self) -> attester::BatchNumber {
+        attester::BatchNumber((self.last_batch.0 - (!self.batch_sealed) as u32).into())
     }
 
     /// Connects to the json RPC endpoint exposed by the state keeper.
@@ -455,6 +420,40 @@ impl StateKeeper {
         .await
     }
 
+    pub async fn run_temporary_fetcher(
+        self,
+        ctx: &ctx::Ctx,
+        client: Box<DynClient<L2>>,
+    ) -> ctx::Result<()> {
+        scope::run!(ctx, |ctx, s| async {
+            let payload_queue = self
+                .pool
+                .connection(ctx)
+                .await
+                .wrap("connection()")?
+                .new_payload_queue(ctx, self.actions_sender, self.sync_state.clone())
+                .await
+                .wrap("new_payload_queue()")?;
+            let (store, runner) = Store::new(
+                ctx,
+                self.pool.clone(),
+                Some(payload_queue),
+                Some(client.clone()),
+            )
+            .await
+            .wrap("Store::new()")?;
+            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+            en::EN {
+                pool: self.pool.clone(),
+                client,
+                sync_state: self.sync_state.clone(),
+            }
+            .temporary_block_fetcher(ctx, &store)
+            .await
+        })
+        .await
+    }
+
     /// Runs consensus node for the external node.
     pub async fn run_consensus(
         self,
@@ -473,6 +472,7 @@ impl StateKeeper {
             cfgs.config,
             cfgs.secrets,
             cfgs.net.build_version,
+            cfgs.enable_pregenesis,
         )
         .await
     }

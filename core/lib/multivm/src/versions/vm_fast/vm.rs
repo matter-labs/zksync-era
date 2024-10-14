@@ -639,6 +639,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
                 total_log_queries: 0,
             },
             refunds: result.refunds,
+            new_known_factory_deps: None,
         }
     }
 

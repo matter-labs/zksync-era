@@ -93,7 +93,7 @@ RUN wget -c https://github.com/matter-labs/zksolc-bin/raw/main/linux-amd64/zksol
 
 # Setup the environment
 ENV ZKSYNC_HOME=/usr/src/zksync
-ENV PATH="${ZKSYNC_HOME}/bin:${PATH}"
+ENV PATH="${ZKSYNC_HOME}/bin:${ZKSYNC_HOME}/zkstack_cli/zkstackup:${HOME}/.local/bin:${PATH}"
 ENV CI=1
 RUN cargo install sccache
 ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
