@@ -396,16 +396,12 @@ where
         let chunk_end = (chunk_start + FEE_HISTORY_MAX_REQUEST_CHUNK).min(upto_block);
         let chunk_size = chunk_end - chunk_start;
 
-        let fee_history = EthNamespaceClient::fee_history(
-            client,
-            U64::from(chunk_size),
-            zksync_types::api::BlockNumber::from(chunk_end),
-            vec![],
-        )
-        .rpc_context("fee_history")
-        .with_arg("chunk_size", &chunk_size)
-        .with_arg("block", &chunk_end)
-        .await?;
+        let fee_history = client
+            .fee_history(U64::from(chunk_size).into(), chunk_end.into(), vec![])
+            .rpc_context("fee_history")
+            .with_arg("chunk_size", &chunk_size)
+            .with_arg("block", &chunk_end)
+            .await?;
 
         // Check that the lengths are the same.
         if fee_history.inner.base_fee_per_gas.len() != fee_history.l2_pubdata_price.len() {
