@@ -176,7 +176,7 @@ where
     /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
     /// `index` is relative to the leftmost uncached leaf.
     /// # Panics
-    /// Panics if `index` is >= than the number of leaves in the tree.
+    /// Panics if `index` is >= than the number of uncached leaves in the tree.
     pub fn merkle_root_and_path(&self, index: usize) -> (H256, Vec<H256>) {
         assert!(index < self.hashes.len(), "leaf index out of bounds");
         let mut end_path = vec![];
@@ -185,6 +185,15 @@ where
             root_hash,
             end_path.into_iter().map(Option::unwrap).collect(),
         )
+    }
+
+    /// Returns the root hash and the Merkle proof for a leaf with the specified 0-based `index`.
+    /// `index` is an absolute position of the leaf.
+    /// # Panics
+    /// Panics if leaf at `index` is cached or if `index` is >= than the number of leaves in the tree.
+    pub fn merkle_root_and_path_by_absolute_index(&self, index: usize) -> (H256, Vec<H256>) {
+        assert!(index >= self.start_index, "leaf is cached");
+        self.merkle_root_and_path(index - self.start_index)
     }
 
     /// Returns the root hash and the Merkle proofs for a range of leafs.
@@ -296,6 +305,11 @@ where
         }
 
         hashes[0]
+    }
+
+    /// Returns the number of non-empty merkle tree elements.
+    pub fn length(&self) -> usize {
+        self.start_index + self.hashes.len()
     }
 }
 

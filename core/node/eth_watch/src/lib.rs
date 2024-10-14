@@ -7,11 +7,11 @@ use std::time::Duration;
 use anyhow::Context as _;
 use tokio::sync::watch;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal, DalError};
-use zksync_mini_merkle_tree::SyncMerkleTree;
+use zksync_mini_merkle_tree::{MiniMerkleTree, SyncMerkleTree};
 use zksync_system_constants::PRIORITY_EXPIRATION;
 use zksync_types::{
     ethabi::Contract, l1::L1Tx, protocol_version::ProtocolSemanticVersion,
-    web3::BlockNumber as Web3BlockNumber, PriorityOpId,
+    web3::BlockNumber as Web3BlockNumber, L1BatchNumber, L2ChainId, PriorityOpId,
 };
 
 pub use self::client::EthHttpQueryClient;
@@ -20,7 +20,9 @@ use self::{
     event_processors::{EventProcessor, EventProcessorError, PriorityOpsEventProcessor},
     metrics::METRICS,
 };
-use crate::event_processors::{DecentralizedUpgradesEventProcessor, EventsSource};
+use crate::event_processors::{
+    BatchRootProcessor, DecentralizedUpgradesEventProcessor, EventsSource,
+};
 
 mod client;
 mod event_processors;
@@ -32,6 +34,8 @@ mod tests;
 struct EthWatchState {
     last_seen_protocol_version: ProtocolSemanticVersion,
     next_expected_priority_id: PriorityOpId,
+    next_expected_batch_number: L1BatchNumber,
+    batch_merkle_tree: MiniMerkleTree<[u8; 96]>,
 }
 
 /// Ethereum watcher component.
@@ -53,9 +57,10 @@ impl EthWatch {
         pool: ConnectionPool<Core>,
         poll_interval: Duration,
         priority_merkle_tree: SyncMerkleTree<L1Tx>,
+        chain_id: L2ChainId,
     ) -> anyhow::Result<Self> {
         let mut storage = pool.connection_tagged("eth_watch").await?;
-        let state = Self::initialize_state(&mut storage).await?;
+        let state = Self::initialize_state(&mut storage, sl_client.as_ref()).await?;
         tracing::info!("initialized state: {state:?}");
         drop(storage);
 
@@ -65,9 +70,15 @@ impl EthWatch {
             state.last_seen_protocol_version,
             chain_admin_contract,
         );
+        let batch_root_processor = BatchRootProcessor::new(
+            state.next_expected_batch_number,
+            state.batch_merkle_tree,
+            chain_id,
+        );
         let event_processors: Vec<Box<dyn EventProcessor>> = vec![
             Box::new(priority_ops_processor),
             Box::new(decentralized_upgrades_processor),
+            Box::new(batch_root_processor),
         ];
 
         Ok(Self {
@@ -80,7 +91,10 @@ impl EthWatch {
     }
 
     #[tracing::instrument(name = "EthWatch::initialize_state", skip_all)]
-    async fn initialize_state(storage: &mut Connection<'_, Core>) -> anyhow::Result<EthWatchState> {
+    async fn initialize_state(
+        storage: &mut Connection<'_, Core>,
+        sl_client: &dyn EthClient,
+    ) -> anyhow::Result<EthWatchState> {
         let next_expected_priority_id: PriorityOpId = storage
             .transactions_dal()
             .last_priority_id()
@@ -93,9 +107,26 @@ impl EthWatch {
             .await?
             .context("expected at least one (genesis) version to be present in DB")?;
 
+        let sl_chain_id = sl_client.chain_id().await?;
+        let batch_hashes = storage
+            .blocks_dal()
+            .get_executed_batch_roots_on_sl(sl_chain_id)
+            .await?;
+
+        let next_expected_batch_number = batch_hashes
+            .last()
+            .map(|(n, _)| *n + 1)
+            .unwrap_or(L1BatchNumber(0));
+        let tree_leaves = batch_hashes.into_iter().map(|(batch_number, batch_root)| {
+            BatchRootProcessor::batch_leaf_preimage(batch_root, batch_number)
+        });
+        let batch_merkle_tree = MiniMerkleTree::new(tree_leaves, None);
+
         Ok(EthWatchState {
             next_expected_priority_id,
             last_seen_protocol_version,
+            next_expected_batch_number,
+            batch_merkle_tree,
         })
     }
 
@@ -140,28 +171,33 @@ impl EthWatch {
                 EventsSource::SL => self.sl_client.as_ref(),
             };
             let chain_id = client.chain_id().await?;
-            let finalized_block = client.finalized_block_number().await?;
+            let to_block = if processor.only_finalized_block() {
+                client.finalized_block_number().await?
+            } else {
+                client.confirmed_block_number().await?
+            };
 
             let from_block = storage
                 .eth_watcher_dal()
                 .get_or_set_next_block_to_process(
                     processor.event_type(),
                     chain_id,
-                    finalized_block.saturating_sub(PRIORITY_EXPIRATION),
+                    to_block.saturating_sub(PRIORITY_EXPIRATION),
                 )
                 .await
                 .map_err(DalError::generalize)?;
 
             // There are no new blocks so there is nothing to be done
-            if from_block > finalized_block {
+            if from_block > to_block {
                 continue;
             }
+
             let processor_events = client
                 .get_events(
                     Web3BlockNumber::Number(from_block.into()),
-                    Web3BlockNumber::Number(finalized_block.into()),
-                    processor.relevant_topic(),
-                    None,
+                    Web3BlockNumber::Number(to_block.into()),
+                    processor.topic1(),
+                    processor.topic2(),
                     RETRY_LIMIT,
                 )
                 .await?;
@@ -170,7 +206,7 @@ impl EthWatch {
                 .await?;
 
             let next_block_to_process = if processed_events_count == processor_events.len() {
-                finalized_block + 1
+                to_block + 1
             } else if processed_events_count == 0 {
                 //nothing was processed
                 from_block
