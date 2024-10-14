@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+set -o errexit
+set -o pipefail
+
 # Needs following configuration
 # URL - URL of the API endpoint
 # INTERVAL - Time interval for polling in seconds

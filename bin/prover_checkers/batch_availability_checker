@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+set -o errexit
+set -o pipefail
+
 # Configuration
 # DATABASE_URL - The URL of the prover database to connect to
 # BATCH_NUMBER - The batch number to check availability for

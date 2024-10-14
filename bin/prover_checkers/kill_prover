@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+set -o errexit
+set -o pipefail
+
 # Get a list of PIDs using the GPU
 pids=$(ps ax | grep -E 'zksync_circuit_prover|zkstack prover run --component=circuit-prover' | grep -v grep | awk '{print $1}')
 
