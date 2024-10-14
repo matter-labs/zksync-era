@@ -160,7 +160,7 @@ describe('Upgrade test', function () {
             components: serverComponents,
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile,
+            useZkStack: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
         // Server may need some time to recompile if it's a cold run, so wait for it.
@@ -377,7 +377,7 @@ describe('Upgrade test', function () {
             components: serverComponents,
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile,
+            useZkStack: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
         await utils.sleep(10);
