@@ -1,20 +1,17 @@
 use anyhow::anyhow;
 use async_trait::async_trait;
-use blake2::digest::crypto_common::rand_core::block;
-use bytes::Bytes;
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc};
 use subxt_signer::ExposeSecret;
 use zksync_config::configs::da_client::avail::{
-    AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig, AvailSecrets,
+    AvailClientConfig, AvailConfig, AvailGasRelayConfig, AvailSecrets,
 };
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_types::{
-    api_key::APIKey,
     ethabi::{self, Token},
     web3::contract::Tokenize,
     H256, U256,
