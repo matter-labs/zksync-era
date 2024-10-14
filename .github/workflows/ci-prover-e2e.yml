@@ -55,8 +55,10 @@ jobs:
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std
           ci_run git config --global --add safe.directory /usr/src/zksync/contracts/l1-contracts/lib/openzeppelin-contracts-upgradeable/lib/forge-std/lib/ds-test
           
-          ci_run ./bin/zkt
-          ci_run zk_inception chain create \
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          ci_run zkstackup -g --local
+          
+          ci_run zkstack chain create \
             --chain-name provers \
             --chain-id sequential \
             --prover-mode gpu \
@@ -68,8 +70,8 @@ jobs:
             --set-as-default true \
             --ignore-prerequisites 
 
-          ci_run zk_inception ecosystem init --dev --verbose
-          ci_run zk_inception prover init --dev --verbose
+          ci_run zkstack ecosystem init --dev --verbose
+          ci_run zkstack prover init --dev --verbose
           
           echo "URL=$(grep "http_url" ./chains/provers/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
       - name: Build prover binaries
@@ -77,17 +79,17 @@ jobs:
           ci_run cargo build --release --workspace --manifest-path=prover/Cargo.toml
       - name: Prepare prover subsystem
         run: |
-          ci_run zk_inception prover init-bellman-cuda --clone --verbose
-          ci_run zk_inception prover setup-keys --mode=download --region=us --verbose
+          ci_run zkstack prover init-bellman-cuda --clone --verbose
+          ci_run zkstack prover setup-keys --mode=download --region=us --verbose
       - name: Run server
         run: |
-          ci_run zk_inception server --uring --chain=provers --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
+          ci_run zkstack server --uring --chain=provers --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
       - name: Run Gateway
         run: |
-          ci_run zk_inception prover run --component=gateway --docker=false &>prover_logs/gateway.log &
+          ci_run zkstack prover run --component=gateway --docker=false &>prover_logs/gateway.log &
       - name: Run Prover Job Monitor
         run: |
-          ci_run zk_inception prover run --component=prover-job-monitor --docker=false &>prover_logs/prover-job-monitor.log &
+          ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs/prover-job-monitor.log &
       - name: Wait for batch to be passed through gateway
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
@@ -101,10 +103,10 @@ jobs:
           ci_run ./bin/prover_checkers/batch_availability_checker
       - name: Run Witness Generator
         run: |
-          ci_run zk_inception prover run --component=witness-generator --round=all-rounds --docker=false &>prover_logs/witness-generator.log &
+          ci_run zkstack prover run --component=witness-generator --round=all-rounds --docker=false &>prover_logs/witness-generator.log &
       - name: Run Circuit Prover
         run: |
-          ci_run zk_inception prover run --component=circuit-prover --witness-vector-generator-count=10 --docker=false &>prover_logs/circuit_prover.log &
+          ci_run zkstack prover run --component=circuit-prover --witness-vector-generator-count=10 --docker=false &>prover_logs/circuit_prover.log &
       - name: Wait for prover jobs to finish
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
@@ -123,7 +125,7 @@ jobs:
           chmod +x ./bin/prover_checkers/kill_prover
           sudo ./bin/prover_checkers/kill_prover
           
-          ci_run zk_inception prover run --component=compressor --docker=false &>prover_logs/compressor.log &
+          ci_run zkstack prover run --component=compressor --docker=false &>prover_logs/compressor.log &
       - name: Wait for batch to be executed on L1
         env:
             DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
