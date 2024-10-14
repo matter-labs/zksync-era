@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
 
 use crate::{
-    consts::INITIAL_DEPLOYMENT_FILE,
+    consts::INITIAL_DEPLOYMENT_FILE, ERC20_DEPLOYMENT_FILE,
     traits::{FileConfigWithDefaultName, ZkToolboxConfig},
     ContractsConfig, GenesisConfig, WalletsConfig,
 };
@@ -69,7 +69,7 @@ pub struct Erc20DeploymentConfig {
 }
 
 impl FileConfigWithDefaultName for Erc20DeploymentConfig {
-    const FILE_NAME: &'static str = INITIAL_DEPLOYMENT_FILE;
+    const FILE_NAME: &'static str = ERC20_DEPLOYMENT_FILE;
 }
 
 impl ZkToolboxConfig for Erc20DeploymentConfig {}
