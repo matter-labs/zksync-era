@@ -32,7 +32,7 @@ pub mod l2_block_updates;
 #[derive(Debug)]
 pub struct UpdatesManager {
     batch_timestamp: u64,
-    fee_account_address: Address,
+    pub fee_account_address: Address,
     batch_fee_input: BatchFeeInput,
     base_fee_per_gas: u64,
     base_system_contract_hashes: BaseSystemContractsHashes,

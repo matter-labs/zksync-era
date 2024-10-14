@@ -12,14 +12,10 @@ use api::state_override::{OverrideAccount, StateOverride};
 use zksync_multivm::interface::{
     ExecutionResult, VmExecutionLogs, VmExecutionResultAndLogs, VmRevertReason,
 };
-use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
-    api::ApiStorageLog,
-    fee_model::{BatchFeeInput, FeeParams},
-    get_intrinsic_constants,
-    transaction_request::CallRequest,
-    K256PrivateKey, L2ChainId, PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue,
-    U256,
+    api::ApiStorageLog, fee_model::BatchFeeInput, get_intrinsic_constants,
+    transaction_request::CallRequest, K256PrivateKey, L2ChainId, PackedEthSignature,
+    StorageLogKind, StorageLogWithPreviousValue, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
@@ -42,11 +38,7 @@ impl ExpectedFeeInput {
     fn expect_for_block(&self, number: api::BlockNumber, scale: f64) {
         *self.0.lock().unwrap() = match number {
             api::BlockNumber::Number(number) => create_l2_block(number.as_u32()).batch_fee_input,
-            _ => <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
-                FeeParams::sensible_v1_default(),
-                scale,
-                scale,
-            ),
+            _ => scaled_sensible_fee_input(scale),
         };
     }
 
@@ -165,12 +157,7 @@ impl HttpTest for CallTest {
         // Check that the method handler fetches fee inputs for recent blocks. To do that, we create a new block
         // with a large fee input; it should be loaded by `ApiFeeInputProvider` and override the input provided by the wrapped mock provider.
         let mut block_header = create_l2_block(2);
-        block_header.batch_fee_input =
-            <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
-                FeeParams::sensible_v1_default(),
-                2.5,
-                2.5,
-            );
+        block_header.batch_fee_input = scaled_sensible_fee_input(2.5);
         store_custom_l2_block(&mut connection, &block_header, &[]).await?;
         // Fee input is not scaled further as per `ApiFeeInputProvider` implementation
         self.fee_input.expect_custom(block_header.batch_fee_input);
@@ -607,12 +594,7 @@ impl HttpTest for TraceCallTest {
         // Check that the method handler fetches fee inputs for recent blocks. To do that, we create a new block
         // with a large fee input; it should be loaded by `ApiFeeInputProvider` and override the input provided by the wrapped mock provider.
         let mut block_header = create_l2_block(2);
-        block_header.batch_fee_input =
-            <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
-                FeeParams::sensible_v1_default(),
-                3.0,
-                3.0,
-            );
+        block_header.batch_fee_input = scaled_sensible_fee_input(3.0);
         store_custom_l2_block(&mut connection, &block_header, &[]).await?;
         // Fee input is not scaled further as per `ApiFeeInputProvider` implementation
         self.fee_input.expect_custom(block_header.batch_fee_input);

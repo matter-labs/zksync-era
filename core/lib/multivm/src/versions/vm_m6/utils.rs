@@ -5,7 +5,7 @@ use zk_evm_1_3_1::{
     vm_state::PrimitiveValue,
     zkevm_opcode_defs::FatPointer,
 };
-use zksync_contracts::{read_zbin_bytecode, BaseSystemContracts};
+use zksync_contracts::BaseSystemContracts;
 use zksync_system_constants::ZKPORTER_IS_AVAILABLE;
 use zksync_types::{Address, StorageLogKind, H160, MAX_L2_TX_GAS_LIMIT, U256};
 use zksync_utils::h256_to_u256;
@@ -254,13 +254,6 @@ pub fn create_test_block_params() -> (BlockContext, BlockProperties) {
             zkporter_is_available: ZKPORTER_IS_AVAILABLE,
         },
     )
-}
-
-pub fn read_bootloader_test_code(test: &str) -> Vec<u8> {
-    read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/tests/artifacts/{}.yul.zbin",
-        test
-    ))
 }
 
 pub(crate) fn calculate_computational_gas_used<

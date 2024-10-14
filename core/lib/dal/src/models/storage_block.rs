@@ -6,7 +6,7 @@ use thiserror::Error;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
-    block::{L1BatchHeader, L2BlockHeader},
+    block::{L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
     commitment::{L1BatchMetaParameters, L1BatchMetadata},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
@@ -53,6 +53,7 @@ pub(crate) struct StorageL1BatchHeader {
     // will be exactly 7 (or 8 in the event of a protocol upgrade) system logs.
     pub system_logs: Vec<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub fee_address: Vec<u8>,
 }
 
 impl StorageL1BatchHeader {
@@ -90,6 +91,7 @@ impl StorageL1BatchHeader {
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
             pubdata_input: self.pubdata_input,
+            fee_address: Address::from_slice(&self.fee_address),
         }
     }
 }
@@ -152,6 +154,7 @@ pub(crate) struct StorageL1Batch {
     pub events_queue_commitment: Option<Vec<u8>>,
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
+    pub fee_address: Vec<u8>,
 }
 
 impl StorageL1Batch {
@@ -189,6 +192,7 @@ impl StorageL1Batch {
                 .protocol_version
                 .map(|v| (v as u16).try_into().unwrap()),
             pubdata_input: self.pubdata_input,
+            fee_address: Address::from_slice(&self.fee_address),
         }
     }
 }
@@ -260,6 +264,38 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
         })
+    }
+}
+
+/// Partial projection of the columns corresponding to an unsealed [`L1BatchHeader`].
+#[derive(Debug, Clone)]
+pub(crate) struct UnsealedStorageL1Batch {
+    pub number: i64,
+    pub timestamp: i64,
+    pub protocol_version: Option<i32>,
+    pub fee_address: Vec<u8>,
+    pub l1_gas_price: i64,
+    pub l2_fair_gas_price: i64,
+    pub fair_pubdata_price: Option<i64>,
+}
+
+impl From<UnsealedStorageL1Batch> for UnsealedL1BatchHeader {
+    fn from(batch: UnsealedStorageL1Batch) -> Self {
+        let protocol_version: Option<ProtocolVersionId> = batch
+            .protocol_version
+            .map(|v| (v as u16).try_into().unwrap());
+        Self {
+            number: L1BatchNumber(batch.number as u32),
+            timestamp: batch.timestamp as u64,
+            protocol_version,
+            fee_address: Address::from_slice(&batch.fee_address),
+            fee_input: BatchFeeInput::for_protocol_version(
+                protocol_version.unwrap_or_else(ProtocolVersionId::last_potentially_undefined),
+                batch.l2_fair_gas_price as u64,
+                batch.fair_pubdata_price.map(|p| p as u64),
+                batch.l1_gas_price as u64,
+            ),
+        }
     }
 }
 

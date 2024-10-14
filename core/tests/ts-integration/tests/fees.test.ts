@@ -409,10 +409,10 @@ testFees('Test fees', function () {
     });
 
     afterAll(async () => {
-        await testMaster.deinitialize();
+        await mainNodeSpawner.killAndSpawnMainNode();
         // Returning the pubdata price to the default one
         // Spawning with no options restores defaults.
-        await mainNodeSpawner.killAndSpawnMainNode();
+        await testMaster.deinitialize();
         __ZKSYNC_TEST_CONTEXT_OWNER__.setL2NodePid(mainNodeSpawner.mainNode!.proc.pid!);
     });
 });
