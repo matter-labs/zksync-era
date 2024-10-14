@@ -3,23 +3,10 @@
 set -o errexit
 set -o pipefail
 
-# Get a list of PIDs using the GPU
-pids=$(ps ax | grep -E 'zksync_circuit_prover|zkstack prover run --component=circuit-prover' | grep -v grep | awk '{print $1}')
-
-# Check if there are any processes using the GPU
-if [ -z "$pids" ]; then
+# Use pkill to find and kill processes using circuit prover
+if ! pkill -f 'zksync_circuit_prover|zkstack prover run --component=circuit-prover'; then
   echo "No processes are currently using the GPU."
   exit 0
 fi
 
-processes=$(ps ax | grep -E 'zksync_circuit_prover|zkstack prover run --component=circuit-prover' | grep -v grep)
-
-echo "Processes using the GPU: $processes"
-
-# Loop through each PID and kill the process
-for pid in $pids; do
-  echo "Killing process with PID: $pid"
-  kill -9 $pid
-done
-
-echo "All GPU processes have been killed."
+echo "All GPU-related processes have been killed."
