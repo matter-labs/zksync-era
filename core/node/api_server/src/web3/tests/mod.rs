@@ -31,17 +31,21 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     api,
-    block::{pack_block_info, L2BlockHeader},
+    block::{pack_block_info, L2BlockHasher, L2BlockHeader},
     get_nonce_key,
     l2::L2Tx,
     storage::get_code_key,
+    system_contracts::get_system_smart_contracts,
     tokens::{TokenInfo, TokenMetadata},
     tx::IncludedTxLocation,
     utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
     AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog, H256,
     U256, U64,
 };
-use zksync_utils::u256_to_h256;
+use zksync_utils::{
+    bytecode::{hash_bytecode, hash_evm_bytecode},
+    u256_to_h256,
+};
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
@@ -58,7 +62,10 @@ use zksync_web3_decl::{
 };
 
 use super::*;
-use crate::web3::testonly::TestServerBuilder;
+use crate::{
+    testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
+    web3::testonly::TestServerBuilder,
+};
 
 mod debug;
 mod filters;
@@ -625,7 +632,7 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
         let address = Address::repeat_byte(1);
         let code_key = get_code_key(&address);
-        let code_hash = H256::repeat_byte(2);
+        let code_hash = hash_bytecode(&[0; 32]);
         let balance_key = storage_key_for_eth_balance(&address);
         let logs = vec![
             StorageLog::new_write_log(code_key, code_hash),
@@ -1101,4 +1108,123 @@ impl HttpTest for GenesisConfigTest {
 #[tokio::test]
 async fn tracing_genesis_config() {
     test_http_server(GenesisConfigTest).await;
+}
+
+#[derive(Debug)]
+struct GetBytecodeTest;
+
+impl GetBytecodeTest {
+    async fn insert_evm_bytecode(
+        connection: &mut Connection<'_, Core>,
+        at_block: L2BlockNumber,
+        address: Address,
+    ) -> anyhow::Result<()> {
+        let evm_bytecode_hash = hash_evm_bytecode(RAW_EVM_BYTECODE);
+        let code_log = StorageLog::new_write_log(get_code_key(&address), evm_bytecode_hash);
+        connection
+            .storage_logs_dal()
+            .append_storage_logs(at_block, &[code_log])
+            .await?;
+
+        let factory_deps = HashMap::from([(evm_bytecode_hash, RAW_EVM_BYTECODE.to_vec())]);
+        connection
+            .factory_deps_dal()
+            .insert_factory_deps(at_block, &factory_deps)
+            .await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl HttpTest for GetBytecodeTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let genesis_evm_address = Address::repeat_byte(1);
+        let mut connection = pool.connection().await?;
+        Self::insert_evm_bytecode(&mut connection, L2BlockNumber(0), genesis_evm_address).await?;
+
+        for contract in get_system_smart_contracts(false) {
+            let bytecode = client
+                .get_code(*contract.account_id.address(), None)
+                .await?;
+            assert_eq!(bytecode.0, contract.bytecode);
+        }
+
+        let bytecode = client.get_code(genesis_evm_address, None).await?;
+        assert_eq!(bytecode.0, PROCESSED_EVM_BYTECODE);
+
+        let latest_block_variants = [
+            api::BlockNumber::Pending,
+            api::BlockNumber::Latest,
+            api::BlockNumber::Committed,
+        ];
+        let latest_block_variants = latest_block_variants.map(api::BlockIdVariant::BlockNumber);
+
+        let genesis_block_variants = [
+            api::BlockIdVariant::BlockNumber(api::BlockNumber::Earliest),
+            api::BlockIdVariant::BlockNumber(api::BlockNumber::Number(0.into())),
+            api::BlockIdVariant::BlockHashObject(api::BlockHashObject {
+                block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
+            }),
+        ];
+        for at_block in latest_block_variants
+            .into_iter()
+            .chain(genesis_block_variants)
+        {
+            println!("Testing {at_block:?} with genesis EVM code, latest block: 0");
+            let bytecode = client.get_code(genesis_evm_address, Some(at_block)).await?;
+            assert_eq!(bytecode.0, PROCESSED_EVM_BYTECODE);
+        }
+
+        // Create another block with an EVM bytecode.
+        let new_bytecode_address = Address::repeat_byte(2);
+        let mut connection = pool.connection().await?;
+        let block_header = store_l2_block(&mut connection, L2BlockNumber(1), &[]).await?;
+        Self::insert_evm_bytecode(&mut connection, L2BlockNumber(1), new_bytecode_address).await?;
+
+        let bytecode = client.get_code(genesis_evm_address, None).await?;
+        assert_eq!(bytecode.0, PROCESSED_EVM_BYTECODE);
+        let bytecode = client.get_code(new_bytecode_address, None).await?;
+        assert_eq!(bytecode.0, PROCESSED_EVM_BYTECODE);
+
+        let new_block_variants = [
+            api::BlockIdVariant::BlockNumber(api::BlockNumber::Number(1.into())),
+            api::BlockIdVariant::BlockHashObject(api::BlockHashObject {
+                block_hash: block_header.hash,
+            }),
+        ];
+        for at_block in latest_block_variants.into_iter().chain(new_block_variants) {
+            println!("Testing {at_block:?} with new EVM code, latest block: 1");
+            let bytecode = client
+                .get_code(new_bytecode_address, Some(at_block))
+                .await?;
+            assert_eq!(bytecode.0, PROCESSED_EVM_BYTECODE);
+        }
+        for at_block in genesis_block_variants {
+            println!("Testing {at_block:?} with new EVM code, latest block: 1");
+            let bytecode = client
+                .get_code(new_bytecode_address, Some(at_block))
+                .await?;
+            assert!(bytecode.0.is_empty());
+        }
+
+        for at_block in latest_block_variants
+            .into_iter()
+            .chain(new_block_variants)
+            .chain(genesis_block_variants)
+        {
+            println!("Testing {at_block:?} with genesis EVM code, latest block: 1");
+            let bytecode = client.get_code(genesis_evm_address, Some(at_block)).await?;
+            assert_eq!(bytecode.0, PROCESSED_EVM_BYTECODE);
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn getting_bytecodes() {
+    test_http_server(GetBytecodeTest).await;
 }
