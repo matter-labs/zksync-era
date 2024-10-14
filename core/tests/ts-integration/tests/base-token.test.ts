@@ -7,7 +7,7 @@ import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
+import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { sleep } from 'zksync-ethers/build/utils';
 
 const SECONDS = 1000;
@@ -170,9 +170,7 @@ describe('base ERC20 contract checks', () => {
         await expect(withdrawalPromise).toBeAccepted([]);
         const withdrawalTx = await withdrawalPromise;
         const l2Receipt = await withdrawalTx.wait();
-        await waitForBlockToBeFinalizedOnL1(alice, l2Receipt!.blockNumber);
-        // Sleep to give some time for eth watch to process events, l2 l1 log proof will be available only after it's done.
-        await sleep(3000);
+        await waitForL2ToL1LogProof(alice, l2Receipt!.blockNumber, withdrawalTx.hash);
 
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted([]);
         const receipt = await alice._providerL2().getTransactionReceipt(withdrawalTx.hash);

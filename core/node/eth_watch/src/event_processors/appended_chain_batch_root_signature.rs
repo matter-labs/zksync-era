@@ -127,6 +127,7 @@ impl EventProcessor for BatchRootProcessor {
 
                 self.merkle_tree
                     .push(Self::batch_leaf_preimage(*batch_root, *batch_number));
+                self.next_expected_batch_number = *batch_number + 1;
             }
 
             let number_of_leaves = self.merkle_tree.length();

@@ -9,7 +9,7 @@ import { shouldChangeTokenBalances, shouldOnlyTakeFee } from '../src/modifiers/b
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { Provider, Wallet } from 'ethers';
-import { scaledGasPrice, deployContract, readContract, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
+import { scaledGasPrice, deployContract, readContract, waitForL2ToL1LogProof } from '../src/helpers';
 import { sleep } from 'zksync-ethers/build/utils';
 
 describe('L2 native ERC20 contract checks', () => {
@@ -102,9 +102,7 @@ describe('L2 native ERC20 contract checks', () => {
         const withdrawalTx = await withdrawalPromise;
         const l2TxReceipt = await alice.provider.getTransactionReceipt(withdrawalTx.hash);
         await withdrawalTx.waitFinalize();
-        await waitForBlockToBeFinalizedOnL1(alice, l2TxReceipt!.blockNumber);
-        // Sleep to give some time for eth watch to process events, l2 l1 log proof will be available only after it's done.
-        await sleep(3000);
+        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, withdrawalTx.hash);
 
         await alice.finalizeWithdrawalParams(withdrawalTx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
         await expect(alice.finalizeWithdrawal(withdrawalTx.hash)).toBeAccepted();
@@ -174,9 +172,7 @@ describe('L2 native ERC20 contract checks', () => {
         // It throws once it gets status == 0 in the receipt and doesn't wait for the finalization.
         const l2Hash = zksync.utils.getL2HashFromPriorityOp(l1Receipt, await alice.provider.getMainContractAddress());
         const l2TxReceipt = await alice.provider.getTransactionReceipt(l2Hash);
-        await waitForBlockToBeFinalizedOnL1(alice, l2TxReceipt!.blockNumber);
-        // Sleep to give some time for eth watch to process events, l2 l1 log proof will be available only after it's done.
-        await sleep(3000);
+        await waitForL2ToL1LogProof(alice, l2TxReceipt!.blockNumber, l2Hash);
 
         // Claim failed deposit.
         await expect(alice.claimFailedDeposit(l2Hash)).toBeAccepted();
