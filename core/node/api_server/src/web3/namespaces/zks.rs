@@ -18,7 +18,7 @@ use zksync_types::{
     fee_model::{FeeParams, PubdataIndependentBatchFeeModelInput},
     l1::L1Tx,
     l2::L2Tx,
-    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log},
+    l2_to_l1_log::{l2_to_l1_logs_tree_size, L2ToL1Log, LOG_PROOF_SUPPORTED_METADATA_VERSION},
     tokens::ETHEREUM_ADDRESS,
     transaction_request::CallRequest,
     utils::storage_key_for_standard_token_balance,
@@ -30,7 +30,7 @@ use zksync_types::{
 use zksync_utils::{address_to_h256, h256_to_u256};
 use zksync_web3_decl::{
     client::{Client, L2},
-    error::Web3Error,
+    error::{ClientRpcContext, Web3Error},
     namespaces::{EthNamespaceClient, ZksNamespaceClient},
     types::{Address, Token, H256},
 };
@@ -230,6 +230,14 @@ impl ZksNamespace {
         msg: H256,
         l2_log_position: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+        if let Some(handler) = &self.state.l2_l1_log_proof_handler {
+            return handler
+                .get_l2_to_l1_msg_proof(block_number, sender, msg, l2_log_position)
+                .rpc_context("get_l2_to_l1_msg_proof")
+                .await
+                .map_err(Into::into);
+        }
+
         let mut storage = self.state.acquire_connection().await?;
         self.state
             .start_info
@@ -380,7 +388,7 @@ impl ZksNamespace {
 
         let proof = {
             let mut metadata = [0u8; 32];
-            metadata[0] = 1;
+            metadata[0] = LOG_PROOF_SUPPORTED_METADATA_VERSION;
             metadata[1] = log_leaf_proof.len() as u8;
             metadata[2] = batch_proof_len as u8;
 
@@ -404,6 +412,14 @@ impl ZksNamespace {
         tx_hash: H256,
         index: Option<usize>,
     ) -> Result<Option<L2ToL1LogProof>, Web3Error> {
+        if let Some(handler) = &self.state.l2_l1_log_proof_handler {
+            return handler
+                .get_l2_to_l1_log_proof(tx_hash, index)
+                .rpc_context("get_l2_to_l1_log_proof")
+                .await
+                .map_err(Into::into);
+        }
+
         let mut storage = self.state.acquire_connection().await?;
         let Some((l1_batch_number, l1_batch_tx_index)) = storage
             .blocks_web3_dal()
@@ -413,6 +429,11 @@ impl ZksNamespace {
         else {
             return Ok(None);
         };
+
+        self.state
+            .start_info
+            .ensure_not_pruned(l1_batch_number, &mut storage)
+            .await?;
 
         let log_proof = self
             .get_l2_to_l1_log_proof_inner(
@@ -431,6 +452,10 @@ impl ZksNamespace {
         l2_chain_id: L2ChainId,
     ) -> Result<Option<ChainAggProof>, Web3Error> {
         let mut connection = self.state.acquire_connection().await?;
+        self.state
+            .start_info
+            .ensure_not_pruned(l1_batch_number, &mut connection)
+            .await?;
 
         let Some((_, l2_block_number)) = connection
             .blocks_dal()

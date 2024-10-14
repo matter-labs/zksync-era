@@ -9,6 +9,7 @@ use crate::{
     implementations::resources::{
         circuit_breakers::CircuitBreakersResource,
         healthcheck::AppHealthCheckResource,
+        main_node_client::MainNodeClientResource,
         pools::{PoolResource, ReplicaPool},
         sync_state::SyncStateResource,
         web3_api::{MempoolCacheResource, TreeApiClientResource, TxSenderResource},
@@ -109,6 +110,7 @@ pub struct Input {
     pub circuit_breakers: CircuitBreakersResource,
     #[context(default)]
     pub app_health: AppHealthCheckResource,
+    pub main_node_client: Option<MainNodeClientResource>,
 }
 
 #[derive(Debug, IntoContext)]
@@ -196,6 +198,9 @@ impl WiringLayer for Web3ServerLayer {
         {
             api_builder =
                 api_builder.with_pruning_info_refresh_interval(pruning_info_refresh_interval);
+        }
+        if let Some(main_node_client) = input.main_node_client {
+            api_builder = api_builder.with_l2_l1_log_proof_handler(main_node_client.0)
         }
         let replication_lag_limit = self.optional_config.replication_lag_limit;
         api_builder = self.optional_config.apply(api_builder);
