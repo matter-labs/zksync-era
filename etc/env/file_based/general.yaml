@@ -380,3 +380,9 @@ timestamp_asserter:
   min_range_sec: 300
   min_time_till_end_sec: 60
 
+consensus:
+  port: 3054
+  server_addr: "127.0.0.1:3054"
+  public_addr: "127.0.0.1:3054"
+  max_payload_size: 2500000
+  gossip_dynamic_inbound_limit: 100

@@ -65,7 +65,7 @@ pub fn read_optional_repr<P: ProtoRepr>(field: &Option<P>) -> Option<P::Type> {
         .transpose()
         // This error will printed, only if the config partially filled, allows to debug config issues easier
         .map_err(|err| {
-            tracing::error!("Failed to serialize config: {err}");
+            tracing::error!("Failed to parse config: {err:#}");
             err
         })
         .ok()
