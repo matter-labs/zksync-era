@@ -59,8 +59,18 @@ pub async fn run_external_node(
                 is_validator = secrets.validator_key.is_some(),
                 "running external node"
             );
-            en.run(ctx, actions, cfg, secrets, Some(build_version))
-                .await
+            // We will enable it once the main node on all envs supports
+            // `block_metadata()` JSON RPC method.
+            let enable_pregenesis = false;
+            en.run(
+                ctx,
+                actions,
+                cfg,
+                secrets,
+                Some(build_version),
+                enable_pregenesis,
+            )
+            .await
         }
         None => {
             tracing::info!("running fetcher");

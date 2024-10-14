@@ -15,6 +15,7 @@ use zksync_state_keeper::{
     updates::UpdatesManager,
 };
 use zksync_types::{
+    block::UnsealedL1BatchHeader,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
@@ -200,6 +201,14 @@ impl StateKeeperIO for ExternalIO {
                     cursor.l1_batch
                 )
             })?;
+        storage
+            .blocks_dal()
+            .ensure_unsealed_l1_batch_exists(
+                l1_batch_env
+                    .clone()
+                    .into_unsealed_header(Some(system_env.version)),
+            )
+            .await?;
         let data = load_pending_batch(&mut storage, system_env, l1_batch_env)
             .await
             .with_context(|| {
@@ -236,6 +245,19 @@ impl StateKeeperIO for ExternalIO {
                     "L2 block number mismatch: expected {}, got {first_l2_block_number}",
                     cursor.next_l2_block
                 );
+
+                self.pool
+                    .connection_tagged("sync_layer")
+                    .await?
+                    .blocks_dal()
+                    .insert_l1_batch(UnsealedL1BatchHeader {
+                        number: cursor.l1_batch,
+                        timestamp: params.first_l2_block.timestamp,
+                        protocol_version: None,
+                        fee_address: params.operator_address,
+                        fee_input: params.fee_input,
+                    })
+                    .await?;
                 return Ok(Some(params));
             }
             other => {
