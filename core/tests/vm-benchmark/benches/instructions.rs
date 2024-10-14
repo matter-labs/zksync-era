@@ -1,0 +1,182 @@
+//! Measures instruction counts for the .
+
+use std::{
+    collections::HashMap,
+    env,
+    sync::{Arc, Mutex},
+};
+
+use vise::{Gauge, LabeledFamily, Metrics};
+use vm_benchmark::{
+    criterion::PrometheusRuntime, BenchmarkingVm, BenchmarkingVmFactory, Fast, Legacy, BYTECODES,
+};
+use yab::{
+    reporter::{BenchmarkOutput, BenchmarkReporter, Reporter},
+    AccessSummary, Bencher, BenchmarkId,
+};
+
+fn benchmarks_for_vm<VM: BenchmarkingVmFactory>(bencher: &mut Bencher) {
+    bencher.bench(
+        BenchmarkId::new("init", VM::LABEL.as_str()),
+        BenchmarkingVm::<VM>::default,
+    );
+
+    for bytecode in BYTECODES {
+        bencher.bench_with_capture(
+            BenchmarkId::new(bytecode.name, VM::LABEL.as_str()),
+            |capture| {
+                let mut vm = yab::black_box(BenchmarkingVm::<VM>::default());
+                let tx = yab::black_box(bytecode.deploy_tx());
+                capture.measure(|| vm.run_transaction(&tx));
+            },
+        );
+    }
+}
+
+/// Reporter that pushes cachegrind metrics to Prometheus.
+#[derive(Debug)]
+struct MetricsReporter {
+    _runtime: Option<PrometheusRuntime>,
+}
+
+impl Default for MetricsReporter {
+    fn default() -> Self {
+        Self {
+            _runtime: PrometheusRuntime::new(),
+        }
+    }
+}
+
+impl Reporter for MetricsReporter {
+    fn new_benchmark(&mut self, id: &BenchmarkId) -> Box<dyn BenchmarkReporter> {
+        Box::new(MetricsBenchmarkReporter(id.clone()))
+    }
+}
+
+#[derive(Debug)]
+struct MetricsBenchmarkReporter(BenchmarkId);
+
+impl BenchmarkReporter for MetricsBenchmarkReporter {
+    fn ok(self: Box<Self>, output: &BenchmarkOutput) {
+        #[derive(Debug, Metrics)]
+        #[metrics(prefix = "vm_cachegrind")]
+        struct VmCachegrindMetrics {
+            #[metrics(labels = ["benchmark"])]
+            instructions: LabeledFamily<String, Gauge<u64>>,
+            #[metrics(labels = ["benchmark"])]
+            l1_accesses: LabeledFamily<String, Gauge<u64>>,
+            #[metrics(labels = ["benchmark"])]
+            l2_accesses: LabeledFamily<String, Gauge<u64>>,
+            #[metrics(labels = ["benchmark"])]
+            ram_accesses: LabeledFamily<String, Gauge<u64>>,
+            #[metrics(labels = ["benchmark"])]
+            cycles: LabeledFamily<String, Gauge<u64>>,
+        }
+
+        #[vise::register]
+        static VM_CACHEGRIND_METRICS: vise::Global<VmCachegrindMetrics> = vise::Global::new();
+
+        let id = self.0.to_string();
+        VM_CACHEGRIND_METRICS.instructions[&id].set(output.stats.total_instructions());
+        if let Some(&full) = output.stats.as_full() {
+            let summary = AccessSummary::from(full);
+            VM_CACHEGRIND_METRICS.l1_accesses[&id].set(summary.l1_hits);
+            VM_CACHEGRIND_METRICS.l2_accesses[&id].set(summary.l3_hits);
+            VM_CACHEGRIND_METRICS.ram_accesses[&id].set(summary.ram_accesses);
+            VM_CACHEGRIND_METRICS.cycles[&id].set(summary.estimated_cycles());
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Comparison {
+    est_cycles: u64,
+    est_cycles_diff: f64,
+}
+
+impl Comparison {
+    fn percent_difference(a: u64, b: u64) -> f64 {
+        ((b as f64) - (a as f64)) / (a as f64) * 100.0
+    }
+
+    fn new(output: &BenchmarkOutput) -> Option<Self> {
+        let current_cycles = AccessSummary::from(*output.stats.as_full()?).estimated_cycles();
+        let prev_cycles = AccessSummary::from(*output.prev_stats?.as_full()?).estimated_cycles();
+        Some(Self {
+            est_cycles: current_cycles,
+            est_cycles_diff: Self::percent_difference(prev_cycles, current_cycles),
+        })
+    }
+}
+
+#[derive(Debug, Default)]
+struct ComparisonReporter {
+    comparisons: Arc<Mutex<HashMap<String, Comparison>>>,
+}
+
+impl Drop for ComparisonReporter {
+    fn drop(&mut self) {
+        const ENV_VAR: &str = "BENCHMARK_DIFF_THRESHOLD_PERCENT";
+
+        let diff_threshold = env::var(ENV_VAR).unwrap_or_else(|_| "1.0".into());
+        let diff_threshold: f64 = diff_threshold.parse().unwrap_or_else(|err| {
+            panic!("incorrect `{ENV_VAR}` value: {err}");
+        });
+
+        let mut comparisons = self.comparisons.lock().expect("poisoned").clone();
+        comparisons.retain(|_, diff| diff.est_cycles_diff.abs() > diff_threshold);
+        if comparisons.is_empty() {
+            return;
+        }
+
+        println!("\n## Detected VM performance changes");
+        println!("Benchmark name | est. cycles | change in est. cycles |");
+        println!("|:---|---:|---:|");
+        for (name, comparison) in &comparisons {
+            println!(
+                "| {name} | {} | {:+.1}% |",
+                comparison.est_cycles, comparison.est_cycles_diff
+            );
+        }
+    }
+}
+
+impl Reporter for ComparisonReporter {
+    fn new_benchmark(&mut self, id: &BenchmarkId) -> Box<dyn BenchmarkReporter> {
+        Box::new(BenchmarkComparison {
+            comparisons: self.comparisons.clone(),
+            id: id.clone(),
+        })
+    }
+}
+
+#[derive(Debug)]
+struct BenchmarkComparison {
+    comparisons: Arc<Mutex<HashMap<String, Comparison>>>,
+    id: BenchmarkId,
+}
+
+impl BenchmarkReporter for BenchmarkComparison {
+    fn ok(self: Box<Self>, output: &BenchmarkOutput) {
+        if let Some(diff) = Comparison::new(output) {
+            self.comparisons
+                .lock()
+                .expect("poisoned")
+                .insert(self.id.to_string(), diff);
+        }
+    }
+}
+
+fn benchmarks(bencher: &mut Bencher) {
+    if env::args().any(|arg| arg == "--print") {
+        // Only customize reporting if outputting previously collected benchmark result in order to prevent
+        // reporters influencing cachegrind stats.
+        bencher
+            .add_reporter(MetricsReporter::default())
+            .add_reporter(ComparisonReporter::default());
+    }
+    benchmarks_for_vm::<Fast>(bencher);
+    benchmarks_for_vm::<Legacy>(bencher);
+}
+
+yab::main!(benchmarks);

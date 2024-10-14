@@ -34,5 +34,5 @@ name = "batch"
 harness = false
 
 [[bench]]
-name = "iai"
+name = "instructions"
 harness = false
