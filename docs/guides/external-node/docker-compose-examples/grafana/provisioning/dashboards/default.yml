@@ -5,6 +5,7 @@ providers:
     orgId: 1
     folder: ''
     type: file
+    allowUiUpdates: true
     disableDeletion: false
     updateIntervalSeconds: 10  # How often Grafana will scan for changed dashboards
     options:

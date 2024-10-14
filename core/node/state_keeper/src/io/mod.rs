@@ -42,7 +42,7 @@ pub struct PendingBatchData {
     pub(crate) pending_l2_blocks: Vec<L2BlockExecutionData>,
 }
 
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default, PartialEq)]
 pub struct L2BlockParams {
     /// The timestamp of the L2 block.
     pub timestamp: u64,
@@ -58,7 +58,7 @@ pub struct L2BlockParams {
 }
 
 /// Parameters for a new L1 batch returned by [`StateKeeperIO::wait_for_new_batch_params()`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct L1BatchParams {
     /// Protocol version for the new L1 batch.
     pub protocol_version: ProtocolVersionId,

@@ -107,7 +107,7 @@ pub async fn init(
         shell,
         ecosystem_config,
         contracts_config.l1.chain_admin_addr,
-        chain_config.get_wallets_config()?.governor_private_key(),
+        &chain_config.get_wallets_config()?.governor,
         contracts_config.l1.diamond_proxy_addr,
         &init_args.forge_args.clone(),
         init_args.l1_rpc_url.clone(),
@@ -121,7 +121,7 @@ pub async fn init(
         set_token_multiplier_setter(
             shell,
             ecosystem_config,
-            chain_config.get_wallets_config()?.governor_private_key(),
+            &chain_config.get_wallets_config()?.governor,
             contracts_config.l1.chain_admin_addr,
             chain_config
                 .get_wallets_config()

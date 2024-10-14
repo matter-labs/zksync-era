@@ -14,8 +14,8 @@ use zksync_mempool::L2TxFilter;
 use zksync_multivm::{interface::Halt, utils::derive_base_fee_and_gas_per_pubdata};
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_types::{
-    protocol_upgrade::ProtocolUpgradeTx, utils::display_timestamp, Address, L1BatchNumber,
-    L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
+    block::UnsealedL1BatchHeader, protocol_upgrade::ProtocolUpgradeTx, utils::display_timestamp,
+    Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256, U256,
 };
 // TODO (SMA-1206): use seconds instead of milliseconds.
 use zksync_utils::time::millis_since_epoch;
@@ -133,6 +133,15 @@ impl StateKeeperIO for MempoolIO {
             gas_per_pubdata: gas_per_pubdata as u32,
         };
 
+        storage
+            .blocks_dal()
+            .ensure_unsealed_l1_batch_exists(
+                l1_batch_env
+                    .clone()
+                    .into_unsealed_header(Some(system_env.version)),
+            )
+            .await?;
+
         Ok((
             cursor,
             Some(PendingBatchData {
@@ -148,6 +157,30 @@ impl StateKeeperIO for MempoolIO {
         cursor: &IoCursor,
         max_wait: Duration,
     ) -> anyhow::Result<Option<L1BatchParams>> {
+        // Check if there is an existing unsealed batch
+        if let Some(unsealed_storage_batch) = self
+            .pool
+            .connection_tagged("state_keeper")
+            .await?
+            .blocks_dal()
+            .get_unsealed_l1_batch()
+            .await?
+        {
+            return Ok(Some(L1BatchParams {
+                protocol_version: unsealed_storage_batch
+                    .protocol_version
+                    .expect("unsealed batch is missing protocol version"),
+                validation_computational_gas_limit: self.validation_computational_gas_limit,
+                operator_address: unsealed_storage_batch.fee_address,
+                fee_input: unsealed_storage_batch.fee_input,
+                first_l2_block: L2BlockParams {
+                    timestamp: unsealed_storage_batch.timestamp,
+                    // This value is effectively ignored by the protocol.
+                    virtual_blocks: 1,
+                },
+            }));
+        }
+
         let deadline = Instant::now() + max_wait;
 
         // Block until at least one transaction in the mempool can match the filter (or timeout happens).
@@ -190,6 +223,19 @@ impl StateKeeperIO for MempoolIO {
                 tokio::time::sleep(self.delay_interval).await;
                 continue;
             }
+
+            self.pool
+                .connection()
+                .await?
+                .blocks_dal()
+                .insert_l1_batch(UnsealedL1BatchHeader {
+                    number: cursor.l1_batch,
+                    timestamp,
+                    protocol_version: Some(protocol_version),
+                    fee_address: self.fee_account,
+                    fee_input: self.filter.fee_input,
+                })
+                .await?;
 
             return Ok(Some(L1BatchParams {
                 protocol_version,
