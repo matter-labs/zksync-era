@@ -235,3 +235,4 @@ pub(super) const MSG_INVALID_L1_RPC_URL_ERR: &str = "Invalid L1 RPC URL";
 pub(super) const MSG_STATUS_ABOUT: &str = "Get status of the server";
 pub(super) const MSG_API_CONFIG_NOT_FOUND_ERR: &str = "API config not found";
 pub(super) const MSG_STATUS_URL_HELP: &str = "URL of the health check endpoint";
+pub(super) const MSG_STATUS_PORTS_HELP: &str = "Show used ports";

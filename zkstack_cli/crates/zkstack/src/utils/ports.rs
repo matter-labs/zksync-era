@@ -15,7 +15,7 @@ pub struct EcosystemPorts {
     pub ports: HashMap<u16, Vec<PortInfo>>,
 }
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct PortInfo {
     pub port: u16,
     pub file_path: String,
@@ -158,6 +158,19 @@ impl EcosystemPorts {
         }
 
         Ok(())
+    }
+
+    pub fn group_by_file_path(&self) -> HashMap<String, Vec<PortInfo>> {
+        let mut grouped_ports: HashMap<String, Vec<PortInfo>> = HashMap::new();
+        for port_infos in self.ports.values() {
+            for port_info in port_infos {
+                grouped_ports
+                    .entry(port_info.file_path.clone())
+                    .or_default()
+                    .push(port_info.clone());
+            }
+        }
+        grouped_ports
     }
 }
 

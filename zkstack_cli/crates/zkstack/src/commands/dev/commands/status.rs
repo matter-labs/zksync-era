@@ -9,8 +9,11 @@ use serde_json::Value;
 use xshell::Shell;
 
 use crate::{
-    commands::dev::messages::{MSG_API_CONFIG_NOT_FOUND_ERR, MSG_STATUS_URL_HELP},
+    commands::dev::messages::{
+        MSG_API_CONFIG_NOT_FOUND_ERR, MSG_STATUS_PORTS_HELP, MSG_STATUS_URL_HELP,
+    },
     messages::MSG_CHAIN_NOT_FOUND_ERR,
+    utils::ports::EcosystemPortsScanner,
 };
 
 const DEFAULT_LINE_WIDTH: usize = 32;
@@ -31,6 +34,8 @@ struct Component {
 pub struct StatusArgs {
     #[clap(long, short = 'u', help = MSG_STATUS_URL_HELP)]
     pub url: Option<String>,
+    #[clap(long, short = 'p', help = MSG_STATUS_PORTS_HELP)]
+    pub ports: bool,
 }
 
 struct BoxProperties {
@@ -166,6 +171,41 @@ fn print_status(health_check_url: String) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn print_ports(shell: &Shell) -> anyhow::Result<()> {
+    let ports = EcosystemPortsScanner::scan(shell)?;
+    let grouped_ports = ports.group_by_file_path();
+
+    let mut all_port_lines: Vec<String> = Vec::new();
+
+    for (file_path, port_infos) in grouped_ports {
+        let mut port_info_lines = String::new();
+
+        for port_info in port_infos {
+            port_info_lines.push_str(&format!(
+                "  - {} > {}\n",
+                port_info.port, port_info.description
+            ));
+        }
+
+        all_port_lines.push(format!("{}\n{}", file_path, port_info_lines));
+    }
+
+    all_port_lines.sort_by(|a, b| {
+        b.lines()
+            .count()
+            .cmp(&a.lines().count())
+            .then_with(|| a.cmp(b))
+    });
+
+    let mut components_info = String::from("Used ports:\n");
+    for chunk in all_port_lines.chunks(2) {
+        components_info.push_str(&bordered_boxes(&chunk[0], chunk.get(1)));
+    }
+
+    logger::info(components_info);
+    Ok(())
+}
+
 fn deslugify(name: &str) -> String {
     name.split('_')
         .map(|word| {
@@ -188,6 +228,10 @@ fn deslugify(name: &str) -> String {
 }
 
 pub async fn run(shell: &Shell, args: StatusArgs) -> anyhow::Result<()> {
+    if args.ports {
+        return print_ports(shell);
+    }
+
     let health_check_url = if let Some(url) = args.url {
         url
     } else {
