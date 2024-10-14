@@ -1065,8 +1065,10 @@ impl HttpTest for EstimateGasTest {
         let error = self.method.query(client, call_request).await.unwrap_err();
         if let ClientError::Call(error) = error {
             let error_msg = error.message();
+            // L1 and L2 transactions have differing error messages in this case.
             assert!(
-                error_msg.to_lowercase().contains("insufficient"),
+                error_msg.to_lowercase().contains("insufficient")
+                    || error_msg.to_lowercase().contains("overflow"),
                 "{error_msg}"
             );
         } else {
@@ -1142,9 +1144,7 @@ impl HttpTest for EstimateGasWithStateOverrideTest {
         if let ClientError::Call(error) = error {
             let error_msg = error.message();
             assert!(
-                error_msg
-                    .to_lowercase()
-                    .contains("insufficient balance for transfer"),
+                error_msg.to_lowercase().contains("insufficient funds"),
                 "{error_msg}"
             );
         } else {

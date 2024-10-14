@@ -51,19 +51,19 @@ pub enum SubmitTxError {
         "too many factory dependencies in the transaction. {0} provided, while only {1} allowed"
     )]
     TooManyFactoryDependencies(usize, usize),
-    /// InsufficientFundsForTransfer is returned if the transaction sender doesn't
-    /// have enough funds for transfer.
-    #[error("insufficient balance for transfer")]
-    InsufficientFundsForTransfer,
     /// IntrinsicGas is returned if the transaction is specified to use less gas
     /// than required to start the invocation.
     #[error("intrinsic gas too low")]
     IntrinsicGas,
-    /// Error returned from main node
-    #[error("{0}")]
-    ProxyError(#[from] EnrichedClientError),
     #[error("not enough gas to publish compressed bytecodes")]
     FailedToPublishCompressedBytecodes,
+    /// Currently only triggered during gas estimation for L1 and protocol upgrade transactions.
+    #[error("integer overflow computing base token amount to mint")]
+    MintedAmountOverflow,
+
+    /// Error returned from main node.
+    #[error("{0}")]
+    ProxyError(#[from] EnrichedClientError),
     /// Catch-all internal error (e.g., database error) that should not be exposed to the caller.
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
@@ -91,10 +91,10 @@ impl SubmitTxError {
             Self::MaxPriorityFeeGreaterThanMaxFee => "max-priority-fee-greater-than-max-fee",
             Self::UnexpectedVMBehavior(_) => "unexpected-vm-behavior",
             Self::TooManyFactoryDependencies(_, _) => "too-many-factory-dependencies",
-            Self::InsufficientFundsForTransfer => "insufficient-funds-for-transfer",
             Self::IntrinsicGas => "intrinsic-gas",
-            Self::ProxyError(_) => "proxy-error",
             Self::FailedToPublishCompressedBytecodes => "failed-to-publish-compressed-bytecodes",
+            Self::MintedAmountOverflow => "minted-amount-overflow",
+            Self::ProxyError(_) => "proxy-error",
             Self::Internal(_) => "internal",
         }
     }

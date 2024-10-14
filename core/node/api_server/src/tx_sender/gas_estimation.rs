@@ -200,7 +200,11 @@ impl TxSender {
                     tx.initiator_account(),
                     tx.execute.value
                 );
-                return Err(SubmitTxError::InsufficientFundsForTransfer);
+                return Err(SubmitTxError::NotEnoughBalanceForFeeValue(
+                    balance,
+                    0.into(),
+                    tx.execute.value,
+                ));
             }
         }
         Ok(())
@@ -441,7 +445,7 @@ impl<'a> GasEstimator<'a> {
                 // we may hit an integer overflow. Ditto for protocol upgrade transactions below.
                 let required_funds = (l1_common_data.gas_limit * l1_common_data.max_fee_per_gas)
                     .checked_add(tx.execute.value)
-                    .ok_or(SubmitTxError::InsufficientFundsForTransfer)?;
+                    .ok_or(SubmitTxError::MintedAmountOverflow)?;
                 l1_common_data.to_mint = required_funds;
             }
             ExecuteTransactionCommon::L2(l2_common_data) => {
@@ -451,7 +455,7 @@ impl<'a> GasEstimator<'a> {
                 common_data.gas_limit = forced_gas_limit.into();
                 let required_funds = (common_data.gas_limit * common_data.max_fee_per_gas)
                     .checked_add(tx.execute.value)
-                    .ok_or(SubmitTxError::InsufficientFundsForTransfer)?;
+                    .ok_or(SubmitTxError::MintedAmountOverflow)?;
                 common_data.to_mint = required_funds;
             }
         }
