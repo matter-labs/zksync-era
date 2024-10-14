@@ -8,16 +8,14 @@ use zk_evm_1_5_0::{
     },
 };
 use zksync_types::{CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS};
-use zksync_utils::{bytes_to_be_words, h256_to_u256};
+use zksync_utils::{bytecode::hash_evm_bytecode, bytes_to_be_words, h256_to_u256};
 use zksync_vm_interface::storage::StoragePtr;
 
 use super::{traits::VmTracer, utils::read_pointer};
 use crate::{
     interface::{storage::WriteStorage, tracer::TracerExecutionStatus},
     tracers::dynamic::vm_1_5_0::DynTracer,
-    vm_latest::{
-        utils::hash_evm_bytecode, BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState,
-    },
+    vm_latest::{BootloaderState, HistoryMode, SimpleMemory, ZkSyncVmState},
 };
 
 /// Tracer responsible for collecting information about EVM deploys and providing those
