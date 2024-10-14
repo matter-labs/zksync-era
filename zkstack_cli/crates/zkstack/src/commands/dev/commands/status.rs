@@ -172,10 +172,7 @@ fn print_status(health_check_url: String) -> anyhow::Result<()> {
 }
 
 fn is_port_in_use(port: u16) -> bool {
-    match TcpListener::bind(("127.0.0.1", port)) {
-        Ok(_listener) => false,
-        Err(_e) => true,
-    }
+    TcpListener::bind(("0.0.0.0", port)).is_err() || TcpListener::bind(("127.0.0.1", port)).is_err()
 }
 
 fn print_ports(shell: &Shell) -> anyhow::Result<()> {
@@ -195,8 +192,8 @@ fn print_ports(shell: &Shell) -> anyhow::Result<()> {
             };
 
             port_info_lines.push_str(&format!(
-                "  - {} > {}{}\n",
-                port_info.port, port_info.description, in_use_tag
+                "  - {}{} > {}\n",
+                port_info.port, in_use_tag, port_info.description
             ));
         }
 
@@ -210,7 +207,7 @@ fn print_ports(shell: &Shell) -> anyhow::Result<()> {
             .then_with(|| a.cmp(b))
     });
 
-    let mut components_info = String::from("Used ports:\n");
+    let mut components_info = String::new();
     for chunk in all_port_lines.chunks(2) {
         components_info.push_str(&bordered_boxes(&chunk[0], chunk.get(1)));
     }
