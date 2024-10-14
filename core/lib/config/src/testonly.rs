@@ -3,6 +3,7 @@ use std::num::NonZeroUsize;
 use rand::{distributions::Distribution, Rng};
 use secrecy::Secret;
 use zksync_basic_types::{
+    api_key::APIKey,
     basic_fri_types::CircuitIdRoundTuple,
     commitment::L1BatchCommitmentMode,
     network::Network,
@@ -16,9 +17,7 @@ use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{
     configs::{
-        self,
-        da_client::{avail::GasRelayAPIKey, DAClientConfig::Avail},
-        eth_sender::PubdataSendingMode,
+        self, da_client::DAClientConfig::Avail, eth_sender::PubdataSendingMode,
         external_price_api_client::ForcedPriceClientConfig,
     },
     AvailConfig,
@@ -962,7 +961,7 @@ impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::DataAvailabilitySecrets {
         configs::secrets::DataAvailabilitySecrets::Avail(configs::da_client::avail::AvailSecrets {
             seed_phrase: Some(SeedPhrase(Secret::new(self.sample(rng)))),
-            gas_relay_api_key: Some(GasRelayAPIKey(Secret::new(self.sample(rng)))),
+            gas_relay_api_key: Some(APIKey(Secret::new(self.sample(rng)))),
         })
     }
 }

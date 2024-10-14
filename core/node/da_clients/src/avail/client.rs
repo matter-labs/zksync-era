@@ -5,12 +5,13 @@ use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc};
 use subxt_signer::ExposeSecret;
-use zksync_config::configs::da_client::avail::{AvailConfig, AvailSecrets, GasRelayAPIKey};
+use zksync_config::configs::da_client::avail::{AvailConfig, AvailSecrets};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
 };
 use zksync_types::{
+    api_key::APIKey,
     ethabi::{self, Token},
     web3::contract::Tokenize,
     H256, U256,
@@ -24,7 +25,7 @@ pub struct AvailClient {
     config: AvailConfig,
     sdk_client: Option<Arc<RawAvailClient>>,
     api_client: Arc<reqwest::Client>,
-    gas_relay_api_key: Option<GasRelayAPIKey>,
+    gas_relay_api_key: Option<APIKey>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

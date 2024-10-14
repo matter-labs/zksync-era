@@ -2,15 +2,14 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use secrecy::ExposeSecret;
-use zksync_basic_types::{seed_phrase::SeedPhrase, url::SensitiveUrl};
+use zksync_basic_types::{api_key::APIKey, seed_phrase::SeedPhrase, url::SensitiveUrl};
 use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
-    da_client::avail::{AvailSecrets, GasRelayAPIKey},
+    da_client::avail::AvailSecrets,
     secrets::{DataAvailabilitySecrets, Secrets},
     DatabaseSecrets, L1Secrets,
 };
 use zksync_protobuf::{required, ProtoRepr};
-use zksync_types::seed_phrase;
 
 use crate::{
     proto::{
@@ -117,7 +116,7 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                 };
                 let gas_relay_api_key = if avail_secret.gas_relay_api_key.is_some() {
                     Some(
-                        GasRelayAPIKey::from_str(
+                        APIKey::from_str(
                             required(&avail_secret.gas_relay_api_key).context("seed_phrase")?,
                         )
                         .unwrap(),
