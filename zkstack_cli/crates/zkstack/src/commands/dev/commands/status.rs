@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use anyhow::Context;
 use clap::Parser;
-use common::{cmd::Cmd, logger};
+use common::logger;
 use config::EcosystemConfig;
 use serde::Deserialize;
 use serde_json::Value;
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use crate::{
     commands::dev::messages::{MSG_API_CONFIG_NOT_FOUND_ERR, MSG_STATUS_URL_HELP},
@@ -105,11 +105,12 @@ fn bordered_boxes(msg1: &str, msg2: Option<&String>) -> String {
     format!("{}{}\n{}", header, boxed_info.join("\n"), footer)
 }
 
-fn print_status(shell: &Shell, health_check_url: String) -> anyhow::Result<()> {
-    let response = Cmd::new(cmd!(shell, "curl {health_check_url}")).run_with_output()?;
-    let response = String::from_utf8(response.stdout)?;
+fn print_status(health_check_url: String) -> anyhow::Result<()> {
+    let client = reqwest::blocking::Client::new();
+    let response = client.get(&health_check_url).send()?.text()?;
 
-    let status_response: StatusResponse = serde_json::from_str(&response)?;
+    let status_response: StatusResponse = serde_json::from_str(&response)
+        .context(format!("Failed to parse response: {}", response))?;
 
     if status_response.status.to_lowercase() == "ready" {
         logger::success(format!("System Status: {}\n", status_response.status));
@@ -203,5 +204,5 @@ pub async fn run(shell: &Shell, args: StatusArgs) -> anyhow::Result<()> {
         format!("http://localhost:{}/health", health_check_port)
     };
 
-    print_status(shell, health_check_url)
+    print_status(health_check_url)
 }
