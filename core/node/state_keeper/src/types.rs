@@ -43,6 +43,21 @@ impl MempoolGuard {
             .insert(transactions, nonces);
     }
 
+    #[cfg(test)]
+    pub fn insert_without_constraint(
+        &mut self,
+        transactions: Vec<Transaction>,
+        nonces: HashMap<Address, Nonce>,
+    ) {
+        self.insert(
+            transactions
+                .into_iter()
+                .map(|x| (x, TransactionTimeRangeConstraint::default()))
+                .collect(),
+            nonces,
+        );
+    }
+
     pub fn has_next(&self, filter: &L2TxFilter) -> bool {
         self.0
             .lock()

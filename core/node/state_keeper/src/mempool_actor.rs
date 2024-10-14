@@ -119,7 +119,7 @@ impl MempoolFetcher {
 
             #[cfg(test)]
             {
-                let transaction_hashes = transactions.iter().map(Transaction::hash).collect();
+                let transaction_hashes = transactions.iter().map(|x| x.hash()).collect();
                 self.transaction_hashes_sender.send(transaction_hashes).ok();
             }
             let all_transactions_loaded = transactions.len() < self.sync_batch_size;
@@ -207,7 +207,7 @@ mod tests {
 
         let nonces = get_transaction_nonces(
             &mut storage,
-            &[transaction.into(), other_transaction.into()],
+            &[&transaction.into(), &other_transaction.into()],
         )
         .await
         .unwrap();
