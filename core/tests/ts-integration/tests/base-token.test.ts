@@ -8,7 +8,6 @@ import { Token } from '../src/types';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
-import { sleep } from 'zksync-ethers/build/utils';
 
 const SECONDS = 1000;
 jest.setTimeout(100 * SECONDS);

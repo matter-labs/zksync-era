@@ -13,7 +13,6 @@ import { checkReceipt } from '../src/modifiers/receipt-check';
 import * as zksync from 'zksync-ethers';
 import { scaledGasPrice, waitForL2ToL1LogProof } from '../src/helpers';
 import { ethers } from 'ethers';
-import { sleep } from 'zksync-ethers/build/utils';
 
 describe('ETH token checks', () => {
     let testMaster: TestMaster;

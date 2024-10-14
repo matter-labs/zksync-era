@@ -10,7 +10,6 @@ import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { Provider, Wallet } from 'ethers';
 import { scaledGasPrice, deployContract, readContract, waitForL2ToL1LogProof } from '../src/helpers';
-import { sleep } from 'zksync-ethers/build/utils';
 
 describe('L2 native ERC20 contract checks', () => {
     let testMaster: TestMaster;
