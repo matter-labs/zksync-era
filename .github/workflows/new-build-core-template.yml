@@ -43,6 +43,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo CI=1 >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
+          echo $HOME/.local/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
@@ -133,13 +134,17 @@ jobs:
         run: |
           mkdir -p ./volumes/postgres
           docker compose up -d postgres
-          zkt || true
 
+      - name: Install zkstack
+        run: |  
+          ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup
+          zkstackup --local || true
+  
       - name: build contracts
         shell: bash
         run: |
           cp etc/tokens/{test,localhost}.json
-          zk_supervisor contracts
+          zkstack dev contracts
 
       - name: Upload contracts
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
