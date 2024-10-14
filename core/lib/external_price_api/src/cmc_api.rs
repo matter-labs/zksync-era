@@ -59,7 +59,6 @@ impl CmcPriceApiClient {
         if let Some(x) = self.cache_token_id_by_address.read().await.get(&address) {
             return Ok(*x);
         }
-        // drop read lock
 
         let response = self.get("/v1/cryptocurrency/map").send().await?;
         let status = response.status();
