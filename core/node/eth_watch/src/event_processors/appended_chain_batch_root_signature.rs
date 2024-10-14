@@ -89,6 +89,7 @@ impl EventProcessor for BatchRootProcessor {
             })
             .collect();
 
+        let next_expected_batch_number = self.next_expected_batch_number;
         let new_events = grouped_events
             .into_iter()
             .skip_while(|(_sl_l1_batch_number, events)| {
@@ -96,8 +97,8 @@ impl EventProcessor for BatchRootProcessor {
                 let last_event = events.first().unwrap();
 
                 match (
-                    first_event.0 < self.next_expected_batch_number,
-                    last_event.0 < self.next_expected_batch_number,
+                    first_event.0 < next_expected_batch_number,
+                    last_event.0 < next_expected_batch_number,
                 ) {
                     (true, true) => true,    // skip
                     (false, false) => false, // do not skip
