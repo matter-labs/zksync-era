@@ -12,7 +12,11 @@ use zksync_types::{
     utils::{key_for_eth_balance, storage_key_for_eth_balance},
     AccountTreeId, Address, Execute, StorageKey, H256, U256,
 };
-use zksync_utils::{be_words_to_bytes, bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
+use zksync_utils::{
+    be_words_to_bytes,
+    bytecode::{hash_bytecode, hash_evm_bytecode},
+    bytes_to_be_words, h256_to_u256,
+};
 
 use crate::{
     interface::{
@@ -21,7 +25,6 @@ use crate::{
     versions::testonly::default_system_env,
     vm_latest::{
         tests::tester::{VmTester, VmTesterBuilder},
-        utils::hash_evm_bytecode,
         HistoryEnabled,
     },
 };
@@ -87,7 +90,7 @@ impl EvmTestBuilder {
         let mut storage = self.storage;
         let mut system_env = default_system_env();
         if self.deploy_emulator {
-            let evm_bytecode: Vec<_> = (0..=u8::MAX).collect();
+            let evm_bytecode: Vec<_> = (0..32).collect();
             let evm_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
             storage.set_value(
                 get_known_code_key(&evm_bytecode_hash),
@@ -142,7 +145,7 @@ fn tracing_evm_contract_deployment() {
         .build();
     let account = &mut vm.rich_accounts[0];
 
-    let args = [Token::Bytes((0..=u8::MAX).collect())];
+    let args = [Token::Bytes((0..32).collect())];
     let evm_bytecode = ethabi::encode(&args);
     let expected_bytecode_hash = hash_evm_bytecode(&evm_bytecode);
     let execute = Execute::for_deploy(expected_bytecode_hash, vec![0; 32], &args);
