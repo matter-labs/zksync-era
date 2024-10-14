@@ -97,6 +97,21 @@ impl MempoolStore {
         }
     }
 
+    #[cfg(test)]
+    pub fn insert_without_constraints(
+        &mut self,
+        transactions: Vec<Transaction>,
+        initial_nonces: HashMap<Address, Nonce>,
+    ) {
+        self.insert(
+            transactions
+                .into_iter()
+                .map(|x| (x, TransactionTimeRangeConstraint::default()))
+                .collect(),
+            initial_nonces,
+        );
+    }
+
     fn insert_l2_transaction(
         &mut self,
         transaction: L2Tx,
