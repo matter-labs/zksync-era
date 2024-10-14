@@ -60,10 +60,12 @@ parse_args() {
       shift
       break
       ;;
-
     -p | --path)
       shift
       ZKSTACKUP_PATH=$1
+      ;;
+    -l | --local)
+      ZKSTACKUP_PATH="./"
       ;;
     -g | --global)
       LOCAL_DIR="/usr/local"
@@ -107,7 +109,8 @@ Usage: $(basename "$0") [OPTIONS]
 
 Options:
   -p, --path <path>         Specify a local path to install ZK Stack CLI from. Ignored if --repo is provided.
-  -g, --global               Install ZK Stack CLI from the current directory. 
+  -l, --local               Install ZK Stack CLI from the current directory. Ignored if --repo is provided.
+  -g, --global              Install ZK Stack CLI for all users.
   -r, --repo <repo>         GitHub repository to install from (e.g., "matter-labs/zksync-era"). Defaults to "matter-labs/zksync-era".
   -b, --branch <branch>     Git branch to use when installing from a repository. Ignored if --commit or --version is provided.
   -c, --commit <commit>     Git commit hash to use when installing from a repository. Ignored if --branch or --version is provided.

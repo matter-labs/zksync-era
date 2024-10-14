@@ -133,7 +133,7 @@ jobs:
       - name: Install zkstack
         run: |  
           ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup
-          zkstackup --path ./ || true
+          zkstackup --local || true
 
       - name: build contracts
         shell: bash

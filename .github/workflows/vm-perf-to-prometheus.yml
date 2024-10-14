@@ -32,7 +32,7 @@ jobs:
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
-          ci_run zkstackup -g --path ./
+          ci_run zkstackup -g --local
 
       - name: init
         run: |

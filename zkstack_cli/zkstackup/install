@@ -79,6 +79,9 @@ parse_args() {
       shift
       ZKSTACKUP_PATH=$1
       ;;
+    -l | --local)
+      ZKSTACKUP_PATH="./"
+      ;;
     -g | --global)
       BIN_DIR="/usr/local/bin"
       BIN_PATH="$BIN_DIR/zkstackup"
@@ -106,6 +109,8 @@ Usage: $(basename "$0") [OPTIONS]
 
 Options:
   -p, --path <path>         Specify a local path to install zkstackup from.
+  -l, --local               Install zkstackup from the current directory.
+  -g, --global              Install zkstackup for all users.
   -h, --help                Show this help message and exit.
 
 Examples:
