@@ -10,15 +10,15 @@ use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_types::{
     abi,
     abi::ProposedUpgrade,
-    api::Log,
+    api::{ChainAggProof, Log},
     ethabi,
     ethabi::Token,
     l1::{L1Tx, OpProcessingType, PriorityQueueType},
     protocol_upgrade::{ProtocolUpgradeTx, ProtocolUpgradeTxCommonData},
     protocol_version::ProtocolSemanticVersion,
     web3::{contract::Tokenizable, BlockNumber},
-    Address, Execute, L1TxCommonData, PriorityOpId, ProtocolUpgrade, ProtocolVersion,
-    ProtocolVersionId, SLChainId, Transaction, H256, U256, U64,
+    Address, Execute, L1BatchNumber, L1TxCommonData, L2ChainId, PriorityOpId, ProtocolUpgrade,
+    ProtocolVersion, ProtocolVersionId, SLChainId, Transaction, H256, U256, U64,
 };
 
 use crate::{
@@ -171,6 +171,10 @@ impl EthClient for MockEthClient {
         Ok(self.inner.read().await.last_finalized_block_number)
     }
 
+    async fn confirmed_block_number(&self) -> EnrichedClientResult<u64> {
+        Ok(self.inner.read().await.last_finalized_block_number)
+    }
+
     async fn diamond_cut_by_version(
         &self,
         packed_version: H256,
@@ -218,6 +222,14 @@ impl EthClient for MockEthClient {
 
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
         Ok(self.inner.read().await.chain_id)
+    }
+
+    async fn get_chain_log_proof(
+        &self,
+        _l1_batch_number: L1BatchNumber,
+        _chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>> {
+        Ok(None)
     }
 }
 
@@ -297,6 +309,7 @@ async fn create_test_watcher(
         connection_pool,
         std::time::Duration::from_nanos(1),
         SyncMerkleTree::from_hashes(std::iter::empty(), None),
+        L2ChainId::default(),
     )
     .await
     .unwrap();
@@ -403,6 +416,7 @@ async fn test_normal_operation_upgrade_timestamp() {
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
         SyncMerkleTree::from_hashes(std::iter::empty(), None),
+        L2ChainId::default(),
     )
     .await
     .unwrap();
@@ -652,6 +666,7 @@ fn tx_into_log(tx: L1Tx) -> Log {
         data: data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(eth_block.into()),
+        l1_batch_number: None,
         transaction_hash: Some(H256::default()),
         transaction_index: Some(0u64.into()),
         log_index: Some(0u64.into()),
@@ -705,6 +720,7 @@ fn diamond_upgrade_log(upgrade: ProtocolUpgrade, eth_block: u64) -> Log {
         data: final_data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(eth_block.into()),
+        l1_batch_number: None,
         transaction_hash: Some(H256::random()),
         transaction_index: Some(0u64.into()),
         log_index: Some(0u64.into()),
@@ -729,6 +745,7 @@ fn upgrade_timestamp_log(eth_block: u64) -> Log {
         data: final_data.into(),
         block_hash: Some(H256::repeat_byte(0x11)),
         block_number: Some(eth_block.into()),
+        l1_batch_number: None,
         transaction_hash: Some(H256::random()),
         transaction_index: Some(0u64.into()),
         log_index: Some(0u64.into()),
