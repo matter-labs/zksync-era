@@ -10163,6 +10163,7 @@ dependencies = [
  "anyhow",
  "async-recursion",
  "async-trait",
+ "bincode",
  "hex",
  "itertools 0.10.5",
  "test-log",
