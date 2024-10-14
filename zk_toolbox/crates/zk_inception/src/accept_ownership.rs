@@ -292,7 +292,7 @@ pub async fn admin_update_validator(
                 admin_addr,
                 access_control_restriction,
                 validator_timelock,
-                chain_config.chain_id.0,
+                chain_config.chain_id.as_u64(),
                 validator,
                 add_validator,
             ),

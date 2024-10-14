@@ -126,7 +126,7 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
             finalize_stage1(shell, args, ecosystem_config, chain_config, l1_url).await
         }
         GatewayChainUpgradeStage::FinalizeStage2 => {
-            panic!("Not supported");
+            finalize_stage2(shell, args, ecosystem_config, chain_config, l1_url).await
         }
         GatewayChainUpgradeStage::KeepUpStage2 => {
             panic!("Not supported");
@@ -483,6 +483,28 @@ async fn finalize_stage1(
 
     Ok(())
 }
+
+async fn finalize_stage2(
+    shell: &Shell,
+    args: GatewayUpgradeArgs,
+    ecosystem_config: EcosystemConfig,
+    chain_config: ChainConfig,
+    l1_url: String,
+) -> anyhow::Result<()> {
+    println!("Finalizing stage2 for the chain! (just updating configs)");
+
+    let ecosystem_config = ecosystem_config.get_contracts_config()?;
+
+    let mut contracts_config = chain_config.get_contracts_config()?;
+    contracts_config.bridges.shared.l1_address = ecosystem_config.bridges.shared.l1_address;
+    contracts_config.bridges.shared.l2_address = Some(zksync_system_constants::L2_ASSET_ROUTER_ADDRESS);
+    contracts_config.save_with_base_path(shell, &chain_config.configs)?;
+
+
+    println!("done!");
+
+    Ok(())
+}   
 
 // async fn await_for_tx_to_complete(
 //     gateway_provider: &Provider<Http>,

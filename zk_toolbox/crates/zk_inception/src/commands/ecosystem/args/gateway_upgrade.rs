@@ -30,7 +30,9 @@ pub enum GatewayUpgradeStage {
     // Governance will execute stage 2 of the upgrade. It is CRUCIAL
     // to have it done only after protocol deadline has passed.
     GovernanceStage2,
-}
+    // Finish finalizing tokens, chains, etc
+    NoGovernanceStage2,
+}   
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct GatewayUpgradeArgs {

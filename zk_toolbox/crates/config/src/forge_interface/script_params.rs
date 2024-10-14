@@ -91,3 +91,10 @@ pub const GATEWAY_UPGRADE_CHAIN_PARAMS: ForgeScriptParams = ForgeScriptParams {
     output: "script-out/gateway-upgrade-chain.toml",
     script_path: "deploy-scripts/upgrade/ChainUpgrade.s.sol",
 };
+
+pub const FINALIZE_UPGRADE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/gateway-finalize-upgrade.toml",
+    output: "script-out/gateway-finalize-upgrade.toml",
+    script_path: "deploy-scripts/upgrade/FinalizeUpgrade.s.sol",
+};
+
