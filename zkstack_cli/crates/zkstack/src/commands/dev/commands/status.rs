@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, net::TcpListener};
 
 use anyhow::Context;
 use clap::Parser;
@@ -171,6 +171,13 @@ fn print_status(health_check_url: String) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn is_port_in_use(port: u16) -> bool {
+    match TcpListener::bind(("127.0.0.1", port)) {
+        Ok(_listener) => false,
+        Err(_e) => true,
+    }
+}
+
 fn print_ports(shell: &Shell) -> anyhow::Result<()> {
     let ports = EcosystemPortsScanner::scan(shell)?;
     let grouped_ports = ports.group_by_file_path();
@@ -181,13 +188,19 @@ fn print_ports(shell: &Shell) -> anyhow::Result<()> {
         let mut port_info_lines = String::new();
 
         for port_info in port_infos {
+            let in_use_tag = if is_port_in_use(port_info.port) {
+                " [IN USE]"
+            } else {
+                ""
+            };
+
             port_info_lines.push_str(&format!(
-                "  - {} > {}\n",
-                port_info.port, port_info.description
+                "  - {} > {}{}\n",
+                port_info.port, port_info.description, in_use_tag
             ));
         }
 
-        all_port_lines.push(format!("{}\n{}", file_path, port_info_lines));
+        all_port_lines.push(format!("{}:\n{}", file_path, port_info_lines));
     }
 
     all_port_lines.sort_by(|a, b| {
