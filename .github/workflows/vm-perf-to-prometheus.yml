@@ -28,13 +28,20 @@ jobs:
           echo "RUSTC_WRAPPER=sccache" >> .env
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
+          
+      - name: Install zkstack
+        run: |
+          ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
+          ci_run zkstackup -g --local
 
       - name: init
         run: |
           run_retried docker compose pull zk
           docker compose up -d zk
-          ci_run zkt
-          ci_run zk_supervisor contracts
+
+      - name: build contracts
+        run: |
+          ci_run zkstack dev contracts
 
       - name: run benchmarks
         run: |

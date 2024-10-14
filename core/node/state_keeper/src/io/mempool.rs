@@ -225,7 +225,7 @@ impl StateKeeperIO for MempoolIO {
             }
 
             self.pool
-                .connection()
+                .connection_tagged("state_keeper")
                 .await?
                 .blocks_dal()
                 .insert_l1_batch(UnsealedL1BatchHeader {

@@ -185,6 +185,27 @@ impl TestContract {
         &CONTRACT
     }
 
+    /// Returns a mock EVM emulator.
+    pub fn mock_evm_emulator() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::mock_evm::MockEvmEmulator));
+        &CONTRACT
+    }
+
+    /// Contract testing recursive calls.
+    pub fn recursive_test() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::mock_evm::NativeRecursiveContract));
+        &CONTRACT
+    }
+
+    /// Contract implementing incrementing operations. Used to test static / delegate calls.
+    pub fn increment_test() -> &'static Self {
+        static CONTRACT: Lazy<TestContract> =
+            Lazy::new(|| TestContract::new(raw::mock_evm::IncrementingContract));
+        &CONTRACT
+    }
+
     /// Returns all factory deps for this contract deployment (including its own bytecode).
     pub fn factory_deps(&self) -> Vec<Vec<u8>> {
         let mut deps = vec![];
