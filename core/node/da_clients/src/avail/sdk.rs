@@ -1,20 +1,23 @@
 //! Minimal reimplementation of the Avail SDK client required for the DA client implementation.
 //! This is considered to be a temporary solution until a mature SDK is available on crates.io
 
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
+use bytes::Bytes;
 use jsonrpsee::{
     core::client::{Client, ClientT, Subscription, SubscriptionClientT},
     rpc_params,
 };
 use parity_scale_codec::{Compact, Decode, Encode};
 use scale_encode::EncodeAsFields;
+use serde::{Deserialize, Serialize};
 use subxt_signer::{
     bip39::Mnemonic,
     sr25519::{Keypair, Signature},
 };
+use zksync_types::H256;
 
-use crate::avail::client::to_non_retriable_da_error;
+use crate::avail::client::{to_non_retriable_da_error, to_retriable_da_error};
 
 const PROTOCOL_VERSION: u8 = 4;
 
@@ -287,7 +290,7 @@ impl RawAvailClient {
             let status = sub.next().await.transpose()?;
 
             if status.is_some() && status.as_ref().unwrap().is_object() {
-                if let Some(block_hash) = status.unwrap().get("inBlock") {
+                if let Some(block_hash) = status.unwrap().get("finalized") {
                     break block_hash
                         .as_str()
                         .ok_or_else(|| anyhow::anyhow!("Invalid block hash"))?
@@ -368,4 +371,85 @@ fn ss58hash(data: &[u8]) -> Vec<u8> {
     ctx.update(PREFIX);
     ctx.update(data);
     ctx.finalize().to_vec()
+}
+
+/// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.
+#[derive(Debug, Clone)]
+pub(crate) struct GasRelayClient {
+    api_url: String,
+    api_key: String,
+    api_client: Arc<reqwest::Client>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct GasRelayAPISubmissionResponse {
+    submission_id: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct GasRelayAPIStatusResponse {
+    submission: GasRelayAPISubmission,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct GasRelayAPISubmission {
+    block_hash: Option<H256>,
+    extrinsic_index: Option<u64>,
+}
+
+impl GasRelayClient {
+    pub(crate) async fn new(
+        api_url: &str,
+        api_key: &str,
+        api_client: Arc<reqwest::Client>,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            api_url: api_url.to_owned(),
+            api_key: api_key.to_owned(),
+            api_client,
+        })
+    }
+
+    pub(crate) async fn post_data(&self, data: Vec<u8>) -> anyhow::Result<(H256, u64)> {
+        let submit_url = format!("{}/user/submit_raw_data?token=ethereum", &self.api_url);
+        // send the data to the gas relay
+        let submit_response = self
+            .api_client
+            .post(&submit_url)
+            .body(Bytes::from(data))
+            .header("Content-Type", "text/plain")
+            .header("Authorization", &self.api_key)
+            .send()
+            .await
+            .map_err(to_retriable_da_error)?;
+        let submit_response = submit_response
+            .json::<GasRelayAPISubmissionResponse>()
+            .await
+            .map_err(to_retriable_da_error)?;
+        let status_url = format!(
+            "{}/user/get_submission_info?submission_id={}",
+            self.api_url, submit_response.submission_id
+        );
+        let (block_hash, extrinsic_index) = loop {
+            tokio::time::sleep(tokio::time::Duration::from_secs(u64::try_from(41).unwrap())).await; // usually takes 40s to finalize
+            let status_response = self
+                .api_client
+                .get(&status_url)
+                .header("Authorization", &self.api_key)
+                .send()
+                .await
+                .map_err(to_retriable_da_error)?;
+            let status_response = status_response
+                .json::<GasRelayAPIStatusResponse>()
+                .await
+                .map_err(to_retriable_da_error)?;
+            if status_response.submission.block_hash.is_some() {
+                break (
+                    status_response.submission.block_hash.unwrap(),
+                    status_response.submission.extrinsic_index.unwrap(),
+                );
+            }
+        };
+        Ok((block_hash, extrinsic_index))
+    }
 }

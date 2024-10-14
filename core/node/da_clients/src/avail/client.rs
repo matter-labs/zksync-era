@@ -1,11 +1,14 @@
 use anyhow::anyhow;
 use async_trait::async_trait;
+use blake2::digest::crypto_common::rand_core::block;
 use bytes::Bytes;
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc};
 use subxt_signer::ExposeSecret;
-use zksync_config::configs::da_client::avail::{AvailConfig, AvailSecrets};
+use zksync_config::configs::da_client::avail::{
+    AvailClientConfig, AvailConfig, AvailDefaultConfig, AvailGasRelayConfig, AvailSecrets,
+};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
@@ -17,15 +20,20 @@ use zksync_types::{
     H256, U256,
 };
 
-use crate::avail::sdk::RawAvailClient;
+use crate::avail::sdk::{GasRelayClient, RawAvailClient};
+
+#[derive(Debug, Clone)]
+enum AvailClientMode {
+    Default(RawAvailClient),
+    GasRelay(GasRelayClient),
+}
 
 /// An implementation of the `DataAvailabilityClient` trait that interacts with the Avail network.
 #[derive(Debug, Clone)]
 pub struct AvailClient {
     config: AvailConfig,
-    sdk_client: Option<Arc<RawAvailClient>>,
-    api_client: Arc<reqwest::Client>,
-    gas_relay_api_key: Option<APIKey>,
+    sdk_client: Arc<AvailClientMode>,
+    api_client: Arc<reqwest::Client>, // bridge API reqwest client
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -40,22 +48,6 @@ pub struct BridgeAPIResponse {
     leaf_proof: Option<Vec<H256>>,
     range_hash: Option<H256>,
     error: Option<String>,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct GasRelayAPISubmissionResponse {
-    submission_id: String,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct GasRelayAPIStatusResponse {
-    submission: GasRelayAPISubmission,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct GasRelayAPISubmission {
-    block_hash: Option<H256>,
-    extrinsic_index: Option<u64>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
@@ -106,28 +98,43 @@ impl Tokenize for MerkleProofInput {
 
 impl AvailClient {
     pub async fn new(config: AvailConfig, secrets: AvailSecrets) -> anyhow::Result<Self> {
-        let api_client = reqwest::Client::new();
+        let api_client = Arc::new(reqwest::Client::new());
         if config.gas_relay_mode {
+            let gas_relay_api_key = secrets
+                .gas_relay_api_key
+                .ok_or_else(|| anyhow::anyhow!("Gas relay API key is missing"))?;
+            let gas_relay_config: AvailGasRelayConfig = match config.config.clone() {
+                AvailClientConfig::GasRelay(conf) => conf,
+                _ => unreachable!(), // validated in protobuf config
+            };
+            let gas_relay_client = GasRelayClient::new(
+                &gas_relay_config.gas_relay_api_url,
+                gas_relay_api_key.0.expose_secret(),
+                Arc::clone(&api_client),
+            )
+            .await?;
             return Ok(Self {
                 config,
-                sdk_client: None,
-                api_client: Arc::new(api_client),
-                gas_relay_api_key: secrets.gas_relay_api_key,
+                sdk_client: Arc::new(AvailClientMode::GasRelay(gas_relay_client)),
+                api_client,
             });
         }
 
+        let default_config = match &config.config {
+            AvailClientConfig::Default(conf) => conf.clone(),
+            _ => unreachable!(), // validated in protobug config
+        };
         let seed_phrase = secrets
             .seed_phrase
-            .ok_or_else(|| anyhow::anyhow!("seed phrase"))?;
+            .ok_or_else(|| anyhow::anyhow!("Seed phrase is missing"))?;
         // these unwraps are safe because we validate in protobuf config
         let sdk_client =
-            RawAvailClient::new(config.app_id.unwrap(), seed_phrase.0.expose_secret()).await?;
+            RawAvailClient::new(default_config.app_id, seed_phrase.0.expose_secret()).await?;
 
         Ok(Self {
             config,
-            sdk_client: Some(Arc::new(sdk_client)),
-            api_client: Arc::new(api_client),
-            gas_relay_api_key: None,
+            sdk_client: Arc::new(AvailClientMode::Default(sdk_client)),
+            api_client,
         })
     }
 }
@@ -139,116 +146,42 @@ impl DataAvailabilityClient for AvailClient {
         _: u32, // batch_number
         data: Vec<u8>,
     ) -> anyhow::Result<DispatchResponse, DAError> {
-        if self.config.gas_relay_mode {
-            let submit_url = format!(
-                "{}/user/submit_raw_data?token=ethereum",
-                self.config.gas_relay_api_url.clone().unwrap()
-            );
-            // send the data to the gas relay
-            let submit_response = self
-                .api_client
-                .post(&submit_url)
-                .body(Bytes::from(data))
-                .header("Content-Type", "text/plain")
-                .header(
-                    "Authorization",
-                    self.gas_relay_api_key
-                        .as_ref()
-                        .expect("No gas relay api key")
-                        .0
-                        .expose_secret()
-                        .clone(),
-                )
-                .send()
-                .await
-                .map_err(to_retriable_da_error)?;
-            let submit_response_text = submit_response
-                .text()
-                .await
-                .map_err(to_retriable_da_error)?;
-            let submit_response_struct: GasRelayAPISubmissionResponse =
-                serde_json::from_str(&submit_response_text.clone())
-                    .map_err(to_retriable_da_error)?;
-            let status_url = format!(
-                "{}/user/get_submission_info?submission_id={}",
-                self.config.gas_relay_api_url.clone().unwrap(),
-                submit_response_struct.submission_id
-            );
-            let mut retries = 0;
-            let mut status_response: reqwest::Response;
-            let mut status_response_text: String;
-            let mut status_response_struct: GasRelayAPIStatusResponse;
-            loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(u64::try_from(40).unwrap()))
-                    .await; // usually takes 20s to finalize
-                status_response = self
-                    .api_client
-                    .get(&status_url)
-                    .header(
-                        "Authorization",
-                        &self
-                            .gas_relay_api_key
-                            .as_ref()
-                            .expect("No gas relay api key")
-                            .0
-                            .expose_secret()
-                            .clone(),
-                    )
-                    .send()
+        match self.sdk_client.as_ref() {
+            AvailClientMode::Default(client) => {
+                let default_config = match &self.config.config {
+                    AvailClientConfig::Default(conf) => conf,
+                    _ => unreachable!(), // validated in protobuf config
+                };
+                let ws_client = WsClientBuilder::default()
+                    .build(default_config.api_node_url.clone().as_str())
                     .await
-                    .map_err(to_retriable_da_error)?;
-                status_response_text = status_response
-                    .text()
+                    .map_err(to_non_retriable_da_error)?;
+
+                let extrinsic = client
+                    .build_extrinsic(&ws_client, data)
                     .await
-                    .map_err(to_retriable_da_error)?;
-                status_response_struct =
-                    serde_json::from_str(&status_response_text).map_err(to_retriable_da_error)?;
-                if status_response_struct.submission.block_hash.is_some() {
-                    break;
-                }
-                retries += 1;
-                if retries > self.config.max_retries {
-                    return Err(to_retriable_da_error(anyhow!(
-                        "Failed to get gas relay status"
-                    )));
-                }
+                    .map_err(to_non_retriable_da_error)?;
+
+                let block_hash = client
+                    .submit_extrinsic(&ws_client, extrinsic.as_str())
+                    .await
+                    .map_err(to_non_retriable_da_error)?;
+                let tx_id = client
+                    .get_tx_id(&ws_client, block_hash.as_str(), extrinsic.as_str())
+                    .await
+                    .map_err(to_non_retriable_da_error)?;
+                Ok(DispatchResponse::from(format!("{}:{}", block_hash, tx_id)))
             }
-            return Ok(DispatchResponse {
-                blob_id: format!(
-                    "{:x}:{}",
-                    status_response_struct.submission.block_hash.unwrap(),
-                    status_response_struct.submission.extrinsic_index.unwrap()
-                ),
-            });
+            AvailClientMode::GasRelay(client) => {
+                let (block_hash, extrinsic_index) = client
+                    .post_data(data)
+                    .await
+                    .map_err(to_retriable_da_error)?;
+                Ok(DispatchResponse {
+                    blob_id: format!("{:x}:{}", block_hash, extrinsic_index),
+                })
+            }
         }
-        let client = WsClientBuilder::default()
-            .build(self.config.api_node_url.clone().unwrap().as_str())
-            .await
-            .map_err(to_non_retriable_da_error)?;
-
-        let extrinsic = self
-            .sdk_client
-            .as_ref()
-            .unwrap()
-            .build_extrinsic(&client, data)
-            .await
-            .map_err(to_non_retriable_da_error)?;
-
-        let block_hash = self
-            .sdk_client
-            .as_ref()
-            .unwrap()
-            .submit_extrinsic(&client, extrinsic.as_str())
-            .await
-            .map_err(to_non_retriable_da_error)?;
-        let tx_id = self
-            .sdk_client
-            .as_ref()
-            .unwrap()
-            .get_tx_id(&client, block_hash.as_str(), extrinsic.as_str())
-            .await
-            .map_err(to_non_retriable_da_error)?;
-        Ok(DispatchResponse::from(format!("{}:{}", block_hash, tx_id)))
     }
 
     async fn get_inclusion_data(
@@ -277,7 +210,7 @@ impl DataAvailabilityClient for AvailClient {
             .map_err(to_retriable_da_error)?;
         if bridge_api_data.error.is_some() {
             return Err(to_retriable_da_error(anyhow!(format!(
-                "Bridge API returned error: {}",
+                "Bridge API returned an error: {}",
                 bridge_api_data.error.unwrap()
             ))));
         }

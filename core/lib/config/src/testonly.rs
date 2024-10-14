@@ -17,7 +17,12 @@ use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{
     configs::{
-        self, da_client::DAClientConfig::Avail, eth_sender::PubdataSendingMode,
+        self,
+        da_client::{
+            avail::{AvailClientConfig, AvailDefaultConfig},
+            DAClientConfig::Avail,
+        },
+        eth_sender::PubdataSendingMode,
         external_price_api_client::ForcedPriceClientConfig,
     },
     AvailConfig,
@@ -946,13 +951,14 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
 impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_client::DAClientConfig {
         Avail(AvailConfig {
-            api_node_url: self.sample(rng),
             bridge_api_url: self.sample(rng),
-            app_id: self.sample(rng),
-            timeout: self.sample(rng),
-            max_retries: self.sample(rng),
             gas_relay_mode: self.sample(rng),
-            gas_relay_api_url: self.sample(rng),
+            config: AvailClientConfig::Default(AvailDefaultConfig {
+                api_node_url: self.sample(rng),
+                app_id: self.sample(rng),
+                timeout: self.sample(rng),
+                max_retries: self.sample(rng),
+            }),
         })
     }
 }

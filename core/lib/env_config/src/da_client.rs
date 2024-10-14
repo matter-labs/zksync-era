@@ -54,7 +54,10 @@ impl FromEnv for DataAvailabilitySecrets {
 mod tests {
     use zksync_config::{
         configs::{
-            da_client::{DAClientConfig, DAClientConfig::ObjectStore},
+            da_client::{
+                avail::{AvailClientConfig, AvailDefaultConfig},
+                DAClientConfig::{self, ObjectStore},
+            },
             object_store::ObjectStoreMode::GCS,
         },
         AvailConfig, ObjectStoreConfig,
@@ -100,16 +103,16 @@ mod tests {
         timeout: usize,
         max_retries: usize,
         gas_relay_mode: bool,
-        gas_relay_api_url: &str,
     ) -> DAClientConfig {
         DAClientConfig::Avail(AvailConfig {
-            api_node_url: Some(api_node_url.to_string()),
             bridge_api_url: bridge_api_url.to_string(),
-            app_id: Some(app_id),
-            timeout,
-            max_retries,
             gas_relay_mode,
-            gas_relay_api_url: Some(gas_relay_api_url.to_string()),
+            config: AvailClientConfig::Default(AvailDefaultConfig {
+                api_node_url: api_node_url.to_string(),
+                app_id,
+                timeout,
+                max_retries,
+            }),
         })
     }
 
@@ -123,7 +126,7 @@ mod tests {
             DA_APP_ID="1"
             DA_TIMEOUT="2"
             DA_MAX_RETRIES="3"
-            DA_GAS_RELAY_MODE="true"
+            DA_GAS_RELAY_MODE="false"
             DA_GAS_RELAY_API_URL="localhost:23456"
         "#;
 
@@ -138,8 +141,7 @@ mod tests {
                 "1".parse::<u32>().unwrap(),
                 "2".parse::<usize>().unwrap(),
                 "3".parse::<usize>().unwrap(),
-                true,
-                "localhost:23456",
+                false,
             )
         );
     }
@@ -150,19 +152,23 @@ mod tests {
         let config = r#"
             DA_CLIENT="Avail"
             DA_SECRETS_SEED_PHRASE="bottom drive obey lake curtain smoke basket hold race lonely fit walk"
+            DA_SECRETS_GAS_RELAY_API_KEY="abcdefghijklmnopqrstuvwxyz0123456789"
         "#;
 
         lock.set_env(config);
 
-        let actual = match DataAvailabilitySecrets::from_env().unwrap() {
-            DataAvailabilitySecrets::Avail(avail) => avail.seed_phrase,
+        let (actual_seed, actual_key) = match DataAvailabilitySecrets::from_env().unwrap() {
+            DataAvailabilitySecrets::Avail(avail) => (avail.seed_phrase, avail.gas_relay_api_key),
         };
 
         assert_eq!(
-            actual.unwrap(),
-            "bottom drive obey lake curtain smoke basket hold race lonely fit walk"
-                .parse()
-                .unwrap()
+            (actual_seed.unwrap(), actual_key.unwrap()),
+            (
+                "bottom drive obey lake curtain smoke basket hold race lonely fit walk"
+                    .parse()
+                    .unwrap(),
+                "abcdefghijklmnopqrstuvwxyz0123456789".parse().unwrap()
+            )
         );
     }
 }
