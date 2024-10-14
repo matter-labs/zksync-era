@@ -20,7 +20,7 @@ jobs:
     outputs:
       core: ${{ steps.changed-files.outputs.core_any_changed }}
       prover: ${{ steps.changed-files.outputs.prover_any_changed }}
-      zk_toolbox: ${{ steps.changed-files.outputs.zk_toolbox_any_changed }}
+      zkstack_cli: ${{ steps.changed-files.outputs.zkstack_cli_any_changed }}
       docs: ${{ steps.changed-files.outputs.docs_any_changed }}
       all: ${{ steps.changed-files.outputs.all_any_changed }}
     steps:
@@ -58,7 +58,7 @@ jobs:
               - '.github/workflows/ci-core-lint-reusable.yml'
               - 'Cargo.toml'
               - 'Cargo.lock'
-              - 'zk_toolbox/**'
+              - 'zkstack_cli/**'
               - '!**/*.md'
               - '!**/*.MD'
               - 'docker-compose.yml'
