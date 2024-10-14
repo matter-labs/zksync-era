@@ -88,7 +88,7 @@ jobs:
       - name: Run Prover Job Monitor
         run: |
           ci_run zk_inception prover run --component=prover-job-monitor --docker=false &>prover_logs/prover-job-monitor.log &
-      - name: Wait for batch to be available
+      - name: Wait for batch to be passed through gateway
         env:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
           BATCH_NUMBER: 1
@@ -110,7 +110,7 @@ jobs:
           DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
           BATCH_NUMBER: 1
           INTERVAL: 30
-          TIMEOUT: 1800
+          TIMEOUT: 1200
         run: |
           ci_run chmod +x ./bin/prover_checkers/prover_jobs_status_checker
           
@@ -142,3 +142,9 @@ jobs:
         with:
           name: prover_logs
           path: prover_logs
+
+      - name: Show sccache logs
+        if: always()
+        run: |
+          ci_run sccache --show-stats || true
+          ci_run cat /tmp/sccache_log.txt || true
