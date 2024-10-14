@@ -170,7 +170,12 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         mode: FastVmMode,
     ) -> Self {
         if !is_supported_by_fast_vm(system_env.version) {
-            return Self::Legacy(LegacyVmInstance::new(l1_batch_env, system_env, storage_ptr));
+            return Self::Legacy(LegacyVmInstance::new(
+                l1_batch_env,
+                system_env,
+                storage_ptr,
+                pubdata_builder,
+            ));
         }
 
         match mode {
@@ -470,7 +475,9 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use zksync_multivm::interface::{storage::InMemoryStorage, TxExecutionMode};
+    use zksync_multivm::interface::{
+        pubdata::rollup::RollupPubdataBuilder, storage::InMemoryStorage, TxExecutionMode,
+    };
     use zksync_types::ProtocolVersionId;
 
     use super::*;
@@ -489,6 +496,7 @@ mod tests {
                 l1_batch_env.clone(),
                 system_env.clone(),
                 storage.clone(),
+                Some(Rc::new(RollupPubdataBuilder::new(Default::default()))),
                 mode,
             );
             assert_matches!(vm, BatchVm::Legacy(_));
@@ -499,6 +507,7 @@ mod tests {
             l1_batch_env.clone(),
             system_env.clone(),
             storage.clone(),
+            Some(Rc::new(RollupPubdataBuilder::new(Default::default()))),
             FastVmMode::Old,
         );
         assert_matches!(vm, BatchVm::Legacy(_));
@@ -506,10 +515,17 @@ mod tests {
             l1_batch_env.clone(),
             system_env.clone(),
             storage.clone(),
+            Some(Rc::new(RollupPubdataBuilder::new(Default::default()))),
             FastVmMode::New,
         );
         assert_matches!(vm, BatchVm::Fast(FastVmInstance::Fast(_)));
-        let vm = BatchVm::<_, ()>::new(l1_batch_env, system_env, storage, FastVmMode::Shadow);
+        let vm = BatchVm::<_, ()>::new(
+            l1_batch_env,
+            system_env,
+            storage,
+            Some(Rc::new(RollupPubdataBuilder::new(Default::default()))),
+            FastVmMode::Shadow,
+        );
         assert_matches!(vm, BatchVm::Fast(FastVmInstance::Shadowed(_)));
     }
 }
