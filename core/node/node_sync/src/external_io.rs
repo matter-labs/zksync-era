@@ -235,6 +235,41 @@ impl StateKeeperIO for ExternalIO {
                 number,
                 first_l2_block_number,
             } => {
+                // Check if there is an existing unsealed batch
+                if let Some(unsealed_storage_batch) = self
+                    .pool
+                    .connection_tagged("sync_layer")
+                    .await?
+                    .blocks_dal()
+                    .get_unsealed_l1_batch()
+                    .await?
+                {
+                    anyhow::ensure!(
+                        number == unsealed_storage_batch.number,
+                        "Unsealed batch number mismatch: received {}, currently stored {}",
+                        number,
+                        unsealed_storage_batch.number
+                    );
+                    anyhow::ensure!(
+                        params.first_l2_block.timestamp == unsealed_storage_batch.timestamp,
+                        "Unsealed batch timestamp mismatch: received {}, currently stored {}",
+                        params.first_l2_block.timestamp,
+                        unsealed_storage_batch.timestamp,
+                    );
+                    anyhow::ensure!(
+                        params.operator_address == unsealed_storage_batch.fee_address,
+                        "Unsealed batch fee address mismatch: received {}, currently stored {}",
+                        params.operator_address,
+                        unsealed_storage_batch.fee_address,
+                    );
+                    anyhow::ensure!(
+                        params.fee_input == unsealed_storage_batch.fee_input,
+                        "Unsealed batch fee input mismatch: received {:?}, currently stored {:?}",
+                        params.fee_input,
+                        unsealed_storage_batch.fee_input,
+                    );
+                    return Ok(Some(params));
+                }
                 anyhow::ensure!(
                     number == cursor.l1_batch,
                     "Batch number mismatch: expected {}, got {number}",
@@ -247,7 +282,7 @@ impl StateKeeperIO for ExternalIO {
                 );
 
                 self.pool
-                    .connection()
+                    .connection_tagged("sync_layer")
                     .await?
                     .blocks_dal()
                     .insert_l1_batch(UnsealedL1BatchHeader {
