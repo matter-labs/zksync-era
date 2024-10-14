@@ -8,11 +8,10 @@ message AvailConfig {
   optional string api_node_url = 1;
   optional string bridge_api_url = 2;
   optional uint32 app_id = 4;
-  optional uint64 timeout = 5;
-  optional uint64 max_retries = 6;
-  optional bool gas_relay_mode = 7;
-  optional string gas_relay_api_url = 8;
-  reserved 3; reserved "seed";
+  optional bool gas_relay_mode = 5;
+  optional string gas_relay_api_url = 6;
+  reserved "gas_relay_api_key";
+  reserved "seed";
 }
 
 message DataAvailabilityClient {

@@ -956,8 +956,6 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
             config: AvailClientConfig::Default(AvailDefaultConfig {
                 api_node_url: self.sample(rng),
                 app_id: self.sample(rng),
-                timeout: self.sample(rng),
-                max_retries: self.sample(rng),
             }),
         })
     }

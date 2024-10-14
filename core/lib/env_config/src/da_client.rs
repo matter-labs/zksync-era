@@ -100,8 +100,6 @@ mod tests {
         api_node_url: &str,
         bridge_api_url: &str,
         app_id: u32,
-        timeout: usize,
-        max_retries: usize,
         gas_relay_mode: bool,
     ) -> DAClientConfig {
         DAClientConfig::Avail(AvailConfig {
@@ -110,8 +108,6 @@ mod tests {
             config: AvailClientConfig::Default(AvailDefaultConfig {
                 api_node_url: api_node_url.to_string(),
                 app_id,
-                timeout,
-                max_retries,
             }),
         })
     }
@@ -124,8 +120,6 @@ mod tests {
             DA_API_NODE_URL="localhost:12345"
             DA_BRIDGE_API_URL="localhost:54321"
             DA_APP_ID="1"
-            DA_TIMEOUT="2"
-            DA_MAX_RETRIES="3"
             DA_GAS_RELAY_MODE="false"
             DA_GAS_RELAY_API_URL="localhost:23456"
         "#;
@@ -139,8 +133,6 @@ mod tests {
                 "localhost:12345",
                 "localhost:54321",
                 "1".parse::<u32>().unwrap(),
-                "2".parse::<usize>().unwrap(),
-                "3".parse::<usize>().unwrap(),
                 false,
             )
         );

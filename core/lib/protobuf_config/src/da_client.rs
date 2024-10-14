@@ -41,9 +41,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                                 .context("api_node_url")?
                                 .clone(),
                             app_id: *required(&conf.app_id).context("app_id")?,
-                            timeout: *required(&conf.timeout).context("timeout")? as usize,
-                            max_retries: *required(&conf.max_retries).context("max_retries")?
-                                as usize,
                         }),
                     }
                 })
@@ -69,14 +66,6 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         },
                         app_id: match &config.config {
                             AvailClientConfig::Default(conf) => Some(conf.app_id),
-                            AvailClientConfig::GasRelay(_) => None,
-                        },
-                        timeout: match &config.config {
-                            AvailClientConfig::Default(conf) => Some(conf.timeout as u64),
-                            AvailClientConfig::GasRelay(_) => None,
-                        },
-                        max_retries: match &config.config {
-                            AvailClientConfig::Default(conf) => Some(conf.max_retries as u64),
                             AvailClientConfig::GasRelay(_) => None,
                         },
                         gas_relay_api_url: match &config.config {
