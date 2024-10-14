@@ -114,8 +114,8 @@ impl IoCursorExt for IoCursor {
         let mut this = Self::new(storage).await?;
         // It's important to know whether we have opened a new batch already or just sealed the previous one.
         // Depending on it, we must either insert `OpenBatch` item into the queue, or not.
-        let was_new_batch_open = storage.blocks_dal().pending_batch_exists().await?;
-        if !was_new_batch_open {
+        let unsealed_batch = storage.blocks_dal().get_unsealed_l1_batch().await?;
+        if unsealed_batch.is_none() {
             this.l1_batch -= 1; // Should continue from the last L1 batch present in the storage
         }
         Ok(this)
