@@ -35,14 +35,14 @@ jobs:
 
       - name: Init
         run: |
-          ci_run git config --global --add safe.directory /usr/src/*
+          ci_run git config --global --add safe.directory "*"
           ci_run chmod -R +x ./bin
           
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --local
           
           ci_run zkstack chain create \
-            --chain-name provers \
+            --chain-name proving_chain \
             --chain-id sequential \
             --prover-mode gpu \
             --wallet-creation localhost \
@@ -56,7 +56,7 @@ jobs:
           ci_run zkstack ecosystem init --dev --verbose
           ci_run zkstack prover init --dev --verbose
           
-          echo "URL=$(grep "http_url" ./chains/provers/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
+          echo "URL=$(grep "http_url" ./chains/proving_chain/configs/general.yaml | awk '{ print $2 }')" >> $GITHUB_ENV
       - name: Build prover binaries
         run: |
           ci_run cargo build --release --workspace --manifest-path=prover/Cargo.toml
@@ -66,7 +66,7 @@ jobs:
           ci_run zkstack prover setup-keys --mode=download --region=us --verbose
       - name: Run server
         run: |
-          ci_run zkstack server --uring --chain=provers --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
+          ci_run zkstack server --uring --chain=proving_chain --components=api,tree,eth,state_keeper,commitment_generator,proof_data_handler,vm_runner_protective_reads,vm_runner_bwip &>prover_logs/server.log &
       - name: Run Gateway
         run: |
           ci_run zkstack prover run --component=gateway --docker=false &>prover_logs/gateway.log &
@@ -105,7 +105,7 @@ jobs:
           ci_run zkstack prover run --component=compressor --docker=false &>prover_logs/compressor.log &
       - name: Wait for batch to be executed on L1
         env:
-            DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
+            DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
             BATCH_NUMBER: 1
             INTERVAL: 30
             TIMEOUT: 600
