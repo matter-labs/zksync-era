@@ -1,3 +1,20 @@
+use std::collections::HashSet;
+
+use zk_evm_1_5_0::{
+    aux_structures::{MemoryPage, Timestamp},
+    zkevm_opcode_defs::{ContractCodeSha256Format, VersionedHashLen32},
+};
+use zksync_types::{writes::StateDiffRecord, StorageKey, H256, U256};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_vm_interface::{CurrentExecutionState, VmExecutionMode, VmExecutionResultAndLogs};
+
+use super::{HistoryEnabled, Vm};
+use crate::{
+    interface::storage::{InMemoryStorage, StorageView},
+    versions::testonly::TestedVm,
+    vm_latest::{constants::BOOTLOADER_HEAP_PAGE, tracers::PubdataTracer, TracerDispatcher},
+};
+
 mod bootloader;
 mod default_aa;
 // TODO - fix this test
@@ -29,3 +46,94 @@ mod tracing_execution_error;
 mod transfer;
 mod upgrade;
 mod utils;
+
+impl TestedVm for Vm<StorageView<InMemoryStorage>, HistoryEnabled> {
+    fn gas_remaining(&mut self) -> u32 {
+        self.state.local_state.callstack.current.ergs_remaining
+    }
+
+    fn get_current_execution_state(&self) -> CurrentExecutionState {
+        self.get_current_execution_state()
+    }
+
+    fn decommitted_hashes(&self) -> HashSet<U256> {
+        self.get_used_contracts().into_iter().collect()
+    }
+
+    fn execute_with_state_diffs(
+        &mut self,
+        diffs: Vec<StateDiffRecord>,
+        mode: VmExecutionMode,
+    ) -> VmExecutionResultAndLogs {
+        let pubdata_tracer = PubdataTracer::new_with_forced_state_diffs(
+            self.batch_env.clone(),
+            VmExecutionMode::Batch,
+            diffs,
+            crate::vm_latest::MultiVMSubversion::latest(),
+        );
+        self.inspect_inner(&mut TracerDispatcher::default(), mode, Some(pubdata_tracer))
+    }
+
+    fn insert_bytecodes(&mut self, bytecodes: &[&[u8]]) {
+        let bytecodes = bytecodes
+            .iter()
+            .map(|&bytecode| {
+                let hash = hash_bytecode(bytecode);
+                let words = bytes_to_be_words(bytecode.to_vec());
+                (h256_to_u256(hash), words)
+            })
+            .collect();
+        self.state
+            .decommittment_processor
+            .populate(bytecodes, Timestamp(0));
+    }
+
+    fn known_bytecode_hashes(&self) -> HashSet<U256> {
+        self.state
+            .decommittment_processor
+            .known_bytecodes
+            .inner()
+            .keys()
+            .copied()
+            .collect()
+    }
+
+    fn manually_decommit(&mut self, code_hash: H256) -> bool {
+        let (header, normalized_preimage) =
+            ContractCodeSha256Format::normalize_for_decommitment(&code_hash.0);
+        let query = self
+            .state
+            .prepare_to_decommit(
+                0,
+                header,
+                normalized_preimage,
+                MemoryPage(123),
+                Timestamp(0),
+            )
+            .unwrap();
+        self.state.execute_decommit(0, query).unwrap();
+        query.is_fresh
+    }
+
+    fn verify_required_bootloader_memory(&self, cells: &[(u32, U256)]) {
+        for &(slot, required_value) in cells {
+            let current_value = self
+                .state
+                .memory
+                .read_slot(BOOTLOADER_HEAP_PAGE as usize, slot as usize)
+                .value;
+            assert_eq!(current_value, required_value);
+        }
+    }
+
+    fn verify_required_storage(&mut self, cells: &[(StorageKey, H256)]) {
+        for &(key, required_value) in cells {
+            let current_value = self.state.storage.storage.read_from_storage(&key);
+            assert_eq!(
+                u256_to_h256(current_value),
+                required_value,
+                "Invalid value at key {key:?}"
+            );
+        }
+    }
+}
