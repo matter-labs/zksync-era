@@ -66,6 +66,8 @@ pub enum Component {
     ExternalProofIntegrationApi,
     /// VM runner-based component that allows to test experimental VM features. Doesn't save any data to Postgres.
     VmPlayground,
+    /// EigenDA Proxy component that allows dispersing and retrieving blobs.
+    EigenDAProxy,
 }
 
 #[derive(Debug)]
