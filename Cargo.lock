@@ -10201,7 +10201,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.28.0"
+version = "24.29.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -11341,6 +11341,7 @@ name = "zksync_vm_executor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "once_cell",
  "tokio",
