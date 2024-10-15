@@ -25,14 +25,7 @@ fn main() {
         .keys()
         .collect::<HashSet<_>>()
         .intersection(&iai_after.keys().collect())
-        .filter_map(|&name| {
-            let diff = percent_difference(iai_before[name], iai_after[name]);
-            if diff.abs() > 2. {
-                Some((name, format!("{:+.1}%", diff)))
-            } else {
-                None
-            }
-        })
+        .map(|&name| (name, percent_difference(iai_before[name], iai_after[name])))
         .collect::<HashMap<_, _>>();
 
     let duration_changes = opcodes_before
@@ -47,12 +40,17 @@ fn main() {
 
     let mut nonzero_diff = false;
 
-    for name in perf_changes.keys().collect::<HashSet<_>>().union(
-        &duration_changes
-            .iter()
-            .filter_map(|(key, value)| (*value != 0).then_some(key))
-            .collect(),
-    ) {
+    for name in perf_changes
+        .iter()
+        .filter_map(|(key, value)| (value.abs() > 2.).then_some(key))
+        .collect::<HashSet<_>>()
+        .union(
+            &duration_changes
+                .iter()
+                .filter_map(|(key, value)| (*value != 0).then_some(key))
+                .collect(),
+        )
+    {
         // write the header before writing the first line of diff
         if !nonzero_diff {
             println!("Benchmark name | change in estimated runtime | change in number of opcodes executed \n--- | --- | ---");
@@ -63,7 +61,10 @@ fn main() {
         println!(
             "{} | {} | {}",
             name,
-            perf_changes.get(**name).unwrap_or(&n_a.clone()),
+            perf_changes
+                .get(**name)
+                .map(|percent| format!("{:+.1}%", percent))
+                .unwrap_or(n_a.clone()),
             duration_changes
                 .get(**name)
                 .map(|abs_diff| format!(
