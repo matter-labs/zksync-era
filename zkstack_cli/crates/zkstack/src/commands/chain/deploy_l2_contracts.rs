@@ -2,7 +2,7 @@ use std::path::Path;
 
 use anyhow::Context;
 use common::{
-    cmd::Cmd,
+    contracts::build_l2_contracts,
     forge::{Forge, ForgeScriptArgs},
     spinner::Spinner,
 };
@@ -20,7 +20,7 @@ use config::{
     traits::{ReadConfig, SaveConfig, SaveConfigWithBasePath},
     ChainConfig, ContractsConfig, EcosystemConfig,
 };
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use crate::{
     messages::{
@@ -121,7 +121,7 @@ async fn build_and_deploy(
     signature: Option<&str>,
     mut update_config: impl FnMut(&Shell, &Path) -> anyhow::Result<()>,
 ) -> anyhow::Result<()> {
-    build_l2_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_l2_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
     call_forge(shell, chain_config, ecosystem_config, forge_args, signature).await?;
     update_config(
         shell,
@@ -282,9 +282,4 @@ async fn call_forge(
     check_the_balance(&forge).await?;
     forge.run(shell)?;
     Ok(())
-}
-
-fn build_l2_contracts(shell: &Shell, link_to_code: &Path) -> anyhow::Result<()> {
-    let _dir_guard = shell.push_dir(link_to_code.join("contracts"));
-    Ok(Cmd::new(cmd!(shell, "yarn l2 build")).run()?)
 }

@@ -108,8 +108,13 @@ jobs:
           crate: sqlx-cli
           tag: 0.8.1
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@8f1998e9878d786675189ef566a2e4bf24869773 # v1.2.0
+      - name: Install foundry-zksync
+        run: |
+          mkdir ./foundry-zksync
+          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-15bec2f861b3b4c71e58f85e2b2c9dd722585aa8/foundry_nightly_linux_amd64.tar.gz
+          tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
+          echo "$PWD/foundry-zksync" >> $GITHUB_PATH
 
       - name: Pre-download compilers
         shell: bash
@@ -136,10 +141,10 @@ jobs:
           docker compose up -d postgres
 
       - name: Install zkstack
-        run: |  
+        run: |
           ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup
           zkstackup --local || true
-  
+
       - name: build contracts
         shell: bash
         run: |
