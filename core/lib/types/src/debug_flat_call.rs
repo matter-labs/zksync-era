@@ -19,6 +19,8 @@ pub struct DebugCallFlat {
     pub trace_address: Vec<usize>,
     pub transaction_position: usize,
     pub transaction_hash: H256,
+    pub block_number: u32,
+    pub block_hash: H256,
     pub r#type: DebugCallType,
 }
 
@@ -38,4 +40,12 @@ pub struct Action {
 pub struct CallResult {
     pub output: Bytes,
     pub gas_used: U256,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct CallTraceMeta {
+    pub index_in_block: usize,
+    pub tx_hash: H256,
+    pub block_number: u32,
+    pub block_hash: H256,
 }
