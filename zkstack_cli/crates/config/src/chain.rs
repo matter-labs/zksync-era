@@ -100,6 +100,7 @@ impl ChainConfig {
         }
         anyhow::bail!("Wallets configs has not been found");
     }
+
     pub fn get_contracts_config(&self) -> anyhow::Result<ContractsConfig> {
         ContractsConfig::read_with_base_path(self.get_shell(), &self.configs)
     }
