@@ -34,11 +34,11 @@ mod secp256r1;
 mod simple_execution;
 mod storage;
 mod tracing_execution_error;
+mod transfer;
 /*
 // mod call_tracer; FIXME: requires tracers
 // mod prestate_tracer; FIXME: is pre-state tracer still relevant?
 mod rollbacks;
-mod transfer;
 mod upgrade;
 mod utils;
 */
