@@ -5,12 +5,11 @@ use clap::CommandFactory;
 use clap_complete::{generate, Generator};
 use common::logger;
 
+use super::args::AutocompleteArgs;
 use crate::{
     messages::{msg_generate_autocomplete_file_for, MSG_OUTRO_AUTOCOMPLETE_GENERATION},
     Inception,
 };
-
-use super::args::AutocompleteArgs;
 
 pub fn run(args: AutocompleteArgs) -> anyhow::Result<()> {
     let mut cmd = Inception::command();
