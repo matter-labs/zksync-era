@@ -2239,13 +2239,13 @@ impl TransactionsDal<'_, '_> {
         sqlx::query_as!(
             StorageTransaction,
             r#"
-                SELECT
-                    *
-                FROM
-                    transactions
-                WHERE
-                    hash = $1
-                "#,
+            SELECT
+                *
+            FROM
+                transactions
+            WHERE
+                hash = $1
+            "#,
             hash.as_bytes()
         )
         .map(Into::into)
