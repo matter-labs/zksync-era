@@ -32,7 +32,7 @@ pub enum GatewayUpgradeStage {
     GovernanceStage2,
     // Finish finalizing tokens, chains, etc
     NoGovernanceStage2,
-}   
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Parser)]
 pub struct GatewayUpgradeArgs {

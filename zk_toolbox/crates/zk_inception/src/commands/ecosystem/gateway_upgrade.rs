@@ -19,7 +19,10 @@ use config::{
         gateway_ecosystem_upgrade::{
             input::GatewayEcosystemUpgradeInput, output::GatewayEcosystemUpgradeOutput,
         },
-        script_params::{DEPLOY_ERC20_SCRIPT_PARAMS, FINALIZE_UPGRADE_SCRIPT_PARAMS, GATEWAY_UPGRADE_ECOSYSTEM_PARAMS},
+        script_params::{
+            DEPLOY_ERC20_SCRIPT_PARAMS, FINALIZE_UPGRADE_SCRIPT_PARAMS,
+            GATEWAY_UPGRADE_ECOSYSTEM_PARAMS,
+        },
     },
     traits::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
@@ -27,7 +30,12 @@ use config::{
     },
     ContractsConfig, EcosystemConfig, GenesisConfig, WalletsConfig, CONFIGS_PATH,
 };
-use ethers::{abi::{parse_abi, Address}, contract::BaseContract, utils::hex};
+use ethers::{
+    abi::{parse_abi, Address},
+    contract::BaseContract,
+    utils::hex,
+};
+use lazy_static::lazy_static;
 use types::{L1Network, ProverMode};
 use xshell::Shell;
 use zksync_types::{H160, L2_NATIVE_TOKEN_VAULT_ADDRESS, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS, U256};
@@ -60,7 +68,6 @@ use crate::{
     },
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
-use lazy_static::lazy_static;
 
 pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> {
     println!("Runnig ecosystem gateway upgrade args");
@@ -271,11 +278,14 @@ async fn governance_stage_2(
     .await?;
 
     let mut contracts_config = ecosystem_config.get_contracts_config()?;
-    contracts_config.bridges.shared.l1_address = previous_output.deployed_addresses.bridges.shared_bridge_proxy_addr;
+    contracts_config.bridges.shared.l1_address = previous_output
+        .deployed_addresses
+        .bridges
+        .shared_bridge_proxy_addr;
 
     contracts_config.save_with_base_path(shell, &ecosystem_config.config)?;
     println!("Stage2 finalized!");
-    
+
     Ok(())
 }
 
@@ -297,16 +307,35 @@ async fn no_governance_stage_2(
 ) -> anyhow::Result<()> {
     let contracts_config = ecosystem_config.get_contracts_config()?;
     let wallets = ecosystem_config.get_wallets()?;
-    let deployer_private_key = wallets.deployer_private_key().context("deployer_priuvate_key")?;
+    let deployer_private_key = wallets
+        .deployer_private_key()
+        .context("deployer_priuvate_key")?;
 
     println!("Finalizing stage2 of the upgrade!");
 
-    let chains: Vec<_> = ecosystem_config.list_of_chains().into_iter().map(|name| ecosystem_config.load_chain(Some(name)).expect("Invalid chain")).collect();
+    let chains: Vec<_> = ecosystem_config
+        .list_of_chains()
+        .into_iter()
+        .map(|name| {
+            ecosystem_config
+                .load_chain(Some(name))
+                .expect("Invalid chain")
+        })
+        .collect();
 
-    let chain_ids: Vec<_> = chains.into_iter().map(|c| ethers::abi::Token::Uint(U256::from(c.chain_id.as_u64()))).collect();
-    let mut tokens: Vec<_> = ecosystem_config.get_erc20_tokens().into_iter().map(|t| ethers::abi::Token::Address(t.address)).collect();
+    let chain_ids: Vec<_> = chains
+        .into_iter()
+        .map(|c| ethers::abi::Token::Uint(U256::from(c.chain_id.as_u64())))
+        .collect();
+    let mut tokens: Vec<_> = ecosystem_config
+        .get_erc20_tokens()
+        .into_iter()
+        .map(|t| ethers::abi::Token::Address(t.address))
+        .collect();
     let tokens_no_eth = tokens.clone();
-    tokens.push(ethers::abi::Token::Address(SHARED_BRIDGE_ETHER_TOKEN_ADDRESS));
+    tokens.push(ethers::abi::Token::Address(
+        SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+    ));
 
     // Resume for accept admin doesn't work properly. Foundry assumes that if signature of the function is the same,
     // than it's the same call, but because we are calling this function multiple times during the init process,
@@ -315,41 +344,48 @@ async fn no_governance_stage_2(
     forge_args.resume = false;
 
     let init_chains_calldata = FINALIZE_UPGRADE
-        .encode("initChains", (
-            ethers::abi::Token::Address(contracts_config.ecosystem_contracts.bridgehub_proxy_addr), 
-            ethers::abi::Token::Array(chain_ids.clone())
-        ))
+        .encode(
+            "initChains",
+            (
+                ethers::abi::Token::Address(
+                    contracts_config.ecosystem_contracts.bridgehub_proxy_addr,
+                ),
+                ethers::abi::Token::Array(chain_ids.clone()),
+            ),
+        )
         .unwrap();
     let init_tokens_calldata = FINALIZE_UPGRADE
-        .encode("initTokens", (
-            ethers::abi::Token::Address(contracts_config.ecosystem_contracts.native_token_vault_addr.context("native_token_vault_addr")?),  
-            ethers::abi::Token::Array(tokens),
-            ethers::abi::Token::Array(chain_ids)
-        ))
+        .encode(
+            "initTokens",
+            (
+                ethers::abi::Token::Address(
+                    contracts_config
+                        .ecosystem_contracts
+                        .native_token_vault_addr
+                        .context("native_token_vault_addr")?,
+                ),
+                ethers::abi::Token::Array(tokens),
+                ethers::abi::Token::Array(chain_ids),
+            ),
+        )
         .unwrap();
 
-    println!("Initiing chains!");    
+    println!("Initiing chains!");
     let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
     let forge = Forge::new(&foundry_contracts_path)
-        .script(
-            &FINALIZE_UPGRADE_SCRIPT_PARAMS.script(),
-            forge_args.clone(),
-        )
+        .script(&FINALIZE_UPGRADE_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(init_args.l1_rpc_url.clone())
         .with_broadcast()
         .with_calldata(&init_chains_calldata)
         .with_private_key(deployer_private_key);
-    
+
     forge.run(shell)?;
 
     println!("Initiing tokens!");
 
     let forge = Forge::new(&foundry_contracts_path)
-        .script(
-            &FINALIZE_UPGRADE_SCRIPT_PARAMS.script(),
-            forge_args.clone(),
-        )
+        .script(&FINALIZE_UPGRADE_SCRIPT_PARAMS.script(), forge_args.clone())
         .with_ffi()
         .with_rpc_url(init_args.l1_rpc_url.clone())
         .with_broadcast()
@@ -360,5 +396,5 @@ async fn no_governance_stage_2(
 
     println!("Done!");
 
-    Ok(())   
+    Ok(())
 }

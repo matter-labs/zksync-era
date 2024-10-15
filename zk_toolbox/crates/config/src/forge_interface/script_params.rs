@@ -97,4 +97,3 @@ pub const FINALIZE_UPGRADE_SCRIPT_PARAMS: ForgeScriptParams = ForgeScriptParams 
     output: "script-out/gateway-finalize-upgrade.toml",
     script_path: "deploy-scripts/upgrade/FinalizeUpgrade.s.sol",
 };
-

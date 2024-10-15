@@ -497,14 +497,14 @@ async fn finalize_stage2(
 
     let mut contracts_config = chain_config.get_contracts_config()?;
     contracts_config.bridges.shared.l1_address = ecosystem_config.bridges.shared.l1_address;
-    contracts_config.bridges.shared.l2_address = Some(zksync_system_constants::L2_ASSET_ROUTER_ADDRESS);
+    contracts_config.bridges.shared.l2_address =
+        Some(zksync_system_constants::L2_ASSET_ROUTER_ADDRESS);
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
-
 
     println!("done!");
 
     Ok(())
-}   
+}
 
 // async fn await_for_tx_to_complete(
 //     gateway_provider: &Provider<Http>,
