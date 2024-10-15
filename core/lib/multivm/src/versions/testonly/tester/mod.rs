@@ -11,7 +11,7 @@ use zksync_vm_interface::{
     CurrentExecutionState, VmExecutionResultAndLogs, VmInterfaceHistoryEnabled,
 };
 
-pub(crate) use self::transaction_test_info::{ExpectedError, TransactionTestInfo};
+pub(crate) use self::transaction_test_info::{ExpectedError, TransactionTestInfo, TxModifier};
 use super::{get_empty_storage, read_test_contract};
 use crate::{
     interface::{
@@ -58,6 +58,17 @@ impl<VM: TestedVm> VmTester<VM> {
 
     pub(crate) fn get_eth_balance(&mut self, address: Address) -> U256 {
         self.vm.read_storage(storage_key_for_eth_balance(&address))
+    }
+
+    pub(crate) fn reset_with_empty_storage(&mut self) {
+        let mut storage = get_empty_storage();
+        for account in self.rich_accounts.iter().chain(self.deployer.as_ref()) {
+            make_account_rich(&mut storage, account);
+        }
+
+        let storage = StorageView::new(storage).to_rc_ptr();
+        self.storage = storage.clone();
+        self.vm = VM::new(self.l1_batch_env.clone(), self.system_env.clone(), storage);
     }
 }
 

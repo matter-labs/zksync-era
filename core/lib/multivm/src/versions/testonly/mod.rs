@@ -32,6 +32,7 @@ pub(super) mod nonce_holder;
 pub(super) mod precompiles;
 pub(super) mod refunds;
 pub(super) mod require_eip712;
+pub(super) mod rollbacks;
 pub(super) mod secp256r1;
 mod shadow;
 pub(super) mod simple_execution;

@@ -30,6 +30,7 @@ mod nonce_holder;
 mod precompiles;
 mod refunds;
 mod require_eip712;
+mod rollbacks;
 mod secp256r1;
 mod simple_execution;
 mod storage;
@@ -39,7 +40,6 @@ mod upgrade;
 /*
 // mod call_tracer; FIXME: requires tracers
 // mod prestate_tracer; FIXME: is pre-state tracer still relevant?
-mod rollbacks;
 mod utils;
 */
 
