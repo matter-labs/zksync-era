@@ -146,6 +146,7 @@ impl InternalApiConfig {
                         .l1_weth_bridge_proxy_addr
                         .unwrap_or_default(),
                 ),
+                l2_legacy_shared_bridge: contracts_config.l2_legacy_shared_bridge_addr,
             },
             bridgehub_proxy_addr: contracts_config
                 .ecosystem_contracts

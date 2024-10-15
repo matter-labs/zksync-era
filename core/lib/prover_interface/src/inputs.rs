@@ -5,7 +5,7 @@ use serde_with::{serde_as, Bytes};
 use zksync_multivm::interface::{L1BatchEnv, SystemEnv};
 use zksync_object_store::{_reexports::BoxedError, serialize_using_bincode, Bucket, StoredObject};
 use zksync_types::{
-    basic_fri_types::Eip4844Blobs, block::L2BlockExecutionData,
+    basic_fri_types::Eip4844Blobs, block::L2BlockExecutionData, commitment::PubdataParams,
     witness_block_state::WitnessStorageState, L1BatchNumber, ProtocolVersionId, H256, U256,
 };
 
@@ -269,6 +269,7 @@ pub struct V1TeeVerifierInput {
     pub l1_batch_env: L1BatchEnv,
     pub system_env: SystemEnv,
     pub used_contracts: Vec<(H256, Vec<u8>)>,
+    pub pubdata_params: PubdataParams,
 }
 
 impl V1TeeVerifierInput {
@@ -278,6 +279,7 @@ impl V1TeeVerifierInput {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         used_contracts: Vec<(H256, Vec<u8>)>,
+        pubdata_params: PubdataParams,
     ) -> Self {
         V1TeeVerifierInput {
             witness_input_merkle_paths,
@@ -285,6 +287,7 @@ impl V1TeeVerifierInput {
             l1_batch_env,
             system_env,
             used_contracts,
+            pubdata_params,
         }
     }
 }

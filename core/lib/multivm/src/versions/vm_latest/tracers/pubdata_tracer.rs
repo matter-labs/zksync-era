@@ -10,6 +10,7 @@ use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
     interface::{
+        pubdata::{L1MessengerL2ToL1Log, PubdataInput},
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         L1BatchEnv, VmEvent, VmExecutionMode,
@@ -17,14 +18,14 @@ use crate::{
     tracers::dynamic::vm_1_5_0::DynTracer,
     utils::events::{
         extract_bytecode_publication_requests_from_l1_messenger,
-        extract_l2tol1logs_from_l1_messenger, L1MessengerL2ToL1Log,
+        extract_l2tol1logs_from_l1_messenger,
     },
     vm_latest::{
         bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{history_recorder::HistoryMode, memory::SimpleMemory},
         tracers::{traits::VmTracer, utils::VmHook},
-        types::internals::{PubdataInput, ZkSyncVmState},
+        types::internals::ZkSyncVmState,
         utils::logs::collect_events_and_l1_system_logs_after_timestamp,
         vm::MultiVMSubversion,
         StorageOracle,
@@ -227,7 +228,12 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
             // Apply the pubdata to the current memory
             let mut memory_to_apply = vec![];
 
-            apply_pubdata_to_memory(&mut memory_to_apply, pubdata_input);
+            apply_pubdata_to_memory(
+                &mut memory_to_apply,
+                bootloader_state.pubdata_builder(),
+                pubdata_input,
+                bootloader_state.protocol_version(),
+            );
             state.memory.populate_page(
                 BOOTLOADER_HEAP_PAGE as usize,
                 memory_to_apply,

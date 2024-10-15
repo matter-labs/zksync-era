@@ -17,6 +17,7 @@ use once_cell::sync::OnceCell;
 use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
+        pubdata::pubdata_params_to_builder,
         storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
         tracer::{ValidationError, ValidationParams},
         ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
@@ -217,6 +218,7 @@ impl<S: ReadStorage> VmSandbox<S> {
             env.system,
             storage_view.clone(),
             protocol_version.into_api_vm_version(),
+            Some(pubdata_params_to_builder(env.pubdata_params)),
         ));
 
         Self {

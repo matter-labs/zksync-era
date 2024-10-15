@@ -85,6 +85,7 @@ impl ContractsConfig {
     ) -> anyhow::Result<()> {
         self.bridges.shared.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
         self.bridges.erc20.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
+        self.l2.legacy_shared_bridge_addr = Some(initialize_bridges_output.l2_shared_bridge_proxy);
         Ok(())
     }
 
@@ -159,4 +160,5 @@ pub struct L2Contracts {
     pub default_l2_upgrader: Address,
     pub consensus_registry: Option<Address>,
     pub multicall3: Option<Address>,
+    pub legacy_shared_bridge_addr: Option<Address>,
 }

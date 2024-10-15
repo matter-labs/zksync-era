@@ -2,6 +2,7 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     fmt,
+    rc::Rc,
     sync::Arc,
 };
 
@@ -9,6 +10,7 @@ use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transact
 
 use super::dump::{DumpingVm, VmDump};
 use crate::{
+    pubdata::PubdataBuilder,
     storage::{ReadStorage, StoragePtr, StorageView},
     BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
     SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
@@ -119,12 +121,23 @@ where
         system_env: SystemEnv,
         storage: StoragePtr<StorageView<S>>,
         shadow_storage: StoragePtr<ShadowS>,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self
     where
         Shadow: VmFactory<ShadowS>,
     {
-        let main = DumpingVm::new(batch_env.clone(), system_env.clone(), storage.clone());
-        let shadow = Shadow::new(batch_env.clone(), system_env.clone(), shadow_storage);
+        let main = DumpingVm::new(
+            batch_env.clone(),
+            system_env.clone(),
+            storage,
+            pubdata_builder.clone(),
+        );
+        let shadow = Shadow::new(
+            batch_env.clone(),
+            system_env.clone(),
+            shadow_storage,
+            pubdata_builder,
+        );
         let shadow = VmWithReporting {
             vm: shadow,
             divergence_handler: DivergenceHandler::default(),
@@ -146,8 +159,15 @@ where
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<StorageView<S>>,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
-        Self::with_custom_shadow(batch_env, system_env, storage.clone(), storage)
+        Self::with_custom_shadow(
+            batch_env,
+            system_env,
+            storage.clone(),
+            storage,
+            pubdata_builder,
+        )
     }
 }
 

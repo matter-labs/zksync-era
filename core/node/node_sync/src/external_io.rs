@@ -186,7 +186,7 @@ impl StateKeeperIO for ExternalIO {
             pending_l2_block_header.set_protocol_version(protocol_version);
         }
 
-        let (system_env, l1_batch_env) = self
+        let (system_env, l1_batch_env, pubdata_params) = self
             .l1_batch_params_provider
             .load_l1_batch_params(
                 &mut storage,
@@ -209,7 +209,7 @@ impl StateKeeperIO for ExternalIO {
                     .into_unsealed_header(Some(system_env.version)),
             )
             .await?;
-        let data = load_pending_batch(&mut storage, system_env, l1_batch_env)
+        let data = load_pending_batch(&mut storage, system_env, l1_batch_env, pubdata_params)
             .await
             .with_context(|| {
                 format!(

@@ -296,6 +296,7 @@ impl StateKeeper {
                         timestamp: self.last_timestamp,
                         virtual_blocks: 1,
                     },
+                    pubdata_params: Default::default(),
                 },
                 number: self.last_batch,
                 first_l2_block_number: self.last_block,
@@ -569,9 +570,11 @@ impl StateKeeperRunner {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
                 self.pool.0.clone(),
-                ethabi::Address::repeat_byte(11),
+                Some(ethabi::Address::repeat_byte(11)),
                 5,
-            );
+            )
+            .await
+            .unwrap();
 
             let io = ExternalIO::new(
                 self.pool.0.clone(),
@@ -676,9 +679,11 @@ impl StateKeeperRunner {
             let (stop_send, stop_recv) = sync::watch::channel(false);
             let (persistence, l2_block_sealer) = StateKeeperPersistence::new(
                 self.pool.0.clone(),
-                ethabi::Address::repeat_byte(11),
+                Some(ethabi::Address::repeat_byte(11)),
                 5,
-            );
+            )
+            .await
+            .unwrap();
             let tree_writes_persistence = TreeWritesPersistence::new(self.pool.0.clone());
 
             let io = ExternalIO::new(

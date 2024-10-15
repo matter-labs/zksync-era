@@ -4,6 +4,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::connection_pool::ConnectionPool;
 use zksync_types::{
     block::{L1BatchHeader, L2BlockHasher, L2BlockHeader},
+    commitment::PubdataParams,
     fee::Fee,
     fee_model::BatchFeeInput,
     helpers::unix_timestamp_ms,
@@ -52,6 +53,7 @@ pub(crate) fn create_l2_block_header(number: u32) -> L2BlockHeader {
         virtual_blocks: 1,
         gas_limit: 0,
         logs_bloom: Default::default(),
+        pubdata_params: PubdataParams::default(),
     }
 }
 

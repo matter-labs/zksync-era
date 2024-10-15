@@ -46,7 +46,7 @@ impl UpdatesManager {
     pub(super) async fn seal_l1_batch(
         &self,
         pool: ConnectionPool<Core>,
-        l2_shared_bridge_addr: Address,
+        l2_legacy_shared_bridge_addr: Option<Address>,
         insert_protective_reads: bool,
     ) -> anyhow::Result<()> {
         let started_at = Instant::now();
@@ -59,7 +59,7 @@ impl UpdatesManager {
         let progress = L1_BATCH_METRICS.start(L1BatchSealStage::FictiveL2Block);
         // Seal fictive L2 block with last events and storage logs.
         let l2_block_command = self.seal_l2_block_command(
-            l2_shared_bridge_addr,
+            l2_legacy_shared_bridge_addr,
             false, // fictive L2 blocks don't have txs, so it's fine to pass `false` here.
         );
 
@@ -335,8 +335,6 @@ impl L2BlockSealCommand {
     /// that are created after the last processed tx in the L1 batch: after the last transaction is processed,
     /// the bootloader enters the "tip" phase in which it can still generate events (e.g.,
     /// one for sending fees to the operator).
-    ///
-    /// `l2_shared_bridge_addr` is required to extract the information on newly added tokens.
     async fn seal_inner(
         &self,
         strategy: &mut SealStrategy<'_>,
@@ -393,6 +391,7 @@ impl L2BlockSealCommand {
             virtual_blocks: self.l2_block.virtual_blocks,
             gas_limit: get_max_batch_gas_limit(definite_vm_version),
             logs_bloom,
+            pubdata_params: self.pubdata_params,
         };
 
         let mut connection = strategy.connection().await?;

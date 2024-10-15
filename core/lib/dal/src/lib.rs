@@ -135,7 +135,7 @@ where
 
     fn base_token_dal(&mut self) -> BaseTokenDal<'_, 'a>;
 
-    fn processed_events_dal(&mut self) -> EthWatcherDal<'_, 'a>;
+    fn eth_watcher_dal(&mut self) -> EthWatcherDal<'_, 'a>;
 }
 
 #[derive(Clone, Debug)]
@@ -263,7 +263,7 @@ impl<'a> CoreDal<'a> for Connection<'a, Core> {
         BaseTokenDal { storage: self }
     }
 
-    fn processed_events_dal(&mut self) -> EthWatcherDal<'_, 'a> {
+    fn eth_watcher_dal(&mut self) -> EthWatcherDal<'_, 'a> {
         EthWatcherDal { storage: self }
     }
 }
