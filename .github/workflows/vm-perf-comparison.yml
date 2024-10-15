@@ -49,8 +49,8 @@ jobs:
       - name: run benchmarks on base branch
         shell: bash
         run: |
-          ci_run zkt || ci_run zkstackup -g --local # TODO remove zkt in an upcoming PR
-          ci_run zk_supervisor contracts --system-contracts || ci_run zkstack dev contracts --system-contracts # TODO remove zk_supervisor in an upcoming PR
+          ci_run zkstackup -g --local
+          ci_run zkstack dev contracts --system-contracts
           ci_run cargo bench --package vm-benchmark --bench iai | tee base-iai
           ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee base-opcodes || touch base-opcodes
 
