@@ -130,6 +130,7 @@ jobs:
           ci_run run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
 
       - name: Install zkstack
+        if: env.BUILD_CONTRACTS == 'true'
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --local
