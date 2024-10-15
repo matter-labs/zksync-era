@@ -14,10 +14,11 @@ use zksync_types::{
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-use super::{default_l1_batch, tester::VmTesterBuilder, TestedVm};
+use super::{default_l1_batch, get_empty_storage, tester::VmTesterBuilder, TestedVm};
 use crate::{
     interface::{
-        ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode, VmInterfaceExt,
+        storage::StorageView, ExecutionResult, Halt, L2BlockEnv, TxExecutionMode, VmExecutionMode,
+        VmInterfaceExt,
     },
     vm_latest::{
         constants::{TX_OPERATOR_L2_BLOCK_INFO_OFFSET, TX_OPERATOR_SLOTS_PER_L2_BLOCK_INFO},
@@ -299,7 +300,6 @@ fn test_first_in_batch<VM: TestedVm>(
     let l1_tx = get_l1_noop();
 
     // Setting the values provided.
-    let mut storage_ptr = vm.storage.borrow_mut();
     let miniblock_info_slot = StorageKey::new(
         AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
         SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -314,8 +314,7 @@ fn test_first_in_batch<VM: TestedVm>(
     );
     let prev_block_hash_position = get_l2_block_hash_key(miniblock_number - 1);
 
-    // FIXME: doesn't work for vm_latest
-    let storage = storage_ptr.inner_mut();
+    let mut storage = get_empty_storage();
     storage.set_value(
         miniblock_info_slot,
         u256_to_h256(pack_block_info(
@@ -332,7 +331,9 @@ fn test_first_in_batch<VM: TestedVm>(
         prev_block_hash_position,
         L2BlockHasher::legacy_hash(L2BlockNumber(miniblock_number - 1)),
     );
-    drop(storage_ptr);
+    // Replace the storage entirely. It's not enough to write to the underlying storage (since read values are already cached
+    // in the storage view).
+    *vm.storage.borrow_mut() = StorageView::new(storage);
 
     // In order to skip checks from the Rust side of the VM, we firstly use some definitely correct L2 block info.
     // And then override it with the user-provided value
