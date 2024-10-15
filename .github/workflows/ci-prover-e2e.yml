@@ -35,7 +35,7 @@ jobs:
 
       - name: Init
         run: |
-          ci_run git config --global --add safe.directory *
+          ci_run git config --global --add safe.directory /usr/src/*
           ci_run chmod -R +x ./bin
           
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
