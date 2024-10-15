@@ -3,6 +3,7 @@ use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 /// Consensus registry contract operations.
 /// Includes code duplicated from `zksync_node_consensus::registry::abi`.
 use anyhow::Context as _;
+use clap::Parser;
 use common::{logger, wallets::Wallet};
 use config::EcosystemConfig;
 use conv::*;
@@ -71,9 +72,9 @@ fn encode_validator_pop(pop: &validator::ProofOfPossession) -> abi::Bls12381Sign
     }
 }
 
-#[derive(clap::Args, Debug)]
+#[derive(Debug, Clone, Parser, Default)]
 #[group(required = true, multiple = false)]
-pub struct SetAttesterCommitteeCommand {
+pub struct SetAttesterCommitteeArgs {
     /// Sets the attester committee in the consensus registry contract to
     /// `consensus.genesis_spec.attesters` in general.yaml.
     #[clap(long)]
@@ -86,10 +87,10 @@ pub struct SetAttesterCommitteeCommand {
 }
 
 #[derive(clap::Subcommand, Debug)]
-pub enum Command {
+pub enum ConsensusCommand {
     /// Sets the attester committee in the consensus registry contract to
     /// `consensus.genesis_spec.attesters` in general.yaml.
-    SetAttesterCommittee(SetAttesterCommitteeCommand),
+    SetAttesterCommittee(SetAttesterCommitteeArgs),
     /// Fetches the attester committee from the consensus registry contract.
     GetAttesterCommittee,
 }
@@ -249,7 +250,7 @@ impl Setup {
 
     fn read_attester_committee(
         &self,
-        opts: &SetAttesterCommitteeCommand,
+        opts: &SetAttesterCommitteeArgs,
     ) -> anyhow::Result<attester::Committee> {
         // Fetch the desired state.
         if let Some(path) = &opts.from_file {
@@ -390,7 +391,7 @@ impl Setup {
     }
 }
 
-impl Command {
+impl ConsensusCommand {
     pub(crate) async fn run(self, shell: &Shell) -> anyhow::Result<()> {
         let setup = Setup::new(shell).context("Setup::new()")?;
         match self {

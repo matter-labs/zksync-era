@@ -2,6 +2,7 @@ use ::common::forge::ForgeScriptArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use args::{build_transactions::BuildTransactionsArgs, run_server::RunServerArgs};
 use clap::{command, Subcommand};
+use consensus::ConsensusCommand;
 use contract_verifier::ContractVerifierCommands;
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
@@ -55,7 +56,6 @@ pub enum ChainCommands {
     #[command(alias = "bridge")]
     InitializeBridges(ForgeScriptArgs),
     /// Deploy L2 consensus registry
-    #[command(alias = "consensus")]
     DeployConsensusRegistry(ForgeScriptArgs),
     /// Deploy L2 multicall3
     #[command(alias = "multicall3")]
@@ -74,7 +74,7 @@ pub enum ChainCommands {
     #[command(subcommand)]
     ContractVerifier(ContractVerifierCommands),
     #[command(subcommand)]
-    Consensus(consensus::Command),
+    Consensus(ConsensusCommand),
 }
 
 pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()> {
