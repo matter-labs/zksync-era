@@ -54,8 +54,6 @@ pub struct EthTxAggregator {
     l1_multicall3_address: Address,
     pub(super) state_transition_chain_contract: Address,
     functions: ZkSyncFunctions,
-    base_nonce: u64,
-    base_nonce_custom_commit_sender: Option<u64>,
     rollup_chain_id: L2ChainId,
     /// If set to `Some` node is operating in the 4844 mode with two operator
     /// addresses at play: the main one and the custom address for sending commit
@@ -88,19 +86,6 @@ impl EthTxAggregator {
     ) -> Self {
         let eth_client = eth_client.for_component("eth_tx_aggregator");
         let functions = ZkSyncFunctions::default();
-        let base_nonce = eth_client.pending_nonce().await.unwrap().as_u64();
-
-        let base_nonce_custom_commit_sender = match custom_commit_sender_addr {
-            Some(addr) => Some(
-                (*eth_client)
-                    .as_ref()
-                    .nonce_at_for_account(addr, BlockNumber::Pending)
-                    .await
-                    .unwrap()
-                    .as_u64(),
-            ),
-            None => None,
-        };
 
         let sl_chain_id = (*eth_client).as_ref().fetch_chain_id().await.unwrap();
 
@@ -112,8 +97,6 @@ impl EthTxAggregator {
             l1_multicall3_address,
             state_transition_chain_contract,
             functions,
-            base_nonce,
-            base_nonce_custom_commit_sender,
             rollup_chain_id,
             custom_commit_sender_addr,
             pool,
@@ -402,6 +385,24 @@ impl EthTxAggregator {
             )
             .await
         {
+            if storage
+                .eth_sender_dal()
+                .get_number_of_failed_transactions()
+                .await
+                .unwrap()
+                != 0
+            {
+                tracing::info!(
+                    "Skipping sending operation of type {} for batches {}-{} \
+                as there are failed transactions in database, they can be removed using \
+                 block-reverter tool with option clear-failed-transactions",
+                    agg_op.get_action_type(),
+                    agg_op.l1_batch_range().start(),
+                    agg_op.l1_batch_range().end()
+                );
+                return Ok(());
+            }
+
             if self.config.tx_aggregation_paused {
                 tracing::info!(
                     "Skipping sending operation of type {} for batches {}-{} \
@@ -659,15 +660,23 @@ impl EthTxAggregator {
             .await
             .unwrap()
             .unwrap_or(0);
-        // Between server starts we can execute some txs using operator account or remove some txs from the database
-        // At the start we have to consider this fact and get the max nonce.
+        // We can execute some txs using operator account or remove some txs from the database
+        // We have to consider this fact and get the max nonce.
         Ok(if from_addr.is_none() {
-            db_nonce.max(self.base_nonce)
+            let base_nonce = self.eth_client.pending_nonce().await.unwrap().as_u64();
+            db_nonce.max(base_nonce)
         } else {
-            db_nonce.max(
-                self.base_nonce_custom_commit_sender
-                    .expect("custom base nonce is expected to be initialized; qed"),
-            )
+            let base_nonce_custom_commit_sender = (*self.eth_client)
+                .as_ref()
+                .nonce_at_for_account(
+                    self.custom_commit_sender_addr
+                        .expect("custom_commit_sender_addr should not be empty"),
+                    BlockNumber::Pending,
+                )
+                .await
+                .unwrap()
+                .as_u64();
+            db_nonce.max(base_nonce_custom_commit_sender)
         })
     }
 }

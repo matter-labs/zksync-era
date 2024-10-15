@@ -3,7 +3,6 @@ use std::{fmt, sync::Arc, time::Duration};
 use thiserror::Error;
 use tokio::sync::{watch, Mutex};
 
-pub mod l1_txs;
 mod metrics;
 pub mod replication_lag;
 
