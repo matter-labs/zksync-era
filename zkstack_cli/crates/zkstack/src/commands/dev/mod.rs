@@ -9,9 +9,10 @@ use self::commands::{
     send_transactions::args::SendTransactionsArgs, snapshot::SnapshotCommands, test::TestCommands,
 };
 use crate::commands::dev::messages::{
-    MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT, MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT,
-    MSG_SUBCOMMAND_CLEAN, MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT,
-    MSG_SUBCOMMAND_LINT_ABOUT, MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
+    MSG_CONFIG_WRITER_ABOUT, MSG_CONTRACTS_ABOUT, MSG_GENERATE_GENESIS_ABOUT,
+    MSG_PROVER_VERSION_ABOUT, MSG_SEND_TXNS_ABOUT, MSG_SUBCOMMAND_CLEAN,
+    MSG_SUBCOMMAND_DATABASE_ABOUT, MSG_SUBCOMMAND_FMT_ABOUT, MSG_SUBCOMMAND_LINT_ABOUT,
+    MSG_SUBCOMMAND_SNAPSHOTS_CREATOR_ABOUT, MSG_SUBCOMMAND_TESTS_ABOUT,
 };
 
 mod commands;
@@ -44,6 +45,8 @@ pub enum DevCommands {
     SendTransactions(SendTransactionsArgs),
     #[command(about = MSG_STATUS_ABOUT)]
     Status(StatusArgs),
+    #[command(about = MSG_GENERATE_GENESIS_ABOUT, alias = "genesis")]
+    GenerateGenesis,
 }
 
 pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
@@ -61,6 +64,7 @@ pub async fn run(shell: &Shell, args: DevCommands) -> anyhow::Result<()> {
             commands::send_transactions::run(shell, args).await?
         }
         DevCommands::Status(args) => commands::status::run(shell, args).await?,
+        DevCommands::GenerateGenesis => commands::genesis::run(shell).await?,
     }
     Ok(())
 }

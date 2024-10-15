@@ -4,6 +4,8 @@ use super::commands::lint_utils::Target;
 pub(super) const MSG_CHAIN_NOT_FOUND_ERR: &str = "Chain not found";
 
 // Subcommands help
+pub(super) const MSG_GENERATE_GENESIS_ABOUT: &str =
+    "Generate new genesis file based on current contracts";
 pub(super) const MSG_PROVER_VERSION_ABOUT: &str = "Protocol version used by provers";
 pub(super) const MSG_SUBCOMMAND_DATABASE_ABOUT: &str = "Database related commands";
 pub(super) const MSG_SUBCOMMAND_TESTS_ABOUT: &str = "Run tests";
@@ -106,7 +108,6 @@ pub(super) const MSG_RESETTING_TEST_DATABASES: &str = "Resetting test databases"
 // Contract building related messages
 pub(super) const MSG_NOTHING_TO_BUILD_MSG: &str = "Nothing to build!";
 pub(super) const MSG_BUILDING_CONTRACTS: &str = "Building contracts";
-pub(super) const MSG_CONTRACTS_DEPS_SPINNER: &str = "Installing dependencies..";
 pub(super) const MSG_BUILDING_L2_CONTRACTS_SPINNER: &str = "Building L2 contracts..";
 pub(super) const MSG_BUILDING_L1_CONTRACTS_SPINNER: &str = "Building L1 contracts..";
 pub(super) const MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER: &str = "Building system contracts..";
@@ -236,3 +237,6 @@ pub(super) const MSG_STATUS_ABOUT: &str = "Get status of the server";
 pub(super) const MSG_API_CONFIG_NOT_FOUND_ERR: &str = "API config not found";
 pub(super) const MSG_STATUS_URL_HELP: &str = "URL of the health check endpoint";
 pub(super) const MSG_STATUS_PORTS_HELP: &str = "Show used ports";
+
+// Genesis
+pub(super) const MSG_GENESIS_FILE_GENERATION_STARTED: &str = "Regenerate genesis file";

@@ -1,4 +1,4 @@
-use zksync_types::{ExecuteTransactionCommon, Transaction};
+use zksync_types::{ExecuteTransactionCommon, Nonce, Transaction, H160};
 
 use crate::{
     interface::{
@@ -14,8 +14,8 @@ pub(crate) enum TxModifier {
     WrongSignatureLength,
     WrongSignature,
     WrongMagicValue,
-    WrongNonce,
-    NonceReused,
+    WrongNonce(Nonce, Nonce),
+    NonceReused(H160, Nonce),
 }
 
 #[derive(Debug, Clone)]
@@ -40,14 +40,11 @@ impl From<TxModifier> for ExpectedError {
     fn from(value: TxModifier) -> Self {
         let revert_reason = match value {
             TxModifier::WrongSignatureLength => {
-                Halt::ValidationFailed(VmRevertReason::General {
-                    msg: "Signature length is incorrect".to_string(),
+                Halt::ValidationFailed(VmRevertReason::Unknown {
+                    function_selector: vec![144, 240, 73, 201],
                     data: vec![
-                        8, 195, 121, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 29, 83, 105, 103, 110, 97, 116, 117, 114, 101, 32,
-                        108, 101, 110, 103, 116, 104, 32, 105, 115, 32, 105, 110, 99, 111, 114, 114, 101, 99,
-                        116, 0, 0, 0,
+                        144, 240, 73, 201, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 45
                     ],
                 })
             }
@@ -58,38 +55,35 @@ impl From<TxModifier> for ExpectedError {
                 })
             }
             TxModifier::WrongMagicValue => {
-                Halt::ValidationFailed(VmRevertReason::General {
-                    msg: "v is neither 27 nor 28".to_string(),
-                    data: vec![
-                        8, 195, 121, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 22, 118, 32, 105, 115, 32, 110, 101, 105, 116, 104,
-                        101, 114, 32, 50, 55, 32, 110, 111, 114, 32, 50, 56, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    ],
+                Halt::ValidationFailed(VmRevertReason::Unknown {
+                    function_selector: vec![144, 240, 73, 201],
+                    data: vec![144, 240, 73, 201, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
                 })
 
             }
-            TxModifier::WrongNonce => {
-                Halt::ValidationFailed(VmRevertReason::General {
-                    msg: "Incorrect nonce".to_string(),
-                    data: vec![
-                        8, 195, 121, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 73, 110, 99, 111, 114, 114, 101, 99, 116, 32, 110,
-                        111, 110, 99, 101, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                    ],
+            TxModifier::WrongNonce(expected, actual) => {
+                let function_selector = vec![98, 106, 222, 48];
+                let expected_nonce_bytes = expected.0.to_be_bytes().to_vec();
+                let actual_nonce_bytes = actual.0.to_be_bytes().to_vec();
+                // padding is 28 because an address takes up 4 bytes and we need it to fill a 32 byte field
+                let nonce_padding = vec![0u8; 28];
+                let data = [function_selector.clone(), nonce_padding.clone(), expected_nonce_bytes, nonce_padding.clone(), actual_nonce_bytes].concat();
+                Halt::ValidationFailed(VmRevertReason::Unknown {
+                    function_selector,
+                    data
                 })
             }
-            TxModifier::NonceReused => {
-                Halt::ValidationFailed(VmRevertReason::General {
-                    msg: "Reusing the same nonce twice".to_string(),
-                    data: vec![
-                        8, 195, 121, 160, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 28, 82, 101, 117, 115, 105, 110, 103, 32, 116, 104,
-                        101, 32, 115, 97, 109, 101, 32, 110, 111, 110, 99, 101, 32, 116, 119, 105, 99, 101, 0,
-                        0, 0, 0,
-                    ],
+            TxModifier::NonceReused(addr, nonce) => {
+                let function_selector = vec![233, 10, 222, 212];
+                let addr = addr.as_bytes().to_vec();
+                // padding is 12 because an address takes up 20 bytes and we need it to fill a 32 byte field
+                let addr_padding = vec![0u8; 12];
+                // padding is 28 because an address takes up 4 bytes and we need it to fill a 32 byte field
+                let nonce_padding = vec![0u8; 28];
+                let data = [function_selector.clone(), addr_padding, addr, nonce_padding, nonce.0.to_be_bytes().to_vec()].concat();
+                Halt::ValidationFailed(VmRevertReason::Unknown {
+                    function_selector,
+                    data,
                 })
             }
         };
@@ -115,10 +109,10 @@ impl TransactionTestInfo {
                         }
                         TxModifier::WrongSignature => data.signature = vec![27u8; 65],
                         TxModifier::WrongMagicValue => data.signature = vec![1u8; 65],
-                        TxModifier::WrongNonce => {
+                        TxModifier::WrongNonce(_, _) => {
                             // Do not need to modify signature for nonce error
                         }
-                        TxModifier::NonceReused => {
+                        TxModifier::NonceReused(_, _) => {
                             // Do not need to modify signature for nonce error
                         }
                     }
