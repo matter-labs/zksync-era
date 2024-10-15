@@ -70,3 +70,33 @@ pub const BYTECODES: &[Bytecode] = &[
     include_bytecode!(slot_hash_collision),
     include_bytecode!(write_and_decode),
 ];
+
+#[cfg(test)]
+mod tests {
+    use zksync_multivm::interface::{ExecutionResult, VmRevertReason};
+
+    use super::*;
+
+    #[test]
+    fn deploy_transactions_are_valid() {
+        for bytecode in BYTECODES {
+            println!("Testing bytecode {}", bytecode.name);
+
+            let mut vm = BenchmarkingVm::new();
+            let res = vm.run_transaction(&bytecode.deploy_tx());
+            match &res.result {
+                ExecutionResult::Success { .. } => { /* OK */ }
+                ExecutionResult::Revert {
+                    output:
+                        VmRevertReason::Unknown {
+                            function_selector,
+                            data,
+                        },
+                } if function_selector.is_empty() && data.is_empty() => {
+                    // out of gas; this is expected for most fuzzed bytecodes
+                }
+                _ => panic!("Unexpected execution result: {:?}", res.result),
+            }
+        }
+    }
+}

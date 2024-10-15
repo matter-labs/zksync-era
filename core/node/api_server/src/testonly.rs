@@ -4,14 +4,12 @@ use std::{collections::HashMap, iter};
 
 use const_decoder::Decoder;
 use zk_evm_1_5_0::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
-use zksync_contracts::{
-    eth_contract, get_loadnext_contract, load_contract, read_bytecode,
-    test_contracts::LoadnextContractExecutionParams,
-};
+use zksync_contracts::{eth_contract, load_contract, read_bytecode};
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
 use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
+use zksync_test_contracts::{LoadnextContractExecutionParams, TestContract};
 use zksync_types::{
     api::state_override::{Bytecode, OverrideAccount, OverrideState, StateOverride},
     ethabi,
@@ -26,6 +24,9 @@ use zksync_types::{
     StorageKey, StorageLog, H256, U256,
 };
 use zksync_utils::{address_to_u256, u256_to_h256};
+
+const MULTICALL3_CONTRACT_PATH: &str =
+    "contracts/l2-contracts/artifacts-zk/contracts/dev-contracts/Multicall3.sol/Multicall3.json";
 
 pub(crate) const RAW_EVM_BYTECODE: &[u8] = &const_decoder::decode!(
     Decoder::Hex,
@@ -50,17 +51,6 @@ pub(crate) const PROCESSED_EVM_BYTECODE: &[u8] = &const_decoder::decode!(
       fea2646970667358221220caca1247066da378f2ec77c310f2ae51576272367b4fa11cc4350af4e9\
       ce4d0964736f6c634300081a0033"
 );
-
-const EXPENSIVE_CONTRACT_PATH: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/expensive/expensive.sol/Expensive.json";
-const PRECOMPILES_CONTRACT_PATH: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json";
-const COUNTER_CONTRACT_PATH: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json";
-const INFINITE_LOOP_CONTRACT_PATH: &str =
-    "etc/contracts-test-data/artifacts-zk/contracts/infinite/infinite.sol/InfiniteLoop.json";
-const MULTICALL3_CONTRACT_PATH: &str =
-    "contracts/l2-contracts/artifacts-zk/contracts/dev-contracts/Multicall3.sol/Multicall3.json";
 
 /// Inflates the provided bytecode by appending the specified amount of NOP instructions at the end.
 fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {
@@ -126,7 +116,7 @@ impl StateBuilder {
         self.inner.insert(
             Self::LOAD_TEST_ADDRESS,
             OverrideAccount {
-                code: Some(Bytecode::new(get_loadnext_contract().bytecode).unwrap()),
+                code: Some(Bytecode::new(TestContract::load_test().bytecode.to_vec()).unwrap()),
                 state: Some(OverrideState::State(state)),
                 ..OverrideAccount::default()
             },
@@ -142,21 +132,21 @@ impl StateBuilder {
     pub fn with_expensive_contract(self) -> Self {
         self.with_contract(
             Self::EXPENSIVE_CONTRACT_ADDRESS,
-            read_bytecode(EXPENSIVE_CONTRACT_PATH),
+            TestContract::expensive().bytecode.to_vec(),
         )
     }
 
     pub fn with_precompiles_contract(self) -> Self {
         self.with_contract(
             Self::PRECOMPILES_CONTRACT_ADDRESS,
-            read_bytecode(PRECOMPILES_CONTRACT_PATH),
+            TestContract::precompiles_test().bytecode.to_vec(),
         )
     }
 
     pub fn with_counter_contract(self, initial_value: u64) -> Self {
         let mut this = self.with_contract(
             Self::COUNTER_CONTRACT_ADDRESS,
-            read_bytecode(COUNTER_CONTRACT_PATH),
+            TestContract::counter().bytecode.to_vec(),
         );
         if initial_value != 0 {
             let state = HashMap::from([(H256::zero(), H256::from_low_u64_be(initial_value))]);
@@ -171,7 +161,7 @@ impl StateBuilder {
     pub fn with_infinite_loop_contract(self) -> Self {
         self.with_contract(
             Self::INFINITE_LOOP_CONTRACT_ADDRESS,
-            read_bytecode(INFINITE_LOOP_CONTRACT_PATH),
+            TestContract::infinite_loop().bytecode.to_vec(),
         )
     }
 
@@ -395,7 +385,7 @@ impl TestAccount for K256PrivateKey {
             L2ChainId::default(),
             self,
             if params.deploys > 0 {
-                get_loadnext_contract().factory_deps
+                TestContract::load_test().factory_deps()
             } else {
                 vec![]
             },
@@ -405,9 +395,8 @@ impl TestAccount for K256PrivateKey {
     }
 
     fn create_expensive_tx(&self, write_count: usize) -> L2Tx {
-        let calldata = load_contract(EXPENSIVE_CONTRACT_PATH)
+        let calldata = TestContract::expensive()
             .function("expensive")
-            .expect("no `expensive` function in contract")
             .encode_input(&[Token::Uint(write_count.into())])
             .expect("failed encoding `expensive` function");
         L2Tx::new_signed(
@@ -425,9 +414,8 @@ impl TestAccount for K256PrivateKey {
     }
 
     fn create_expensive_cleanup_tx(&self) -> L2Tx {
-        let calldata = load_contract(EXPENSIVE_CONTRACT_PATH)
+        let calldata = TestContract::expensive()
             .function("cleanUp")
-            .expect("no `cleanUp` function in contract")
             .encode_input(&[])
             .expect("failed encoding `cleanUp` input");
         L2Tx::new_signed(
@@ -445,9 +433,8 @@ impl TestAccount for K256PrivateKey {
     }
 
     fn create_code_oracle_tx(&self, bytecode_hash: H256, expected_keccak_hash: H256) -> L2Tx {
-        let calldata = load_contract(PRECOMPILES_CONTRACT_PATH)
+        let calldata = TestContract::precompiles_test()
             .function("callCodeOracle")
-            .expect("no `callCodeOracle` function")
             .encode_input(&[
                 Token::FixedBytes(bytecode_hash.0.to_vec()),
                 Token::FixedBytes(expected_keccak_hash.0.to_vec()),
@@ -468,9 +455,8 @@ impl TestAccount for K256PrivateKey {
     }
 
     fn create_counter_tx(&self, increment: U256, revert: bool) -> L2Tx {
-        let calldata = load_contract(COUNTER_CONTRACT_PATH)
+        let calldata = TestContract::counter()
             .function("incrementWithRevert")
-            .expect("no `incrementWithRevert` function")
             .encode_input(&[Token::Uint(increment), Token::Bool(revert)])
             .expect("failed encoding `incrementWithRevert` input");
         L2Tx::new_signed(
@@ -488,9 +474,8 @@ impl TestAccount for K256PrivateKey {
     }
 
     fn query_counter_value(&self) -> CallRequest {
-        let calldata = load_contract(COUNTER_CONTRACT_PATH)
+        let calldata = TestContract::counter()
             .function("get")
-            .expect("no `get` function")
             .encode_input(&[])
             .expect("failed encoding `get` input");
         CallRequest {
@@ -502,9 +487,8 @@ impl TestAccount for K256PrivateKey {
     }
 
     fn create_infinite_loop_tx(&self) -> L2Tx {
-        let calldata = load_contract(INFINITE_LOOP_CONTRACT_PATH)
+        let calldata = TestContract::infinite_loop()
             .function("infiniteLoop")
-            .expect("no `infiniteLoop` function")
             .encode_input(&[])
             .expect("failed encoding `infiniteLoop` input");
         L2Tx::new_signed(

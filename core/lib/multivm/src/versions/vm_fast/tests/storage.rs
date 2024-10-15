@@ -1,5 +1,5 @@
 use ethabi::Token;
-use zksync_contracts::{load_contract, read_bytecode};
+use zksync_test_contracts::TestContract;
 use zksync_types::{Address, Execute, U256};
 
 use crate::{
@@ -11,9 +11,7 @@ use crate::{
 };
 
 fn test_storage(first_tx_calldata: Vec<u8>, second_tx_calldata: Vec<u8>) -> u32 {
-    let bytecode = read_bytecode(
-        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
-    );
+    let bytecode = TestContract::storage_test().bytecode.to_vec();
 
     let test_contract_address = Address::random();
 
@@ -76,32 +74,23 @@ fn test_storage_one_tx(second_tx_calldata: Vec<u8>) -> u32 {
 
 #[test]
 fn test_storage_behavior() {
-    let contract = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
-    );
+    let contract = TestContract::storage_test();
 
     // In all of the tests below we provide the first tx to ensure that the tracers will not include
     // the statistics from the start of the bootloader and will only include those for the transaction itself.
 
     let base_pubdata = test_storage_one_tx(vec![]);
-    let simple_test_pubdata = test_storage_one_tx(
-        contract
-            .function("simpleWrite")
-            .unwrap()
-            .encode_input(&[])
-            .unwrap(),
-    );
+    let simple_test_pubdata =
+        test_storage_one_tx(contract.function("simpleWrite").encode_input(&[]).unwrap());
     let resetting_write_pubdata = test_storage_one_tx(
         contract
             .function("resettingWrite")
-            .unwrap()
             .encode_input(&[])
             .unwrap(),
     );
     let resetting_write_via_revert_pubdata = test_storage_one_tx(
         contract
             .function("resettingWriteViaRevert")
-            .unwrap()
             .encode_input(&[])
             .unwrap(),
     );
@@ -113,19 +102,15 @@ fn test_storage_behavior() {
 
 #[test]
 fn test_transient_storage_behavior() {
-    let contract = load_contract(
-        "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
-    );
+    let contract = TestContract::storage_test();
 
     let first_tstore_test = contract
         .function("testTransientStore")
-        .unwrap()
         .encode_input(&[])
         .unwrap();
     // Second transaction checks that, as expected, the transient storage is cleared after the first transaction.
     let second_tstore_test = contract
         .function("assertTValue")
-        .unwrap()
         .encode_input(&[Token::Uint(U256::zero())])
         .unwrap();
 

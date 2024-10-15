@@ -1,13 +1,11 @@
 use ethabi::Token;
+use zksync_test_contracts::TestContract;
 use zksync_types::{Address, Execute, U256};
 
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     versions::testonly::ContractToDeploy,
-    vm_fast::tests::{
-        tester::{DeployContractsTx, TxType, VmTesterBuilder},
-        utils::{read_expensive_contract, read_test_contract},
-    },
+    vm_fast::tests::tester::{DeployContractsTx, TxType, VmTesterBuilder},
 };
 
 #[test]
@@ -22,14 +20,13 @@ fn test_predetermined_refunded_gas() {
         .build();
     let l1_batch = vm.vm.batch_env.clone();
 
-    let counter = read_test_contract();
     let account = &mut vm.rich_accounts[0];
 
     let DeployContractsTx {
         tx,
         bytecode_hash: _,
         address: _,
-    } = account.get_deploy_tx(&counter, None, TxType::L2);
+    } = account.get_deploy_tx(TestContract::counter().bytecode, None, TxType::L2);
     vm.vm.push_transaction(tx.clone());
     let result = vm.vm.execute(VmExecutionMode::OneTx);
 
@@ -165,16 +162,16 @@ fn test_predetermined_refunded_gas() {
 #[test]
 fn negative_pubdata_for_transaction() {
     let expensive_contract_address = Address::random();
-    let (expensive_contract_bytecode, expensive_contract) = read_expensive_contract();
-    let expensive_function = expensive_contract.function("expensive").unwrap();
-    let cleanup_function = expensive_contract.function("cleanUp").unwrap();
+    let expensive_contract = TestContract::expensive();
+    let expensive_function = expensive_contract.function("expensive");
+    let cleanup_function = expensive_contract.function("cleanUp");
 
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
         .with_custom_contracts(vec![ContractToDeploy::new(
-            expensive_contract_bytecode,
+            TestContract::expensive().bytecode.to_vec(),
             expensive_contract_address,
         )])
         .build();
