@@ -48,6 +48,7 @@ message Sender {
   reserved 19; reserved "proof_loading_mode";
   optional bool tx_aggregation_paused = 20; // required
   optional bool tx_aggregation_only_prove_and_execute = 21; // required
+  optional uint32 time_in_mempool_in_l1_blocks_cap = 22; // optional
 }
 
 message GasAdjuster {

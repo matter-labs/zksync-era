@@ -1,6 +1,6 @@
 use std::mem;
 
-use zksync_types::{vm::VmVersion, Transaction};
+use zksync_types::{vm::VmVersion, ProtocolVersionId, Transaction};
 use zksync_vm2::interface::Tracer;
 
 use crate::{
@@ -85,10 +85,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
             tx,
             with_compression
         ))
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        dispatch_legacy_vm!(self.record_vm_memory_metrics())
     }
 
     /// Return the results of execution of all batch
@@ -213,6 +209,11 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
             }
         }
     }
+
+    /// Returns memory-related oracle metrics.
+    pub fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        dispatch_legacy_vm!(self.record_vm_memory_metrics())
+    }
 }
 
 /// Fast VM shadowed by the latest legacy VM.
@@ -283,10 +284,6 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInsta
         }
     }
 
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        dispatch_fast_vm!(self.record_vm_memory_metrics())
-    }
-
     fn finish_batch(&mut self) -> FinishedL1Batch {
         dispatch_fast_vm!(self.finish_batch())
     }
@@ -330,4 +327,12 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> FastVmInstance<S, Tr> {
     ) -> Self {
         Self::Shadowed(ShadowedFastVm::new(l1_batch_env, system_env, storage_view))
     }
+}
+
+/// Checks whether the protocol version is supported by the fast VM.
+pub fn is_supported_by_fast_vm(protocol_version: ProtocolVersionId) -> bool {
+    matches!(
+        protocol_version.into(),
+        VmVersion::Vm1_5_0IncreasedBootloaderMemory
+    )
 }

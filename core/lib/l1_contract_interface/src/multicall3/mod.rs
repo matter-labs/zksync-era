@@ -7,6 +7,7 @@ use zksync_types::{
 };
 
 /// Multicall3 contract aggregate method input vector struct.
+#[derive(Debug)]
 pub struct Multicall3Call {
     pub target: Address,
     pub allow_failure: bool,
@@ -21,6 +22,7 @@ impl Tokenizable for Multicall3Call {
             self.calldata.into_token(),
         ])
     }
+
     fn from_token(token: Token) -> Result<Self, ContractError> {
         let Token::Tuple(mut result_token) = token else {
             return Err(error(&[token], "Multicall3Call"));

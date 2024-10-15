@@ -192,6 +192,7 @@ impl Distribution<configs::chain::StateKeeperConfig> for EncodeDist {
             fee_account_addr: None,
             bootloader_hash: None,
             default_aa_hash: None,
+            evm_emulator_hash: None,
             l1_batch_commit_data_generator_mode: Default::default(),
         }
     }
@@ -419,6 +420,7 @@ impl Distribution<configs::eth_sender::SenderConfig> for EncodeDist {
             pubdata_sending_mode: PubdataSendingMode::Calldata,
             tx_aggregation_paused: false,
             tx_aggregation_only_prove_and_execute: false,
+            time_in_mempool_in_l1_blocks_cap: self.sample(rng),
         }
     }
 }
@@ -731,6 +733,7 @@ impl Distribution<configs::GenesisConfig> for EncodeDist {
             genesis_commitment: Some(rng.gen()),
             bootloader_hash: Some(rng.gen()),
             default_aa_hash: Some(rng.gen()),
+            evm_emulator_hash: Some(rng.gen()),
             fee_account: rng.gen(),
             l1_chain_id: L1ChainId(self.sample(rng)),
             sl_chain_id: None,
@@ -799,6 +802,7 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusConfig {
         use configs::consensus::{ConsensusConfig, Host, NodePublicKey};
         ConsensusConfig {
+            port: self.sample(rng),
             server_addr: self.sample(rng),
             public_addr: Host(self.sample(rng)),
             max_payload_size: self.sample(rng),
@@ -933,6 +937,7 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
             main_node_rate_limit_rps: self.sample_opt(|| rng.gen()),
             gateway_url: self
                 .sample_opt(|| format!("localhost:{}", rng.gen::<u16>()).parse().unwrap()),
+            bridge_addresses_refresh_interval_sec: self.sample_opt(|| rng.gen()),
         }
     }
 }

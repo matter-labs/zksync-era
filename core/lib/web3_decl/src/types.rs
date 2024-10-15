@@ -16,7 +16,9 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 pub use zksync_types::{
     api::{Block, BlockNumber, Log, TransactionReceipt, TransactionRequest},
     ethabi,
-    web3::{BlockHeader, Bytes, CallRequest, FeeHistory, Index, SyncState, TraceFilter, Work},
+    web3::{
+        BlockHeader, Bytes, CallRequest, FeeHistory, Index, SyncState, TraceFilter, U64Number, Work,
+    },
     Address, Transaction, H160, H256, H64, U256, U64,
 };
 

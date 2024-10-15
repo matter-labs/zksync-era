@@ -55,8 +55,8 @@ default_priority_fee_per_gas = 1_000_000_000
 max_base_fee_samples = 10_000
 # These two are parameters of the base_fee_per_gas formula in GasAdjuster.
 # The possible formulas are:
-# 1. base_fee_median * (A + B * time_in_mempool)
-# 2. base_fee_median * A * B ^ time_in_mempool
+# 1. base_fee_median * (A + B * time_in_mempool_in_l1_blocks)
+# 2. base_fee_median * A * B ^ time_in_mempool_in_l1_blocks
 # Currently the second is used.
 # To confirm, see core/bin/zksync_core/src/eth_sender/gas_adjuster/mod.rs
 pricing_formula_parameter_a = 1.5

@@ -104,7 +104,7 @@ RUN wget -c https://sourceware.org/pub/valgrind/valgrind-3.20.0.tar.bz2 && \
 
 # Setup the environment
 ENV ZKSYNC_HOME=/usr/src/zksync
-ENV PATH="${ZKSYNC_HOME}/bin:${PATH}"
+ENV PATH="${ZKSYNC_HOME}/bin:${ZKSYNC_HOME}/zkstack_cli/zkstackup:${HOME}/.local/bin:${PATH}"
 ENV CI=1
 RUN cargo install sccache
 ENV RUSTC_WRAPPER=/usr/local/cargo/bin/sccache
