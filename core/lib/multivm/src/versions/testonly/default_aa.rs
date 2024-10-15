@@ -3,9 +3,9 @@ use zksync_types::{
     get_code_key, get_known_code_key, get_nonce_key,
     system_contracts::{DEPLOYMENT_NONCE_INCREMENT, TX_NONCE_INCREMENT},
     utils::storage_key_for_eth_balance,
-    H256, U256,
+    U256,
 };
-use zksync_utils::u256_to_h256;
+use zksync_utils::h256_to_u256;
 
 use super::{read_test_contract, tester::VmTesterBuilder, TestedVm};
 use crate::{
@@ -55,10 +55,10 @@ pub(crate) fn test_default_aa_interaction<VM: TestedVm>() {
             * U256::from(get_batch_base_fee(&vm.l1_batch_env));
 
     let expected_slots = [
-        (account_nonce_key, u256_to_h256(expected_nonce)),
-        (known_codes_key, H256::from_low_u64_be(1)),
-        (account_code_key, bytecode_hash),
-        (operator_balance_key, u256_to_h256(expected_fee)),
+        (account_nonce_key, expected_nonce),
+        (known_codes_key, 1.into()),
+        (account_code_key, h256_to_u256(bytecode_hash)),
+        (operator_balance_key, expected_fee),
     ];
     vm.vm.verify_required_storage(&expected_slots);
 }

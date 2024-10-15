@@ -27,7 +27,15 @@ pub(super) mod gas_limit;
 pub(super) mod get_used_contracts;
 pub(super) mod is_write_initial;
 pub(super) mod l1_tx_execution;
+pub(super) mod l2_blocks;
+pub(super) mod nonce_holder;
+pub(super) mod precompiles;
+pub(super) mod refunds;
+pub(super) mod require_eip712;
+pub(super) mod secp256r1;
 mod shadow;
+pub(super) mod simple_execution;
+pub(super) mod storage;
 mod tester;
 
 static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
@@ -66,6 +74,21 @@ fn load_precompiles_contract() -> Contract {
 fn read_proxy_counter_contract() -> (Vec<u8>, Contract) {
     const PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/counter/proxy_counter.sol/ProxyCounter.json";
     (read_bytecode(PATH), load_contract(PATH))
+}
+
+fn read_nonce_holder_tester() -> Vec<u8> {
+    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/custom-account/nonce-holder-test.sol/NonceHolderTest.json")
+}
+
+fn read_expensive_contract() -> (Vec<u8>, Contract) {
+    const PATH: &str =
+        "etc/contracts-test-data/artifacts-zk/contracts/expensive/expensive.sol/Expensive.json";
+    (read_bytecode(PATH), load_contract(PATH))
+}
+
+fn read_many_owners_custom_account_contract() -> (Vec<u8>, Contract) {
+    let path = "etc/contracts-test-data/artifacts-zk/contracts/custom-account/many-owners-custom-account.sol/ManyOwnersCustomAccount.json";
+    (read_bytecode(path), load_contract(path))
 }
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {

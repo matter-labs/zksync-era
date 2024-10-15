@@ -3,8 +3,9 @@ use std::collections::HashSet;
 use zksync_contracts::BaseSystemContracts;
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
-    block::L2BlockHasher, utils::deployed_address_create, writes::StateDiffRecord, Address,
-    L1BatchNumber, L2BlockNumber, Nonce, StorageKey, H256, U256,
+    utils::{deployed_address_create, storage_key_for_eth_balance},
+    writes::StateDiffRecord,
+    Address, L1BatchNumber, StorageKey, Transaction, H256, U256,
 };
 use zksync_vm_interface::{
     CurrentExecutionState, VmExecutionResultAndLogs, VmInterfaceHistoryEnabled,
@@ -14,13 +15,12 @@ use super::{get_empty_storage, read_test_contract};
 use crate::{
     interface::{
         storage::{InMemoryStorage, StoragePtr, StorageView},
-        L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
+        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
         VmInterfaceExt,
     },
     versions::testonly::{
         default_l1_batch, default_system_env, make_account_rich, ContractToDeploy,
     },
-    vm_latest::utils::l2_blocks::load_last_l2_block,
 };
 
 //mod transaction_test_info; FIXME
@@ -38,10 +38,7 @@ pub(crate) struct VmTester<VM> {
     pub(crate) custom_contracts: Vec<ContractToDeploy>,
 }
 
-impl<VM> VmTester<VM>
-where
-    VM: VmFactory<StorageView<InMemoryStorage>>,
-{
+impl<VM: TestedVm> VmTester<VM> {
     pub(crate) fn deploy_test_contract(&mut self) {
         let contract = read_test_contract();
         let tx = self
@@ -58,52 +55,8 @@ where
         self.test_contract = Some(deployed_address);
     }
 
-    pub(crate) fn reset_with_empty_storage(&mut self) {
-        self.storage = StorageView::new(get_empty_storage()).to_rc_ptr();
-        self.reset_state(false);
-    }
-
-    /// Reset the state of the VM to the initial state.
-    /// If `use_latest_l2_block` is true, then the VM will use the latest L2 block from storage,
-    /// otherwise it will use the first L2 block of l1 batch env
-    pub(crate) fn reset_state(&mut self, use_latest_l2_block: bool) {
-        for account in self.rich_accounts.iter_mut() {
-            account.nonce = Nonce(0);
-            make_account_rich(self.storage.borrow_mut().inner_mut(), account);
-        }
-        if let Some(deployer) = &self.deployer {
-            make_account_rich(self.storage.borrow_mut().inner_mut(), deployer);
-        }
-
-        if !self.custom_contracts.is_empty() {
-            println!("Inserting custom contracts is not yet supported")
-            // `insert_contracts(&mut self.storage, &self.custom_contracts);`
-        }
-
-        let l1_batch = &mut self.l1_batch_env;
-        if use_latest_l2_block {
-            let last_l2_block = load_last_l2_block(&self.storage).unwrap_or(L2Block {
-                number: 0,
-                timestamp: 0,
-                hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
-            });
-            l1_batch.first_l2_block = L2BlockEnv {
-                number: last_l2_block.number + 1,
-                timestamp: std::cmp::max(last_l2_block.timestamp + 1, l1_batch.timestamp),
-                prev_block_hash: last_l2_block.hash,
-                max_virtual_blocks_to_create: 1,
-            };
-        }
-
-        let vm = VM::new(
-            l1_batch.clone(),
-            self.system_env.clone(),
-            self.storage.clone(),
-        );
-        if self.test_contract.is_some() {
-            self.deploy_test_contract();
-        }
-        self.vm = vm;
+    pub(crate) fn get_eth_balance(&mut self, address: Address) -> U256 {
+        self.vm.read_storage(storage_key_for_eth_balance(&address))
     }
 }
 
@@ -260,7 +213,30 @@ pub(crate) trait TestedVm:
     /// Returns `true` iff the decommit is fresh.
     fn manually_decommit(&mut self, code_hash: H256) -> bool;
 
-    fn verify_required_bootloader_memory(&self, cells: &[(u32, U256)]);
+    // FIXME: u32 -> usize
+    fn verify_required_bootloader_heap(&self, cells: &[(u32, U256)]);
 
-    fn verify_required_storage(&mut self, cells: &[(StorageKey, H256)]);
+    fn write_to_bootloader_heap(&mut self, cells: &[(usize, U256)]);
+
+    /// Reads storage accounting for changes made during the VM run.
+    fn read_storage(&mut self, key: StorageKey) -> U256;
+
+    fn verify_required_storage(&mut self, cells: &[(StorageKey, U256)]) {
+        for &(key, expected_value) in cells {
+            assert_eq!(
+                self.read_storage(key),
+                expected_value,
+                "Unexpected storage value at {key:?}"
+            );
+        }
+    }
+
+    /// Returns the current hash of the latest L2 block.
+    fn last_l2_block_hash(&self) -> H256;
+
+    /// Same as `start_new_l2_block`, but should skip consistency checks (to verify they are performed by the bootloader).
+    fn push_l2_block_unchecked(&mut self, block: L2BlockEnv);
+
+    /// Pushes a transaction with predefined refund value.
+    fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64);
 }

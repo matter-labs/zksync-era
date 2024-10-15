@@ -30,6 +30,5 @@ pub(crate) fn test_tx_gas_limit_offset<VM: TestedVm>() {
     vm.vm.push_transaction(tx);
 
     let slot = (TX_DESCRIPTION_OFFSET + TX_GAS_LIMIT_OFFSET) as u32;
-    vm.vm
-        .verify_required_bootloader_memory(&[(slot, gas_limit)]);
+    vm.vm.verify_required_bootloader_heap(&[(slot, gas_limit)]);
 }

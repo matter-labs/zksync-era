@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 
-use zksync_types::{writes::StateDiffRecord, StorageKey, H256, U256};
-use zksync_utils::{h256_to_u256, u256_to_h256};
+use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H256, U256};
+use zksync_utils::h256_to_u256;
 use zksync_vm2::interface::{HeapId, StateInterface};
 use zksync_vm_interface::{
-    storage::ReadStorage, CurrentExecutionState, VmExecutionMode, VmExecutionResultAndLogs,
-    VmInterfaceExt,
+    storage::ReadStorage, CurrentExecutionState, L2BlockEnv, VmExecutionMode,
+    VmExecutionResultAndLogs, VmInterfaceExt,
 };
 
 use super::Vm;
@@ -25,18 +25,18 @@ mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
 mod l1_tx_execution;
-/*
-// mod call_tracer; FIXME: requires tracers
 mod l2_blocks;
 mod nonce_holder;
 mod precompiles;
-// mod prestate_tracer; FIXME: is pre-state tracer still relevant?
 mod refunds;
 mod require_eip712;
-mod rollbacks;
-mod sekp256r1;
+mod secp256r1;
 mod simple_execution;
 mod storage;
+/*
+// mod call_tracer; FIXME: requires tracers
+// mod prestate_tracer; FIXME: is pre-state tracer still relevant?
+mod rollbacks;
 mod tester;
 mod tracing_execution_error;
 mod transfer;
@@ -83,28 +83,35 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
         is_fresh
     }
 
-    fn verify_required_bootloader_memory(&self, required_values: &[(u32, U256)]) {
+    fn verify_required_bootloader_heap(&self, required_values: &[(u32, U256)]) {
         for &(slot, expected_value) in required_values {
             let current_value = self.inner.read_heap_u256(HeapId::FIRST, slot * 32);
             assert_eq!(current_value, expected_value);
         }
     }
 
-    fn verify_required_storage(&mut self, cells: &[(StorageKey, H256)]) {
+    fn write_to_bootloader_heap(&mut self, cells: &[(usize, U256)]) {
+        self.write_to_bootloader_heap(cells.iter().copied());
+    }
+
+    fn read_storage(&mut self, key: StorageKey) -> U256 {
         let storage_changes = self.inner.world_diff().get_storage_state();
         let main_storage = &mut self.world.storage;
+        storage_changes
+            .get(&(*key.account().address(), h256_to_u256(*key.key())))
+            .copied()
+            .unwrap_or_else(|| h256_to_u256(main_storage.read_value(&key)))
+    }
 
-        for &(key, required_value) in cells {
-            let current_value = storage_changes
-                .get(&(*key.account().address(), h256_to_u256(*key.key())))
-                .copied()
-                .unwrap_or_else(|| h256_to_u256(main_storage.read_value(&key)));
+    fn last_l2_block_hash(&self) -> H256 {
+        self.bootloader_state.last_l2_block().get_hash()
+    }
 
-            assert_eq!(
-                u256_to_h256(current_value),
-                required_value,
-                "Invalid value at key {key:?}"
-            );
-        }
+    fn push_l2_block_unchecked(&mut self, block: L2BlockEnv) {
+        self.bootloader_state.push_l2_block(block);
+    }
+
+    fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64) {
+        self.push_transaction_inner(tx, refund, true);
     }
 }

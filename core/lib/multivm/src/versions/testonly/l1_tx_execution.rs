@@ -5,9 +5,9 @@ use zksync_test_account::TxType;
 use zksync_types::{
     get_code_key, get_known_code_key,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    Execute, ExecuteTransactionCommon, H256, U256,
+    Execute, ExecuteTransactionCommon, U256,
 };
-use zksync_utils::u256_to_h256;
+use zksync_utils::{h256_to_u256, u256_to_h256};
 
 use super::{read_test_contract, tester::VmTesterBuilder, TestedVm, BASE_SYSTEM_CONTRACTS};
 use crate::{
@@ -71,8 +71,8 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
     assert!(!res.result.is_failed());
 
     vm.vm.verify_required_storage(&[
-        (known_codes_key, H256::from_low_u64_be(1)),
-        (account_code_key, deploy_tx.bytecode_hash),
+        (known_codes_key, U256::from(1)),
+        (account_code_key, h256_to_u256(deploy_tx.bytecode_hash)),
     ]);
     assert_eq!(res.logs.user_l2_to_l1_logs, required_l2_to_l1_logs);
 

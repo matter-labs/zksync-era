@@ -19,7 +19,7 @@ pub(crate) fn test_dummy_bootloader<VM: TestedVm>() {
 
     let correct_first_cell = U256::from_str_radix("123123123", 16).unwrap();
     vm.vm
-        .verify_required_bootloader_memory(&[(0, correct_first_cell)]);
+        .verify_required_bootloader_heap(&[(0, correct_first_cell)]);
 }
 
 pub(crate) fn test_bootloader_out_of_gas<VM: TestedVm>() {
