@@ -1,16 +1,83 @@
-use zksync_contracts::BaseSystemContracts;
+use ethabi::Contract;
+use once_cell::sync::Lazy;
+use zksync_contracts::{
+    load_contract, read_bytecode, read_yul_bytecode, BaseSystemContracts, SystemContractCode,
+};
 use zksync_test_account::Account;
 use zksync_types::{
     block::L2BlockHasher, fee_model::BatchFeeInput, get_code_key, get_is_account_key,
     helpers::unix_timestamp_ms, utils::storage_key_for_eth_balance, Address, L1BatchNumber,
     L2BlockNumber, L2ChainId, ProtocolVersionId, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
+use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
+use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 
+pub(super) use self::tester::TestedVm;
 use crate::{
-    interface::{storage::InMemoryStorage, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode},
-    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+    interface::storage::InMemoryStorage, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
+
+pub(super) mod block_tip;
+pub(super) mod bootloader;
+pub(super) mod bytecode_publishing;
+pub(super) mod circuits;
+pub(super) mod code_oracle;
+pub(super) mod default_aa;
+pub(super) mod gas_limit;
+pub(super) mod get_used_contracts;
+pub(super) mod is_write_initial;
+pub(super) mod l1_tx_execution;
+mod shadow;
+mod tester;
+
+static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
+    Lazy::new(BaseSystemContracts::load_from_disk);
+
+fn get_empty_storage() -> InMemoryStorage {
+    InMemoryStorage::with_system_contracts(hash_bytecode)
+}
+
+fn read_test_contract() -> Vec<u8> {
+    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json")
+}
+
+fn get_complex_upgrade_abi() -> Contract {
+    load_contract(
+        "etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json"
+    )
+}
+
+fn read_complex_upgrade() -> Vec<u8> {
+    read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/complex-upgrade/complex-upgrade.sol/ComplexUpgrade.json")
+}
+
+fn read_precompiles_contract() -> Vec<u8> {
+    read_bytecode(
+        "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
+    )
+}
+
+fn load_precompiles_contract() -> Contract {
+    load_contract(
+        "etc/contracts-test-data/artifacts-zk/contracts/precompiles/precompiles.sol/Precompiles.json",
+    )
+}
+
+fn read_proxy_counter_contract() -> (Vec<u8>, Contract) {
+    const PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/counter/proxy_counter.sol/ProxyCounter.json";
+    (read_bytecode(PATH), load_contract(PATH))
+}
+
+pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
+    let artifacts_path = "contracts/system-contracts/bootloader/tests/artifacts/";
+    let bootloader_code = read_yul_bytecode(artifacts_path, test);
+
+    let bootloader_hash = hash_bytecode(&bootloader_code);
+    SystemContractCode {
+        code: bytes_to_be_words(bootloader_code),
+        hash: bootloader_hash,
+    }
+}
 
 pub(super) fn default_system_env() -> SystemEnv {
     SystemEnv {

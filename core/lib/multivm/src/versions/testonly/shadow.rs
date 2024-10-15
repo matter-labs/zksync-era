@@ -24,8 +24,8 @@ use crate::{
     versions::testonly::{
         default_l1_batch, default_system_env, make_account_rich, ContractToDeploy,
     },
-    vm_fast,
-    vm_latest::{self, HistoryEnabled},
+    vm_fast, vm_latest,
+    vm_latest::HistoryEnabled,
 };
 
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;

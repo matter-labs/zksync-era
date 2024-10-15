@@ -1,37 +1,47 @@
-use std::{cell::RefCell, rc::Rc};
+use std::collections::HashSet;
 
 use zksync_contracts::BaseSystemContracts;
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
-    block::L2BlockHasher, utils::deployed_address_create, AccountTreeId, Address, L1BatchNumber,
-    L2BlockNumber, Nonce, StorageKey,
+    block::L2BlockHasher, utils::deployed_address_create, writes::StateDiffRecord, Address,
+    L1BatchNumber, L2BlockNumber, Nonce, StorageKey, H256, U256,
 };
-use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
-use zksync_vm2::{interface::Tracer, WorldDiff};
+use zksync_vm_interface::{
+    CurrentExecutionState, VmExecutionResultAndLogs, VmInterfaceHistoryEnabled,
+};
 
+use super::{get_empty_storage, read_test_contract};
 use crate::{
     interface::{
-        storage::{InMemoryStorage, StoragePtr},
-        L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+        storage::{InMemoryStorage, StoragePtr, StorageView},
+        L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
+        VmInterfaceExt,
     },
-    versions::{
-        testonly::{default_l1_batch, default_system_env, make_account_rich, ContractToDeploy},
-        vm_fast::{tests::utils::read_test_contract, vm::Vm},
+    versions::testonly::{
+        default_l1_batch, default_system_env, make_account_rich, ContractToDeploy,
     },
     vm_latest::utils::l2_blocks::load_last_l2_block,
 };
 
-pub(crate) struct VmTester<Tr> {
-    pub(crate) vm: Vm<StoragePtr<InMemoryStorage>, Tr>,
-    pub(crate) storage: StoragePtr<InMemoryStorage>,
+//mod transaction_test_info; FIXME
+
+// FIXME: revise fields
+#[derive(Debug)]
+pub(crate) struct VmTester<VM> {
+    pub(crate) vm: VM,
+    pub(crate) system_env: SystemEnv,
+    pub(crate) l1_batch_env: L1BatchEnv,
+    pub(crate) storage: StoragePtr<StorageView<InMemoryStorage>>,
     pub(crate) deployer: Option<Account>,
     pub(crate) test_contract: Option<Address>,
-    pub(crate) fee_account: Address,
     pub(crate) rich_accounts: Vec<Account>,
     pub(crate) custom_contracts: Vec<ContractToDeploy>,
 }
 
-impl<Tr: Tracer + Default + 'static> VmTester<Tr> {
+impl<VM> VmTester<VM>
+where
+    VM: VmFactory<StorageView<InMemoryStorage>>,
+{
     pub(crate) fn deploy_test_contract(&mut self) {
         let contract = read_test_contract();
         let tx = self
@@ -42,15 +52,14 @@ impl<Tr: Tracer + Default + 'static> VmTester<Tr> {
             .tx;
         let nonce = tx.nonce().unwrap().0.into();
         self.vm.push_transaction(tx);
-        self.vm.inspect(&mut Tr::default(), VmExecutionMode::OneTx);
+        self.vm.execute(VmExecutionMode::OneTx);
         let deployed_address =
             deployed_address_create(self.deployer.as_ref().unwrap().address, nonce);
         self.test_contract = Some(deployed_address);
     }
 
     pub(crate) fn reset_with_empty_storage(&mut self) {
-        self.storage = Rc::new(RefCell::new(get_empty_storage()));
-        *self.vm.inner.world_diff_mut() = WorldDiff::default();
+        self.storage = StorageView::new(get_empty_storage()).to_rc_ptr();
         self.reset_state(false);
     }
 
@@ -60,10 +69,10 @@ impl<Tr: Tracer + Default + 'static> VmTester<Tr> {
     pub(crate) fn reset_state(&mut self, use_latest_l2_block: bool) {
         for account in self.rich_accounts.iter_mut() {
             account.nonce = Nonce(0);
-            make_account_rich(&mut self.storage.borrow_mut(), account);
+            make_account_rich(self.storage.borrow_mut().inner_mut(), account);
         }
         if let Some(deployer) = &self.deployer {
-            make_account_rich(&mut self.storage.borrow_mut(), deployer);
+            make_account_rich(self.storage.borrow_mut().inner_mut(), deployer);
         }
 
         if !self.custom_contracts.is_empty() {
@@ -71,19 +80,9 @@ impl<Tr: Tracer + Default + 'static> VmTester<Tr> {
             // `insert_contracts(&mut self.storage, &self.custom_contracts);`
         }
 
-        let storage = self.storage.clone();
-        {
-            let mut storage = storage.borrow_mut();
-            // Commit pending storage changes (old VM versions commit them on successful execution)
-            for (&(address, slot), &value) in self.vm.inner.world_diff().get_storage_state() {
-                let key = StorageKey::new(AccountTreeId::new(address), u256_to_h256(slot));
-                storage.set_value(key, u256_to_h256(value));
-            }
-        }
-
-        let mut l1_batch = self.vm.batch_env.clone();
+        let l1_batch = &mut self.l1_batch_env;
         if use_latest_l2_block {
-            let last_l2_block = load_last_l2_block(&storage).unwrap_or(L2Block {
+            let last_l2_block = load_last_l2_block(&self.storage).unwrap_or(L2Block {
                 number: 0,
                 timestamp: 0,
                 hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
@@ -96,8 +95,11 @@ impl<Tr: Tracer + Default + 'static> VmTester<Tr> {
             };
         }
 
-        let vm = Vm::custom(l1_batch, self.vm.system_env.clone(), storage);
-
+        let vm = VM::new(
+            l1_batch.clone(),
+            self.system_env.clone(),
+            self.storage.clone(),
+        );
         if self.test_contract.is_some() {
             self.deploy_test_contract();
         }
@@ -105,6 +107,7 @@ impl<Tr: Tracer + Default + 'static> VmTester<Tr> {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct VmTesterBuilder {
     storage: Option<InMemoryStorage>,
     l1_batch_env: Option<L1BatchEnv>,
@@ -196,36 +199,68 @@ impl VmTesterBuilder {
         self
     }
 
-    pub(crate) fn build(self) -> VmTester<()> {
+    pub(crate) fn build<VM>(self) -> VmTester<VM>
+    where
+        VM: VmFactory<StorageView<InMemoryStorage>>,
+    {
         let l1_batch_env = self
             .l1_batch_env
             .unwrap_or_else(|| default_l1_batch(L1BatchNumber(1)));
 
         let mut raw_storage = self.storage.unwrap_or_else(get_empty_storage);
         ContractToDeploy::insert_all(&self.custom_contracts, &mut raw_storage);
-        let storage_ptr = Rc::new(RefCell::new(raw_storage));
+        let storage = StorageView::new(raw_storage).to_rc_ptr();
         for account in self.rich_accounts.iter() {
-            make_account_rich(&mut storage_ptr.borrow_mut(), account);
+            make_account_rich(storage.borrow_mut().inner_mut(), account);
         }
         if let Some(deployer) = &self.deployer {
-            make_account_rich(&mut storage_ptr.borrow_mut(), deployer);
+            make_account_rich(storage.borrow_mut().inner_mut(), deployer);
         }
 
-        let fee_account = l1_batch_env.fee_account;
-        let vm = Vm::custom(l1_batch_env, self.system_env, storage_ptr.clone());
-
+        let vm = VM::new(
+            l1_batch_env.clone(),
+            self.system_env.clone(),
+            storage.clone(),
+        );
         VmTester {
             vm,
-            storage: storage_ptr,
+            system_env: self.system_env,
+            l1_batch_env,
+            storage,
             deployer: self.deployer,
             test_contract: None,
-            fee_account,
             rich_accounts: self.rich_accounts.clone(),
             custom_contracts: self.custom_contracts.clone(),
         }
     }
 }
 
-pub(crate) fn get_empty_storage() -> InMemoryStorage {
-    InMemoryStorage::with_system_contracts(hash_bytecode)
+/// Test extensions for VM.
+pub(crate) trait TestedVm:
+    VmFactory<StorageView<InMemoryStorage>> + VmInterfaceHistoryEnabled
+{
+    fn gas_remaining(&mut self) -> u32;
+
+    fn get_current_execution_state(&self) -> CurrentExecutionState;
+
+    /// Unlike [`Self::known_bytecode_hashes()`], the output should only include successfully decommitted bytecodes.
+    fn decommitted_hashes(&self) -> HashSet<U256>;
+
+    fn execute_with_state_diffs(
+        &mut self,
+        diffs: Vec<StateDiffRecord>,
+        mode: VmExecutionMode,
+    ) -> VmExecutionResultAndLogs;
+
+    fn insert_bytecodes(&mut self, bytecodes: &[&[u8]]);
+
+    /// Includes bytecodes that have failed to decommit.
+    fn known_bytecode_hashes(&self) -> HashSet<U256>;
+
+    /// Returns `true` iff the decommit is fresh.
+    fn manually_decommit(&mut self, code_hash: H256) -> bool;
+
+    fn verify_required_bootloader_memory(&self, cells: &[(u32, U256)]);
+
+    fn verify_required_storage(&mut self, cells: &[(StorageKey, H256)]);
 }
