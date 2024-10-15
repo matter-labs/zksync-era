@@ -37,11 +37,6 @@ mod storage;
 mod tracing_execution_error;
 mod transfer;
 mod upgrade;
-/*
-// mod call_tracer; FIXME: requires tracers
-// mod prestate_tracer; FIXME: is pre-state tracer still relevant?
-mod utils;
-*/
 
 trait ObjectSafeEq: fmt::Debug + AsRef<dyn Any> {
     fn eq(&self, other: &dyn ObjectSafeEq) -> bool;
