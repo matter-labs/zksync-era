@@ -186,22 +186,29 @@ impl DataAvailabilityClient for AvailClient {
             "{}/eth/proof/{}?index={}",
             self.config.bridge_api_url, block_hash, tx_idx
         );
-        let response = self
-            .api_client
-            .get(&url)
-            .send()
-            .await
-            .map_err(to_retriable_da_error)?;
-        let bridge_api_data = response
-            .json::<BridgeAPIResponse>()
-            .await
-            .map_err(to_retriable_da_error)?;
-        if bridge_api_data.error.is_some() {
-            return Err(to_retriable_da_error(anyhow!(format!(
-                "Bridge API returned an error: {}",
-                bridge_api_data.error.unwrap()
-            ))));
-        }
+        // record current time
+        let current_timestamp = std::time::Instant::now();
+        let bridge_api_data = loop {
+            let response = self
+                .api_client
+                .get(&url)
+                .send()
+                .await
+                .map_err(to_retriable_da_error)?;
+            let bridge_api_data = response
+                .json::<BridgeAPIResponse>()
+                .await
+                .map_err(to_retriable_da_error)?;
+            if bridge_api_data.error.is_none() {
+                break bridge_api_data;
+            }
+            if current_timestamp.elapsed().as_secs() > self.config.timeout as u64 {
+                return Err(to_non_retriable_da_error(anyhow!(
+                    "Inclusion check timeout exceeded"
+                )));
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+        };
 
         let attestation_data: MerkleProofInput = MerkleProofInput {
             data_root_proof: bridge_api_data.data_root_proof.unwrap(),
