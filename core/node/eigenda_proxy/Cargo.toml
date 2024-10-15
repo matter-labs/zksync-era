@@ -1,5 +1,5 @@
 [package]
-name = "eigenda-proxy"
+name = "zksync_eigenda_proxy"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
@@ -10,3 +10,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+anyhow.workspace = true
+axum.workspace = true
+tokio.workspace = true
+tracing.workspace = true
