@@ -16,6 +16,13 @@ pub(super) const MSG_CHAIN_NOT_INITIALIZED: &str =
     "Chain not initialized. Please create a chain first";
 pub(super) const MSG_ARGS_VALIDATOR_ERR: &str = "Invalid arguments";
 
+/// Autocomplete message
+pub(super) fn msg_generate_autocomplete_file_for(command_name: &str) -> String {
+    format!("Generating completion file: ./_{command_name}")
+}
+pub(super) const MSG_OUTRO_AUTOCOMPLETE_GENERATION: &str =
+    "Autocompletion file correctly generated";
+
 /// Ecosystem create related messages
 pub(super) const MSG_L1_NETWORK_HELP: &str = "L1 Network";
 pub(super) const MSG_LINK_TO_CODE_HELP: &str = "Code link";

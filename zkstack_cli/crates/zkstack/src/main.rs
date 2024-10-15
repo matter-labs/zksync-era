@@ -1,7 +1,6 @@
-use clap::{command, CommandFactory, Parser, Subcommand};
-use clap_complete::{generate, Generator};
+use clap::{command, Parser, Subcommand};
 use commands::{
-    args::{ContainersArgs, UpdateArgs},
+    args::{AutocompleteArgs, ContainersArgs, UpdateArgs},
     contract_verifier::ContractVerifierCommands,
     dev::DevCommands,
 };
@@ -35,16 +34,16 @@ mod utils;
     about
 )]
 struct Inception {
-    #[arg(long = "generate", value_enum)]
-    generator: Option<clap_complete::Shell>,
     #[command(subcommand)]
-    command: Option<InceptionSubcommands>,
+    command: InceptionSubcommands,
     #[clap(flatten)]
     global: InceptionGlobalArgs,
 }
 
 #[derive(Subcommand, Debug)]
 pub enum InceptionSubcommands {
+    /// Create shell autocompletion files
+    Autocomplete(AutocompleteArgs),
     /// Ecosystem related commands
     #[command(subcommand, alias = "e")]
     Ecosystem(Box<EcosystemCommands>),
@@ -104,27 +103,18 @@ async fn main() -> anyhow::Result<()> {
     // Clap commands (like `--version` would look odd otherwise).
     let inception_args = Inception::parse();
 
-    if let Some(generator) = inception_args.generator {
-        let mut cmd = Inception::command();
-        eprintln!("Generating completion file for {generator:?}...");
-        print_completions(generator, &mut cmd);
-    } else {
-        match run_subcommand(inception_args).await {
-            Ok(_) => {}
-            Err(error) => {
-                log_error(error);
-                std::process::exit(1);
-            }
+    match run_subcommand(inception_args).await {
+        Ok(_) => {}
+        Err(error) => {
+            log_error(error);
+            std::process::exit(1);
         }
     }
+
     Ok(())
 }
 
 async fn run_subcommand(inception_args: Inception) -> anyhow::Result<()> {
-    let Some(command) = inception_args.command else {
-        return Ok(());
-    };
-
     init_prompt_theme();
 
     logger::new_empty_line();
@@ -132,13 +122,14 @@ async fn run_subcommand(inception_args: Inception) -> anyhow::Result<()> {
 
     let shell = Shell::new().unwrap();
 
-    init_global_config_inner(&&shell, &inception_args.global)?;
+    init_global_config_inner(&shell, &inception_args.global)?;
 
     if !global_config().ignore_prerequisites {
         check_general_prerequisites(&shell);
     }
 
-    match command {
+    match inception_args.command {
+        InceptionSubcommands::Autocomplete(args) => commands::autocomplete::run(args)?,
         InceptionSubcommands::Ecosystem(args) => commands::ecosystem::run(&shell, *args).await?,
         InceptionSubcommands::Chain(args) => commands::chain::run(&shell, *args).await?,
         InceptionSubcommands::Dev(args) => commands::dev::run(&shell, args).await?,
@@ -184,8 +175,4 @@ fn init_global_config_inner(
         ignore_prerequisites: inception_args.ignore_prerequisites,
     });
     Ok(())
-}
-
-fn print_completions<G: Generator>(gen: G, cmd: &mut clap::Command) {
-    generate(gen, cmd, cmd.get_name().to_string(), &mut std::io::stdout());
 }
