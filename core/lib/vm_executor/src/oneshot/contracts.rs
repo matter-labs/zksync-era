@@ -67,6 +67,7 @@ pub struct MultiVMBaseSystemContracts<C> {
     vm_1_5_0_increased_memory: BaseSystemContracts,
     /// Contracts to be used after the protocol defense upgrade
     vm_protocol_defense: BaseSystemContracts,
+    // We use `fn() -> C` marker so that the `MultiVMBaseSystemContracts` unconditionally implements `Send + Sync`.
     _contracts_kind: PhantomData<fn() -> C>,
 }
 
