@@ -39,6 +39,7 @@ pub(super) mod storage;
 mod tester;
 pub(super) mod tracing_execution_error;
 pub(super) mod transfer;
+pub(super) mod upgrade;
 
 static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
