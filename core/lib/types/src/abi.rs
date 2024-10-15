@@ -406,7 +406,6 @@ pub struct GatewayUpgradeEncodedInput {
     pub l2_gateway_upgrade_position: usize,
     pub fixed_force_deployments_data: Vec<u8>,
     pub ctm_deployer: Address,
-    pub l2_gateway_upgrade: Address,
     pub old_validator_timelock: Address,
     pub new_validator_timelock: Address,
 }
@@ -418,7 +417,6 @@ impl GatewayUpgradeEncodedInput {
             ParamType::Array(Box::new(ForceDeployment::schema())),
             ParamType::Uint(256),
             ParamType::Bytes,
-            ParamType::Address,
             ParamType::Address,
             ParamType::Address,
             ParamType::Address,
@@ -449,7 +447,6 @@ impl GatewayUpgradeEncodedInput {
                 .into_bytes()
                 .context("fixed_force_deployments_data")?,
             ctm_deployer: next().into_address().context("ctm_deployer")?,
-            l2_gateway_upgrade: next().into_address().context("l2_gateway_upgrade")?,
             old_validator_timelock: next().into_address().context("old_validator_timelock")?,
             new_validator_timelock: next().into_address().context("new_validator_timelock")?,
         })
