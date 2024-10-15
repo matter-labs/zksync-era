@@ -22,8 +22,10 @@ mod general;
 mod genesis;
 mod manipulations;
 mod secrets;
+mod utils;
 mod wallet_creation;
 mod wallets;
+mod zkstack_config;
 
 pub mod consensus_config;
 pub mod consensus_secrets;

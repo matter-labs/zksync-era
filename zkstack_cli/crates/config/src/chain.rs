@@ -3,6 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use anyhow::bail;
 use serde::{Deserialize, Serialize, Serializer};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
@@ -18,7 +19,8 @@ use crate::{
         FileConfigWithDefaultName, ReadConfig, ReadConfigWithBasePath, SaveConfig,
         SaveConfigWithBasePath, ZkStackConfig,
     },
-    ContractsConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
+    utils::find_file,
+    ContractsConfig, EcosystemConfig, GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
 
 /// Chain configuration file. This file is created in the chain
@@ -33,6 +35,7 @@ pub struct ChainConfigInternal {
     pub prover_version: ProverMode,
     pub configs: PathBuf,
     pub rocks_db_path: PathBuf,
+    pub l1_network: Option<L1Network>,
     pub external_node_config_path: Option<PathBuf>,
     pub artifacts_path: Option<PathBuf>,
     pub l1_batch_commit_data_generator_mode: L1BatchCommitmentMode,
@@ -153,10 +156,33 @@ impl ChainConfig {
             rocks_db_path: self.rocks_db_path.clone(),
             external_node_config_path: self.external_node_config_path.clone(),
             artifacts_path: Some(self.artifacts.clone()),
+            l1_network: Some(self.l1_network),
             l1_batch_commit_data_generator_mode: self.l1_batch_commit_data_generator_mode,
             base_token: self.base_token.clone(),
             wallet_creation: self.wallet_creation,
             legacy_bridge: self.legacy_bridge,
+        }
+    }
+}
+
+impl ChainConfigInternal {
+    pub fn from_file(shell: &Shell) -> anyhow::Result<ChainConfigInternal> {
+        let Ok(path) = find_file(shell, shell.current_dir(), CONFIG_NAME) else {
+            bail!("Chain config not found")
+        };
+
+        shell.change_dir(&path);
+
+        match ChainConfigInternal::read(shell, CONFIG_NAME) {
+            Ok(config) => Ok(config),
+            Err(err) => {
+                if let Ok(ecosystem) = EcosystemConfig::read(shell, CONFIG_NAME) {
+                    let chain = ecosystem.load_current_chain()?;
+                    Ok(chain.get_internal())
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 }
