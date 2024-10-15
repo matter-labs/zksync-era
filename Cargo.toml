@@ -79,7 +79,7 @@ members = [
     # Test infrastructure
     "core/tests/test_account",
     "core/tests/loadnext",
-    "core/tests/vm-benchmark",
+    "core/tests/vm-benchmark", "core/node/eigenda-proxy",
 ]
 resolver = "2"
 
