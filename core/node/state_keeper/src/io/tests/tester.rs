@@ -31,7 +31,8 @@ use zksync_types::{
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
-    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
+    L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, TransactionTimeRangeConstraint,
+    H256,
 };
 
 use crate::{MempoolGuard, MempoolIO};
@@ -255,9 +256,10 @@ impl Tester {
         guard: &mut MempoolGuard,
         fee_per_gas: u64,
         gas_per_pubdata: u32,
+        constraint: TransactionTimeRangeConstraint,
     ) -> L2Tx {
         let tx = create_l2_transaction(fee_per_gas, gas_per_pubdata.into());
-        guard.insert_without_constraint(vec![tx.clone().into()], Default::default());
+        guard.insert(vec![(tx.clone().into(), constraint)], Default::default());
         tx
     }
 }

@@ -1,8 +1,12 @@
-use std::{collections::HashMap, time::Duration};
+use std::{
+    collections::HashMap,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
+use chrono::NaiveDateTime;
 use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{ConnectionPool, Core, CoreDal};
+use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_mempool::L2TxFilter;
 use zksync_multivm::{
     interface::{
@@ -15,8 +19,9 @@ use zksync_types::{
     block::{BlockGasCount, L2BlockHasher},
     commitment::L1BatchCommitmentMode,
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
+    l2::L2Tx,
     AccountTreeId, Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersion,
-    ProtocolVersionId, StorageKey, H256, U256,
+    ProtocolVersionId, StorageKey, TransactionTimeRangeConstraint, H256, U256,
 };
 use zksync_utils::time::seconds_since_epoch;
 
@@ -132,6 +137,7 @@ async fn test_filter_with_no_pending_batch(commitment_mode: L1BatchCommitmentMod
         &mut guard,
         want_filter.fee_per_gas,
         want_filter.gas_per_pubdata,
+        TransactionTimeRangeConstraint::default(),
     );
 
     // Now, given that there is a transaction matching the expected filter, waiting for the new batch params
@@ -171,7 +177,12 @@ async fn test_timestamps_are_distinct(
     )
     .await
     .unwrap();
-    tester.insert_tx(&mut guard, tx_filter.fee_per_gas, tx_filter.gas_per_pubdata);
+    tester.insert_tx(
+        &mut guard,
+        tx_filter.fee_per_gas,
+        tx_filter.gas_per_pubdata,
+        TransactionTimeRangeConstraint::default(),
+    );
 
     let l1_batch_params = mempool
         .wait_for_new_batch_params(&io_cursor, Duration::from_secs(10))
@@ -431,6 +442,7 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         &mut mempool_guard,
         tx_filter.fee_per_gas,
         tx_filter.gas_per_pubdata,
+        TransactionTimeRangeConstraint::default(),
     );
     storage
         .transactions_dal()
@@ -586,6 +598,7 @@ async fn continue_unsealed_batch_on_restart(commitment_mode: L1BatchCommitmentMo
         &mut mempool_guard,
         tx_filter.fee_per_gas,
         tx_filter.gas_per_pubdata,
+        TransactionTimeRangeConstraint::default(),
     );
     storage
         .transactions_dal()
@@ -649,4 +662,125 @@ async fn insert_unsealed_batch_on_init(commitment_mode: L1BatchCommitmentMode) {
         .expect("no batch params generated");
     assert_eq!(l1_batch_params.fee_input, fee_input);
     assert_eq!(l1_batch_params.first_l2_block.timestamp, 2);
+}
+
+#[test_casing(2, COMMITMENT_MODES)]
+#[tokio::test]
+async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmentMode) {
+    let connection_pool = ConnectionPool::<Core>::constrained_test_pool(2).await;
+    let tester = Tester::new(commitment_mode);
+    let mut storage = connection_pool.connection().await.unwrap();
+
+    tester.genesis(&connection_pool).await;
+
+    // Insert a sealed batch so there will be a `prev_l1_batch_state_root`.
+    // These gas values are random and don't matter for filter calculation.
+    let tx_result = tester
+        .insert_l2_block(&connection_pool, 1, 5, BatchFeeInput::l1_pegged(55, 555))
+        .await;
+    tester
+        .insert_sealed_batch(&connection_pool, 1, &[tx_result])
+        .await;
+
+    // Create a copy of the tx filter that the mempool will use.
+    let want_filter = l2_tx_filter(
+        &tester.create_batch_fee_input_provider().await,
+        ProtocolVersionId::latest().into(),
+    )
+    .await
+    .unwrap();
+
+    // Create a mempool without pending batch and ensure that filter is not initialized just yet.
+    let (mut mempool, mut guard) = tester.create_test_mempool_io(connection_pool).await;
+    mempool.initialize().await.unwrap();
+    assert_eq!(mempool.filter(), &L2TxFilter::default());
+
+    let system_time = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs() as i64;
+
+    // inserting 3 transactions - a good one, sandwiched in between two bad ones. The good one should
+    // be returned by wait_for_next_tx, while two bad ones should be rejected.
+    #[allow(deprecated)]
+    let rejected_tx_1 = tester.insert_tx(
+        &mut guard,
+        want_filter.fee_per_gas,
+        want_filter.gas_per_pubdata,
+        TransactionTimeRangeConstraint {
+            range_start: Some(NaiveDateTime::from_timestamp(system_time - 20000, 0)),
+            range_end: Some(NaiveDateTime::from_timestamp(system_time - 10000, 0)),
+        },
+    );
+    #[allow(deprecated)]
+    let expected_tx = tester.insert_tx(
+        &mut guard,
+        want_filter.fee_per_gas,
+        want_filter.gas_per_pubdata,
+        TransactionTimeRangeConstraint {
+            range_start: Some(NaiveDateTime::from_timestamp(system_time - 1000, 0)),
+            range_end: Some(NaiveDateTime::from_timestamp(system_time + 1000, 0)),
+        },
+    );
+    #[allow(deprecated)]
+    let rejected_tx_2 = tester.insert_tx(
+        &mut guard,
+        want_filter.fee_per_gas,
+        want_filter.gas_per_pubdata,
+        TransactionTimeRangeConstraint {
+            range_start: Some(NaiveDateTime::from_timestamp(system_time + 10000, 0)),
+            range_end: Some(NaiveDateTime::from_timestamp(system_time + 20000, 0)),
+        },
+    );
+    insert_l2_transaction(&mut storage, &rejected_tx_1).await;
+    insert_l2_transaction(&mut storage, &expected_tx).await;
+    insert_l2_transaction(&mut storage, &rejected_tx_2).await;
+
+    let tx = mempool
+        .wait_for_next_tx(Duration::from_secs(2))
+        .await
+        .expect("No expected transaction in the mempool")
+        .unwrap();
+    assert_eq!(expected_tx.hash(), tx.hash());
+
+    let next_tx = mempool
+        .wait_for_next_tx(Duration::from_secs(2))
+        .await
+        .expect("Should be no more transactions in the mempool");
+    assert!(next_tx.is_none());
+
+    // verify that two transactions have been rejected
+    let rejected_storage_tx_1 = storage
+        .transactions_dal()
+        .get_storage_tx_by_hash(rejected_tx_1.hash())
+        .await
+        .expect("Failed to find transaction")
+        .unwrap();
+    assert_eq!(
+        "rejected: Transaction violated block.timestamp constraint",
+        rejected_storage_tx_1.error.unwrap()
+    );
+
+    let rejected_storage_tx_2 = storage
+        .transactions_dal()
+        .get_storage_tx_by_hash(rejected_tx_2.hash())
+        .await
+        .expect("Failed to find transaction")
+        .unwrap();
+    assert_eq!(
+        "rejected: Transaction violated block.timestamp constraint",
+        rejected_storage_tx_2.error.unwrap()
+    );
+}
+
+async fn insert_l2_transaction(storage: &mut Connection<'_, Core>, tx: &L2Tx) {
+    storage
+        .transactions_dal()
+        .insert_transaction_l2(
+            &tx,
+            TransactionExecutionMetrics::default(),
+            ValidationTraces::default(),
+        )
+        .await
+        .unwrap();
 }

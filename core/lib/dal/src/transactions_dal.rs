@@ -2231,6 +2231,29 @@ impl TransactionsDal<'_, '_> {
         .fetch_optional(self.storage)
         .await
     }
+
+    pub async fn get_storage_tx_by_hash(
+        &mut self,
+        hash: H256,
+    ) -> DalResult<Option<StorageTransaction>> {
+        sqlx::query_as!(
+            StorageTransaction,
+            r#"
+                SELECT
+                    *
+                FROM
+                    transactions
+                WHERE
+                    hash = $1
+                "#,
+            hash.as_bytes()
+        )
+        .map(Into::into)
+        .instrument("get_tx_error_by_hash")
+        .with_arg("hash", &hash)
+        .fetch_optional(self.storage)
+        .await
+    }
 }
 
 #[cfg(test)]
