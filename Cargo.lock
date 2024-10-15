@@ -10201,7 +10201,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.28.0"
+version = "24.29.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -10268,7 +10268,9 @@ dependencies = [
  "rand 0.8.5",
  "reqwest 0.12.7",
  "serde",
+ "serde_json",
  "tokio",
+ "tracing",
  "url",
  "zksync_config",
  "zksync_types",
@@ -11342,6 +11344,7 @@ name = "zksync_vm_executor"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "assert_matches",
  "async-trait",
  "once_cell",
  "tokio",

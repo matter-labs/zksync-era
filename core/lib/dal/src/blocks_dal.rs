@@ -2184,20 +2184,6 @@ impl BlocksDal<'_, '_> {
         Ok(Some((L2BlockNumber(min as u32), L2BlockNumber(max as u32))))
     }
 
-    /// Returns `true` if there exists a non-sealed batch (i.e. there is one+ stored L2 block that isn't assigned
-    /// to any batch yet).
-    pub async fn pending_batch_exists(&mut self) -> DalResult<bool> {
-        let count = sqlx::query_scalar!(
-            "SELECT COUNT(miniblocks.number) FROM miniblocks WHERE l1_batch_number IS NULL"
-        )
-        .instrument("pending_batch_exists")
-        .fetch_one(self.storage)
-        .await?
-        .unwrap_or(0);
-
-        Ok(count != 0)
-    }
-
     // methods used for measuring Eth tx stage transition latencies
     // and emitting metrics base on these measured data
     pub async fn oldest_uncommitted_batch_timestamp(&mut self) -> DalResult<Option<u64>> {
