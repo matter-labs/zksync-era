@@ -1,4 +1,5 @@
-use clap::{command, Parser, Subcommand};
+use clap::{command, CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Generator};
 use commands::{
     args::{ContainersArgs, UpdateArgs},
     contract_verifier::ContractVerifierCommands,
@@ -29,12 +30,15 @@ mod utils;
 
 #[derive(Parser, Debug)]
 #[command(
+    name = "zkstack",
     version = version_message(env!("CARGO_PKG_VERSION")),
     about
 )]
 struct Inception {
+    #[arg(long = "generate", value_enum)]
+    generator: Option<clap_complete::Shell>,
     #[command(subcommand)]
-    command: InceptionSubcommands,
+    command: Option<InceptionSubcommands>,
     #[clap(flatten)]
     global: InceptionGlobalArgs,
 }
@@ -100,6 +104,27 @@ async fn main() -> anyhow::Result<()> {
     // Clap commands (like `--version` would look odd otherwise).
     let inception_args = Inception::parse();
 
+    if let Some(generator) = inception_args.generator {
+        let mut cmd = Inception::command();
+        eprintln!("Generating completion file for {generator:?}...");
+        print_completions(generator, &mut cmd);
+    } else {
+        match run_subcommand(inception_args).await {
+            Ok(_) => {}
+            Err(error) => {
+                log_error(error);
+                std::process::exit(1);
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn run_subcommand(inception_args: Inception) -> anyhow::Result<()> {
+    let Some(command) = inception_args.command else {
+        return Ok(());
+    };
+
     init_prompt_theme();
 
     logger::new_empty_line();
@@ -107,40 +132,29 @@ async fn main() -> anyhow::Result<()> {
 
     let shell = Shell::new().unwrap();
 
-    init_global_config_inner(&shell, &inception_args.global)?;
+    init_global_config_inner(&&shell, &inception_args.global)?;
 
     if !global_config().ignore_prerequisites {
         check_general_prerequisites(&shell);
     }
 
-    match run_subcommand(inception_args, &shell).await {
-        Ok(_) => {}
-        Err(error) => {
-            log_error(error);
-            std::process::exit(1);
-        }
-    }
-    Ok(())
-}
-
-async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Result<()> {
-    match inception_args.command {
-        InceptionSubcommands::Ecosystem(args) => commands::ecosystem::run(shell, *args).await?,
-        InceptionSubcommands::Chain(args) => commands::chain::run(shell, *args).await?,
-        InceptionSubcommands::Dev(args) => commands::dev::run(shell, args).await?,
-        InceptionSubcommands::Prover(args) => commands::prover::run(shell, args).await?,
-        InceptionSubcommands::Server(args) => commands::server::run(shell, args)?,
-        InceptionSubcommands::Containers(args) => commands::containers::run(shell, args)?,
+    match command {
+        InceptionSubcommands::Ecosystem(args) => commands::ecosystem::run(&shell, *args).await?,
+        InceptionSubcommands::Chain(args) => commands::chain::run(&shell, *args).await?,
+        InceptionSubcommands::Dev(args) => commands::dev::run(&shell, args).await?,
+        InceptionSubcommands::Prover(args) => commands::prover::run(&shell, args).await?,
+        InceptionSubcommands::Server(args) => commands::server::run(&shell, args)?,
+        InceptionSubcommands::Containers(args) => commands::containers::run(&shell, args)?,
         InceptionSubcommands::ExternalNode(args) => {
-            commands::external_node::run(shell, args).await?
+            commands::external_node::run(&shell, args).await?
         }
         InceptionSubcommands::ContractVerifier(args) => {
-            commands::contract_verifier::run(shell, args).await?
+            commands::contract_verifier::run(&shell, args).await?
         }
-        InceptionSubcommands::Explorer(args) => commands::explorer::run(shell, args).await?,
-        InceptionSubcommands::Consensus(cmd) => cmd.run(shell).await?,
-        InceptionSubcommands::Portal => commands::portal::run(shell).await?,
-        InceptionSubcommands::Update(args) => commands::update::run(shell, args).await?,
+        InceptionSubcommands::Explorer(args) => commands::explorer::run(&shell, args).await?,
+        InceptionSubcommands::Consensus(cmd) => cmd.run(&shell).await?,
+        InceptionSubcommands::Portal => commands::portal::run(&shell).await?,
+        InceptionSubcommands::Update(args) => commands::update::run(&shell, args).await?,
         InceptionSubcommands::Markdown => {
             clap_markdown::print_help_markdown::<Inception>();
         }
@@ -170,4 +184,8 @@ fn init_global_config_inner(
         ignore_prerequisites: inception_args.ignore_prerequisites,
     });
     Ok(())
+}
+
+fn print_completions<G: Generator>(gen: G, cmd: &mut clap::Command) {
+    generate(gen, cmd, cmd.get_name().to_string(), &mut std::io::stdout());
 }

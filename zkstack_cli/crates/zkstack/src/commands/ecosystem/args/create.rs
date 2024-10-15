@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::bail;
-use clap::Parser;
+use clap::{Parser, ValueHint};
 use common::{cmd::Cmd, logger, Prompt, PromptConfirm, PromptSelect};
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
@@ -22,11 +22,11 @@ use crate::{
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct EcosystemCreateArgs {
-    #[arg(long)]
+    #[arg(long, value_hint = ValueHint::Other)]
     pub ecosystem_name: Option<String>,
-    #[clap(long, help = MSG_L1_NETWORK_HELP, value_enum)]
+    #[clap(long, help = MSG_L1_NETWORK_HELP, value_enum, value_hint = ValueHint::Other)]
     pub l1_network: Option<L1Network>,
-    #[clap(long, help = MSG_LINK_TO_CODE_HELP)]
+    #[clap(long, help = MSG_LINK_TO_CODE_HELP, value_hint = ValueHint::DirPath)]
     pub link_to_code: Option<String>,
     #[clap(flatten)]
     #[serde(flatten)]

@@ -1,7 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::{bail, Context};
-use clap::{Parser, ValueEnum};
+use clap::{Parser, ValueEnum, ValueHint};
 use common::{Prompt, PromptConfirm, PromptSelect};
 use config::forge_interface::deploy_ecosystem::output::Erc20Token;
 use serde::{Deserialize, Serialize};
@@ -45,25 +45,25 @@ impl From<L1BatchCommitmentModeInternal> for L1BatchCommitmentMode {
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct ChainCreateArgs {
-    #[arg(long)]
+    #[arg(long, value_hint = ValueHint::Other)]
     chain_name: Option<String>,
-    #[clap(long, help = MSG_CHAIN_ID_HELP)]
+    #[clap(long, help = MSG_CHAIN_ID_HELP, value_hint = ValueHint::Other)]
     chain_id: Option<ChainId>,
-    #[clap(long, help = MSG_PROVER_MODE_HELP, value_enum)]
+    #[clap(long, help = MSG_PROVER_MODE_HELP, value_enum, value_hint = ValueHint::Other)]
     prover_mode: Option<ProverMode>,
-    #[clap(long, help = MSG_WALLET_CREATION_HELP, value_enum)]
+    #[clap(long, help = MSG_WALLET_CREATION_HELP, value_enum, value_hint = ValueHint::Other)]
     wallet_creation: Option<WalletCreation>,
-    #[clap(long, help = MSG_WALLET_PATH_HELP)]
+    #[clap(long, help = MSG_WALLET_PATH_HELP, value_hint = ValueHint::FilePath)]
     wallet_path: Option<PathBuf>,
-    #[clap(long, help = MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP)]
+    #[clap(long, help = MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP, value_hint = ValueHint::Other)]
     l1_batch_commit_data_generator_mode: Option<L1BatchCommitmentModeInternal>,
-    #[clap(long, help = MSG_BASE_TOKEN_ADDRESS_HELP)]
+    #[clap(long, help = MSG_BASE_TOKEN_ADDRESS_HELP, value_hint = ValueHint::Other)]
     base_token_address: Option<String>,
-    #[clap(long, help = MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP)]
+    #[clap(long, help = MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP, value_hint = ValueHint::Other)]
     base_token_price_nominator: Option<u64>,
-    #[clap(long, help = MSG_BASE_TOKEN_PRICE_DENOMINATOR_HELP)]
+    #[clap(long, help = MSG_BASE_TOKEN_PRICE_DENOMINATOR_HELP, value_hint = ValueHint::Other)]
     base_token_price_denominator: Option<u64>,
-    #[clap(long, help = MSG_SET_AS_DEFAULT_HELP, default_missing_value = "true", num_args = 0..=1)]
+    #[clap(long, help = MSG_SET_AS_DEFAULT_HELP, default_missing_value = "true", num_args = 0..=1, value_hint = ValueHint::Other)]
     pub(crate) set_as_default: Option<bool>,
     #[clap(long, default_value = "false")]
     pub(crate) legacy_bridge: bool,

@@ -30,6 +30,16 @@ zkstackup  --local
 
 This command installs `zkstack` from the current repository.
 
+### Add Autocompletion
+
+TODO: finalize section
+
+```bash
+zkstack --generate=zsh > /usr/local/share/zsh/site-functions/_zkstack
+compinit
+zkstack --<TAB>
+```
+
 ### Foundry Integration
 
 Foundry is used for deploying smart contracts. Pass flags for Foundry integration with the `-a` option, e.g.,
