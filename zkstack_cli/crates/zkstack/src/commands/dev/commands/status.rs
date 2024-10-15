@@ -171,7 +171,7 @@ fn print_status(health_check_url: String) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn is_port_in_use(port: u16) -> bool {
+fn is_port_open(port: u16) -> bool {
     TcpListener::bind(("0.0.0.0", port)).is_err() || TcpListener::bind(("127.0.0.1", port)).is_err()
 }
 
@@ -185,8 +185,8 @@ fn print_ports(shell: &Shell) -> anyhow::Result<()> {
         let mut port_info_lines = String::new();
 
         for port_info in port_infos {
-            let in_use_tag = if is_port_in_use(port_info.port) {
-                " [IN USE]"
+            let in_use_tag = if is_port_open(port_info.port) {
+                " [OPEN]"
             } else {
                 ""
             };
