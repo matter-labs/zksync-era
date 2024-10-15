@@ -1,3 +1,12 @@
+//! Reusable tests and tooling for low-level VM testing.
+//!
+//! # How it works
+//!
+//! - [`TestedVm`] defines test-specific VM extensions. It's currently implemented for the latest legacy VM
+//!   (`vm_latest`) and the fast VM (`vm_fast`).
+//! - Submodules of this module define test functions generic by `TestedVm`. Specific VM versions implement `TestedVm`
+//!   and can create tests based on these test functions with minimum amount of boilerplate code.
+
 use ethabi::Contract;
 use once_cell::sync::Lazy;
 use zksync_contracts::{

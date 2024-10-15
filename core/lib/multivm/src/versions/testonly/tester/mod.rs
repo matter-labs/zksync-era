@@ -26,6 +26,7 @@ use crate::{
 
 mod transaction_test_info;
 
+/// VM tester that provides prefunded accounts, storage handle etc.
 #[derive(Debug)]
 pub(crate) struct VmTester<VM> {
     pub(crate) vm: VM,
@@ -64,6 +65,7 @@ impl<VM: TestedVm> VmTester<VM> {
     }
 }
 
+/// Builder for [`VmTester`].
 #[derive(Debug)]
 pub(crate) struct VmTesterBuilder {
     storage: Option<InMemoryStorage>,
@@ -200,7 +202,6 @@ pub(crate) trait TestedVm:
     /// Returns `true` iff the decommit is fresh.
     fn manually_decommit(&mut self, code_hash: H256) -> bool;
 
-    // FIXME: u32 -> usize
     fn verify_required_bootloader_heap(&self, cells: &[(u32, U256)]);
 
     fn write_to_bootloader_heap(&mut self, cells: &[(usize, U256)]);
