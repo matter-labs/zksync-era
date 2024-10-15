@@ -9,7 +9,7 @@ use zksync_types::{
     l1::{OpProcessingType, PriorityQueueType},
     l2::L2Tx,
     Address, Execute, ExecuteTransactionCommon, L1TxCommonData, Nonce, PriorityOpId, Transaction,
-    H256, U256,
+    TransactionTimeRangeConstraint, H256, U256,
 };
 
 use crate::{mempool_store::MempoolStore, types::L2TxFilter};
@@ -114,6 +114,7 @@ fn prioritize_l1_txns() {
     assert!(mempool
         .next_transaction(&L2TxFilter::default())
         .unwrap()
+        .0
         .is_l1())
 }
 
@@ -132,6 +133,7 @@ fn l1_txns_priority_id() {
         let data = mempool
             .next_transaction(&L2TxFilter::default())
             .unwrap()
+            .0
             .common_data;
         match data {
             ExecuteTransactionCommon::L1(data) => {
@@ -352,6 +354,7 @@ fn mempool_capacity() {
             mempool
                 .next_transaction(&L2TxFilter::default())
                 .unwrap()
+                .0
                 .initiator_account(),
             account0
         );
@@ -360,10 +363,44 @@ fn mempool_capacity() {
         mempool
             .next_transaction(&L2TxFilter::default())
             .unwrap()
+            .0
             .initiator_account(),
         account1
     );
 }
+
+//
+// #[test]
+// fn basic_flow_with_timestamp_filter() {
+//     let mut mempool = MempoolStore::new(PriorityOpId(0), 100);
+//     let account0 = Address::random();
+//
+//     let now = SystemTime::now()
+//         .duration_since(UNIX_EPOCH)
+//         .expect("Invalid system time")
+//         .as_secs() as i64;
+//
+//     #[allow(deprecated)]
+//     let transactions = vec![
+//         (gen_l2_tx(account0, Nonce(0)), TransactionTimeRangeConstraint {
+//             range_start: Some(NaiveDateTime::from_timestamp(now - 5000, 0)),
+//             range_end: Some(NaiveDateTime::from_timestamp(now - 1000, 0)),
+//         }),
+//         (gen_l2_tx(account0, Nonce(1)), TransactionTimeRangeConstraint {
+//             range_start: Some(NaiveDateTime::from_timestamp(now - 5000, 0)),
+//             range_end: Some(NaiveDateTime::from_timestamp(now + 5000, 0)),
+//         }),
+//
+//         (gen_l2_tx(account0, Nonce(2)), TransactionTimeRangeConstraint::default()),
+//     ];
+//     assert_eq!(mempool.next_transaction(&L2TxFilter::default()), None);
+//     mempool.insert(transactions, HashMap::new());
+//     assert_eq!(
+//         view(mempool.next_transaction(&L2TxFilter::default())),
+//         (account0, 1)
+//     );
+//     assert_eq!(mempool.next_transaction(&L2TxFilter::default()), None);
+// }
 
 fn gen_l2_tx(address: Address, nonce: Nonce) -> Transaction {
     gen_l2_tx_with_timestamp(address, nonce, unix_timestamp_ms())
@@ -415,8 +452,8 @@ fn gen_l1_tx(priority_id: PriorityOpId) -> Transaction {
     }
 }
 
-fn view(transaction: Option<Transaction>) -> (Address, u32) {
-    let tx = transaction.unwrap();
+fn view(transaction: Option<(Transaction, TransactionTimeRangeConstraint)>) -> (Address, u32) {
+    let tx = transaction.unwrap().0;
     (tx.initiator_account(), tx.nonce().unwrap().0)
 }
 

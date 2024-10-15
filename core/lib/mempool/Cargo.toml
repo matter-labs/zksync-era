@@ -13,3 +13,5 @@ categories.workspace = true
 [dependencies]
 zksync_types.workspace = true
 tracing.workspace = true
+chrono = { workspace = true, features = ["serde"] }
+

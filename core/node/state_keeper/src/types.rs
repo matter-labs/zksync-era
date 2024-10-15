@@ -65,7 +65,10 @@ impl MempoolGuard {
             .has_next(filter)
     }
 
-    pub fn next_transaction(&mut self, filter: &L2TxFilter) -> Option<Transaction> {
+    pub fn next_transaction(
+        &mut self,
+        filter: &L2TxFilter,
+    ) -> Option<(Transaction, TransactionTimeRangeConstraint)> {
         self.0
             .lock()
             .expect("failed to acquire mempool lock")

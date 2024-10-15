@@ -1,8 +1,4 @@
-use std::{
-    cmp::Ordering,
-    collections::HashMap,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{cmp::Ordering, collections::HashMap};
 
 use zksync_types::{
     fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, Transaction,
@@ -39,11 +35,11 @@ impl AccountTransactions {
         if nonce < self.nonce {
             return metadata;
         }
-        let new_score = Self::score_for_transaction(&transaction, constraint);
+        let new_score = Self::score_for_transaction(&transaction);
         let previous_score = self
             .transactions
             .insert(nonce, (transaction, constraint))
-            .map(|(tx, constraint)| Self::score_for_transaction(&tx, constraint));
+            .map(|x| Self::score_for_transaction(&x.0));
         metadata.is_new = previous_score.is_none();
         if nonce == self.nonce {
             metadata.new_score = Some(new_score);
@@ -54,7 +50,7 @@ impl AccountTransactions {
 
     /// Returns next transaction to be included in block and optional score of its successor
     /// Panics if no such transaction exists
-    pub fn next(&mut self) -> (L2Tx, Option<MempoolScore>) {
+    pub fn next(&mut self) -> (L2Tx, TransactionTimeRangeConstraint, Option<MempoolScore>) {
         let transaction = self
             .transactions
             .remove(&self.nonce)
@@ -63,12 +59,15 @@ impl AccountTransactions {
         let score = self
             .transactions
             .get(&self.nonce)
-            .map(|(tx, c)| Self::score_for_transaction(tx, *c));
-        (transaction.0, score)
+            .map(|(tx, _c)| Self::score_for_transaction(tx));
+        (transaction.0, transaction.1, score)
     }
 
     /// Handles transaction rejection. Returns optional score of its successor
-    pub fn reset(&mut self, transaction: &Transaction) -> Option<MempoolScore> {
+    pub fn reset(
+        &mut self,
+        transaction: &Transaction,
+    ) -> Option<(MempoolScore, TransactionTimeRangeConstraint)> {
         // current nonce for the group needs to be reset
         let tx_nonce = transaction
             .nonce()
@@ -76,22 +75,18 @@ impl AccountTransactions {
         self.nonce = self.nonce.min(tx_nonce);
         self.transactions
             .get(&(tx_nonce + 1))
-            .map(|(tx, c)| Self::score_for_transaction(tx, *c))
+            .map(|(tx, c)| (Self::score_for_transaction(tx), *c))
     }
 
     pub fn len(&self) -> usize {
         self.transactions.len()
     }
 
-    fn score_for_transaction(
-        transaction: &L2Tx,
-        constraint: TransactionTimeRangeConstraint,
-    ) -> MempoolScore {
+    fn score_for_transaction(transaction: &L2Tx) -> MempoolScore {
         MempoolScore {
             account: transaction.initiator_account(),
             received_at_ms: transaction.received_timestamp_ms,
             fee_data: transaction.common_data.fee.clone(),
-            time_range_constraint: constraint,
         }
     }
 }
@@ -106,28 +101,12 @@ pub struct MempoolScore {
     // transactions that have acceptable fee values (so transactions
     // with fee too low would be ignored until prices go down).
     pub fee_data: Fee,
-    pub time_range_constraint: TransactionTimeRangeConstraint,
 }
 
 impl MempoolScore {
     /// Checks whether transaction matches requirements provided by state keeper.
     pub fn matches_filter(&self, filter: &L2TxFilter) -> bool {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("Invalid system time")
-            .as_secs() as i64;
-
-        let matches_range = self
-            .time_range_constraint
-            .range_start
-            .map_or(true, |x| x.and_utc().timestamp() < now)
-            && self
-                .time_range_constraint
-                .range_end
-                .map_or(true, |x| x.and_utc().timestamp() > now);
-
-        matches_range
-            && self.fee_data.max_fee_per_gas >= U256::from(filter.fee_per_gas)
+        self.fee_data.max_fee_per_gas >= U256::from(filter.fee_per_gas)
             && self.fee_data.gas_per_pubdata_limit >= U256::from(filter.gas_per_pubdata)
     }
 }
@@ -195,7 +174,6 @@ mod tests {
                 max_priority_fee_per_gas: U256::from(MAX_PRIORITY_FEE_PER_GAS),
                 gas_per_pubdata_limit: U256::from(GAS_PER_PUBDATA_LIMIT),
             },
-            time_range_constraint: TransactionTimeRangeConstraint::default(),
         };
 
         let noop_filter = filter(0, 0);

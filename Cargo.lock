@@ -10402,6 +10402,7 @@ dependencies = [
 name = "zksync_mempool"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "tracing",
  "zksync_types",
 ]

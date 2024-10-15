@@ -2,7 +2,7 @@ use std::{
     cmp,
     collections::HashMap,
     sync::Arc,
-    time::{Duration, Instant},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use anyhow::Context as _;
@@ -285,7 +285,7 @@ impl StateKeeperIO for MempoolIO {
             let maybe_tx = self.mempool.next_transaction(&self.filter);
             get_latency.observe();
 
-            if let Some(tx) = maybe_tx {
+            if let Some((tx, constraint)) = maybe_tx {
                 // Reject transactions with too big gas limit. They are also rejected on the API level, but
                 // we need to secure ourselves in case some tx will somehow get into mempool.
                 if tx.gas_limit() > self.max_allowed_tx_gas_limit {
@@ -298,6 +298,31 @@ impl StateKeeperIO for MempoolIO {
                         .await?;
                     continue;
                 }
+
+                // Reject transactions that violate block.timestamp constraints. Such transactions should be
+                // rejected at the API level, but we need to protect ourselves in case if a transaction
+                // goes outside of the allowed range while being in the mempool
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .expect("Invalid system time")
+                    .as_secs() as i64;
+
+                let matches_range = constraint
+                    .range_start
+                    .map_or(true, |x| x.and_utc().timestamp() < now)
+                    && constraint
+                        .range_end
+                        .map_or(true, |x| x.and_utc().timestamp() > now);
+
+                if !matches_range {
+                    self.reject(
+                        &tx,
+                        UnexecutableReason::Halt(Halt::ViolatedBlockTimestampConstraint),
+                    )
+                    .await?;
+                    continue;
+                }
+
                 return Ok(Some(tx));
             } else {
                 tokio::time::sleep(self.delay_interval).await;

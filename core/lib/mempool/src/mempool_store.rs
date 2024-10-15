@@ -151,10 +151,17 @@ impl MempoolStore {
     }
 
     /// Returns next transaction for execution from mempool
-    pub fn next_transaction(&mut self, filter: &L2TxFilter) -> Option<Transaction> {
+    pub fn next_transaction(
+        &mut self,
+        filter: &L2TxFilter,
+    ) -> Option<(Transaction, TransactionTimeRangeConstraint)> {
         if let Some(transaction) = self.l1_transactions.remove(&self.next_priority_id) {
             self.next_priority_id += 1;
-            return Some(transaction.into());
+            // L1 transactions can't use block.timestamp in AA and hence do not need to have a constraint
+            return Some((
+                transaction.into(),
+                TransactionTimeRangeConstraint::default(),
+            ));
         }
 
         let mut removed = 0;
@@ -181,7 +188,7 @@ impl MempoolStore {
             self.stashed_accounts.push(stashed_pointer.account);
         }
         // insert pointer to the next transaction if it exists
-        let (transaction, score) = self
+        let (transaction, constraint, score) = self
             .l2_transactions_per_account
             .get_mut(&tx_pointer.account)
             .expect("mempool: dangling pointer in priority queue")
@@ -194,7 +201,7 @@ impl MempoolStore {
             .size
             .checked_sub((removed + 1) as u64)
             .expect("mempool size can't be negative");
-        Some(transaction.into())
+        Some((transaction.into(), constraint))
     }
 
     /// When a state_keeper starts the block over after a rejected transaction,
@@ -209,14 +216,14 @@ impl MempoolStore {
                 TransactionTimeRangeConstraint::default()
             }
             ExecuteTransactionCommon::L2(_) => {
-                if let Some(score) = self
+                if let Some((score, constraint)) = self
                     .l2_transactions_per_account
                     .get_mut(&tx.initiator_account())
                     .expect("account is not available in mempool")
                     .reset(tx)
                 {
                     self.l2_priority_queue.remove(&score);
-                    return score.time_range_constraint;
+                    return constraint;
                 }
                 TransactionTimeRangeConstraint::default()
             }
