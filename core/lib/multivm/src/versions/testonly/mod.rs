@@ -1,7 +1,8 @@
 use ethabi::Contract;
 use once_cell::sync::Lazy;
 use zksync_contracts::{
-    load_contract, read_bytecode, read_yul_bytecode, BaseSystemContracts, SystemContractCode,
+    load_contract, read_bytecode, read_yul_bytecode, read_zbin_bytecode, BaseSystemContracts,
+    SystemContractCode,
 };
 use zksync_test_account::Account;
 use zksync_types::{
@@ -12,7 +13,7 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
 use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 
-pub(super) use self::tester::TestedVm;
+pub(super) use self::tester::{TestedVm, VmTester, VmTesterBuilder};
 use crate::{
     interface::storage::InMemoryStorage, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
@@ -28,6 +29,7 @@ pub(super) mod get_used_contracts;
 pub(super) mod is_write_initial;
 pub(super) mod l1_tx_execution;
 pub(super) mod l2_blocks;
+pub(super) mod migration;
 pub(super) mod nonce_holder;
 pub(super) mod precompiles;
 pub(super) mod refunds;
@@ -49,7 +51,7 @@ fn get_empty_storage() -> InMemoryStorage {
     InMemoryStorage::with_system_contracts(hash_bytecode)
 }
 
-fn read_test_contract() -> Vec<u8> {
+pub(crate) fn read_test_contract() -> Vec<u8> {
     read_bytecode("etc/contracts-test-data/artifacts-zk/contracts/counter/counter.sol/Counter.json")
 }
 
@@ -98,6 +100,18 @@ fn read_many_owners_custom_account_contract() -> (Vec<u8>, Contract) {
 fn read_error_contract() -> Vec<u8> {
     read_bytecode(
         "etc/contracts-test-data/artifacts-zk/contracts/error/error.sol/SimpleRequire.json",
+    )
+}
+
+pub(crate) fn read_max_depth_contract() -> Vec<u8> {
+    read_zbin_bytecode(
+        "core/tests/ts-integration/contracts/zkasm/artifacts/deep_stak.zkasm/deep_stak.zkasm.zbin",
+    )
+}
+
+pub(crate) fn read_simple_transfer_contract() -> Vec<u8> {
+    read_bytecode(
+        "etc/contracts-test-data/artifacts-zk/contracts/simple-transfer/simple-transfer.sol/SimpleTransfer.json",
     )
 }
 

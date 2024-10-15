@@ -107,6 +107,11 @@ impl VmTesterBuilder {
         }
     }
 
+    pub(crate) fn with_system_env(mut self, system_env: SystemEnv) -> Self {
+        self.system_env = system_env;
+        self
+    }
+
     pub(crate) fn with_l1_batch_env(mut self, l1_batch_env: L1BatchEnv) -> Self {
         self.l1_batch_env = Some(l1_batch_env);
         self

@@ -4,25 +4,23 @@ use once_cell::sync::OnceCell;
 use zksync_test_account::TxType;
 use zksync_types::{utils::deployed_address_create, Execute, U256};
 
+use super::TestedLatestVm;
 use crate::{
     interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
     tracers::PrestateTracer,
-    vm_latest::{
-        constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
-        tests::{tester::VmTesterBuilder, utils::read_simple_transfer_contract},
-        HistoryEnabled, ToTracerPointer,
-    },
+    versions::testonly::{read_simple_transfer_contract, VmTesterBuilder},
+    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, ToTracerPointer},
 };
 
 #[test]
 fn test_prestate_tracer() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .build();
+        .build::<TestedLatestVm>();
 
     vm.deploy_test_contract();
     let account = &mut vm.rich_accounts[0];
@@ -53,13 +51,13 @@ fn test_prestate_tracer() {
 
 #[test]
 fn test_prestate_tracer_diff_mode() {
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
         .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .build();
+        .build::<TestedLatestVm>();
     let contract = read_simple_transfer_contract();
     let tx = vm
         .deployer

@@ -1,7 +1,9 @@
 use ethabi::Token;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
+use zksync_test_account::{DeployContractsTx, TxType};
 use zksync_types::{get_nonce_key, U256};
 
+use super::TestedLatestVm;
 use crate::{
     interface::{
         storage::WriteStorage,
@@ -9,13 +11,13 @@ use crate::{
         TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
-    versions::testonly::rollbacks::{
-        test_rollback_in_call_mode, test_vm_loadnext_rollbacks, test_vm_rollbacks,
+    versions::testonly::{
+        rollbacks::{test_rollback_in_call_mode, test_vm_loadnext_rollbacks, test_vm_rollbacks},
+        VmTesterBuilder,
     },
     vm_latest::{
-        tests::tester::{DeployContractsTx, TxType, VmTesterBuilder},
-        types::internals::ZkSyncVmState,
-        BootloaderState, HistoryEnabled, HistoryMode, SimpleMemory, ToTracerPointer, Vm, VmTracer,
+        types::internals::ZkSyncVmState, BootloaderState, HistoryEnabled, HistoryMode,
+        SimpleMemory, ToTracerPointer, Vm, VmTracer,
     },
 };
 
@@ -59,11 +61,11 @@ fn test_layered_rollback() {
     // This test checks that the layered rollbacks work correctly, i.e.
     // the rollback by the operator will always revert all the changes
 
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_random_rich_accounts(1)
-        .build();
+        .build::<TestedLatestVm>();
 
     let account = &mut vm.rich_accounts[0];
     let loadnext_contract = get_loadnext_contract().bytecode;
