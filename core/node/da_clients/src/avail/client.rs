@@ -4,9 +4,7 @@ use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Debug, sync::Arc};
 use subxt_signer::ExposeSecret;
-use zksync_config::configs::da_client::avail::{
-    AvailClientConfig, AvailConfig, AvailGasRelayConfig, AvailSecrets,
-};
+use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig, AvailSecrets};
 use zksync_da_client::{
     types::{DAError, DispatchResponse, InclusionData},
     DataAvailabilityClient,
@@ -96,43 +94,38 @@ impl Tokenize for MerkleProofInput {
 impl AvailClient {
     pub async fn new(config: AvailConfig, secrets: AvailSecrets) -> anyhow::Result<Self> {
         let api_client = Arc::new(reqwest::Client::new());
-        if config.gas_relay_mode {
-            let gas_relay_api_key = secrets
-                .gas_relay_api_key
-                .ok_or_else(|| anyhow::anyhow!("Gas relay API key is missing"))?;
-            let gas_relay_config: AvailGasRelayConfig = match config.config.clone() {
-                AvailClientConfig::GasRelay(conf) => conf,
-                _ => unreachable!(), // validated in protobuf config
-            };
-            let gas_relay_client = GasRelayClient::new(
-                &gas_relay_config.gas_relay_api_url,
-                gas_relay_api_key.0.expose_secret(),
-                Arc::clone(&api_client),
-            )
-            .await?;
-            return Ok(Self {
-                config,
-                sdk_client: Arc::new(AvailClientMode::GasRelay(gas_relay_client)),
-                api_client,
-            });
+        match config.config.clone() {
+            AvailClientConfig::GasRelay(conf) => {
+                let gas_relay_api_key = secrets
+                    .gas_relay_api_key
+                    .ok_or_else(|| anyhow::anyhow!("Gas relay API key is missing"))?;
+                let gas_relay_client = GasRelayClient::new(
+                    &conf.gas_relay_api_url,
+                    gas_relay_api_key.0.expose_secret(),
+                    Arc::clone(&api_client),
+                )
+                .await?;
+                Ok(Self {
+                    config,
+                    sdk_client: Arc::new(AvailClientMode::GasRelay(gas_relay_client)),
+                    api_client,
+                })
+            }
+            AvailClientConfig::Default(conf) => {
+                let seed_phrase = secrets
+                    .seed_phrase
+                    .ok_or_else(|| anyhow::anyhow!("Seed phrase is missing"))?;
+                // these unwraps are safe because we validate in protobuf config
+                let sdk_client =
+                    RawAvailClient::new(conf.app_id, seed_phrase.0.expose_secret()).await?;
+
+                Ok(Self {
+                    config,
+                    sdk_client: Arc::new(AvailClientMode::Default(sdk_client)),
+                    api_client,
+                })
+            }
         }
-
-        let default_config = match &config.config {
-            AvailClientConfig::Default(conf) => conf.clone(),
-            _ => unreachable!(), // validated in protobug config
-        };
-        let seed_phrase = secrets
-            .seed_phrase
-            .ok_or_else(|| anyhow::anyhow!("Seed phrase is missing"))?;
-        // these unwraps are safe because we validate in protobuf config
-        let sdk_client =
-            RawAvailClient::new(default_config.app_id, seed_phrase.0.expose_secret()).await?;
-
-        Ok(Self {
-            config,
-            sdk_client: Arc::new(AvailClientMode::Default(sdk_client)),
-            api_client,
-        })
     }
 }
 
@@ -189,12 +182,10 @@ impl DataAvailabilityClient for AvailClient {
             error: anyhow!("Invalid blob ID format"),
             is_retriable: false,
         })?;
-
         let url = format!(
             "{}/eth/proof/{}?index={}",
             self.config.bridge_api_url, block_hash, tx_idx
         );
-
         let response = self
             .api_client
             .get(&url)

@@ -11,7 +11,7 @@ pub enum AvailClientConfig {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct AvailConfig {
     pub bridge_api_url: String,
-    pub gas_relay_mode: bool,
+    pub timeout: usize,
     pub config: AvailClientConfig,
 }
 

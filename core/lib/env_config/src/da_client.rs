@@ -30,14 +30,19 @@ impl FromEnv for DataAvailabilitySecrets {
         let client_tag = std::env::var("DA_CLIENT")?;
         let secrets = match client_tag.as_str() {
             AVAIL_CLIENT_CONFIG_NAME => {
-                let seed_phrase = env::var("DA_SECRETS_SEED_PHRASE")
-                    .ok()
-                    .map(|s| s.parse())
-                    .transpose()?;
-                let gas_relay_api_key = env::var("DA_GAS_RELAY_API_KEY")
-                    .ok()
-                    .map(|s| s.parse())
-                    .transpose()?;
+                let seed_phrase: Option<zksync_basic_types::seed_phrase::SeedPhrase> =
+                    env::var("DA_SECRETS_SEED_PHRASE")
+                        .ok()
+                        .map(|s| s.parse())
+                        .transpose()?;
+                let gas_relay_api_key: Option<zksync_basic_types::api_key::APIKey> =
+                    env::var("DA_SECRETS_GAS_RELAY_API_KEY")
+                        .ok()
+                        .map(|s| s.parse())
+                        .transpose()?;
+                if seed_phrase.is_none() && gas_relay_api_key.is_none() {
+                    anyhow::bail!("No secrets provided for Avail DA client");
+                }
                 Self::Avail(AvailSecrets {
                     seed_phrase,
                     gas_relay_api_key,
@@ -100,11 +105,11 @@ mod tests {
         api_node_url: &str,
         bridge_api_url: &str,
         app_id: u32,
-        gas_relay_mode: bool,
+        timeout: usize,
     ) -> DAClientConfig {
         DAClientConfig::Avail(AvailConfig {
             bridge_api_url: bridge_api_url.to_string(),
-            gas_relay_mode,
+            timeout,
             config: AvailClientConfig::Default(AvailDefaultConfig {
                 api_node_url: api_node_url.to_string(),
                 app_id,
@@ -120,8 +125,7 @@ mod tests {
             DA_API_NODE_URL="localhost:12345"
             DA_BRIDGE_API_URL="localhost:54321"
             DA_APP_ID="1"
-            DA_GAS_RELAY_MODE="false"
-            DA_GAS_RELAY_API_URL="localhost:23456"
+            DA_TIMEOUT="2"
         "#;
 
         lock.set_env(config);
@@ -133,7 +137,7 @@ mod tests {
                 "localhost:12345",
                 "localhost:54321",
                 "1".parse::<u32>().unwrap(),
-                false,
+                "2".parse::<usize>().unwrap(),
             )
         );
     }
