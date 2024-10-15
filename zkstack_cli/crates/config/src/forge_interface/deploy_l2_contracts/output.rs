@@ -8,7 +8,7 @@ impl ZkStackConfig for DefaultL2UpgradeOutput {}
 impl ZkStackConfig for ConsensusRegistryOutput {}
 impl ZkStackConfig for Multicall3Output {}
 
-impl ZkToolboxConfig for TimestampAsserterOutput {}
+impl ZkStackConfig for TimestampAsserterOutput {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct InitializeBridgeOutput {
