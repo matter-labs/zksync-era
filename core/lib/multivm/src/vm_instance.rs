@@ -1,6 +1,6 @@
 use std::mem;
 
-use zksync_types::{vm::VmVersion, Transaction};
+use zksync_types::{vm::VmVersion, ProtocolVersionId, Transaction};
 use zksync_vm2::interface::Tracer;
 
 use crate::{
@@ -327,4 +327,12 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> FastVmInstance<S, Tr> {
     ) -> Self {
         Self::Shadowed(ShadowedFastVm::new(l1_batch_env, system_env, storage_view))
     }
+}
+
+/// Checks whether the protocol version is supported by the fast VM.
+pub fn is_supported_by_fast_vm(protocol_version: ProtocolVersionId) -> bool {
+    matches!(
+        protocol_version.into(),
+        VmVersion::Vm1_5_0IncreasedBootloaderMemory
+    )
 }
