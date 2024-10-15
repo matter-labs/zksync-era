@@ -138,7 +138,7 @@ jobs:
         if: env.BUILD_CONTRACTS == 'true'
         run: |
           ci_run cp etc/tokens/{test,localhost}.json
-          ci_run zkstack dev contracts
+          ci_run zkstack dev contracts --system-contracts --l1-contracts --l2-contracts 
 
       - name: Login to Docker registries
         if: ${{ inputs.action == 'push' }}
