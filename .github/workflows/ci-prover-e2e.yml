@@ -75,7 +75,7 @@ jobs:
           ci_run zkstack prover run --component=prover-job-monitor --docker=false &>prover_logs/prover-job-monitor.log &
       - name: Wait for batch to be passed through gateway
         env:
-          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_provers
+          DATABASE_URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_proving_chain
           BATCH_NUMBER: 1
           INTERVAL: 30
           TIMEOUT: 300
