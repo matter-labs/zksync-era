@@ -17,7 +17,6 @@ fn test_prestate_tracer() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
-        .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<TestedLatestVm>();
@@ -54,34 +53,24 @@ fn test_prestate_tracer_diff_mode() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
-        .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<TestedLatestVm>();
     let contract = read_simple_transfer_contract();
-    let tx = vm
-        .deployer
-        .as_mut()
-        .expect("You have to initialize builder with deployer")
-        .get_deploy_tx(&contract, None, TxType::L2)
-        .tx;
+    let account = &mut vm.rich_accounts[0];
+    let tx = account.get_deploy_tx(&contract, None, TxType::L2).tx;
     let nonce = tx.nonce().unwrap().0.into();
     vm.vm.push_transaction(tx);
     vm.vm.execute(VmExecutionMode::OneTx);
-    let deployed_address = deployed_address_create(vm.deployer.as_ref().unwrap().address, nonce);
+    let deployed_address = deployed_address_create(account.address, nonce);
     vm.test_contract = Some(deployed_address);
 
     // Deploy a second copy of the contract to see its appearance in the pre-state
-    let tx2 = vm
-        .deployer
-        .as_mut()
-        .expect("You have to initialize builder with deployer")
-        .get_deploy_tx(&contract, None, TxType::L2)
-        .tx;
+    let tx2 = account.get_deploy_tx(&contract, None, TxType::L2).tx;
     let nonce2 = tx2.nonce().unwrap().0.into();
     vm.vm.push_transaction(tx2);
     vm.vm.execute(VmExecutionMode::OneTx);
-    let deployed_address2 = deployed_address_create(vm.deployer.as_ref().unwrap().address, nonce2);
+    let deployed_address2 = deployed_address_create(account.address, nonce2);
 
     let account = &mut vm.rich_accounts[0];
 

@@ -26,33 +26,25 @@ use crate::{
 
 mod transaction_test_info;
 
-// FIXME: revise fields
 #[derive(Debug)]
 pub(crate) struct VmTester<VM> {
     pub(crate) vm: VM,
     pub(crate) system_env: SystemEnv,
     pub(crate) l1_batch_env: L1BatchEnv,
     pub(crate) storage: StoragePtr<StorageView<InMemoryStorage>>,
-    pub(crate) deployer: Option<Account>,
     pub(crate) test_contract: Option<Address>,
     pub(crate) rich_accounts: Vec<Account>,
-    pub(crate) custom_contracts: Vec<ContractToDeploy>,
 }
 
 impl<VM: TestedVm> VmTester<VM> {
     pub(crate) fn deploy_test_contract(&mut self) {
         let contract = read_test_contract();
-        let tx = self
-            .deployer
-            .as_mut()
-            .expect("You have to initialize builder with deployer")
-            .get_deploy_tx(&contract, None, TxType::L2)
-            .tx;
+        let account = &mut self.rich_accounts[0];
+        let tx = account.get_deploy_tx(&contract, None, TxType::L2).tx;
         let nonce = tx.nonce().unwrap().0.into();
         self.vm.push_transaction(tx);
         self.vm.execute(VmExecutionMode::OneTx);
-        let deployed_address =
-            deployed_address_create(self.deployer.as_ref().unwrap().address, nonce);
+        let deployed_address = deployed_address_create(account.address, nonce);
         self.test_contract = Some(deployed_address);
     }
 
@@ -62,7 +54,7 @@ impl<VM: TestedVm> VmTester<VM> {
 
     pub(crate) fn reset_with_empty_storage(&mut self) {
         let mut storage = get_empty_storage();
-        for account in self.rich_accounts.iter().chain(self.deployer.as_ref()) {
+        for account in &self.rich_accounts {
             make_account_rich(&mut storage, account);
         }
 
@@ -77,22 +69,8 @@ pub(crate) struct VmTesterBuilder {
     storage: Option<InMemoryStorage>,
     l1_batch_env: Option<L1BatchEnv>,
     system_env: SystemEnv,
-    deployer: Option<Account>,
     rich_accounts: Vec<Account>,
     custom_contracts: Vec<ContractToDeploy>,
-}
-
-impl Clone for VmTesterBuilder {
-    fn clone(&self) -> Self {
-        Self {
-            storage: None,
-            l1_batch_env: self.l1_batch_env.clone(),
-            system_env: self.system_env.clone(),
-            deployer: self.deployer.clone(),
-            rich_accounts: self.rich_accounts.clone(),
-            custom_contracts: self.custom_contracts.clone(),
-        }
-    }
 }
 
 impl VmTesterBuilder {
@@ -101,7 +79,6 @@ impl VmTesterBuilder {
             storage: None,
             l1_batch_env: None,
             system_env: default_system_env(),
-            deployer: None,
             rich_accounts: vec![],
             custom_contracts: vec![],
         }
@@ -158,12 +135,6 @@ impl VmTesterBuilder {
         self
     }
 
-    pub(crate) fn with_deployer(mut self) -> Self {
-        let deployer = Account::random();
-        self.deployer = Some(deployer);
-        self
-    }
-
     pub(crate) fn with_custom_contracts(mut self, contracts: Vec<ContractToDeploy>) -> Self {
         self.custom_contracts = contracts;
         self
@@ -180,11 +151,8 @@ impl VmTesterBuilder {
         let mut raw_storage = self.storage.unwrap_or_else(get_empty_storage);
         ContractToDeploy::insert_all(&self.custom_contracts, &mut raw_storage);
         let storage = StorageView::new(raw_storage).to_rc_ptr();
-        for account in self.rich_accounts.iter() {
+        for account in &self.rich_accounts {
             make_account_rich(storage.borrow_mut().inner_mut(), account);
-        }
-        if let Some(deployer) = &self.deployer {
-            make_account_rich(storage.borrow_mut().inner_mut(), deployer);
         }
 
         let vm = VM::new(
@@ -197,10 +165,8 @@ impl VmTesterBuilder {
             system_env: self.system_env,
             l1_batch_env,
             storage,
-            deployer: self.deployer,
             test_contract: None,
             rich_accounts: self.rich_accounts.clone(),
-            custom_contracts: self.custom_contracts.clone(),
         }
     }
 }

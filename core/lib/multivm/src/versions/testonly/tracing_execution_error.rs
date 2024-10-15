@@ -29,7 +29,6 @@ pub(crate) fn test_tracing_of_execution_errors<VM: TestedVm>() {
             contract_address,
         )])
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_deployer()
         .with_random_rich_accounts(1)
         .build::<VM>();
 

@@ -53,7 +53,6 @@ fn test_send_or_transfer<VM: TestedVm>(test_option: TestOptions) {
     let mut vm = VmTesterBuilder::new()
         .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_deployer()
         .with_random_rich_accounts(1)
         .with_custom_contracts(vec![
             ContractToDeploy::new(test_bytecode, test_contract_address),
@@ -138,7 +137,6 @@ fn test_reentrancy_protection_send_or_transfer<VM: TestedVm>(test_option: TestOp
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_deployer()
         .with_random_rich_accounts(1)
         .with_custom_contracts(vec![
             ContractToDeploy::new(test_bytecode, test_contract_address),

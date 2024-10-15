@@ -15,7 +15,6 @@ pub(crate) fn test_keccak<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
-        .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_custom_contracts(vec![ContractToDeploy::account(contract, address)])
@@ -52,7 +51,6 @@ pub(crate) fn test_sha256<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
-        .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_custom_contracts(vec![ContractToDeploy::account(contract, address)])
@@ -87,7 +85,6 @@ pub(crate) fn test_ecrecover<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_random_rich_accounts(1)
-        .with_deployer()
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<VM>();

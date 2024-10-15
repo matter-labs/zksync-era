@@ -77,7 +77,6 @@ pub(crate) fn test_nonce_holder<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_deployer()
         .with_custom_contracts(vec![ContractToDeploy::account(
             read_nonce_holder_tester(),
             account.address,
