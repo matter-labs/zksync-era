@@ -1,8 +1,8 @@
-use std::collections::HashSet;
+use std::{any::Any, collections::HashSet, fmt};
 
-use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H256, U256};
+use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H160, H256, U256};
 use zksync_utils::h256_to_u256;
-use zksync_vm2::interface::{HeapId, StateInterface};
+use zksync_vm2::interface::{Event, HeapId, StateInterface};
 use zksync_vm_interface::{
     storage::ReadStorage, CurrentExecutionState, L2BlockEnv, VmExecutionMode,
     VmExecutionResultAndLogs, VmInterfaceExt,
@@ -33,18 +33,65 @@ mod require_eip712;
 mod secp256r1;
 mod simple_execution;
 mod storage;
+mod tracing_execution_error;
 /*
 // mod call_tracer; FIXME: requires tracers
 // mod prestate_tracer; FIXME: is pre-state tracer still relevant?
 mod rollbacks;
-mod tester;
-mod tracing_execution_error;
 mod transfer;
 mod upgrade;
 mod utils;
 */
 
+trait ObjectSafeEq: fmt::Debug + AsRef<dyn Any> {
+    fn eq(&self, other: &dyn ObjectSafeEq) -> bool;
+}
+
+#[derive(Debug)]
+struct BoxedEq<T>(T);
+
+impl<T: 'static> AsRef<dyn Any> for BoxedEq<T> {
+    fn as_ref(&self) -> &dyn Any {
+        &self.0
+    }
+}
+
+impl<T: fmt::Debug + PartialEq + 'static> ObjectSafeEq for BoxedEq<T> {
+    fn eq(&self, other: &dyn ObjectSafeEq) -> bool {
+        let Some(other) = other.as_ref().downcast_ref::<T>() else {
+            return false;
+        };
+        self.0 == *other
+    }
+}
+
+// TODO this doesn't include all the state of ModifiedWorld
+#[derive(Debug)]
+pub(crate) struct VmStateDump {
+    state: Box<dyn ObjectSafeEq>,
+    storage_writes: Vec<((H160, U256), U256)>,
+    events: Box<[Event]>,
+}
+
+impl PartialEq for VmStateDump {
+    fn eq(&self, other: &Self) -> bool {
+        self.state.as_ref().eq(other.state.as_ref())
+            && self.storage_writes == other.storage_writes
+            && self.events == other.events
+    }
+}
+
 impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
+    type StateDump = VmStateDump;
+
+    fn dump_state(&self) -> Self::StateDump {
+        VmStateDump {
+            state: Box::new(BoxedEq(self.inner.dump_state())),
+            storage_writes: self.inner.get_storage_state().collect(),
+            events: self.inner.events().collect(),
+        }
+    }
+
     fn gas_remaining(&mut self) -> u32 {
         self.gas_remaining()
     }

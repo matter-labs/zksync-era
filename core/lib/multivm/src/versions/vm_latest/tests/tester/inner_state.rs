@@ -2,9 +2,10 @@ use std::collections::HashMap;
 
 use zk_evm_1_5_0::{aux_structures::Timestamp, vm_state::VmLocalState};
 use zksync_types::{StorageKey, StorageValue, U256};
+use zksync_vm_interface::storage::StorageView;
 
 use crate::{
-    interface::storage::WriteStorage,
+    interface::storage::{ReadStorage, WriteStorage},
     vm_latest::{
         old_vm::{
             event_sink::InMemoryEventSink,
@@ -19,17 +20,27 @@ use crate::{
 #[derive(Clone, Debug)]
 pub(crate) struct ModifiedKeysMap(HashMap<StorageKey, StorageValue>);
 
+impl ModifiedKeysMap {
+    fn new<S: ReadStorage>(storage: &mut StorageView<S>) -> Self {
+        let mut modified_keys = storage.modified_storage_keys().clone();
+        let inner = storage.inner_mut();
+        // Remove modified keys that were set to the same value (e.g., due to a rollback).
+        modified_keys.retain(|key, value| inner.read_value(key) != *value);
+        Self(modified_keys)
+    }
+}
+
 // We consider hashmaps to be equal even if there is a key
 // that is not present in one but has zero value in another.
 impl PartialEq for ModifiedKeysMap {
     fn eq(&self, other: &Self) -> bool {
-        for (key, value) in self.0.iter() {
-            if *value != other.0.get(key).cloned().unwrap_or_default() {
+        for (key, value) in &self.0 {
+            if *value != other.0.get(key).copied().unwrap_or_default() {
                 return false;
             }
         }
-        for (key, value) in other.0.iter() {
-            if *value != self.0.get(key).cloned().unwrap_or_default() {
+        for (key, value) in &other.0 {
+            if *value != self.0.get(key).copied().unwrap_or_default() {
                 return false;
             }
         }
@@ -51,9 +62,7 @@ pub(crate) struct StorageOracleInnerState<H: HistoryMode> {
     /// There is no way to "truly" compare the storage pointer,
     /// so we just compare the modified keys. This is reasonable enough.
     pub(crate) modified_storage_keys: ModifiedKeysMap,
-
     pub(crate) frames_stack: AppDataFrameManagerWithHistory<Box<StorageLogQuery>, H>,
-
     pub(crate) paid_changes: HistoryRecorder<HashMap<StorageKey, u32>, H>,
     pub(crate) initial_values: HistoryRecorder<HashMap<StorageKey, U256>, H>,
     pub(crate) returned_io_refunds: HistoryRecorder<Vec<u32>, H>,
@@ -77,7 +86,7 @@ pub(crate) struct VmInstanceInnerState<H: HistoryMode> {
     local_state: VmLocalState,
 }
 
-impl<S: WriteStorage, H: CommonHistoryMode> Vm<S, H> {
+impl<S: ReadStorage, H: CommonHistoryMode> Vm<StorageView<S>, H> {
     // Dump inner state of the VM.
     pub(crate) fn dump_inner_state(&self) -> VmInstanceInnerState<H::Vm1_5_0> {
         let event_sink = self.state.event_sink.clone();
@@ -86,13 +95,12 @@ impl<S: WriteStorage, H: CommonHistoryMode> Vm<S, H> {
         };
         let memory = self.state.memory.clone();
         let decommitter_state = DecommitterTestInnerState {
-            modified_storage_keys: ModifiedKeysMap(
-                self.state
+            modified_storage_keys: ModifiedKeysMap::new(
+                &mut self
+                    .state
                     .decommittment_processor
                     .get_storage()
-                    .borrow()
-                    .modified_storage_keys()
-                    .clone(),
+                    .borrow_mut(),
             ),
             known_bytecodes: self.state.decommittment_processor.known_bytecodes.clone(),
             decommitted_code_hashes: self
@@ -101,15 +109,10 @@ impl<S: WriteStorage, H: CommonHistoryMode> Vm<S, H> {
                 .get_decommitted_code_hashes_with_history()
                 .clone(),
         };
+
         let storage_oracle_state = StorageOracleInnerState {
-            modified_storage_keys: ModifiedKeysMap(
-                self.state
-                    .storage
-                    .storage
-                    .get_ptr()
-                    .borrow()
-                    .modified_storage_keys()
-                    .clone(),
+            modified_storage_keys: ModifiedKeysMap::new(
+                &mut self.state.storage.storage.get_ptr().borrow_mut(),
             ),
             frames_stack: self.state.storage.storage_frames_stack.clone(),
             paid_changes: self.state.storage.paid_changes.clone(),

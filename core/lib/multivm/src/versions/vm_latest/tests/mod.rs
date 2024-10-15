@@ -15,8 +15,8 @@ use crate::{
     interface::storage::{InMemoryStorage, StorageView},
     versions::testonly::TestedVm,
     vm_latest::{
-        constants::BOOTLOADER_HEAP_PAGE, tracers::PubdataTracer, types::internals::TransactionData,
-        TracerDispatcher,
+        constants::BOOTLOADER_HEAP_PAGE, tests::tester::VmInstanceInnerState,
+        tracers::PubdataTracer, types::internals::TransactionData, TracerDispatcher,
     },
 };
 
@@ -53,6 +53,12 @@ mod upgrade;
 mod utils;
 
 impl TestedVm for Vm<StorageView<InMemoryStorage>, HistoryEnabled> {
+    type StateDump = VmInstanceInnerState<HistoryEnabled>;
+
+    fn dump_state(&self) -> Self::StateDump {
+        self.dump_inner_state()
+    }
+
     fn gas_remaining(&mut self) -> u32 {
         self.state.local_state.callstack.current.ergs_remaining
     }

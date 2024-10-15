@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt};
 
 use zksync_contracts::BaseSystemContracts;
 use zksync_test_account::{Account, TxType};
@@ -11,6 +11,7 @@ use zksync_vm_interface::{
     CurrentExecutionState, VmExecutionResultAndLogs, VmInterfaceHistoryEnabled,
 };
 
+pub(crate) use self::transaction_test_info::{ExpectedError, TransactionTestInfo};
 use super::{get_empty_storage, read_test_contract};
 use crate::{
     interface::{
@@ -23,7 +24,7 @@ use crate::{
     },
 };
 
-//mod transaction_test_info; FIXME
+mod transaction_test_info;
 
 // FIXME: revise fields
 #[derive(Debug)]
@@ -192,6 +193,10 @@ impl VmTesterBuilder {
 pub(crate) trait TestedVm:
     VmFactory<StorageView<InMemoryStorage>> + VmInterfaceHistoryEnabled
 {
+    type StateDump: fmt::Debug + PartialEq;
+
+    fn dump_state(&self) -> Self::StateDump;
+
     fn gas_remaining(&mut self) -> u32;
 
     fn get_current_execution_state(&self) -> CurrentExecutionState;

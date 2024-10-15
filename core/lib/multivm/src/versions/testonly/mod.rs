@@ -37,6 +37,7 @@ mod shadow;
 pub(super) mod simple_execution;
 pub(super) mod storage;
 mod tester;
+pub(super) mod tracing_execution_error;
 
 static BASE_SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> =
     Lazy::new(BaseSystemContracts::load_from_disk);
@@ -89,6 +90,12 @@ fn read_expensive_contract() -> (Vec<u8>, Contract) {
 fn read_many_owners_custom_account_contract() -> (Vec<u8>, Contract) {
     let path = "etc/contracts-test-data/artifacts-zk/contracts/custom-account/many-owners-custom-account.sol/ManyOwnersCustomAccount.json";
     (read_bytecode(path), load_contract(path))
+}
+
+fn read_error_contract() -> Vec<u8> {
+    read_bytecode(
+        "etc/contracts-test-data/artifacts-zk/contracts/error/error.sol/SimpleRequire.json",
+    )
 }
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
