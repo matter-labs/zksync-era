@@ -40,6 +40,7 @@ use crate::{
         VmExecutionStatistics, VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
         VmTrackingContracts,
     },
+    is_supported_by_fast_vm,
     utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
@@ -104,6 +105,12 @@ pub struct Vm<S, Tr = ()> {
 
 impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
+        assert!(
+            is_supported_by_fast_vm(system_env.version),
+            "Protocol version {:?} is not supported by fast VM",
+            system_env.version
+        );
+
         let default_aa_code_hash = system_env
             .base_system_smart_contracts
             .default_aa

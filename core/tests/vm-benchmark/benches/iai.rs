@@ -31,4 +31,5 @@ make_functions_and_main!(
     write_and_decode => write_and_decode_legacy,
     event_spam => event_spam_legacy,
     slot_hash_collision => slot_hash_collision_legacy,
+    heap_read_write => heap_read_write_legacy,
 );
