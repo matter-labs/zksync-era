@@ -98,7 +98,7 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                 let (cluster_and_gpu, max) = e.read().expect("max_provers");
                 if let Some((cluster, gpu)) = cluster_and_gpu.split_once('/') {
                     acc.entry(cluster.to_string())
-                        .or_insert_with(HashMap::new)
+                        .or_default()
                         .insert(gpu.parse().expect("max_provers/gpu"), max);
                 }
                 acc
