@@ -63,6 +63,7 @@ abigen!(
     function symbol() external view returns (string)
     function decimals() external view returns (uint8)
     function mint(address to, uint256 amount)
+    function transfer(address to, uint256 amount)
     ]"
 );
 
@@ -97,17 +98,21 @@ pub async fn mint_token(
     let contract = TokenContract::new(token_address, client);
 
     let mut pending_calls = vec![];
-    for address in addresses {
+    let mut pending_txs = vec![];
+    for address in addresses.clone() {
         pending_calls.push(contract.mint(address, amount.into()));
     }
 
-    let mut pending_txs = vec![];
+    for address in addresses {
+        pending_calls.push(contract.transfer(address, amount.into()));
+    }
+
     for call in &pending_calls {
         let call = call.send().await;
         match call {
             // It's safe to set such low number of confirmations and low interval for localhost
             Ok(call) => pending_txs.push(call.confirmations(3).interval(Duration::from_millis(30))),
-            Err(e) => logger::error(format!("Minting is not successful {e}")),
+            Err(e) => logger::error(format!("Minting or transfer is not successful {e}")),
         }
     }
 

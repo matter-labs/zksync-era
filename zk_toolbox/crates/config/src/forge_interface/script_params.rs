@@ -79,3 +79,9 @@ pub const GATEWAY_PREPARATION: ForgeScriptParams = ForgeScriptParams {
     output: "script-out/output-gateway-preparation-l1.toml",
     script_path: "deploy-scripts/GatewayPreparation.s.sol",
 };
+
+pub const ZK_PREPARATION: ForgeScriptParams = ForgeScriptParams {
+    input: "script-config/config-deploy-zk.toml",
+    output: "script-out/output-deploy-zk-token.toml",
+    script_path: "deploy-scripts/DeployZKAndBridgeToL1.s.sol",
+};

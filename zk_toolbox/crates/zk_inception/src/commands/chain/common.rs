@@ -107,9 +107,30 @@ pub async fn mint_base_token(
         let wallets = ecosystem_config.get_wallets()?;
         let chain_wallets = chain_config.get_wallets_config()?;
         let base_token = &chain_config.base_token;
-        let addresses = vec![wallets.governor.address, chain_wallets.governor.address];
-        let amount = AMOUNT_FOR_DISTRIBUTION_TO_WALLETS * base_token.nominator as u128
-            / base_token.denominator as u128;
+        let addresses = vec![
+            wallets.governor.address,
+            wallets
+                .deployer_gateway
+                .ok_or(anyhow::Error::msg("Deployer gateway address is missing"))?
+                .address,
+            wallets
+                .governor_gateway
+                .ok_or(anyhow::Error::msg("Governor gateway address is missing"))?
+                .address,
+            wallets
+                .governance
+                .ok_or(anyhow::Error::msg("Governance address is missing"))?
+                .address,
+            wallets
+                .chain_admin
+                .ok_or(anyhow::Error::msg("Chain admin address address is missing"))?
+                .address,
+            chain_wallets.governor.address,
+        ];
+
+        let amount = 1000000000000000000;
+        // let amount = AMOUNT_FOR_DISTRIBUTION_TO_WALLETS * base_token.nominator as u128
+        // / base_token.denominator as u128;
         common::ethereum::mint_token(
             wallets.governor,
             base_token.address,

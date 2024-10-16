@@ -63,5 +63,25 @@ pub fn create_localhost_wallets(
             &base_path,
             5,
         )?),
+        governance: Some(Wallet::from_mnemonic(
+            &eth_mnemonic.test_mnemonic,
+            &base_path,
+            6,
+        )?),
+        chain_admin: Some(Wallet::from_mnemonic(
+            &eth_mnemonic.test_mnemonic,
+            &base_path,
+            7,
+        )?),
+        deployer_gateway: Some(Wallet::from_mnemonic(
+            &eth_mnemonic.test_mnemonic,
+            &base_path,
+            8,
+        )?),
+        governor_gateway: Some(Wallet::from_mnemonic(
+            &eth_mnemonic.test_mnemonic,
+            &base_path,
+            9,
+        )?),
     })
 }

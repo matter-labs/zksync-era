@@ -16,6 +16,10 @@ pub struct WalletsConfig {
     pub fee_account: Wallet,
     pub governor: Wallet,
     pub token_multiplier_setter: Option<Wallet>,
+    pub governance: Option<Wallet>,
+    pub chain_admin: Option<Wallet>,
+    pub deployer_gateway: Option<Wallet>,
+    pub governor_gateway: Option<Wallet>,
 }
 
 impl WalletsConfig {
@@ -28,6 +32,10 @@ impl WalletsConfig {
             fee_account: Wallet::random(rng),
             governor: Wallet::random(rng),
             token_multiplier_setter: Some(Wallet::random(rng)),
+            governance: Some(Wallet::random(rng)),
+            chain_admin: Some(Wallet::random(rng)),
+            deployer_gateway: Some(Wallet::random(rng)),
+            governor_gateway: Some(Wallet::random(rng)),
         }
     }
 
@@ -40,6 +48,10 @@ impl WalletsConfig {
             fee_account: Wallet::empty(),
             governor: Wallet::empty(),
             token_multiplier_setter: Some(Wallet::empty()),
+            governance: Some(Wallet::empty()),
+            chain_admin: Some(Wallet::empty()),
+            deployer_gateway: Some(Wallet::empty()),
+            governor_gateway: Some(Wallet::empty()),
         }
     }
     pub fn deployer_private_key(&self) -> Option<H256> {

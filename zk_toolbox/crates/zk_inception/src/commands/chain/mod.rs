@@ -19,6 +19,7 @@ mod convert_to_gateway;
 mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
+mod deploy_and_bridge_zk;
 pub mod genesis;
 pub(crate) mod init;
 mod migrate_from_gateway;
@@ -58,6 +59,8 @@ pub enum ChainCommands {
     MigrateToGateway(MigrateToGatewayArgs),
     /// Migrate chain from gateway
     MigrateFromGateway(MigrateFromGatewayArgs),
+    /// Deploy ZK token on Era and bridge it to L1q
+    DeployAndBridgeZK(ForgeScriptArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
@@ -85,5 +88,6 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::ConvertToGateway(args) => convert_to_gateway::run(args, shell).await,
         ChainCommands::MigrateToGateway(args) => migrate_to_gateway::run(args, shell).await,
         ChainCommands::MigrateFromGateway(args) => migrate_from_gateway::run(args, shell).await,
+        ChainCommands::DeployAndBridgeZK(args) => deploy_and_bridge_zk::run(args, shell).await,
     }
 }
