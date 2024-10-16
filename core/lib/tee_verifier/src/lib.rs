@@ -216,16 +216,16 @@ fn map_log_tree(
     idx: &mut u64,
 ) -> anyhow::Result<TreeInstruction> {
     let key = storage_log.key.hashed_key_u256();
-    let tree_instruction = match (storage_log.is_write(), storage_log.kind, *tree_log_entry) {
-        (true, _, TreeLogEntry::Updated { leaf_index, .. }) => {
+    let tree_instruction = match (storage_log.is_write(), *tree_log_entry) {
+        (true, TreeLogEntry::Updated { leaf_index, .. }) => {
             TreeInstruction::write(key, leaf_index, H256(storage_log.value.into()))
         }
-        (true, _, TreeLogEntry::Inserted) => {
+        (true, TreeLogEntry::Inserted) => {
             let leaf_index = *idx;
             *idx += 1;
             TreeInstruction::write(key, leaf_index, H256(storage_log.value.into()))
         }
-        (false, _, TreeLogEntry::Read { value, .. }) => {
+        (false, TreeLogEntry::Read { value, .. }) => {
             if storage_log.value != value {
                 tracing::error!(
                     ?storage_log,
@@ -238,11 +238,11 @@ fn map_log_tree(
             }
             TreeInstruction::Read(key)
         }
-        (false, _, TreeLogEntry::ReadMissingKey { .. }) => TreeInstruction::Read(key),
-        (true, _, TreeLogEntry::Read { .. })
-        | (true, _, TreeLogEntry::ReadMissingKey)
-        | (false, _, TreeLogEntry::Inserted)
-        | (false, _, TreeLogEntry::Updated { .. }) => {
+        (false, TreeLogEntry::ReadMissingKey { .. }) => TreeInstruction::Read(key),
+        (true, TreeLogEntry::Read { .. })
+        | (true, TreeLogEntry::ReadMissingKey)
+        | (false, TreeLogEntry::Inserted)
+        | (false, TreeLogEntry::Updated { .. }) => {
             tracing::error!(
                 ?storage_log,
                 ?tree_log_entry,
