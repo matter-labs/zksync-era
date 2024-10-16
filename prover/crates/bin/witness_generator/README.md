@@ -1,9 +1,5 @@
 # WitnessGenerator
 
-Please read this
-[doc](https://www.notion.so/matterlabs/Draft-FRI-Prover-Integration-Prover-Shadowing-c4b1373786eb43779a93118be4be5d99)
-for rationale of this binary, alongside the existing one in zk-core.
-
 The component is responsible for generating prover jobs and saving artifacts needed for the next round of proof
 aggregation. That is, every aggregation round needs two sets of input:
 
