@@ -89,12 +89,30 @@ impl MempoolFetcher {
                 .await
                 .context("failed getting pending protocol version")?;
 
-            let l2_tx_filter = l2_tx_filter(
-                self.batch_fee_input_provider.as_ref(),
-                protocol_version.into(),
-            )
-            .await
-            .context("failed creating L2 transaction filter")?;
+            let l2_tx_filter = if let Some(unsealed_batch) = storage
+                .blocks_dal()
+                .get_unsealed_l1_batch()
+                .await
+                .context("failed getting unsealed batch")?
+            {
+                let (base_fee, gas_per_pubdata) = derive_base_fee_and_gas_per_pubdata(
+                    unsealed_batch.fee_input,
+                    protocol_version.into(),
+                );
+
+                L2TxFilter {
+                    fee_input: unsealed_batch.fee_input,
+                    fee_per_gas: base_fee,
+                    gas_per_pubdata: gas_per_pubdata as u32,
+                }
+            } else {
+                l2_tx_filter(
+                    self.batch_fee_input_provider.as_ref(),
+                    protocol_version.into(),
+                )
+                .await
+                .context("failed creating L2 transaction filter")?
+            };
 
             let transactions = storage
                 .transactions_dal()
