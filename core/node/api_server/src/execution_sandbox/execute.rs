@@ -9,13 +9,13 @@ use zksync_dal::{Connection, Core};
 use zksync_multivm::interface::{
     executor::{OneshotExecutor, TransactionValidator},
     storage::ReadStorage,
-    tracer::{ValidationError, ValidationParams},
+    tracer::{ValidationError, ValidationParams, ValidationTraces},
     Call, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
     TransactionExecutionMetrics, TxExecutionArgs, VmExecutionResultAndLogs,
 };
 use zksync_state::{PostgresStorage, PostgresStorageCaches};
 use zksync_types::{
-    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Transaction,
+    api::state_override::StateOverride, fee_model::BatchFeeInput, l2::L2Tx, Address, Transaction,
 };
 use zksync_vm_executor::oneshot::{MainOneshotExecutor, MockOneshotExecutor};
 
@@ -100,6 +100,9 @@ pub(crate) struct SandboxExecutor {
     engine: SandboxExecutorEngine,
     pub(super) options: SandboxExecutorOptions,
     storage_caches: Option<PostgresStorageCaches>,
+    pub(super) timestamp_asserter_address: Option<Address>,
+    pub(super) timestamp_asserter_min_range_sec: u32,
+    pub(super) timestamp_asserter_min_time_till_end_sec: u32,
 }
 
 impl SandboxExecutor {
@@ -107,6 +110,9 @@ impl SandboxExecutor {
         options: SandboxExecutorOptions,
         caches: PostgresStorageCaches,
         missed_storage_invocation_limit: usize,
+        timestamp_asserter_address: Option<Address>,
+        timestamp_asserter_min_range_sec: u32,
+        timestamp_asserter_min_time_till_end_sec: u32,
     ) -> Self {
         let mut executor = MainOneshotExecutor::new(missed_storage_invocation_limit);
         executor
@@ -115,6 +121,9 @@ impl SandboxExecutor {
             engine: SandboxExecutorEngine::Real(executor),
             options,
             storage_caches: Some(caches),
+            timestamp_asserter_address,
+            timestamp_asserter_min_range_sec,
+            timestamp_asserter_min_time_till_end_sec,
         }
     }
 
@@ -130,6 +139,9 @@ impl SandboxExecutor {
             engine: SandboxExecutorEngine::Mock(executor),
             options,
             storage_caches: None,
+            timestamp_asserter_address: None,
+            timestamp_asserter_min_range_sec: 0,
+            timestamp_asserter_min_time_till_end_sec: 0,
         }
     }
 
@@ -293,7 +305,7 @@ where
         env: OneshotEnv,
         tx: L2Tx,
         validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<(), ValidationError>> {
+    ) -> anyhow::Result<Result<ValidationTraces, ValidationError>> {
         match &self.engine {
             SandboxExecutorEngine::Real(executor) => {
                 executor

@@ -1,6 +1,7 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use anyhow::Context as _;
+use itertools::Itertools;
 #[cfg(test)]
 use tokio::sync::mpsc;
 use tokio::sync::watch;
@@ -96,7 +97,7 @@ impl MempoolFetcher {
             .await
             .context("failed creating L2 transaction filter")?;
 
-            let transactions = storage
+            let transactions_with_constraints = storage
                 .transactions_dal()
                 .sync_mempool(
                     &mempool_info.stashed_accounts,
@@ -107,16 +108,22 @@ impl MempoolFetcher {
                 )
                 .await
                 .context("failed syncing mempool")?;
+
+            let transactions = transactions_with_constraints
+                .iter()
+                .map(|(t, _c)| t)
+                .collect_vec();
+
             let nonces = get_transaction_nonces(&mut storage, &transactions).await?;
             drop(storage);
 
             #[cfg(test)]
             {
-                let transaction_hashes = transactions.iter().map(Transaction::hash).collect();
+                let transaction_hashes = transactions.iter().map(|x| x.hash()).collect();
                 self.transaction_hashes_sender.send(transaction_hashes).ok();
             }
             let all_transactions_loaded = transactions.len() < self.sync_batch_size;
-            self.mempool.insert(transactions, nonces);
+            self.mempool.insert(transactions_with_constraints, nonces);
             latency.observe();
 
             if all_transactions_loaded {
@@ -130,7 +137,7 @@ impl MempoolFetcher {
 /// Loads nonces for all distinct `transactions` initiators from the storage.
 async fn get_transaction_nonces(
     storage: &mut Connection<'_, Core>,
-    transactions: &[Transaction],
+    transactions: &[&Transaction],
 ) -> anyhow::Result<HashMap<Address, Nonce>> {
     let (nonce_keys, address_by_nonce_key): (Vec<_>, HashMap<_, _>) = transactions
         .iter()
@@ -158,7 +165,7 @@ async fn get_transaction_nonces(
 
 #[cfg(test)]
 mod tests {
-    use zksync_multivm::interface::TransactionExecutionMetrics;
+    use zksync_multivm::interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
     use zksync_node_fee_model::MockBatchFeeParamsProvider;
     use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
     use zksync_node_test_utils::create_l2_transaction;
@@ -200,7 +207,7 @@ mod tests {
 
         let nonces = get_transaction_nonces(
             &mut storage,
-            &[transaction.into(), other_transaction.into()],
+            &[&transaction.into(), &other_transaction.into()],
         )
         .await
         .unwrap();
@@ -246,7 +253,11 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &transaction,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         drop(storage);
@@ -302,7 +313,11 @@ mod tests {
         let mut storage = pool.connection().await.unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &transaction,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         drop(storage);
@@ -355,7 +370,11 @@ mod tests {
             .unwrap();
         storage
             .transactions_dal()
-            .insert_transaction_l2(&transaction, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &transaction,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
         drop(storage);

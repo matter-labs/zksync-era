@@ -57,6 +57,13 @@ pub struct ValidationParams {
     pub trusted_address_slots: HashSet<(Address, U256)>,
     /// Number of computational gas that validation step is allowed to use.
     pub computational_gas_limit: u32,
+    /// Address of the timestamp asserter. This contract is allowed to touch block.timestamp regardless
+    /// of the calling context.
+    pub timestamp_asserter_address: Option<Address>,
+    /// Minimum difference in seconds between the range start and range end
+    pub timestamp_asserter_min_range_sec: u32,
+    /// Minimum time between current block.timestamp and the end of the asserted range
+    pub timestamp_asserter_min_time_till_end_sec: u32,
 }
 
 /// Rules that can be violated when validating a transaction.
@@ -70,6 +77,8 @@ pub enum ViolatedValidationRule {
     TouchedDisallowedContext,
     /// The transaction used too much gas during validation.
     TookTooManyComputationalGas(u32),
+    /// The transaction passed incorrect parameters into timestamp asserter
+    TimestampAssertionInvalidRange,
 }
 
 impl fmt::Display for ViolatedValidationRule {
@@ -91,6 +100,9 @@ impl fmt::Display for ViolatedValidationRule {
                     "Took too many computational gas, allowed limit: {gas_limit}"
                 )
             }
+            ViolatedValidationRule::TimestampAssertionInvalidRange => {
+                write!(f, "Invalid range used with timestamp asserter")
+            }
         }
     }
 }
@@ -102,6 +114,16 @@ pub enum ValidationError {
     FailedTx(Halt),
     /// Transaction violated one of account validation rules.
     ViolatedRule(ViolatedValidationRule),
+}
+
+/// Traces the validation of a transaction, providing visibility into the aspects the transaction interacts with.
+/// For instance, the `range_start` and `range_end` fields represent the range within which the transaction might make
+/// assertions on `block.timestamp`. This information is crucial for the caller, as expired transactions should
+/// be excluded from the mempool.
+#[derive(Debug, Clone, Default)]
+pub struct ValidationTraces {
+    pub range_start: Option<U256>,
+    pub range_end: Option<U256>,
 }
 
 impl fmt::Display for ValidationError {

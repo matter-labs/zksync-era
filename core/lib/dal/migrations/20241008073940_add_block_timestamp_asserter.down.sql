@@ -1,0 +1,2 @@
+ALTER TABLE transactions DROP COLUMN block_timestamp_range_start;
+ALTER TABLE transactions DROP COLUMN block_timestamp_range_end;

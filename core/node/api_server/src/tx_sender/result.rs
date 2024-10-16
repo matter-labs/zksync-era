@@ -67,6 +67,8 @@ pub enum SubmitTxError {
     /// Catch-all internal error (e.g., database error) that should not be exposed to the caller.
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
+    #[error("transaction violated block.timestamp constraint")]
+    ViolatedBlockTimestampConstraint,
 }
 
 impl SubmitTxError {
@@ -96,6 +98,7 @@ impl SubmitTxError {
             Self::MintedAmountOverflow => "minted-amount-overflow",
             Self::ProxyError(_) => "proxy-error",
             Self::Internal(_) => "internal",
+            Self::ViolatedBlockTimestampConstraint => "violated-block-timestamp-constraint",
         }
     }
 
@@ -132,6 +135,9 @@ impl From<SandboxExecutionError> for SubmitTxError {
             }
             SandboxExecutionError::FailedToPayForTransaction(reason) => {
                 Self::FailedToChargeFee(reason)
+            }
+            SandboxExecutionError::ViolatedBlockTimestampConstraint => {
+                Self::ViolatedBlockTimestampConstraint
             }
         }
     }

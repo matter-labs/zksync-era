@@ -493,7 +493,7 @@ mod tests {
     use std::collections::HashMap;
 
     use zksync_types::{l2::L2Tx, Nonce, ProtocolVersion, ProtocolVersionId};
-    use zksync_vm_interface::TransactionExecutionMetrics;
+    use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 
     use super::*;
     use crate::{
@@ -509,7 +509,11 @@ mod tests {
 
         for tx in &txs {
             conn.transactions_dal()
-                .insert_transaction_l2(tx, TransactionExecutionMetrics::default())
+                .insert_transaction_l2(
+                    tx,
+                    TransactionExecutionMetrics::default(),
+                    ValidationTraces::default(),
+                )
                 .await
                 .unwrap();
         }
@@ -747,7 +751,11 @@ mod tests {
             tx.common_data.initiator_address = initiator;
             tx_by_nonce.insert(nonce, tx.clone());
             conn.transactions_dal()
-                .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+                .insert_transaction_l2(
+                    &tx,
+                    TransactionExecutionMetrics::default(),
+                    ValidationTraces::default(),
+                )
                 .await
                 .unwrap();
         }
@@ -816,7 +824,11 @@ mod tests {
         tx.common_data.nonce = Nonce(1);
         tx.common_data.initiator_address = initiator;
         conn.transactions_dal()
-            .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+            .insert_transaction_l2(
+                &tx,
+                TransactionExecutionMetrics::default(),
+                ValidationTraces::default(),
+            )
             .await
             .unwrap();
 
