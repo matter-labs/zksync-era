@@ -191,7 +191,7 @@ pub(super) async fn generate_witness(
             let object_store = object_store.clone();
             save_queue_handles.push(tokio::task::spawn(save_recursion_queue(
                 block_number,
-                circuit_id.try_into().unwrap(),
+                circuit_id.unwrap(),
                 queue,
                 inputs,
                 object_store,
