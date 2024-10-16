@@ -6,6 +6,7 @@ import * as utils from 'utils';
 import fs from 'node:fs/promises';
 import * as zksync from 'zksync-ethers';
 import * as fsSync from 'fs';
+import YAML from 'yaml';
 
 // executes a command in background and returns a child process handle
 // by default pipes data to parent's stdio but this can be overridden
@@ -298,20 +299,24 @@ export class NodeSpawner {
         if (this.generalConfigPath == void 0)
             throw new Error('Trying to set property in config while not in file mode');
         const generalConfig = fsSync.readFileSync(this.generalConfigPath, 'utf8');
+        const parsed = YAML.parse(generalConfig);
 
-        // Define the regex pattern to check if the property already exists
-        const propertyRegex = new RegExp(`(^\\s*${property}:\\s*\\d+(\\.\\d+)?$)`, 'm');
-        const gasAdjusterRegex = new RegExp(`(^\\s*${parentProperty}:.*$)`, 'gm');
-
-        let newGeneralConfig;
-
-        if (propertyRegex.test(generalConfig)) {
-            // If the property exists, modify its value
-            newGeneralConfig = generalConfig.replace(propertyRegex, `    ${property}: ${value}`);
+        // TODO FIX THIS SHITTY CODE
+        if (parentProperty == 'gas_adjuster') {
+            if (parsed['eth'][parentProperty] == null) {
+                console.log(parsed);
+                throw new Error(`No eth->${parentProperty} config section in general.yaml`);
+            }
+            parsed['eth'][parentProperty][property] = value;
         } else {
-            // If the property does not exist, add it under the gas_adjuster section
-            newGeneralConfig = generalConfig.replace(gasAdjusterRegex, `$1\n    ${property}: ${value}`);
+            if (parsed[parentProperty] == null) {
+                console.log(parsed);
+                throw new Error(`No ${parentProperty} config section in general.yaml`);
+            }
+            parsed[parentProperty][property] = value;
         }
+
+        const newGeneralConfig = YAML.stringify(parsed);
 
         fsSync.writeFileSync(this.generalConfigPath, newGeneralConfig, 'utf8');
     }
