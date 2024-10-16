@@ -22,7 +22,7 @@ pub use self::{
     genesis::GenesisConfig,
     object_store::ObjectStoreConfig,
     observability::{ObservabilityConfig, OpentelemetryConfig},
-    proof_data_handler::ProofDataHandlerConfig,
+    proof_data_handler::{ProofDataHandlerConfig, TeeConfig},
     prover_job_monitor::ProverJobMonitorConfig,
     pruning::PruningConfig,
     secrets::{DatabaseSecrets, L1Secrets, Secrets},

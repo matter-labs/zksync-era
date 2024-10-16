@@ -32,10 +32,10 @@ impl TeeProofGenerationDal<'_, '_> {
         &mut self,
         tee_type: TeeType,
         processing_timeout: Duration,
-        min_batch_number: Option<L1BatchNumber>,
+        min_batch_number: L1BatchNumber,
     ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
-        let min_batch_number = min_batch_number.map_or(0, |num| i64::from(num.0));
+        let min_batch_number = i64::from(min_batch_number.0);
         sqlx::query!(
             r#"
             WITH upsert AS (
