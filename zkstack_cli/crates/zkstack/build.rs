@@ -10,7 +10,22 @@ fn main() -> eyre::Result<()> {
         .generate()?
         .write_to_file(outdir.join("consensus_registry_abi.rs"))?;
 
-    //Crate name
+    // Copy completion scripts (ignore errors)
+    copy_completion_scripts().ok();
+
+    zksync_protobuf_build::Config {
+        input_root: "src/commands/consensus/proto".into(),
+        proto_root: "zksync/toolbox/consensus".into(),
+        dependencies: vec!["::zksync_protobuf_config::proto".parse().unwrap()],
+        protobuf_crate: "::zksync_protobuf".parse().unwrap(),
+        is_public: false,
+    }
+    .generate()
+    .unwrap();
+    Ok(())
+}
+
+fn copy_completion_scripts() -> eyre::Result<()> {
     let crate_name = env!("CARGO_PKG_NAME");
 
     // Create local config directory
@@ -46,7 +61,7 @@ fn main() -> eyre::Result<()> {
                 std::fs::write(
                     shell_rc,
                     format!(
-                        "{}\n# zkstack completion\nsource \"{}\"\n\n",
+                        "{}\n# zkstack completion\nsource \"{}\"\n",
                         shell_rc_content, completion_path
                     ),
                 )?;
@@ -54,14 +69,5 @@ fn main() -> eyre::Result<()> {
         }
     }
 
-    zksync_protobuf_build::Config {
-        input_root: "src/commands/consensus/proto".into(),
-        proto_root: "zksync/toolbox/consensus".into(),
-        dependencies: vec!["::zksync_protobuf_config::proto".parse().unwrap()],
-        protobuf_crate: "::zksync_protobuf".parse().unwrap(),
-        is_public: false,
-    }
-    .generate()
-    .unwrap();
     Ok(())
 }
