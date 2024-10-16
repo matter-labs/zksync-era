@@ -338,7 +338,7 @@ fn mempool_capacity() {
     // Mempool is full. Accounts with non-sequential nonces and some accounts with lowest score should be purged.
     assert_eq!(
         HashSet::<_>::from_iter(mempool.get_mempool_info().purged_accounts),
-        HashSet::<_>::from_iter(vec![account2, account3]),
+        HashSet::from([account2, account3]),
     );
     // verify that good-to-go transactions are kept.
     for _ in 0..3 {
@@ -373,10 +373,7 @@ fn mempool_does_not_purge_all_accounts() {
     mempool.insert(transactions, HashMap::new());
     // Mempool is full. Account 1 has tx with non-sequential nonce so it should be purged.
     // Txs from account 0 have sequential nonces but their number is greater than capacity; they should be kept.
-    assert_eq!(
-        HashSet::<_>::from_iter(mempool.get_mempool_info().purged_accounts),
-        HashSet::<_>::from_iter(vec![account1]),
-    );
+    assert_eq!(mempool.get_mempool_info().purged_accounts, vec![account1]);
     // verify that good-to-go transactions are kept.
     for _ in 0..2 {
         assert_eq!(

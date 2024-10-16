@@ -233,14 +233,18 @@ impl MempoolStore {
                         .map(|txs| (pointer.account, txs))
                 })
                 .collect();
-            let mut number_of_accounts_kept = possibly_kept
-                .iter()
-                .scan(0, |sum, (_, txs)| {
-                    *sum += txs.len();
-                    (*sum <= self.capacity as usize).then_some(())
-                })
-                .count();
-            if number_of_accounts_kept == 0 {
+
+            let mut sum = 0;
+            let mut number_of_accounts_kept = 0;
+            for (_, txs) in possibly_kept {
+                sum += txs.len();
+                if sum <= self.capacity as usize {
+                    number_of_accounts_kept += 1;
+                } else {
+                    break;
+                }
+            }
+            if number_of_accounts_kept == 0 && !possibly_kept.is_empty() {
                 tracing::warn!("mempool capacity is too low to handle txs from single account, consider increasing capacity");
                 // Keep at least one entry, otherwise mempool won't return any new L2 tx to process.
                 number_of_accounts_kept = 1;
