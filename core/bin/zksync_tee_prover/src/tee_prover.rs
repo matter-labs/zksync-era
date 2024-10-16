@@ -1,6 +1,5 @@
 use std::fmt;
 
-use reqwest::StatusCode;
 use secp256k1::{ecdsa::Signature, Message, PublicKey, Secp256k1};
 use zksync_basic_types::H256;
 use zksync_node_framework::{
@@ -92,8 +91,8 @@ impl TeeProver {
 
     async fn step(&self, public_key: &PublicKey) -> Result<Option<L1BatchNumber>, TeeProverError> {
         match self.api_client.get_job(self.config.tee_type).await {
-            Ok(job) => {
-                let (signature, batch_number, root_hash) = self.verify(*job)?;
+            Ok(Some(job)) => {
+                let (signature, batch_number, root_hash) = self.verify(job)?;
                 self.api_client
                     .submit_proof(
                         batch_number,
@@ -105,15 +104,11 @@ impl TeeProver {
                     .await?;
                 Ok(Some(batch_number))
             }
-            Err(err) => match err {
-                TeeProverError::Request(req_err)
-                    if req_err.status() == Some(StatusCode::NOT_FOUND) =>
-                {
-                    tracing::trace!("There are currently no pending batches to be proven");
-                    Ok(None)
-                }
-                _ => Err(err),
-            },
+            Ok(None) => {
+                tracing::trace!("There are currently no pending batches to be proven");
+                Ok(None)
+            }
+            Err(err) => Err(err),
         }
     }
 }
