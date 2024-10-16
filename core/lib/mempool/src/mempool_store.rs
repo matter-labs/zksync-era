@@ -236,7 +236,7 @@ impl MempoolStore {
 
             let mut sum = 0;
             let mut number_of_accounts_kept = 0;
-            for (_, txs) in possibly_kept {
+            for (_, txs) in &possibly_kept {
                 sum += txs.len();
                 if sum <= self.capacity as usize {
                     number_of_accounts_kept += 1;
