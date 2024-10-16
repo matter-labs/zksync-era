@@ -373,7 +373,7 @@ describe('System behavior checks', () => {
         const BOOTLOADER_UTILS = new ethers.Interface(
             require(`${
                 testMaster.environment().pathToHome
-            }/contracts/system-contracts/artifacts-zk/contracts-preprocessed/BootloaderUtilities.sol/BootloaderUtilities.json`).abi
+            }/contracts/system-contracts/zkout/BootloaderUtilities.sol/BootloaderUtilities.json`).abi
         );
 
         return new ethers.Contract(BOOTLOADER_UTILS_ADDRESS, BOOTLOADER_UTILS, alice);
