@@ -38,6 +38,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo CI=1 >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
+          echo $HOME/.local/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
@@ -73,39 +74,39 @@ jobs:
           tar -C ./contracts -zxf system-contracts.tar.gz
 
       - name: Install Apt dependencies
+        if: env.BUILD_CONTRACTS == 'true'
         shell: bash
         run: |
           sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config
 
       - name: Install Node
+        if: env.BUILD_CONTRACTS == 'true'
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with:
           node-version: 20
           cache: 'npm'
 
       - name: Install Yarn
+        if: env.BUILD_CONTRACTS == 'true'
         run: npm install -g yarn
 
       - name: Setup rust
+        if: env.BUILD_CONTRACTS == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@1fbea72663f6d4c03efaab13560c8a24cfd2a7cc # v1.9.0
         with:
           toolchain: nightly-2024-08-01
 
-      - name: Install cargo-nextest from crates.io
-        uses: baptiste0928/cargo-install@904927dbe77864e0f2281519fe9d5bd097a220b3 # v3.1.1
-        with:
-          crate: cargo-nextest
-
-      - name: Install sqlx-cli from crates.io
-        uses: baptiste0928/cargo-install@904927dbe77864e0f2281519fe9d5bd097a220b3 # v3.1.1
-        with:
-          crate: sqlx-cli
-          tag: 0.8.1
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@8f1998e9878d786675189ef566a2e4bf24869773 # v1.2.0
+      - name: Install foundry-zksync
+        if: env.BUILD_CONTRACTS == 'true'
+        run: |
+          mkdir ./foundry-zksync
+          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-15bec2f861b3b4c71e58f85e2b2c9dd722585aa8/foundry_nightly_linux_amd64.tar.gz
+          tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
+          echo "$PWD/foundry-zksync" >> $GITHUB_PATH
 
       - name: Pre-download compilers
+        if: env.BUILD_CONTRACTS == 'true'
         shell: bash
         run: |
           # Download needed versions of vyper compiler
@@ -123,18 +124,18 @@ jobs:
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
 
-      - name: init
-        shell: bash
+      - name: Install zkstack
+        if: env.BUILD_CONTRACTS == 'true'
         run: |
-          mkdir -p ./volumes/postgres
-          docker compose up -d postgres
-          zkt || true
+          ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup
+          zkstackup --local || true
 
       - name: build contracts
+        if: env.BUILD_CONTRACTS == 'true'
         shell: bash
         run: |
           cp etc/tokens/{test,localhost}.json
-          zk_supervisor contracts
+          zkstack dev contracts
 
       - name: Upload contracts
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0

@@ -86,6 +86,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             factory_deps_cache_size_mb: self.sample(rng),
             initial_writes_cache_size_mb: self.sample(rng),
             latest_values_cache_size_mb: self.sample(rng),
+            latest_values_max_block_lag: self.sample(rng),
             fee_history_limit: self.sample(rng),
             max_batch_request_size: self.sample(rng),
             max_response_body_size_mb: self.sample(rng),
@@ -802,6 +803,7 @@ impl Distribution<configs::consensus::ConsensusConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::consensus::ConsensusConfig {
         use configs::consensus::{ConsensusConfig, Host, NodePublicKey};
         ConsensusConfig {
+            port: self.sample(rng),
             server_addr: self.sample(rng),
             public_addr: Host(self.sample(rng)),
             max_payload_size: self.sample(rng),

@@ -578,11 +578,14 @@ impl BlocksDal<'_, '_> {
     /// null or set to default value for the corresponding type).
     pub async fn insert_l1_batch(
         &mut self,
-        number: L1BatchNumber,
-        timestamp: u64,
-        protocol_version: Option<ProtocolVersionId>,
-        fee_address: Address,
-        batch_fee_input: BatchFeeInput,
+        unsealed_batch_header: UnsealedL1BatchHeader,
+    ) -> DalResult<()> {
+        Self::insert_l1_batch_inner(unsealed_batch_header, self.storage).await
+    }
+
+    async fn insert_l1_batch_inner(
+        unsealed_batch_header: UnsealedL1BatchHeader,
+        conn: &mut Connection<'_, Core>,
     ) -> DalResult<()> {
         sqlx::query!(
             r#"
@@ -625,18 +628,48 @@ impl BlocksDal<'_, '_> {
                 FALSE
             )
             "#,
-            i64::from(number.0),
-            timestamp as i64,
-            protocol_version.map(|v| v as i32),
-            fee_address.as_bytes(),
-            batch_fee_input.l1_gas_price() as i64,
-            batch_fee_input.fair_l2_gas_price() as i64,
-            batch_fee_input.fair_pubdata_price() as i64,
+            i64::from(unsealed_batch_header.number.0),
+            unsealed_batch_header.timestamp as i64,
+            unsealed_batch_header.protocol_version.map(|v| v as i32),
+            unsealed_batch_header.fee_address.as_bytes(),
+            unsealed_batch_header.fee_input.l1_gas_price() as i64,
+            unsealed_batch_header.fee_input.fair_l2_gas_price() as i64,
+            unsealed_batch_header.fee_input.fair_pubdata_price() as i64,
         )
         .instrument("insert_l1_batch")
-        .with_arg("number", &number)
-        .execute(self.storage)
+        .with_arg("number", &unsealed_batch_header.number)
+        .execute(conn)
         .await?;
+        Ok(())
+    }
+
+    pub async fn ensure_unsealed_l1_batch_exists(
+        &mut self,
+        unsealed_batch: UnsealedL1BatchHeader,
+    ) -> anyhow::Result<()> {
+        let mut transaction = self.storage.start_transaction().await?;
+        let unsealed_batch_fetched = Self::get_unsealed_l1_batch_inner(&mut transaction).await?;
+
+        match unsealed_batch_fetched {
+            None => {
+                tracing::info!(
+                    "Unsealed batch #{} could not be found; inserting",
+                    unsealed_batch.number
+                );
+                Self::insert_l1_batch_inner(unsealed_batch, &mut transaction).await?;
+            }
+            Some(unsealed_batch_fetched) => {
+                if unsealed_batch_fetched.number != unsealed_batch.number {
+                    anyhow::bail!(
+                        "fetched unsealed L1 batch #{} does not conform to expected L1 batch #{}",
+                        unsealed_batch_fetched.number,
+                        unsealed_batch.number
+                    )
+                }
+            }
+        }
+
+        transaction.commit().await?;
         Ok(())
     }
 
@@ -744,6 +777,12 @@ impl BlocksDal<'_, '_> {
     }
 
     pub async fn get_unsealed_l1_batch(&mut self) -> DalResult<Option<UnsealedL1BatchHeader>> {
+        Self::get_unsealed_l1_batch_inner(self.storage).await
+    }
+
+    async fn get_unsealed_l1_batch_inner(
+        conn: &mut Connection<'_, Core>,
+    ) -> DalResult<Option<UnsealedL1BatchHeader>> {
         let batch = sqlx::query_as!(
             UnsealedStorageL1Batch,
             r#"
@@ -761,8 +800,8 @@ impl BlocksDal<'_, '_> {
                 NOT is_sealed
             "#,
         )
-        .instrument("get_last_committed_to_eth_l1_batch")
-        .fetch_optional(self.storage)
+        .instrument("get_unsealed_l1_batch")
+        .fetch_optional(conn)
         .await?;
 
         Ok(batch.map(|b| b.into()))
@@ -2145,20 +2184,6 @@ impl BlocksDal<'_, '_> {
         Ok(Some((L2BlockNumber(min as u32), L2BlockNumber(max as u32))))
     }
 
-    /// Returns `true` if there exists a non-sealed batch (i.e. there is one+ stored L2 block that isn't assigned
-    /// to any batch yet).
-    pub async fn pending_batch_exists(&mut self) -> DalResult<bool> {
-        let count = sqlx::query_scalar!(
-            "SELECT COUNT(miniblocks.number) FROM miniblocks WHERE l1_batch_number IS NULL"
-        )
-        .instrument("pending_batch_exists")
-        .fetch_one(self.storage)
-        .await?
-        .unwrap_or(0);
-
-        Ok(count != 0)
-    }
-
     // methods used for measuring Eth tx stage transition latencies
     // and emitting metrics base on these measured data
     pub async fn oldest_uncommitted_batch_timestamp(&mut self) -> DalResult<Option<u64>> {
@@ -2621,11 +2646,7 @@ impl BlocksDal<'_, '_> {
 
     pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
         self.insert_l1_batch(
-            header.number,
-            header.timestamp,
-            header.protocol_version,
-            header.fee_address,
-            BatchFeeInput::pubdata_independent(100, 100, 100),
+            header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
         )
         .await?;
         self.mark_l1_batch_as_sealed(
@@ -2940,11 +2961,7 @@ mod tests {
         };
         conn.blocks_dal()
             .insert_l1_batch(
-                header.number,
-                header.timestamp,
-                header.protocol_version,
-                header.fee_address,
-                BatchFeeInput::pubdata_independent(100, 100, 100),
+                header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
             )
             .await
             .unwrap();
@@ -2958,11 +2975,7 @@ mod tests {
         predicted_gas += predicted_gas;
         conn.blocks_dal()
             .insert_l1_batch(
-                header.number,
-                header.timestamp,
-                header.protocol_version,
-                header.fee_address,
-                BatchFeeInput::pubdata_independent(100, 100, 100),
+                header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
             )
             .await
             .unwrap();

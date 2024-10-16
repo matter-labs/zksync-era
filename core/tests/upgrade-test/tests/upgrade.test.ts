@@ -160,7 +160,7 @@ describe('Upgrade test', function () {
             components: serverComponents,
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile,
+            useZkStack: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
         // Server may need some time to recompile if it's a cold run, so wait for it.
@@ -236,10 +236,10 @@ describe('Upgrade test', function () {
     });
 
     step('Send l1 tx for saving new bootloader', async () => {
-        const path = `${pathToHome}/contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul/playground_batch.yul.zbin`;
+        const path = `${pathToHome}/contracts/system-contracts/zkout/playground_batch.yul/contracts-preprocessed/bootloader/playground_batch.yul.json`;
         let bootloaderCode;
         if (fs.existsSync(path)) {
-            bootloaderCode = '0x'.concat(fs.readFileSync(path).toString());
+            bootloaderCode = '0x'.concat(require(path).bytecode.object);
         } else {
             const legacyPath = `${pathToHome}/contracts/system-contracts/bootloader/build/artifacts/playground_batch.yul.zbin`;
             bootloaderCode = ethers.hexlify(fs.readFileSync(legacyPath));
@@ -377,7 +377,7 @@ describe('Upgrade test', function () {
             components: serverComponents,
             stdio: ['ignore', logs, logs],
             cwd: pathToHome,
-            useZkInception: fileConfig.loadFromFile,
+            useZkStack: fileConfig.loadFromFile,
             chain: fileConfig.chain
         });
         await utils.sleep(10);

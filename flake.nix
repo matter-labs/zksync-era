@@ -47,7 +47,7 @@
           packages = {
             # to ease potential cross-compilation, the overlay is used
             inherit (appliedOverlay.zksync-era) zksync tee_prover container-tee-prover-azure container-tee-prover-dcap;
-            default = appliedOverlay.zksync-era.zksync;
+            default = appliedOverlay.zksync-era.tee_prover;
           };
 
           devShells.default = appliedOverlay.zksync-era.devShell;
@@ -91,7 +91,7 @@
                 ./Cargo.toml
                 ./core
                 ./prover
-                ./zk_toolbox
+                ./zkstack_cli
                 ./.github/release-please/manifest.json
               ];
             };
@@ -107,10 +107,6 @@
             strictDeps = true;
             inherit hardeningEnable;
           };
-
-          cargoArtifacts = craneLib.buildDepsOnly (commonArgs // {
-            pname = "zksync-era-workspace";
-          });
         in
         {
           zksync-era = rec {
@@ -120,12 +116,11 @@
             };
 
             zksync = pkgs.callPackage ./etc/nix/zksync.nix {
-              inherit cargoArtifacts;
               inherit craneLib;
               inherit commonArgs;
             };
+
             tee_prover = pkgs.callPackage ./etc/nix/tee_prover.nix {
-              inherit cargoArtifacts;
               inherit craneLib;
               inherit commonArgs;
             };
