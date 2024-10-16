@@ -63,8 +63,8 @@ circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol.
 zkevm_test_harness = { git = "https://github.com/matter-labs/zksync-protocol.git", package = "zkevm_test_harness" }
 
 # GPU proving dependencies
-wrapper_prover = { package = "zksync-wrapper-prover", version = "=0.150.9" }
-shivini = "=0.150.9"
+wrapper_prover = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch="vv-temp-harness-pin", package = "zksync-wrapper-prover" }
+shivini = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch="vv-temp-harness-pin", package = "shivini" }
 
 # Core workspace dependencies
 zksync_multivm = { path = "../core/lib/multivm", version = "0.1.0" }
