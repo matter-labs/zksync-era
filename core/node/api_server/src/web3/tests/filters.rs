@@ -23,7 +23,7 @@ impl HttpTest for BasicFilterChangesTest {
         if self.snapshot_recovery {
             StorageInitialization::empty_recovery()
         } else {
-            StorageInitialization::Genesis
+            StorageInitialization::genesis()
         }
     }
 
@@ -109,7 +109,7 @@ impl HttpTest for LogFilterChangesTest {
         if self.snapshot_recovery {
             StorageInitialization::empty_recovery()
         } else {
-            StorageInitialization::Genesis
+            StorageInitialization::genesis()
         }
     }
 

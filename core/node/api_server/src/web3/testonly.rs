@@ -13,7 +13,10 @@ use zksync_types::L2ChainId;
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 
 use super::{metrics::ApiTransportLabel, *};
-use crate::{execution_sandbox::SandboxExecutor, tx_sender::TxSenderConfig};
+use crate::{
+    execution_sandbox::SandboxExecutor,
+    tx_sender::{SandboxExecutorOptions, TxSenderConfig},
+};
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(90);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
@@ -103,6 +106,7 @@ pub struct TestServerBuilder {
     pool: ConnectionPool<Core>,
     api_config: InternalApiConfig,
     tx_executor: MockOneshotExecutor,
+    executor_options: Option<SandboxExecutorOptions>,
     method_tracer: Arc<MethodTracer>,
 }
 
@@ -113,6 +117,7 @@ impl TestServerBuilder {
             api_config,
             pool,
             tx_executor: MockOneshotExecutor::default(),
+            executor_options: None,
             method_tracer: Arc::default(),
         }
     }
@@ -131,19 +136,17 @@ impl TestServerBuilder {
         self
     }
 
+    #[must_use]
+    pub fn with_executor_options(mut self, options: SandboxExecutorOptions) -> Self {
+        self.executor_options = Some(options);
+        self
+    }
+
     /// Builds an HTTP server.
     pub async fn build_http(self, stop_receiver: watch::Receiver<bool>) -> ApiServerHandles {
-        spawn_server(
-            ApiTransportLabel::Http,
-            self.api_config,
-            self.pool,
-            None,
-            self.tx_executor,
-            self.method_tracer,
-            stop_receiver,
-        )
-        .await
-        .0
+        self.spawn_server(ApiTransportLabel::Http, None, stop_receiver)
+            .await
+            .0
     }
 
     /// Builds a WS server.
@@ -152,64 +155,73 @@ impl TestServerBuilder {
         websocket_requests_per_minute_limit: Option<NonZeroU32>,
         stop_receiver: watch::Receiver<bool>,
     ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
-        spawn_server(
+        self.spawn_server(
             ApiTransportLabel::Ws,
-            self.api_config,
-            self.pool,
             websocket_requests_per_minute_limit,
-            self.tx_executor,
-            self.method_tracer,
             stop_receiver,
         )
         .await
     }
-}
 
-async fn spawn_server(
-    transport: ApiTransportLabel,
-    api_config: InternalApiConfig,
-    pool: ConnectionPool<Core>,
-    websocket_requests_per_minute_limit: Option<NonZeroU32>,
-    tx_executor: MockOneshotExecutor,
-    method_tracer: Arc<MethodTracer>,
-    stop_receiver: watch::Receiver<bool>,
-) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
-    let tx_executor = SandboxExecutor::mock(tx_executor).await;
-    let (tx_sender, vm_barrier) =
-        create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor).await;
-    let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
+    async fn spawn_server(
+        self,
+        transport: ApiTransportLabel,
+        websocket_requests_per_minute_limit: Option<NonZeroU32>,
+        stop_receiver: watch::Receiver<bool>,
+    ) -> (ApiServerHandles, mpsc::UnboundedReceiver<PubSubEvent>) {
+        let Self {
+            tx_executor,
+            executor_options,
+            pool,
+            api_config,
+            method_tracer,
+        } = self;
 
-    let mut namespaces = Namespace::DEFAULT.to_vec();
-    namespaces.extend([Namespace::Debug, Namespace::Snapshots, Namespace::Unstable]);
-    let sealed_l2_block_handle = SealedL2BlockNumber::default();
-    let bridge_addresses_handle = BridgeAddressesHandle::new(api_config.bridge_addresses.clone());
+        let tx_executor = if let Some(options) = executor_options {
+            SandboxExecutor::custom_mock(tx_executor, options)
+        } else {
+            SandboxExecutor::mock(tx_executor).await
+        };
+        let (tx_sender, vm_barrier) =
+            create_test_tx_sender(pool.clone(), api_config.l2_chain_id, tx_executor).await;
+        let (pub_sub_events_sender, pub_sub_events_receiver) = mpsc::unbounded_channel();
 
-    let server_builder = match transport {
-        ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
-        ApiTransportLabel::Ws => {
-            let mut builder = ApiBuilder::jsonrpsee_backend(api_config, pool)
-                .ws(0)
-                .with_subscriptions_limit(100);
-            if let Some(websocket_requests_per_minute_limit) = websocket_requests_per_minute_limit {
-                builder = builder
-                    .with_websocket_requests_per_minute_limit(websocket_requests_per_minute_limit);
+        let mut namespaces = Namespace::DEFAULT.to_vec();
+        namespaces.extend([Namespace::Debug, Namespace::Snapshots, Namespace::Unstable]);
+        let sealed_l2_block_handle = SealedL2BlockNumber::default();
+        let bridge_addresses_handle =
+            BridgeAddressesHandle::new(api_config.bridge_addresses.clone());
+
+        let server_builder = match transport {
+            ApiTransportLabel::Http => ApiBuilder::jsonrpsee_backend(api_config, pool).http(0),
+            ApiTransportLabel::Ws => {
+                let mut builder = ApiBuilder::jsonrpsee_backend(api_config, pool)
+                    .ws(0)
+                    .with_subscriptions_limit(100);
+                if let Some(websocket_requests_per_minute_limit) =
+                    websocket_requests_per_minute_limit
+                {
+                    builder = builder.with_websocket_requests_per_minute_limit(
+                        websocket_requests_per_minute_limit,
+                    );
+                }
+                builder
             }
-            builder
-        }
-    };
-    let server_handles = server_builder
-        .with_polling_interval(POLL_INTERVAL)
-        .with_tx_sender(tx_sender)
-        .with_vm_barrier(vm_barrier)
-        .with_pub_sub_events(pub_sub_events_sender)
-        .with_method_tracer(method_tracer)
-        .enable_api_namespaces(namespaces)
-        .with_sealed_l2_block_handle(sealed_l2_block_handle)
-        .with_bridge_addresses_handle(bridge_addresses_handle)
-        .build()
-        .expect("Unable to build API server")
-        .run(stop_receiver)
-        .await
-        .expect("Failed spawning JSON-RPC server");
-    (server_handles, pub_sub_events_receiver)
+        };
+        let server_handles = server_builder
+            .with_polling_interval(POLL_INTERVAL)
+            .with_tx_sender(tx_sender)
+            .with_vm_barrier(vm_barrier)
+            .with_pub_sub_events(pub_sub_events_sender)
+            .with_method_tracer(method_tracer)
+            .enable_api_namespaces(namespaces)
+            .with_sealed_l2_block_handle(sealed_l2_block_handle)
+            .with_bridge_addresses_handle(bridge_addresses_handle)
+            .build()
+            .expect("Unable to build API server")
+            .run(stop_receiver)
+            .await
+            .expect("Failed spawning JSON-RPC server");
+        (server_handles, pub_sub_events_receiver)
+    }
 }
