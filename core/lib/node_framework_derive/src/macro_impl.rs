@@ -92,7 +92,7 @@ impl MacroImpl {
     fn render_from_context(self) -> Result<proc_macro2::TokenStream> {
         let crate_path = self.crate_path();
         let ident = self.ident;
-        let mut fields = Vec::new();
+        let mut fields = Vec::with_capacity(self.fields.len());
         for field in self.fields {
             let ty = field.ty;
             let ident = field.ident;
@@ -139,7 +139,7 @@ impl MacroImpl {
     fn render_into_context(self) -> Result<proc_macro2::TokenStream> {
         let crate_path = self.crate_path();
         let ident = self.ident;
-        let mut actions = Vec::new();
+        let mut actions = Vec::with_capacity(self.fields.len());
         for field in self.fields {
             let ty = field.ty;
             let ident = field.ident;

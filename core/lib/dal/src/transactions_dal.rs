@@ -1555,12 +1555,13 @@ impl TransactionsDal<'_, '_> {
                 .with_arg("l2_block_number", &l2_block_number)
                 .with_arg("upgrade_txs.len", &upgrade_txs_len);
 
-        let mut upgrade_hashes = Vec::new();
-        let mut upgrade_indices_in_block = Vec::new();
-        let mut upgrade_errors = Vec::new();
-        let mut upgrade_execution_infos = Vec::new();
-        let mut upgrade_refunded_gas = Vec::new();
-        let mut upgrade_effective_gas_prices = Vec::new();
+        let len = transactions.len();
+        let mut upgrade_hashes = Vec::with_capacity(len);
+        let mut upgrade_indices_in_block = Vec::with_capacity(len);
+        let mut upgrade_errors = Vec::with_capacity(len);
+        let mut upgrade_execution_infos = Vec::with_capacity(len);
+        let mut upgrade_refunded_gas = Vec::with_capacity(len);
+        let mut upgrade_effective_gas_prices = Vec::with_capacity(len);
 
         for (index_in_block, tx_res) in transactions.iter().enumerate() {
             let transaction = &tx_res.transaction;

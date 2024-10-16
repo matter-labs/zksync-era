@@ -127,7 +127,7 @@ pub trait EIP712TypedStructure {
         };
         let encode_data = self.encode_data();
 
-        let mut bytes = Vec::new();
+        let mut bytes = Vec::with_capacity(32 + 32 * encode_data.len());
         bytes.extend_from_slice(&type_hash);
         for data in encode_data {
             bytes.extend_from_slice(data.as_bytes());

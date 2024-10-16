@@ -133,8 +133,6 @@ impl EncodeBuilder {
     /// If the struct type references other struct types (and these in turn reference even more struct types),
     /// then the set of referenced struct types is collected, sorted by name and appended to the encoding.
     pub fn get_json_types(&self, type_name: &str) -> Vec<Value> {
-        let mut result = Vec::new();
-
         let mut outer_members_builder = OuterTypeBuilder::new();
         for (member, _) in self.members.iter() {
             outer_members_builder.add_member(member.clone());
@@ -158,7 +156,7 @@ impl EncodeBuilder {
                 inner_members,
             }
         };
-
+        let mut result = Vec::with_capacity(1 + outer_members.len());
         result.push(inner_member.get_json_types());
         for (_, outer_member) in outer_members {
             result.push(outer_member.get_json_types());

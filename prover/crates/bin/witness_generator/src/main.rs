@@ -180,7 +180,7 @@ async fn main() -> anyhow::Result<()> {
     };
     let prometheus_task = prometheus_config.run(stop_receiver.clone());
 
-    let mut tasks = Vec::new();
+    let mut tasks = Vec::with_capacity(1 + rounds.len());
     tasks.push(tokio::spawn(prometheus_task));
 
     for round in rounds {

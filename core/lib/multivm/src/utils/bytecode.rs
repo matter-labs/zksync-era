@@ -21,7 +21,6 @@ fn compress_to_bytes(code: &[u8]) -> Result<Vec<u8>, FailedToCompressBytecodeErr
     // this is needed to ensure that the determinism during sorting of the statistic, i.e.
     // each element will have unique first occurrence position
     let mut statistic: HashMap<u64, (usize, usize)> = HashMap::new();
-    let mut dictionary: HashMap<u64, u16> = HashMap::new();
     let mut encoded_data: Vec<u8> = Vec::new();
 
     // Split original bytecode into 8-byte chunks.
@@ -47,6 +46,7 @@ fn compress_to_bytes(code: &[u8]) -> Result<Vec<u8>, FailedToCompressBytecodeErr
     // the 255 most popular chunks will be encoded with one zero byte.
     // And the encoded data will be filled with more zeros, so
     // the calldata that will be sent to L1 will be cheaper.
+    let mut dictionary: HashMap<u64, u16> = HashMap::with_capacity(statistic_sorted_by_value.len());
     for (chunk, _) in statistic_sorted_by_value.iter().rev() {
         dictionary.insert(*chunk, dictionary.len() as u16);
     }
@@ -105,9 +105,9 @@ mod tests {
 
     fn decompress_bytecode(raw_compressed_bytecode: &[u8]) -> Vec<u8> {
         let mut decompressed: Vec<u8> = Vec::new();
-        let mut dictionary: Vec<u64> = Vec::new();
 
         let dictionary_len = u16::from_be_bytes(raw_compressed_bytecode[0..2].try_into().unwrap());
+        let mut dictionary: Vec<u64> = Vec::with_capacity(dictionary_len);
         for index in 0..dictionary_len {
             let chunk = u64::from_be_bytes(
                 raw_compressed_bytecode[2 + index as usize * 8..10 + index as usize * 8]

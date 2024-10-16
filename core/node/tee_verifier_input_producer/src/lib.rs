@@ -105,7 +105,7 @@ impl TeeVerifierInputProducer {
         // `get_factory_deps()` returns the bytecode in chunks of `Vec<[u8; 32]>`,
         // but `fn store_factory_dep(&mut self, hash: H256, bytecode: Vec<u8>)` in `InMemoryStorage` wants flat byte vecs.
         pub fn into_flattened<T: Clone, const N: usize>(data: Vec<[T; N]>) -> Vec<T> {
-            let mut new = Vec::new();
+            let mut new = Vec::with_capacity(N * data.len());
             for slice in data.iter() {
                 new.extend_from_slice(slice);
             }

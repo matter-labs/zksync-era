@@ -43,7 +43,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
         sl_client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<usize, EventProcessorError> {
-        let mut upgrades = Vec::new();
+        let mut upgrades = Vec::with_capacity(events.len());
         for event in &events {
             let version = event.topics.get(1).copied().context("missing topic 1")?;
             let timestamp: u64 = U256::from_big_endian(&event.data.0)
