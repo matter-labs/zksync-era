@@ -53,7 +53,7 @@ jobs:
         run: |
           ci_run zkstackup -g --local
           ci_run zkstack dev contracts --system-contracts
-          ci_run cargo bench --package vm-benchmark --bench instructions
+          ci_run cargo bench --package vm-benchmark --bench instructions -- --verbose || echo "Instructions benchmark is missing"
           ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee base-opcodes
 
       - name: checkout PR

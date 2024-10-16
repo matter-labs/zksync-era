@@ -90,8 +90,8 @@ impl BenchmarkReporter for MetricsBenchmarkReporter {
 
 #[derive(Debug, Clone, Copy)]
 struct Comparison {
-    est_cycles: u64,
-    est_cycles_diff: f64,
+    current_cycles: u64,
+    prev_cycles: Option<u64>,
 }
 
 impl Comparison {
@@ -101,11 +101,21 @@ impl Comparison {
 
     fn new(output: &BenchmarkOutput) -> Option<Self> {
         let current_cycles = AccessSummary::from(*output.stats.as_full()?).estimated_cycles();
-        let prev_cycles = AccessSummary::from(*output.prev_stats?.as_full()?).estimated_cycles();
+        let prev_cycles = if let Some(prev_stats) = &output.prev_stats {
+            Some(AccessSummary::from(*prev_stats.as_full()?).estimated_cycles())
+        } else {
+            None
+        };
+
         Some(Self {
-            est_cycles: current_cycles,
-            est_cycles_diff: Self::percent_difference(prev_cycles, current_cycles),
+            current_cycles,
+            prev_cycles,
         })
+    }
+
+    fn cycles_diff(&self) -> Option<f64> {
+        self.prev_cycles
+            .map(|prev_cycles| Self::percent_difference(prev_cycles, self.current_cycles))
     }
 }
 
@@ -127,7 +137,10 @@ impl Drop for ComparisonReporter {
         });
 
         let mut comparisons = self.comparisons.lock().expect("poisoned").clone();
-        comparisons.retain(|_, diff| diff.est_cycles_diff.abs() > diff_threshold);
+        comparisons.retain(|_, diff| {
+            // Output all stats if `diff_threshold <= 0.0` since this is what the user expects
+            diff.cycles_diff().unwrap_or(0.0) >= diff_threshold
+        });
         if comparisons.is_empty() {
             return;
         }
@@ -136,10 +149,10 @@ impl Drop for ComparisonReporter {
         println!("Benchmark name | Est. cycles | Change in est. cycles |");
         println!("|:---|---:|---:|");
         for (name, comparison) in &comparisons {
-            println!(
-                "| {name} | {} | {:+.1}% |",
-                comparison.est_cycles, comparison.est_cycles_diff
-            );
+            let diff = comparison
+                .cycles_diff()
+                .map_or_else(|| "N/A".to_string(), |diff| format!("{diff:+.1}%"));
+            println!("| {name} | {} | {diff} |", comparison.current_cycles);
         }
     }
 }
