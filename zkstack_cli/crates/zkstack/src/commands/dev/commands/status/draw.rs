@@ -1,3 +1,5 @@
+use crate::{commands::dev::commands::status::utils::is_port_open, utils::ports::PortInfo};
+
 const DEFAULT_LINE_WIDTH: usize = 32;
 
 pub struct BoxProperties {
@@ -70,4 +72,17 @@ pub fn bordered_boxes(msg1: &str, msg2: Option<&String>) -> String {
         .collect();
 
     format!("{}{}\n{}", header, boxed_info.join("\n"), footer)
+}
+
+pub fn format_port_info(port_info: &PortInfo) -> String {
+    let in_use_tag = if is_port_open(port_info.port) {
+        " [OPEN]"
+    } else {
+        ""
+    };
+
+    format!(
+        "  - {}{} > {}",
+        port_info.port, in_use_tag, port_info.description
+    )
 }

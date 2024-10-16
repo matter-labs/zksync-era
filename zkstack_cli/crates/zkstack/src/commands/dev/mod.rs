@@ -1,5 +1,5 @@
 use clap::Subcommand;
-use commands::status::StatusArgs;
+use commands::status::args::StatusArgs;
 use messages::MSG_STATUS_ABOUT;
 use xshell::Shell;
 

@@ -1,23 +1,19 @@
-use std::{collections::HashMap, net::TcpListener};
+use std::collections::HashMap;
 
 use anyhow::Context;
-use clap::Parser;
+use args::{StatusArgs, StatusSubcommands};
 use common::logger;
-use config::EcosystemConfig;
-use draw::bordered_boxes;
+use draw::{bordered_boxes, format_port_info};
 use serde::Deserialize;
 use serde_json::Value;
+use utils::deslugify;
 use xshell::Shell;
 
-use crate::{
-    commands::dev::messages::{
-        MSG_API_CONFIG_NOT_FOUND_ERR, MSG_STATUS_PORTS_HELP, MSG_STATUS_URL_HELP,
-    },
-    messages::MSG_CHAIN_NOT_FOUND_ERR,
-    utils::ports::EcosystemPortsScanner,
-};
+use crate::utils::ports::EcosystemPortsScanner;
 
+pub mod args;
 mod draw;
+mod utils;
 
 #[derive(Deserialize, Debug)]
 struct StatusResponse {
@@ -29,20 +25,6 @@ struct StatusResponse {
 struct Component {
     status: String,
     details: Option<Value>,
-}
-
-#[derive(Debug, Parser)]
-pub struct StatusArgs {
-    #[clap(long, short = 'u', help = MSG_STATUS_URL_HELP)]
-    pub url: Option<String>,
-    #[clap(subcommand)]
-    pub subcommand: Option<StatusSubcommands>,
-}
-
-#[derive(Debug, Parser)]
-pub enum StatusSubcommands {
-    #[clap(about = MSG_STATUS_PORTS_HELP)]
-    Ports,
 }
 
 fn print_status(health_check_url: String) -> anyhow::Result<()> {
@@ -68,8 +50,7 @@ fn print_status(health_check_url: String) -> anyhow::Result<()> {
 
         if let Some(details) = &component.details {
             for (key, value) in details.as_object().unwrap() {
-                let deslugified_key = deslugify(key);
-                component_info.push_str(&format!("\n  - {}: {}", deslugified_key, value));
+                component_info.push_str(&format!("\n  - {}: {}", deslugify(key), value));
             }
         }
 
@@ -106,10 +87,6 @@ fn print_status(health_check_url: String) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn is_port_open(port: u16) -> bool {
-    TcpListener::bind(("0.0.0.0", port)).is_err() || TcpListener::bind(("127.0.0.1", port)).is_err()
-}
-
 fn print_ports(shell: &Shell) -> anyhow::Result<()> {
     let ports = EcosystemPortsScanner::scan(shell)?;
     let grouped_ports = ports.group_by_file_path();
@@ -120,16 +97,7 @@ fn print_ports(shell: &Shell) -> anyhow::Result<()> {
         let mut port_info_lines = String::new();
 
         for port_info in port_infos {
-            let in_use_tag = if is_port_open(port_info.port) {
-                " [OPEN]"
-            } else {
-                ""
-            };
-
-            port_info_lines.push_str(&format!(
-                "  - {}{} > {}\n",
-                port_info.port, in_use_tag, port_info.description
-            ));
+            port_info_lines.push_str(&format_port_info(&port_info));
         }
 
         all_port_lines.push(format!("{}:\n{}", file_path, port_info_lines));
@@ -151,47 +119,12 @@ fn print_ports(shell: &Shell) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn deslugify(name: &str) -> String {
-    name.split('_')
-        .map(|word| {
-            let mut chars = word.chars();
-            match chars.next() {
-                Some(first) => {
-                    let capitalized = first.to_uppercase().collect::<String>() + chars.as_str();
-                    match capitalized.as_str() {
-                        "Http" => "HTTP".to_string(),
-                        "Api" => "API".to_string(),
-                        "Ws" => "WS".to_string(),
-                        _ => capitalized,
-                    }
-                }
-                None => String::new(),
-            }
-        })
-        .collect::<Vec<String>>()
-        .join(" ")
-}
-
 pub async fn run(shell: &Shell, args: StatusArgs) -> anyhow::Result<()> {
     if let Some(StatusSubcommands::Ports) = args.subcommand {
         return print_ports(shell);
     }
 
-    let health_check_url = if let Some(url) = args.url {
-        url
-    } else {
-        let ecosystem = EcosystemConfig::from_file(shell)?;
-        let chain = ecosystem
-            .load_current_chain()
-            .context(MSG_CHAIN_NOT_FOUND_ERR)?;
-        let general_config = chain.get_general_config()?;
-        let health_check_port = general_config
-            .api_config
-            .context(MSG_API_CONFIG_NOT_FOUND_ERR)?
-            .healthcheck
-            .port;
-        format!("http://localhost:{}/health", health_check_port)
-    };
+    let health_check_url = args.get_url(shell)?;
 
     print_status(health_check_url)
 }
