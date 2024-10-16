@@ -255,12 +255,16 @@ testFees('Test fees', function () {
             newPubdataPrice: l1GasPrice
         });
 
-        const receipt = await (
-            await alice.sendTransaction({
+        const doTxToReceiver = () =>
+            alice.sendTransaction({
                 to: receiver,
                 value: BigInt(1)
-            })
-        ).wait();
+            });
+
+        //wait 1 miniblock so the multiplier gets updated
+        await doTxToReceiver().then((tx) => tx.wait(1));
+
+        const receipt = await doTxToReceiver().then((tx) => tx.wait());
 
         const feeParams = await alice._providerL2().getFeeParams();
         const feeConfig = feeParams.V2.config;
@@ -283,7 +287,7 @@ testFees('Test fees', function () {
 
         console.log('feeParams', feeParams);
         console.log('receipt', receipt);
-        console.log('gas price');
+        console.log('gas price', await alice._providerL2().getGasPrice());
         console.log(await alice._providerL2().getFeeParams());
         expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
         expect(await alice._providerL2().getGasPrice()).toBe(BigInt(expectedConvertedGasPrice));
