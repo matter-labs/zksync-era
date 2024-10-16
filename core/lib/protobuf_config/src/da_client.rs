@@ -19,18 +19,20 @@ impl ProtoRepr for proto::DataAvailabilityClient {
         let client = match config {
             proto::data_availability_client::Config::Avail(conf) => {
                 Avail(match conf.config.as_ref() {
-                    Some(proto::avail_config::Config::Default(default_conf)) => AvailConfig {
-                        bridge_api_url: required(&conf.bridge_api_url)
-                            .context("bridge_api_url")?
-                            .clone(),
-                        timeout: *required(&conf.timeout).context("timeout")? as usize,
-                        config: AvailClientConfig::Default(AvailDefaultConfig {
-                            api_node_url: required(&default_conf.api_node_url)
-                                .context("api_node_url")?
+                    Some(proto::avail_config::Config::FullClient(full_client__conf)) => {
+                        AvailConfig {
+                            bridge_api_url: required(&conf.bridge_api_url)
+                                .context("bridge_api_url")?
                                 .clone(),
-                            app_id: *required(&default_conf.app_id).context("app_id")?,
-                        }),
-                    },
+                            timeout: *required(&conf.timeout).context("timeout")? as usize,
+                            config: AvailClientConfig::FullClient(AvailDefaultConfig {
+                                api_node_url: required(&full_client__conf.api_node_url)
+                                    .context("api_node_url")?
+                                    .clone(),
+                                app_id: *required(&full_client__conf.app_id).context("app_id")?,
+                            }),
+                        }
+                    }
                     Some(proto::avail_config::Config::GasRelay(gas_relay_conf)) => AvailConfig {
                         bridge_api_url: required(&conf.bridge_api_url)
                             .context("bridge_api_url")?
@@ -61,8 +63,8 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                         bridge_api_url: Some(config.bridge_api_url.clone()),
                         timeout: Some(config.timeout as u64),
                         config: match &config.config {
-                            AvailClientConfig::Default(conf) => Some(
-                                proto::avail_config::Config::Default(proto::AvailDefaultConfig {
+                            AvailClientConfig::FullClient(conf) => Some(
+                                proto::avail_config::Config::FullClient(proto::AvailClientConfig {
                                     api_node_url: Some(conf.api_node_url.clone()),
                                     app_id: Some(conf.app_id),
                                 }),

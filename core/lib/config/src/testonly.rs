@@ -953,7 +953,7 @@ impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
         Avail(AvailConfig {
             bridge_api_url: self.sample(rng),
             timeout: self.sample(rng),
-            config: AvailClientConfig::Default(AvailDefaultConfig {
+            config: AvailClientConfig::FullClient(AvailDefaultConfig {
                 api_node_url: self.sample(rng),
                 app_id: self.sample(rng),
             }),

@@ -5,26 +5,25 @@ package zksync.config.da_client;
 import "zksync/config/object_store.proto";
 
 message AvailConfig {
-  optional string bridge_api_url = 1;
-  optional uint64 timeout = 2;
+  optional string bridge_api_url = 2;
+  optional uint64 timeout = 5;
   oneof config {
-    AvailDefaultConfig default = 4;
-    AvailGasRelayConfig gas_relay = 5;
+    AvailClientConfig full_client = 7;
+    AvailGasRelayConfig gas_relay = 8;
   }
-  reserved 3;
-  reserved "seed";
-  reserved 6;
-  reserved "max_retries";
+  reserved 1; reserved "api_node_url";
+  reserved 3; reserved "seed";
+  reserved 4; reserved "app_id";
+  reserved 6; reserved "max_retries";
 }
 
-message AvailDefaultConfig {
+message AvailClientConfig {
   optional string api_node_url = 1;
   optional uint32 app_id = 2;
 }
 
 message AvailGasRelayConfig {
   optional string gas_relay_api_url = 1;
-  reserved "gas_relay_api_key";
 }
 
 message DataAvailabilityClient {

@@ -1,8 +1,9 @@
+use std::{fmt::Debug, sync::Arc};
+
 use anyhow::anyhow;
 use async_trait::async_trait;
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Debug, sync::Arc};
 use subxt_signer::ExposeSecret;
 use zksync_config::configs::da_client::avail::{AvailClientConfig, AvailConfig, AvailSecrets};
 use zksync_da_client::{
@@ -111,7 +112,7 @@ impl AvailClient {
                     api_client,
                 })
             }
-            AvailClientConfig::Default(conf) => {
+            AvailClientConfig::FullClient(conf) => {
                 let seed_phrase = secrets
                     .seed_phrase
                     .ok_or_else(|| anyhow::anyhow!("Seed phrase is missing"))?;
@@ -139,7 +140,7 @@ impl DataAvailabilityClient for AvailClient {
         match self.sdk_client.as_ref() {
             AvailClientMode::Default(client) => {
                 let default_config = match &self.config.config {
-                    AvailClientConfig::Default(conf) => conf,
+                    AvailClientConfig::FullClient(conf) => conf,
                     _ => unreachable!(), // validated in protobuf config
                 };
                 let ws_client = WsClientBuilder::default()

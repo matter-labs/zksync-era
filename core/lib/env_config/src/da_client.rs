@@ -2,19 +2,35 @@ use std::env;
 
 use zksync_config::configs::{
     da_client::{
-        avail::AvailSecrets, DAClientConfig, AVAIL_CLIENT_CONFIG_NAME,
-        OBJECT_STORE_CLIENT_CONFIG_NAME,
+        avail::{
+            AvailClientConfig, AvailSecrets, AVAIL_FULL_CLIENT_NAME, AVAIL_GAS_RELAY_CLIENT_NAME,
+        },
+        DAClientConfig, AVAIL_CLIENT_CONFIG_NAME, OBJECT_STORE_CLIENT_CONFIG_NAME,
     },
     secrets::DataAvailabilitySecrets,
+    AvailConfig,
 };
 
 use crate::{envy_load, FromEnv};
 
 impl FromEnv for DAClientConfig {
     fn from_env() -> anyhow::Result<Self> {
-        let client_tag = std::env::var("DA_CLIENT")?;
+        let client_tag = env::var("DA_CLIENT")?;
         let config = match client_tag.as_str() {
-            AVAIL_CLIENT_CONFIG_NAME => Self::Avail(envy_load("da_avail_config", "DA_")?),
+            AVAIL_CLIENT_CONFIG_NAME => Self::Avail(AvailConfig {
+                bridge_api_url: env::var("DA_BRIDGE_API_URL").ok().unwrap(),
+                timeout: env::var("DA_TIMEOUT")?.parse()?,
+
+                config: match env::var("DA_AVAIL_CLIENT_TYPE")?.as_str() {
+                    AVAIL_FULL_CLIENT_NAME => {
+                        AvailClientConfig::FullClient(envy_load("da_avail_full_client", "DA_")?)
+                    }
+                    AVAIL_GAS_RELAY_CLIENT_NAME => {
+                        AvailClientConfig::GasRelay(envy_load("da_avail_gas_relay", "DA_")?)
+                    }
+                    _ => anyhow::bail!("Unknown Avail DA client type"),
+                },
+            }),
             OBJECT_STORE_CLIENT_CONFIG_NAME => {
                 Self::ObjectStore(envy_load("da_object_store", "DA_")?)
             }
@@ -33,13 +49,11 @@ impl FromEnv for DataAvailabilitySecrets {
                 let seed_phrase: Option<zksync_basic_types::seed_phrase::SeedPhrase> =
                     env::var("DA_SECRETS_SEED_PHRASE")
                         .ok()
-                        .map(|s| s.parse())
-                        .transpose()?;
+                        .map(|s| s.parse().unwrap());
                 let gas_relay_api_key: Option<zksync_basic_types::api_key::APIKey> =
                     env::var("DA_SECRETS_GAS_RELAY_API_KEY")
                         .ok()
-                        .map(|s| s.parse())
-                        .transpose()?;
+                        .map(|s| s.parse().unwrap());
                 if seed_phrase.is_none() && gas_relay_api_key.is_none() {
                     anyhow::bail!("No secrets provided for Avail DA client");
                 }
@@ -110,7 +124,7 @@ mod tests {
         DAClientConfig::Avail(AvailConfig {
             bridge_api_url: bridge_api_url.to_string(),
             timeout,
-            config: AvailClientConfig::Default(AvailDefaultConfig {
+            config: AvailClientConfig::FullClient(AvailDefaultConfig {
                 api_node_url: api_node_url.to_string(),
                 app_id,
             }),
@@ -122,10 +136,13 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             DA_CLIENT="Avail"
-            DA_API_NODE_URL="localhost:12345"
+            DA_AVAIL_CLIENT_TYPE="FullClient"
+
             DA_BRIDGE_API_URL="localhost:54321"
-            DA_APP_ID="1"
             DA_TIMEOUT="2"
+
+            DA_API_NODE_URL="localhost:12345"
+            DA_APP_ID="1"
         "#;
 
         lock.set_env(config);
@@ -148,7 +165,6 @@ mod tests {
         let config = r#"
             DA_CLIENT="Avail"
             DA_SECRETS_SEED_PHRASE="bottom drive obey lake curtain smoke basket hold race lonely fit walk"
-            DA_SECRETS_GAS_RELAY_API_KEY="abcdefghijklmnopqrstuvwxyz0123456789"
         "#;
 
         lock.set_env(config);
@@ -158,12 +174,12 @@ mod tests {
         };
 
         assert_eq!(
-            (actual_seed.unwrap(), actual_key.unwrap()),
+            (actual_seed.unwrap(), actual_key),
             (
                 "bottom drive obey lake curtain smoke basket hold race lonely fit walk"
                     .parse()
                     .unwrap(),
-                "abcdefghijklmnopqrstuvwxyz0123456789".parse().unwrap()
+                None
             )
         );
     }
