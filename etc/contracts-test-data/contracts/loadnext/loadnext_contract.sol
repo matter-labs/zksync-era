@@ -13,12 +13,12 @@ contract LoadnextContract {
     uint[] readArray;
     uint[] writeArray;
 
-    function saturatingSubtract(uint a, uint b) internal pure returns(uint) {
+    function saturatingSubtract(uint a, uint b) internal pure returns (uint) {
         return b > a ? 0 : a - b;
     }
 
     constructor(uint reads) {
-        uint _reads = saturatingSubtract(reads, COMPENSATE_READS);
+        uint _reads = reads < COMPENSATE_READS ? COMPENSATE_READS : reads;
         for (uint i = 0; i < _reads; i++) {
             readArray.push(i);
         }
@@ -48,8 +48,14 @@ contract LoadnextContract {
 
         // apply compensation from observed baseline
         uint _reads = saturatingSubtract(reads, COMPENSATE_READS);
-        uint _repeatedWrites = saturatingSubtract(repeatedWrites, COMPENSATE_REPEATED_WRITES);
-        uint _initialWrites = saturatingSubtract(initialWrites, COMPENSATE_INITIAL_WRITES);
+        uint _repeatedWrites = saturatingSubtract(
+            repeatedWrites,
+            COMPENSATE_REPEATED_WRITES
+        );
+        uint _initialWrites = saturatingSubtract(
+            initialWrites,
+            COMPENSATE_INITIAL_WRITES
+        );
         uint _events = saturatingSubtract(events, COMPENSATE_EVENTS);
 
         require(_repeatedWrites <= readArray.length);
