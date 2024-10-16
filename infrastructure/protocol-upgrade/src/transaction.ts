@@ -30,7 +30,7 @@ const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, {
 export enum Action {
     Add = 0,
     Replace = 1,
-    Remove = 2
+    Remove = 2,
 }
 
 export interface DiamondCutData {
@@ -40,10 +40,10 @@ export interface DiamondCutData {
 }
 
 export interface ChainCreationParams {
-    genesisUpgrade: string;
-    genesisBatchHash: string;
-    genesisIndexRepeatedStorageChanges: number;
-    genesisBatchCommitment: string;
+    genesisUpgrade : string;
+    genesisBatchHash : string;
+    genesisIndexRepeatedStorageChanges : number;
+    genesisBatchCommitment : string;
     diamondCut: DiamondCutData;
 }
 
