@@ -30,9 +30,8 @@ const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, {
 export enum Action {
     Add = 0,
     Replace = 1,
-    Remove = 2,
+    Remove = 2
 }
-
 
 export interface DiamondCutData {
     facetCuts: FacetCut[];
@@ -41,11 +40,11 @@ export interface DiamondCutData {
 }
 
 export interface ChainCreationParams {
-    genesisUpgrade : string;
-    genesisBatchHash : string;
-    genesisIndexRepeatedStorageChanges : number;
-    genesisBatchCommitment : string;
-    diamondCut: DiamondCutData
+    genesisUpgrade: string;
+    genesisBatchHash: string;
+    genesisIndexRepeatedStorageChanges: number;
+    genesisBatchCommitment: string;
+    diamondCut: DiamondCutData;
 }
 
 export interface ForceDeployment {
@@ -217,7 +216,7 @@ export function prepareUpgradeCalldata(
     let chainCreationDiamondCut: DiamondCutData = {
         facetCuts: facetCuts.filter((cut) => cut.action == Action.Add),
         initAddress: genesisUpgradeAddress,
-        initCalldata: "0x"
+        initCalldata: '0x'
     };
 
     let chainCreationParams: ChainCreationParams = {
