@@ -17,8 +17,8 @@ pub(super) const MSG_CHAIN_NOT_INITIALIZED: &str =
 pub(super) const MSG_ARGS_VALIDATOR_ERR: &str = "Invalid arguments";
 
 /// Autocomplete message
-pub(super) fn msg_generate_autocomplete_file_for(command_name: &str) -> String {
-    format!("Generating completion file: ./_{command_name}")
+pub(super) fn msg_generate_autocomplete_file(filename: &str) -> String {
+    format!("Generating completion file: {filename}")
 }
 pub(super) const MSG_OUTRO_AUTOCOMPLETE_GENERATION: &str =
     "Autocompletion file correctly generated";
