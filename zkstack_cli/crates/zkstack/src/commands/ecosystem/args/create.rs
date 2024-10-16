@@ -22,9 +22,9 @@ use crate::{
 
 #[derive(Debug, Serialize, Deserialize, Parser)]
 pub struct EcosystemCreateArgs {
-    #[arg(long, value_hint = ValueHint::Other)]
+    #[arg(long)]
     pub ecosystem_name: Option<String>,
-    #[clap(long, help = MSG_L1_NETWORK_HELP, value_enum, value_hint = ValueHint::Other)]
+    #[clap(long, help = MSG_L1_NETWORK_HELP, value_enum)]
     pub l1_network: Option<L1Network>,
     #[clap(long, help = MSG_LINK_TO_CODE_HELP, value_hint = ValueHint::DirPath)]
     pub link_to_code: Option<String>,
