@@ -82,7 +82,7 @@ pub fn format_port_info(port_info: &PortInfo) -> String {
     };
 
     format!(
-        "  - {}{} > {}",
+        "  - {}{} > {}\n",
         port_info.port, in_use_tag, port_info.description
     )
 }

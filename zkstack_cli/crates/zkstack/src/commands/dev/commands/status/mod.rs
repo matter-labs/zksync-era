@@ -9,11 +9,19 @@ use serde_json::Value;
 use utils::deslugify;
 use xshell::Shell;
 
-use crate::utils::ports::EcosystemPortsScanner;
+use crate::{
+    commands::dev::messages::{
+        msg_failed_parse_response, msg_not_ready_components, msg_system_status,
+        MSG_ALL_COMPONENTS_READY, MSG_COMPONENTS, MSG_SOME_COMPONENTS_NOT_READY,
+    },
+    utils::ports::EcosystemPortsScanner,
+};
 
 pub mod args;
 mod draw;
 mod utils;
+
+const STATUS_READY: &str = "ready";
 
 #[derive(Deserialize, Debug)]
 struct StatusResponse {
@@ -31,16 +39,16 @@ fn print_status(health_check_url: String) -> anyhow::Result<()> {
     let client = reqwest::blocking::Client::new();
     let response = client.get(&health_check_url).send()?.text()?;
 
-    let status_response: StatusResponse = serde_json::from_str(&response)
-        .context(format!("Failed to parse response: {}", response))?;
+    let status_response: StatusResponse =
+        serde_json::from_str(&response).context(msg_failed_parse_response(&response))?;
 
-    if status_response.status.to_lowercase() == "ready" {
-        logger::success(format!("System Status: {}\n", status_response.status));
+    if status_response.status.to_lowercase() == STATUS_READY {
+        logger::success(msg_system_status(&status_response.status));
     } else {
-        logger::warn(format!("System Status: {}\n", status_response.status));
+        logger::warn(msg_system_status(&status_response.status));
     }
 
-    let mut components_info = String::from("Components:\n");
+    let mut components_info = String::from(MSG_COMPONENTS);
     let mut components = Vec::new();
     let mut not_ready_components = Vec::new();
 
@@ -54,7 +62,7 @@ fn print_status(health_check_url: String) -> anyhow::Result<()> {
             }
         }
 
-        if component.status.to_lowercase() != "ready" {
+        if component.status.to_lowercase() != STATUS_READY {
             not_ready_components.push(readable_name);
         }
 
@@ -75,13 +83,10 @@ fn print_status(health_check_url: String) -> anyhow::Result<()> {
     logger::info(components_info);
 
     if not_ready_components.is_empty() {
-        logger::outro("Overall System Status: All components operational and ready.");
+        logger::outro(MSG_ALL_COMPONENTS_READY);
     } else {
-        logger::warn("Overall System Status: Some components are not ready.");
-        logger::outro(format!(
-            "Not Ready Components: {}",
-            not_ready_components.join(", ")
-        ));
+        logger::warn(MSG_SOME_COMPONENTS_NOT_READY);
+        logger::outro(msg_not_ready_components(&not_ready_components.join(", ")));
     }
 
     Ok(())
