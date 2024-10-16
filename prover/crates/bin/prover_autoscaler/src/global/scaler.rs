@@ -272,10 +272,31 @@ impl Scaler {
             }
         }
 
-        tracing::debug!("run result: provers {:?}, total: {}", &provers, total);
+        tracing::debug!(
+            "run result for namespace {}: provers {:?}, total: {}",
+            namespace,
+            &provers,
+            total
+        );
 
         provers
     }
+}
+
+/// is_namespace_running returns true if there are some pods running in it.
+fn is_namespace_running(namespace: &str, clusters: &Clusters) -> bool {
+    clusters
+        .clusters
+        .values()
+        .flat_map(|v| v.namespaces.iter())
+        .filter_map(|(k, v)| if k == namespace { Some(v) } else { None })
+        .flat_map(|v| v.deployments.values())
+        .map(
+            |d| d.running + d.desired, // If there is something running or expected to run, we
+                                       // should consider the namespace.
+        )
+        .sum::<i32>()
+        > 0
 }
 
 #[async_trait::async_trait]
@@ -288,7 +309,8 @@ impl Task for Scaler {
 
         for (ns, ppv) in &self.namespaces {
             let q = queue.queue.get(ppv).cloned().unwrap_or(0);
-            if q > 0 {
+            tracing::debug!("Running eval for namespace {ns} and PPV {ppv} found queue {q}");
+            if q > 0 || is_namespace_running(ns, &guard.clusters) {
                 let provers = self.run(ns, q, &guard.clusters);
                 for (k, num) in &provers {
                     AUTOSCALER_METRICS.provers[&(k.cluster.clone(), ns.clone(), k.gpu)]
