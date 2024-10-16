@@ -96,19 +96,6 @@ jobs:
         with:
           toolchain: nightly-2024-08-01
 
-      - name: Install cargo-nextest from crates.io
-        if: env.BUILD_CONTRACTS == 'true'
-        uses: baptiste0928/cargo-install@904927dbe77864e0f2281519fe9d5bd097a220b3 # v3.1.1
-        with:
-          crate: cargo-nextest
-
-      - name: Install sqlx-cli from crates.io
-        if: env.BUILD_CONTRACTS == 'true'
-        uses: baptiste0928/cargo-install@904927dbe77864e0f2281519fe9d5bd097a220b3 # v3.1.1
-        with:
-          crate: sqlx-cli
-          tag: 0.8.1
-
       - name: Install foundry-zksync
         if: env.BUILD_CONTRACTS == 'true'
         run: |
@@ -136,13 +123,6 @@ jobs:
             wget -nv -O "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}" "https://github.com/matter-labs/${compiler}-bin/releases/download/v${version}/${compiler}-linux-amd64-musl-v${version}"
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
-
-      - name: init
-        if: env.BUILD_CONTRACTS == 'true'
-        shell: bash
-        run: |
-          mkdir -p ./volumes/postgres
-          docker compose up -d postgres
 
       - name: Install zkstack
         if: env.BUILD_CONTRACTS == 'true'
