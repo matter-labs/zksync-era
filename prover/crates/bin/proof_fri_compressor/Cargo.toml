@@ -45,5 +45,3 @@ serde = { workspace = true, features = ["derive"] }
 
 [features]
 default = []
-gpu = []
-

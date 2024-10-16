@@ -32,6 +32,7 @@ pub enum ProverServiceDataType {
     VerificationKey,
     SetupData,
     FinalizationHints,
+    CompressionWrapper,
     SnarkVerificationKey,
 }
 
@@ -123,6 +124,9 @@ impl Keystore {
             ProverServiceDataType::SnarkVerificationKey => self
                 .basedir
                 .join(format!("snark_verification_{}_key.json", name)),
+            ProverServiceDataType::CompressionWrapper => {
+                self.basedir.join("compression_wrapper_setup_data.bin")
+            }
         }
     }
 
@@ -302,6 +306,24 @@ impl Keystore {
         bincode::deserialize::<GoldilocksGpuProverSetupData>(&buffer).with_context(|| {
             format!("Failed deserializing setup-data at path: {filepath:?} for circuit: {key:?}")
         })
+    }
+
+    pub fn load_compression_wrapper_setup_data(
+        &self,
+    ) -> anyhow::Result<GpuProverSetupData<CompressionTreeHasherForWrapper>> {
+        let filepath = self.get_file_path(key, ProverServiceDataType::CompressionWrapper);
+
+        let mut file = File::open(filepath.clone())
+            .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).with_context(|| {
+            format!("Failed reading setup-data to buffer from path: {filepath:?}")
+        })?;
+        tracing::info!("loading {:?} setup data from path: {:?}", key, filepath);
+        bincode::deserialize::<GpuProverSetupData<CompressionTreeHasherForWrapper>>(&buffer)
+            .with_context(|| {
+                format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
+            })
     }
 
     pub fn is_setup_data_present(&self, key: &ProverServiceDataKey) -> bool {
