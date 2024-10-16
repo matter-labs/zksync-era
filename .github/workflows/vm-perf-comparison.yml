@@ -43,8 +43,8 @@ jobs:
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
-          # Set the minimum reported instruction count difference to reduce noise 
-          echo "BENCHMARK_DIFF_THRESHOLD_PERCENT=2" >> .env
+          # FIXME: Set the minimum reported instruction count difference to reduce noise
+          echo "BENCHMARK_DIFF_THRESHOLD_PERCENT=-1" >> .env
 
       - name: init
         run: |
@@ -57,6 +57,7 @@ jobs:
           ci_run zkstackup -g --local
           ci_run zkstack dev contracts --system-contracts
           ci_run cargo bench --package vm-benchmark --bench instructions
+          ci_run cargo run --package vm-benchmark --release --bin instruction_counts | tee base-opcodes
 
       - name: checkout PR
         run: |
@@ -75,11 +76,17 @@ jobs:
           # Output all lines starting from the "## ..." comparison header
           ci_run cargo bench --package vm-benchmark --bench instructions -- --print | grep -A 1000 --color=never -e '^## ' >> $GITHUB_OUTPUT
           echo "$EOF" >> $GITHUB_OUTPUT
+          
+          echo "opcodes<<$EOF" >> $GITHUB_OUTPUT
+          ci_run cargo run --package vm-benchmark --release --bin instruction_counts -- --diff base-opcodes | grep -A 1000 --color=never -e '^## ' >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
 
       - name: Comment on PR
         uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
         with:
-          message: ${{ steps.comparison.outputs.speedup }}
+          message: |
+            ${{ steps.comparison.outputs.speedup }}
+            ${{ steps.comparison.outputs.opcodes }}
           comment_tag: vm-performance-changes
-          mode: ${{ steps.comparison.outputs.speedup == '' && 'delete' || 'recreate' }}
-          create_if_not_exists: ${{ steps.comparison.outputs.speedup != '' }}
+          mode: ${{ (steps.comparison.outputs.speedup == '' && steps.comparison.outputs.opcodes == '') && 'delete' || 'recreate' }}
+          create_if_not_exists: ${{ steps.comparison.outputs.speedup != '' || steps.comparison.outputs.opcodes != '' }}
