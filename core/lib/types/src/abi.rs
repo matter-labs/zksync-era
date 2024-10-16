@@ -427,7 +427,7 @@ impl GatewayUpgradeEncodedInput {
     /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
-        anyhow::ensure!(tokens.len() == 7);
+        anyhow::ensure!(tokens.len() == 6);
         let mut t = tokens.into_iter();
         let mut next = || t.next().unwrap();
 
