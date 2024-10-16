@@ -10,7 +10,7 @@
 use ethabi::Contract;
 use once_cell::sync::Lazy;
 use zksync_contracts::{
-    load_contract, read_bytecode, read_yul_bytecode, read_zbin_bytecode, BaseSystemContracts,
+    load_contract, read_bootloader_code, read_bytecode, read_zbin_bytecode, BaseSystemContracts,
     SystemContractCode,
 };
 use zksync_test_account::Account;
@@ -38,7 +38,6 @@ pub(super) mod get_used_contracts;
 pub(super) mod is_write_initial;
 pub(super) mod l1_tx_execution;
 pub(super) mod l2_blocks;
-pub(super) mod migration;
 pub(super) mod nonce_holder;
 pub(super) mod precompiles;
 pub(super) mod refunds;
@@ -125,9 +124,7 @@ pub(crate) fn read_simple_transfer_contract() -> Vec<u8> {
 }
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
-    let artifacts_path = "contracts/system-contracts/bootloader/tests/artifacts/";
-    let bootloader_code = read_yul_bytecode(artifacts_path, test);
-
+    let bootloader_code = read_bootloader_code(test);
     let bootloader_hash = hash_bytecode(&bootloader_code);
     SystemContractCode {
         code: bytes_to_be_words(bootloader_code),
