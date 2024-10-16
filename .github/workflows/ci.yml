@@ -94,6 +94,12 @@ jobs:
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
 
+  e2e-for-prover:
+    name: E2E Test for Prover Components
+    needs: changed_files
+    if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/ci-prover-e2e.yml
+
   ci-for-docs:
     needs: changed_files
     if: needs.changed_files.outputs.docs == 'true'

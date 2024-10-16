@@ -19,9 +19,7 @@ use zksync_node_framework::{
     implementations::layers::{
         base_token::{
             base_token_ratio_persister::BaseTokenRatioPersisterLayer,
-            base_token_ratio_provider::BaseTokenRatioProviderLayer,
-            coingecko_client::CoingeckoClientLayer, forced_price_client::ForcedPriceClientLayer,
-            no_op_external_price_api_client::NoOpExternalPriceApiClientLayer,
+            base_token_ratio_provider::BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
         },
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
@@ -307,6 +305,7 @@ impl MainNodeBuilder {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
             initial_writes_cache_size: rpc_config.initial_writes_cache_size() as u64,
             latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
+            latest_values_max_block_lag: rpc_config.latest_values_max_block_lag(),
         };
         let vm_config = try_load_config!(self.configs.experimental_vm_config);
 
@@ -562,24 +561,8 @@ impl MainNodeBuilder {
 
     fn add_external_api_client_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.external_price_api_client_config);
-        match config.source.as_str() {
-            CoingeckoClientLayer::CLIENT_NAME => {
-                self.node.add_layer(CoingeckoClientLayer::new(config));
-            }
-            NoOpExternalPriceApiClientLayer::CLIENT_NAME => {
-                self.node.add_layer(NoOpExternalPriceApiClientLayer);
-            }
-            ForcedPriceClientLayer::CLIENT_NAME => {
-                self.node.add_layer(ForcedPriceClientLayer::new(config));
-            }
-            _ => {
-                anyhow::bail!(
-                    "Unknown external price API client source: {}",
-                    config.source
-                );
-            }
-        }
-
+        self.node
+            .add_layer(ExternalPriceApiLayer::try_from(config)?);
         Ok(self)
     }
 
