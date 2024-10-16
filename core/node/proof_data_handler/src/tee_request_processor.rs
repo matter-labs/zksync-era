@@ -107,7 +107,7 @@ impl TeeRequestProcessor {
 
         let mut connection = self
             .pool
-            .connection()
+            .connection_tagged("tee_request_processor")
             .await
             .map_err(RequestProcessorError::Dal)?;
 
@@ -153,9 +153,8 @@ impl TeeRequestProcessor {
         tee_type: TeeType,
         min_batch_number: Option<L1BatchNumber>,
     ) -> Result<L1BatchNumber, RequestProcessorError> {
-        let result = self
-            .pool
-            .connection()
+        self.pool
+            .connection_tagged("tee_request_processor")
             .await?
             .tee_proof_generation_dal()
             .lock_batch_for_proving(
@@ -173,7 +172,7 @@ impl TeeRequestProcessor {
         tee_type: TeeType,
     ) -> Result<(), RequestProcessorError> {
         self.pool
-            .connection()
+            .connection_tagged("tee_request_processor")
             .await?
             .tee_proof_generation_dal()
             .unlock_batch(l1_batch_number, tee_type)
@@ -187,7 +186,7 @@ impl TeeRequestProcessor {
         Json(proof): Json<SubmitTeeProofRequest>,
     ) -> Result<Json<SubmitProofResponse>, RequestProcessorError> {
         let l1_batch_number = L1BatchNumber(l1_batch_number);
-        let mut connection = self.pool.connection().await?;
+        let mut connection = self.pool.connection_tagged("tee_request_processor").await?;
         let mut dal = connection.tee_proof_generation_dal();
 
         tracing::info!(
@@ -213,7 +212,7 @@ impl TeeRequestProcessor {
     ) -> Result<Json<RegisterTeeAttestationResponse>, RequestProcessorError> {
         tracing::info!("Received attestation: {:?}", payload);
 
-        let mut connection = self.pool.connection().await?;
+        let mut connection = self.pool.connection_tagged("tee_request_processor").await?;
         let mut dal = connection.tee_proof_generation_dal();
 
         dal.save_attestation(&payload.pubkey, &payload.attestation)
