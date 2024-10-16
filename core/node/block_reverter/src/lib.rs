@@ -606,21 +606,6 @@ impl BlockReverter {
     /// Clears failed L1 transactions.
     pub async fn clear_failed_l1_transactions(&self) -> anyhow::Result<()> {
         tracing::info!("Clearing failed L1 transactions");
-        if self
-            .connection_pool
-            .connection()
-            .await?
-            .eth_sender_dal()
-            .count_all_inflight_txs()
-            .await
-            .unwrap()
-            != 0
-        {
-            tracing::error!(
-                "There are still some in-flight txs, cannot proceed. \
-            Please wait for eth-sender to process all in-flight txs and try again!"
-            );
-        }
         self.connection_pool
             .connection()
             .await?

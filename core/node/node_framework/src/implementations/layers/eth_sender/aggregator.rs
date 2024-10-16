@@ -1,6 +1,5 @@
 use anyhow::Context;
 use zksync_config::configs::{eth_sender::EthConfig, ContractsConfig};
-use zksync_eth_client::BoundEthInterface;
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
 use zksync_types::{commitment::L1BatchCommitmentMode, settlement::SettlementMode, L2ChainId};
 
@@ -97,15 +96,11 @@ impl WiringLayer for EthTxAggregatorLayer {
         let object_store = input.object_store.0;
 
         // Create and add tasks.
-        let eth_client_blobs_addr = eth_client_blobs
-            .as_deref()
-            .map(BoundEthInterface::sender_account);
-
         let config = self.eth_sender_config.sender.context("sender")?;
         let aggregator = Aggregator::new(
             config.clone(),
             object_store,
-            eth_client_blobs_addr.is_some(),
+            eth_client_blobs.is_some(),
             self.l1_batch_commit_data_generator_mode,
         );
 
@@ -114,11 +109,11 @@ impl WiringLayer for EthTxAggregatorLayer {
             config.clone(),
             aggregator,
             input.eth_client.unwrap().0,
+            eth_client_blobs,
             self.contracts_config.validator_timelock_addr,
             self.contracts_config.l1_multicall3_addr,
             self.contracts_config.diamond_proxy_addr,
             self.zksync_network_id,
-            eth_client_blobs_addr,
             self.settlement_mode,
         )
         .await;

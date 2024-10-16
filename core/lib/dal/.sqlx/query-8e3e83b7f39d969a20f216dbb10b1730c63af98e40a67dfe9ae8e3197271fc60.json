@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            DELETE FROM eth_txs\n            WHERE has_failed = TRUE\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "8e3e83b7f39d969a20f216dbb10b1730c63af98e40a67dfe9ae8e3197271fc60"
+}

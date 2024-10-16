@@ -1,6 +1,6 @@
 use std::{convert::TryFrom, str::FromStr};
 
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
 use sqlx::types::chrono::{DateTime, Utc};
 use zksync_db_connection::{connection::Connection, interpolate_query, match_query_as};
 use zksync_types::{
@@ -35,6 +35,7 @@ impl EthSenderDal<'_, '_> {
             WHERE
                 from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL
                 AND confirmed_eth_tx_history_id IS NULL
+                AND has_failed = FALSE
                 AND is_gateway = $2
                 AND id <= (
                     SELECT
@@ -69,6 +70,7 @@ impl EthSenderDal<'_, '_> {
                 eth_txs
             WHERE
                 confirmed_eth_tx_history_id IS NULL
+                AND has_failed = FALSE
                 AND is_gateway = FALSE
             "#
         )
@@ -634,7 +636,13 @@ impl EthSenderDal<'_, '_> {
         .context("count field is missing")
     }
 
-    pub async fn clear_failed_transactions(&mut self) -> sqlx::Result<()> {
+    pub async fn clear_failed_transactions(&mut self) -> anyhow::Result<()> {
+        if self.count_all_inflight_txs().await.unwrap() != 0 {
+            return Err(anyhow!(
+                "There are still some in-flight txs, cannot proceed. \
+            Please wait for eth-sender to process all in-flight txs and try again!"
+            ));
+        }
         sqlx::query!(
             r#"
             DELETE FROM eth_txs
