@@ -20,7 +20,7 @@ use crate::avail::sdk::{GasRelayClient, RawAvailClient};
 
 #[derive(Debug, Clone)]
 enum AvailClientMode {
-    Default(RawAvailClient),
+    Default(Box<RawAvailClient>),
     GasRelay(GasRelayClient),
 }
 
@@ -122,7 +122,7 @@ impl AvailClient {
 
                 Ok(Self {
                     config,
-                    sdk_client: Arc::new(AvailClientMode::Default(sdk_client)),
+                    sdk_client: Arc::new(AvailClientMode::Default(Box::new(sdk_client))),
                     api_client,
                 })
             }
