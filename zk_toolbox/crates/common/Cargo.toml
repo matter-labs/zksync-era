@@ -36,3 +36,4 @@ async-trait = "0.1.68"
 
 zksync_system_constants.workspace = true
 zksync_types.workspace = true
+zksync_web3_decl.workspace = true
