@@ -323,8 +323,10 @@ mod tests {
     use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
     use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
     use zksync_types::{
-        block::L1BatchHeader, commitment::L1BatchCommitmentMode,
-        fee_model::BaseTokenConversionRatio, L1BatchNumber,
+        block::{L1BatchHeader, UnsealedL1BatchHeader},
+        commitment::L1BatchCommitmentMode,
+        fee_model::BaseTokenConversionRatio,
+        L1BatchNumber,
     };
 
     use super::*;
@@ -855,6 +857,7 @@ mod tests {
             system_logs: vec![],
             protocol_version: None,
             pubdata_input: None,
+            fee_address: Default::default(),
             batch_fee_input: sealed_batch_fee_input,
         };
         conn.blocks_dal()
@@ -862,7 +865,13 @@ mod tests {
             .await
             .unwrap();
         conn.blocks_dal()
-            .insert_l1_batch(L1BatchNumber(2), 2, unsealed_batch_fee_input)
+            .insert_l1_batch(UnsealedL1BatchHeader {
+                number: L1BatchNumber(2),
+                timestamp: 2,
+                protocol_version: None,
+                fee_address: Default::default(),
+                fee_input: unsealed_batch_fee_input,
+            })
             .await
             .unwrap();
         let provider =
