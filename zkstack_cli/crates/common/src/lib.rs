@@ -4,6 +4,7 @@ mod term;
 
 pub mod cmd;
 pub mod config;
+pub mod contracts;
 pub mod db;
 pub mod docker;
 pub mod ethereum;
