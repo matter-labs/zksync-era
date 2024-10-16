@@ -33,10 +33,10 @@ impl TeeProofGenerationDal<'_, '_> {
         tee_type: TeeType,
         processing_timeout: Duration,
         min_batch_number: Option<L1BatchNumber>,
-    ) -> DalResult<L1BatchNumber> {
+    ) -> DalResult<Option<L1BatchNumber>> {
         let processing_timeout = pg_interval_from_duration(processing_timeout);
         let min_batch_number = min_batch_number.map_or(0, |num| i64::from(num.0));
-        let batch_number = sqlx::query!(
+        sqlx::query!(
             r#"
             WITH upsert AS (
                 SELECT
@@ -105,10 +105,9 @@ impl TeeProofGenerationDal<'_, '_> {
         .with_arg("tee_type", &tee_type)
         .with_arg("processing_timeout", &processing_timeout)
         .with_arg("l1_batch_number", &min_batch_number)
-        .fetch_one(self.storage)
-        .await?;
-
-        Ok(L1BatchNumber(batch_number.l1_batch_number as u32))
+        .fetch_optional(self.storage)
+        .await
+        .map(|record| record.map(|record| L1BatchNumber(record.l1_batch_number as u32)))
     }
 
     pub async fn unlock_batch(

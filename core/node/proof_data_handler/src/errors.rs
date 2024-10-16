@@ -6,6 +6,7 @@ use zksync_dal::DalError;
 use zksync_object_store::ObjectStoreError;
 
 pub(crate) enum RequestProcessorError {
+    NoJob,
     GeneralError(String),
     ObjectStore(ObjectStoreError),
     Dal(DalError),
@@ -36,15 +37,14 @@ impl IntoResponse for RequestProcessorError {
             }
             RequestProcessorError::Dal(err) => {
                 tracing::error!("Sqlx error: {:?}", err);
-                match err.inner() {
-                    zksync_dal::SqlxError::RowNotFound => {
-                        (StatusCode::NOT_FOUND, "Non existing L1 batch".to_owned())
-                    }
-                    _ => (
-                        StatusCode::BAD_GATEWAY,
-                        "Failed fetching/saving from db".to_owned(),
-                    ),
-                }
+                (
+                    StatusCode::BAD_GATEWAY,
+                    "Failed fetching/saving from db".to_owned(),
+                )
+            }
+            RequestProcessorError::NoJob => {
+                tracing::trace!("No job found");
+                (StatusCode::NOT_FOUND, "No job found".to_owned())
             }
         };
         (status_code, message).into_response()

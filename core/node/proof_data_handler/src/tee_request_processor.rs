@@ -162,8 +162,9 @@ impl TeeRequestProcessor {
                 self.config.proof_generation_timeout(),
                 min_batch_number,
             )
-            .await?;
-        Ok(result)
+            .await
+            .map_err(RequestProcessorError::Dal)
+            .and_then(|batch_number| batch_number.ok_or(RequestProcessorError::NoJob))
     }
 
     async fn unlock_batch(
