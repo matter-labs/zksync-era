@@ -62,9 +62,9 @@ url = "2.5.2"
 vise = "0.2.0"
 
 # Proving dependencies
-circuit_definitions = { git = "https://github.com/matter-labs/zksync-protocol.git", package = "circuit_definitions" }
-circuit_sequencer_api = { git = "https://github.com/matter-labs/zksync-protocol.git", package = "circuit_sequencer_api" }
-zkevm_test_harness = { git = "https://github.com/matter-labs/zksync-protocol.git", package = "zkevm_test_harness" }
+circuit_definitions = "=0.150.6"
+circuit_sequencer_api = "=0.150.6"
+zkevm_test_harness = "=0.150.6"
 
 # GPU proving dependencies
 wrapper_prover = { git = "https://github.com/matter-labs/zksync-crypto-gpu.git", branch="vv-temp-harness-pin", package = "zksync-wrapper-prover" }
