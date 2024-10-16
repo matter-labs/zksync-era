@@ -1810,14 +1810,6 @@ impl TransactionsDal<'_, '_> {
                                     )
                                 )
                                 AND tx_format != $4
-                                AND (
-                                    block_timestamp_range_start IS NULL
-                                    OR block_timestamp_range_start <= CURRENT_DATE
-                                )
-                                AND (
-                                    block_timestamp_range_end IS NULL
-                                    OR block_timestamp_range_end >= CURRENT_DATE
-                                )
                             ORDER BY
                                 is_priority DESC,
                                 priority_op_id,

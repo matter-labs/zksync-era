@@ -34,7 +34,7 @@ contract CustomAccount is IAccount {
 
 	function validateTransaction(bytes32 _txHash, bytes32 _suggestedSignedTxHash, Transaction calldata _transaction) external payable override returns (bytes4 magic) {
 		ITimestampAsserter timestampAsserter = ITimestampAsserter(timestampAsserterAddress);
-		// This assertion exists to ensure that block.timestamp can be asserted in AA by using
+		// This assertion exists to ensure that block.timestamp can be accessed in AA by using
 		// ITimestampAsserter contract
 		// 2555971200 is a number of seconds up to 30/12/2050
 		timestampAsserter.assertTimestampInRange(0, 2555971200);
