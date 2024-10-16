@@ -1,7 +1,7 @@
 //! Measures instruction counts for the fuzzed bytecodes.
 
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     env,
     sync::{Arc, Mutex},
 };
@@ -124,7 +124,7 @@ impl Comparison {
 /// Significant diff level can be changed via `BENCHMARK_DIFF_THRESHOLD_PERCENT` env var; it is set to 1% by default.
 #[derive(Debug, Default)]
 struct ComparisonReporter {
-    comparisons: Arc<Mutex<HashMap<String, Comparison>>>,
+    comparisons: Arc<Mutex<BTreeMap<String, Comparison>>>,
 }
 
 impl Drop for ComparisonReporter {
@@ -168,7 +168,7 @@ impl Reporter for ComparisonReporter {
 
 #[derive(Debug)]
 struct BenchmarkComparison {
-    comparisons: Arc<Mutex<HashMap<String, Comparison>>>,
+    comparisons: Arc<Mutex<BTreeMap<String, Comparison>>>,
     id: BenchmarkId,
 }
 

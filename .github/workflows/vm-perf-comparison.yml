@@ -70,12 +70,12 @@ jobs:
 
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
           echo "speedup<<$EOF" >> $GITHUB_OUTPUT
-          # Output all lines starting from the "## ..." comparison header
-          ci_run cargo bench --package vm-benchmark --bench instructions -- --print | grep -A 1000 --color=never -e '^## ' >> $GITHUB_OUTPUT
+          # Output all lines starting from the "## ..." comparison header. Ignore the `grep` error if no lines were matched
+          ci_run cargo bench --package vm-benchmark --bench instructions -- --print | grep -A 1000 --color=never -e '^## ' >> $GITHUB_OUTPUT || [ "$?" = 1 ]
           echo "$EOF" >> $GITHUB_OUTPUT
           
           echo "opcodes<<$EOF" >> $GITHUB_OUTPUT
-          ci_run cargo run --package vm-benchmark --release --bin instruction_counts -- --diff base-opcodes | grep -A 1000 --color=never -e '^## ' >> $GITHUB_OUTPUT
+          ci_run cargo run --package vm-benchmark --release --bin instruction_counts -- --diff base-opcodes | grep -A 1000 --color=never -e '^## ' >> $GITHUB_OUTPUT || [ "$?" = 1 ]
           echo "$EOF" >> $GITHUB_OUTPUT
 
       - name: Comment on PR

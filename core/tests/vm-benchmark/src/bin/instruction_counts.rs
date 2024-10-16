@@ -1,6 +1,6 @@
 //! Runs all benchmarks and prints out the number of zkEVM opcodes each one executed.
 
-use std::{collections::HashMap, env, fs, io, path::PathBuf};
+use std::{collections::BTreeMap, env, fs, io, path::PathBuf};
 
 use vm_benchmark::{CountInstructions, Fast, Legacy, BYTECODES};
 
@@ -21,14 +21,14 @@ impl Command {
         Self::Diff { old: old.into() }
     }
 
-    fn print_instructions(counts: &HashMap<&str, usize>) {
+    fn print_instructions(counts: &BTreeMap<&str, usize>) {
         for (bytecode_name, count) in counts {
             println!("{bytecode_name} {count}");
         }
     }
 
-    fn parse_counts(reader: impl io::BufRead) -> HashMap<String, usize> {
-        let mut counts = HashMap::new();
+    fn parse_counts(reader: impl io::BufRead) -> BTreeMap<String, usize> {
+        let mut counts = BTreeMap::new();
         for line in reader.lines() {
             let line = line.unwrap();
             if line.is_empty() {
@@ -44,7 +44,7 @@ impl Command {
     }
 
     fn run(self) {
-        let counts: HashMap<_, _> = BYTECODES
+        let counts: BTreeMap<_, _> = BYTECODES
             .iter()
             .map(|bytecode| {
                 let tx = bytecode.deploy_tx();
