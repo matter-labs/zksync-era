@@ -107,6 +107,7 @@ impl<Tr: vm_fast::Tracer + Default + 'static> BenchmarkingVmFactory for Fast<Tr>
             >(
                 &mut self,
                 _: &mut S,
+                _: &mut S::StorageInterface,
             ) {
                 self.0 += 1;
             }

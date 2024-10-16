@@ -24,7 +24,11 @@ pub struct CircuitsTracer {
 }
 
 impl Tracer for CircuitsTracer {
-    fn after_instruction<OP: OpcodeType, S: StateInterface>(&mut self, _state: &mut S) {
+    fn after_instruction<OP: OpcodeType, S: StateInterface>(
+        &mut self,
+        _: &mut S,
+        _: &mut S::StorageInterface,
+    ) {
         self.main_vm_cycles += 1;
 
         match OP::VALUE {
