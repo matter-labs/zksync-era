@@ -10084,6 +10084,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync_eigenda_proxy"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "zksync_env_config"
 version = "0.1.0"
 dependencies = [
@@ -10659,6 +10669,7 @@ dependencies = [
  "zksync_da_dispatcher",
  "zksync_dal",
  "zksync_db_connection",
+ "zksync_eigenda_proxy",
  "zksync_eth_client",
  "zksync_eth_sender",
  "zksync_eth_watch",
