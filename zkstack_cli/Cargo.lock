@@ -6722,6 +6722,7 @@ dependencies = [
  "cliclack",
  "common",
  "config",
+ "dirs",
  "ethers",
  "eyre",
  "futures",
