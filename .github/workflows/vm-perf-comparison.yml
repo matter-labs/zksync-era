@@ -80,10 +80,18 @@ jobs:
 
       - name: Comment on PR
         uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
+        if: steps.comparison.outputs.speedup != '' || steps.comparison.outputs.opcodes != ''
         with:
           message: |
             ${{ steps.comparison.outputs.speedup }}
             ${{ steps.comparison.outputs.opcodes }}
           comment_tag: vm-performance-changes
-          mode: ${{ (steps.comparison.outputs.speedup == '' && steps.comparison.outputs.opcodes == '') && 'delete' || 'recreate' }}
-          create_if_not_exists: ${{ steps.comparison.outputs.speedup != '' || steps.comparison.outputs.opcodes != '' }}
+          mode: recreate
+          create_if_not_exists: true
+      - name: Remove PR comment
+        uses: thollander/actions-comment-pull-request@fabd468d3a1a0b97feee5f6b9e499eab0dd903f6 # v2.5.0
+        if: steps.comparison.outputs.speedup == '' && steps.comparison.outputs.opcodes == ''
+        with:
+          comment_tag: vm-performance-changes
+          message: 'No performance difference detected (anymore)'
+          mode: delete
