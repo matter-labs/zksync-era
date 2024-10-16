@@ -111,6 +111,11 @@ pub(super) async fn generate_witness(
             .to_str()
             .expect("Path to KZG trusted setup is not a UTF-8 string");
 
+        let evm_emulator_code_hash = input.vm_run_data.evm_emulator_code_hash;
+        // By convention, default AA is used instead of the EVM emulator if the latter is disabled.
+        let evm_emulator_code_hash =
+            evm_emulator_code_hash.unwrap_or(input.vm_run_data.default_account_code_hash);
+
         let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
             Address::zero(),
             BOOTLOADER_ADDRESS,
@@ -118,8 +123,7 @@ pub(super) async fn generate_witness(
             bootloader_contents,
             false,
             input.vm_run_data.default_account_code_hash,
-            // NOTE: this will be evm_simulator_code_hash in future releases
-            input.vm_run_data.default_account_code_hash,
+            evm_emulator_code_hash,
             input.vm_run_data.used_bytecodes,
             Vec::default(),
             MAX_CYCLES_FOR_TX as usize,

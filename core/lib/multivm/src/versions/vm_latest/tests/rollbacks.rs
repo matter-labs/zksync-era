@@ -1,12 +1,14 @@
+use assert_matches::assert_matches;
 use ethabi::Token;
 use zksync_contracts::{get_loadnext_contract, test_contracts::LoadnextContractExecutionParams};
-use zksync_types::{get_nonce_key, Execute, U256};
+use zksync_types::{get_nonce_key, Address, Execute, Nonce, U256};
 
 use crate::{
     interface::{
         storage::WriteStorage,
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
-        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
+        ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
+        VmInterfaceHistoryEnabled,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{
@@ -47,22 +49,40 @@ fn test_vm_rollbacks() {
         TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongMagicValue.into()),
         TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::WrongSignature.into()),
         // The correct nonce is 0, this tx will fail
-        TransactionTestInfo::new_rejected(tx_2.clone(), TxModifier::WrongNonce.into()),
+        TransactionTestInfo::new_rejected(
+            tx_2.clone(),
+            TxModifier::WrongNonce(tx_2.nonce().unwrap(), Nonce(0)).into(),
+        ),
         // This tx will succeed
         TransactionTestInfo::new_processed(tx_0.clone(), false),
         // The correct nonce is 1, this tx will fail
-        TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::NonceReused.into()),
+        TransactionTestInfo::new_rejected(
+            tx_0.clone(),
+            TxModifier::NonceReused(tx_0.initiator_account(), tx_0.nonce().unwrap()).into(),
+        ),
         // The correct nonce is 1, this tx will fail
-        TransactionTestInfo::new_rejected(tx_2.clone(), TxModifier::WrongNonce.into()),
+        TransactionTestInfo::new_rejected(
+            tx_2.clone(),
+            TxModifier::WrongNonce(tx_2.nonce().unwrap(), Nonce(1)).into(),
+        ),
         // This tx will succeed
         TransactionTestInfo::new_processed(tx_1, false),
         // The correct nonce is 2, this tx will fail
-        TransactionTestInfo::new_rejected(tx_0.clone(), TxModifier::NonceReused.into()),
+        TransactionTestInfo::new_rejected(
+            tx_0.clone(),
+            TxModifier::NonceReused(tx_0.initiator_account(), tx_0.nonce().unwrap()).into(),
+        ),
         // This tx will succeed
         TransactionTestInfo::new_processed(tx_2.clone(), false),
         // This tx will fail
-        TransactionTestInfo::new_rejected(tx_2, TxModifier::NonceReused.into()),
-        TransactionTestInfo::new_rejected(tx_0, TxModifier::NonceReused.into()),
+        TransactionTestInfo::new_rejected(
+            tx_2.clone(),
+            TxModifier::NonceReused(tx_2.initiator_account(), tx_2.nonce().unwrap()).into(),
+        ),
+        TransactionTestInfo::new_rejected(
+            tx_0.clone(),
+            TxModifier::NonceReused(tx_0.initiator_account(), tx_0.nonce().unwrap()).into(),
+        ),
     ]);
 
     assert_eq!(result_without_rollbacks, result_with_rollbacks);
@@ -140,12 +160,23 @@ fn test_vm_loadnext_rollbacks() {
         TransactionTestInfo::new_processed(loadnext_tx_1.clone(), true),
         TransactionTestInfo::new_rejected(
             loadnext_deploy_tx.clone(),
-            TxModifier::NonceReused.into(),
+            TxModifier::NonceReused(
+                loadnext_deploy_tx.initiator_account(),
+                loadnext_deploy_tx.nonce().unwrap(),
+            )
+            .into(),
         ),
         TransactionTestInfo::new_processed(loadnext_tx_1, false),
         TransactionTestInfo::new_processed(loadnext_tx_2.clone(), true),
         TransactionTestInfo::new_processed(loadnext_tx_2.clone(), true),
-        TransactionTestInfo::new_rejected(loadnext_deploy_tx, TxModifier::NonceReused.into()),
+        TransactionTestInfo::new_rejected(
+            loadnext_deploy_tx.clone(),
+            TxModifier::NonceReused(
+                loadnext_deploy_tx.initiator_account(),
+                loadnext_deploy_tx.nonce().unwrap(),
+            )
+            .into(),
+        ),
         TransactionTestInfo::new_processed(loadnext_tx_2, false),
     ]);
 
@@ -257,4 +288,38 @@ fn test_layered_rollback() {
     vm.vm.push_transaction(loadnext_transaction);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "transaction must not fail");
+}
+
+#[test]
+fn rollback_in_call_mode() {
+    let counter_bytecode = read_test_contract();
+    let counter_address = Address::repeat_byte(1);
+
+    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+        .with_empty_in_memory_storage()
+        .with_execution_mode(TxExecutionMode::EthCall)
+        .with_custom_contracts(vec![(counter_bytecode, counter_address, false)])
+        .with_random_rich_accounts(1)
+        .build();
+    let account = &mut vm.rich_accounts[0];
+    let tx = account.get_test_contract_transaction(counter_address, true, None, false, TxType::L2);
+
+    let (compression_result, vm_result) = vm
+        .vm
+        .execute_transaction_with_bytecode_compression(tx, true);
+    compression_result.unwrap();
+    assert_matches!(
+        vm_result.result,
+        ExecutionResult::Revert { output }
+            if output.to_string().contains("This method always reverts")
+    );
+
+    let storage_logs = vm
+        .vm
+        .get_current_execution_state()
+        .deduplicated_storage_logs;
+    assert!(
+        storage_logs.iter().all(|log| !log.is_write()),
+        "{storage_logs:?}"
+    );
 }

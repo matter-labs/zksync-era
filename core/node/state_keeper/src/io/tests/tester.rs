@@ -25,7 +25,7 @@ use zksync_node_test_utils::{
 use zksync_types::{
     block::L2BlockHeader,
     commitment::L1BatchCommitmentMode,
-    fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV1},
+    fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV2},
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
     system_contracts::get_system_smart_contracts,
@@ -97,8 +97,13 @@ impl Tester {
         MainNodeFeeInputProvider::new(
             gas_adjuster,
             Arc::new(NoOpRatioProvider::default()),
-            FeeModelConfig::V1(FeeModelConfigV1 {
+            FeeModelConfig::V2(FeeModelConfigV2 {
                 minimal_l2_gas_price: self.minimal_l2_gas_price(),
+                compute_overhead_part: 1.0,
+                pubdata_overhead_part: 1.0,
+                batch_overhead_l1_gas: 10,
+                max_gas_per_batch: 500_000_000_000,
+                max_pubdata_per_batch: 100_000_000_000,
             }),
         )
     }
@@ -116,8 +121,13 @@ impl Tester {
         let batch_fee_input_provider = MainNodeFeeInputProvider::new(
             gas_adjuster,
             Arc::new(NoOpRatioProvider::default()),
-            FeeModelConfig::V1(FeeModelConfigV1 {
+            FeeModelConfig::V2(FeeModelConfigV2 {
                 minimal_l2_gas_price: self.minimal_l2_gas_price(),
+                compute_overhead_part: 1.0,
+                pubdata_overhead_part: 1.0,
+                batch_overhead_l1_gas: 10,
+                max_gas_per_batch: 500_000_000_000,
+                max_pubdata_per_batch: 100_000_000_000,
             }),
         );
 
@@ -156,7 +166,7 @@ impl Tester {
                     patch: 0.into(),
                 },
                 &self.base_system_contracts,
-                &get_system_smart_contracts(),
+                &get_system_smart_contracts(false),
                 L1VerifierConfig::default(),
             )
             .await

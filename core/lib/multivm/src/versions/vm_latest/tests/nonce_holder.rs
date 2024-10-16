@@ -40,6 +40,7 @@ impl From<NonceHolderTestMode> for u8 {
 #[test]
 fn test_nonce_holder() {
     let mut account = Account::random();
+    let hex_addr = hex::encode(account.address.to_fixed_bytes());
 
     let mut vm = VmTesterBuilder::new(HistoryEnabled)
         .with_empty_in_memory_storage()
@@ -61,19 +62,17 @@ fn test_nonce_holder() {
         // it will fail again and again. At the same time we have to keep the same storage, because we want to keep the nonce holder contract state.
         // The easiest way in terms of lifetimes is to reuse `vm_builder` to achieve it.
         vm.reset_state(true);
-        let mut transaction_data: TransactionData = account
-            .get_l2_tx_for_execute_with_nonce(
-                Execute {
-                    contract_address: Some(account.address),
-                    calldata: vec![12],
-                    value: Default::default(),
-                    factory_deps: vec![],
-                },
-                None,
-                Nonce(nonce),
-            )
-            .into();
-
+        let tx = account.get_l2_tx_for_execute_with_nonce(
+            Execute {
+                contract_address: Some(account.address),
+                calldata: vec![12],
+                value: Default::default(),
+                factory_deps: vec![],
+            },
+            None,
+            Nonce(nonce),
+        );
+        let mut transaction_data = TransactionData::new(tx, false);
         transaction_data.signature = vec![test_mode.into()];
         vm.vm.push_raw_transaction(transaction_data, 0, 0, true);
         let result = vm.vm.execute(VmExecutionMode::OneTx);
@@ -101,7 +100,7 @@ fn test_nonce_holder() {
     run_nonce_test(
         1u32,
         NonceHolderTestMode::SetValueUnderNonce,
-        Some("Previous nonce has not been used".to_string()),
+        Some("Error function_selector = 0x13595475, data = 0x13595475".to_string()),
         "Allowed to set value under non sequential value",
     );
 
@@ -142,7 +141,7 @@ fn test_nonce_holder() {
     run_nonce_test(
         10u32,
         NonceHolderTestMode::IncreaseMinNonceBy5,
-        Some("Reusing the same nonce twice".to_string()),
+        Some(format!("Error function_selector = 0xe90aded4, data = 0xe90aded4000000000000000000000000{hex_addr}000000000000000000000000000000000000000000000000000000000000000a")),
         "Allowed to reuse nonce below the minimal one",
     );
 
@@ -158,7 +157,7 @@ fn test_nonce_holder() {
     run_nonce_test(
         13u32,
         NonceHolderTestMode::IncreaseMinNonceBy5,
-        Some("Reusing the same nonce twice".to_string()),
+        Some(format!("Error function_selector = 0xe90aded4, data = 0xe90aded4000000000000000000000000{hex_addr}000000000000000000000000000000000000000000000000000000000000000d")),
         "Allowed to reuse the same nonce twice",
     );
 
@@ -174,7 +173,7 @@ fn test_nonce_holder() {
     run_nonce_test(
         16u32,
         NonceHolderTestMode::IncreaseMinNonceTooMuch,
-        Some("The value for incrementing the nonce is too high".to_string()),
+        Some("Error function_selector = 0x45ac24a6, data = 0x45ac24a600000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000040000000000000000000000".to_string()),
         "Allowed for incrementing min nonce too much",
     );
 
@@ -182,7 +181,7 @@ fn test_nonce_holder() {
     run_nonce_test(
         16u32,
         NonceHolderTestMode::LeaveNonceUnused,
-        Some("The nonce was not set as used".to_string()),
+        Some(format!("Error function_selector = 0x1f2f8478, data = 0x1f2f8478000000000000000000000000{hex_addr}0000000000000000000000000000000000000000000000000000000000000010")),
         "Allowed to leave nonce as unused",
     );
 }

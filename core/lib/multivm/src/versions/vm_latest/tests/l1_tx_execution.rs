@@ -52,7 +52,7 @@ fn test_l1_tx_execution() {
     let contract_code = read_test_contract();
     let account = &mut vm.rich_accounts[0];
     let deploy_tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 1 });
-    let tx_data: TransactionData = deploy_tx.tx.clone().into();
+    let tx_data = TransactionData::new(deploy_tx.tx.clone(), false);
 
     let required_l2_to_l1_logs: Vec<_> = vec![L2ToL1Log {
         shard_id: 0,
@@ -112,9 +112,8 @@ fn test_l1_tx_execution() {
     let res = vm.vm.execute(VmExecutionMode::OneTx);
     let storage_logs = res.logs.storage_logs;
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
-    // We changed one slot inside contract. However, the rewrite of the `basePubdataSpent` didn't happen, since it was the same
-    // as the start of the previous tx. Thus we have `+1` slot for the changed counter and `-1` slot for base pubdata spent
-    assert_eq!(res.initial_storage_writes - basic_initial_writes, 0);
+    // We changed one slot inside contract.
+    assert_eq!(res.initial_storage_writes - basic_initial_writes, 1);
 
     // No repeated writes
     let repeated_writes = res.repeated_storage_writes;
@@ -142,7 +141,7 @@ fn test_l1_tx_execution() {
 
     let res = StorageWritesDeduplicator::apply_on_empty_state(&result.logs.storage_logs);
     // There are only basic initial writes
-    assert_eq!(res.initial_storage_writes - basic_initial_writes, 1);
+    assert_eq!(res.initial_storage_writes - basic_initial_writes, 2);
 }
 
 #[test]

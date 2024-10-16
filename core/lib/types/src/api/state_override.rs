@@ -21,6 +21,11 @@ impl StateOverride {
         self.0.get(address)
     }
 
+    /// Gets mutable overrides for the specified account.
+    pub fn get_mut(&mut self, address: &Address) -> Option<&mut OverrideAccount> {
+        self.0.get_mut(address)
+    }
+
     /// Iterates over all account overrides.
     pub fn iter(&self) -> impl Iterator<Item = (&Address, &OverrideAccount)> + '_ {
         self.0.iter()
@@ -45,6 +50,12 @@ impl Bytecode {
     /// Converts this bytecode into bytes.
     pub fn into_bytes(self) -> Vec<u8> {
         self.0 .0
+    }
+}
+
+impl AsRef<[u8]> for Bytecode {
+    fn as_ref(&self) -> &[u8] {
+        &self.0 .0
     }
 }
 
