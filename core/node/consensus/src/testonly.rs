@@ -45,7 +45,10 @@ use zksync_types::{
 };
 use zksync_web3_decl::client::{Client, DynClient, L2};
 
-use crate::{en, storage::ConnectionPool};
+use crate::{
+    en,
+    storage::{ConnectionPool, Store},
+};
 
 /// Fake StateKeeper for tests.
 #[derive(Debug)]
@@ -154,6 +157,7 @@ fn make_config(
     genesis_spec: Option<config::GenesisSpec>,
 ) -> config::ConsensusConfig {
     config::ConsensusConfig {
+        port: Some(cfg.server_addr.port()),
         server_addr: *cfg.server_addr,
         public_addr: config::Host(cfg.public_addr.0.clone()),
         max_payload_size: usize::MAX,
@@ -215,10 +219,11 @@ impl StateKeeper {
             .wait(IoCursor::for_fetcher(&mut conn.0))
             .await?
             .context("IoCursor::new()")?;
-        let pending_batch = ctx
-            .wait(conn.0.blocks_dal().pending_batch_exists())
+        let batch_sealed = ctx
+            .wait(conn.0.blocks_dal().get_unsealed_l1_batch())
             .await?
-            .context("pending_batch_exists()")?;
+            .context("get_unsealed_l1_batch()")?
+            .is_none();
         let (actions_sender, actions_queue) = ActionQueue::new();
         let addr = sync::watch::channel(None).0;
         let sync_state = SyncState::default();
@@ -254,7 +259,7 @@ impl StateKeeper {
                 last_batch: cursor.l1_batch,
                 last_block: cursor.next_l2_block - 1,
                 last_timestamp: cursor.prev_l2_block_timestamp,
-                batch_sealed: !pending_batch,
+                batch_sealed,
                 next_priority_op: PriorityOpId(1),
                 actions_sender,
                 sync_state: sync_state.clone(),
@@ -413,6 +418,40 @@ impl StateKeeper {
             sync_state: self.sync_state.clone(),
         }
         .run_fetcher(ctx, self.actions_sender)
+        .await
+    }
+
+    pub async fn run_temporary_fetcher(
+        self,
+        ctx: &ctx::Ctx,
+        client: Box<DynClient<L2>>,
+    ) -> ctx::Result<()> {
+        scope::run!(ctx, |ctx, s| async {
+            let payload_queue = self
+                .pool
+                .connection(ctx)
+                .await
+                .wrap("connection()")?
+                .new_payload_queue(ctx, self.actions_sender, self.sync_state.clone())
+                .await
+                .wrap("new_payload_queue()")?;
+            let (store, runner) = Store::new(
+                ctx,
+                self.pool.clone(),
+                Some(payload_queue),
+                Some(client.clone()),
+            )
+            .await
+            .wrap("Store::new()")?;
+            s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+            en::EN {
+                pool: self.pool.clone(),
+                client,
+                sync_state: self.sync_state.clone(),
+            }
+            .temporary_block_fetcher(ctx, &store)
+            .await
+        })
         .await
     }
 
