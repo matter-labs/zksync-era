@@ -1,4 +1,4 @@
-//! Measures instruction counts for the .
+//! Measures instruction counts for the fuzzed bytecodes.
 
 use std::{
     collections::HashMap,
@@ -109,6 +109,9 @@ impl Comparison {
     }
 }
 
+/// Reporter that outputs diffs in a Markdown table to stdout after all benchmarks are completed.
+///
+/// Significant diff level can be changed via `BENCHMARK_DIFF_THRESHOLD_PERCENT` env var; it is set to 1% by default.
 #[derive(Debug, Default)]
 struct ComparisonReporter {
     comparisons: Arc<Mutex<HashMap<String, Comparison>>>,
@@ -130,7 +133,7 @@ impl Drop for ComparisonReporter {
         }
 
         println!("\n## Detected VM performance changes");
-        println!("Benchmark name | est. cycles | change in est. cycles |");
+        println!("Benchmark name | Est. cycles | Change in est. cycles |");
         println!("|:---|---:|---:|");
         for (name, comparison) in &comparisons {
             println!(

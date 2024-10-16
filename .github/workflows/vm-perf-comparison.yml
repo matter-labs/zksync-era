@@ -10,9 +10,6 @@ jobs:
     name: Run VM benchmarks
     runs-on: [ matterlabs-ci-runner-highmem-long ]
 
-    env:
-      BENCHMARK_INSTRUCTIONS_DIFF: target/instructions-diff.md
-
     steps:
       - name: checkout base branch
         uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
