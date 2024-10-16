@@ -38,6 +38,7 @@ use super::{
 pub struct ExternalIO {
     pool: ConnectionPool<Core>,
     l1_batch_params_provider: L1BatchParamsProvider,
+    // don't like: ActionQueue is also coming from main node - why need client as well?
     actions: ActionQueue,
     main_node_client: Box<dyn MainNodeClient>,
     chain_id: L2ChainId,

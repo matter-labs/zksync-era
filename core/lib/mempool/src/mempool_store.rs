@@ -134,10 +134,12 @@ impl MempoolStore {
 
     /// Returns next transaction for execution from mempool
     pub fn next_transaction(&mut self, filter: &L2TxFilter) -> Option<Transaction> {
-        if let Some(transaction) = self.l1_transactions.remove(&self.next_priority_id) {
-            self.next_priority_id += 1;
-            return Some(transaction.into());
-        }
+        // todo: ignore prio txs for now
+        // if let Some(transaction) = self.l1_transactions.remove(&self.next_priority_id) {
+        //     self.next_priority_id += 1;
+        //     return Some(transaction.into());
+        // }
+        tracing::info!("next_transaction, prio queue: {:?}, by acc: {:?}", self.l2_priority_queue.len(), self.l2_transactions_per_account.len());
 
         let mut removed = 0;
         // We want to fetch the next transaction that would match the fee requirements.

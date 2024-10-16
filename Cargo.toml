@@ -80,6 +80,7 @@ members = [
   "core/tests/test_account",
   "core/tests/loadnext",
   "core/tests/vm-benchmark",
+    "core/node/zkos_state_keeper",
 ]
 resolver = "2"
 
@@ -157,6 +158,7 @@ regex = "1"
 reqwest = "0.12"
 rlp = "0.5"
 rocksdb = "0.21.0"
+ruint = { version = "=1.12.1", default-features = false }
 rustc_version = "0.4.0"
 rustls = "0.23"
 secp256k1 = { version = "0.27.0", features = ["recovery", "global-context"] }
@@ -228,6 +230,13 @@ zk_evm_1_3_3 = { package = "zk_evm", version = "0.133" }
 zk_evm_1_4_0 = { package = "zk_evm", version = "0.140" }
 zk_evm_1_4_1 = { package = "zk_evm", version = "0.141" }
 zk_evm_1_5_0 = { package = "zk_evm", version = "=0.150.5" }
+#zk_os_forward_system = { package = "forward_system", git = "https://github.com/matter-labs/zk_ee.git", branch = "ad-oracle-interface"}
+#zk_ee = { package = "zk_ee", git = "https://github.com/matter-labs/zk_ee.git", branch = "ad-oracle-interface"}
+
+zk_os_forward_system = {package = "forward_system",  path="../zk_ee/forward_system" }
+zk_ee = { package = "zk_ee", path="../zk_ee/zk_ee" }
+zk_os_basic_system = { package = "basic_system", path="../zk_ee/basic_system" }
+
 
 # New VM; pinned to a specific commit because of instability
 zksync_vm2 = { git = "https://github.com/matter-labs/vm2.git", rev = "a233d44bbe61dc6a758a754c3b78fe4f83e56699" }
@@ -301,6 +310,7 @@ zksync_vm_runner = { version = "0.1.0", path = "core/node/vm_runner" }
 zksync_external_proof_integration_api = { version = "0.1.0", path = "core/node/external_proof_integration_api" }
 zksync_node_test_utils = { version = "0.1.0", path = "core/node/test_utils" }
 zksync_state_keeper = { version = "0.1.0", path = "core/node/state_keeper" }
+zksync_zkos_state_keeper = { version = "0.1.0", path = "core/node/zkos_state_keeper" }
 zksync_reorg_detector = { version = "0.1.0", path = "core/node/reorg_detector" }
 zksync_consistency_checker = { version = "0.1.0", path = "core/node/consistency_checker" }
 zksync_metadata_calculator = { version = "0.1.0", path = "core/node/metadata_calculator" }
@@ -312,3 +322,12 @@ zksync_node_api_server = { version = "0.1.0", path = "core/node/api_server" }
 zksync_tee_verifier_input_producer = { version = "0.1.0", path = "core/node/tee_verifier_input_producer" }
 zksync_base_token_adjuster = { version = "0.1.0", path = "core/node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "0.1.0", path = "core/node/logs_bloom_backfill" }
+
+[patch.crates-io]
+ark-ff = { git = "https://github.com/arkworks-rs/algebra.git" }
+ark-ec = { git = "https://github.com/arkworks-rs/algebra.git" }
+ark-serialize = { git = "https://github.com/arkworks-rs/algebra.git" }
+ark-bn254 = { git = "https://github.com/arkworks-rs/algebra.git" }
+ark-std = { git = "https://github.com/arkworks-rs/std/" }
+franklin-crypto = {path = "../zksync-crypto/crates/franklin-crypto"}
+zksync_bellman = {path = "../zksync-crypto/crates/bellman"}
