@@ -12,7 +12,7 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::hash_bytecode;
 
-const LOAD_TEST_MAX_READS: usize = 100;
+const LOAD_TEST_MAX_READS: usize = 3000;
 
 pub(crate) static PRIVATE_KEY: Lazy<K256PrivateKey> =
     Lazy::new(|| K256PrivateKey::from_bytes(H256([42; 32])).expect("invalid key bytes"));
@@ -112,7 +112,7 @@ pub fn get_load_test_deploy_tx() -> Transaction {
         Some(CONTRACT_DEPLOYER_ADDRESS),
         create_calldata,
         Nonce(0),
-        tx_fee(100_000_000),
+        tx_fee(500_000_000),
         U256::zero(),
         L2ChainId::from(270),
         &PRIVATE_KEY,
@@ -185,7 +185,7 @@ pub fn get_heavy_load_test_tx(nonce: u32) -> Transaction {
         nonce,
         10_000_000,
         LoadTestParams {
-            reads: 2965,
+            reads: 296,
             initial_writes: 13,
             repeated_writes: 92,
             events: 140,
