@@ -335,7 +335,7 @@ fn mempool_capacity() {
         gen_l2_tx(account3, Nonce(1)),
     ];
     mempool.insert(transactions, HashMap::new());
-    // Mempool is full. Accounts with non-sequential nonces and some accounts with lowest score got stashed
+    // Mempool is full. Accounts with non-sequential nonces and some accounts with lowest score should be purged.
     assert_eq!(
         HashSet::<_>::from_iter(mempool.get_mempool_info().purged_accounts),
         HashSet::<_>::from_iter(vec![account2, account3]),
