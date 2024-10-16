@@ -31,7 +31,7 @@ async fn request_tee_proof_inputs() {
         L2ChainId::default(),
     );
     let test_cases = vec![
-        (json!({ "tee_type": "sgx" }), StatusCode::NOT_FOUND),
+        (json!({ "tee_type": "sgx" }), StatusCode::NO_CONTENT),
         (
             json!({ "tee_type": "Sgx" }),
             StatusCode::UNPROCESSABLE_ENTITY,
