@@ -34,8 +34,14 @@ struct Component {
 pub struct StatusArgs {
     #[clap(long, short = 'u', help = MSG_STATUS_URL_HELP)]
     pub url: Option<String>,
-    #[clap(long, short = 'p', help = MSG_STATUS_PORTS_HELP)]
-    pub ports: bool,
+    #[clap(subcommand)]
+    pub subcommand: Option<StatusSubcommands>,
+}
+
+#[derive(Debug, Parser)]
+pub enum StatusSubcommands {
+    #[clap(about = MSG_STATUS_PORTS_HELP)]
+    Ports,
 }
 
 struct BoxProperties {
@@ -238,7 +244,7 @@ fn deslugify(name: &str) -> String {
 }
 
 pub async fn run(shell: &Shell, args: StatusArgs) -> anyhow::Result<()> {
-    if args.ports {
+    if let Some(StatusSubcommands::Ports) = args.subcommand {
         return print_ports(shell);
     }
 
