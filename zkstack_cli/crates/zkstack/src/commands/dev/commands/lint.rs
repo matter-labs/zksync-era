@@ -41,7 +41,6 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
             Target::Js,
             Target::Ts,
             Target::Contracts,
-            Target::Autocompletion,
         ]
     } else {
         args.targets.clone()
