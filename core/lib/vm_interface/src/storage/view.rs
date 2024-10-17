@@ -102,6 +102,16 @@ impl<S> StorageView<S> {
     pub fn cache(&self) -> StorageViewCache {
         self.cache.clone()
     }
+
+    /// Provides mutable access to the underlying storage.
+    ///
+    /// # Warning
+    ///
+    /// Mutating the underlying storage directly can easily break implied `StorageView` invariants, so use with care.
+    #[doc(hidden)]
+    pub fn inner_mut(&mut self) -> &mut S {
+        &mut self.storage_handle
+    }
 }
 
 impl<S> ReadStorage for Box<S>
