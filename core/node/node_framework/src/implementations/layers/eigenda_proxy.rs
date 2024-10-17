@@ -1,3 +1,5 @@
+use zksync_config::configs::da_client::eigen_da::EigenDAConfig;
+
 use crate::{
     implementations::resources::{
         object_store::ObjectStoreResource,
@@ -11,7 +13,9 @@ use crate::{
 
 /// Wiring layer for eigenda server.
 #[derive(Debug)]
-pub struct EigenDAProxyLayer {}
+pub struct EigenDAProxyLayer {
+    eigenda_config: EigenDAConfig,
+}
 
 #[derive(Debug, FromContext)]
 #[context(crate = crate)]
@@ -28,8 +32,8 @@ pub struct Output {
 }
 
 impl EigenDAProxyLayer {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(eigenda_config: EigenDAConfig) -> Self {
+        Self { eigenda_config }
     }
 }
 

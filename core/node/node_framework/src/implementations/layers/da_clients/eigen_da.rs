@@ -8,7 +8,7 @@ use crate::{
     IntoContext,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct EigenDAWiringLayer {
     config: EigenDAConfig,
 }

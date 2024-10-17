@@ -296,7 +296,13 @@ impl MainNodeBuilder {
     }
 
     fn add_eigenda_proxy_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(EigenDAProxyLayer::new());
+        let da_config = try_load_config!(self.configs.da_client_config);
+        match da_config {
+            DAClientConfig::EigenDA(config) => {
+                self.node.add_layer(EigenDAProxyLayer::new(config));
+            }
+            _ => {}
+        }
         Ok(self)
     }
 
