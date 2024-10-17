@@ -305,6 +305,7 @@ impl MainNodeBuilder {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
             initial_writes_cache_size: rpc_config.initial_writes_cache_size() as u64,
             latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
+            latest_values_max_block_lag: rpc_config.latest_values_max_block_lag(),
         };
 
         // On main node we always use master pool sink.

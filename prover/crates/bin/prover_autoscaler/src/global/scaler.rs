@@ -56,6 +56,7 @@ pub struct Scaler {
 
     /// Which cluster to use first.
     cluster_priorities: HashMap<String, u32>,
+    max_provers: HashMap<String, HashMap<Gpu, u32>>,
     prover_speed: HashMap<Gpu, u32>,
     long_pending_duration: chrono::Duration,
 }
@@ -87,6 +88,7 @@ impl Scaler {
             watcher,
             queuer,
             cluster_priorities: config.cluster_priorities,
+            max_provers: config.max_provers,
             prover_speed: config.prover_speed,
             long_pending_duration: chrono::Duration::seconds(
                 config.long_pending_duration.whole_seconds(),
@@ -112,7 +114,12 @@ impl Scaler {
             let e = gp_map.entry(gpu).or_insert(GPUPool {
                 name: cluster.name.clone(),
                 gpu,
-                max_pool_size: 100, // TODO: get from the agent.
+                max_pool_size: self
+                    .max_provers
+                    .get(&cluster.name)
+                    .and_then(|inner_map| inner_map.get(&gpu))
+                    .copied()
+                    .unwrap_or(0),
                 ..Default::default()
             });
 
@@ -265,10 +272,31 @@ impl Scaler {
             }
         }
 
-        tracing::debug!("run result: provers {:?}, total: {}", &provers, total);
+        tracing::debug!(
+            "run result for namespace {}: provers {:?}, total: {}",
+            namespace,
+            &provers,
+            total
+        );
 
         provers
     }
+}
+
+/// is_namespace_running returns true if there are some pods running in it.
+fn is_namespace_running(namespace: &str, clusters: &Clusters) -> bool {
+    clusters
+        .clusters
+        .values()
+        .flat_map(|v| v.namespaces.iter())
+        .filter_map(|(k, v)| if k == namespace { Some(v) } else { None })
+        .flat_map(|v| v.deployments.values())
+        .map(
+            |d| d.running + d.desired, // If there is something running or expected to run, we
+                                       // should consider the namespace.
+        )
+        .sum::<i32>()
+        > 0
 }
 
 #[async_trait::async_trait]
@@ -276,12 +304,17 @@ impl Task for Scaler {
     async fn invoke(&self) -> anyhow::Result<()> {
         let queue = self.queuer.get_queue().await.unwrap();
 
-        // TODO: Check that clusters data is ready.
-        let clusters = self.watcher.clusters.lock().await;
+        let guard = self.watcher.data.lock().await;
+        if let Err(err) = watcher::check_is_ready(&guard.is_ready) {
+            tracing::warn!("Skipping Scaler run: {}", err);
+            return Ok(());
+        }
+
         for (ns, ppv) in &self.namespaces {
             let q = queue.queue.get(ppv).cloned().unwrap_or(0);
-            if q > 0 {
-                let provers = self.run(ns, q, &clusters);
+            tracing::debug!("Running eval for namespace {ns} and PPV {ppv} found queue {q}");
+            if q > 0 || is_namespace_running(ns, &guard.clusters) {
+                let provers = self.run(ns, q, &guard.clusters);
                 for (k, num) in &provers {
                     AUTOSCALER_METRICS.provers[&(k.cluster.clone(), ns.clone(), k.gpu)]
                         .set(*num as u64);
@@ -302,7 +335,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        cluster_types::{self, Deployment, Namespace, Pod},
+        cluster_types::{Deployment, Namespace, Pod},
         global::{queuer, watcher},
     };
 
@@ -310,14 +343,19 @@ mod tests {
     fn test_run() {
         let watcher = watcher::Watcher {
             cluster_agents: vec![],
-            clusters: Arc::new(Mutex::new(cluster_types::Clusters {
-                ..Default::default()
-            })),
+            data: Arc::new(Mutex::new(watcher::WatchedData::default())),
         };
         let queuer = queuer::Queuer {
             prover_job_monitor_url: "".to_string(),
         };
-        let scaler = Scaler::new(watcher, queuer, ProverAutoscalerScalerConfig::default());
+        let scaler = Scaler::new(
+            watcher,
+            queuer,
+            ProverAutoscalerScalerConfig {
+                max_provers: HashMap::from([("foo".to_string(), HashMap::from([(Gpu::L4, 100)]))]),
+                ..Default::default()
+            },
+        );
         let got = scaler.run(
             &"prover".to_string(),
             1499,
@@ -355,6 +393,6 @@ mod tests {
             },
             3,
         )]);
-        assert!(got == want);
+        assert_eq!(got, want);
     }
 }
