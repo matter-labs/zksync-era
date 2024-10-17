@@ -190,7 +190,7 @@ impl MainNodeBuilder {
                 .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         }
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let l1_gas_layer = L1GasLayer::new(state_keeper_config);
+        let l1_gas_layer = L1GasLayer::new(&state_keeper_config);
         self.node.add_layer(l1_gas_layer);
         Ok(self)
     }

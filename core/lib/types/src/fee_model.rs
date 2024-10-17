@@ -4,7 +4,6 @@ use std::num::NonZeroU64;
 
 use bigdecimal::{BigDecimal, ToPrimitive};
 use serde::{Deserialize, Serialize};
-use zksync_config::configs::chain::{FeeModelVersion, StateKeeperConfig};
 use zksync_system_constants::L1_GAS_PER_PUBDATA_BYTE;
 use zksync_utils::ceil_div_u256;
 
@@ -206,6 +205,7 @@ pub struct FeeModelConfigV2 {
     /// The maximum amount of pubdata that can be used by the batch. Note that if the calldata is used as pubdata, this variable should not exceed 128kb.
     pub max_pubdata_per_batch: u64,
 }
+
 impl Default for FeeModelConfig {
     /// Config with all zeroes is not a valid config (since for instance having 0 max gas per batch may incur division by zero),
     /// so we implement a sensible default config here.
@@ -213,24 +213,6 @@ impl Default for FeeModelConfig {
         Self::V1(FeeModelConfigV1 {
             minimal_l2_gas_price: 100_000_000,
         })
-    }
-}
-
-impl FeeModelConfig {
-    pub fn from_state_keeper_config(state_keeper_config: &StateKeeperConfig) -> Self {
-        match state_keeper_config.fee_model_version {
-            FeeModelVersion::V1 => Self::V1(FeeModelConfigV1 {
-                minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
-            }),
-            FeeModelVersion::V2 => Self::V2(FeeModelConfigV2 {
-                minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
-                compute_overhead_part: state_keeper_config.compute_overhead_part,
-                pubdata_overhead_part: state_keeper_config.pubdata_overhead_part,
-                batch_overhead_l1_gas: state_keeper_config.batch_overhead_l1_gas,
-                max_gas_per_batch: state_keeper_config.max_gas_per_batch,
-                max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
-            }),
-        }
     }
 }
 
