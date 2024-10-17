@@ -120,7 +120,7 @@ impl EvmTestBuilder {
             .with_system_env(system_env)
             .with_storage(storage)
             .with_execution_mode(TxExecutionMode::VerifyExecute)
-            .with_random_rich_accounts(1)
+            .with_rich_accounts(1)
             .build()
     }
 }
@@ -138,7 +138,7 @@ fn tracing_evm_contract_deployment() {
         .with_system_env(system_env)
         .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<TestedLatestVm>();
     let account = &mut vm.rich_accounts[0];
 

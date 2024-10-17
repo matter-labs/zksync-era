@@ -13,7 +13,7 @@ pub(crate) fn test_secp256r1<VM: TestedVm>() {
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_execution_mode(TxExecutionMode::EthCall)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     let account = &mut vm.rich_accounts[0];

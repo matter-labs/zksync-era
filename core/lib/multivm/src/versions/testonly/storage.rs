@@ -17,7 +17,7 @@ fn test_storage<VM: TestedVm>(first_tx_calldata: Vec<u8>, second_tx_calldata: Ve
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .with_custom_contracts(vec![ContractToDeploy::new(bytecode, test_contract_address)])
         .build::<VM>();
 

@@ -5,7 +5,7 @@ use zksync_test_account::{Account, TxType};
 use zksync_types::{
     utils::{deployed_address_create, storage_key_for_eth_balance},
     writes::StateDiffRecord,
-    Address, L1BatchNumber, StorageKey, Transaction, H256, U256,
+    Address, K256PrivateKey, L1BatchNumber, StorageKey, Transaction, H256, U256,
 };
 use zksync_vm_interface::{
     CurrentExecutionState, VmExecutionResultAndLogs, VmInterfaceHistoryEnabled,
@@ -20,7 +20,7 @@ use crate::{
         VmInterfaceExt,
     },
     versions::testonly::{
-        default_l1_batch, default_system_env, make_account_rich, ContractToDeploy,
+        default_l1_batch, default_system_env, make_address_rich, ContractToDeploy,
     },
 };
 
@@ -56,7 +56,7 @@ impl<VM: TestedVm> VmTester<VM> {
     pub(crate) fn reset_with_empty_storage(&mut self) {
         let mut storage = get_empty_storage();
         for account in &self.rich_accounts {
-            make_account_rich(&mut storage, account);
+            make_address_rich(&mut storage, account.address);
         }
 
         let storage = StorageView::new(storage).to_rc_ptr();
@@ -124,17 +124,19 @@ impl VmTesterBuilder {
         self
     }
 
-    pub(crate) fn with_random_rich_accounts(mut self, number: u32) -> Self {
-        for _ in 0..number {
-            let account = Account::random();
+    /// Creates the specified number of pre-funded accounts.
+    pub(crate) fn with_rich_accounts(mut self, number: u32) -> Self {
+        for i in 0..number {
+            let account_private_key_bytes = H256::from_low_u64_be(u64::from(i) + 1);
+            let account =
+                Account::new(K256PrivateKey::from_bytes(account_private_key_bytes).unwrap());
             self.rich_accounts.push(account);
         }
         self
     }
 
-    pub(crate) fn with_rich_accounts(mut self, accounts: Vec<Account>) -> Self {
-        self.rich_accounts.extend(accounts);
-        self
+    pub(crate) fn rich_account(&self, index: usize) -> &Account {
+        &self.rich_accounts[index]
     }
 
     pub(crate) fn with_custom_contracts(mut self, contracts: Vec<ContractToDeploy>) -> Self {
@@ -154,7 +156,7 @@ impl VmTesterBuilder {
         ContractToDeploy::insert_all(&self.custom_contracts, &mut raw_storage);
         let storage = StorageView::new(raw_storage).to_rc_ptr();
         for account in &self.rich_accounts {
-            make_account_rich(storage.borrow_mut().inner_mut(), account);
+            make_address_rich(storage.borrow_mut().inner_mut(), account.address);
         }
 
         let vm = VM::new(

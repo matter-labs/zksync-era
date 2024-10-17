@@ -7,7 +7,7 @@ use crate::interface::{ExecutionResult, VmExecutionMode, VmInterfaceExt};
 pub(crate) fn test_estimate_fee<VM: TestedVm>() {
     let mut vm_tester = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     vm_tester.deploy_test_contract();
@@ -30,7 +30,7 @@ pub(crate) fn test_estimate_fee<VM: TestedVm>() {
 pub(crate) fn test_simple_execute<VM: TestedVm>() {
     let mut vm_tester = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     vm_tester.deploy_test_contract();

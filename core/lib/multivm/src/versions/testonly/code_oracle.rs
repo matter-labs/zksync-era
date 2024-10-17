@@ -37,7 +37,7 @@ pub(crate) fn test_code_oracle<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .with_custom_contracts(vec![ContractToDeploy::new(
             precompile_contract_bytecode,
             precompiles_contract_address,
@@ -128,7 +128,7 @@ pub(crate) fn test_code_oracle_big_bytecode<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .with_custom_contracts(vec![ContractToDeploy::new(
             precompile_contract_bytecode,
             precompiles_contract_address,
@@ -190,7 +190,7 @@ pub(crate) fn test_refunds_in_code_oracle<VM: TestedVm>() {
     for decommit in [false, true] {
         let mut vm = VmTesterBuilder::new()
             .with_execution_mode(TxExecutionMode::VerifyExecute)
-            .with_random_rich_accounts(1)
+            .with_rich_accounts(1)
             .with_custom_contracts(vec![ContractToDeploy::new(
                 precompile_contract_bytecode.clone(),
                 precompiles_contract_address,

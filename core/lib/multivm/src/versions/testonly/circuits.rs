@@ -12,7 +12,7 @@ use crate::{
 pub(crate) fn test_circuits<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<VM>();

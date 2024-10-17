@@ -27,7 +27,7 @@ pub(crate) fn test_protocol_upgrade_is_first<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     // Here we just use some random transaction of protocol upgrade type:
@@ -117,7 +117,7 @@ pub(crate) fn test_force_deploy_upgrade<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     let address_to_deploy = H160::random();
@@ -172,7 +172,7 @@ pub(crate) fn test_complex_upgrader<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     let address_to_deploy1 = H160::random();

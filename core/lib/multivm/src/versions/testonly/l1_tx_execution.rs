@@ -38,7 +38,7 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     let contract_code = read_test_contract();
@@ -143,7 +143,7 @@ pub(crate) fn test_l1_tx_execution_high_gas_limit<VM: TestedVm>() {
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     let account = &mut vm.rich_accounts[0];

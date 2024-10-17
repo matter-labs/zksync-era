@@ -13,11 +13,10 @@ use zksync_contracts::{
     load_contract, read_bootloader_code, read_bytecode, read_zbin_bytecode, BaseSystemContracts,
     SystemContractCode,
 };
-use zksync_test_account::Account;
 use zksync_types::{
     block::L2BlockHasher, fee_model::BatchFeeInput, get_code_key, get_is_account_key,
-    helpers::unix_timestamp_ms, utils::storage_key_for_eth_balance, Address, L1BatchNumber,
-    L2BlockNumber, L2ChainId, ProtocolVersionId, U256,
+    utils::storage_key_for_eth_balance, Address, L1BatchNumber, L2BlockNumber, L2ChainId,
+    ProtocolVersionId, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
 use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
@@ -145,7 +144,7 @@ pub(super) fn default_system_env() -> SystemEnv {
 }
 
 pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
-    let timestamp = unix_timestamp_ms();
+    let timestamp = number.0.into();
     L1BatchEnv {
         previous_batch_hash: None,
         number,
@@ -154,7 +153,7 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
             50_000_000_000, // 50 gwei
             250_000_000,    // 0.25 gwei
         ),
-        fee_account: Address::random(),
+        fee_account: Address::repeat_byte(1),
         enforced_base_fee: None,
         first_l2_block: L2BlockEnv {
             number: 1,
@@ -165,8 +164,8 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
     }
 }
 
-pub(super) fn make_account_rich(storage: &mut InMemoryStorage, account: &Account) {
-    let key = storage_key_for_eth_balance(&account.address);
+pub(super) fn make_address_rich(storage: &mut InMemoryStorage, address: Address) {
+    let key = storage_key_for_eth_balance(&address);
     storage.set_value(key, u256_to_h256(U256::from(10_u64.pow(19))));
 }
 
@@ -175,6 +174,7 @@ pub(super) struct ContractToDeploy {
     bytecode: Vec<u8>,
     address: Address,
     is_account: bool,
+    is_funded: bool,
 }
 
 impl ContractToDeploy {
@@ -183,6 +183,7 @@ impl ContractToDeploy {
             bytecode,
             address,
             is_account: false,
+            is_funded: false,
         }
     }
 
@@ -191,7 +192,14 @@ impl ContractToDeploy {
             bytecode,
             address,
             is_account: true,
+            is_funded: false,
         }
+    }
+
+    #[must_use]
+    pub fn funded(mut self) -> Self {
+        self.is_funded = true;
+        self
     }
 
     pub fn insert(&self, storage: &mut InMemoryStorage) {
@@ -202,6 +210,10 @@ impl ContractToDeploy {
             storage.set_value(is_account_key, u256_to_h256(1_u32.into()));
         }
         storage.store_factory_dep(hash_bytecode(&self.bytecode), self.bytecode.clone());
+
+        if self.is_funded {
+            make_address_rich(storage, self.address);
+        }
     }
 
     /// Inserts the contracts into the test environment, bypassing the deployer system contract.

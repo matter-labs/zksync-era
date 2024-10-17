@@ -127,7 +127,7 @@ fn execute_proxy_counter<VM: TestedVm>(
             counter_address,
         )])
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     let (proxy_counter_bytecode, proxy_counter_abi) = read_proxy_counter_contract();

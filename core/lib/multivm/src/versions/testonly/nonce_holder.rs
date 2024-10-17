@@ -73,22 +73,24 @@ fn run_nonce_test(
 }
 
 pub(crate) fn test_nonce_holder<VM: TestedVm>() {
-    let mut account = Account::random();
-    let hex_addr = hex::encode(account.address.to_fixed_bytes());
-    let mut vm = VmTesterBuilder::new()
+    let builder = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_rich_accounts(1);
+    let account_address = builder.rich_account(0).address;
+    let mut vm = builder
         .with_custom_contracts(vec![ContractToDeploy::account(
             read_nonce_holder_tester(),
-            account.address,
+            account_address,
         )])
-        .with_rich_accounts(vec![account.clone()])
         .build::<VM>();
+    let account = &mut vm.rich_accounts[0];
+    let hex_addr = hex::encode(account.address.to_fixed_bytes());
 
     // Test 1: trying to set value under non sequential nonce value.
     run_nonce_test(
         &mut vm.vm,
-        &mut account,
+        account,
         1u32,
         NonceHolderTestMode::SetValueUnderNonce,
         Some("Error function_selector = 0x13595475, data = 0x13595475".to_string()),
@@ -98,7 +100,7 @@ pub(crate) fn test_nonce_holder<VM: TestedVm>() {
     // Test 2: increase min nonce by 1 with sequential nonce ordering:
     run_nonce_test(
         &mut vm.vm,
-        &mut account,
+        account,
         0u32,
         NonceHolderTestMode::IncreaseMinNonceBy1,
         None,
@@ -108,7 +110,7 @@ pub(crate) fn test_nonce_holder<VM: TestedVm>() {
     // Test 3: correctly set value under nonce with sequential nonce ordering:
     run_nonce_test(
         &mut vm.vm,
-        &mut account,
+        account,
         1u32,
         NonceHolderTestMode::SetValueUnderNonce,
         None,
@@ -118,7 +120,7 @@ pub(crate) fn test_nonce_holder<VM: TestedVm>() {
     // Test 5: migrate to the arbitrary nonce ordering:
     run_nonce_test(
         &mut vm.vm,
-        &mut account,
+        account,
         2u32,
         NonceHolderTestMode::SwitchToArbitraryOrdering,
         None,
@@ -128,7 +130,7 @@ pub(crate) fn test_nonce_holder<VM: TestedVm>() {
     // Test 6: increase min nonce by 5
     run_nonce_test(
         &mut vm.vm,
-        &mut account,
+        account,
         6u32,
         NonceHolderTestMode::IncreaseMinNonceBy5,
         None,
@@ -139,7 +141,7 @@ pub(crate) fn test_nonce_holder<VM: TestedVm>() {
     // tx with nonce 10 should not be allowed
     run_nonce_test(
         &mut vm.vm,
-        &mut account,
+        account,
         10u32,
         NonceHolderTestMode::IncreaseMinNonceBy5,
         Some(format!("Error function_selector = 0xe90aded4, data = 0xe90aded4000000000000000000000000{hex_addr}000000000000000000000000000000000000000000000000000000000000000a")),
@@ -149,7 +151,7 @@ pub(crate) fn test_nonce_holder<VM: TestedVm>() {
     // Test 8: we should be able to use nonce 13
     run_nonce_test(
         &mut vm.vm,
-        &mut account,
+        account,
         13u32,
         NonceHolderTestMode::SetValueUnderNonce,
         None,
@@ -159,7 +161,7 @@ pub(crate) fn test_nonce_holder<VM: TestedVm>() {
     // Test 9: we should not be able to reuse nonce 13
     run_nonce_test(
         &mut vm.vm,
-        &mut account,
+        account,
         13u32,
         NonceHolderTestMode::IncreaseMinNonceBy5,
         Some(format!("Error function_selector = 0xe90aded4, data = 0xe90aded4000000000000000000000000{hex_addr}000000000000000000000000000000000000000000000000000000000000000d")),
@@ -169,7 +171,7 @@ pub(crate) fn test_nonce_holder<VM: TestedVm>() {
     // Test 10: we should be able to simply use nonce 14, while bumping the minimal nonce by 5
     run_nonce_test(
         &mut vm.vm,
-        &mut account,
+        account,
         14u32,
         NonceHolderTestMode::IncreaseMinNonceBy5,
         None,
@@ -179,7 +181,7 @@ pub(crate) fn test_nonce_holder<VM: TestedVm>() {
     // Test 11: Do not allow bumping nonce by too much
     run_nonce_test(
         &mut vm.vm,
-        &mut account,
+        account,
         16u32,
         NonceHolderTestMode::IncreaseMinNonceTooMuch,
         Some("Error function_selector = 0x45ac24a6, data = 0x45ac24a600000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000040000000000000000000000".to_string()),
@@ -189,7 +191,7 @@ pub(crate) fn test_nonce_holder<VM: TestedVm>() {
     // Test 12: Do not allow not setting a nonce as used
     run_nonce_test(
         &mut vm.vm,
-        &mut account,
+        account,
         16u32,
         NonceHolderTestMode::LeaveNonceUnused,
         Some(format!("Error function_selector = 0x1f2f8478, data = 0x1f2f8478000000000000000000000000{hex_addr}0000000000000000000000000000000000000000000000000000000000000010")),

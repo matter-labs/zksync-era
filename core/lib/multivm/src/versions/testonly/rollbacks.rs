@@ -17,7 +17,7 @@ pub(crate) fn test_vm_rollbacks<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     let mut account = vm.rich_accounts[0].clone();
@@ -83,7 +83,7 @@ pub(crate) fn test_vm_loadnext_rollbacks<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
     let mut account = vm.rich_accounts[0].clone();
 
@@ -184,7 +184,7 @@ pub(crate) fn test_rollback_in_call_mode<VM: TestedVm>() {
             counter_bytecode,
             counter_address,
         )])
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_test_contract_transaction(counter_address, true, None, false, TxType::L2);

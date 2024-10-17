@@ -133,7 +133,7 @@ fn execute_test<VM: TestedVm>(test_data: L1MessengerTestData) -> TestStatistics 
     let mut vm = VmTesterBuilder::new()
         .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .with_l1_batch_env(batch_env)
         .build::<VM>();
 

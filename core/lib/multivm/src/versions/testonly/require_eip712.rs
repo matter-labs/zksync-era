@@ -1,9 +1,8 @@
 use ethabi::Token;
 use zksync_eth_signer::TransactionParameters;
-use zksync_test_account::Account;
 use zksync_types::{
-    fee::Fee, l2::L2Tx, transaction_request::TransactionRequest, Eip712Domain, Execute, L2ChainId,
-    Nonce, Transaction, U256,
+    fee::Fee, l2::L2Tx, transaction_request::TransactionRequest, Address, Eip712Domain, Execute,
+    L2ChainId, Nonce, Transaction, U256,
 };
 
 use super::{
@@ -19,24 +18,21 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
     // - `private_address` - EOA account, where we have the key
     // - `account_address` - AA account, where the contract is deployed
     // - beneficiary - an EOA account, where we'll try to transfer the tokens.
-    let account_abstraction = Account::random();
-    let mut private_account = Account::random();
-    let beneficiary = Account::random();
+    let aa_address = Address::repeat_byte(0x10);
+    let beneficiary_address = Address::repeat_byte(0x20);
 
     let (bytecode, contract) = read_many_owners_custom_account_contract();
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
-        .with_custom_contracts(vec![ContractToDeploy::account(
-            bytecode,
-            account_abstraction.address,
-        )])
+        .with_custom_contracts(vec![
+            ContractToDeploy::account(bytecode, aa_address).funded()
+        ])
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_rich_accounts(vec![account_abstraction.clone(), private_account.clone()])
+        .with_rich_accounts(1)
         .build::<VM>();
-
-    assert_eq!(vm.get_eth_balance(beneficiary.address), U256::from(0));
-
+    assert_eq!(vm.get_eth_balance(beneficiary_address), U256::from(0));
     let chain_id: u32 = 270;
+    let mut private_account = vm.rich_accounts[0].clone();
 
     // First, let's set the owners of the AA account to the `private_address`.
     // (so that messages signed by `private_address`, are authorized to act on behalf of the AA account).
@@ -47,7 +43,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
 
     let tx = private_account.get_l2_tx_for_execute(
         Execute {
-            contract_address: Some(account_abstraction.address),
+            contract_address: Some(aa_address),
             calldata: encoded_input,
             value: Default::default(),
             factory_deps: vec![],
@@ -65,7 +61,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
     // Normally this would not work - unless the operator is malicious.
     let aa_raw_tx = TransactionParameters {
         nonce: U256::from(0),
-        to: Some(beneficiary.address),
+        to: Some(beneficiary_address),
         gas: U256::from(100000000),
         gas_price: Some(U256::from(10000000)),
         value: U256::from(888000088),
@@ -85,7 +81,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
     let mut l2_tx: L2Tx = L2Tx::from_request(tx_request, 10000, false).unwrap();
     l2_tx.set_input(aa_tx, hash);
     // Pretend that operator is malicious and sets the initiator to the AA account.
-    l2_tx.common_data.initiator_address = account_abstraction.address;
+    l2_tx.common_data.initiator_address = aa_address;
     let transaction: Transaction = l2_tx.into();
 
     vm.vm.push_transaction(transaction);
@@ -93,7 +89,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
     assert!(!result.result.is_failed());
 
     assert_eq!(
-        vm.get_eth_balance(beneficiary.address),
+        vm.get_eth_balance(beneficiary_address),
         U256::from(888000088)
     );
     // Make sure that the tokens were transferred from the AA account.
@@ -104,7 +100,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
 
     // // Now send the 'classic' EIP712 transaction
     let tx_712 = L2Tx::new(
-        Some(beneficiary.address),
+        Some(beneficiary_address),
         vec![],
         Nonce(1),
         Fee {
@@ -113,7 +109,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
             max_priority_fee_per_gas: U256::from(1000000000),
             gas_per_pubdata_limit: U256::from(1000000000),
         },
-        account_abstraction.address,
+        aa_address,
         U256::from(28374938),
         vec![],
         Default::default(),
@@ -140,7 +136,7 @@ pub(crate) fn test_require_eip712<VM: TestedVm>() {
     vm.vm.execute(VmExecutionMode::OneTx);
 
     assert_eq!(
-        vm.get_eth_balance(beneficiary.address),
+        vm.get_eth_balance(beneficiary_address),
         U256::from(916375026)
     );
     assert_eq!(

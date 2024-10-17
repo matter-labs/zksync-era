@@ -15,7 +15,7 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
     let l1_batch = vm.l1_batch_env.clone();
 
@@ -49,8 +49,9 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
         .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch.clone())
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_rich_accounts(vec![account.clone()])
+        .with_rich_accounts(1)
         .build::<VM>();
+    assert_eq!(account.address(), vm.rich_accounts[0].address());
 
     vm.vm
         .push_transaction_with_refund(tx.clone(), result.refunds.gas_refunded);
@@ -99,8 +100,9 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
         .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_rich_accounts(vec![account.clone()])
+        .with_rich_accounts(1)
         .build::<VM>();
+    assert_eq!(account.address(), vm.rich_accounts[0].address());
 
     let changed_operator_suggested_refund = result.refunds.gas_refunded + 1000;
     vm.vm
@@ -164,7 +166,7 @@ pub(crate) fn test_negative_pubdata_for_transaction<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .with_custom_contracts(vec![ContractToDeploy::new(
             expensive_contract_bytecode,
             expensive_contract_address,

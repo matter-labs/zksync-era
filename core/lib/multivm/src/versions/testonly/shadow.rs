@@ -22,7 +22,7 @@ use crate::{
     },
     utils::get_max_gas_per_pubdata_byte,
     versions::testonly::{
-        default_l1_batch, default_system_env, make_account_rich, ContractToDeploy,
+        default_l1_batch, default_system_env, make_address_rich, ContractToDeploy,
     },
     vm_fast, vm_latest,
     vm_latest::HistoryEnabled,
@@ -82,8 +82,8 @@ impl Harness {
     }
 
     fn setup_storage(&self, storage: &mut InMemoryStorage) {
-        make_account_rich(storage, &self.alice);
-        make_account_rich(storage, &self.bob);
+        make_address_rich(storage, self.alice.address);
+        make_address_rich(storage, self.bob.address);
 
         self.storage_contract.insert(storage);
         let storage_contract_key = StorageKey::new(

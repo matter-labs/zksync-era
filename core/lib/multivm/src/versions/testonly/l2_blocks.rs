@@ -53,7 +53,7 @@ pub(crate) fn test_l2_block_initialization_timestamp<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     // Override the timestamp of the current L2 block to be 0.
@@ -91,7 +91,7 @@ pub(crate) fn test_l2_block_initialization_number_non_zero<VM: TestedVm>() {
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_l1_batch_env(l1_batch)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     let l1_tx = get_l1_noop();
@@ -123,7 +123,7 @@ fn test_same_l2_block<VM: TestedVm>(
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_l1_batch_env(l1_batch)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     let l1_tx = get_l1_noop();
@@ -196,7 +196,7 @@ fn test_new_l2_block<VM: TestedVm>(
         .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     let l1_tx = get_l1_noop();
@@ -295,7 +295,7 @@ fn test_first_in_batch<VM: TestedVm>(
         .with_empty_in_memory_storage()
         .with_l1_batch_env(l1_batch)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .build::<VM>();
     let l1_tx = get_l1_noop();
 

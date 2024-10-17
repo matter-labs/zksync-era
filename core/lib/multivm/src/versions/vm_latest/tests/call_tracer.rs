@@ -21,7 +21,7 @@ fn test_max_depth() {
     let address = Address::random();
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_custom_contracts(vec![ContractToDeploy::account(contarct, address)])
@@ -54,7 +54,7 @@ fn test_basic_behavior() {
     let address = Address::random();
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
-        .with_random_rich_accounts(1)
+        .with_rich_accounts(1)
         .with_bootloader_gas_limit(BATCH_COMPUTATIONAL_GAS_LIMIT)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_custom_contracts(vec![ContractToDeploy::account(contract, address)])
