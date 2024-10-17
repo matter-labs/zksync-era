@@ -910,7 +910,9 @@ impl BlocksDal<'_, '_> {
 
     /// Returns fee input as of the latest (current unsealed if exists or last sealed if not) L1
     /// batch present in DB.
-    pub async fn get_latest_l1_batch_fee_input(&mut self) -> DalResult<BatchFeeInput> {
+    ///
+    /// `None` if the only batch in DB is genesis as it never has valid fee input.
+    pub async fn get_latest_l1_batch_fee_input(&mut self) -> DalResult<Option<BatchFeeInput>> {
         let row = sqlx::query!(
             r#"
             SELECT
@@ -919,6 +921,8 @@ impl BlocksDal<'_, '_> {
                 fair_pubdata_price
             FROM
                 l1_batches
+            WHERE
+                number > 0
             ORDER BY
                 number
             LIMIT
@@ -926,14 +930,17 @@ impl BlocksDal<'_, '_> {
             "#
         )
         .instrument("get_latest_l1_batch_fee_input")
-        .fetch_one(self.storage)
+        .fetch_optional(self.storage)
         .await?;
 
-        Ok(BatchFeeInput::pubdata_independent(
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        Ok(Some(BatchFeeInput::pubdata_independent(
             row.l1_gas_price as u64,
             row.l2_fair_gas_price as u64,
             row.fair_pubdata_price as u64,
-        ))
+        )))
     }
 
     pub async fn get_last_sealed_l2_block_header(&mut self) -> DalResult<Option<L2BlockHeader>> {
