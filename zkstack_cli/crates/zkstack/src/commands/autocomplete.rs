@@ -1,4 +1,7 @@
-use std::{fs::File, io::BufWriter, path::PathBuf};
+use std::{
+    fs::File,
+    io::{BufWriter, Write},
+};
 
 use anyhow::Context;
 use clap::CommandFactory;
@@ -12,7 +15,7 @@ use crate::{
 };
 
 pub fn run(args: AutocompleteArgs) -> anyhow::Result<()> {
-    let mut cmd = Inception::command();
+    let cmd = Inception::command();
     let filename = format!(
         "_{}_{}",
         cmd.get_name(),
@@ -25,22 +28,21 @@ pub fn run(args: AutocompleteArgs) -> anyhow::Result<()> {
             .context("the output file path is an invalid UTF8 string")?,
     ));
 
-    export_completions(args.generator, &mut cmd, &path)?;
+    let file = File::create(path).context("Failed to create file")?;
+    let mut writer = BufWriter::new(file);
+
+    generate_completions(args.generator, &mut writer)?;
 
     logger::outro(MSG_OUTRO_AUTOCOMPLETE_GENERATION);
 
     Ok(())
 }
 
-fn export_completions<G: Generator>(
-    gen: G,
-    cmd: &mut clap::Command,
-    path: &PathBuf,
-) -> anyhow::Result<()> {
-    let file = File::create(path).context("Failed to create file")?;
-    let mut writer = BufWriter::new(file);
+pub fn generate_completions<G: Generator>(gen: G, buf: &mut dyn Write) -> anyhow::Result<()> {
+    let mut cmd = Inception::command();
+    let cmd_name = cmd.get_name().to_string();
 
-    generate(gen, cmd, cmd.get_name().to_string(), &mut writer);
+    generate(gen, &mut cmd, cmd_name, buf);
 
     Ok(())
 }
