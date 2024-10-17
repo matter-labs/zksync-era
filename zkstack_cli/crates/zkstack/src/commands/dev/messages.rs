@@ -232,5 +232,28 @@ pub(super) const MSG_UNABLE_TO_READ_PARSE_JSON_ERR: &str = "Unable to parse JSON
 pub(super) const MSG_FAILED_TO_SEND_TXN_ERR: &str = "Failed to send transaction";
 pub(super) const MSG_INVALID_L1_RPC_URL_ERR: &str = "Invalid L1 RPC URL";
 
+// Status related messages
+pub(super) const MSG_STATUS_ABOUT: &str = "Get status of the server";
+pub(super) const MSG_API_CONFIG_NOT_FOUND_ERR: &str = "API config not found";
+pub(super) const MSG_STATUS_URL_HELP: &str = "URL of the health check endpoint";
+pub(super) const MSG_STATUS_PORTS_HELP: &str = "Show used ports";
+pub(super) const MSG_COMPONENTS: &str = "Components:\n";
+pub(super) const MSG_ALL_COMPONENTS_READY: &str =
+    "Overall System Status: All components operational and ready.";
+pub(super) const MSG_SOME_COMPONENTS_NOT_READY: &str =
+    "Overall System Status: Some components are not ready.";
+
+pub(super) fn msg_system_status(status: &str) -> String {
+    format!("System Status: {}\n", status)
+}
+
+pub(super) fn msg_failed_parse_response(response: &str) -> String {
+    format!("Failed to parse response: {}", response)
+}
+
+pub(super) fn msg_not_ready_components(components: &str) -> String {
+    format!("Not Ready Components: {}", components)
+}
+
 // Genesis
 pub(super) const MSG_GENESIS_FILE_GENERATION_STARTED: &str = "Regenerate genesis file";
