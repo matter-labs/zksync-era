@@ -5,7 +5,7 @@ use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Context as _;
 use clap::Parser;
 use common::{logger, wallets::Wallet};
-use config::zkstack_config::ZkStackConfig;
+use config::EcosystemConfig;
 use conv::*;
 use ethers::{
     abi::Detokenize,
@@ -196,7 +196,11 @@ impl Setup {
     }
 
     fn new(shell: &Shell) -> anyhow::Result<Self> {
-        let chain = ZkStackConfig::load_current_chain(shell)?;
+        let ecosystem_config =
+            EcosystemConfig::from_file(shell).context("EcosystemConfig::from_file()")?;
+        let chain = ecosystem_config
+            .load_current_chain()
+            .context(messages::MSG_CHAIN_NOT_INITIALIZED)?;
         let contracts = chain
             .get_contracts_config()
             .context("get_contracts_config()")?;
