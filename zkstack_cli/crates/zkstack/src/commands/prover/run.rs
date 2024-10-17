@@ -83,7 +83,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
         run_dockerized_component(
             shell,
             component.image_name(),
-            args.tag.unwrap(),
+            &args.tag.unwrap(),
             &application_args,
             &additional_args,
             message,
