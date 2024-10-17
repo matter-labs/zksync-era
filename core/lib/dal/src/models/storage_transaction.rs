@@ -68,8 +68,8 @@ pub struct StorageTransaction {
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 
-    pub block_timestamp_range_start: Option<NaiveDateTime>,
-    pub block_timestamp_range_end: Option<NaiveDateTime>,
+    pub timestamp_asserter_range_start: Option<NaiveDateTime>,
+    pub timestamp_asserter_range_end: Option<NaiveDateTime>,
 
     // DEPRECATED.
     pub l1_block_number: Option<i32>,
@@ -327,8 +327,8 @@ impl From<StorageTransaction> for Transaction {
 impl From<StorageTransaction> for TransactionTimeRangeConstraint {
     fn from(tx: StorageTransaction) -> Self {
         Self {
-            range_start: tx.block_timestamp_range_start,
-            range_end: tx.block_timestamp_range_end,
+            timestamp_asserter_range_start: tx.timestamp_asserter_range_start,
+            timestamp_asserter_range_end: tx.timestamp_asserter_range_end,
         }
     }
 }

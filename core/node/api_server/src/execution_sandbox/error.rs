@@ -26,8 +26,8 @@ pub(crate) enum SandboxExecutionError {
         that caused this error. Error description: {0}"
     )]
     UnexpectedVMBehavior(String),
-    #[error("Transaction violated block.timestamp constraint")]
-    ViolatedBlockTimestampConstraint,
+    #[error("Transaction failed block.timestamp assertion")]
+    FailedBlockTimestampAssertion,
 }
 
 impl From<Halt> for SandboxExecutionError {
@@ -69,7 +69,7 @@ impl From<Halt> for SandboxExecutionError {
             Halt::FailedToPublishCompressedBytecodes => {
                 Self::UnexpectedVMBehavior("Failed to publish compressed bytecodes".to_string())
             }
-            Halt::ViolatedBlockTimestampConstraint => Self::ViolatedBlockTimestampConstraint,
+            Halt::FailedBlockTimestampAssertion => Self::FailedBlockTimestampAssertion,
         }
     }
 }

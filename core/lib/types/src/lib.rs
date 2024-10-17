@@ -431,6 +431,6 @@ impl Transaction {
     Copy
 )]
 pub struct TransactionTimeRangeConstraint {
-    pub range_start: Option<NaiveDateTime>,
-    pub range_end: Option<NaiveDateTime>,
+    pub timestamp_asserter_range_start: Option<NaiveDateTime>,
+    pub timestamp_asserter_range_end: Option<NaiveDateTime>,
 }

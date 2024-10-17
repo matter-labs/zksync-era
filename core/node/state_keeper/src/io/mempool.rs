@@ -308,16 +308,16 @@ impl StateKeeperIO for MempoolIO {
                     .as_secs() as i64;
 
                 let matches_range = constraint
-                    .range_start
+                    .timestamp_asserter_range_start
                     .map_or(true, |x| x.and_utc().timestamp() < now)
                     && constraint
-                        .range_end
+                        .timestamp_asserter_range_end
                         .map_or(true, |x| x.and_utc().timestamp() > now);
 
                 if !matches_range {
                     self.reject(
                         &tx,
-                        UnexecutableReason::Halt(Halt::ViolatedBlockTimestampConstraint),
+                        UnexecutableReason::Halt(Halt::FailedBlockTimestampAssertion),
                     )
                     .await?;
                     continue;

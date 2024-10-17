@@ -62,8 +62,8 @@ async fn submitting_tx_requires_one_connection() {
         .unwrap()
         .expect("transaction is not persisted");
     // verify that no validation traces have been persisted
-    assert!(storage_tx.block_timestamp_range_start.is_none());
-    assert!(storage_tx.block_timestamp_range_start.is_none());
+    assert!(storage_tx.timestamp_asserter_range_start.is_none());
+    assert!(storage_tx.timestamp_asserter_range_start.is_none());
 }
 
 #[tokio::test]
@@ -311,6 +311,8 @@ async fn sending_transaction_out_of_gas() {
 
 #[tokio::test]
 async fn submitting_tx_with_validation_traces() {
+    // This test verifies that when a transaction produces ValidationTraces,
+    // range_start and range_end get persisted in the database
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let mut storage = pool.connection().await.unwrap();
     insert_genesis_batch(&mut storage, &GenesisParams::mock())
@@ -342,8 +344,8 @@ async fn submitting_tx_with_validation_traces() {
     tx_executor.set_tx_validation_traces_responses(move |tx, _| {
         assert_eq!(tx.hash(), tx_hash);
         ValidationTraces {
-            range_start: Some(U256::from(10)),
-            range_end: Some(U256::from(20)),
+            timestamp_asserter_range_start: Some(U256::from(10)),
+            timestamp_asserter_range_end: Some(U256::from(20)),
         }
     });
 
@@ -364,7 +366,7 @@ async fn submitting_tx_with_validation_traces() {
     assert_eq!(
         10,
         storage_tx
-            .block_timestamp_range_start
+            .timestamp_asserter_range_start
             .unwrap()
             .and_utc()
             .timestamp()
@@ -372,7 +374,7 @@ async fn submitting_tx_with_validation_traces() {
     assert_eq!(
         20,
         storage_tx
-            .block_timestamp_range_end
+            .timestamp_asserter_range_end
             .unwrap()
             .and_utc()
             .timestamp()

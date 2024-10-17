@@ -317,12 +317,12 @@ impl TransactionsDal<'_, '_> {
         #[allow(deprecated)]
         let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
         #[allow(deprecated)]
-        let block_timestamp_range_start = validation_traces
-            .range_start
+        let timestamp_asserter_range_start = validation_traces
+            .timestamp_asserter_range_start
             .map(|x| NaiveDateTime::from_timestamp_opt(x.as_u64() as i64, 0).unwrap());
         #[allow(deprecated)]
-        let block_timestamp_range_end = validation_traces
-            .range_end
+        let timestamp_asserter_range_end = validation_traces
+            .timestamp_asserter_range_end
             .map(|x| NaiveDateTime::from_timestamp_opt(x.as_u64() as i64, 0).unwrap());
         // Besides just adding or updating(on conflict) the record, we want to extract some info
         // from the query below, to indicate what actually happened:
@@ -358,8 +358,8 @@ impl TransactionsDal<'_, '_> {
                 received_at,
                 created_at,
                 updated_at,
-                block_timestamp_range_start,
-                block_timestamp_range_end
+                timestamp_asserter_range_start,
+                timestamp_asserter_range_end
             )
             VALUES
             (
@@ -423,8 +423,8 @@ impl TransactionsDal<'_, '_> {
             created_at = NOW(),
             updated_at = NOW(),
             error = NULL,
-            block_timestamp_range_start = $20,
-            block_timestamp_range_end = $21
+            timestamp_asserter_range_start = $20,
+            timestamp_asserter_range_end = $21
             WHERE
             transactions.is_priority = FALSE
             AND transactions.miniblock_number IS NULL
@@ -458,8 +458,8 @@ impl TransactionsDal<'_, '_> {
             (exec_info.initial_storage_writes + exec_info.repeated_storage_writes) as i32,
             exec_info.contracts_used as i32,
             received_at,
-            block_timestamp_range_start,
-            block_timestamp_range_end,
+            timestamp_asserter_range_start,
+            timestamp_asserter_range_end,
         )
         .instrument("insert_transaction_l2")
         .with_arg("tx_hash", &tx_hash)

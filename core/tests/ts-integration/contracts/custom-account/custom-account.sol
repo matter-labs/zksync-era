@@ -23,10 +23,15 @@ contract CustomAccount is IAccount {
 
 	bytes32 public lastTxHash;
 	address public timestampAsserterAddress;
+	uint256 public timestampAsserterRangeStart;
+	uint256 public timestampAsserterRangeEnd;
 
-	constructor(bool _violateValidationRules, address _timestampAsserterAddress) {
+
+	constructor(bool _violateValidationRules, address _timestampAsserterAddress, uint256 _timestampAsserterRangeStart, uint256 _timestampAsserterRangeEnd) {
 		violateValidationRules = _violateValidationRules;
 		timestampAsserterAddress = _timestampAsserterAddress;
+		timestampAsserterRangeStart = _timestampAsserterRangeStart;
+		timestampAsserterRangeEnd = _timestampAsserterRangeEnd;
 	}
 
 	// bytes4(keccak256("isValidSignature(bytes32,bytes)")
@@ -36,8 +41,8 @@ contract CustomAccount is IAccount {
 		ITimestampAsserter timestampAsserter = ITimestampAsserter(timestampAsserterAddress);
 		// This assertion exists to ensure that block.timestamp can be accessed in AA by using
 		// ITimestampAsserter contract
-		// 2555971200 is a number of seconds up to 30/12/2050
-		timestampAsserter.assertTimestampInRange(0, 2555971200);
+
+		timestampAsserter.assertTimestampInRange(timestampAsserterRangeStart, timestampAsserterRangeEnd);
 
 		magic = _validateTransaction(_suggestedSignedTxHash, _transaction);
 		lastTxHash = _txHash;

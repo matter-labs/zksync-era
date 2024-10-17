@@ -42,7 +42,7 @@ pub enum Halt {
     VMPanic,
     TracerCustom(String),
     FailedToPublishCompressedBytecodes,
-    ViolatedBlockTimestampConstraint,
+    FailedBlockTimestampAssertion,
 }
 
 impl fmt::Display for Halt {
@@ -117,8 +117,8 @@ impl fmt::Display for Halt {
             Halt::FailedToPublishCompressedBytecodes => {
                 write!(f, "Failed to publish compressed bytecodes")
             }
-            Halt::ViolatedBlockTimestampConstraint => {
-                write!(f, "Transaction violated block.timestamp constraint")
+            Halt::FailedBlockTimestampAssertion => {
+                write!(f, "Transaction failed block.timestamp assertion")
             }
         }
     }

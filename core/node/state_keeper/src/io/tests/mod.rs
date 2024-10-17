@@ -708,8 +708,14 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
         want_filter.fee_per_gas,
         want_filter.gas_per_pubdata,
         TransactionTimeRangeConstraint {
-            range_start: Some(NaiveDateTime::from_timestamp(system_time - 20000, 0)),
-            range_end: Some(NaiveDateTime::from_timestamp(system_time - 10000, 0)),
+            timestamp_asserter_range_start: Some(NaiveDateTime::from_timestamp(
+                system_time - 20000,
+                0,
+            )),
+            timestamp_asserter_range_end: Some(NaiveDateTime::from_timestamp(
+                system_time - 10000,
+                0,
+            )),
         },
     );
     #[allow(deprecated)]
@@ -718,8 +724,14 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
         want_filter.fee_per_gas,
         want_filter.gas_per_pubdata,
         TransactionTimeRangeConstraint {
-            range_start: Some(NaiveDateTime::from_timestamp(system_time - 1000, 0)),
-            range_end: Some(NaiveDateTime::from_timestamp(system_time + 1000, 0)),
+            timestamp_asserter_range_start: Some(NaiveDateTime::from_timestamp(
+                system_time - 1000,
+                0,
+            )),
+            timestamp_asserter_range_end: Some(NaiveDateTime::from_timestamp(
+                system_time + 1000,
+                0,
+            )),
         },
     );
     #[allow(deprecated)]
@@ -728,8 +740,14 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
         want_filter.fee_per_gas,
         want_filter.gas_per_pubdata,
         TransactionTimeRangeConstraint {
-            range_start: Some(NaiveDateTime::from_timestamp(system_time + 10000, 0)),
-            range_end: Some(NaiveDateTime::from_timestamp(system_time + 20000, 0)),
+            timestamp_asserter_range_start: Some(NaiveDateTime::from_timestamp(
+                system_time + 10000,
+                0,
+            )),
+            timestamp_asserter_range_end: Some(NaiveDateTime::from_timestamp(
+                system_time + 20000,
+                0,
+            )),
         },
     );
     insert_l2_transaction(&mut storage, &rejected_tx_1).await;
@@ -757,7 +775,7 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
         .expect("Failed to find transaction")
         .unwrap();
     assert_eq!(
-        "rejected: Transaction violated block.timestamp constraint",
+        "rejected: Transaction failed block.timestamp assertion",
         rejected_storage_tx_1.error.unwrap()
     );
 
@@ -768,7 +786,7 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
         .expect("Failed to find transaction")
         .unwrap();
     assert_eq!(
-        "rejected: Transaction violated block.timestamp constraint",
+        "rejected: Transaction failed block.timestamp constraint",
         rejected_storage_tx_2.error.unwrap()
     );
 }

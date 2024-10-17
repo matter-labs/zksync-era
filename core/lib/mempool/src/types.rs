@@ -48,8 +48,8 @@ impl AccountTransactions {
         metadata
     }
 
-    /// Returns next transaction to be included in block and optional score of its successor
-    /// Panics if no such transaction exists
+    /// Returns next transaction to be included in block, its time range constraint and optional
+    /// score of its successor. Panics if no such transaction exists
     pub fn next(&mut self) -> (L2Tx, TransactionTimeRangeConstraint, Option<MempoolScore>) {
         let transaction = self
             .transactions
@@ -63,7 +63,8 @@ impl AccountTransactions {
         (transaction.0, transaction.1, score)
     }
 
-    /// Handles transaction rejection. Returns optional score of its successor
+    /// Handles transaction rejection. Returns optional score of its successor and time range
+    /// constraint that the transaction has been added to the mempool with
     pub fn reset(
         &mut self,
         transaction: &Transaction,

@@ -77,8 +77,8 @@ pub enum ViolatedValidationRule {
     TouchedDisallowedContext,
     /// The transaction used too much gas during validation.
     TookTooManyComputationalGas(u32),
-    /// The transaction passed incorrect parameters into timestamp asserter
-    TimestampAssertionInvalidRange,
+    /// The transaction failed block.timestamp assertion
+    TimestampAssertionOutOfRange,
 }
 
 impl fmt::Display for ViolatedValidationRule {
@@ -100,8 +100,8 @@ impl fmt::Display for ViolatedValidationRule {
                     "Took too many computational gas, allowed limit: {gas_limit}"
                 )
             }
-            ViolatedValidationRule::TimestampAssertionInvalidRange => {
-                write!(f, "Invalid range used with timestamp asserter")
+            ViolatedValidationRule::TimestampAssertionOutOfRange => {
+                write!(f, "Transaction failed block.timestamp assertion")
             }
         }
     }
@@ -122,8 +122,8 @@ pub enum ValidationError {
 /// be excluded from the mempool.
 #[derive(Debug, Clone, Default)]
 pub struct ValidationTraces {
-    pub range_start: Option<U256>,
-    pub range_end: Option<U256>,
+    pub timestamp_asserter_range_start: Option<U256>,
+    pub timestamp_asserter_range_end: Option<U256>,
 }
 
 impl fmt::Display for ValidationError {

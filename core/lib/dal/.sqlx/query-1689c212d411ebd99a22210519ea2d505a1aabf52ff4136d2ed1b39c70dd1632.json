@@ -185,12 +185,12 @@
       },
       {
         "ordinal": 36,
-        "name": "block_timestamp_range_start",
+        "name": "timestamp_asserter_range_start",
         "type_info": "Timestamp"
       },
       {
         "ordinal": 37,
-        "name": "block_timestamp_range_end",
+        "name": "timestamp_asserter_range_end",
         "type_info": "Timestamp"
       }
     ],
