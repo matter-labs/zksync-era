@@ -14,6 +14,7 @@ keywords.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 clap.workspace = true
+clap_complete = "4.5.33"
 clap-markdown.workspace = true
 cliclack.workspace = true
 common.workspace = true
@@ -49,6 +50,7 @@ rand.workspace = true
 zksync_consensus_utils.workspace = true
 
 [build-dependencies]
-eyre.workspace = true
+anyhow.workspace = true
+dirs.workspace = true
 ethers.workspace = true
 zksync_protobuf_build.workspace = true

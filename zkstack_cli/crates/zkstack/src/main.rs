@@ -1,6 +1,6 @@
 use clap::{command, Parser, Subcommand};
 use commands::{
-    args::{ContainersArgs, UpdateArgs},
+    args::{AutocompleteArgs, ContainersArgs, UpdateArgs},
     contract_verifier::ContractVerifierCommands,
     dev::DevCommands,
 };
@@ -29,6 +29,7 @@ mod utils;
 
 #[derive(Parser, Debug)]
 #[command(
+    name = "zkstack",
     version = version_message(env!("CARGO_PKG_VERSION")),
     about
 )]
@@ -41,13 +42,15 @@ struct Inception {
 
 #[derive(Subcommand, Debug)]
 pub enum InceptionSubcommands {
+    /// Create shell autocompletion files
+    Autocomplete(AutocompleteArgs),
     /// Ecosystem related commands
     #[command(subcommand, alias = "e")]
     Ecosystem(Box<EcosystemCommands>),
     /// Chain related commands
     #[command(subcommand, alias = "c")]
     Chain(Box<ChainCommands>),
-    /// Chain related commands
+    /// Supervisor related commands
     #[command(subcommand)]
     Dev(DevCommands),
     /// Prover related commands
@@ -55,7 +58,7 @@ pub enum InceptionSubcommands {
     Prover(ProverCommands),
     /// Run server
     Server(RunServerArgs),
-    ///  External Node related commands
+    /// External Node related commands
     #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),
     /// Run containers for local development
@@ -69,11 +72,13 @@ pub enum InceptionSubcommands {
     /// Run block-explorer
     #[command(subcommand)]
     Explorer(ExplorerCommands),
-    /// Update ZKsync
+    /// Consensus utilities
     #[command(subcommand)]
     Consensus(consensus::Command),
+    /// Update ZKsync
     #[command(alias = "u")]
     Update(UpdateArgs),
+    /// Print markdown help
     #[command(hide = true)]
     Markdown,
 }
@@ -100,6 +105,18 @@ async fn main() -> anyhow::Result<()> {
     // Clap commands (like `--version` would look odd otherwise).
     let inception_args = Inception::parse();
 
+    match run_subcommand(inception_args).await {
+        Ok(_) => {}
+        Err(error) => {
+            log_error(error);
+            std::process::exit(1);
+        }
+    }
+
+    Ok(())
+}
+
+async fn run_subcommand(inception_args: Inception) -> anyhow::Result<()> {
     init_prompt_theme();
 
     logger::new_empty_line();
@@ -113,34 +130,24 @@ async fn main() -> anyhow::Result<()> {
         check_general_prerequisites(&shell);
     }
 
-    match run_subcommand(inception_args, &shell).await {
-        Ok(_) => {}
-        Err(error) => {
-            log_error(error);
-            std::process::exit(1);
-        }
-    }
-    Ok(())
-}
-
-async fn run_subcommand(inception_args: Inception, shell: &Shell) -> anyhow::Result<()> {
     match inception_args.command {
-        InceptionSubcommands::Ecosystem(args) => commands::ecosystem::run(shell, *args).await?,
-        InceptionSubcommands::Chain(args) => commands::chain::run(shell, *args).await?,
-        InceptionSubcommands::Dev(args) => commands::dev::run(shell, args).await?,
-        InceptionSubcommands::Prover(args) => commands::prover::run(shell, args).await?,
-        InceptionSubcommands::Server(args) => commands::server::run(shell, args)?,
-        InceptionSubcommands::Containers(args) => commands::containers::run(shell, args)?,
+        InceptionSubcommands::Autocomplete(args) => commands::autocomplete::run(args)?,
+        InceptionSubcommands::Ecosystem(args) => commands::ecosystem::run(&shell, *args).await?,
+        InceptionSubcommands::Chain(args) => commands::chain::run(&shell, *args).await?,
+        InceptionSubcommands::Dev(args) => commands::dev::run(&shell, args).await?,
+        InceptionSubcommands::Prover(args) => commands::prover::run(&shell, args).await?,
+        InceptionSubcommands::Server(args) => commands::server::run(&shell, args)?,
+        InceptionSubcommands::Containers(args) => commands::containers::run(&shell, args)?,
         InceptionSubcommands::ExternalNode(args) => {
-            commands::external_node::run(shell, args).await?
+            commands::external_node::run(&shell, args).await?
         }
         InceptionSubcommands::ContractVerifier(args) => {
-            commands::contract_verifier::run(shell, args).await?
+            commands::contract_verifier::run(&shell, args).await?
         }
-        InceptionSubcommands::Explorer(args) => commands::explorer::run(shell, args).await?,
-        InceptionSubcommands::Consensus(cmd) => cmd.run(shell).await?,
-        InceptionSubcommands::Portal => commands::portal::run(shell).await?,
-        InceptionSubcommands::Update(args) => commands::update::run(shell, args).await?,
+        InceptionSubcommands::Explorer(args) => commands::explorer::run(&shell, args).await?,
+        InceptionSubcommands::Consensus(cmd) => cmd.run(&shell).await?,
+        InceptionSubcommands::Portal => commands::portal::run(&shell).await?,
+        InceptionSubcommands::Update(args) => commands::update::run(&shell, args).await?,
         InceptionSubcommands::Markdown => {
             clap_markdown::print_help_markdown::<Inception>();
         }
