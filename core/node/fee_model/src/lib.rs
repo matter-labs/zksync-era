@@ -247,18 +247,18 @@ fn compute_batch_fee_model_input_v2(
     }
 }
 
-/// Bootloader places limitations on fair_l2_gas_price and fair_pubdata_price.
-/// (MAX_ALLOWED_FAIR_L2_GAS_PRICE and MAX_ALLOWED_FAIR_PUBDATA_PRICE in bootloader code respectively)
+/// Postgres schema places limitations on the gas and pubdata price. Previously this was also
+/// limited by bootloader. This is no longer the case.
 /// Server needs to clip this prices in order to allow chain continues operation at a loss. The alternative
 /// would be to stop accepting the transactions until the conditions improve.
-/// TODO (PE-153): to be removed when bootloader limitation is removed
+/// TODO (PE-153): to be removed when Postgres schema is updated
 fn clip_batch_fee_model_input_v2(
     fee_model: PubdataIndependentBatchFeeModelInput,
 ) -> PubdataIndependentBatchFeeModelInput {
     /// MAX_ALLOWED_FAIR_L2_GAS_PRICE
-    const MAXIMUM_L2_GAS_PRICE: u64 = 10_000_000_000_000;
+    const MAXIMUM_L2_GAS_PRICE: u64 = 2_u64.pow(63) - 1;
     /// MAX_ALLOWED_FAIR_PUBDATA_PRICE
-    const MAXIMUM_PUBDATA_PRICE: u64 = 1_000_000_000_000_000;
+    const MAXIMUM_PUBDATA_PRICE: u64 = 2_u64.pow(63) - 1;
     PubdataIndependentBatchFeeModelInput {
         l1_gas_price: fee_model.l1_gas_price,
         fair_l2_gas_price: if fee_model.fair_l2_gas_price < MAXIMUM_L2_GAS_PRICE {
