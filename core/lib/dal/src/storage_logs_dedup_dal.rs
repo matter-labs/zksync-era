@@ -36,6 +36,7 @@ impl StorageLogsDedupDal<'_, '_> {
         .start(self.storage)
         .await?;
 
+        // XXX FIXME YSG
         let mut bytes: Vec<u8> = Vec::new();
         let now = Utc::now().naive_utc().to_string();
         for log in read_logs.iter() {

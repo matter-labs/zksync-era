@@ -78,7 +78,7 @@ async fn get_batches_data(
         .await
         .context("failed to get a connection")?;
 
-    let mut batches_data = Vec::new();
+    let mut batches_data = Vec::with_capacity(batches.len());
     for batch in batches {
         let current_batch_data = BatchData {
             batch_number: batch,

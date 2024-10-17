@@ -244,8 +244,8 @@ async fn store_l1_batches(
         conn.transactions_dal()
             .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
             .await?;
-        let mut logs = Vec::new();
-        let mut written_keys = Vec::new();
+        let mut logs = Vec::with_capacity(10);
+        let mut written_keys = Vec::with_capacity(10);
         for _ in 0..10 {
             let key = StorageKey::new(AccountTreeId::new(H160::random()), H256::random());
             let value = StorageValue::random();
@@ -256,7 +256,7 @@ async fn store_l1_batches(
                 value,
             });
         }
-        let mut factory_deps = HashMap::new();
+        let mut factory_deps = HashMap::with_capacity(10);
         for _ in 0..10 {
             factory_deps.insert(H256::random(), rng.gen::<[u8; 32]>().into());
         }

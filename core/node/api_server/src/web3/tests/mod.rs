@@ -916,7 +916,7 @@ impl HttpTest for TransactionReceiptsTest {
         ];
         store_l2_block(&mut storage, l2_block_number, &tx_results).await?;
 
-        let mut expected_receipts = Vec::new();
+        let mut expected_receipts = Vec::with_capacity(tx_results.len());
         for tx in &tx_results {
             expected_receipts.push(
                 client
