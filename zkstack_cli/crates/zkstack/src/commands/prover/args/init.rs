@@ -61,7 +61,7 @@ pub struct ProverInitArgs {
     pub bellman_cuda: Option<bool>,
 
     #[clap(long, default_missing_value = "true", num_args = 0..=1)]
-    pub setup_compressor_keys: Option<bool>,
+    pub setup_compressor_key: Option<bool>,
     #[clap(flatten)]
     pub compressor_keys_args: CompressorKeysArgs,
 
@@ -363,7 +363,7 @@ impl ProverInitArgs {
             });
         }
 
-        let download_key = self.clone().setup_compressor_keys.unwrap_or_else(|| {
+        let download_key = self.clone().setup_compressor_key.unwrap_or_else(|| {
             PromptConfirm::new(MSG_DOWNLOAD_SETUP_COMPRESSOR_KEY_PROMPT)
                 .default(false)
                 .ask()

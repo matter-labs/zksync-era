@@ -3,7 +3,7 @@ use std::sync::Arc;
 use zksync_config::configs::ProofDataHandlerConfig;
 use zksync_dal::{ConnectionPool, Core};
 use zksync_object_store::ObjectStore;
-use zksync_types::commitment::L1BatchCommitmentMode;
+use zksync_types::{commitment::L1BatchCommitmentMode, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -21,6 +21,7 @@ use crate::{
 pub struct ProofDataHandlerLayer {
     proof_data_handler_config: ProofDataHandlerConfig,
     commitment_mode: L1BatchCommitmentMode,
+    l2_chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
@@ -41,10 +42,12 @@ impl ProofDataHandlerLayer {
     pub fn new(
         proof_data_handler_config: ProofDataHandlerConfig,
         commitment_mode: L1BatchCommitmentMode,
+        l2_chain_id: L2ChainId,
     ) -> Self {
         Self {
             proof_data_handler_config,
             commitment_mode,
+            l2_chain_id,
         }
     }
 }
@@ -67,6 +70,7 @@ impl WiringLayer for ProofDataHandlerLayer {
             blob_store,
             main_pool,
             commitment_mode: self.commitment_mode,
+            l2_chain_id: self.l2_chain_id,
         };
 
         Ok(Output { task })
@@ -79,6 +83,7 @@ pub struct ProofDataHandlerTask {
     blob_store: Arc<dyn ObjectStore>,
     main_pool: ConnectionPool<Core>,
     commitment_mode: L1BatchCommitmentMode,
+    l2_chain_id: L2ChainId,
 }
 
 #[async_trait::async_trait]
@@ -93,6 +98,7 @@ impl Task for ProofDataHandlerTask {
             self.blob_store,
             self.main_pool,
             self.commitment_mode,
+            self.l2_chain_id,
             stop_receiver.0,
         )
         .await
