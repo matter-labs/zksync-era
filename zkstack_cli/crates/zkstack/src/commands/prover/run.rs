@@ -8,7 +8,8 @@ use xshell::{cmd, Shell};
 use super::args::run::{ProverComponent, ProverRunArgs};
 use crate::messages::{
     MSG_BELLMAN_CUDA_DIR_ERR, MSG_CHAIN_NOT_FOUND_ERR, MSG_MISSING_COMPONENT_ERR,
-    MSG_RUNNING_COMPRESSOR, MSG_RUNNING_COMPRESSOR_ERR, MSG_RUNNING_PROVER, MSG_RUNNING_PROVER_ERR,
+    MSG_RUNNING_CIRCUIT_PROVER, MSG_RUNNING_CIRCUIT_PROVER_ERR, MSG_RUNNING_COMPRESSOR,
+    MSG_RUNNING_COMPRESSOR_ERR, MSG_RUNNING_PROVER, MSG_RUNNING_PROVER_ERR,
     MSG_RUNNING_PROVER_GATEWAY, MSG_RUNNING_PROVER_GATEWAY_ERR, MSG_RUNNING_PROVER_JOB_MONITOR,
     MSG_RUNNING_PROVER_JOB_MONITOR_ERR, MSG_RUNNING_WITNESS_GENERATOR,
     MSG_RUNNING_WITNESS_GENERATOR_ERR, MSG_RUNNING_WITNESS_VECTOR_GENERATOR,
@@ -48,6 +49,12 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
                 check_prerequisites(shell, &GPU_PREREQUISITES, false);
             }
             (MSG_RUNNING_PROVER, MSG_RUNNING_PROVER_ERR)
+        }
+        ProverComponent::CircuitProver => {
+            if !in_docker {
+                check_prerequisites(shell, &GPU_PREREQUISITES, false);
+            }
+            (MSG_RUNNING_CIRCUIT_PROVER, MSG_RUNNING_CIRCUIT_PROVER_ERR)
         }
         ProverComponent::Compressor => {
             if !in_docker {

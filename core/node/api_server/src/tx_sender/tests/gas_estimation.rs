@@ -298,7 +298,8 @@ async fn insufficient_funds_error_for_transfer() {
     let block_args = pending_block_args(&tx_sender).await;
 
     let alice = K256PrivateKey::random();
-    let tx = alice.create_transfer(1_000_000_000.into());
+    let transferred_value = 1_000_000_000.into();
+    let tx = alice.create_transfer(transferred_value);
     let fee_scale_factor = 1.0;
     // Without overrides, the transaction should fail because of insufficient balance.
     let err = tx_sender
@@ -312,7 +313,11 @@ async fn insufficient_funds_error_for_transfer() {
         )
         .await
         .unwrap_err();
-    assert_matches!(err, SubmitTxError::InsufficientFundsForTransfer);
+    assert_matches!(
+        err,
+        SubmitTxError::NotEnoughBalanceForFeeValue(balance, fee, value)
+            if balance.is_zero() && fee.is_zero() && value == transferred_value
+    );
 }
 
 async fn test_estimating_gas(
