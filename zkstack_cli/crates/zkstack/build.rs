@@ -13,8 +13,10 @@ fn main() -> anyhow::Result<()> {
         .write_to_file(outdir.join("consensus_registry_abi.rs"))
         .context("Failed to write ABI to file")?;
 
-    // Copy completion scripts (ignore errors)
-    copy_completion_scripts().ok();
+    // Copy completion scripts
+    if copy_completion_scripts().is_err() {
+        println!("WARNING: It was not possible to install autocomplete scripts. Please generate them manually with `zkstack autocomplete`")
+    };
 
     zksync_protobuf_build::Config {
         input_root: "src/commands/consensus/proto".into(),
