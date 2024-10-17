@@ -54,16 +54,12 @@ impl Aggregator {
     ) -> anyhow::Result<Self> {
         let pubdata_da = config.pubdata_sending_mode.into();
 
-        let priority_op_hashes =
-            if let Some(priority_tree_start_index) = config.priority_tree_start_index {
-                connection
-                    .transactions_dal()
-                    .get_l1_transactions_hashes(priority_tree_start_index)
-                    .await
-                    .map_err(DalError::generalize)?
-            } else {
-                Vec::new()
-            };
+        let priority_tree_start_index = config.priority_tree_start_index.unwrap_or(0);
+        let priority_op_hashes = connection
+            .transactions_dal()
+            .get_l1_transactions_hashes(priority_tree_start_index)
+            .await
+            .map_err(DalError::generalize)?;
         let priority_merkle_tree =
             MiniMerkleTree::<L1Tx>::from_hashes(KeccakHasher, priority_op_hashes.into_iter(), None);
 
@@ -219,9 +215,12 @@ impl Aggregator {
 
             let count = batch.header.l1_tx_count as usize;
             if let Some(first_priority_op_id_in_batch) = first_priority_op_id_option {
+                let priority_tree_start_index = self.config.priority_tree_start_index.unwrap_or(0);
                 let new_l1_tx_hashes = storage
                     .transactions_dal()
-                    .get_l1_transactions_hashes(self.priority_merkle_tree.length())
+                    .get_l1_transactions_hashes(
+                        priority_tree_start_index + self.priority_merkle_tree.length(),
+                    )
                     .await
                     .unwrap();
                 for hash in new_l1_tx_hashes {
