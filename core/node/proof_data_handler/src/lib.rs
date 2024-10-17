@@ -109,7 +109,8 @@ fn create_proof_processing_router(
                         .await;
 
                     match result {
-                        Ok(data) => (StatusCode::OK, data).into_response(),
+                        Ok(Some(data)) => (StatusCode::OK, data).into_response(),
+                        Ok(None) => { StatusCode::NO_CONTENT.into_response()},
                         Err(e) => e.into_response(),
                     }
                 },

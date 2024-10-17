@@ -44,23 +44,27 @@ impl TeeRequestProcessor {
     pub(crate) async fn get_proof_generation_data(
         &self,
         request: Json<TeeProofGenerationDataRequest>,
-    ) -> Result<Json<TeeProofGenerationDataResponse>, RequestProcessorError> {
+    ) -> Result<Option<Json<TeeProofGenerationDataResponse>>, RequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
         let mut min_batch_number: Option<L1BatchNumber> = None;
         let mut missing_range: Option<(L1BatchNumber, L1BatchNumber)> = None;
 
         let result = loop {
-            let l1_batch_number = self
+            let Some(l1_batch_number) = self
                 .lock_batch_for_proving(request.tee_type, min_batch_number)
-                .await?;
+                .await?
+            else {
+                // No job available
+                return Ok(None);
+            };
 
             match self
                 .tee_verifier_input_for_existing_batch(l1_batch_number)
                 .await
             {
                 Ok(input) => {
-                    break Ok(Json(TeeProofGenerationDataResponse(Box::new(input))));
+                    break Ok(Some(Json(TeeProofGenerationDataResponse(Box::new(input)))));
                 }
                 Err(RequestProcessorError::ObjectStore(ObjectStoreError::KeyNotFound(_))) => {
                     missing_range = match missing_range {
@@ -152,7 +156,7 @@ impl TeeRequestProcessor {
         &self,
         tee_type: TeeType,
         min_batch_number: Option<L1BatchNumber>,
-    ) -> Result<L1BatchNumber, RequestProcessorError> {
+    ) -> Result<Option<L1BatchNumber>, RequestProcessorError> {
         self.pool
             .connection_tagged("tee_request_processor")
             .await?
@@ -164,7 +168,6 @@ impl TeeRequestProcessor {
             )
             .await
             .map_err(RequestProcessorError::Dal)
-            .and_then(|batch_number| batch_number.ok_or(RequestProcessorError::NoJob))
     }
 
     async fn unlock_batch(
