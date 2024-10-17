@@ -33,7 +33,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
 
     let application_args = component.get_application_args(in_docker)?;
     let additional_args =
-        component.get_additional_args(in_docker, args, &chain, &path_to_ecosystem)?;
+        component.get_additional_args(in_docker, args.clone(), &chain, &path_to_ecosystem)?;
 
     let (message, error) = match component {
         ProverComponent::WitnessGenerator => (
