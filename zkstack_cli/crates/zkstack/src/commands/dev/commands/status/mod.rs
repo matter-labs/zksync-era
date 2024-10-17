@@ -115,7 +115,7 @@ fn print_ports(shell: &Shell) -> anyhow::Result<()> {
             .then_with(|| a.cmp(b))
     });
 
-    let mut components_info = String::new();
+    let mut components_info = String::from("Ports:\n");
     for chunk in all_port_lines.chunks(2) {
         components_info.push_str(&bordered_boxes(&chunk[0], chunk.get(1)));
     }
