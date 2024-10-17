@@ -22,8 +22,8 @@ fn test_send_or_transfer<VM: TestedVm>(test_option: TestOptions) {
         "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/TransferTest.json",
     );
 
-    let test_contract_address = Address::random();
-    let recipient_address = Address::random();
+    let test_contract_address = Address::repeat_byte(1);
+    let recipient_address = Address::repeat_byte(2);
 
     let (value, calldata) = match test_option {
         TestOptions::Send(value) => (
@@ -106,8 +106,8 @@ fn test_reentrancy_protection_send_or_transfer<VM: TestedVm>(test_option: TestOp
         "etc/contracts-test-data/artifacts-zk/contracts/transfer/transfer.sol/ReentrantRecipient.json",
     );
 
-    let test_contract_address = Address::random();
-    let reentrant_recipient_address = Address::random();
+    let test_contract_address = Address::repeat_byte(1);
+    let reentrant_recipient_address = Address::repeat_byte(2);
 
     let (value, calldata) = match test_option {
         TestOptions::Send(value) => (

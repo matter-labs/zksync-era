@@ -5,7 +5,7 @@ use zksync_test_account::{Account, TxType};
 use zksync_types::{
     utils::{deployed_address_create, storage_key_for_eth_balance},
     writes::StateDiffRecord,
-    Address, K256PrivateKey, L1BatchNumber, StorageKey, Transaction, H256, U256,
+    Address, L1BatchNumber, StorageKey, Transaction, H256, U256,
 };
 use zksync_vm_interface::{
     CurrentExecutionState, VmExecutionResultAndLogs, VmInterfaceHistoryEnabled,
@@ -127,10 +127,7 @@ impl VmTesterBuilder {
     /// Creates the specified number of pre-funded accounts.
     pub(crate) fn with_rich_accounts(mut self, number: u32) -> Self {
         for i in 0..number {
-            let account_private_key_bytes = H256::from_low_u64_be(u64::from(i) + 1);
-            let account =
-                Account::new(K256PrivateKey::from_bytes(account_private_key_bytes).unwrap());
-            self.rich_accounts.push(account);
+            self.rich_accounts.push(Account::from_seed(i));
         }
         self
     }

@@ -24,6 +24,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
+        .with_rich_accounts(1)
         .build::<VM>();
 
     assert!(known_bytecodes_without_base_system_contracts(&vm.vm).is_empty());
@@ -31,7 +32,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
     // create and push and execute some not-empty factory deps transaction with success status
     // to check that `get_decommitted_hashes()` updates
     let contract_code = read_test_contract();
-    let mut account = Account::random();
+    let account = &mut vm.rich_accounts[0];
     let tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 0 });
     vm.vm.push_transaction(tx.tx.clone());
     let result = vm.vm.execute(VmExecutionMode::OneTx);
@@ -58,7 +59,8 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
         .take(calldata.len() * 1024)
         .cloned()
         .collect();
-    let account2 = Account::random();
+    let account2 = Account::from_seed(u32::MAX);
+    assert_ne!(account2.address, account.address);
     let tx2 = account2.get_l1_tx(
         Execute {
             contract_address: Some(CONTRACT_DEPLOYER_ADDRESS),

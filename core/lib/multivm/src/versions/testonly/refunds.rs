@@ -158,7 +158,7 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
 }
 
 pub(crate) fn test_negative_pubdata_for_transaction<VM: TestedVm>() {
-    let expensive_contract_address = Address::random();
+    let expensive_contract_address = Address::repeat_byte(1);
     let (expensive_contract_bytecode, expensive_contract) = read_expensive_contract();
     let expensive_function = expensive_contract.function("expensive").unwrap();
     let cleanup_function = expensive_contract.function("cleanUp").unwrap();

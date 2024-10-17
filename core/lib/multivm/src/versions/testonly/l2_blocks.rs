@@ -7,8 +7,8 @@ use assert_matches::assert_matches;
 use zksync_system_constants::REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE;
 use zksync_types::{
     block::{pack_block_info, L2BlockHasher},
-    AccountTreeId, Execute, ExecuteTransactionCommon, L1BatchNumber, L1TxCommonData, L2BlockNumber,
-    ProtocolVersionId, StorageKey, Transaction, H160, H256, SYSTEM_CONTEXT_ADDRESS,
+    AccountTreeId, Address, Execute, ExecuteTransactionCommon, L1BatchNumber, L1TxCommonData,
+    L2BlockNumber, ProtocolVersionId, StorageKey, Transaction, H256, SYSTEM_CONTEXT_ADDRESS,
     SYSTEM_CONTEXT_BLOCK_INFO_POSITION, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
     SYSTEM_CONTEXT_CURRENT_TX_ROLLING_HASH_POSITION, U256,
 };
@@ -29,13 +29,13 @@ use crate::{
 fn get_l1_noop() -> Transaction {
     Transaction {
         common_data: ExecuteTransactionCommon::L1(L1TxCommonData {
-            sender: H160::random(),
+            sender: Address::repeat_byte(1),
             gas_limit: U256::from(2000000u32),
             gas_per_pubdata_limit: REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE.into(),
             ..Default::default()
         }),
         execute: Execute {
-            contract_address: Some(H160::zero()),
+            contract_address: Some(Address::repeat_byte(0xc0)),
             calldata: vec![],
             value: U256::zero(),
             factory_deps: vec![],
@@ -47,7 +47,7 @@ fn get_l1_noop() -> Transaction {
 
 pub(crate) fn test_l2_block_initialization_timestamp<VM: TestedVm>() {
     // This test checks that the L2 block initialization works correctly.
-    // Here we check that that the first block must have timestamp that is greater or equal to the timestamp
+    // Here we check that the first block must have timestamp that is greater or equal to the timestamp
     // of the current batch.
 
     let mut vm = VmTesterBuilder::new()

@@ -10,7 +10,7 @@ fn test_storage<VM: TestedVm>(first_tx_calldata: Vec<u8>, second_tx_calldata: Ve
         "etc/contracts-test-data/artifacts-zk/contracts/storage/storage.sol/StorageTester.json",
     );
 
-    let test_contract_address = Address::random();
+    let test_contract_address = Address::repeat_byte(1);
 
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
     // will work. The account will try to deploy a simple contract from integration tests.

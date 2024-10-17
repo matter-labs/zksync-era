@@ -11,7 +11,7 @@ use crate::{
 pub(crate) fn test_keccak<VM: TestedVm>() {
     // Execute special transaction and check that at least 1000 keccak calls were made.
     let contract = read_precompiles_contract();
-    let address = Address::random();
+    let address = Address::repeat_byte(1);
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_rich_accounts(1)
@@ -47,7 +47,7 @@ pub(crate) fn test_keccak<VM: TestedVm>() {
 pub(crate) fn test_sha256<VM: TestedVm>() {
     // Execute special transaction and check that at least 1000 `sha256` calls were made.
     let contract = read_precompiles_contract();
-    let address = Address::random();
+    let address = Address::repeat_byte(1);
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_rich_accounts(1)

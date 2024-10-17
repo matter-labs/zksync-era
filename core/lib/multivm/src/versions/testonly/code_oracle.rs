@@ -19,7 +19,7 @@ fn generate_large_bytecode() -> Vec<u8> {
 }
 
 pub(crate) fn test_code_oracle<VM: TestedVm>() {
-    let precompiles_contract_address = Address::random();
+    let precompiles_contract_address = Address::repeat_byte(1);
     let precompile_contract_bytecode = read_precompiles_contract();
 
     // Filling the zkevm bytecode
@@ -110,7 +110,7 @@ fn find_code_oracle_cost_log(
 }
 
 pub(crate) fn test_code_oracle_big_bytecode<VM: TestedVm>() {
-    let precompiles_contract_address = Address::random();
+    let precompiles_contract_address = Address::repeat_byte(1);
     let precompile_contract_bytecode = read_precompiles_contract();
 
     let big_zkevm_bytecode = generate_large_bytecode();
@@ -168,7 +168,7 @@ pub(crate) fn test_code_oracle_big_bytecode<VM: TestedVm>() {
 }
 
 pub(crate) fn test_refunds_in_code_oracle<VM: TestedVm>() {
-    let precompiles_contract_address = Address::random();
+    let precompiles_contract_address = Address::repeat_byte(1);
     let precompile_contract_bytecode = read_precompiles_contract();
 
     let normal_zkevm_bytecode = read_test_contract();

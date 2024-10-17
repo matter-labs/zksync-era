@@ -1,5 +1,5 @@
 use zksync_contracts::load_contract;
-use zksync_types::{Execute, H160};
+use zksync_types::{Address, Execute};
 
 use super::{
     read_error_contract, tester::VmTesterBuilder, ContractToDeploy, TestedVm, BASE_SYSTEM_CONTRACTS,
@@ -20,7 +20,7 @@ fn get_execute_error_calldata() -> Vec<u8> {
 }
 
 pub(crate) fn test_tracing_of_execution_errors<VM: TestedVm>() {
-    let contract_address = H160::random();
+    let contract_address = Address::repeat_byte(1);
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())

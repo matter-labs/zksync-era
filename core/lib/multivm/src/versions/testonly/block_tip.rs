@@ -44,7 +44,7 @@ fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<Vec<u8>> {
     let complex_upgrade = get_complex_upgrade_abi();
     let l1_messenger = load_sys_contract("L1Messenger");
 
-    let logs_mimic_calls = (0..data.l2_to_l1_logs).map(|_| MimicCallInfo {
+    let logs_mimic_calls = (0..data.l2_to_l1_logs).map(|i| MimicCallInfo {
         to: L1_MESSENGER_ADDRESS,
         who_to_mimic: KNOWN_CODES_STORAGE_ADDRESS,
         data: l1_messenger
@@ -52,8 +52,8 @@ fn populate_mimic_calls(data: L1MessengerTestData) -> Vec<Vec<u8>> {
             .unwrap()
             .encode_input(&[
                 Token::Bool(false),
-                Token::FixedBytes(H256::random().0.to_vec()),
-                Token::FixedBytes(H256::random().0.to_vec()),
+                Token::FixedBytes(H256::from_low_u64_be(2 * i as u64).0.to_vec()),
+                Token::FixedBytes(H256::from_low_u64_be(2 * i as u64 + 1).0.to_vec()),
             ])
             .unwrap(),
     });

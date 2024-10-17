@@ -5,7 +5,7 @@ use zksync_types::{
     get_code_key, get_known_code_key,
     protocol_upgrade::ProtocolUpgradeTxCommonData,
     Address, Execute, ExecuteTransactionCommon, Transaction, COMPLEX_UPGRADER_ADDRESS,
-    CONTRACT_DEPLOYER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H160, H256,
+    CONTRACT_DEPLOYER_ADDRESS, CONTRACT_FORCE_DEPLOYER_ADDRESS, H256,
     REQUIRED_L1_TO_L2_GAS_PER_PUBDATA_BYTE, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
@@ -35,7 +35,7 @@ pub(crate) fn test_protocol_upgrade_is_first<VM: TestedVm>() {
         // The bytecode hash to put on an address
         bytecode_hash,
         // The address on which to deploy the bytecode hash to
-        address: H160::random(),
+        address: Address::repeat_byte(1),
         // Whether to run the constructor on the force deployment
         call_constructor: false,
         // The value with which to initialize a contract
@@ -49,7 +49,7 @@ pub(crate) fn test_protocol_upgrade_is_first<VM: TestedVm>() {
         // The bytecode hash to put on an address
         bytecode_hash,
         // The address on which to deploy the bytecode hash to
-        address: H160::random(),
+        address: Address::repeat_byte(2),
         // Whether to run the constructor on the force deployment
         call_constructor: false,
         // The value with which to initialize a contract
@@ -120,7 +120,7 @@ pub(crate) fn test_force_deploy_upgrade<VM: TestedVm>() {
         .with_rich_accounts(1)
         .build::<VM>();
 
-    let address_to_deploy = H160::random();
+    let address_to_deploy = Address::repeat_byte(1);
     // Here we just use some random transaction of protocol upgrade type:
     let transaction = get_forced_deploy_tx(&[ForceDeployment {
         // The bytecode hash to put on an address
@@ -158,7 +158,7 @@ pub(crate) fn test_complex_upgrader<VM: TestedVm>() {
     let msg_sender_test_hash = hash_bytecode(&read_msg_sender_test());
     // Let's assume that the bytecode for the implementation of the complex upgrade
     // is already deployed in some address in user space
-    let upgrade_impl = H160::random();
+    let upgrade_impl = Address::repeat_byte(1);
     let account_code_key = get_code_key(&upgrade_impl);
     storage.set_value(get_known_code_key(&bytecode_hash), u256_to_h256(1.into()));
     storage.set_value(
@@ -175,8 +175,8 @@ pub(crate) fn test_complex_upgrader<VM: TestedVm>() {
         .with_rich_accounts(1)
         .build::<VM>();
 
-    let address_to_deploy1 = H160::random();
-    let address_to_deploy2 = H160::random();
+    let address_to_deploy1 = Address::repeat_byte(0xfe);
+    let address_to_deploy2 = Address::repeat_byte(0xff);
 
     let transaction = get_complex_upgrade_tx(
         upgrade_impl,

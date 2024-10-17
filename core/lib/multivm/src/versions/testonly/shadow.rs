@@ -70,8 +70,8 @@ impl Harness {
 
     fn new(l1_batch_env: &L1BatchEnv) -> Self {
         Self {
-            alice: Account::random(),
-            bob: Account::random(),
+            alice: Account::from_seed(0),
+            bob: Account::from_seed(1),
             storage_contract: ContractToDeploy::new(
                 read_bytecode(Self::STORAGE_CONTRACT_PATH),
                 Self::STORAGE_CONTRACT_ADDRESS,
