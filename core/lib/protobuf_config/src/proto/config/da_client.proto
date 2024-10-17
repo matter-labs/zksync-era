@@ -14,9 +14,9 @@ message AvailConfig {
 }
 
 message MemStoreConfig {
-  optional string api_node_url = 1; // TODO: this should be removed
-  repeated uint32 custom_quorum_numbers = 2; // TODO: this should be removed
-  optional string account_id = 3; // TODO: this should be removed
+  optional string api_node_url = 1; // TODO: This should be removed once eigenda proxy is no longer used
+  repeated uint32 custom_quorum_numbers = 2; // TODO: This should be removed once eigenda proxy is no longer used
+  optional string account_id = 3; // TODO: This should be removed once eigenda proxy is no longer used
   optional uint64 max_blob_size_bytes = 5;
   optional uint64 blob_expiration = 6; 
   optional uint64 get_latency = 7;
@@ -24,9 +24,9 @@ message MemStoreConfig {
 }
 
 message DisperserConfig {
-  optional string api_node_url = 1; // TODO: this should be removed
-  repeated uint32 custom_quorum_numbers = 2; // TODO: this should be removed
-  optional string account_id = 3; // TODO: this should be removed
+  optional string api_node_url = 1; // TODO: This should be removed once eigenda proxy is no longer used
+  repeated uint32 custom_quorum_numbers = 2; // TODO: This should be removed once eigenda proxy is no longer used
+  optional string account_id = 3; // TODO: This should be removed once eigenda proxy is no longer used
   optional string disperser_rpc = 4;
   optional int32 eth_confirmation_depth = 5;
   optional string eigenda_eth_rpc = 6;

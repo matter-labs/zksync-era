@@ -25,7 +25,7 @@ If you want to use memstore:
 da_client:
   eigen_da:
     memstore:
-      api_node_url: http://127.0.0.1:4242 # TODO: This should be removed
+      api_node_url: http://127.0.0.1:4242 # TODO: This should be removed once eigenda proxy is no longer used
       max_blob_size_bytes: 2097152
       blob_expiration: 100000
       get_latency: 100
@@ -38,7 +38,7 @@ If you want to use disperser:
 da_client:
   eigen_da:
     disperser:
-      api_node_url: http://127.0.0.1:4242 # TODO: This should be removed
+      api_node_url: http://127.0.0.1:4242 # TODO: This should be removed once eigenda proxy is no longer used
       disperser_rpc: <your_desired_disperser>
       eth_confirmation_depth: -1
       eigenda_eth_rpc: <your_desired_rpc>

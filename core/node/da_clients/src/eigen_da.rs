@@ -34,7 +34,7 @@ impl DataAvailabilityClient for EigenDAClient {
         let api_node_url = match &self.config {
             EigenDAConfig::MemStore(config) => &config.api_node_url,
             EigenDAConfig::Disperser(config) => &config.api_node_url,
-        }; // TODO: THIS SHOULD BE REMOVED
+        }; // TODO: This should be removed once eigenda proxy is no longer used
         let response = self
             .client
             .post(format!("{}/put/", api_node_url))
@@ -60,7 +60,7 @@ impl DataAvailabilityClient for EigenDAClient {
         let api_node_url = match &self.config {
             EigenDAConfig::MemStore(config) => &config.api_node_url,
             EigenDAConfig::Disperser(config) => &config.api_node_url,
-        }; // TODO: THIS SHOULD BE REMOVED
+        }; // TODO: This should be removed once eigenda proxy is no longer used
         let response = self
             .client
             .get(format!("{}/get/0x{}", api_node_url, blob_id))

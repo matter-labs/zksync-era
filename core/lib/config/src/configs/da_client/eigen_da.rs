@@ -9,9 +9,9 @@ pub enum EigenDAConfig {
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Default)]
 pub struct MemStoreConfig {
-    pub api_node_url: String,                    // todo: This should be removed
-    pub custom_quorum_numbers: Option<Vec<u32>>, // todo: This should be removed
-    pub account_id: Option<String>,              // todo: This should be removed
+    pub api_node_url: String, // todo: This should be removed once eigenda proxy is no longer used
+    pub custom_quorum_numbers: Option<Vec<u32>>, // todo: This should be removed once eigenda proxy is no longer used
+    pub account_id: Option<String>, // todo: This should be removed once eigenda proxy is no longer used
     pub max_blob_size_bytes: u64,
     pub blob_expiration: u64,
     pub get_latency: u64,
@@ -20,9 +20,9 @@ pub struct MemStoreConfig {
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Default)]
 pub struct DisperserConfig {
-    pub api_node_url: String,                    // todo: This should be removed
-    pub custom_quorum_numbers: Option<Vec<u32>>, // todo: This should be removed
-    pub account_id: Option<String>,              // todo: This should be removed
+    pub api_node_url: String, // todo: This should be removed once eigenda proxy is no longer used
+    pub custom_quorum_numbers: Option<Vec<u32>>, // todo: This should be removed once eigenda proxy is no longer used
+    pub account_id: Option<String>, // todo: This should be removed once eigenda proxy is no longer used
     pub disperser_rpc: String,
     pub eth_confirmation_depth: i32,
     pub eigenda_eth_rpc: String,
