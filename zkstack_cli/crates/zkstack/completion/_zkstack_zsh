@@ -1783,7 +1783,7 @@ _arguments "${_arguments_options[@]}" : \
 '--public-project-id=[]:PUBLIC_PROJECT_ID: ' \
 '(--clone)--bellman-cuda-dir=[]:BELLMAN_CUDA_DIR: ' \
 '--bellman-cuda=[]' \
-'--setup-compressor-keys=[]' \
+'--setup-compressor-key=[]' \
 '--path=[]:PATH: ' \
 '--region=[]:REGION:(us europe asia)' \
 '--mode=[]:MODE:(download generate)' \
@@ -1827,6 +1827,7 @@ _arguments "${_arguments_options[@]}" : \
 '--witness-vector-generator-count=[]:WITNESS_VECTOR_GENERATOR_COUNT: ' \
 '--max-allocation=[]:MAX_ALLOCATION: ' \
 '--docker=[]:DOCKER:(true false)' \
+'--tag=[]:TAG: ' \
 '--chain=[Chain to use]:CHAIN: ' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -2864,13 +2865,13 @@ esac
 (( $+functions[_zkstack_commands] )) ||
 _zkstack_commands() {
     local commands; commands=(
-'autocomplete:Create shell autocompletion files (test)' \
+'autocomplete:Create shell autocompletion files' \
 'ecosystem:Ecosystem related commands' \
 'chain:Chain related commands' \
 'dev:Supervisor related commands' \
 'prover:Prover related commands' \
 'server:Run server' \
-'external-node:External Node related commands asd' \
+'external-node:External Node related commands' \
 'containers:Run containers for local development' \
 'contract-verifier:Run contract verifier' \
 'portal:Run dapp-portal' \
@@ -4174,13 +4175,13 @@ _zkstack__external-node__run_commands() {
 (( $+functions[_zkstack__help_commands] )) ||
 _zkstack__help_commands() {
     local commands; commands=(
-'autocomplete:Create shell autocompletion files (test)' \
+'autocomplete:Create shell autocompletion files' \
 'ecosystem:Ecosystem related commands' \
 'chain:Chain related commands' \
 'dev:Supervisor related commands' \
 'prover:Prover related commands' \
 'server:Run server' \
-'external-node:External Node related commands asd' \
+'external-node:External Node related commands' \
 'containers:Run containers for local development' \
 'contract-verifier:Run contract verifier' \
 'portal:Run dapp-portal' \

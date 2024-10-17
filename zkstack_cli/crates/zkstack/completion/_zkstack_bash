@@ -6544,7 +6544,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__init)
-            opts="-u -d -v -h --dev --proof-store-dir --bucket-base-url --credentials-file --bucket-name --location --project-id --shall-save-to-public-bucket --public-store-dir --public-bucket-base-url --public-credentials-file --public-bucket-name --public-location --public-project-id --clone --bellman-cuda-dir --bellman-cuda --setup-compressor-keys --path --region --mode --setup-keys --setup-database --prover-db-url --prover-db-name --use-default --dont-drop --cloud-type --verbose --chain --ignore-prerequisites --help"
+            opts="-u -d -v -h --dev --proof-store-dir --bucket-base-url --credentials-file --bucket-name --location --project-id --shall-save-to-public-bucket --public-store-dir --public-bucket-base-url --public-credentials-file --public-bucket-name --public-location --public-project-id --clone --bellman-cuda-dir --bellman-cuda --setup-compressor-key --path --region --mode --setup-keys --setup-database --prover-db-url --prover-db-name --use-default --dont-drop --cloud-type --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -6610,7 +6610,7 @@ _zkstack() {
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
                     ;;
-                --setup-compressor-keys)
+                --setup-compressor-key)
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
                     return 0
                     ;;
@@ -6696,7 +6696,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__prover__run)
-            opts="-v -h --component --round --threads --max-allocation --witness-vector-generator-count --max-allocation --docker --verbose --chain --ignore-prerequisites --help"
+            opts="-v -h --component --round --threads --max-allocation --witness-vector-generator-count --max-allocation --docker --tag --verbose --chain --ignore-prerequisites --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -6728,6 +6728,10 @@ _zkstack() {
                     ;;
                 --docker)
                     COMPREPLY=($(compgen -W "true false" -- "${cur}"))
+                    return 0
+                    ;;
+                --tag)
+                    COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
                 --chain)
