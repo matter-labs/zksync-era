@@ -25,7 +25,6 @@ mod secrets;
 mod utils;
 mod wallet_creation;
 mod wallets;
-mod zkstack_config;
 
 pub mod consensus_config;
 pub mod consensus_secrets;
@@ -36,3 +35,4 @@ pub mod external_node;
 pub mod forge_interface;
 pub mod portal;
 pub mod traits;
+pub mod zkstack_config;
