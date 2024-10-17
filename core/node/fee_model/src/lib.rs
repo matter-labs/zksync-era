@@ -159,11 +159,12 @@ mod tests {
     use std::num::NonZeroU64;
 
     use l1_gas_price::GasAdjusterClient;
-    use zksync_config::{configs::eth_sender::PubdataSendingMode, GasAdjusterConfig};
+    use zksync_config::GasAdjusterConfig;
     use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
     use zksync_types::{
         commitment::L1BatchCommitmentMode,
         fee_model::{BaseTokenConversionRatio, FeeModelConfigV2},
+        pubdata_da::PubdataSendingMode,
         U256,
     };
 
