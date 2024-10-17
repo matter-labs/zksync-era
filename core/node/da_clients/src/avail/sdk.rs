@@ -422,16 +422,20 @@ impl GasRelayClient {
             .send()
             .await
             .map_err(to_retriable_da_error)?;
+
         let submit_response = submit_response
             .json::<GasRelayAPISubmissionResponse>()
             .await
             .map_err(to_retriable_da_error)?;
+
         let status_url = format!(
             "{}/user/get_submission_info?submission_id={}",
             self.api_url, submit_response.submission_id
         );
+
         let (block_hash, extrinsic_index) = loop {
-            tokio::time::sleep(tokio::time::Duration::from_secs(u64::try_from(41).unwrap())).await; // usually takes 40s to finalize
+            // usually takes around 40s to finalize, but polling every 5s is enough here
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
             let status_response = self
                 .api_client
                 .get(&status_url)
@@ -439,10 +443,12 @@ impl GasRelayClient {
                 .send()
                 .await
                 .map_err(to_retriable_da_error)?;
+
             let status_response = status_response
                 .json::<GasRelayAPIStatusResponse>()
                 .await
                 .map_err(to_retriable_da_error)?;
+
             if status_response.submission.block_hash.is_some() {
                 break (
                     status_response.submission.block_hash.unwrap(),
@@ -450,6 +456,7 @@ impl GasRelayClient {
                 );
             }
         };
+
         Ok((block_hash, extrinsic_index))
     }
 }
