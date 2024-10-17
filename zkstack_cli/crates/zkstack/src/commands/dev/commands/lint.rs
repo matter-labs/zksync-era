@@ -152,7 +152,8 @@ fn lint_contracts(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> an
 fn lint_autocompletion_files(_shell: &Shell, check: bool) -> anyhow::Result<()> {
     let completion_folder = Path::new("./zkstack_cli/crates/zkstack/completion/");
     if !completion_folder.exists() {
-        bail!("Please run this command from the project's root folder")
+        logger::info("WARNING: Please run this command from the project's root folder");
+        return Ok(());
     }
 
     // Array of supported shells
