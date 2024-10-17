@@ -23,7 +23,15 @@ impl CircuitBreaker for FailedL1TransactionChecker {
             .get_number_of_failed_transactions()
             .await
             .context("cannot get number of failed L1 transactions")?;
-        if number_of_failed_transactions > 0 {
+        let number_of_inflight_txs = self
+            .pool
+            .connection_tagged("circuit_breaker")
+            .await?
+            .eth_sender_dal()
+            .count_all_inflight_txs()
+            .await
+            .context("cannot get number of failed L1 transactions")?;
+        if number_of_failed_transactions > 0 && number_of_inflight_txs == 0 {
             return Err(CircuitBreakerError::FailedL1Transaction);
         }
         Ok(())

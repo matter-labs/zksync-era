@@ -5,7 +5,7 @@ use zksync_config::{
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
-use zksync_eth_client::{clients::MockSettlementLayer, BaseFees, BoundEthInterface};
+use zksync_eth_client::{clients::MockSettlementLayer, BaseFees};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_node_fee_model::l1_gas_price::{GasAdjuster, GasAdjusterClient};
 use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_artifacts};
@@ -119,7 +119,7 @@ pub(crate) struct EthSenderTester {
     pub gas_adjuster: Arc<GasAdjuster>,
     pub pubdata_sending_mode: PubdataSendingMode,
     next_l1_batch_number_to_seal: L1BatchNumber,
-    next_l1_batch_number_to_commit: L1BatchNumber,
+    pub next_l1_batch_number_to_commit: L1BatchNumber,
     next_l1_batch_number_to_prove: L1BatchNumber,
     next_l1_batch_number_to_execute: L1BatchNumber,
     tx_sent_in_last_iteration_count: usize,
@@ -238,13 +238,6 @@ impl EthSenderTester {
 
         let eth_sender = eth_sender_config.sender.clone().unwrap();
 
-        let custom_commit_sender_addr =
-            if aggregator_operate_4844_mode && commitment_mode == L1BatchCommitmentMode::Rollup {
-                Some(gateway_blobs.sender_account())
-            } else {
-                None
-            };
-
         let aggregator = EthTxAggregator::new(
             connection_pool.clone(),
             SenderConfig {
@@ -260,12 +253,16 @@ impl EthSenderTester {
                 commitment_mode,
             ),
             gateway.clone(),
+            if aggregator_operate_4844_mode && commitment_mode == L1BatchCommitmentMode::Rollup {
+                Some(gateway_blobs.clone())
+            } else {
+                None
+            },
             // ZKsync contract address
             Address::random(),
             contracts_config.l1_multicall3_addr,
             STATE_TRANSITION_CONTRACT_ADDRESS,
             Default::default(),
-            custom_commit_sender_addr,
             SettlementMode::SettlesToL1,
         )
         .await;
@@ -595,6 +592,14 @@ impl EthSenderTester {
         );
     }
 
+    pub async fn clear_failed_txs_failed_attempts(&mut self) -> anyhow::Result<()> {
+        self.storage()
+            .await
+            .eth_sender_dal()
+            .clear_failed_transactions()
+            .await
+    }
+
     pub async fn assert_inflight_txs_count_equals(&mut self, value: usize) {
         let inflight_count = if !self.is_l2 {
             //sanity check
@@ -626,7 +631,8 @@ impl EthSenderTester {
 
         assert_eq!(
             inflight_count, value,
-            "Unexpected number of in-flight transactions"
+            "Unexpected number of in-flight transactions, expected: {}, got: {}",
+            value, inflight_count
         );
     }
 }

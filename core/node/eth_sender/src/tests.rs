@@ -391,10 +391,9 @@ async fn three_scenarios(commitment_mode: L1BatchCommitmentMode) -> anyhow::Resu
     Ok(())
 }
 
-#[should_panic(expected = "We can't operate after tx fail")]
 #[test_casing(2, COMMITMENT_MODES)]
 #[test_log::test(tokio::test)]
-async fn failed_eth_tx(commitment_mode: L1BatchCommitmentMode) {
+async fn failed_eth_tx_prevents_sending_new_transactions(commitment_mode: L1BatchCommitmentMode) {
     let connection_pool = ConnectionPool::<Core>::test_pool().await;
     let mut tester = EthSenderTester::new(
         connection_pool.clone(),
@@ -413,7 +412,97 @@ async fn failed_eth_tx(commitment_mode: L1BatchCommitmentMode) {
 
     first_batch.fail_commit_tx(&mut tester).await;
 
+    // failed transaction shouldn't cause panic
     tester.run_eth_sender_tx_manager_iteration().await;
+    tester.assert_inflight_txs_count_equals(0).await;
+
+    let second_batch = TestL1Batch::sealed(&mut tester).await;
+    second_batch.save_commit_tx(&mut tester).await;
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // we shouldn't send any new transactions when there are failed transactions in database
+    tester.assert_just_sent_tx_count_equals(0).await;
+}
+
+#[test_casing(2, COMMITMENT_MODES)]
+#[test_log::test(tokio::test)]
+async fn failed_eth_tx_doesnt_prevent_resending_txs(commitment_mode: L1BatchCommitmentMode) {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let mut tester = EthSenderTester::new(
+        connection_pool.clone(),
+        vec![100; 100],
+        false,
+        true,
+        commitment_mode,
+    )
+    .await;
+
+    let _genesis_batch = TestL1Batch::sealed(&mut tester).await;
+    let first_batch = TestL1Batch::sealed(&mut tester).await;
+    let second_batch = TestL1Batch::sealed(&mut tester).await;
+
+    first_batch.save_commit_tx(&mut tester).await;
+    second_batch.save_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // sanity check
+    tester.assert_inflight_txs_count_equals(2).await;
+
+    first_batch.fail_commit_tx(&mut tester).await;
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // the second batch commit tx is not confirmed yet
+    tester.assert_inflight_txs_count_equals(1).await;
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // it should try to resend the second batch's commit transaction
+    tester.assert_just_sent_tx_count_equals(1).await;
+
+    second_batch.fail_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // the second batch commit tx should be marked as failed in database
+    tester.assert_inflight_txs_count_equals(0).await;
+}
+
+#[test_casing(2, COMMITMENT_MODES)]
+#[test_log::test(tokio::test)]
+async fn clearing_failed_transactions_resumes_sending_new_transactions(
+    commitment_mode: L1BatchCommitmentMode,
+) {
+    let connection_pool = ConnectionPool::<Core>::test_pool().await;
+    let mut tester = EthSenderTester::new(
+        connection_pool.clone(),
+        vec![100; 100],
+        false,
+        true,
+        commitment_mode,
+    )
+    .await;
+
+    let _genesis_batch = TestL1Batch::sealed(&mut tester).await;
+    let first_batch = TestL1Batch::sealed(&mut tester).await;
+
+    first_batch.save_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // sanity check
+    tester.assert_inflight_txs_count_equals(1).await;
+
+    first_batch.fail_commit_tx(&mut tester).await;
+
+    tester.run_eth_sender_tx_manager_iteration().await;
+    // sanity check
+    tester.assert_inflight_txs_count_equals(0).await;
+
+    tester.clear_failed_txs_failed_attempts().await.unwrap();
+    // hack to reset the number of sent transactions
+    tester.next_l1_batch_number_to_commit -= 1;
+    // try again
+    first_batch.save_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+    tester.assert_inflight_txs_count_equals(1).await;
+
+    first_batch.execute_commit_tx(&mut tester).await;
+    tester.run_eth_sender_tx_manager_iteration().await;
+    tester.assert_inflight_txs_count_equals(0).await;
 }
 
 #[test_log::test(tokio::test)]
