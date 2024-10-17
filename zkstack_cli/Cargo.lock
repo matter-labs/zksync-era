@@ -6724,7 +6724,6 @@ dependencies = [
  "config",
  "dirs",
  "ethers",
- "eyre",
  "futures",
  "human-panic",
  "lazy_static",

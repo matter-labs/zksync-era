@@ -1,14 +1,17 @@
 use std::path::PathBuf;
 
+use anyhow::{anyhow, Context};
 use dirs::{config_local_dir, home_dir};
 use ethers::contract::Abigen;
-use eyre::ContextCompat;
 
-fn main() -> eyre::Result<()> {
+fn main() -> anyhow::Result<()> {
     let outdir = PathBuf::from(std::env::var("OUT_DIR")?).canonicalize()?;
-    Abigen::new("ConsensusRegistry", "abi/ConsensusRegistry.json")?
-        .generate()?
-        .write_to_file(outdir.join("consensus_registry_abi.rs"))?;
+    Abigen::new("ConsensusRegistry", "abi/ConsensusRegistry.json")
+        .map_err(|_| anyhow!("Failed ABI deserialization"))?
+        .generate()
+        .map_err(|_| anyhow!("Failed ABI generation"))?
+        .write_to_file(outdir.join("consensus_registry_abi.rs"))
+        .context("Failed to write ABI to file")?;
 
     // Copy completion scripts (ignore errors)
     copy_completion_scripts().ok();
@@ -25,7 +28,7 @@ fn main() -> eyre::Result<()> {
     Ok(())
 }
 
-fn copy_completion_scripts() -> eyre::Result<()> {
+fn copy_completion_scripts() -> anyhow::Result<()> {
     let crate_name = env!("CARGO_PKG_NAME");
 
     // Create local config directory
