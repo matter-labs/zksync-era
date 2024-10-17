@@ -1,4 +1,4 @@
-use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
+use std::collections::{hash_map, BTreeSet, HashMap};
 
 use zksync_types::{
     l1::L1Tx, l2::L2Tx, Address, ExecuteTransactionCommon, Nonce, PriorityOpId, Transaction,
@@ -221,22 +221,57 @@ impl MempoolStore {
     }
 
     fn gc(&mut self) -> Vec<Address> {
-        if self.size >= self.capacity {
-            let index: HashSet<_> = self
+        if self.size > self.capacity {
+            let mut transactions = std::mem::take(&mut self.l2_transactions_per_account);
+            let mut possibly_kept: Vec<_> = self
                 .l2_priority_queue
                 .iter()
-                .map(|pointer| pointer.account)
+                .rev()
+                .filter_map(|pointer| {
+                    transactions
+                        .remove(&pointer.account)
+                        .map(|txs| (pointer.account, txs))
+                })
                 .collect();
-            let transactions = std::mem::take(&mut self.l2_transactions_per_account);
-            let (kept, drained) = transactions
+
+            let mut sum = 0;
+            let mut number_of_accounts_kept = 0;
+            for (_, txs) in &possibly_kept {
+                sum += txs.len();
+                if sum <= self.capacity as usize {
+                    number_of_accounts_kept += 1;
+                } else {
+                    break;
+                }
+            }
+            if number_of_accounts_kept == 0 && !possibly_kept.is_empty() {
+                tracing::warn!("mempool capacity is too low to handle txs from single account, consider increasing capacity");
+                // Keep at least one entry, otherwise mempool won't return any new L2 tx to process.
+                number_of_accounts_kept = 1;
+            }
+            let (kept, drained) = {
+                let mut drained: Vec<_> = transactions.into_keys().collect();
+                let also_drained = possibly_kept
+                    .split_off(number_of_accounts_kept)
+                    .into_iter()
+                    .map(|(address, _)| address);
+                drained.extend(also_drained);
+
+                (possibly_kept, drained)
+            };
+
+            let l2_priority_queue = std::mem::take(&mut self.l2_priority_queue);
+            self.l2_priority_queue = l2_priority_queue
                 .into_iter()
-                .partition(|(address, _)| index.contains(address));
-            self.l2_transactions_per_account = kept;
+                .rev()
+                .take(number_of_accounts_kept)
+                .collect();
+            self.l2_transactions_per_account = kept.into_iter().collect();
             self.size = self
                 .l2_transactions_per_account
                 .iter()
-                .fold(0, |agg, (_, tnxs)| agg + tnxs.len() as u64);
-            return drained.into_keys().collect();
+                .fold(0, |agg, (_, txs)| agg + txs.len() as u64);
+            return drained;
         }
         vec![]
     }

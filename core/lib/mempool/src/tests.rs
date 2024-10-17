@@ -321,32 +321,26 @@ fn stashed_accounts() {
 
 #[test]
 fn mempool_capacity() {
-    let mut mempool = MempoolStore::new(PriorityOpId(0), 5);
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 4);
     let account0 = Address::random();
     let account1 = Address::random();
     let account2 = Address::random();
+    let account3 = Address::random();
     let transactions = vec![
         gen_l2_tx(account0, Nonce(0)),
         gen_l2_tx(account0, Nonce(1)),
         gen_l2_tx(account0, Nonce(2)),
-        gen_l2_tx(account1, Nonce(1)),
-        gen_l2_tx(account2, Nonce(1)),
+        gen_l2_tx_with_timestamp(account1, Nonce(0), unix_timestamp_ms() + 1),
+        gen_l2_tx_with_timestamp(account2, Nonce(0), unix_timestamp_ms() + 2),
+        gen_l2_tx(account3, Nonce(1)),
     ];
     mempool.insert(transactions, HashMap::new());
-    // the mempool is full. Accounts with non-sequential nonces got stashed
+    // Mempool is full. Accounts with non-sequential nonces and some accounts with lowest score should be purged.
     assert_eq!(
         HashSet::<_>::from_iter(mempool.get_mempool_info().purged_accounts),
-        HashSet::<_>::from_iter(vec![account1, account2]),
+        HashSet::from([account2, account3]),
     );
-    // verify that existing good-to-go transactions and new ones got picked
-    mempool.insert(
-        vec![gen_l2_tx_with_timestamp(
-            account1,
-            Nonce(0),
-            unix_timestamp_ms() + 1,
-        )],
-        HashMap::new(),
-    );
+    // verify that good-to-go transactions are kept.
     for _ in 0..3 {
         assert_eq!(
             mempool
@@ -363,6 +357,34 @@ fn mempool_capacity() {
             .initiator_account(),
         account1
     );
+    assert!(!mempool.has_next(&L2TxFilter::default()));
+}
+
+#[test]
+fn mempool_does_not_purge_all_accounts() {
+    let mut mempool = MempoolStore::new(PriorityOpId(0), 1);
+    let account0 = Address::random();
+    let account1 = Address::random();
+    let transactions = vec![
+        gen_l2_tx(account0, Nonce(0)),
+        gen_l2_tx(account0, Nonce(1)),
+        gen_l2_tx(account1, Nonce(1)),
+    ];
+    mempool.insert(transactions, HashMap::new());
+    // Mempool is full. Account 1 has tx with non-sequential nonce so it should be purged.
+    // Txs from account 0 have sequential nonces but their number is greater than capacity; they should be kept.
+    assert_eq!(mempool.get_mempool_info().purged_accounts, vec![account1]);
+    // verify that good-to-go transactions are kept.
+    for _ in 0..2 {
+        assert_eq!(
+            mempool
+                .next_transaction(&L2TxFilter::default())
+                .unwrap()
+                .initiator_account(),
+            account0
+        );
+    }
+    assert!(!mempool.has_next(&L2TxFilter::default()));
 }
 
 fn gen_l2_tx(address: Address, nonce: Nonce) -> Transaction {
