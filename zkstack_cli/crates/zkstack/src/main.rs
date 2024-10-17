@@ -42,7 +42,7 @@ struct Inception {
 
 #[derive(Subcommand, Debug)]
 pub enum InceptionSubcommands {
-    /// Create shell autocompletion files (test)
+    /// Create shell autocompletion files
     Autocomplete(AutocompleteArgs),
     /// Ecosystem related commands
     #[command(subcommand, alias = "e")]
