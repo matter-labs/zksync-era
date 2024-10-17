@@ -58,7 +58,7 @@ impl BatchFeeInput {
             .map(|_| {
                 Self::PubdataIndependent(PubdataIndependentBatchFeeModelInput {
                     fair_pubdata_price: fair_pubdata_price
-                        .expect("No fair pubdata price for 1.4.1 miniblock"),
+                        .expect("No fair pubdata price for 1.4.1"),
                     fair_l2_gas_price,
                     l1_gas_price,
                 })
