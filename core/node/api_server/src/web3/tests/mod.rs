@@ -22,7 +22,6 @@ use zksync_multivm::interface::{
     TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
     VmExecutionMetrics,
 };
-use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_node_genesis::{insert_genesis_batch, mock_genesis_config, GenesisParams};
 use zksync_node_test_utils::{
     create_l1_batch, create_l1_batch_metadata, create_l2_block, create_l2_transaction,
@@ -476,11 +475,7 @@ async fn store_events(
 }
 
 fn scaled_sensible_fee_input(scale: f64) -> BatchFeeInput {
-    <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
-        FeeParams::sensible_v1_default(),
-        scale,
-        scale,
-    )
+    FeeParams::sensible_v1_default().scale(scale, scale)
 }
 
 #[derive(Debug)]

@@ -11,7 +11,7 @@ use zksync_types::{
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     helpers::unix_timestamp_ms,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
-    pubdata_da::PubdataDA,
+    pubdata_da::PubdataSendingMode,
     L1BatchNumber, ProtocolVersionId,
 };
 
@@ -36,7 +36,7 @@ pub struct Aggregator {
     /// means no wait is needed: nonces will still provide the correct ordering of
     /// transactions.
     operate_4844_mode: bool,
-    pubdata_da: PubdataDA,
+    pubdata_da: PubdataSendingMode,
     commitment_mode: L1BatchCommitmentMode,
 }
 
@@ -47,8 +47,7 @@ impl Aggregator {
         operate_4844_mode: bool,
         commitment_mode: L1BatchCommitmentMode,
     ) -> Self {
-        let pubdata_da = config.pubdata_sending_mode.into();
-
+        let pubdata_da = config.pubdata_sending_mode;
         Self {
             commit_criteria: vec![
                 Box::from(NumberCriterion {
@@ -476,7 +475,7 @@ impl Aggregator {
         }
     }
 
-    pub fn pubdata_da(&self) -> PubdataDA {
+    pub fn pubdata_da(&self) -> PubdataSendingMode {
         self.pubdata_da
     }
 

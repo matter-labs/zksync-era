@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use zksync_config::configs::{self};
 use zksync_protobuf::{required, ProtoRepr};
+use zksync_types::pubdata_da::PubdataSendingMode;
 
 use crate::{proto::eth as proto, read_optional_repr};
 
@@ -25,23 +26,21 @@ impl proto::ProofSendingMode {
 }
 
 impl proto::PubdataSendingMode {
-    fn new(x: &configs::eth_sender::PubdataSendingMode) -> Self {
-        use configs::eth_sender::PubdataSendingMode as From;
+    fn new(x: &PubdataSendingMode) -> Self {
         match x {
-            From::Calldata => Self::Calldata,
-            From::Blobs => Self::Blobs,
-            From::Custom => Self::Custom,
-            From::RelayedL2Calldata => Self::RelayedL2Calldata,
+            PubdataSendingMode::Calldata => Self::Calldata,
+            PubdataSendingMode::Blobs => Self::Blobs,
+            PubdataSendingMode::Custom => Self::Custom,
+            PubdataSendingMode::RelayedL2Calldata => Self::RelayedL2Calldata,
         }
     }
 
-    fn parse(&self) -> configs::eth_sender::PubdataSendingMode {
-        use configs::eth_sender::PubdataSendingMode as To;
+    fn parse(&self) -> PubdataSendingMode {
         match self {
-            Self::Calldata => To::Calldata,
-            Self::Blobs => To::Blobs,
-            Self::Custom => To::Custom,
-            Self::RelayedL2Calldata => To::RelayedL2Calldata,
+            Self::Calldata => PubdataSendingMode::Calldata,
+            Self::Blobs => PubdataSendingMode::Blobs,
+            Self::Custom => PubdataSendingMode::Custom,
+            Self::RelayedL2Calldata => PubdataSendingMode::RelayedL2Calldata,
         }
     }
 }

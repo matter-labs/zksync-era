@@ -1,15 +1,17 @@
+//! Types related to data availability.
+
 use chrono::{DateTime, Utc};
 use num_enum::TryFromPrimitive;
 use serde::{Deserialize, Serialize};
-use zksync_basic_types::L1BatchNumber;
-use zksync_config::configs::eth_sender::PubdataSendingMode;
+
+use crate::L1BatchNumber;
 
 /// Enum holding the current values used for DA Layers.
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Serialize)]
-#[derive(TryFromPrimitive)]
-pub enum PubdataDA {
+#[derive(Debug, Clone, Copy, Default, PartialEq, Deserialize, Serialize, TryFromPrimitive)]
+pub enum PubdataSendingMode {
     /// Pubdata is sent to the L1 as a tx calldata.
+    #[default]
     Calldata = 0,
     /// Pubdata is sent to L1 as EIP-4844 blobs.
     Blobs,
@@ -17,17 +19,6 @@ pub enum PubdataDA {
     Custom,
     /// Pubdata is sent to an L2 to be eventually relayed to L1.
     RelayedL2Calldata,
-}
-
-impl From<PubdataSendingMode> for PubdataDA {
-    fn from(value: PubdataSendingMode) -> Self {
-        match value {
-            PubdataSendingMode::Calldata => PubdataDA::Calldata,
-            PubdataSendingMode::Blobs => PubdataDA::Blobs,
-            PubdataSendingMode::Custom => PubdataDA::Custom,
-            PubdataSendingMode::RelayedL2Calldata => PubdataDA::RelayedL2Calldata,
-        }
-    }
 }
 
 /// Represents a blob in the data availability layer.

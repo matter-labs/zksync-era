@@ -10,7 +10,6 @@ use zksync_contracts::{
 };
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
-use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
 use zksync_types::{
     api::state_override::{Bytecode, OverrideAccount, OverrideState, StateOverride},
@@ -72,11 +71,7 @@ fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {
 }
 
 fn default_fee() -> Fee {
-    let fee_input = <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
-        FeeParams::sensible_v1_default(),
-        1.0,
-        1.0,
-    );
+    let fee_input = FeeParams::sensible_v1_default().scale(1.0, 1.0);
     let (max_fee_per_gas, gas_per_pubdata_limit) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::default().into());
     Fee {

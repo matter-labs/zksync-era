@@ -19,7 +19,7 @@ use zksync_types::{
     ethabi::{Function, Token},
     l2_to_l1_log::UserL2ToL1Log,
     protocol_version::{L1VerifierConfig, PACKED_SEMVER_MINOR_MASK},
-    pubdata_da::PubdataDA,
+    pubdata_da::PubdataSendingMode,
     settlement::SettlementMode,
     web3::{contract::Error as Web3ContractError, BlockNumber},
     Address, L2ChainId, ProtocolVersionId, SLChainId, H256, U256,
@@ -505,11 +505,12 @@ impl EthTxAggregator {
                     )
                 };
 
-                let l1_batch_for_sidecar = if PubdataDA::Blobs == self.aggregator.pubdata_da() {
-                    Some(l1_batches[0].clone())
-                } else {
-                    None
-                };
+                let l1_batch_for_sidecar =
+                    if PubdataSendingMode::Blobs == self.aggregator.pubdata_da() {
+                        Some(l1_batches[0].clone())
+                    } else {
+                        None
+                    };
 
                 Self::encode_commit_data(encoding_fn, &commit_data, l1_batch_for_sidecar)
             }
