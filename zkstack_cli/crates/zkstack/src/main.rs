@@ -42,7 +42,7 @@ struct Inception {
 
 #[derive(Subcommand, Debug)]
 pub enum InceptionSubcommands {
-    /// Create shell autocompletion files
+    /// Create shell autocompletion files (test)
     Autocomplete(AutocompleteArgs),
     /// Ecosystem related commands
     #[command(subcommand, alias = "e")]
@@ -58,7 +58,7 @@ pub enum InceptionSubcommands {
     Prover(ProverCommands),
     /// Run server
     Server(RunServerArgs),
-    ///  External Node related commands
+    /// External Node related commands
     #[command(subcommand, alias = "en")]
     ExternalNode(ExternalNodeCommands),
     /// Run containers for local development
