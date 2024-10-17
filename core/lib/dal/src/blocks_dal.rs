@@ -908,10 +908,11 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
-    /// Returns fee input as of the latest (current unsealed if exists or last sealed if not) L1
-    /// batch present in DB.
+    /// Returns fee input as of the latest non-genesis L1 batch present in DB, where latest means:
+    /// * Current unsealed L1 batch if it exists
+    /// * Last sealed L1 batch if it does not (excluding genesis as it does not have valid fee input)
     ///
-    /// `None` if the only batch in DB is genesis as it never has valid fee input.
+    /// `None` if the only batch in DB is genesis or if there are no batches at all.
     pub async fn get_latest_l1_batch_fee_input(&mut self) -> DalResult<Option<BatchFeeInput>> {
         let row = sqlx::query!(
             r#"
@@ -2707,10 +2708,7 @@ impl BlocksDal<'_, '_> {
     }
 
     pub async fn insert_mock_l1_batch(&mut self, header: &L1BatchHeader) -> anyhow::Result<()> {
-        self.insert_l1_batch(
-            header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
-        )
-        .await?;
+        self.insert_l1_batch(header.to_unsealed_header()).await?;
         self.mark_l1_batch_as_sealed(
             header,
             &[],
@@ -3022,9 +3020,7 @@ mod tests {
             execute: 10,
         };
         conn.blocks_dal()
-            .insert_l1_batch(
-                header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
-            )
+            .insert_l1_batch(header.to_unsealed_header())
             .await
             .unwrap();
         conn.blocks_dal()
@@ -3036,9 +3032,7 @@ mod tests {
         header.timestamp += 100;
         predicted_gas += predicted_gas;
         conn.blocks_dal()
-            .insert_l1_batch(
-                header.to_unsealed_header(BatchFeeInput::pubdata_independent(100, 100, 100)),
-            )
+            .insert_l1_batch(header.to_unsealed_header())
             .await
             .unwrap();
         conn.blocks_dal()

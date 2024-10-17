@@ -152,6 +152,8 @@ impl BatchFeeModelInputProvider for ApiFeeInputProvider {
         if let Some(batch_fee_input) = batch_fee_input {
             Ok(batch_fee_input)
         } else {
+            // This method is not supposed to be used in components with no batches; API server
+            // always waits until it has at least one L1 batch present.
             tracing::info!("No batch fee input available, presuming this is the first batch ever");
             let inner_input = self
                 .inner
