@@ -1,12 +1,25 @@
+#![feature(allocator_api)]
+
 //! Tool to generate different types of keys used by the proving system.
 //!
 //! It can generate verification keys, setup keys, and also commitments.
-use std::{collections::HashMap, path::PathBuf};
+use std::{alloc::Global, collections::HashMap, path::PathBuf};
 
 use anyhow::Context as _;
+use circuit_definitions::{
+    boojum::config::SetupCSConfig,
+    circuit_definitions::aux_layer::{
+        compression_modes::{CompressionTranscriptForWrapper, CompressionTreeHasherForWrapper},
+        ZkSyncCompressionForWrapperCircuit, ZkSyncCompressionProof,
+        ZkSyncCompressionVerificationKey,
+    },
+    snark_wrapper::franklin_crypto,
+};
 use clap::{Parser, Subcommand};
 use commitment_generator::read_and_update_contract_toml;
 use indicatif::{ProgressBar, ProgressStyle};
+use proof_compression_gpu::{CompressionInput, CompressionMode};
+use shivini::cs::{GpuProverSetupData, GpuSetup};
 use tracing::level_filters::LevelFilter;
 use zkevm_test_harness::{
     compute_setups::{
@@ -182,6 +195,12 @@ enum Command {
         #[arg(long)]
         path: Option<String>,
     },
+    /// Generates setup keys (used by the FFLONK prover).
+    #[command(name = "generate-sk-fflonk")]
+    GenerateFflonkSetupKeys {
+        #[arg(long)]
+        path: Option<String>,
+    },
 }
 
 fn print_stats(digests: HashMap<String, String>) -> anyhow::Result<()> {
@@ -236,6 +255,52 @@ fn generate_setup_keys(
     Ok(())
 }
 
+fn generate_fflonk_setup_keys(keystore: &Keystore) -> anyhow::Result<()> {
+    let worker = franklin_crypto::boojum::worker::Worker::new();
+    let proof_bytes = std::fs::read("data/compression_proof.bin").unwrap();
+    let proof: ZkSyncCompressionProof = bincode::deserialize(&proof_bytes).unwrap();
+    let vk_bytes = std::fs::read("data/compression_vk.json").unwrap();
+    let vk: ZkSyncCompressionVerificationKey = serde_json::from_slice(&vk_bytes).unwrap();
+    let input = CompressionInput::CompressionWrapper(Some(proof), vk, CompressionMode::Five);
+
+    let setup_data = {
+        let circuit = input.into_compression_wrapper_circuit();
+        let proof_cfg = circuit.proof_config_for_compression_step();
+        match circuit {
+            ZkSyncCompressionForWrapperCircuit::CompressionMode5Circuit(inner) => {
+                let (setup_cs, finalization_hint) =
+                    shivini::synthesis_utils::synthesize_compression_circuit::<
+                        _,
+                        SetupCSConfig,
+                        Global,
+                    >(inner, true, None);
+                let (base_setup, _setup, setup_tree, variables_hint, witnesses_hint, vk) =
+                    setup_cs.prepare_base_setup_with_precomputations_and_vk::<CompressionTranscriptForWrapper, CompressionTreeHasherForWrapper>(
+                        proof_cfg.clone(),
+                        &worker
+                    );
+                let gpu_setup = GpuSetup::from_setup_and_hints(
+                    base_setup,
+                    setup_tree,
+                    variables_hint,
+                    witnesses_hint,
+                    &worker,
+                )
+                .unwrap();
+                GpuProverSetupData {
+                    setup: gpu_setup,
+                    vk,
+                    finalization_hint: finalization_hint.unwrap(),
+                }
+            }
+            _ => unreachable!(),
+        }
+    };
+
+    keystore.save_setup_data_for_fflonk(setup_data)?;
+    Ok(())
+}
+
 fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -279,6 +344,10 @@ fn main() -> anyhow::Result<()> {
                 ),
             };
             generate_setup_keys(&generator, &options)
+        }
+        Command::GenerateFflonkSetupKeys { path } => {
+            let keystore = keystore_from_optional_path(path, None);
+            generate_fflonk_setup_keys(&keystore)
         }
     }
 }
