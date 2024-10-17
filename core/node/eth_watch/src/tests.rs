@@ -6,7 +6,6 @@ use zksync_contracts::{
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
 use zksync_eth_client::{ContractCallError, EnrichedClientResult};
-use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_types::{
     abi,
     abi::ProposedUpgrade,
@@ -295,7 +294,6 @@ async fn create_test_watcher(
         Box::new(sl_client.clone()),
         connection_pool,
         std::time::Duration::from_nanos(1),
-        SyncMerkleTree::from_hashes(std::iter::empty(), None),
     )
     .await
     .unwrap();
@@ -401,7 +399,6 @@ async fn test_normal_operation_upgrade_timestamp() {
         Box::new(client.clone()),
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
-        SyncMerkleTree::from_hashes(std::iter::empty(), None),
     )
     .await
     .unwrap();
