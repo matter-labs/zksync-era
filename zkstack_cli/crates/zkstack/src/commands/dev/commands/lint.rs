@@ -151,13 +151,16 @@ fn lint_contracts(shell: &Shell, ecosystem: &EcosystemConfig, check: bool) -> an
 }
 
 fn lint_autocompletion_files(_shell: &Shell, check: bool) -> anyhow::Result<()> {
-    let completion_folder = "./zkstack_cli/crates/zkstack/completion/";
+    let completion_folder = Path::new("./zkstack_cli/crates/zkstack/completion/");
+    if !completion_folder.exists() {
+        bail!("Please run this command from the project's root folder")
+    }
 
     // Array of supported shells
     let shells = ["bash", "zsh"];
 
     for shell in &shells {
-        let tmp_path = Path::new(completion_folder).join(format!("_tmp_zkstack_{}", shell));
+        let tmp_path = completion_folder.join(format!("_tmp_zkstack_{}", shell));
         let tmp_file = File::create(tmp_path.clone()).context("Failed to create file")?;
         let mut writer = BufWriter::new(tmp_file);
 
@@ -169,7 +172,7 @@ fn lint_autocompletion_files(_shell: &Shell, check: bool) -> anyhow::Result<()> 
         let mut tmp_file = File::open(tmp_path).context("Failed to create file")?;
         tmp_file.read_to_string(&mut new)?;
 
-        let path = Path::new(completion_folder).join(format!("_zkstack_{}", shell));
+        let path = completion_folder.join(format!("_zkstack_{}", shell));
         let mut old = String::new();
         let mut autocomplete_file = File::open(path.clone()).context("Failed to create file")?;
         autocomplete_file.read_to_string(&mut old)?;
