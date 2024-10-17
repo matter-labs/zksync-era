@@ -305,7 +305,10 @@ impl Task for Scaler {
         let queue = self.queuer.get_queue().await.unwrap();
 
         let guard = self.watcher.data.lock().await;
-        watcher::check_is_ready(&guard.is_ready)?;
+        if let Err(err) = watcher::check_is_ready(&guard.is_ready) {
+            tracing::warn!("Skipping Scaler run: {}", err);
+            return Ok(());
+        }
 
         for (ns, ppv) in &self.namespaces {
             let q = queue.queue.get(ppv).cloned().unwrap_or(0);
