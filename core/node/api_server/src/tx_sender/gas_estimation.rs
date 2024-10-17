@@ -189,7 +189,8 @@ impl TxSender {
                 )
             })?;
 
-        if !tx.is_l1() && account_code_hash == H256::zero() {
+        if !tx.is_l1() && !tx.is_xl2() && account_code_hash == H256::zero() {
+            // println!("kl todo ensure sufficient balance {:?} {:?}", tx.is_l1(), tx.is_xl2());
             let balance = match state_override
                 .and_then(|overrides| overrides.get(&tx.initiator_account()))
                 .and_then(|account| account.balance)
@@ -373,6 +374,9 @@ impl<'a> GasEstimator<'a> {
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
                 common_data.max_fee_per_gas = self.base_fee.into();
             }
+            ExecuteTransactionCommon::XL2(common_data) => {
+                common_data.max_fee_per_gas = self.base_fee.into();
+            }
         }
     }
 
@@ -454,6 +458,12 @@ impl<'a> GasEstimator<'a> {
                 let required_funds =
                     l1_common_data.gas_limit * l1_common_data.max_fee_per_gas + tx.execute.value;
                 l1_common_data.to_mint = required_funds;
+            }
+            ExecuteTransactionCommon::XL2(xl2_common_data) => {
+                xl2_common_data.gas_limit = forced_gas_limit.into();
+                let required_funds =
+                    xl2_common_data.gas_limit * xl2_common_data.max_fee_per_gas + tx.execute.value;
+                xl2_common_data.to_mint = required_funds;
             }
             ExecuteTransactionCommon::L2(l2_common_data) => {
                 l2_common_data.fee.gas_limit = forced_gas_limit.into();

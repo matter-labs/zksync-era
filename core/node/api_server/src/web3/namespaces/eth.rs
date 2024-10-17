@@ -10,7 +10,8 @@ use zksync_types::{
     transaction_request::CallRequest,
     utils::decompose_full_nonce,
     web3::{self, Bytes, SyncInfo, SyncState},
-    AccountTreeId, L2BlockNumber, StorageKey, H256, L2_BASE_TOKEN_ADDRESS, U256,
+    AccountTreeId, ExecuteTransactionCommon, ExternalTx, L2BlockNumber, StorageKey, H256,
+    INTEROP_TX_TYPE, L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_web3_decl::{
@@ -93,6 +94,7 @@ impl EthNamespace {
         _block: Option<BlockNumber>,
         state_override: Option<StateOverride>,
     ) -> Result<U256, Web3Error> {
+        // println!("kl todo estimate_gas_impl");
         let mut request_with_gas_per_pubdata_overridden = request;
         self.state
             .set_nonce_for_call_request(&mut request_with_gas_per_pubdata_overridden)
@@ -108,22 +110,33 @@ impl EthNamespace {
             .eip712_meta
             .is_some();
 
+        // let tx_type = request_with_gas_per_pubdata_overridden.transaction_type;
+
         let mut tx: L2Tx = L2Tx::from_request(
+            request_with_gas_per_pubdata_overridden.clone().into(),
+            self.state.api_config.max_tx_size,
+        )?;
+        let mut external_tx: ExternalTx = ExternalTx::from_request(
             request_with_gas_per_pubdata_overridden.into(),
             self.state.api_config.max_tx_size,
         )?;
 
         // The user may not include the proper transaction type during the estimation of
         // the gas fee. However, it is needed for the bootloader checks to pass properly.
-        if is_eip712 {
-            tx.common_data.transaction_type = TransactionType::EIP712Transaction;
-        }
+        if let ExecuteTransactionCommon::L2(_) = &mut external_tx.common_data() {
+            // println!("kl todo eth.rs l2 tx type {:?}", tx_type);
 
-        // When we're estimating fee, we are trying to deduce values related to fee, so we should
-        // not consider provided ones.
-        let gas_price = self.state.tx_sender.gas_price().await?;
-        tx.common_data.fee.max_fee_per_gas = gas_price.into();
-        tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
+            if is_eip712 {
+                tx.common_data.transaction_type = TransactionType::EIP712Transaction;
+            }
+
+            // When we're estimating fee, we are trying to deduce values related to fee, so we should
+            // not consider provided ones.
+            let gas_price = self.state.tx_sender.gas_price().await?;
+            tx.common_data.fee.max_fee_per_gas = gas_price.into();
+            tx.common_data.fee.max_priority_fee_per_gas = tx.common_data.fee.max_fee_per_gas;
+            external_tx = ExternalTx::L2Tx(tx);
+        }
 
         // Modify the l1 gas price with the scale factor
         let scale_factor = self.state.api_config.estimate_gas_scale_factor;
@@ -131,11 +144,13 @@ impl EthNamespace {
             self.state.api_config.estimate_gas_acceptable_overestimation;
         let search_kind = BinarySearchKind::new(self.state.api_config.estimate_gas_optimize_search);
 
+        // println!("kl todo estimate gas impl",);
         let fee = self
             .state
             .tx_sender
             .get_txs_fee_in_wei(
-                tx.into(),
+                external_tx.into(),
+                // tx.into(),
                 scale_factor,
                 acceptable_overestimation as u64,
                 state_override,
@@ -620,6 +635,11 @@ impl EthNamespace {
     pub async fn send_raw_transaction_impl(&self, tx_bytes: Bytes) -> Result<H256, Web3Error> {
         let (mut tx, hash) = self.state.parse_transaction_bytes(&tx_bytes.0)?;
         tx.set_input(tx_bytes.0, hash);
+        // println!(
+        //     "kl todo send_raw_transaction_impl tx_hash {:?} tx {:?}",
+        //     hash,
+        //     tx.hash()
+        // );
 
         let submit_result = self.state.tx_sender.submit_tx(tx).await;
         submit_result.map(|_| hash).map_err(|err| {

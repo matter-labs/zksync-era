@@ -10,7 +10,8 @@ import {
 } from '../src/modifiers/balance-checker';
 import { checkReceipt } from '../src/modifiers/receipt-check';
 
-import * as zksync from 'zksync-ethers';
+// import * as zksync from 'zksync-ethers';
+import * as zksync from 'zksync-ethers-interop-support';
 import { scaledGasPrice, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
 import { ethers } from 'ethers';
 

@@ -23,7 +23,7 @@ use crate::{
 
 pub mod error;
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Copy)]
 #[repr(u8)]
 pub enum OpProcessingType {
     Common = 0,
@@ -48,7 +48,7 @@ impl Default for OpProcessingType {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy, Default)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, Copy, Default)]
 #[repr(u8)]
 pub enum PriorityQueueType {
     #[default]
@@ -250,6 +250,7 @@ impl TryFrom<Transaction> for L1Tx {
                 common_data,
                 received_timestamp_ms,
             }),
+            ExecuteTransactionCommon::XL2(_) => Err("Cannot convert XL2Tx to L1Tx"),
             ExecuteTransactionCommon::L2(_) => Err("Cannot convert L2Tx to L1Tx"),
             ExecuteTransactionCommon::ProtocolUpgrade(_) => {
                 Err("Cannot convert ProtocolUpgradeTx to L1Tx")

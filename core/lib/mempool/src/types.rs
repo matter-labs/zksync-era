@@ -1,7 +1,7 @@
 use std::{cmp::Ordering, collections::HashMap};
 
 use zksync_types::{
-    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, Transaction, U256,
+    fee::Fee, fee_model::BatchFeeInput, l2::L2Tx, Address, Nonce, Transaction, H256, U256,
 };
 
 /// Pending mempool transactions of account
@@ -115,6 +115,43 @@ impl Ord for MempoolScore {
 
 impl PartialOrd for MempoolScore {
     fn partial_cmp(&self, other: &MempoolScore) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Mempool score of XL2 transaction. Used to prioritize XL2 transactions in mempool
+/// Currently trivial ordering is used based on received at timestamp
+#[derive(Eq, PartialEq, Clone, Debug, Hash)]
+pub struct XL2MempoolScore {
+    pub tx_hash: H256,
+    pub received_at_ms: u64,
+    // Not used for actual scoring, but state keeper would request
+    // transactions that have acceptable fee values (so transactions
+    // with fee too low would be ignored until prices go down).
+    pub fee_data: Fee,
+}
+
+impl XL2MempoolScore {
+    /// Checks whether transaction matches requirements provided by state keeper.
+    pub fn matches_filter(&self, _filter: &L2TxFilter) -> bool {
+        // self.fee_data.max_fee_per_gas >= U256::from(filter.fee_per_gas)
+        //     && self.fee_data.gas_per_pubdata_limit >= U256::from(filter.gas_per_pubdata)
+        true // kl todo fix
+    }
+}
+
+impl Ord for XL2MempoolScore {
+    fn cmp(&self, other: &XL2MempoolScore) -> Ordering {
+        match self.received_at_ms.cmp(&other.received_at_ms).reverse() {
+            Ordering::Equal => {}
+            ordering => return ordering,
+        }
+        self.tx_hash.cmp(&other.tx_hash)
+    }
+}
+
+impl PartialOrd for XL2MempoolScore {
+    fn partial_cmp(&self, other: &XL2MempoolScore) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }

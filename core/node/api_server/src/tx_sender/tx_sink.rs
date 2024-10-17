@@ -2,8 +2,7 @@ use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, Core};
 use zksync_multivm::interface::TransactionExecutionMetrics;
 use zksync_types::{
     api::{Transaction, TransactionDetails, TransactionId},
-    l2::L2Tx,
-    Address, Nonce, H256,
+    Address, ExternalTx, Nonce, H256,
 };
 use zksync_web3_decl::error::Web3Error;
 
@@ -26,7 +25,7 @@ pub trait TxSink: std::fmt::Debug + Send + Sync + 'static {
     /// Ensures that transaction is propagated to the mempool.
     async fn submit_tx(
         &self,
-        tx: &L2Tx,
+        tx: &ExternalTx,
         execution_metrics: TransactionExecutionMetrics,
     ) -> Result<L2TxSubmissionResult, SubmitTxError>;
 

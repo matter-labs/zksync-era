@@ -116,6 +116,7 @@ impl GenesisParams {
                 .default_aa_hash
                 .ok_or(GenesisError::MalformedConfig("default_aa_hash"))?,
         };
+
         if base_system_contracts_hashes != base_system_contracts.hashes() {
             return Err(GenesisError::BaseSystemContractsHashes(Box::new(
                 BaseContractsHashError {
@@ -124,6 +125,7 @@ impl GenesisParams {
                 },
             )));
         }
+        // kl todo
         if config.protocol_version.is_none() {
             return Err(GenesisError::MalformedConfig("protocol_version"));
         }
@@ -376,6 +378,7 @@ pub async fn ensure_genesis_state(
             rollup_last_leaf_index,
         ));
     }
+    // kl todo
 
     tracing::info!("genesis is complete");
     transaction.commit().await?;
