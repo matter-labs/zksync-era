@@ -637,6 +637,7 @@ impl EthSenderDal<'_, '_> {
     }
 
     pub async fn clear_failed_transactions(&mut self) -> anyhow::Result<()> {
+        // we don't allow in-flight txs as they might be confirmed on Ethereum, but not in db
         if self.count_all_inflight_txs().await.unwrap() != 0 {
             return Err(anyhow!(
                 "There are still some in-flight txs, cannot proceed. \
@@ -647,6 +648,15 @@ impl EthSenderDal<'_, '_> {
             r#"
             DELETE FROM eth_txs
             WHERE has_failed = TRUE
+            "#
+        )
+        .execute(self.storage.conn())
+        .await?;
+        // removing never sent txs just to be sure
+        sqlx::query!(
+            r#"
+            DELETE FROM eth_txs
+            WHERE confirmed_eth_tx_history_id IS NULL
             "#
         )
         .execute(self.storage.conn())
@@ -662,7 +672,9 @@ impl EthSenderDal<'_, '_> {
             FROM
                 eth_txs
             WHERE
-                confirmed_eth_tx_history_id IS NULL AND has_failed = FALSE
+                confirmed_eth_tx_history_id IS NULL
+                AND has_failed = FALSE
+                AND EXISTS (SELECT * FROM eth_txs_history WHERE eth_tx_id = eth_txs.id)
             "#
         )
         .fetch_one(self.storage.conn())

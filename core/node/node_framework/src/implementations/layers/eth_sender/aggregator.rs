@@ -1,4 +1,5 @@
 use anyhow::Context;
+use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::{eth_sender::EthConfig, ContractsConfig};
 use zksync_eth_sender::{Aggregator, EthTxAggregator};
 use zksync_types::{commitment::L1BatchCommitmentMode, settlement::SettlementMode, L2ChainId};
@@ -8,7 +9,7 @@ use crate::{
         circuit_breakers::CircuitBreakersResource,
         eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
         object_store::ObjectStoreResource,
-        pools::{MasterPool, PoolResource},
+        pools::{MasterPool, PoolResource, ReplicaPool},
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -47,6 +48,7 @@ pub struct EthTxAggregatorLayer {
 #[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
+    pub replica_pool: PoolResource<ReplicaPool>,
     pub eth_client: Option<BoundEthInterfaceResource>,
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
     pub object_store: ObjectStoreResource,
@@ -91,6 +93,7 @@ impl WiringLayer for EthTxAggregatorLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // Get resources.
         let master_pool = input.master_pool.get().await.unwrap();
+        let replica_pool = input.replica_pool.get().await.unwrap();
 
         let eth_client_blobs = input.eth_client_blobs.map(|c| c.0);
         let object_store = input.object_store.0;
@@ -117,6 +120,13 @@ impl WiringLayer for EthTxAggregatorLayer {
             self.settlement_mode,
         )
         .await;
+
+        // Insert circuit breaker.
+        input
+            .circuit_breakers
+            .breakers
+            .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
+            .await;
 
         Ok(Output { eth_tx_aggregator })
     }

@@ -1,4 +1,5 @@
 use anyhow::Context;
+use zksync_circuit_breaker::l1_txs::FailedL1TransactionChecker;
 use zksync_config::configs::eth_sender::EthConfig;
 use zksync_eth_sender::EthTxManager;
 
@@ -7,7 +8,7 @@ use crate::{
         circuit_breakers::CircuitBreakersResource,
         eth_interface::{BoundEthInterfaceForBlobsResource, BoundEthInterfaceResource},
         gas_adjuster::GasAdjusterResource,
-        pools::{MasterPool, PoolResource},
+        pools::{MasterPool, PoolResource, ReplicaPool},
     },
     service::StopReceiver,
     task::{Task, TaskId},
@@ -41,6 +42,7 @@ pub struct EthTxManagerLayer {
 #[context(crate = crate)]
 pub struct Input {
     pub master_pool: PoolResource<MasterPool>,
+    pub replica_pool: PoolResource<ReplicaPool>,
     pub eth_client: BoundEthInterfaceResource,
     pub eth_client_blobs: Option<BoundEthInterfaceForBlobsResource>,
     pub gas_adjuster: GasAdjusterResource,
@@ -73,6 +75,7 @@ impl WiringLayer for EthTxManagerLayer {
     async fn wire(self, input: Self::Input) -> Result<Self::Output, WiringError> {
         // Get resources.
         let master_pool = input.master_pool.get().await.unwrap();
+        let replica_pool = input.replica_pool.get().await.unwrap();
 
         let settlement_mode = self.eth_sender_config.gas_adjuster.unwrap().settlement_mode;
         let eth_client = input.eth_client.0.clone();
@@ -103,6 +106,13 @@ impl WiringLayer for EthTxManagerLayer {
                 None
             },
         );
+
+        // Insert circuit breaker.
+        input
+            .circuit_breakers
+            .breakers
+            .insert(Box::new(FailedL1TransactionChecker { pool: replica_pool }))
+            .await;
 
         Ok(Output { eth_tx_manager })
     }
