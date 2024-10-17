@@ -35,6 +35,8 @@ pub struct ProverRunArgs {
     pub circuit_prover_args: CircuitProverArgs,
     #[clap(long)]
     pub docker: Option<bool>,
+    #[clap(long)]
+    pub tag: Option<String>,
 }
 
 #[derive(
@@ -300,6 +302,8 @@ impl ProverRunArgs {
                 .ask()
         });
 
+        let tag = self.tag.unwrap_or("latest2.0".to_string());
+
         Ok(ProverRunArgs {
             component: Some(component),
             witness_generator_args,
@@ -307,6 +311,7 @@ impl ProverRunArgs {
             fri_prover_args: self.fri_prover_args,
             circuit_prover_args,
             docker: Some(docker),
+            tag: Some(tag),
         })
     }
 }

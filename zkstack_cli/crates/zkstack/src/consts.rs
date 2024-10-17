@@ -17,14 +17,13 @@ pub const EXPLORER_APP_DOCKER_IMAGE: &str = "matterlabs/block-explorer-app";
 pub const PORTAL_DOCKER_CONFIG_PATH: &str = "/usr/src/app/dist/config.js";
 pub const PORTAL_DOCKER_IMAGE: &str = "matterlabs/dapp-portal";
 
-pub const PROVER_GATEWAY_DOCKER_IMAGE: &str = "matterlabs/prover-fri-gateway:latest2.0";
-pub const WITNESS_GENERATOR_DOCKER_IMAGE: &str = "matterlabs/witness-generator:latest2.0";
-pub const WITNESS_VECTOR_GENERATOR_DOCKER_IMAGE: &str =
-    "matterlabs/witness-vector-generator:latest2.0";
-pub const PROVER_DOCKER_IMAGE: &str = "matterlabs/prover-gpu-fri:latest2.0";
-pub const CIRCUIT_PROVER_DOCKER_IMAGE: &str = "matterlabs/circuit-prover-gpu:latest2.0";
-pub const COMPRESSOR_DOCKER_IMAGE: &str = "matterlabs/proof-fri-gpu-compressor:latest2.0";
-pub const PROVER_JOB_MONITOR_DOCKER_IMAGE: &str = "matterlabs/prover-job-monitor:latest2.0";
+pub const PROVER_GATEWAY_DOCKER_IMAGE: &str = "matterlabs/prover-fri-gateway";
+pub const WITNESS_GENERATOR_DOCKER_IMAGE: &str = "matterlabs/witness-generator";
+pub const WITNESS_VECTOR_GENERATOR_DOCKER_IMAGE: &str = "matterlabs/witness-vector-generator";
+pub const PROVER_DOCKER_IMAGE: &str = "matterlabs/prover-gpu-fri";
+pub const CIRCUIT_PROVER_DOCKER_IMAGE: &str = "matterlabs/circuit-prover-gpu";
+pub const COMPRESSOR_DOCKER_IMAGE: &str = "matterlabs/proof-fri-gpu-compressor";
+pub const PROVER_JOB_MONITOR_DOCKER_IMAGE: &str = "matterlabs/prover-job-monitor";
 
 pub const PROVER_GATEWAY_BINARY_NAME: &str = "zksync_prover_fri_gateway";
 pub const WITNESS_GENERATOR_BINARY_NAME: &str = "zksync_witness_generator";
