@@ -1,5 +1,5 @@
 use circuit_sequencer_api_1_5_0::{geometry_config::get_geometry_config, toolset::GeometryConfig};
-use zksync_vm2::interface::{CycleStats, Opcode, OpcodeType, StateInterface, Tracer};
+use zksync_vm2::interface::{CycleStats, GlobalStateInterface, Opcode, OpcodeType, Tracer};
 use zksync_vm_interface::CircuitStatistic;
 
 use crate::vm_latest::tracers::circuits_capacity::*;
@@ -24,7 +24,7 @@ pub struct CircuitsTracer {
 }
 
 impl Tracer for CircuitsTracer {
-    fn after_instruction<OP: OpcodeType, S: StateInterface>(&mut self, _state: &mut S) {
+    fn after_instruction<OP: OpcodeType, S: GlobalStateInterface>(&mut self, _: &mut S) {
         self.main_vm_cycles += 1;
 
         match OP::VALUE {
