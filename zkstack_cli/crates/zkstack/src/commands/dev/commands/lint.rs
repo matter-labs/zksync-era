@@ -60,6 +60,8 @@ pub fn run(shell: &Shell, args: LintArgs) -> anyhow::Result<()> {
         }
     }
 
+    logger::outro("Linting complete.");
+
     Ok(())
 }
 
