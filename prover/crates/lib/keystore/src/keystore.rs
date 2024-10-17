@@ -470,6 +470,7 @@ impl Keystore {
     }
 
     /// Async loads mapping of all circuits to setup key, if successful
+    #[cfg(feature = "gpu")]
     pub async fn load_all_setup_key_mapping(
         &self,
     ) -> anyhow::Result<HashMap<ProverServiceDataKey, Arc<GoldilocksGpuProverSetupData>>> {
