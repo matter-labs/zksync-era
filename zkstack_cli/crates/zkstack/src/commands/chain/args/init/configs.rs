@@ -24,7 +24,6 @@ pub struct InitConfigsArgs {
     pub genesis_args: GenesisArgs,
     #[clap(long, help = MSG_L1_RPC_URL_HELP)]
     pub l1_rpc_url: Option<String>,
-    // TODO: test this
     #[clap(long, help = MSG_NO_PORT_REALLOCATION_HELP)]
     pub no_port_reallocation: bool,
 }
