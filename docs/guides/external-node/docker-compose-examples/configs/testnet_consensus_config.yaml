@@ -1,6 +1,6 @@
 server_addr: '0.0.0.0:3054'
 public_addr: '127.0.0.1:3054'
-debug_page_addr: '127.0.0.1:5000'
+debug_page_addr: '0.0.0.0:5000'
 max_payload_size: 5000000
 gossip_dynamic_inbound_limit: 100
 gossip_static_outbound:

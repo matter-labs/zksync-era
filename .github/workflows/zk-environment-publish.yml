@@ -49,10 +49,10 @@ jobs:
               - docker/zk-environment/Dockerfile
               - .github/workflows/zk-environment-publish.yml
             zk_env_cuda_11_8:
-              - docker/zk-environment/20.04_amd64_cuda_11_8.Dockerfile
+              - docker/zk-environment/22.04_amd64_cuda_11_8.Dockerfile
               - .github/workflows/zk-environment-publish.yml
             zk_env_cuda_12:
-              - docker/zk-environment/20.04_amd64_cuda_12_0.Dockerfile
+              - docker/zk-environment/22.04_amd64_cuda_12_0.Dockerfile
               - .github/workflows/zk-environment-publish.yml
 
   get_short_sha:
@@ -245,7 +245,7 @@ jobs:
         if: ${{ (steps.condition.outputs.should_run == 'true') || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
         uses: docker/build-push-action@5176d81f87c23d6fc96624dfdbcd9f3830bbe445 # v6.5.0
         with:
-          file: docker/zk-environment/20.04_amd64_cuda_${{ matrix.cuda_version }}.Dockerfile
+          file: docker/zk-environment/22.04_amd64_cuda_${{ matrix.cuda_version }}.Dockerfile
           push: ${{ ( github.event_name == 'push' && github.ref == 'refs/heads/main' ) || (github.event_name == 'workflow_dispatch' && inputs.build_cuda) }}
           tags: |
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/zk-environment-cuda-${{ matrix.cuda_version }}:latest
