@@ -50,7 +50,7 @@ pub enum InceptionSubcommands {
     /// Chain related commands
     #[command(subcommand, alias = "c")]
     Chain(Box<ChainCommands>),
-    /// Chain related commands
+    /// Supervisor related commands
     #[command(subcommand)]
     Dev(DevCommands),
     /// Prover related commands
@@ -72,11 +72,13 @@ pub enum InceptionSubcommands {
     /// Run block-explorer
     #[command(subcommand)]
     Explorer(ExplorerCommands),
-    /// Update ZKsync
+    /// Consensus utilities
     #[command(subcommand)]
     Consensus(consensus::Command),
+    /// Update ZKsync
     #[command(alias = "u")]
     Update(UpdateArgs),
+    /// Print markdown help
     #[command(hide = true)]
     Markdown,
 }
