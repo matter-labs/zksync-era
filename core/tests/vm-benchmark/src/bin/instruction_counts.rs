@@ -79,12 +79,16 @@ impl Command {
                     .collect();
 
                 if !differing_counts.is_empty() {
-                    println!("## Detected differing instruction counts");
+                    println!("## ⚠ Detected differing instruction counts");
                     println!("| Benchmark | Old count | New count |");
                     println!("|-----------|----------:|----------:|");
                     for (name, old_count, new_count) in differing_counts {
                         println!("| {name} | {old_count} | {new_count} |");
                     }
+                    println!(
+                        "\nChanges in number of opcodes executed indicate that the gas price of the benchmark has changed, \
+                         which causes it to run out of gas at a different time."
+                    );
                 }
             }
         }

@@ -302,7 +302,7 @@ mod tests {
     }
 
     #[test]
-    fn instruction_count_matches_on_both_vms_for_fuzzed_bytecodes() {
+    fn instruction_count_matches_on_both_vms_for_benchmark_bytecodes() {
         for bytecode in BYTECODES {
             let tx = bytecode.deploy_tx();
             let legacy_count = Legacy::count_instructions(&tx);
