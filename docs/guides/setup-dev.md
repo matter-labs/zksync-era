@@ -102,8 +102,8 @@ If so, you **do not need** to install `docker-machine`. Most probably, it means 
 the`docker` group. You can check it as follows:
 
 ```bash
-docker-compose up # Should raise the same error.
-sudo docker-compose up # Should start doing things.
+docker ps # Should raise the same error.
+sudo docker ps # Should return a (probably empty) list of running containers
 ```
 
 If the first command fails, but the second succeeds, then you need to add your user to the `docker` group:
@@ -156,7 +156,7 @@ sudo apt-get install libssl-dev
 
 ## `Rust`
 
-Install the latest `rust` version.
+Install `rustup` & toolchain.
 
 Instructions can be found on the [official site](https://www.rust-lang.org/tools/install).
 
@@ -192,7 +192,7 @@ Rust toolchain as well.
 
 ## Postgres
 
-Install the latest postgres:
+Install the latest postgres client:
 
 On mac:
 
@@ -203,7 +203,7 @@ brew install postgresql@14
 On debian-based linux:
 
 ```bash
-sudo apt-get install postgresql
+sudo apt-get install postgresql-client
 ```
 
 ### Cargo nextest
@@ -291,10 +291,10 @@ If you installed `mold` to `/usr/local/bin/mold`, then the quickest way to use i
 
 ```bash
 export RUSTFLAGS='-C link-arg=-fuse-ld=/usr/local/bin/mold'
-export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="clang"
+export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="clang"  # Not needed for recent enough gcc versions
 ```
 
-## Tip: Speeding up building `RocksDB`
+### Tip: Speeding up building `RocksDB`
 
 By default, each time you compile `rocksdb` crate, it will compile required C++ sources from scratch. It can be avoided
 by using precompiled versions of library, and it will significantly improve your build times.
