@@ -10,8 +10,8 @@ use zksync_multivm::{
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
-    vm_fast, vm_latest,
-    vm_latest::{constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled},
+    vm_fast,
+    vm_latest::{self, constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled, ToTracerPointer},
     zk_evm_latest::ethereum_types::{Address, U256},
 };
 use zksync_types::{
@@ -21,7 +21,7 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::hash_bytecode;
 
-use crate::transaction::PRIVATE_KEY;
+use crate::{instruction_counter::InstructionCounter, transaction::PRIVATE_KEY};
 
 static SYSTEM_CONTRACTS: Lazy<BaseSystemContracts> = Lazy::new(BaseSystemContracts::load_from_disk);
 
@@ -74,16 +74,19 @@ pub trait BenchmarkingVmFactory {
         storage: &'static InMemoryStorage,
         pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> Self::Instance;
+
+    /// Counts instructions executed by the VM while processing the transaction.
+    fn count_instructions(tx: &Transaction) -> usize;
 }
 
 /// Factory for the new / fast VM.
 #[derive(Debug)]
-pub struct Fast(());
+pub struct Fast<Tr = ()>(Tr);
 
-impl BenchmarkingVmFactory for Fast {
+impl<Tr: vm_fast::Tracer + Default + 'static> BenchmarkingVmFactory for Fast<Tr> {
     const LABEL: VmLabel = VmLabel::Fast;
 
-    type Instance = vm_fast::Vm<&'static InMemoryStorage>;
+    type Instance = vm_fast::Vm<&'static InMemoryStorage, Tr>;
 
     fn create(
         batch_env: L1BatchEnv,
@@ -92,6 +95,29 @@ impl BenchmarkingVmFactory for Fast {
         _pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> Self::Instance {
         vm_fast::Vm::custom(batch_env, system_env, storage)
+    }
+
+    fn count_instructions(tx: &Transaction) -> usize {
+        let mut vm = BenchmarkingVm::<Fast<InstructionCount>>::default();
+        vm.0.push_transaction(tx.clone());
+
+        #[derive(Default)]
+        struct InstructionCount(usize);
+        impl vm_fast::Tracer for InstructionCount {
+            fn before_instruction<
+                OP: zksync_vm2::interface::OpcodeType,
+                S: zksync_vm2::interface::StateInterface,
+            >(
+                &mut self,
+                _: &mut S,
+            ) {
+                self.0 += 1;
+            }
+        }
+        let mut tracer = InstructionCount(0);
+
+        vm.0.inspect(&mut tracer, VmExecutionMode::OneTx);
+        tracer.0
     }
 }
 
@@ -112,6 +138,19 @@ impl BenchmarkingVmFactory for Legacy {
     ) -> Self::Instance {
         let storage = StorageView::new(storage).to_rc_ptr();
         vm_latest::Vm::new(batch_env, system_env, storage, Some(pubdata_builder))
+    }
+
+    fn count_instructions(tx: &Transaction) -> usize {
+        let mut vm = BenchmarkingVm::<Self>::default();
+        vm.0.push_transaction(tx.clone());
+        let count = Rc::new(RefCell::new(0));
+        vm.0.inspect(
+            &mut InstructionCounter::new(count.clone())
+                .into_tracer_pointer()
+                .into(),
+            VmExecutionMode::OneTx,
+        );
+        count.take()
     }
 }
 
@@ -173,13 +212,6 @@ impl<VM: BenchmarkingVmFactory> BenchmarkingVm<VM> {
             self.0.pop_snapshot_no_rollback();
         }
         tx_result
-    }
-
-    pub fn instruction_count(&mut self, tx: &Transaction) -> usize {
-        self.0.push_transaction(tx.clone());
-        let count = Rc::new(RefCell::new(0));
-        self.0.execute(VmExecutionMode::OneTx); // FIXME: re-enable instruction counting once new tracers are merged
-        count.take()
     }
 }
 
