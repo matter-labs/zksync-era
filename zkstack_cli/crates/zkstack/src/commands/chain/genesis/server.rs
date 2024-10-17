@@ -5,21 +5,17 @@ use common::{
     spinner::Spinner,
 };
 use config::{
-    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
+    traits::FileConfigWithDefaultName, zkstack_config::ZkStackConfig, ChainConfig, ContractsConfig,
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
 use xshell::Shell;
 
 use crate::messages::{
-    MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_GENESIS_COMPLETED,
-    MSG_STARTING_GENESIS_SPINNER,
+    MSG_FAILED_TO_RUN_SERVER_ERR, MSG_GENESIS_COMPLETED, MSG_STARTING_GENESIS_SPINNER,
 };
 
 pub async fn run(shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::load_current_chain(shell)?;
 
     let spinner = Spinner::new(MSG_STARTING_GENESIS_SPINNER);
     run_server_genesis(&chain_config, shell)?;

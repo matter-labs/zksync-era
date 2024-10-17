@@ -5,7 +5,7 @@ use std::{borrow::Borrow, collections::HashMap, path::PathBuf, sync::Arc};
 use anyhow::Context as _;
 use clap::Parser;
 use common::{logger, wallets::Wallet};
-use config::EcosystemConfig;
+use config::zkstack_config::ZkStackConfig;
 use conv::*;
 use ethers::{
     abi::Detokenize,
@@ -19,7 +19,10 @@ use xshell::Shell;
 use zksync_consensus_crypto::ByteFmt;
 use zksync_consensus_roles::{attester, validator};
 
-use crate::{messages, utils::consensus::parse_attester_committee};
+use crate::{
+    messages::{self},
+    utils::consensus::parse_attester_committee,
+};
 
 mod conv;
 mod proto;
@@ -193,11 +196,7 @@ impl Setup {
     }
 
     fn new(shell: &Shell) -> anyhow::Result<Self> {
-        let ecosystem_config =
-            EcosystemConfig::from_file(shell).context("EcosystemConfig::from_file()")?;
-        let chain = ecosystem_config
-            .load_current_chain()
-            .context(messages::MSG_CHAIN_NOT_INITIALIZED)?;
+        let chain = ZkStackConfig::load_current_chain(shell)?;
         let contracts = chain
             .get_contracts_config()
             .context("get_contracts_config()")?;

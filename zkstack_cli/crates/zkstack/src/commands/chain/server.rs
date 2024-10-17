@@ -4,22 +4,16 @@ use common::{
     server::{Server, ServerMode},
 };
 use config::{
-    traits::FileConfigWithDefaultName, ChainConfig, ContractsConfig, EcosystemConfig,
+    traits::FileConfigWithDefaultName, zkstack_config::ZkStackConfig, ChainConfig, ContractsConfig,
     GeneralConfig, GenesisConfig, SecretsConfig, WalletsConfig,
 };
 use xshell::Shell;
 
 use super::args::run_server::RunServerArgs;
-use crate::messages::{
-    MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER,
-};
+use crate::messages::{MSG_FAILED_TO_RUN_SERVER_ERR, MSG_STARTING_SERVER};
 
 pub fn run(shell: &Shell, args: RunServerArgs) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::load_current_chain(shell)?;
 
     logger::info(MSG_STARTING_SERVER);
 
