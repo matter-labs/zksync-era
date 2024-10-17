@@ -107,7 +107,8 @@ fn test_vm_loadnext_rollbacks() {
             contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
-                writes: 100,
+                initial_writes: 100,
+                repeated_writes: 100,
                 events: 100,
                 hashes: 500,
                 recursive_calls: 10,
@@ -125,7 +126,8 @@ fn test_vm_loadnext_rollbacks() {
             contract_address: Some(address),
             calldata: LoadnextContractExecutionParams {
                 reads: 100,
-                writes: 100,
+                initial_writes: 100,
+                repeated_writes: 100,
                 events: 100,
                 hashes: 500,
                 recursive_calls: 10,

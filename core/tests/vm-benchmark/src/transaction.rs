@@ -12,7 +12,7 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::hash_bytecode;
 
-const LOAD_TEST_MAX_READS: usize = 100;
+const LOAD_TEST_MAX_READS: usize = 3000;
 
 pub(crate) static PRIVATE_KEY: Lazy<K256PrivateKey> =
     Lazy::new(|| K256PrivateKey::from_bytes(H256([42; 32])).expect("invalid key bytes"));
@@ -112,7 +112,7 @@ pub fn get_load_test_deploy_tx() -> Transaction {
         Some(CONTRACT_DEPLOYER_ADDRESS),
         create_calldata,
         Nonce(0),
-        tx_fee(100_000_000),
+        tx_fee(500_000_000),
         U256::zero(),
         L2ChainId::from(270),
         &PRIVATE_KEY,
@@ -138,7 +138,8 @@ pub fn get_load_test_tx(nonce: u32, gas_limit: u32, params: LoadTestParams) -> T
     let calldata = execute_function
         .encode_input(&vec![
             Token::Uint(U256::from(params.reads)),
-            Token::Uint(U256::from(params.writes)),
+            Token::Uint(U256::from(params.initial_writes)),
+            Token::Uint(U256::from(params.repeated_writes)),
             Token::Uint(U256::from(params.hashes)),
             Token::Uint(U256::from(params.events)),
             Token::Uint(U256::from(params.recursive_calls)),
@@ -168,9 +169,10 @@ pub fn get_realistic_load_test_tx(nonce: u32) -> Transaction {
         nonce,
         10_000_000,
         LoadTestParams {
-            reads: 30,
-            writes: 2,
-            events: 5,
+            reads: 243,
+            initial_writes: 1,
+            repeated_writes: 11,
+            events: 6,
             hashes: 10,
             recursive_calls: 0,
             deploys: 0,
@@ -183,9 +185,10 @@ pub fn get_heavy_load_test_tx(nonce: u32) -> Transaction {
         nonce,
         10_000_000,
         LoadTestParams {
-            reads: 100,
-            writes: 5,
-            events: 20,
+            reads: 296,
+            initial_writes: 13,
+            repeated_writes: 92,
+            events: 140,
             hashes: 100,
             recursive_calls: 20,
             deploys: 5,

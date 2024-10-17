@@ -18,7 +18,8 @@ const LOAD_TEST_CASES: TestCases<LoadnextContractExecutionParams> = test_casing:
     LoadnextContractExecutionParams::default(),
     // No storage modification
     LoadnextContractExecutionParams {
-        writes: 0,
+        initial_writes: 0,
+        repeated_writes: 0,
         events: 0,
         ..LoadnextContractExecutionParams::default()
     },

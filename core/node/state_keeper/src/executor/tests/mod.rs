@@ -296,7 +296,7 @@ async fn deploy_and_call_loadtest(vm_mode: FastVmMode) {
     );
     assert_executed(
         &executor
-            .execute_tx(alice.loadnext_custom_writes_call(tx.address, 1, 500_000_000))
+            .execute_tx(alice.loadnext_custom_initial_writes_call(tx.address, 1, 500_000_000))
             .await
             .unwrap(),
     );
@@ -344,7 +344,7 @@ async fn execute_reverted_tx(vm_mode: FastVmMode) {
 
     assert_reverted(
         &executor
-            .execute_tx(alice.loadnext_custom_writes_call(
+            .execute_tx(alice.loadnext_custom_initial_writes_call(
                 tx.address, 1,
                 1_000_000, // We provide enough gas for tx to be executed, but not enough for the call to be successful.
             ))
