@@ -179,6 +179,7 @@ enum StorageInitialization {
     Recovery {
         logs: Vec<StorageLog>,
         factory_deps: HashMap<H256, Vec<u8>>,
+        batch_fee_input: BatchFeeInput,
     },
 }
 
@@ -200,6 +201,7 @@ impl StorageInitialization {
         Self::Recovery {
             logs: vec![],
             factory_deps: HashMap::new(),
+            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
         }
     }
 
@@ -239,6 +241,7 @@ impl StorageInitialization {
             Self::Recovery {
                 mut logs,
                 factory_deps,
+                batch_fee_input,
             } => {
                 let l2_block_info_key = StorageKey::new(
                     AccountTreeId::new(SYSTEM_CONTEXT_ADDRESS),
@@ -267,7 +270,12 @@ impl StorageInitialization {
 
                 // Insert the next L1 batch in the storage so that the API server doesn't hang up.
                 store_l2_block(storage, Self::SNAPSHOT_RECOVERY_BLOCK + 1, &[]).await?;
-                seal_l1_batch(storage, Self::SNAPSHOT_RECOVERY_BATCH + 1).await?;
+                seal_l1_batch(
+                    storage,
+                    Self::SNAPSHOT_RECOVERY_BATCH + 1,
+                    Some(batch_fee_input),
+                )
+                .await?;
             }
         }
         Ok(())
@@ -400,8 +408,12 @@ async fn store_custom_l2_block(
 async fn seal_l1_batch(
     storage: &mut Connection<'_, Core>,
     number: L1BatchNumber,
+    batch_fee_input: Option<BatchFeeInput>,
 ) -> anyhow::Result<()> {
-    let header = create_l1_batch(number.0);
+    let mut header = create_l1_batch(number.0);
+    if let Some(batch_fee_input) = batch_fee_input {
+        header.batch_fee_input = batch_fee_input;
+    }
     storage.blocks_dal().insert_mock_l1_batch(&header).await?;
     storage
         .blocks_dal()
@@ -691,7 +703,11 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
             ),
         ];
         let factory_deps = [(code_hash, b"code".to_vec())].into();
-        StorageInitialization::Recovery { logs, factory_deps }
+        StorageInitialization::Recovery {
+            logs,
+            factory_deps,
+            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
+        }
     }
 
     async fn test(
@@ -838,6 +854,7 @@ impl HttpTest for TransactionCountAfterSnapshotRecoveryTest {
         StorageInitialization::Recovery {
             logs: vec![nonce_log],
             factory_deps: HashMap::new(),
+            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
         }
     }
 

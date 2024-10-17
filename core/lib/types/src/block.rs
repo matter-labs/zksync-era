@@ -70,13 +70,13 @@ pub struct L1BatchHeader {
 }
 
 impl L1BatchHeader {
-    pub fn to_unsealed_header(&self, fee_input: BatchFeeInput) -> UnsealedL1BatchHeader {
+    pub fn to_unsealed_header(&self) -> UnsealedL1BatchHeader {
         UnsealedL1BatchHeader {
             number: self.number,
             timestamp: self.timestamp,
             protocol_version: self.protocol_version,
             fee_address: self.fee_address,
-            fee_input,
+            fee_input: self.batch_fee_input,
         }
     }
 }

@@ -325,7 +325,12 @@ struct CallTestAfterSnapshotRecovery {
 #[async_trait]
 impl HttpTest for CallTestAfterSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
-        StorageInitialization::empty_recovery()
+        let batch_fee_input = *self.fee_input.0.lock().unwrap();
+        StorageInitialization::Recovery {
+            logs: vec![],
+            factory_deps: HashMap::new(),
+            batch_fee_input,
+        }
     }
 
     fn transaction_executor(&self) -> MockOneshotExecutor {
@@ -433,6 +438,7 @@ impl HttpTest for SendRawTransactionTest {
             StorageInitialization::Recovery {
                 logs,
                 factory_deps: HashMap::default(),
+                batch_fee_input: BatchFeeInput::pubdata_independent(100, 100, 100),
             }
         } else {
             StorageInitialization::genesis()
@@ -808,15 +814,28 @@ async fn trace_call_basics() {
     test_http_server(TraceCallTest::default()).await;
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct TraceCallTestAfterSnapshotRecovery {
     fee_input: ExpectedFeeInput,
+}
+
+impl TraceCallTestAfterSnapshotRecovery {
+    fn new() -> Self {
+        let fee_input = ExpectedFeeInput::default();
+        fee_input.expect_default(TraceCallTest::FEE_SCALE);
+        Self { fee_input }
+    }
 }
 
 #[async_trait]
 impl HttpTest for TraceCallTestAfterSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
-        StorageInitialization::empty_recovery()
+        let batch_fee_input = *self.fee_input.0.lock().unwrap();
+        StorageInitialization::Recovery {
+            logs: vec![],
+            factory_deps: HashMap::new(),
+            batch_fee_input,
+        }
     }
 
     fn transaction_executor(&self) -> MockOneshotExecutor {
@@ -829,7 +848,6 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
         client: &DynClient<L2>,
         _pool: &ConnectionPool<Core>,
     ) -> anyhow::Result<()> {
-        self.fee_input.expect_default(TraceCallTest::FEE_SCALE);
         let call_request = CallTest::call_request(b"pending");
         let call_result = client
             .trace_call(call_request.clone(), None, None)
@@ -872,7 +890,7 @@ impl HttpTest for TraceCallTestAfterSnapshotRecovery {
 
 #[tokio::test]
 async fn trace_call_after_snapshot_recovery() {
-    test_http_server(TraceCallTestAfterSnapshotRecovery::default()).await;
+    test_http_server(TraceCallTestAfterSnapshotRecovery::new()).await;
 }
 
 #[derive(Debug)]
