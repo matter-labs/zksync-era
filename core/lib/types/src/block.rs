@@ -66,16 +66,17 @@ pub struct L1BatchHeader {
     pub protocol_version: Option<ProtocolVersionId>,
     pub pubdata_input: Option<Vec<u8>>,
     pub fee_address: Address,
+    pub batch_fee_input: BatchFeeInput,
 }
 
 impl L1BatchHeader {
-    pub fn to_unsealed_header(&self, fee_input: BatchFeeInput) -> UnsealedL1BatchHeader {
+    pub fn to_unsealed_header(&self) -> UnsealedL1BatchHeader {
         UnsealedL1BatchHeader {
             number: self.number,
             timestamp: self.timestamp,
             protocol_version: self.protocol_version,
             fee_address: self.fee_address,
-            fee_input,
+            fee_input: self.batch_fee_input,
         }
     }
 }
@@ -155,6 +156,7 @@ impl L1BatchHeader {
             protocol_version: Some(protocol_version),
             pubdata_input: Some(vec![]),
             fee_address: Default::default(),
+            batch_fee_input: BatchFeeInput::pubdata_independent(0, 0, 0),
         }
     }
 
