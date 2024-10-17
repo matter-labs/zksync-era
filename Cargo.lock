@@ -10645,7 +10645,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "bigdecimal",
  "test-casing",
  "tokio",
  "tracing",
@@ -10654,7 +10653,6 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_types",
- "zksync_utils",
  "zksync_web3_decl",
 ]
 
