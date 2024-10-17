@@ -14,8 +14,9 @@ pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
 use crate::{
-    debug_flat_call::DebugCallFlat, protocol_version::L1VerifierConfig, Address, L2BlockNumber,
-    ProtocolVersionId,
+    debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
+    protocol_version::L1VerifierConfig,
+    Address, L2BlockNumber, ProtocolVersionId,
 };
 
 pub mod en;
@@ -763,11 +764,11 @@ pub enum BlockStatus {
 #[serde(untagged)]
 pub enum CallTracerBlockResult {
     CallTrace(Vec<ResultDebugCall>),
-    FlatCallTrace(Vec<DebugCallFlat>),
+    FlatCallTrace(Vec<ResultDebugCallFlat>),
 }
 
 impl CallTracerBlockResult {
-    pub fn unwrap_flat(self) -> Vec<DebugCallFlat> {
+    pub fn unwrap_flat(self) -> Vec<ResultDebugCallFlat> {
         match self {
             Self::CallTrace(_) => panic!("Result is a FlatCallTrace"),
             Self::FlatCallTrace(trace) => trace,

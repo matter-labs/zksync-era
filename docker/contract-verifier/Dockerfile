@@ -68,7 +68,7 @@ RUN for VERSION in $(seq -f "v1.4.%g" 0 1); do \
     done
 
 # install zkvyper 1.5.x
-RUN for VERSION in $(seq -f "v1.5.%g" 0 5); do \
+RUN for VERSION in $(seq -f "v1.5.%g" 0 6); do \
     mkdir -p /etc/zkvyper-bin/$VERSION && \
     wget https://github.com/matter-labs/zkvyper-bin/raw/main/linux-amd64/zkvyper-linux-amd64-musl-$VERSION -O /etc/zkvyper-bin/$VERSION/zkvyper && \
     chmod +x /etc/zkvyper-bin/$VERSION/zkvyper; \
