@@ -158,7 +158,7 @@ fn lint_autocompletion_files(_shell: &Shell, check: bool) -> anyhow::Result<()> 
     }
 
     // Array of supported shells
-    let shells = ["bash", "zsh"];
+    let shells = ["bash", "zsh", "fish"];
 
     for shell in &shells {
         let mut writer = Vec::new();
@@ -169,8 +169,10 @@ fn lint_autocompletion_files(_shell: &Shell, check: bool) -> anyhow::Result<()> 
         let new = String::from_utf8(writer)?;
 
         let path = completion_folder.join(format!("_zkstack_{}", shell));
+        let mut autocomplete_file =
+            File::open(path.clone()).context(format!("failed to open _zkstack_{}", shell))?;
+
         let mut old = String::new();
-        let mut autocomplete_file = File::open(path.clone()).context("Failed to create file")?;
         autocomplete_file.read_to_string(&mut old)?;
 
         if new != old {
