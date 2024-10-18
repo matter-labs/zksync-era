@@ -13,7 +13,7 @@ use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
-        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
+        FinishedL1Batch, L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmTrackingContracts,
     },
@@ -134,9 +134,14 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_0>;
 
-    /// Push tx into memory for the future execution
-    fn push_transaction(&mut self, tx: Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         self.push_transaction_with_compression(tx, true);
+        PushTransactionResult {
+            compressed_bytecodes: self
+                .bootloader_state
+                .get_last_tx_compressed_bytecodes()
+                .into(),
+        }
     }
 
     /// Execute VM with custom tracers.
