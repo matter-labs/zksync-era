@@ -1,8 +1,8 @@
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub(crate) enum Hook {
     AccountValidationEntered,
     PaymasterValidationEntered,
-    AccountValidationExited,
+    ValidationExited,
     ValidationStepEnded,
     TxHasEnded,
     DebugLog,
@@ -22,7 +22,7 @@ impl Hook {
         match hook {
             0 => Hook::AccountValidationEntered,
             1 => Hook::PaymasterValidationEntered,
-            2 => Hook::AccountValidationExited,
+            2 => Hook::ValidationExited,
             3 => Hook::ValidationStepEnded,
             4 => Hook::TxHasEnded,
             5 => Hook::DebugLog,
