@@ -5,13 +5,7 @@
 #![warn(clippy::all, clippy::pedantic)]
 #![allow(clippy::must_use_candidate, clippy::similar_names)]
 
-use std::{
-    collections::VecDeque,
-    iter,
-    marker::PhantomData,
-    ops::RangeTo,
-    sync::{Arc, Mutex},
-};
+use std::{collections::VecDeque, iter, marker::PhantomData, ops::RangeTo};
 
 #[cfg(test)]
 mod tests;
@@ -311,6 +305,11 @@ where
     pub fn length(&self) -> usize {
         self.start_index + self.hashes.len()
     }
+
+    /// Returns index of the leftmost untrimmed leaf.
+    pub fn start_index(&self) -> usize {
+        self.start_index
+    }
 }
 
 fn tree_depth_by_size(tree_size: usize) -> usize {
@@ -365,56 +364,4 @@ fn compute_empty_tree_hashes(empty_leaf_hash: H256) -> Vec<H256> {
     })
     .take(MAX_TREE_DEPTH + 1)
     .collect()
-}
-
-/// An `Arc<Mutex<_>>` wrapper around the `MiniMerkleTree`.
-#[derive(Debug, Clone)]
-pub struct SyncMerkleTree<T>(pub Arc<Mutex<MiniMerkleTree<T>>>);
-
-#[allow(clippy::missing_panics_doc, missing_docs)]
-impl<T> SyncMerkleTree<T>
-where
-    KeccakHasher: HashEmptySubtree<T>,
-{
-    pub fn push_hash(&self, hash: H256) {
-        self.0.lock().unwrap().push_hash(hash);
-    }
-
-    pub fn trim_start(&self, count: usize) {
-        self.0.lock().unwrap().trim_start(count);
-    }
-
-    pub fn merkle_root(&self) -> H256 {
-        self.0.lock().unwrap().merkle_root()
-    }
-
-    pub fn merkle_root_and_paths_for_range(
-        &self,
-        range: RangeTo<usize>,
-    ) -> (H256, Vec<Option<H256>>, Vec<Option<H256>>) {
-        self.0
-            .lock()
-            .unwrap()
-            .merkle_root_and_paths_for_range(range)
-    }
-
-    pub fn merkle_root_and_path(&self, index: usize) -> (H256, Vec<H256>) {
-        self.0.lock().unwrap().merkle_root_and_path(index)
-    }
-
-    pub fn hashes_prefix(&self, count: usize) -> Vec<H256> {
-        self.0.lock().unwrap().hashes_prefix(count)
-    }
-
-    pub fn start_index(&self) -> usize {
-        self.0.lock().unwrap().start_index
-    }
-
-    pub fn from_hashes(hashes: impl Iterator<Item = H256>, min_tree_size: Option<usize>) -> Self {
-        Self(Arc::new(Mutex::new(MiniMerkleTree::from_hashes(
-            KeccakHasher,
-            hashes,
-            min_tree_size,
-        ))))
-    }
 }

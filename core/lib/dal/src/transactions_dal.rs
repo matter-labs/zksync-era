@@ -91,7 +91,7 @@ impl TransactionsDal<'_, '_> {
         &mut self,
         tx: &L1Tx,
         l1_block_number: L1BlockNumber,
-    ) -> DalResult<bool> {
+    ) -> DalResult<()> {
         let contract_address = tx.execute.contract_address;
         let contract_address_as_bytes = contract_address.map(|addr| addr.as_bytes().to_vec());
         let tx_hash = tx.hash();
@@ -117,7 +117,7 @@ impl TransactionsDal<'_, '_> {
         #[allow(deprecated)]
         let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
 
-        let insert_result = sqlx::query!(
+        sqlx::query!(
             r#"
             INSERT INTO
             transactions (
@@ -193,8 +193,7 @@ impl TransactionsDal<'_, '_> {
         .execute(self.storage)
         .await?;
 
-        // Return true if the transaction was inserted, false if skipped as duplicate.
-        Ok(insert_result.rows_affected() > 0)
+        Ok(())
     }
 
     pub async fn get_l1_transactions_hashes(&mut self, start_id: usize) -> DalResult<Vec<H256>> {

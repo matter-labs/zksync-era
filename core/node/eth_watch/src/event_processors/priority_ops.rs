@@ -3,7 +3,6 @@ use std::convert::TryFrom;
 use anyhow::Context;
 use zksync_contracts::hyperchain_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
-use zksync_mini_merkle_tree::SyncMerkleTree;
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_types::{api::Log, l1::L1Tx, PriorityOpId, H256};
 
@@ -18,21 +17,16 @@ use crate::{
 pub struct PriorityOpsEventProcessor {
     next_expected_priority_id: PriorityOpId,
     new_priority_request_signature: H256,
-    priority_merkle_tree: SyncMerkleTree<L1Tx>,
 }
 
 impl PriorityOpsEventProcessor {
-    pub fn new(
-        next_expected_priority_id: PriorityOpId,
-        priority_merkle_tree: SyncMerkleTree<L1Tx>,
-    ) -> anyhow::Result<Self> {
+    pub fn new(next_expected_priority_id: PriorityOpId) -> anyhow::Result<Self> {
         Ok(Self {
             next_expected_priority_id,
             new_priority_request_signature: hyperchain_contract()
                 .event("NewPriorityRequest")
                 .context("NewPriorityRequest event is missing in ABI")?
                 .signature(),
-            priority_merkle_tree,
         })
     }
 }
@@ -97,15 +91,11 @@ impl EventProcessor for PriorityOpsEventProcessor {
             .collect();
 
         for new_op in &ops_to_insert {
-            let inserted = storage
+            storage
                 .transactions_dal()
                 .insert_transaction_l1(new_op, new_op.eth_block())
                 .await
                 .map_err(DalError::generalize)?;
-            // Transaction could have been a duplicate.
-            if inserted {
-                self.priority_merkle_tree.push_hash(new_op.hash());
-            }
         }
         stage_latency.observe();
         if let Some(last_op) = ops_to_insert.last() {
