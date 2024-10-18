@@ -48,10 +48,7 @@ impl ZkStackConfig {
 
     pub fn load_current_chain(shell: &Shell) -> anyhow::Result<ChainConfig> {
         match ZkStackConfig::from_file(shell)? {
-            ZkStackConfig::EcosystemConfig(ecosystem) => {
-                let chain_name = ecosystem.current_chain();
-                ecosystem.load_chain(Some(chain_name.to_string()))
-            }
+            ZkStackConfig::EcosystemConfig(ecosystem) => ecosystem.load_current_chain(),
             ZkStackConfig::ChainConfig(chain) => Ok(chain),
         }
     }
