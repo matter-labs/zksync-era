@@ -114,8 +114,8 @@ impl IoCursorExt for IoCursor {
         let mut this = Self::new(storage).await?;
         // It's important to know whether we have opened a new batch already or just sealed the previous one.
         // Depending on it, we must either insert `OpenBatch` item into the queue, or not.
-        let unsealed_batch = storage.blocks_dal().get_unsealed_l1_batch().await?;
-        if unsealed_batch.is_none() {
+        let was_new_batch_open = storage.blocks_dal().pending_batch_exists().await?;
+        if !was_new_batch_open {
             this.l1_batch -= 1; // Should continue from the last L1 batch present in the storage
         }
         Ok(this)
@@ -199,37 +199,5 @@ impl IoCursorExt for IoCursor {
         self.prev_l2_block_hash = local_block_hash;
 
         new_actions
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use zksync_dal::{ConnectionPool, Core, CoreDal};
-    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
-    use zksync_state_keeper::io::IoCursor;
-    use zksync_types::{block::UnsealedL1BatchHeader, L1BatchNumber};
-
-    use crate::fetcher::IoCursorExt;
-
-    #[tokio::test]
-    async fn io_cursor_recognizes_empty_unsealed_batch() -> anyhow::Result<()> {
-        let pool = ConnectionPool::<Core>::test_pool().await;
-        let mut conn = pool.connection().await.unwrap();
-        insert_genesis_batch(&mut conn, &GenesisParams::mock())
-            .await
-            .unwrap();
-        conn.blocks_dal()
-            .insert_l1_batch(UnsealedL1BatchHeader {
-                number: L1BatchNumber(1),
-                timestamp: 1,
-                protocol_version: None,
-                fee_address: Default::default(),
-                fee_input: Default::default(),
-            })
-            .await?;
-
-        let io_cursor = IoCursor::for_fetcher(&mut conn).await?;
-        assert_eq!(io_cursor.l1_batch, L1BatchNumber(1));
-        Ok(())
     }
 }

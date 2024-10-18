@@ -11,8 +11,8 @@ use super::dump::{DumpingVm, VmDump};
 use crate::{
     storage::{ReadStorage, StoragePtr, StorageView},
     BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
-    VmInterfaceHistoryEnabled, VmTrackingContracts,
+    PushTransactionResult, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
+    VmInterface, VmInterfaceHistoryEnabled, VmTrackingContracts,
 };
 
 /// Handler for VM divergences.
@@ -163,11 +163,30 @@ where
         <Shadow as VmInterface>::TracerDispatcher,
     );
 
-    fn push_transaction(&mut self, tx: Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
+        let main_result = self.main.push_transaction(tx.clone());
+        // Extend lifetime to `'static` so that the result isn't mutably borrowed from the main VM.
+        // Unfortunately, there's no way to express that this borrow is actually immutable, which would allow not extending the lifetime unless there's a divergence.
+        let main_result: PushTransactionResult<'static> = PushTransactionResult {
+            compressed_bytecodes: main_result.compressed_bytecodes.into_owned().into(),
+        };
+
         if let Some(shadow) = self.shadow.get_mut() {
-            shadow.vm.push_transaction(tx.clone());
+            let tx_repr = format!("{tx:?}"); // includes little data, so is OK to call proactively
+            let shadow_result = shadow.vm.push_transaction(tx);
+
+            let mut errors = DivergenceErrors::new();
+            errors.check_match(
+                "bytecodes",
+                &main_result.compressed_bytecodes,
+                &shadow_result.compressed_bytecodes,
+            );
+            if let Err(err) = errors.into_result() {
+                let ctx = format!("pushing transaction {tx_repr}");
+                self.report(err.context(ctx));
+            }
         }
-        self.main.push_transaction(tx);
+        main_result
     }
 
     fn inspect(

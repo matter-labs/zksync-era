@@ -1,4 +1,4 @@
-use zksync_test_account::{DeployContractsTx, TxType};
+use zksync_test_account::TxType;
 
 use super::{read_test_contract, tester::VmTesterBuilder, TestedVm};
 use crate::{
@@ -20,8 +20,16 @@ pub(crate) fn test_bytecode_publishing<VM: TestedVm>() {
 
     let compressed_bytecode = bytecode::compress(counter.clone()).unwrap().compressed;
 
-    let DeployContractsTx { tx, .. } = account.get_deploy_tx(&counter, None, TxType::L2);
-    vm.vm.push_transaction(tx);
+    let tx = account.get_deploy_tx(&counter, None, TxType::L2).tx;
+    assert_eq!(tx.execute.factory_deps.len(), 1); // The deployed bytecode is the only dependency
+    let push_result = vm.vm.push_transaction(tx);
+    assert_eq!(push_result.compressed_bytecodes.len(), 1);
+    assert_eq!(push_result.compressed_bytecodes[0].original, counter);
+    assert_eq!(
+        push_result.compressed_bytecodes[0].compressed,
+        compressed_bytecode
+    );
+
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
