@@ -43,10 +43,14 @@ struct GPUPoolKey {
     gpu: Gpu,
 }
 
+//static PROVER_DEPLOYMENT_RE: Lazy<Regex> =
+//    Lazy::new(|| Regex::new(r"^prover-gpu-fri-spec-(\d{1,2})?(-(?<gpu>[ltvpa]\d+))?$").unwrap());
+//static PROVER_POD_RE: Lazy<Regex> =
+//    Lazy::new(|| Regex::new(r"^prover-gpu-fri-spec-(\d{1,2})?(-(?<gpu>[ltvpa]\d+))?").unwrap());
 static PROVER_DEPLOYMENT_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^prover-gpu-fri-spec-(\d{1,2})?(-(?<gpu>[ltvpa]\d+))?$").unwrap());
+    Lazy::new(|| Regex::new(r"^circuit-prover-gpu(-(?<gpu>[ltvpa]\d+))?$").unwrap());
 static PROVER_POD_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^prover-gpu-fri-spec-(\d{1,2})?(-(?<gpu>[ltvpa]\d+))?").unwrap());
+    Lazy::new(|| Regex::new(r"^circuit-prover-gpu(-(?<gpu>[ltvpa]\d+))?").unwrap());
 
 pub struct Scaler {
     /// namespace to Protocol Version configuration.
@@ -83,6 +87,9 @@ impl Scaler {
         queuer: queuer::Queuer,
         config: ProverAutoscalerScalerConfig,
     ) -> Self {
+        config.protocol_versions.iter().for_each(|(ns, v)| {
+            AUTOSCALER_METRICS.prover_protocol_version[&(ns.clone(), v.clone())].set(1);
+        });
         Self {
             namespaces: config.protocol_versions,
             watcher,
@@ -255,7 +262,7 @@ impl Scaler {
             }
         }
 
-        tracing::debug!("Queue coverd with provers: {}", total);
+        tracing::debug!("Queue covered with provers: {}", total);
         // Add required provers.
         if (total as u64) < q {
             for c in &sc {
@@ -306,6 +313,7 @@ impl Task for Scaler {
 
         let guard = self.watcher.data.lock().await;
         if let Err(err) = watcher::check_is_ready(&guard.is_ready) {
+            AUTOSCALER_METRICS.clusters_not_ready.inc();
             tracing::warn!("Skipping Scaler run: {}", err);
             return Ok(());
         }
@@ -339,6 +347,7 @@ mod tests {
         global::{queuer, watcher},
     };
 
+    #[tracing_test::traced_test]
     #[test]
     fn test_run() {
         let watcher = watcher::Watcher {
@@ -346,53 +355,142 @@ mod tests {
             data: Arc::new(Mutex::new(watcher::WatchedData::default())),
         };
         let queuer = queuer::Queuer {
-            prover_job_monitor_url: "".to_string(),
+            prover_job_monitor_url: "".into(),
         };
         let scaler = Scaler::new(
             watcher,
             queuer,
             ProverAutoscalerScalerConfig {
-                max_provers: HashMap::from([("foo".to_string(), HashMap::from([(Gpu::L4, 100)]))]),
+                max_provers: [
+                    ("foo".into(), [(Gpu::L4, 100)].into()),
+                    ("bar".into(), [(Gpu::L4, 100)].into()),
+                ]
+                .into(),
+                cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
                 ..Default::default()
             },
         );
-        let got = scaler.run(
-            &"prover".to_string(),
-            1499,
-            &Clusters {
-                clusters: HashMap::from([(
-                    "foo".to_string(),
-                    Cluster {
-                        name: "foo".to_string(),
-                        namespaces: HashMap::from([(
-                            "prover".to_string(),
-                            Namespace {
-                                deployments: HashMap::from([(
-                                    "prover-gpu-fri-spec-1".to_string(),
-                                    Deployment {
-                                        ..Default::default()
-                                    },
-                                )]),
-                                pods: HashMap::from([(
-                                    "prover-gpu-fri-spec-1-c47644679-x9xqp".to_string(),
-                                    Pod {
-                                        status: "Running".to_string(),
-                                        ..Default::default()
-                                    },
-                                )]),
-                            },
-                        )]),
-                    },
-                )]),
-            },
+        assert_eq!(
+            scaler.run(
+                &"prover".into(),
+                1499,
+                &Clusters {
+                    clusters: [(
+                        "foo".into(),
+                        Cluster {
+                            name: "foo".into(),
+                            namespaces: [(
+                                "prover".into(),
+                                Namespace {
+                                    deployments: [(
+                                        "circuit-prover-gpu".into(),
+                                        Deployment {
+                                            ..Default::default()
+                                        },
+                                    )]
+                                    .into(),
+                                    pods: [(
+                                        "circuit-prover-gpu-7c5f8fc747-gmtcr".into(),
+                                        Pod {
+                                            status: "Running".into(),
+                                            ..Default::default()
+                                        },
+                                    )]
+                                    .into(),
+                                },
+                            )]
+                            .into(),
+                        },
+                    )]
+                    .into(),
+                },
+            ),
+            [(
+                GPUPoolKey {
+                    cluster: "foo".into(),
+                    gpu: Gpu::L4,
+                },
+                3,
+            )]
+            .into(),
+            "3 new provers"
         );
-        let want = HashMap::from([(
-            GPUPoolKey {
-                cluster: "foo".to_string(),
-                gpu: Gpu::L4,
-            },
-            3,
-        )]);
-        assert_eq!(got, want);
+        assert_eq!(
+            scaler.run(
+                &"prover".into(),
+                499,
+                &Clusters {
+                    clusters: [
+                        (
+                            "foo".into(),
+                            Cluster {
+                                name: "foo".into(),
+                                namespaces: [(
+                                    "prover".into(),
+                                    Namespace {
+                                        deployments: [(
+                                            "circuit-prover-gpu".into(),
+                                            Deployment {
+                                                ..Default::default()
+                                            },
+                                        )]
+                                        .into(),
+                                        ..Default::default()
+                                    },
+                                )]
+                                .into(),
+                            },
+                        ),
+                        (
+                            "bar".into(),
+                            Cluster {
+                                name: "bar".into(),
+                                namespaces: [(
+                                    "prover".into(),
+                                    Namespace {
+                                        deployments: [(
+                                            "circuit-prover-gpu".into(),
+                                            Deployment {
+                                                running: 1,
+                                                desired: 1,
+                                            },
+                                        )]
+                                        .into(),
+                                        pods: [(
+                                            "circuit-prover-gpu-7c5f8fc747-gmtcr".into(),
+                                            Pod {
+                                                status: "Running".into(),
+                                                ..Default::default()
+                                            },
+                                        )]
+                                        .into(),
+                                    },
+                                )]
+                                .into(),
+                            },
+                        )
+                    ]
+                    .into(),
+                },
+            ),
+            [
+                (
+                    GPUPoolKey {
+                        cluster: "foo".into(),
+                        gpu: Gpu::L4,
+                    },
+                    0,
+                ),
+                (
+                    GPUPoolKey {
+                        cluster: "bar".into(),
+                        gpu: Gpu::L4,
+                    },
+                    1,
+                )
+            ]
+            .into(),
+            "Preserve running"
+        );
     }
 }
