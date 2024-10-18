@@ -314,10 +314,8 @@ pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     {
         return contract;
     };
-    read_yul_bytecode_by_path(
-        home_path()
-            .join("contracts/system-contracts")
-            .join(format!("bootloader/build/artifacts")),
+    read_yul_bytecode(
+        "contracts/system-contracts/bootloader/build/artifacts",
         bootloader_type,
     )
 }
