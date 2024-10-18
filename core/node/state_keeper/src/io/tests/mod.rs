@@ -286,8 +286,9 @@ async fn processing_storage_logs_when_sealing_l2_block() {
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
-        l2_shared_bridge_addr: Address::default(),
+        l2_legacy_shared_bridge_addr: Some(Address::default()),
         pre_insert_txs: false,
+        pubdata_params: Default::default(),
     };
     connection_pool
         .connection()
@@ -376,8 +377,9 @@ async fn processing_events_when_sealing_l2_block() {
         base_fee_per_gas: 10,
         base_system_contracts_hashes: BaseSystemContractsHashes::default(),
         protocol_version: Some(ProtocolVersionId::latest()),
-        l2_shared_bridge_addr: Address::default(),
+        l2_legacy_shared_bridge_addr: Some(Address::default()),
         pre_insert_txs: false,
+        pubdata_params: Default::default(),
     };
     pool.connection()
         .await
@@ -447,13 +449,13 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
         .await
         .unwrap()
         .expect("no batch params generated");
-    let (system_env, l1_batch_env) = l1_batch_params.into_env(
+    let (system_env, l1_batch_env, pubdata_params) = l1_batch_params.into_env(
         L2ChainId::default(),
         BASE_SYSTEM_CONTRACTS.clone(),
         &cursor,
         previous_batch_hash,
     );
-    let mut updates = UpdatesManager::new(&l1_batch_env, &system_env);
+    let mut updates = UpdatesManager::new(&l1_batch_env, &system_env, pubdata_params);
 
     let tx_hash = tx.hash();
     updates.extend_from_executed_transaction(
@@ -467,7 +469,9 @@ async fn l2_block_processing_after_snapshot_recovery(commitment_mode: L1BatchCom
     );
 
     let (mut persistence, l2_block_sealer) =
-        StateKeeperPersistence::new(connection_pool.clone(), Address::default(), 0);
+        StateKeeperPersistence::new(connection_pool.clone(), Some(Address::default()), 0)
+            .await
+            .unwrap();
     tokio::spawn(l2_block_sealer.run());
     persistence.handle_l2_block(&updates).await.unwrap();
 

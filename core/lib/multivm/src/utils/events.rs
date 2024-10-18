@@ -1,59 +1,10 @@
 use zksync_system_constants::L1_MESSENGER_ADDRESS;
 use zksync_types::{
     ethabi::{self, Token},
-    l2_to_l1_log::L2ToL1Log,
-    Address, H256, U256,
+    H256, U256,
 };
-use zksync_utils::{u256_to_bytes_be, u256_to_h256};
 
-use crate::interface::VmEvent;
-
-/// Corresponds to the following solidity event:
-/// ```solidity
-/// struct L2ToL1Log {
-///     uint8 l2ShardId;
-///     bool isService;
-///     uint16 txNumberInBlock;
-///     address sender;
-///     bytes32 key;
-///     bytes32 value;
-/// }
-/// ```
-#[derive(Debug, Default, Clone, PartialEq)]
-pub(crate) struct L1MessengerL2ToL1Log {
-    pub l2_shard_id: u8,
-    pub is_service: bool,
-    pub tx_number_in_block: u16,
-    pub sender: Address,
-    pub key: U256,
-    pub value: U256,
-}
-
-impl L1MessengerL2ToL1Log {
-    pub fn packed_encoding(&self) -> Vec<u8> {
-        let mut res: Vec<u8> = vec![];
-        res.push(self.l2_shard_id);
-        res.push(self.is_service as u8);
-        res.extend_from_slice(&self.tx_number_in_block.to_be_bytes());
-        res.extend_from_slice(self.sender.as_bytes());
-        res.extend(u256_to_bytes_be(&self.key));
-        res.extend(u256_to_bytes_be(&self.value));
-        res
-    }
-}
-
-impl From<L1MessengerL2ToL1Log> for L2ToL1Log {
-    fn from(log: L1MessengerL2ToL1Log) -> Self {
-        L2ToL1Log {
-            shard_id: log.l2_shard_id,
-            is_service: log.is_service,
-            tx_number_in_block: log.tx_number_in_block,
-            sender: log.sender,
-            key: u256_to_h256(log.key),
-            value: u256_to_h256(log.value),
-        }
-    }
-}
+use crate::interface::{pubdata::L1MessengerL2ToL1Log, VmEvent};
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct L1MessengerBytecodePublicationRequest {
@@ -142,7 +93,8 @@ mod tests {
     use zksync_system_constants::{
         BOOTLOADER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L2_BASE_TOKEN_ADDRESS,
     };
-    use zksync_types::L1BatchNumber;
+    use zksync_types::{Address, L1BatchNumber};
+    use zksync_utils::u256_to_h256;
 
     use super::*;
 

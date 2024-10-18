@@ -7,7 +7,8 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt},
+    versions::testonly::default_pubdata_builder,
     vm_latest::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
@@ -38,10 +39,10 @@ fn test_default_aa_interaction() {
     let maximal_fee = tx.gas_limit() * get_batch_base_fee(&vm.vm.batch_env);
 
     vm.vm.push_transaction(tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    vm.vm.execute(VmExecutionMode::Batch);
+    vm.vm.finish_batch(Some(default_pubdata_builder()));
 
     vm.vm.get_current_execution_state();
 

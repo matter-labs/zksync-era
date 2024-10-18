@@ -15,6 +15,7 @@ use zksync_types::{
 use zksync_utils::bytecode::hash_bytecode;
 
 use crate::{
+    dump::{play_back_dump, play_back_dump_custom},
     interface::{
         storage::{InMemoryStorage, ReadStorage, StorageView},
         utils::{ShadowVm, VmDump},
@@ -22,7 +23,8 @@ use crate::{
     },
     utils::get_max_gas_per_pubdata_byte,
     versions::testonly::{
-        default_l1_batch, default_system_env, make_account_rich, ContractToDeploy,
+        default_l1_batch, default_pubdata_builder, default_system_env, make_account_rich,
+        ContractToDeploy,
     },
     vm_fast,
     vm_latest::{self, HistoryEnabled},
@@ -196,7 +198,7 @@ impl Harness {
         assert!(!exec_result.result.is_failed(), "{:#?}", exec_result);
 
         self.new_block(vm, &[deploy_tx.tx.hash(), load_test_tx.hash()]);
-        vm.finish_batch();
+        vm.finish_batch(Some(default_pubdata_builder()));
     }
 }
 
@@ -249,11 +251,13 @@ fn sanity_check_shadow_vm() {
 #[test]
 fn shadow_vm_basics() {
     let (vm, harness) = sanity_check_vm::<ShadowedFastVm>();
-    let mut dump = vm.dump_state();
+    let pubdata_builder = default_pubdata_builder();
+    let mut dump = vm.dump_state(Some(pubdata_builder.clone()));
     Harness::assert_dump(&mut dump);
 
     // Test standard playback functionality.
-    let replayed_dump = dump.clone().play_back::<ShadowedFastVm<_>>().dump_state();
+    let replayed_dump =
+        play_back_dump::<ShadowedFastVm<_>>(dump.clone()).dump_state(Some(pubdata_builder.clone()));
     pretty_assertions::assert_eq!(replayed_dump, dump);
 
     // Check that the VM executes identically when reading from the original storage and one restored from the dump.
@@ -261,16 +265,14 @@ fn shadow_vm_basics() {
     harness.setup_storage(&mut storage);
     let storage = StorageView::new(storage).to_rc_ptr();
 
-    let vm = dump
-        .clone()
-        .play_back_custom(|l1_batch_env, system_env, dump_storage| {
-            ShadowVm::<_, ReferenceVm, ReferenceVm<_>>::with_custom_shadow(
-                l1_batch_env,
-                system_env,
-                storage,
-                dump_storage,
-            )
-        });
-    let new_dump = vm.dump_state();
+    let vm = play_back_dump_custom(dump.clone(), |l1_batch_env, system_env, dump_storage| {
+        ShadowVm::<_, ReferenceVm, ReferenceVm<_>>::with_custom_shadow(
+            l1_batch_env,
+            system_env,
+            storage,
+            dump_storage,
+        )
+    });
+    let new_dump = vm.dump_state(Some(pubdata_builder));
     pretty_assertions::assert_eq!(new_dump, dump);
 }

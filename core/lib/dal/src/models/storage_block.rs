@@ -7,7 +7,7 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_types::{
     api,
     block::{L1BatchHeader, L2BlockHeader, UnsealedL1BatchHeader},
-    commitment::{L1BatchMetaParameters, L1BatchMetadata},
+    commitment::{L1BatchCommitmentMode, L1BatchMetaParameters, L1BatchMetadata, PubdataParams},
     fee_model::{BatchFeeInput, L1PeggedBatchFeeModelInput, PubdataIndependentBatchFeeModelInput},
     l2_to_l1_log::{L2ToL1Log, SystemL2ToL1Log, UserL2ToL1Log},
     Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256,
@@ -155,6 +155,10 @@ pub(crate) struct StorageL1Batch {
     pub bootloader_initial_content_commitment: Option<Vec<u8>>,
     pub pubdata_input: Option<Vec<u8>>,
     pub fee_address: Vec<u8>,
+    pub aggregation_root: Option<Vec<u8>>,
+    pub local_root: Option<Vec<u8>>,
+    pub state_diff_hash: Option<Vec<u8>>,
+    pub inclusion_data: Option<Vec<u8>>,
 }
 
 impl StorageL1Batch {
@@ -263,6 +267,10 @@ impl TryFrom<StorageL1Batch> for L1BatchMetadata {
             bootloader_initial_content_commitment: batch
                 .bootloader_initial_content_commitment
                 .map(|v| H256::from_slice(&v)),
+            state_diff_hash: batch.state_diff_hash.map(|v| H256::from_slice(&v)),
+            local_root: batch.local_root.map(|v| H256::from_slice(&v)),
+            aggregation_root: batch.aggregation_root.map(|v| H256::from_slice(&v)),
+            da_inclusion_data: batch.inclusion_data,
         })
     }
 }
@@ -485,6 +493,8 @@ pub(crate) struct StorageL2BlockHeader {
     /// This value should bound the maximal amount of gas that can be spent by transactions in the miniblock.
     pub gas_limit: Option<i64>,
     pub logs_bloom: Option<Vec<u8>>,
+    pub l2_da_validator_address: Vec<u8>,
+    pub pubdata_type: String,
 }
 
 impl From<StorageL2BlockHeader> for L2BlockHeader {
@@ -532,6 +542,10 @@ impl From<StorageL2BlockHeader> for L2BlockHeader {
                 .logs_bloom
                 .map(|b| Bloom::from_slice(&b))
                 .unwrap_or_default(),
+            pubdata_params: PubdataParams {
+                l2_da_validator_address: Address::from_slice(&row.l2_da_validator_address),
+                pubdata_type: L1BatchCommitmentMode::from_str(&row.pubdata_type).unwrap(),
+            },
         }
     }
 }

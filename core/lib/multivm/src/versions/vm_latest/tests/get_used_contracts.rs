@@ -21,7 +21,7 @@ use zksync_vm_interface::VmExecutionResultAndLogs;
 
 use crate::{
     interface::{
-        storage::WriteStorage, ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterface,
+        storage::WriteStorage, ExecutionResult, InspectExecutionMode, TxExecutionMode, VmInterface,
         VmInterfaceExt,
     },
     vm_latest::{
@@ -49,7 +49,7 @@ fn test_get_used_contracts() {
     let mut account = Account::random();
     let tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 0 });
     vm.vm.push_transaction(tx.tx.clone());
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed());
 
     assert!(vm
@@ -92,7 +92,7 @@ fn test_get_used_contracts() {
 
     vm.vm.push_transaction(tx2.clone());
 
-    let res2 = vm.vm.execute(VmExecutionMode::OneTx);
+    let res2 = vm.vm.execute(InspectExecutionMode::OneTx);
 
     assert!(res2.result.is_failed());
 

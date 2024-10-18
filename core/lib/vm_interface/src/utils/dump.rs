@@ -1,12 +1,16 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use serde::{Deserialize, Serialize};
-use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2BlockNumber, Transaction, H256};
+use zksync_types::{
+    block::L2BlockExecutionData, commitment::PubdataParams, L1BatchNumber, L2BlockNumber,
+    Transaction, H256,
+};
 
 use crate::{
+    pubdata::PubdataBuilder,
     storage::{ReadStorage, StoragePtr, StorageSnapshot, StorageView},
-    BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-    VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
+    BytecodeCompressionResult, FinishedL1Batch, InspectExecutionMode, L1BatchEnv, L2BlockEnv,
+    SystemEnv, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
     VmTrackingContracts,
 };
 
@@ -54,52 +58,12 @@ pub struct VmDump {
     pub system_env: SystemEnv,
     pub l2_blocks: Vec<L2BlockExecutionData>,
     pub storage: StorageSnapshot,
+    pub pubdata_params: Option<PubdataParams>,
 }
 
 impl VmDump {
     pub fn l1_batch_number(&self) -> L1BatchNumber {
         self.l1_batch_env.number
-    }
-
-    /// Plays back this dump on the specified VM.
-    pub fn play_back<Vm>(self) -> Vm
-    where
-        Vm: VmFactory<StorageView<StorageSnapshot>>,
-    {
-        self.play_back_custom(Vm::new)
-    }
-
-    /// Plays back this dump on a VM created using the provided closure.
-    #[doc(hidden)] // too low-level
-    pub fn play_back_custom<Vm: VmInterface>(
-        self,
-        create_vm: impl FnOnce(L1BatchEnv, SystemEnv, StoragePtr<StorageView<StorageSnapshot>>) -> Vm,
-    ) -> Vm {
-        let storage = StorageView::new(self.storage).to_rc_ptr();
-        let mut vm = create_vm(self.l1_batch_env, self.system_env, storage);
-
-        for (i, l2_block) in self.l2_blocks.into_iter().enumerate() {
-            if i > 0 {
-                // First block is already set.
-                vm.start_new_l2_block(L2BlockEnv {
-                    number: l2_block.number.0,
-                    timestamp: l2_block.timestamp,
-                    prev_block_hash: l2_block.prev_block_hash,
-                    max_virtual_blocks_to_create: l2_block.virtual_blocks,
-                });
-            }
-
-            for tx in l2_block.txs {
-                let tx_hash = tx.hash();
-                let (compression_result, _) =
-                    vm.execute_transaction_with_bytecode_compression(tx, true);
-                if let Err(err) = compression_result {
-                    panic!("Failed compressing bytecodes for transaction {tx_hash:?}: {err}");
-                }
-            }
-        }
-        vm.finish_batch();
-        vm
     }
 }
 
@@ -129,12 +93,14 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> DumpingVm<S, Vm> {
         self.last_block_mut().txs.push(tx);
     }
 
-    pub fn dump_state(&self) -> VmDump {
+    pub fn dump_state(&self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> VmDump {
         VmDump {
             l1_batch_env: self.l1_batch_env.clone(),
             system_env: self.system_env.clone(),
             l2_blocks: self.l2_blocks.clone(),
             storage: create_storage_snapshot(&self.storage, self.inner.used_contract_hashes()),
+            pubdata_params: pubdata_builder
+                .map(|p| p.pubdata_params().expect("pubdata builder is not dumpable")),
         }
     }
 }
@@ -150,7 +116,7 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
     fn inspect(
         &mut self,
         dispatcher: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         self.inner.inspect(dispatcher, execution_mode)
     }
@@ -177,8 +143,8 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
             .inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        self.inner.finish_batch()
+    fn finish_batch(&mut self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> FinishedL1Batch {
+        self.inner.finish_batch(pubdata_builder)
     }
 }
 

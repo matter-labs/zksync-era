@@ -14,8 +14,8 @@ use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 use crate::{
     interface::{
         storage::{InMemoryStorage, StoragePtr, StorageView, WriteStorage},
-        L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmFactory,
-        VmInterface, VmInterfaceExt,
+        InspectExecutionMode, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode,
+        VmFactory, VmInterface, VmInterfaceExt,
     },
     vm_latest::{
         constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
@@ -53,7 +53,7 @@ impl<H: HistoryMode> VmTester<H> {
             .tx;
         let nonce = tx.nonce().unwrap().0.into();
         self.vm.push_transaction(tx);
-        self.vm.execute(VmExecutionMode::OneTx);
+        self.vm.execute(InspectExecutionMode::OneTx);
         let deployed_address =
             deployed_address_create(self.deployer.as_ref().unwrap().address, nonce);
         self.test_contract = Some(deployed_address);

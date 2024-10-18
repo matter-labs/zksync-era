@@ -140,7 +140,7 @@ impl EthWatch {
             let finalized_block = client.finalized_block_number().await?;
 
             let from_block = storage
-                .processed_events_dal()
+                .eth_watcher_dal()
                 .get_or_set_next_block_to_process(
                     processor.event_type(),
                     chain_id,
@@ -180,7 +180,7 @@ impl EthWatch {
             };
 
             storage
-                .processed_events_dal()
+                .eth_watcher_dal()
                 .update_next_block_to_process(
                     processor.event_type(),
                     chain_id,

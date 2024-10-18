@@ -9,7 +9,7 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt},
     vm_latest::{
         tests::{
             tester::{get_empty_storage, VmTesterBuilder},
@@ -83,7 +83,7 @@ fn test_code_oracle() {
     );
 
     vm.vm.push_transaction(tx1);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "Transaction wasn't successful: {result:#?}"
@@ -106,7 +106,7 @@ fn test_code_oracle() {
         None,
     );
     vm.vm.push_transaction(tx2);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "Transaction wasn't successful: {result:#?}"
@@ -183,7 +183,7 @@ fn test_code_oracle_big_bytecode() {
     );
 
     vm.vm.push_transaction(tx1);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 }
 
@@ -265,7 +265,7 @@ fn refunds_in_code_oracle() {
         );
 
         vm.vm.push_transaction(tx);
-        let result = vm.vm.execute(VmExecutionMode::OneTx);
+        let result = vm.vm.execute(InspectExecutionMode::OneTx);
         assert!(!result.result.is_failed(), "Transaction wasn't successful");
         let log =
             find_code_oracle_cost_log(precompiles_contract_address, &result.logs.storage_logs);

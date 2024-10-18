@@ -203,6 +203,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
                 enforced_base_fee,
             )
             .await?;
+
         Ok(OneshotEnv {
             system,
             l1_batch,

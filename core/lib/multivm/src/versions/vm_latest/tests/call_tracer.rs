@@ -4,7 +4,7 @@ use once_cell::sync::OnceCell;
 use zksync_types::{Address, Execute};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterface},
     tracers::CallTracer,
     vm_latest::{
         constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
@@ -47,7 +47,7 @@ fn test_max_depth() {
     vm.vm.push_transaction(tx);
     let res = vm
         .vm
-        .inspect(&mut call_tracer.into(), VmExecutionMode::OneTx);
+        .inspect(&mut call_tracer.into(), InspectExecutionMode::OneTx);
     assert!(result.get().is_some());
     assert!(res.result.is_failed());
 }
@@ -84,7 +84,7 @@ fn test_basic_behavior() {
     vm.vm.push_transaction(tx);
     let res = vm
         .vm
-        .inspect(&mut call_tracer.into(), VmExecutionMode::OneTx);
+        .inspect(&mut call_tracer.into(), InspectExecutionMode::OneTx);
 
     let call_tracer_result = result.get().unwrap();
 

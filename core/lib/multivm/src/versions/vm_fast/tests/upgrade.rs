@@ -12,7 +12,7 @@ use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
 use crate::{
     interface::{
-        ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
+        ExecutionResult, Halt, InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
     vm_fast::tests::{
@@ -81,9 +81,9 @@ fn test_protocol_upgrade_is_first() {
     vm.vm.push_transaction(normal_l1_transaction.clone());
     vm.vm.push_transaction(another_protocol_upgrade_transaction);
 
-    vm.vm.execute(VmExecutionMode::OneTx);
-    vm.vm.execute(VmExecutionMode::OneTx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert_eq!(
         result.result,
         ExecutionResult::Halt {
@@ -97,8 +97,8 @@ fn test_protocol_upgrade_is_first() {
     vm.vm.push_transaction(normal_l1_transaction.clone());
     vm.vm.push_transaction(protocol_upgrade_transaction.clone());
 
-    vm.vm.execute(VmExecutionMode::OneTx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert_eq!(
         result.result,
         ExecutionResult::Halt {
@@ -111,8 +111,8 @@ fn test_protocol_upgrade_is_first() {
     vm.vm.push_transaction(protocol_upgrade_transaction);
     vm.vm.push_transaction(normal_l1_transaction);
 
-    vm.vm.execute(VmExecutionMode::OneTx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed());
 }
 
@@ -152,7 +152,7 @@ fn test_force_deploy_upgrade() {
 
     vm.vm.push_transaction(transaction);
 
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "The force upgrade was not successful"
@@ -208,7 +208,7 @@ fn test_complex_upgrader() {
     );
 
     vm.vm.push_transaction(transaction);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "The force upgrade was not successful"

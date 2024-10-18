@@ -1,7 +1,8 @@
 use assert_matches::assert_matches;
 
 use crate::{
-    interface::{ExecutionResult, VmExecutionMode, VmInterface, VmInterfaceExt},
+    interface::{ExecutionResult, InspectExecutionMode, VmInterface, VmInterfaceExt},
+    versions::testonly::default_pubdata_builder,
     vm_latest::{
         tests::tester::{TxType, VmTesterBuilder},
         HistoryDisabled,
@@ -29,7 +30,7 @@ fn estimate_fee() {
 
     vm_tester.vm.push_transaction(tx);
 
-    let result = vm_tester.vm.execute(VmExecutionMode::OneTx);
+    let result = vm_tester.vm.execute(InspectExecutionMode::OneTx);
     assert_matches!(result.result, ExecutionResult::Success { .. });
 }
 
@@ -72,12 +73,14 @@ fn simple_execute() {
     vm.push_transaction(tx1);
     vm.push_transaction(tx2);
     vm.push_transaction(tx3);
-    let tx = vm.execute(VmExecutionMode::OneTx);
+    let tx = vm.execute(InspectExecutionMode::OneTx);
     assert_matches!(tx.result, ExecutionResult::Success { .. });
-    let tx = vm.execute(VmExecutionMode::OneTx);
+    let tx = vm.execute(InspectExecutionMode::OneTx);
     assert_matches!(tx.result, ExecutionResult::Revert { .. });
-    let tx = vm.execute(VmExecutionMode::OneTx);
+    let tx = vm.execute(InspectExecutionMode::OneTx);
     assert_matches!(tx.result, ExecutionResult::Success { .. });
-    let block_tip = vm.execute(VmExecutionMode::Batch);
+    let block_tip = vm
+        .finish_batch(Some(default_pubdata_builder()))
+        .block_tip_execution_result;
     assert_matches!(block_tip.result, ExecutionResult::Success { .. });
 }

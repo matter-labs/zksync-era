@@ -2,8 +2,8 @@ use ethabi::Token;
 use zksync_types::{Address, Execute, U256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
-    versions::testonly::ContractToDeploy,
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt},
+    versions::testonly::{default_pubdata_builder, ContractToDeploy},
     vm_fast::tests::{
         tester::{DeployContractsTx, TxType, VmTesterBuilder},
         utils::{read_expensive_contract, read_test_contract},
@@ -31,7 +31,7 @@ fn test_predetermined_refunded_gas() {
         address: _,
     } = account.get_deploy_tx(&counter, None, TxType::L2);
     vm.vm.push_transaction(tx.clone());
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
 
     assert!(!result.result.is_failed());
 
@@ -44,9 +44,12 @@ fn test_predetermined_refunded_gas() {
     );
     assert!(result.refunds.gas_refunded > 0, "The final refund is 0");
 
-    let result_without_predefined_refunds = vm.vm.execute(VmExecutionMode::Batch);
+    let result_without_predefined_refunds = vm.vm.finish_batch(Some(default_pubdata_builder()));
     let mut current_state_without_predefined_refunds = vm.vm.get_current_execution_state();
-    assert!(!result_without_predefined_refunds.result.is_failed(),);
+    assert!(!result_without_predefined_refunds
+        .block_tip_execution_result
+        .result
+        .is_failed());
 
     // Here we want to provide the same refund from the operator and check that it's the correct one.
     // We execute the whole block without refund tracer, because refund tracer will eventually override the provided refund.
@@ -62,10 +65,13 @@ fn test_predetermined_refunded_gas() {
     vm.vm
         .push_transaction_inner(tx.clone(), result.refunds.gas_refunded, true);
 
-    let result_with_predefined_refunds = vm.vm.execute(VmExecutionMode::Batch);
+    let result_with_predefined_refunds = vm.vm.finish_batch(Some(default_pubdata_builder()));
     let mut current_state_with_predefined_refunds = vm.vm.get_current_execution_state();
 
-    assert!(!result_with_predefined_refunds.result.is_failed());
+    assert!(!result_with_predefined_refunds
+        .block_tip_execution_result
+        .result
+        .is_failed());
 
     // We need to sort these lists as those are flattened from HashMaps
     current_state_with_predefined_refunds
@@ -112,10 +118,10 @@ fn test_predetermined_refunded_gas() {
     let changed_operator_suggested_refund = result.refunds.gas_refunded + 1000;
     vm.vm
         .push_transaction_inner(tx, changed_operator_suggested_refund, true);
-    let result = vm.vm.execute(VmExecutionMode::Batch);
+    let result = vm.vm.finish_batch(Some(default_pubdata_builder()));
     let mut current_state_with_changed_predefined_refunds = vm.vm.get_current_execution_state();
 
-    assert!(!result.result.is_failed());
+    assert!(!result.block_tip_execution_result.result.is_failed());
     current_state_with_changed_predefined_refunds
         .used_contract_hashes
         .sort();
@@ -191,7 +197,7 @@ fn negative_pubdata_for_transaction() {
         None,
     );
     vm.vm.push_transaction(expensive_tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "Transaction wasn't successful: {result:#?}"
@@ -208,7 +214,7 @@ fn negative_pubdata_for_transaction() {
         None,
     );
     vm.vm.push_transaction(clean_up_tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "Transaction wasn't successful: {result:#?}"

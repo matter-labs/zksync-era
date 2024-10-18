@@ -2,6 +2,7 @@ use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     fmt,
+    rc::Rc,
     sync::Arc,
 };
 
@@ -9,9 +10,10 @@ use zksync_types::{StorageKey, StorageLog, StorageLogWithPreviousValue, Transact
 
 use super::dump::{DumpingVm, VmDump};
 use crate::{
+    pubdata::PubdataBuilder,
     storage::{ReadStorage, StoragePtr, StorageView},
-    BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+    BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, InspectExecutionMode,
+    L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs, VmFactory, VmInterface,
     VmInterfaceHistoryEnabled, VmTrackingContracts,
 };
 
@@ -89,21 +91,25 @@ where
     }
 
     /// Mutable ref is not necessary, but it automatically drops potential borrows.
-    fn report(&mut self, err: DivergenceErrors) {
-        self.report_shared(err);
+    fn report(&mut self, err: DivergenceErrors, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) {
+        self.report_shared(err, pubdata_builder);
     }
 
     /// The caller is responsible for dropping any `shadow` borrows beforehand.
-    fn report_shared(&self, err: DivergenceErrors) {
+    fn report_shared(
+        &self,
+        err: DivergenceErrors,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) {
         self.shadow
             .take()
             .unwrap()
-            .report(err, self.main.dump_state());
+            .report(err, self.main.dump_state(pubdata_builder));
     }
 
     /// Dumps the current VM state.
-    pub fn dump_state(&self) -> VmDump {
-        self.main.dump_state()
+    pub fn dump_state(&self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> VmDump {
+        self.main.dump_state(pubdata_builder)
     }
 }
 
@@ -123,7 +129,7 @@ where
     where
         Shadow: VmFactory<ShadowS>,
     {
-        let main = DumpingVm::new(batch_env.clone(), system_env.clone(), storage.clone());
+        let main = DumpingVm::new(batch_env.clone(), system_env.clone(), storage);
         let shadow = Shadow::new(batch_env.clone(), system_env.clone(), shadow_storage);
         let shadow = VmWithReporting {
             vm: shadow,
@@ -173,7 +179,7 @@ where
     fn inspect(
         &mut self,
         (main_tracer, shadow_tracer): &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let main_result = self.main.inspect(main_tracer, execution_mode);
         if let Some(shadow) = self.shadow.get_mut() {
@@ -183,7 +189,7 @@ where
 
             if let Err(err) = errors.into_result() {
                 let ctx = format!("executing VM with mode {execution_mode:?}");
-                self.report(err.context(ctx));
+                self.report(err.context(ctx), None);
             }
         }
         main_result
@@ -227,16 +233,16 @@ where
                 let ctx = format!(
                     "inspecting transaction {tx_repr}, with_compression={with_compression:?}"
                 );
-                self.report(err.context(ctx));
+                self.report(err.context(ctx), None);
             }
         }
         (main_bytecodes_result, main_tx_result)
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        let main_batch = self.main.finish_batch();
+    fn finish_batch(&mut self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> FinishedL1Batch {
+        let main_batch = self.main.finish_batch(pubdata_builder.clone());
         if let Some(shadow) = self.shadow.get_mut() {
-            let shadow_batch = shadow.vm.finish_batch();
+            let shadow_batch = shadow.vm.finish_batch(pubdata_builder.clone());
             let mut errors = DivergenceErrors::new();
             errors.check_results_match(
                 &main_batch.block_tip_execution_result,
@@ -263,7 +269,7 @@ where
             );
 
             if let Err(err) = errors.into_result() {
-                self.report(err);
+                self.report(err, pubdata_builder);
             }
         }
         main_batch
