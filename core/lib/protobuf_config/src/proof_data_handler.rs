@@ -17,6 +17,11 @@ impl ProtoRepr for proto::ProofDataHandler {
             tee_support: required(&self.tee_support)
                 .copied()
                 .context("tee_support")?,
+            tee_proof_generation_timeout_in_secs: required(
+                &self.tee_proof_generation_timeout_in_secs,
+            )
+            .and_then(|x| Ok((*x).try_into()?))
+            .context("tee_proof_generation_timeout_in_secs")?,
         })
     }
 
@@ -25,6 +30,9 @@ impl ProtoRepr for proto::ProofDataHandler {
             http_port: Some(this.http_port.into()),
             proof_generation_timeout_in_secs: Some(this.proof_generation_timeout_in_secs.into()),
             tee_support: Some(this.tee_support),
+            tee_proof_generation_timeout_in_secs: Some(
+                this.tee_proof_generation_timeout_in_secs.into(),
+            ),
         }
     }
 }
