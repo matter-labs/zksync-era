@@ -31,7 +31,7 @@ use zksync_prover_fri_types::{
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
-use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_interface::outputs::{L1BatchProofForL1, SchedulerProof};
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
@@ -332,11 +332,19 @@ impl JobProcessor for ProofCompressor {
             .context("Failed to get aggregation result coords from blob store")?;
         let aggregation_result_coords =
             Self::aux_output_witness_to_array(aux_output_witness_wrapper.0);
+        #[cfg(feature = "fflonk")]
         let l1_batch_proof = L1BatchProofForL1 {
             aggregation_result_coords,
-            scheduler_proof: artifacts,
+            scheduler_proof: SchedulerProof::Fflonk(artifacts),
             protocol_version: self.protocol_version,
         };
+        #[cfg(not(feature = "fflonk"))]
+        let l1_batch_proof = L1BatchProofForL1 {
+            aggregation_result_coords,
+            scheduler_proof: SchedulerProof::Pplonk(artifacts),
+            protocol_version: self.protocol_version,
+        };
+
         let blob_save_started_at = Instant::now();
         let blob_url = self
             .blob_store

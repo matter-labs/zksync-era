@@ -9,16 +9,57 @@ use zksync_types::{protocol_version::ProtocolSemanticVersion, tee_types::TeeType
 
 /// A "final" ZK proof that can be sent to the L1 contract.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct L1BatchProofForL1<T: FinalProofExt> {
+pub struct L1BatchProofForL1 {
     pub aggregation_result_coords: [[u8; 32]; 4],
-    pub scheduler_proof: T,
+    pub scheduler_proof: SchedulerProof,
     pub protocol_version: ProtocolSemanticVersion,
 }
 
-pub trait FinalProofExt<'a>: Serialize + Deserialize<'a> {}
+#[derive(Clone, Serialize, Deserialize)]
+pub struct FflonkL1BatchProofForL1 {
+    pub aggregation_result_coords: [[u8; 32]; 4],
+    pub scheduler_proof: FflonkSnarkVerifierCircuitProof,
+    pub protocol_version: ProtocolSemanticVersion,
+}
 
-impl FinalProofExt for FinalProof {}
-impl FinalProofExt for FflonkSnarkVerifierCircuitProof {}
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PplonkL1BatchProofForL1 {
+    pub aggregation_result_coords: [[u8; 32]; 4],
+    pub scheduler_proof: FinalProof,
+    pub protocol_version: ProtocolSemanticVersion,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub enum SchedulerProof {
+    Fflonk(FflonkSnarkVerifierCircuitProof),
+    Pplonk(FinalProof),
+}
+
+impl From<L1BatchProofForL1> for FflonkL1BatchProofForL1 {
+    fn from(proof: L1BatchProofForL1) -> Self {
+        match proof.scheduler_proof {
+            SchedulerProof::Fflonk(scheduler_proof) => FflonkL1BatchProofForL1 {
+                aggregation_result_coords: proof.aggregation_result_coords,
+                scheduler_proof,
+                protocol_version: proof.protocol_version,
+            },
+            _ => panic!("Invalid proof type, expected FFLONK proof"),
+        }
+    }
+}
+
+impl From<L1BatchProofForL1> for PplonkL1BatchProofForL1 {
+    fn from(proof: L1BatchProofForL1) -> Self {
+        match proof.scheduler_proof {
+            SchedulerProof::Pplonk(scheduler_proof) => PplonkL1BatchProofForL1 {
+                aggregation_result_coords: proof.aggregation_result_coords,
+                scheduler_proof,
+                protocol_version: proof.protocol_version,
+            },
+            _ => panic!("Invalid proof type, expected PPLONK proof"),
+        }
+    }
+}
 
 /// A "final" TEE proof that can be sent to the L1 contract.
 #[serde_as]
@@ -38,7 +79,7 @@ pub struct L1BatchTeeProofForL1 {
     pub tee_type: TeeType,
 }
 
-impl<T: FinalProofExt> fmt::Debug for L1BatchProofForL1<T> {
+impl fmt::Debug for L1BatchProofForL1 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("L1BatchProofForL1")
@@ -55,7 +96,7 @@ impl fmt::Debug for L1BatchTeeProofForL1 {
     }
 }
 
-impl<T: FinalProofExt> StoredObject for L1BatchProofForL1<T> {
+impl StoredObject for L1BatchProofForL1 {
     const BUCKET: Bucket = Bucket::ProofsFri;
     type Key<'a> = (L1BatchNumber, ProtocolSemanticVersion);
 

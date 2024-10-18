@@ -2,7 +2,9 @@ use fflonk::{
     bellman::{bn256, bn256::Fr, CurveAffine, Engine, PrimeField, PrimeFieldRepr},
     FflonkSnarkVerifierCircuitProof,
 };
-use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_interface::outputs::{
+    FflonkL1BatchProofForL1, L1BatchProofForL1, PplonkL1BatchProofForL1,
+};
 use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token, U256};
 
 use crate::{i_executor::structures::StoredBatchInfo, Tokenizable, Tokenize};
@@ -12,7 +14,7 @@ use crate::{i_executor::structures::StoredBatchInfo, Tokenizable, Tokenize};
 pub struct ProveBatches {
     pub prev_l1_batch: L1BatchWithMetadata,
     pub l1_batches: Vec<L1BatchWithMetadata>,
-    pub proofs: Vec<L1BatchProofForL1>,
+    pub proofs: Vec<FflonkL1BatchProofForL1>,
     pub should_verify: bool,
 }
 
@@ -31,7 +33,7 @@ impl Tokenize for &ProveBatches {
             assert_eq!(self.proofs.len(), 1);
             assert_eq!(self.l1_batches.len(), 1);
 
-            let L1BatchProofForL1 {
+            let FflonkL1BatchProofForL1 {
                 aggregation_result_coords,
                 scheduler_proof,
                 ..
