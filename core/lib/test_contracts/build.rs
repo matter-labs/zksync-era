@@ -116,7 +116,7 @@ fn main() {
             context: None,
             name: "@openzeppelin/contracts".into(),
             path: format!(
-                "{}/contract-libs/openzeppelin-contracts/contracts",
+                "{}/contract-libs/openzeppelin-contracts-v4/contracts",
                 env!("CARGO_MANIFEST_DIR")
             ),
         })
