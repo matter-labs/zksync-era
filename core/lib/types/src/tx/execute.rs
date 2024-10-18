@@ -136,4 +136,14 @@ impl Execute {
             factory_deps: vec![contract_bytecode],
         }
     }
+
+    /// Creates an instance for transferring base token to the specified recipient.
+    pub fn transfer(to: Address, value: U256) -> Self {
+        Self {
+            contract_address: Some(to),
+            calldata: vec![],
+            value,
+            factory_deps: vec![],
+        }
+    }
 }

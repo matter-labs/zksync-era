@@ -1,5 +1,5 @@
 use assert_matches::assert_matches;
-use zksync_test_account::TxType;
+use zksync_test_contracts::TxType;
 
 use super::{tester::VmTesterBuilder, TestedVm};
 use crate::interface::{ExecutionResult, VmExecutionMode, VmInterfaceExt};

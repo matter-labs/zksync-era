@@ -56,7 +56,7 @@ jobs:
       - name: Init
         run: |
           ci_run run_retried rustup show
-      
+
       - name: Install zkstack
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup
@@ -142,7 +142,6 @@ jobs:
             --legacy-bridge
 
           ci_run zkstack ecosystem init --dev --verbose
-          ci_run zkstack dev contracts --test-contracts
 
       # `sleep 60` because we need to wait until server added all the tokens
       - name: Run server
@@ -193,7 +192,7 @@ jobs:
         run: |
           ci_run ./zkstack_cli/zkstackup/install -g --path ./zkstack_cli/zkstackup/zkstackup || true
           ci_run zkstackup -g --local
-  
+
       - name: Create log directories
         run: |
           SERVER_LOGS_DIR=logs/server

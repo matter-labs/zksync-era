@@ -9,12 +9,11 @@ contract TransferTest {
 
     function send(address payable to, uint256 amount) public payable {
         bool success = to.send(amount);
-
         require(success, "Transaction failed");
     }
     
     receive() external payable {
-
+        // Do nothing
     }
 }
 
