@@ -247,7 +247,7 @@ impl StateKeeperIO for ExternalIO {
                 );
 
                 self.pool
-                    .connection_tagged("sync_layer")
+                    .connection()
                     .await?
                     .blocks_dal()
                     .insert_l1_batch(UnsealedL1BatchHeader {
