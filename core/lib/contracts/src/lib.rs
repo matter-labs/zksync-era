@@ -438,7 +438,7 @@ impl BaseSystemContracts {
 
     /// Loads the latest EVM emulator for these base system contracts. Logically, it only makes sense to do for the latest protocol version.
     pub fn with_latest_evm_emulator(mut self) -> Self {
-        let bytecode = read_sys_contract_bytecode("", "EvmInterpreter", ContractLanguage::Yul);
+        let bytecode = read_sys_contract_bytecode("", "EvmEmulator", ContractLanguage::Yul);
         let hash = hash_bytecode(&bytecode);
         self.evm_emulator = Some(SystemContractCode {
             code: bytes_to_be_words(bytecode),
