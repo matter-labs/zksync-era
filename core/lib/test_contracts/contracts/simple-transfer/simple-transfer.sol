@@ -26,8 +26,7 @@ contract SimpleTransfer {
     // Function to transfer Ether from this contract to any address
     function transfer(address _to, uint _amount) public onlyOwner {
         require(address(this).balance >= _amount, "Insufficient balance in contract");
-        (bool success, ) = _to.call{value: _amount}("");
-        require(success, "transfer reverted");
+        payable(_to).transfer(_amount);
     }
 
     // Function to check the contract's balance

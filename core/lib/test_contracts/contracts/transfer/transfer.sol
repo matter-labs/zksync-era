@@ -4,12 +4,11 @@ pragma solidity ^0.8.0;
 
 contract TransferTest {
     function transfer(address payable to, uint256 amount) public payable {
-        (bool success, ) = to.call{value: amount}(""); // FIXME: revert; required because it's impossible to suppress errors
-        require(success, "transfer reverted");
+        to.transfer(amount);
     }
 
     function send(address payable to, uint256 amount) public payable {
-        (bool success, ) = to.call{value: amount}(""); // FIXME: revert; required because it's impossible to suppress errors
+        bool success = to.send(amount);
         require(success, "Transaction failed");
     }
     

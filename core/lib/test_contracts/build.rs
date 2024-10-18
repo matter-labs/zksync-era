@@ -12,7 +12,10 @@ use foundry_compilers::{
         Remapping,
     },
     solc,
-    zksolc::{settings::Optimizer, ZkSettings, ZkSolcCompiler, ZkSolcSettings},
+    zksolc::{
+        settings::{Optimizer, ZkSolcError, ZkSolcWarning},
+        ZkSettings, ZkSolcCompiler, ZkSolcSettings,
+    },
     zksync,
     zksync::artifact_output::zk::{ZkArtifactOutput, ZkContractArtifact},
     ArtifactId, ProjectBuilder, ProjectPathsConfig,
@@ -79,7 +82,6 @@ fn save_artifacts(
 }
 
 /// `zksolc` compiler settings.
-///
 fn compiler_settings() -> ZkSolcSettings {
     ZkSolcSettings {
         cli_settings: solc::CliSettings::default(),
@@ -98,6 +100,8 @@ fn compiler_settings() -> ZkSolcSettings {
                 }),
             },
             enable_eravm_extensions: true,
+            suppressed_errors: HashSet::from([ZkSolcError::SendTransfer]),
+            suppressed_warnings: HashSet::from([ZkSolcWarning::TxOrigin]),
             ..ZkSettings::default()
         },
     }

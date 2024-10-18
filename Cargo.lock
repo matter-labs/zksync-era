@@ -2846,8 +2846,8 @@ dependencies = [
 
 [[package]]
 name = "foundry-compilers"
-version = "0.11.1"
-source = "git+https://github.com/Moonsong-Labs/compilers.git?rev=b2aca7f87e0484d1e202d77a4ada8b46b059da6d#b2aca7f87e0484d1e202d77a4ada8b46b059da6d"
+version = "0.11.4"
+source = "git+https://github.com/slowli/foundry-compilers.git?rev=afe2718237d423d268bacc13fc5f0dbf01587cf7#afe2718237d423d268bacc13fc5f0dbf01587cf7"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -2886,8 +2886,8 @@ dependencies = [
 
 [[package]]
 name = "foundry-compilers-artifacts"
-version = "0.11.1"
-source = "git+https://github.com/Moonsong-Labs/compilers.git?rev=b2aca7f87e0484d1e202d77a4ada8b46b059da6d#b2aca7f87e0484d1e202d77a4ada8b46b059da6d"
+version = "0.11.4"
+source = "git+https://github.com/slowli/foundry-compilers.git?rev=afe2718237d423d268bacc13fc5f0dbf01587cf7#afe2718237d423d268bacc13fc5f0dbf01587cf7"
 dependencies = [
  "foundry-compilers-artifacts-solc",
  "foundry-compilers-artifacts-vyper",
@@ -2896,8 +2896,8 @@ dependencies = [
 
 [[package]]
 name = "foundry-compilers-artifacts-solc"
-version = "0.11.1"
-source = "git+https://github.com/Moonsong-Labs/compilers.git?rev=b2aca7f87e0484d1e202d77a4ada8b46b059da6d#b2aca7f87e0484d1e202d77a4ada8b46b059da6d"
+version = "0.11.4"
+source = "git+https://github.com/slowli/foundry-compilers.git?rev=afe2718237d423d268bacc13fc5f0dbf01587cf7#afe2718237d423d268bacc13fc5f0dbf01587cf7"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -2919,8 +2919,8 @@ dependencies = [
 
 [[package]]
 name = "foundry-compilers-artifacts-vyper"
-version = "0.11.1"
-source = "git+https://github.com/Moonsong-Labs/compilers.git?rev=b2aca7f87e0484d1e202d77a4ada8b46b059da6d#b2aca7f87e0484d1e202d77a4ada8b46b059da6d"
+version = "0.11.4"
+source = "git+https://github.com/slowli/foundry-compilers.git?rev=afe2718237d423d268bacc13fc5f0dbf01587cf7#afe2718237d423d268bacc13fc5f0dbf01587cf7"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -2933,8 +2933,8 @@ dependencies = [
 
 [[package]]
 name = "foundry-compilers-artifacts-zksolc"
-version = "0.11.1"
-source = "git+https://github.com/Moonsong-Labs/compilers.git?rev=b2aca7f87e0484d1e202d77a4ada8b46b059da6d#b2aca7f87e0484d1e202d77a4ada8b46b059da6d"
+version = "0.11.4"
+source = "git+https://github.com/slowli/foundry-compilers.git?rev=afe2718237d423d268bacc13fc5f0dbf01587cf7#afe2718237d423d268bacc13fc5f0dbf01587cf7"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -2954,14 +2954,13 @@ dependencies = [
 
 [[package]]
 name = "foundry-compilers-core"
-version = "0.11.1"
-source = "git+https://github.com/Moonsong-Labs/compilers.git?rev=b2aca7f87e0484d1e202d77a4ada8b46b059da6d#b2aca7f87e0484d1e202d77a4ada8b46b059da6d"
+version = "0.11.4"
+source = "git+https://github.com/slowli/foundry-compilers.git?rev=afe2718237d423d268bacc13fc5f0dbf01587cf7#afe2718237d423d268bacc13fc5f0dbf01587cf7"
 dependencies = [
  "alloy-primitives",
  "cfg-if",
  "dunce",
  "fs_extra",
- "memmap2",
  "once_cell",
  "path-slash",
  "regex",
@@ -4854,15 +4853,6 @@ name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
-
-[[package]]
-name = "memmap2"
-version = "0.9.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd3f7eed9d3848f8b98834af67102b720745c4ec028fcd0aa0239277e7de374f"
-dependencies = [
- "libc",
-]
 
 [[package]]
 name = "merkle_tree_consistency_checker"
