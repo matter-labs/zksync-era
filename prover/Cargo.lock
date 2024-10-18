@@ -651,8 +651,9 @@ dependencies = [
 
 [[package]]
 name = "boojum-cuda"
-version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=vv-temp-harness-pin#1fa6d8b1c1ba6fc18bbfb09f91a71dc7a4572e23"
+version = "0.151.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98c681a3f867afe40bcc188e5cb5260bbf5699531823affa3cbe28f7ca9b7bc9"
 dependencies = [
  "boojum",
  "cmake",
@@ -1740,8 +1741,9 @@ checksum = "5443807d6dff69373d433ab9ef5378ad8df50ca6298caf15de6e52e24aaf54d5"
 
 [[package]]
 name = "era_cudart"
-version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=vv-temp-harness-pin#1fa6d8b1c1ba6fc18bbfb09f91a71dc7a4572e23"
+version = "0.151.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1e1990fee6e9d25b40524ce53ca7977a211155a17bc7277f4dd354633e4fc22"
 dependencies = [
  "bitflags 2.6.0",
  "era_cudart_sys",
@@ -1750,8 +1752,9 @@ dependencies = [
 
 [[package]]
 name = "era_cudart_sys"
-version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=vv-temp-harness-pin#1fa6d8b1c1ba6fc18bbfb09f91a71dc7a4572e23"
+version = "0.151.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d84e8d300c28cd91ceb56340f66da8607409f44a45f5e694e23723630db8c852"
 dependencies = [
  "serde_json",
 ]
@@ -5679,8 +5682,9 @@ checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shivini"
-version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=vv-temp-harness-pin#1fa6d8b1c1ba6fc18bbfb09f91a71dc7a4572e23"
+version = "0.151.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92776ca824f49c255a7417939706d759e0fd3dd4217420d01da68beae04f0bd6"
 dependencies = [
  "bincode",
  "blake2 0.10.6",
@@ -7670,8 +7674,9 @@ dependencies = [
 
 [[package]]
 name = "zksync-gpu-ffi"
-version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=vv-temp-harness-pin#1fa6d8b1c1ba6fc18bbfb09f91a71dc7a4572e23"
+version = "0.151.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d555e24b853359c5b076c52f9ff9e0ed62a7edc8c2f82f93517c524410c21ecb"
 dependencies = [
  "cmake",
  "crossbeam",
@@ -7684,8 +7689,9 @@ dependencies = [
 
 [[package]]
 name = "zksync-gpu-prover"
-version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=vv-temp-harness-pin#1fa6d8b1c1ba6fc18bbfb09f91a71dc7a4572e23"
+version = "0.151.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "615dad34e5fe678ec3b3e029af3f19313bebb1b771a8ce963c9ab9a8cc3879d3"
 dependencies = [
  "bit-vec",
  "cfg-if",
@@ -7700,8 +7706,9 @@ dependencies = [
 
 [[package]]
 name = "zksync-wrapper-prover"
-version = "0.150.9"
-source = "git+https://github.com/matter-labs/zksync-crypto-gpu.git?branch=vv-temp-harness-pin#1fa6d8b1c1ba6fc18bbfb09f91a71dc7a4572e23"
+version = "0.151.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "80721b2da2643bd43f664ac65673ee078e6973c0a88d75b73bfaeac8e1bf5432"
 dependencies = [
  "circuit_definitions",
  "zkevm_test_harness",
