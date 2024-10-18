@@ -293,10 +293,9 @@ pub mod disperser_client {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value,
+        clippy::let_unit_value
     )]
-    use tonic::codegen::*;
-    use tonic::codegen::http::Uri;
+    use tonic::codegen::{http::Uri, *};
     /// Disperser defines the public APIs for dispersing blobs.
     #[derive(Debug, Clone)]
     pub struct DisperserClient<T> {
@@ -341,9 +340,8 @@ pub mod disperser_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
-            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             DisperserClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -385,22 +383,12 @@ pub mod disperser_client {
         pub async fn disperse_blob(
             &mut self,
             request: impl tonic::IntoRequest<super::DisperseBlobRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::DisperseBlobReply>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::DisperseBlobReply>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/disperser.Disperser/DisperseBlob",
-            );
+            let path = http::uri::PathAndQuery::from_static("/disperser.Disperser/DisperseBlob");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("disperser.Disperser", "DisperseBlob"));
@@ -416,52 +404,35 @@ pub mod disperser_client {
         /// 4. The Disperser verifies the signature and returns a DisperseBlobReply message.
         pub async fn disperse_blob_authenticated(
             &mut self,
-            request: impl tonic::IntoStreamingRequest<
-                Message = super::AuthenticatedRequest,
-            >,
+            request: impl tonic::IntoStreamingRequest<Message = super::AuthenticatedRequest>,
         ) -> std::result::Result<
             tonic::Response<tonic::codec::Streaming<super::AuthenticatedReply>>,
             tonic::Status,
         > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
             let path = http::uri::PathAndQuery::from_static(
                 "/disperser.Disperser/DisperseBlobAuthenticated",
             );
             let mut req = request.into_streaming_request();
-            req.extensions_mut()
-                .insert(
-                    GrpcMethod::new("disperser.Disperser", "DisperseBlobAuthenticated"),
-                );
+            req.extensions_mut().insert(GrpcMethod::new(
+                "disperser.Disperser",
+                "DisperseBlobAuthenticated",
+            ));
             self.inner.streaming(req, path, codec).await
         }
         /// This API is meant to be polled for the blob status.
         pub async fn get_blob_status(
             &mut self,
             request: impl tonic::IntoRequest<super::BlobStatusRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::BlobStatusReply>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::BlobStatusReply>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/disperser.Disperser/GetBlobStatus",
-            );
+            let path = http::uri::PathAndQuery::from_static("/disperser.Disperser/GetBlobStatus");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("disperser.Disperser", "GetBlobStatus"));
@@ -476,22 +447,12 @@ pub mod disperser_client {
         pub async fn retrieve_blob(
             &mut self,
             request: impl tonic::IntoRequest<super::RetrieveBlobRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::RetrieveBlobReply>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::RetrieveBlobReply>, tonic::Status> {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/disperser.Disperser/RetrieveBlob",
-            );
+            let path = http::uri::PathAndQuery::from_static("/disperser.Disperser/RetrieveBlob");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("disperser.Disperser", "RetrieveBlob"));

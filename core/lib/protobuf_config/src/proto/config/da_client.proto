@@ -25,8 +25,8 @@ message MemStoreConfig {
 
 message DisperserConfig {
   optional string api_node_url = 1; // TODO: This should be removed once eigenda proxy is no longer used
-  repeated uint32 custom_quorum_numbers = 2; // TODO: This should be removed once eigenda proxy is no longer used
-  optional string account_id = 3; // TODO: This should be removed once eigenda proxy is no longer used
+  repeated uint32 custom_quorum_numbers = 2; 
+  optional string account_id = 3; 
   optional string disperser_rpc = 4;
   optional int32 eth_confirmation_depth = 5;
   optional string eigenda_eth_rpc = 6;
