@@ -17,36 +17,30 @@ impl ProtoRepr for proto::DataAvailabilityClient {
         let config = required(&self.config).context("config")?;
 
         let client = match config {
-            proto::data_availability_client::Config::Avail(conf) => {
-                Avail(match conf.config.as_ref() {
+            proto::data_availability_client::Config::Avail(conf) => Avail(AvailConfig {
+                bridge_api_url: required(&conf.bridge_api_url)
+                    .context("bridge_api_url")?
+                    .clone(),
+                timeout: *required(&conf.timeout).context("timeout")? as usize,
+                config: match conf.config.as_ref() {
                     Some(proto::avail_config::Config::FullClient(full_client_conf)) => {
-                        AvailConfig {
-                            bridge_api_url: required(&conf.bridge_api_url)
-                                .context("bridge_api_url")?
+                        AvailClientConfig::FullClient(AvailDefaultConfig {
+                            api_node_url: required(&full_client_conf.api_node_url)
+                                .context("api_node_url")?
                                 .clone(),
-                            timeout: *required(&conf.timeout).context("timeout")? as usize,
-                            config: AvailClientConfig::FullClient(AvailDefaultConfig {
-                                api_node_url: required(&full_client_conf.api_node_url)
-                                    .context("api_node_url")?
-                                    .clone(),
-                                app_id: *required(&full_client_conf.app_id).context("app_id")?,
-                            }),
-                        }
+                            app_id: *required(&full_client_conf.app_id).context("app_id")?,
+                        })
                     }
-                    Some(proto::avail_config::Config::GasRelay(gas_relay_conf)) => AvailConfig {
-                        bridge_api_url: required(&conf.bridge_api_url)
-                            .context("bridge_api_url")?
-                            .clone(),
-                        timeout: *required(&conf.timeout).context("timeout")? as usize,
-                        config: AvailClientConfig::GasRelay(AvailGasRelayConfig {
+                    Some(proto::avail_config::Config::GasRelay(gas_relay_conf)) => {
+                        AvailClientConfig::GasRelay(AvailGasRelayConfig {
                             gas_relay_api_url: required(&gas_relay_conf.gas_relay_api_url)
                                 .context("gas_relay_api_url")?
                                 .clone(),
-                        }),
-                    },
+                        })
+                    }
                     None => return Err(anyhow::anyhow!("Invalid Avail DA configuration")),
-                })
-            }
+                },
+            }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
             }
