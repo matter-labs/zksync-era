@@ -30,6 +30,9 @@ pub struct ProverAutoscalerAgentConfig {
     pub namespaces: Vec<String>,
     /// Watched cluster name. Also can be set via flag.
     pub cluster_name: Option<String>,
+    /// If dry-run enabled don't do any k8s updates, just report success.
+    #[serde(default = "ProverAutoscalerAgentConfig::default_dry_run")]
+    pub dry_run: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Default)]
@@ -100,6 +103,10 @@ impl ProverAutoscalerConfig {
 impl ProverAutoscalerAgentConfig {
     pub fn default_namespaces() -> Vec<String> {
         vec!["prover-blue".to_string(), "prover-red".to_string()]
+    }
+
+    pub fn default_dry_run() -> bool {
+        true
     }
 }
 

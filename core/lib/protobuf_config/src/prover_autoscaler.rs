@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::Context as _;
+use anyhow::Context;
 use time::Duration;
 use zksync_config::configs::{self, prover_autoscaler::Gpu};
 use zksync_protobuf::{read_optional, repr::ProtoRepr, required, ProtoFmt};
@@ -42,6 +42,7 @@ impl ProtoRepr for proto::ProverAutoscalerAgentConfig {
                 .context("http_port")?,
             namespaces: self.namespaces.to_vec(),
             cluster_name: Some("".to_string()),
+            dry_run: self.dry_run.unwrap_or(Self::Type::default_dry_run()),
         })
     }
 
@@ -51,6 +52,7 @@ impl ProtoRepr for proto::ProverAutoscalerAgentConfig {
             http_port: Some(this.http_port.into()),
             namespaces: this.namespaces.clone(),
             cluster_name: this.cluster_name.clone(),
+            dry_run: Some(this.dry_run),
         }
     }
 }

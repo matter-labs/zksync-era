@@ -17,6 +17,7 @@ message ProverAutoscalerAgentConfig {
   optional uint32 http_port = 2; // required
   repeated string namespaces = 3; // optional
   optional string cluster_name = 4; // optional
+  optional bool dry_run = 5; // optional
 }
 
 message ProtocolVersion {
