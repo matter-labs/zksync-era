@@ -115,6 +115,7 @@ prover/data/keys/setup_*
 # ZK Stack CLI
 chains/era/configs/*
 chains/gateway/*
+chains/avail/*
 configs/*
 era-observability/
 core/tests/ts-integration/deployments-zk
