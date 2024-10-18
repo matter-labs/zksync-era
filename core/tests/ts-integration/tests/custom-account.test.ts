@@ -92,43 +92,55 @@ describe('Tests for the custom account behavior', () => {
     });
 
     test('Should execute contract by custom account', async () => {
-        const transferFn = async function (
-            account: zksync.Contract
-        ): Promise<[TransactionResponse, MatcherModifier[]]> {
-            const tx = await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT);
-            const customAccountAddress = await account.getAddress();
+        const tx = await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT);
+        const customAccountAddress = await customAccount.getAddress();
 
-            const erc20BalanceChange = await shouldChangeTokenBalances(erc20Address, [
-                // Custom account change (sender)
-                {
-                    addressToCheck: customAccountAddress,
-                    wallet: alice,
-                    change: -TRANSFER_AMOUNT
-                },
-                // Alice change (recipient)
-                { wallet: alice, change: TRANSFER_AMOUNT }
-            ]);
-            const feeCheck = await shouldChangeETHBalances([
-                // 0 change would only check for fees.
-                { addressToCheck: customAccountAddress, wallet: alice, change: 0n }
-            ]);
+        const erc20BalanceChange = await shouldChangeTokenBalances(erc20Address, [
+            // Custom account change (sender)
+            {
+                addressToCheck: customAccountAddress,
+                wallet: alice,
+                change: -TRANSFER_AMOUNT
+            },
+            // Alice change (recipient)
+            { wallet: alice, change: TRANSFER_AMOUNT }
+        ]);
+        const feeCheck = await shouldChangeETHBalances([
+            // 0 change would only check for fees.
+            { addressToCheck: customAccountAddress, wallet: alice, change: 0n }
+        ]);
 
-            return [
-                await sendCustomAccountTransaction(
-                    tx as zksync.types.Transaction,
-                    alice.provider,
-                    customAccountAddress,
-                    testMaster.environment().l2ChainId
-                ),
-                [erc20BalanceChange, feeCheck]
-            ];
-        };
-        let [transactionResponse, modifiers] = await transferFn(customAccount);
         // Check that transaction succeeds.
-        await expect(transactionResponse).toBeAccepted(modifiers);
+        await expect(
+            sendCustomAccountTransaction(
+                tx as zksync.types.Transaction,
+                alice.provider,
+                customAccountAddress,
+                testMaster.environment().l2ChainId
+            )
+        ).toBeAccepted([erc20BalanceChange, feeCheck]);
+    });
 
-        [transactionResponse, modifiers] = await transferFn(customAccountWithFailingAssertion);
-        await expect(transactionResponse).toBeRejected('failed to validate the transaction.');
+    test('Should fail to estimate fee due to timestamp assertion', async () => {
+        const promise = alice.provider.estimateGas({
+            ...(await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT)),
+            from: await customAccountWithFailingAssertion.getAddress()
+        });
+
+        promise
+            .then((_) => {
+                fail('The transaction was expected to fail due to timestamp assertion');
+            })
+            .catch((error) => {
+                // If it's an error object with the structure you're mentioning, check its properties
+                if (error.info && error.info.error && error.info.error.message) {
+                    expect(error.info.error.message).toEqual(
+                        'failed to validate the transaction. reason: Timestamp is out of range'
+                    );
+                } else {
+                    fail('The transaction was expected to fail with a different message');
+                }
+            });
     });
 
     test('Should fail the validation with incorrect signature', async () => {
