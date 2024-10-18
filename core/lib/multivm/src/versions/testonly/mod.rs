@@ -6,6 +6,8 @@
 //!   (`vm_latest`) and the fast VM (`vm_fast`).
 //! - Submodules of this module define test functions generic by `TestedVm`. Specific VM versions implement `TestedVm`
 //!   and can create tests based on these test functions with minimum amount of boilerplate code.
+//! - Tests use [`VmTester`] built using [`VmTesterBuilder`] to create a VM instance. This allows to set up storage for the VM,
+//!   custom [`SystemEnv`] / [`L1BatchEnv`], deployed contracts, pre-funded accounts etc.
 
 use ethabi::Contract;
 use once_cell::sync::Lazy;
