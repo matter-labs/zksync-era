@@ -31,8 +31,8 @@ pub struct PplonkL1BatchProofForL1 {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub enum SchedulerProof {
-    Fflonk(FflonkSnarkVerifierCircuitProof),
-    Pplonk(FinalProof),
+    Fflonk(Box<FflonkSnarkVerifierCircuitProof>),
+    Pplonk(Box<FinalProof>),
 }
 
 impl From<L1BatchProofForL1> for FflonkL1BatchProofForL1 {
@@ -40,7 +40,7 @@ impl From<L1BatchProofForL1> for FflonkL1BatchProofForL1 {
         match proof.scheduler_proof {
             SchedulerProof::Fflonk(scheduler_proof) => FflonkL1BatchProofForL1 {
                 aggregation_result_coords: proof.aggregation_result_coords,
-                scheduler_proof,
+                scheduler_proof: *scheduler_proof,
                 protocol_version: proof.protocol_version,
             },
             _ => panic!("Invalid proof type, expected FFLONK proof"),
@@ -53,7 +53,7 @@ impl From<L1BatchProofForL1> for PplonkL1BatchProofForL1 {
         match proof.scheduler_proof {
             SchedulerProof::Pplonk(scheduler_proof) => PplonkL1BatchProofForL1 {
                 aggregation_result_coords: proof.aggregation_result_coords,
-                scheduler_proof,
+                scheduler_proof: *scheduler_proof,
                 protocol_version: proof.protocol_version,
             },
             _ => panic!("Invalid proof type, expected PPLONK proof"),

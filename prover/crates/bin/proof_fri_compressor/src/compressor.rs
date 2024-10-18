@@ -335,13 +335,13 @@ impl JobProcessor for ProofCompressor {
         #[cfg(feature = "fflonk")]
         let l1_batch_proof = L1BatchProofForL1 {
             aggregation_result_coords,
-            scheduler_proof: SchedulerProof::Fflonk(artifacts),
+            scheduler_proof: SchedulerProof::Fflonk(Box::new(artifacts)),
             protocol_version: self.protocol_version,
         };
         #[cfg(not(feature = "fflonk"))]
         let l1_batch_proof = L1BatchProofForL1 {
             aggregation_result_coords,
-            scheduler_proof: SchedulerProof::Pplonk(artifacts),
+            scheduler_proof: SchedulerProof::Pplonk(Box::new(artifacts)),
             protocol_version: self.protocol_version,
         };
 
