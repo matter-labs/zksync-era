@@ -9,7 +9,7 @@
     "PostBoojum": {
       "common": {
         "l2_l1_logs_merkle_root": "0x38eaeef3afe69b6f6b2fa22c92da8137f1e405a1e1861b7de7cfa30c7d7462dd",
-        "protocol_version": "Version26"
+        "protocol_version": "Version27"
       },
       "system_logs_linear_hash": "0xe8460ce1ed47b77cfee3cadf803aa089c144c506ea2bdd358a6a38ff2c7bc8e3",
       "state_diffs_compressed": [
@@ -94,7 +94,7 @@
     "zkporter_is_available": false,
     "bootloader_code_hash": "0x010008c753336bc8d1ddca235602b9f31d346412b2d463cd342899f7bfb73baf",
     "default_aa_code_hash": "0x0100055d760f11a3d737e7fd1816e600a4cd874a9f17f7a225d1f1c537c51a1e",
-    "protocol_version": "Version26"
+    "protocol_version": "Version27"
   },
   "pass_through_data": {
     "shared_states": [
@@ -341,7 +341,7 @@
         "rollup_root_hash": "0x0332d2acc43785a44b2b84fc010372c8f3e4ff4d0ca5f312de142ffe74189500",
         "bootloader_code_hash": "0x010008c753336bc8d1ddca235602b9f31d346412b2d463cd342899f7bfb73baf",
         "default_aa_code_hash": "0x0100055d760f11a3d737e7fd1816e600a4cd874a9f17f7a225d1f1c537c51a1e",
-        "protocol_version": "Version26"
+        "protocol_version": "Version27"
       },
       "system_logs": [
         {
