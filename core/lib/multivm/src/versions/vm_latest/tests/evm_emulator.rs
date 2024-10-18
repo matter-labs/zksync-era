@@ -18,15 +18,12 @@ use zksync_utils::{
     bytes_to_be_words, h256_to_u256,
 };
 
+use super::TestedLatestVm;
 use crate::{
     interface::{
         storage::InMemoryStorage, TxExecutionMode, VmExecutionResultAndLogs, VmInterfaceExt,
     },
-    versions::testonly::default_system_env,
-    vm_latest::{
-        tests::tester::{VmTester, VmTesterBuilder},
-        HistoryEnabled,
-    },
+    versions::testonly::{default_system_env, VmTester, VmTesterBuilder},
 };
 
 const MOCK_DEPLOYER_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockContractDeployer.json";
@@ -85,7 +82,7 @@ impl EvmTestBuilder {
         self
     }
 
-    fn build(self) -> VmTester<HistoryEnabled> {
+    fn build(self) -> VmTester<TestedLatestVm> {
         let mock_emulator = read_bytecode(MOCK_EMULATOR_PATH);
         let mut storage = self.storage;
         let mut system_env = default_system_env();
@@ -119,11 +116,11 @@ impl EvmTestBuilder {
             }
         }
 
-        VmTesterBuilder::new(HistoryEnabled)
+        VmTesterBuilder::new()
             .with_system_env(system_env)
             .with_storage(storage)
             .with_execution_mode(TxExecutionMode::VerifyExecute)
-            .with_random_rich_accounts(1)
+            .with_rich_accounts(1)
             .build()
     }
 }
@@ -137,12 +134,12 @@ fn tracing_evm_contract_deployment() {
     // The EVM emulator will not be accessed, so we set it to a dummy value.
     system_env.base_system_smart_contracts.evm_emulator =
         Some(system_env.base_system_smart_contracts.default_aa.clone());
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_system_env(system_env)
         .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
-        .build();
+        .with_rich_accounts(1)
+        .build::<TestedLatestVm>();
     let account = &mut vm.rich_accounts[0];
 
     let args = [Token::Bytes((0..32).collect())];
@@ -222,7 +219,7 @@ fn mock_emulator_with_payment(deploy_emulator: bool) {
 }
 
 fn test_payment(
-    vm: &mut VmTester<HistoryEnabled>,
+    vm: &mut VmTester<TestedLatestVm>,
     mock_emulator_abi: &ethabi::Contract,
     balance: &mut U256,
     transferred_value: U256,
@@ -407,7 +404,7 @@ fn mock_emulator_with_delegate_call() {
 }
 
 fn test_delegate_call(
-    vm: &mut VmTester<HistoryEnabled>,
+    vm: &mut VmTester<TestedLatestVm>,
     test_fn: &ethabi::Function,
     from: Address,
     to: Address,
@@ -485,7 +482,7 @@ fn mock_emulator_with_static_call() {
 }
 
 fn test_static_call(
-    vm: &mut VmTester<HistoryEnabled>,
+    vm: &mut VmTester<TestedLatestVm>,
     test_fn: &ethabi::Function,
     from: Address,
     to: Address,

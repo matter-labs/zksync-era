@@ -1,14 +1,9 @@
-use zksync_types::{ExecuteTransactionCommon, Nonce, Transaction, H160, U256};
-use zksync_vm2::interface::{Event, StateInterface};
+use zksync_types::{ExecuteTransactionCommon, Nonce, Transaction, H160};
 
-use super::VmTester;
-use crate::{
-    interface::{
-        storage::ReadStorage, CurrentExecutionState, ExecutionResult, Halt, TxRevertReason,
-        VmExecutionMode, VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
-        VmInterfaceHistoryEnabled, VmRevertReason,
-    },
-    vm_fast::Vm,
+use super::{TestedVm, VmTester};
+use crate::interface::{
+    CurrentExecutionState, ExecutionResult, Halt, TxRevertReason, VmExecutionMode,
+    VmExecutionResultAndLogs, VmInterfaceExt, VmRevertReason,
 };
 
 #[derive(Debug, Clone)]
@@ -44,7 +39,10 @@ impl From<TxModifier> for ExpectedError {
             TxModifier::WrongSignatureLength => {
                 Halt::ValidationFailed(VmRevertReason::Unknown {
                     function_selector: vec![144, 240, 73, 201],
-                    data: vec![144, 240, 73, 201, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 45],
+                    data: vec![
+                        144, 240, 73, 201, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 45
+                    ],
                 })
             }
             TxModifier::WrongSignature => {
@@ -175,33 +173,7 @@ impl TransactionTestInfo {
     }
 }
 
-// TODO this doesn't include all the state of ModifiedWorld
-#[derive(Debug)]
-struct VmStateDump<S> {
-    state: S,
-    storage_writes: Vec<((H160, U256), U256)>,
-    events: Box<[Event]>,
-}
-
-impl<S: PartialEq> PartialEq for VmStateDump<S> {
-    fn eq(&self, other: &Self) -> bool {
-        self.state == other.state
-            && self.storage_writes == other.storage_writes
-            && self.events == other.events
-    }
-}
-
-impl<S: ReadStorage> Vm<S> {
-    fn dump_state(&self) -> VmStateDump<impl PartialEq + std::fmt::Debug> {
-        VmStateDump {
-            state: self.inner.dump_state(),
-            storage_writes: self.inner.get_storage_state().collect(),
-            events: self.inner.events().collect(),
-        }
-    }
-}
-
-impl VmTester<()> {
+impl<VM: TestedVm> VmTester<VM> {
     pub(crate) fn execute_and_verify_txs(
         &mut self,
         txs: &[TransactionTestInfo],
@@ -219,22 +191,29 @@ impl VmTester<()> {
         &mut self,
         tx_test_info: TransactionTestInfo,
     ) -> VmExecutionResultAndLogs {
-        self.vm.make_snapshot();
-        let inner_state_before = self.vm.dump_state();
-        self.vm.push_transaction(tx_test_info.tx.clone());
-        let result = self.vm.execute(VmExecutionMode::OneTx);
-        tx_test_info.verify_result(&result);
-        if tx_test_info.should_rollback() {
-            self.vm.rollback_to_the_latest_snapshot();
-            let inner_state_after = self.vm.dump_state();
-            pretty_assertions::assert_eq!(
-                inner_state_before,
-                inner_state_after,
-                "Inner state before and after rollback should be equal"
-            );
-        } else {
-            self.vm.pop_snapshot_no_rollback();
-        }
-        result
+        execute_tx_and_verify(&mut self.vm, tx_test_info)
     }
+}
+
+fn execute_tx_and_verify(
+    vm: &mut impl TestedVm,
+    tx_test_info: TransactionTestInfo,
+) -> VmExecutionResultAndLogs {
+    let inner_state_before = vm.dump_state();
+    vm.make_snapshot();
+    vm.push_transaction(tx_test_info.tx.clone());
+    let result = vm.execute(VmExecutionMode::OneTx);
+    tx_test_info.verify_result(&result);
+    if tx_test_info.should_rollback() {
+        vm.rollback_to_the_latest_snapshot();
+        let inner_state_after = vm.dump_state();
+        pretty_assertions::assert_eq!(
+            inner_state_before,
+            inner_state_after,
+            "Inner state before and after rollback should be equal"
+        );
+    } else {
+        vm.pop_snapshot_no_rollback();
+    }
+    result
 }

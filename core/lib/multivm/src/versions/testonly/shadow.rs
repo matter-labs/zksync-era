@@ -22,10 +22,10 @@ use crate::{
     },
     utils::get_max_gas_per_pubdata_byte,
     versions::testonly::{
-        default_l1_batch, default_system_env, make_account_rich, ContractToDeploy,
+        default_l1_batch, default_system_env, make_address_rich, ContractToDeploy,
     },
-    vm_fast,
-    vm_latest::{self, HistoryEnabled},
+    vm_fast, vm_latest,
+    vm_latest::HistoryEnabled,
 };
 
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;
@@ -70,8 +70,8 @@ impl Harness {
 
     fn new(l1_batch_env: &L1BatchEnv) -> Self {
         Self {
-            alice: Account::random(),
-            bob: Account::random(),
+            alice: Account::from_seed(0),
+            bob: Account::from_seed(1),
             storage_contract: ContractToDeploy::new(
                 read_bytecode(Self::STORAGE_CONTRACT_PATH),
                 Self::STORAGE_CONTRACT_ADDRESS,
@@ -82,8 +82,8 @@ impl Harness {
     }
 
     fn setup_storage(&self, storage: &mut InMemoryStorage) {
-        make_account_rich(storage, &self.alice);
-        make_account_rich(storage, &self.bob);
+        make_address_rich(storage, self.alice.address);
+        make_address_rich(storage, self.bob.address);
 
         self.storage_contract.insert(storage);
         let storage_contract_key = StorageKey::new(
