@@ -55,7 +55,6 @@ use zksync_node_framework::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
             output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
         },
-        tee_verifier_input_producer::TeeVerifierInputProducerLayer,
         vm_runner::{
             bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
             protective_reads::ProtectiveReadsWriterLayer,
@@ -288,6 +287,7 @@ impl MainNodeBuilder {
         self.node.add_layer(ProofDataHandlerLayer::new(
             try_load_config!(self.configs.proof_data_handler_config),
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
         ));
         Ok(self)
     }
@@ -494,14 +494,6 @@ impl MainNodeBuilder {
                 .clone()
                 .context("Consensus secrets have to be provided")?,
         });
-
-        Ok(self)
-    }
-
-    fn add_tee_verifier_input_producer_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(TeeVerifierInputProducerLayer::new(
-            self.genesis_config.l2_chain_id,
-        ));
 
         Ok(self)
     }
@@ -731,9 +723,6 @@ impl MainNodeBuilder {
                 }
                 Component::EthTxManager => {
                     self = self.add_eth_tx_manager_layer()?;
-                }
-                Component::TeeVerifierInputProducer => {
-                    self = self.add_tee_verifier_input_producer_layer()?;
                 }
                 Component::Housekeeper => {
                     self = self

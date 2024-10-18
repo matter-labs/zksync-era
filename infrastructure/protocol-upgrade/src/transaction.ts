@@ -27,10 +27,24 @@ import * as path from 'path';
 const testConfigPath = path.join(process.env.ZKSYNC_HOME as string, `etc/test_config/constant`);
 const ethTestConfig = JSON.parse(fs.readFileSync(`${testConfigPath}/eth.json`, { encoding: 'utf-8' }));
 
+export enum Action {
+    Add = 0,
+    Replace = 1,
+    Remove = 2
+}
+
 export interface DiamondCutData {
     facetCuts: FacetCut[];
     initAddress: string;
     initCalldata: string;
+}
+
+export interface ChainCreationParams {
+    genesisUpgrade: string;
+    genesisBatchHash: string;
+    genesisIndexRepeatedStorageChanges: number;
+    genesisBatchCommitment: string;
+    diamondCut: DiamondCutData;
 }
 
 export interface ForceDeployment {
@@ -186,6 +200,10 @@ export function prepareUpgradeCalldata(
     upgradeAddress: string,
     facetCuts: FacetCut[],
     zksyncAddress: string,
+    genesisUpgradeAddress: string,
+    genesisBatchHash: string,
+    genesisIndexRepeatedStorageChanges: number,
+    genesisBatchCommitment: string,
     prepareDirectOperation?: boolean,
     chainId?: string
 ) {
@@ -194,6 +212,21 @@ export function prepareUpgradeCalldata(
         initAddress: upgradeAddress,
         initCalldata
     };
+
+    let chainCreationDiamondCut: DiamondCutData = {
+        facetCuts: facetCuts.filter((cut) => cut.action == Action.Add),
+        initAddress: genesisUpgradeAddress,
+        initCalldata: '0x'
+    };
+
+    let chainCreationParams: ChainCreationParams = {
+        genesisUpgrade: genesisUpgradeAddress,
+        genesisBatchHash,
+        genesisIndexRepeatedStorageChanges,
+        genesisBatchCommitment,
+        diamondCut: chainCreationDiamondCut
+    };
+
     // Prepare calldata for STM
     let stm = new StateTransitionManagerFactory();
     const stmUpgradeCalldata = stm.interface.encodeFunctionData('setNewVersionUpgrade', [
@@ -201,6 +234,10 @@ export function prepareUpgradeCalldata(
         oldProtocolVersion,
         oldProtocolVersionDeadline,
         newProtocolVersion
+    ]);
+
+    const stmSetChainCreationCalldata = stm.interface.encodeFunctionData('setChainCreationParams', [
+        chainCreationParams
     ]);
 
     // Prepare calldata for upgrading diamond proxy
@@ -215,7 +252,8 @@ export function prepareUpgradeCalldata(
     let result: any = {
         stmUpgradeCalldata,
         chainAdminUpgradeCalldata,
-        diamondCut
+        diamondCut,
+        stmSetChainCreationCalldata
     };
 
     if (prepareDirectOperation) {
@@ -242,6 +280,10 @@ export function buildDefaultUpgradeTx(
     upgradeTimestamp,
     zksyncAddress,
     postUpgradeCalldataFlag,
+    genesisUpgradeAddress,
+    genesisBatchHash,
+    genesisIndexRepeatedStorageChanges,
+    genesisBatchCommitment,
     prepareDirectOperation?,
     chainId?
 ) {
@@ -329,6 +371,10 @@ export function buildDefaultUpgradeTx(
         upgradeAddress,
         facetCuts,
         zksyncAddress,
+        genesisUpgradeAddress,
+        genesisBatchHash,
+        genesisIndexRepeatedStorageChanges,
+        genesisBatchCommitment,
         prepareDirectOperation,
         chainId
     );
@@ -376,7 +422,11 @@ command
     .option('--zksync-address <zksyncAddress>')
     .option('--chain-id <chainId>')
     .option('--prepare-direct-operation <prepareDirectOperation>')
-    .option('--post-upgrade-calldata')
+    .option('--post-upgrade-calldata <postUpgradeCalldata>')
+    .option('--genesis-upgrade-address <genesisUpgradeAddress>')
+    .option('--genesis-batch-hash <genesisBatchHash>')
+    .option('--genesis-index-repeated-storage-changes <genesisIndexRepeatedStorageChanges>')
+    .option('--genesis-batch-commitment <genesisBatchCommitment>')
     .action(async (options) => {
         buildDefaultUpgradeTx(
             options.environment,
@@ -386,6 +436,10 @@ command
             options.upgradeTimestamp,
             options.zksyncAddress,
             options.postUpgradeCalldata,
+            options.genesisUpgradeAddress,
+            options.genesisBatchHash,
+            options.genesisIndexRepeatedStorageChanges,
+            options.genesisBatchCommitment,
             options.prepareDirectOperation,
             options.chainId
         );
