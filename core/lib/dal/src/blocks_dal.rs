@@ -2066,19 +2066,26 @@ impl BlocksDal<'_, '_> {
         &mut self,
         batch_to_keep: L1BatchNumber,
     ) -> DalResult<()> {
-        sqlx::query!(
+        let deleted_row = sqlx::query!(
             r#"
             DELETE FROM l1_batches
             WHERE
                 number > $1
                 AND NOT is_sealed
+            RETURNING number
             "#,
             i64::from(batch_to_keep.0)
         )
         .instrument("delete_unsealed_l1_batch")
         .with_arg("batch_to_keep", &batch_to_keep)
-        .execute(self.storage)
+        .fetch_optional(self.storage)
         .await?;
+        if let Some(deleted_row) = deleted_row {
+            tracing::info!(
+                l1_batch_number = %deleted_row.number,
+                "Deleted unsealed batch"
+            );
+        }
         Ok(())
     }
 

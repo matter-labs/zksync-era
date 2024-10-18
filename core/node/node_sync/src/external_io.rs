@@ -157,7 +157,7 @@ impl StateKeeperIO for ExternalIO {
         let Some(mut pending_l2_block_header) = pending_l2_block_header else {
             tracing::info!(
                 l1_batch_number = %cursor.l1_batch,
-                "Empty unsealed batch found; deleting it as we need at least one L2 block to initialize"
+                "No pending L2 blocks found; pruning unsealed batch if exists as we need at least one L2 block to initialize"
             );
             storage
                 .blocks_dal()
