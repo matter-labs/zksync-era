@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{BufWriter, Read, Write},
+    io::{Read, Write},
     path::Path,
     str::FromStr,
 };
@@ -161,17 +161,12 @@ fn lint_autocompletion_files(_shell: &Shell, check: bool) -> anyhow::Result<()> 
     let shells = ["bash", "zsh"];
 
     for shell in &shells {
-        let tmp_path = completion_folder.join(format!("_tmp_zkstack_{}", shell));
-        let tmp_file = File::create(tmp_path.clone()).context("Failed to create file")?;
-        let mut writer = BufWriter::new(tmp_file);
+        let mut writer = Vec::new();
 
         generate_completions(clap_complete::Shell::from_str(shell).unwrap(), &mut writer)
             .context("Failed to generate autocompletion file")?;
-        writer.flush()?;
 
-        let mut new = String::new();
-        let mut tmp_file = File::open(tmp_path).context("Failed to create file")?;
-        tmp_file.read_to_string(&mut new)?;
+        let new = writer.iter().map(|b| *b as char).collect::<String>();
 
         let path = completion_folder.join(format!("_zkstack_{}", shell));
         let mut old = String::new();

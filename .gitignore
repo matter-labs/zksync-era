@@ -119,5 +119,3 @@ configs/*
 era-observability/
 core/tests/ts-integration/deployments-zk
 transactions/
-_tmp_zkstack_bash
-_tmp_zkstack_zsh
