@@ -69,9 +69,9 @@ pub enum InceptionSubcommands {
     /// Run block-explorer
     #[command(subcommand)]
     Explorer(ExplorerCommands),
-    /// Update ZKsync
     #[command(subcommand)]
     Consensus(consensus::Command),
+    /// Update ZKsync
     #[command(alias = "u")]
     Update(UpdateArgs),
     #[command(hide = true)]
