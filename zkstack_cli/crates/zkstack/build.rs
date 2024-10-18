@@ -1,8 +1,9 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
-use dirs::{config_local_dir, home_dir};
 use ethers::contract::Abigen;
+
+const COMPLETION_DIR: &str = "completion";
 
 fn main() -> anyhow::Result<()> {
     let outdir = PathBuf::from(std::env::var("OUT_DIR")?).canonicalize()?;
@@ -14,8 +15,8 @@ fn main() -> anyhow::Result<()> {
         .context("Failed to write ABI to file")?;
 
     if let Err(e) = configure_shell_autocompletion() {
-        println!("WARNING: It was not possible to install autocomplete scripts. Please generate them manually with `zkstack autocomplete`");
-        println!("ERROR: {}", e);
+        println!("cargo:warning=It was not possible to install autocomplete scripts. Please generate them manually with `zkstack autocomplete`");
+        println!("cargo:error={}", e);
     };
 
     zksync_protobuf_build::Config {
@@ -31,50 +32,100 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn configure_shell_autocompletion() -> anyhow::Result<()> {
-    let crate_name = env!("CARGO_PKG_NAME");
-
-    // Create local config directory
-    let local_config_dir = config_local_dir().unwrap().join(crate_name);
-    std::fs::create_dir_all(&local_config_dir)
-        .context("it was impossible to create the configuration directory")?;
-
     // Array of supported shells
-    let shells = ["bash", "zsh"];
+    let shells = [
+        clap_complete::Shell::Bash,
+        clap_complete::Shell::Fish,
+        clap_complete::Shell::Zsh,
+    ];
 
-    // Copy completion files
-    let completion_dir = local_config_dir.join("completion");
+    for shell in shells {
+        std::fs::create_dir_all(&shell.autocomplete_folder()?)
+            .context("it was impossible to create the configuration directory")?;
 
-    for shell in &shells {
-        let completion_file = format!("_{}_{}", crate_name, shell);
-        std::fs::copy(
-            format!("completion/{}", &completion_file),
-            completion_dir.join(&completion_file),
-        )?;
+        let src = Path::new(COMPLETION_DIR).join(shell.autocomplete_file_name()?);
+        let dst = shell
+            .autocomplete_folder()?
+            .join(shell.autocomplete_file_name()?);
 
-        // Source the completion file inside .{shell}rc
-        let shell_rc = home_dir()
-            .context("missing home directory")?
-            .join(format!(".{}rc", shell));
+        std::fs::copy(src, dst)?;
 
-        if shell_rc.exists() {
-            let shell_rc_content = std::fs::read_to_string(&shell_rc)
-                .context(format!("could not read .{}rc", shell))?;
-
-            if !shell_rc_content.contains("# zkstack completion") {
-                let completion_path = completion_dir.join(&completion_file);
-                let completion_path = completion_path.to_str().unwrap();
-
-                std::fs::write(
-                    shell_rc,
-                    format!(
-                        "{}\n# zkstack completion\nsource \"{}\"\n",
-                        shell_rc_content, completion_path
-                    ),
-                )
-                .context(format!("could not write .{}rc", shell))?;
-            }
-        }
+        shell
+            .autocomplete_extra()
+            .context("failed to run extra configuration requirements")?;
     }
 
     Ok(())
+}
+
+pub trait ShellAutocomplete {
+    fn autocomplete_folder(&self) -> anyhow::Result<PathBuf>;
+    fn autocomplete_file_name(&self) -> anyhow::Result<String>;
+    fn autocomplete_extra(&self) -> anyhow::Result<()>;
+}
+
+impl ShellAutocomplete for clap_complete::Shell {
+    fn autocomplete_folder(&self) -> anyhow::Result<PathBuf> {
+        let home_dir = dirs::home_dir().context("missing home folder")?;
+
+        match self {
+            clap_complete::Shell::Bash => Ok(home_dir.join(".bash_completion.d")),
+            clap_complete::Shell::Fish => Ok(home_dir.join(".config/fish/completions")),
+            clap_complete::Shell::Zsh => Ok(home_dir.join(".zsh/completion")),
+            _ => anyhow::bail!("unsupported shell"),
+        }
+    }
+
+    fn autocomplete_file_name(&self) -> anyhow::Result<String> {
+        let crate_name = env!("CARGO_PKG_NAME");
+
+        match self {
+            clap_complete::Shell::Bash => Ok(format!("{}.sh", crate_name)),
+            clap_complete::Shell::Fish => Ok(format!("{}.fish", crate_name)),
+            clap_complete::Shell::Zsh => Ok(format!("_{}.zsh", crate_name)),
+            _ => anyhow::bail!("unsupported shell"),
+        }
+    }
+
+    fn autocomplete_extra(&self) -> anyhow::Result<()> {
+        match self {
+            clap_complete::Shell::Bash | clap_complete::Shell::Zsh => {
+                let shell = &self.to_string().to_lowercase();
+                let completion_file = self
+                    .autocomplete_folder()?
+                    .join(self.autocomplete_file_name()?);
+
+                // Source the completion file inside .{shell}rc
+                let shell_rc = dirs::home_dir()
+                    .context("missing home directory")?
+                    .join(format!(".{}rc", shell));
+
+                if shell_rc.exists() {
+                    let shell_rc_content = std::fs::read_to_string(&shell_rc)
+                        .context(format!("could not read .{}rc", shell))?;
+
+                    if !shell_rc_content.contains("# zkstack completion") {
+                        std::fs::write(
+                            shell_rc,
+                            format!(
+                                "{}\n# zkstack completion\nsource \"{}\"\n",
+                                shell_rc_content,
+                                completion_file.to_str().unwrap()
+                            ),
+                        )
+                        .context(format!("could not write .{}rc", shell))?;
+                    }
+                } else {
+                    println!(
+                        "cargo:warning=Please add the following line to your .{}rc:",
+                        shell
+                    );
+                    println!("cargo:warning=source {}", completion_file.to_str().unwrap());
+                }
+            }
+            _ => (),
+        }
+
+        Ok(())
+    }
 }

@@ -2,7 +2,6 @@ use std::{
     fs::File,
     io::{Read, Write},
     path::Path,
-    str::FromStr,
 };
 
 use anyhow::{bail, Context};
@@ -12,7 +11,7 @@ use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
 use crate::commands::{
-    autocomplete::generate_completions,
+    autocomplete::{generate_completions, ShellAutocomplete},
     dev::{
         commands::lint_utils::{get_unignored_files, Target},
         messages::{
@@ -158,19 +157,23 @@ fn lint_autocompletion_files(_shell: &Shell, check: bool) -> anyhow::Result<()> 
     }
 
     // Array of supported shells
-    let shells = ["bash", "zsh", "fish"];
+    let shells = [
+        clap_complete::Shell::Bash,
+        clap_complete::Shell::Fish,
+        clap_complete::Shell::Zsh,
+    ];
 
-    for shell in &shells {
+    for shell in shells {
         let mut writer = Vec::new();
 
-        generate_completions(clap_complete::Shell::from_str(shell).unwrap(), &mut writer)
+        generate_completions(shell, &mut writer)
             .context("Failed to generate autocompletion file")?;
 
         let new = String::from_utf8(writer)?;
 
-        let path = completion_folder.join(format!("_zkstack_{}", shell));
-        let mut autocomplete_file =
-            File::open(path.clone()).context(format!("failed to open _zkstack_{}", shell))?;
+        let path = completion_folder.join(&Path::new(shell.autocomplete_file_name().as_str()));
+        let mut autocomplete_file = File::open(path.clone())
+            .context(format!("failed to open {}", shell.autocomplete_file_name()))?;
 
         let mut old = String::new();
         autocomplete_file.read_to_string(&mut old)?;
