@@ -44,9 +44,6 @@ impl TeeProofGenerationDal<'_, '_> {
                 FROM
                     proof_generation_details p
                 LEFT JOIN
-                    l1_batches l1
-                    ON p.l1_batch_number = l1.number
-                LEFT JOIN
                     tee_proof_generation_details tee
                     ON
                         p.l1_batch_number = tee.l1_batch_number
@@ -56,9 +53,6 @@ impl TeeProofGenerationDal<'_, '_> {
                         p.l1_batch_number >= $5
                         AND p.vm_run_data_blob_url IS NOT NULL
                         AND p.proof_gen_data_blob_url IS NOT NULL
-                        AND l1.hash IS NOT NULL
-                        AND l1.aux_data_hash IS NOT NULL
-                        AND l1.meta_parameters_hash IS NOT NULL
                     )
                     AND (
                         tee.l1_batch_number IS NULL
