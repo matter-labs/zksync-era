@@ -1,4 +1,4 @@
-FROM ubuntu:20.04@sha256:3246518d9735254519e1b2ff35f95686e4a5011c90c85344c1f38df7bae9dd37 as base
+FROM ubuntu:22.04@sha256:3d1556a8a18cf5307b121e0a98e93f1ddf1f3f8e092f1fddfd941254785b95d7 as base
 
 # Link Docker Image with repository
 # https://docs.github.com/en/packages/learn-github-packages/connecting-a-repository-to-a-package#connecting-a-repository-to-a-container-image-using-the-command-line
@@ -16,7 +16,7 @@ RUN apt-get update && apt-get install -y \
     git \
     openssl \
     libssl-dev \
-    gcc \
+    gcc-10 \
     g++ \
     curl \
     pkg-config \
@@ -31,19 +31,19 @@ RUN apt-get update && apt-get install -y \
     wget \
     bzip2 \
     unzip \
-    hub
+    hub \
+    curl \
+    gnutls-bin git \
+    build-essential \
+    clang \
+    lldb \
+    lld
 
 # Install dependencies for RocksDB. `liburing` is not available for Ubuntu 20.04,
 # so we use a PPA with the backport
 RUN add-apt-repository ppa:savoury1/virtualisation && \
     apt-get update && \
     apt-get install -y \
-    curl \
-    gnutls-bin git \
-    build-essential \
-    clang \
-    lldb \
-    lld \
     liburing-dev \
     libclang-dev
 
@@ -82,6 +82,11 @@ RUN rustup install nightly-2024-08-01
 RUN rustup default stable
 RUN cargo install --version=0.8.0 sqlx-cli
 RUN cargo install cargo-nextest
+
+RUN git clone https://github.com/matter-labs/foundry-zksync
+RUN cd foundry-zksync && cargo build --release --bins
+RUN mv ./foundry-zksync/target/release/forge /usr/local/cargo/bin/
+RUN mv ./foundry-zksync/target/release/cast /usr/local/cargo/bin/
 
 # Copy compiler (both solc and zksolc) binaries
 # Obtain `solc` 0.8.20.
