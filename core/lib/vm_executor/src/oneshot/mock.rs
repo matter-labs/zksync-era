@@ -95,7 +95,7 @@ impl MockOneshotExecutor {
 
     fn mock_inspect(&self, env: &OneshotEnv, args: TxExecutionArgs) -> VmExecutionResultAndLogs {
         match env.system.execution_mode {
-            TxExecutionMode::EthCall => (self.call_responses)(&args.transaction, &env),
+            TxExecutionMode::EthCall => (self.call_responses)(&args.transaction, env),
             TxExecutionMode::VerifyExecute | TxExecutionMode::EstimateFee => {
                 (self.tx_responses)(&args.transaction, env)
             }

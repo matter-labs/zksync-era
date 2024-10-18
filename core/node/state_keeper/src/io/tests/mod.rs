@@ -786,7 +786,7 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
         .expect("Failed to find transaction")
         .unwrap();
     assert_eq!(
-        "rejected: Transaction failed block.timestamp constraint",
+        "rejected: Transaction failed block.timestamp assertion",
         rejected_storage_tx_2.error.unwrap()
     );
 }
