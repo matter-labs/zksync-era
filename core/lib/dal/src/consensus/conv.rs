@@ -141,10 +141,10 @@ impl ProtoFmt for Payload {
             Some(PubdataParams {
                 l2_da_validator_address: required(&pubdata_params.l2_da_validator_address)
                     .and_then(|a| parse_h160(a))
-                    .context("operator_address")?,
+                    .context("l2_da_validator_address")?,
                 pubdata_type: required(&pubdata_params.pubdata_type)
                     .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
-                    .context("l1_batch_commit_data_generator_mode")?
+                    .context("pubdata_type")?
                     .parse(),
             })
         } else {

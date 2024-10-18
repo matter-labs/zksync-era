@@ -22,6 +22,7 @@ use zksync_multivm::{
 use zksync_prover_interface::inputs::{
     StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
 };
+use zksync_types::commitment::PubdataParams;
 use zksync_types::{
     block::L2BlockExecutionData, L1BatchNumber, StorageLog, StorageValue, Transaction, H256,
 };
@@ -88,13 +89,8 @@ impl Verify for V1TeeVerifierInput {
 
         let storage_snapshot = StorageSnapshot::new(storage, factory_deps);
         let storage_view = StorageView::new(storage_snapshot).to_rc_ptr();
-        let vm = LegacyVmInstance::new(
-            self.l1_batch_env,
-            self.system_env,
-            storage_view,
-            Some(pubdata_params_to_builder(self.pubdata_params)),
-        );
-        let vm_out = execute_vm(self.l2_blocks_execution_data, vm)?;
+        let vm = LegacyVmInstance::new(self.l1_batch_env, self.system_env, storage_view);
+        let vm_out = execute_vm(self.l2_blocks_execution_data, vm, self.pubdata_params)?;
 
         let block_output_with_proofs = get_bowp(self.merkle_paths)?;
 
@@ -184,6 +180,7 @@ fn get_bowp(witness_input_merkle_paths: WitnessInputMerklePaths) -> Result<Block
 fn execute_vm<S: ReadStorage>(
     l2_blocks_execution_data: Vec<L2BlockExecutionData>,
     mut vm: LegacyVmInstance<S, HistoryEnabled>,
+    pubdata_params: PubdataParams,
 ) -> anyhow::Result<FinishedL1Batch> {
     let next_l2_blocks_data = l2_blocks_execution_data.iter().skip(1);
 
@@ -212,7 +209,7 @@ fn execute_vm<S: ReadStorage>(
 
     tracing::trace!("about to vm.finish_batch()");
 
-    Ok(vm.finish_batch())
+    Ok(vm.finish_batch(Some(pubdata_params_to_builder(pubdata_params))))
 }
 
 /// Map `LogQuery` and `TreeLogEntry` to a `TreeInstruction`

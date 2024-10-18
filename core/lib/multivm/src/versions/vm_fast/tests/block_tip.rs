@@ -17,7 +17,7 @@ use super::{
     utils::{get_complex_upgrade_abi, read_complex_upgrade},
 };
 use crate::{
-    interface::{L1BatchEnv, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    interface::{InspectExecutionMode, L1BatchEnv, TxExecutionMode, VmInterface, VmInterfaceExt},
     versions::testonly::default_l1_batch,
     vm_latest::constants::{
         BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
@@ -158,7 +158,7 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
 
         vm.vm.push_transaction(tx);
 
-        let result = vm.vm.execute(VmExecutionMode::OneTx);
+        let result = vm.vm.execute(InspectExecutionMode::OneTx);
         assert!(
             !result.result.is_failed(),
             "Transaction {i} wasn't successful for input: {test_data:#?}"
@@ -170,18 +170,28 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
     vm.vm.enforce_state_diffs(test_data.state_diffs.clone());
     let gas_before = vm.vm.gas_remaining();
 
-    let result = vm.vm.execute(VmExecutionMode::Batch);
+    let result = vm.vm.finish_batch(None);
     assert!(
-        !result.result.is_failed(),
+        !result.block_tip_execution_result.result.is_failed(),
         "Batch wasn't successful for input: {test_data:?}"
     );
     let gas_after = vm.vm.gas_remaining();
-    assert_eq!((gas_before - gas_after) as u64, result.statistics.gas_used);
+    assert_eq!(
+        (gas_before - gas_after) as u64,
+        result.block_tip_execution_result.statistics.gas_used
+    );
 
     TestStatistics {
         max_used_gas: gas_before - gas_after,
-        circuit_statistics: result.statistics.circuit_statistic.total() as u64,
-        execution_metrics_size: result.get_execution_metrics(None).size() as u64,
+        circuit_statistics: result
+            .block_tip_execution_result
+            .statistics
+            .circuit_statistic
+            .total() as u64,
+        execution_metrics_size: result
+            .block_tip_execution_result
+            .get_execution_metrics(None)
+            .size() as u64,
     }
 }
 

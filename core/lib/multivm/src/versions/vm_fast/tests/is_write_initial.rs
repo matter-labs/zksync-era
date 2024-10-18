@@ -2,7 +2,7 @@ use zksync_types::get_nonce_key;
 
 use crate::{
     interface::{
-        storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
+        storage::ReadStorage, InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt,
     },
     vm_fast::tests::{
         tester::{Account, TxType, VmTesterBuilder},
@@ -35,7 +35,7 @@ fn test_is_write_initial_behaviour() {
     let tx = account.get_deploy_tx(&contract_code, None, TxType::L2).tx;
 
     vm.vm.push_transaction(tx);
-    vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
 
     // Check that `is_write_initial` still returns true for the nonce key.
     assert!(vm

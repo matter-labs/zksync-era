@@ -166,36 +166,23 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage_ptr: StoragePtr<StorageView<S>>,
-        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
         mode: FastVmMode,
     ) -> Self {
         if !is_supported_by_fast_vm(system_env.version) {
-            return Self::Legacy(LegacyVmInstance::new(
-                l1_batch_env,
-                system_env,
-                storage_ptr,
-                pubdata_builder,
-            ));
+            return Self::Legacy(LegacyVmInstance::new(l1_batch_env, system_env, storage_ptr));
         }
 
         match mode {
-            FastVmMode::Old => Self::Legacy(LegacyVmInstance::new(
-                l1_batch_env,
-                system_env,
-                storage_ptr,
-                pubdata_builder,
-            )),
-            FastVmMode::New => Self::Fast(FastVmInstance::fast(
-                l1_batch_env,
-                system_env,
-                storage_ptr,
-                pubdata_builder,
-            )),
+            FastVmMode::Old => {
+                Self::Legacy(LegacyVmInstance::new(l1_batch_env, system_env, storage_ptr))
+            }
+            FastVmMode::New => {
+                Self::Fast(FastVmInstance::fast(l1_batch_env, system_env, storage_ptr))
+            }
             FastVmMode::Shadow => Self::Fast(FastVmInstance::shadowed(
                 l1_batch_env,
                 system_env,
                 storage_ptr,
-                pubdata_builder,
             )),
         }
     }
@@ -204,8 +191,8 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         dispatch_batch_vm!(self.start_new_l2_block(l2_block));
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        dispatch_batch_vm!(self.finish_batch())
+    fn finish_batch(&mut self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> FinishedL1Batch {
+        dispatch_batch_vm!(self.finish_batch(pubdata_builder))
     }
 
     fn make_snapshot(&mut self) {
@@ -290,7 +277,6 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
             l1_batch_params,
             system_env,
             storage_view.clone(),
-            pubdata_builder,
             self.fast_vm_mode,
         );
         let mut batch_finished = false;
@@ -333,7 +319,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     }
                 }
                 Command::FinishBatch(resp) => {
-                    let vm_block_result = self.finish_batch(&mut vm)?;
+                    let vm_block_result = self.finish_batch(&mut vm, pubdata_builder)?;
                     if resp.send(vm_block_result).is_err() {
                         break;
                     }
@@ -388,10 +374,14 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         latency.observe();
     }
 
-    fn finish_batch(&self, vm: &mut BatchVm<S, Tr>) -> anyhow::Result<FinishedL1Batch> {
+    fn finish_batch(
+        &self,
+        vm: &mut BatchVm<S, Tr>,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) -> anyhow::Result<FinishedL1Batch> {
         // The vm execution was paused right after the last transaction was executed.
         // There is some post-processing work that the VM needs to do before the block is fully processed.
-        let result = vm.finish_batch();
+        let result = vm.finish_batch(pubdata_builder);
         anyhow::ensure!(
             !result.block_tip_execution_result.result.is_failed(),
             "VM must not fail when finalizing block: {:#?}",
@@ -496,7 +486,6 @@ mod tests {
                 l1_batch_env.clone(),
                 system_env.clone(),
                 storage.clone(),
-                Some(Rc::new(RollupPubdataBuilder::new(Default::default()))),
                 mode,
             );
             assert_matches!(vm, BatchVm::Legacy(_));
@@ -507,7 +496,6 @@ mod tests {
             l1_batch_env.clone(),
             system_env.clone(),
             storage.clone(),
-            Some(Rc::new(RollupPubdataBuilder::new(Default::default()))),
             FastVmMode::Old,
         );
         assert_matches!(vm, BatchVm::Legacy(_));
@@ -515,17 +503,10 @@ mod tests {
             l1_batch_env.clone(),
             system_env.clone(),
             storage.clone(),
-            Some(Rc::new(RollupPubdataBuilder::new(Default::default()))),
             FastVmMode::New,
         );
         assert_matches!(vm, BatchVm::Fast(FastVmInstance::Fast(_)));
-        let vm = BatchVm::<_, ()>::new(
-            l1_batch_env,
-            system_env,
-            storage,
-            Some(Rc::new(RollupPubdataBuilder::new(Default::default()))),
-            FastVmMode::Shadow,
-        );
+        let vm = BatchVm::<_, ()>::new(l1_batch_env, system_env, storage, FastVmMode::Shadow);
         assert_matches!(vm, BatchVm::Fast(FastVmInstance::Shadowed(_)));
     }
 }

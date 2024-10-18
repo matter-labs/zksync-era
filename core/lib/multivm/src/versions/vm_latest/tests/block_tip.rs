@@ -15,7 +15,7 @@ use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u25
 
 use super::utils::{get_complex_upgrade_abi, read_complex_upgrade};
 use crate::{
-    interface::{L1BatchEnv, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    interface::{InspectExecutionMode, L1BatchEnv, TxExecutionMode, VmInterface, VmInterfaceExt},
     vm_latest::{
         constants::{
             BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
@@ -174,7 +174,7 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
 
         vm.vm.push_transaction(tx);
 
-        let result = vm.vm.execute(VmExecutionMode::OneTx);
+        let result = vm.vm.execute(InspectExecutionMode::OneTx);
         assert!(
             !result.result.is_failed(),
             "Transaction {i} wasn't successful for input: {:#?}",
@@ -190,14 +190,14 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
     // We ensure that indeed the provided state diffs are used
     let pubdata_tracer = PubdataTracer::<InMemoryStorageView>::new_with_forced_state_diffs(
         vm.vm.batch_env.clone(),
-        VmExecutionMode::Batch,
+        InspectExecutionMode::Batch,
         test_data.state_diffs.clone(),
         crate::vm_latest::MultiVMSubversion::latest(),
     );
 
     let result = vm.vm.inspect_inner(
         &mut TracerDispatcher::default(),
-        VmExecutionMode::Batch,
+        InspectExecutionMode::Batch,
         Some(pubdata_tracer),
     );
 

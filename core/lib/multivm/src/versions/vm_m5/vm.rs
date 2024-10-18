@@ -3,13 +3,14 @@ use std::rc::Rc;
 use zksync_types::{vm::VmVersion, Transaction};
 use zksync_utils::h256_to_u256;
 use zksync_vm_interface::pubdata::PubdataBuilder;
+use zksync_vm_interface::InspectExecutionMode;
 
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
         storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-        SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     vm_m5::{
         storage::Storage,
@@ -74,10 +75,10 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
     fn inspect(
         &mut self,
         _tracer: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         match execution_mode {
-            VmExecutionMode::OneTx => match self.system_env.execution_mode {
+            InspectExecutionMode::OneTx => match self.system_env.execution_mode {
                 TxExecutionMode::VerifyExecute => self.vm.execute_next_tx().glue_into(),
                 TxExecutionMode::EstimateFee | TxExecutionMode::EthCall => self
                     .vm
@@ -86,8 +87,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
                     )
                     .glue_into(),
             },
-            VmExecutionMode::Batch => self.finish_batch().block_tip_execution_result,
-            VmExecutionMode::Bootloader => self.vm.execute_block_tip().glue_into(),
+            InspectExecutionMode::Bootloader => self.vm.execute_block_tip().glue_into(),
         }
     }
 
@@ -109,11 +109,14 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
         // Bytecode compression isn't supported
         (
             Ok(vec![].into()),
-            self.inspect(&mut (), VmExecutionMode::OneTx),
+            self.inspect(&mut (), InspectExecutionMode::OneTx),
         )
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
+    fn finish_batch(
+        &mut self,
+        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) -> FinishedL1Batch {
         self.vm
             .execute_till_block_end(
                 crate::vm_m5::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
@@ -123,12 +126,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 }
 
 impl<S: Storage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
-    fn new(
-        batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        storage: StoragePtr<S>,
-        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
-    ) -> Self {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let vm_version: VmVersion = system_env.version.into();
         let vm_sub_version = match vm_version {
             VmVersion::M5WithoutRefunds => MultiVMSubversion::V1,

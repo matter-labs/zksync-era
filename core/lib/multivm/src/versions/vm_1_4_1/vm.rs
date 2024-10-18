@@ -6,6 +6,7 @@ use zksync_types::{
     Transaction,
 };
 use zksync_vm_interface::pubdata::PubdataBuilder;
+use zksync_vm_interface::InspectExecutionMode;
 
 use crate::{
     glue::GlueInto,
@@ -93,9 +94,9 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     fn inspect(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        self.inspect_inner(tracer, execution_mode, None)
+        self.inspect_inner(tracer, execution_mode.into(), None)
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
@@ -126,8 +127,15 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.inspect(&mut TracerDispatcher::default(), VmExecutionMode::Batch);
+    fn finish_batch(
+        &mut self,
+        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) -> FinishedL1Batch {
+        let result = self.inspect_inner(
+            &mut TracerDispatcher::default(),
+            VmExecutionMode::Batch,
+            None,
+        );
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {
@@ -146,12 +154,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
-    fn new(
-        batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        storage: StoragePtr<S>,
-        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
-    ) -> Self {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
         Self {
             bootloader_state,

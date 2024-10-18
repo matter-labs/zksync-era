@@ -12,7 +12,8 @@ use zksync_vm2::{interface::Tracer, WorldDiff};
 use crate::{
     interface::{
         storage::{InMemoryStorage, StoragePtr},
-        L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmInterface,
+        InspectExecutionMode, L1BatchEnv, L2Block, L2BlockEnv, SystemEnv, TxExecutionMode,
+        VmInterface,
     },
     versions::{
         testonly::{default_l1_batch, default_system_env, make_account_rich, ContractToDeploy},
@@ -42,7 +43,8 @@ impl<Tr: Tracer + Default + 'static> VmTester<Tr> {
             .tx;
         let nonce = tx.nonce().unwrap().0.into();
         self.vm.push_transaction(tx);
-        self.vm.inspect(&mut Tr::default(), VmExecutionMode::OneTx);
+        self.vm
+            .inspect(&mut Tr::default(), InspectExecutionMode::OneTx);
         let deployed_address =
             deployed_address_create(self.deployer.as_ref().unwrap().address, nonce);
         self.test_contract = Some(deployed_address);

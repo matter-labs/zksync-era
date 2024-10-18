@@ -2,7 +2,7 @@ use zk_evm_1_5_0::zk_evm_abstractions::precompiles::PrecompileAddress;
 use zksync_types::{Address, Execute};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterface},
     vm_latest::{
         constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
         tests::{tester::VmTesterBuilder, utils::read_precompiles_contract},
@@ -41,7 +41,7 @@ fn test_keccak() {
     vm.vm.push_transaction(tx);
     let _ = vm
         .vm
-        .inspect(&mut Default::default(), VmExecutionMode::OneTx);
+        .inspect(&mut Default::default(), InspectExecutionMode::OneTx);
 
     let keccak_count = vm
         .vm
@@ -87,7 +87,7 @@ fn test_sha256() {
     vm.vm.push_transaction(tx);
     let _ = vm
         .vm
-        .inspect(&mut Default::default(), VmExecutionMode::OneTx);
+        .inspect(&mut Default::default(), InspectExecutionMode::OneTx);
 
     let sha_count = vm
         .vm
@@ -126,7 +126,7 @@ fn test_ecrecover() {
     vm.vm.push_transaction(tx);
     let _ = vm
         .vm
-        .inspect(&mut Default::default(), VmExecutionMode::OneTx);
+        .inspect(&mut Default::default(), InspectExecutionMode::OneTx);
 
     let ecrecover_count = vm
         .vm

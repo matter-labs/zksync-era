@@ -11,7 +11,7 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use crate::{
     interface::{
-        storage::ReadStorage, ExecutionResult, TxExecutionMode, VmExecutionMode,
+        storage::ReadStorage, ExecutionResult, InspectExecutionMode, TxExecutionMode,
         VmExecutionResultAndLogs, VmInterface, VmInterfaceExt,
     },
     versions::testonly::ContractToDeploy,
@@ -39,7 +39,7 @@ fn test_get_used_contracts() {
     let mut account = Account::random();
     let tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 0 });
     vm.vm.push_transaction(tx.tx.clone());
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed());
 
     assert!(vm
@@ -76,7 +76,7 @@ fn test_get_used_contracts() {
 
     vm.vm.push_transaction(tx2.clone());
 
-    let res2 = vm.vm.execute(VmExecutionMode::OneTx);
+    let res2 = vm.vm.execute(InspectExecutionMode::OneTx);
 
     assert!(res2.result.is_failed());
 

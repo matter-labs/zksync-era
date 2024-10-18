@@ -1,5 +1,5 @@
 use crate::{
-    interface::{TxExecutionMode, VmEvent, VmExecutionMode, VmInterface, VmInterfaceExt},
+    interface::{InspectExecutionMode, TxExecutionMode, VmEvent, VmInterface, VmInterfaceExt},
     utils::bytecode,
     vm_fast::tests::{
         tester::{DeployContractsTx, TxType, VmTesterBuilder},
@@ -24,10 +24,10 @@ fn test_bytecode_publishing() {
 
     let DeployContractsTx { tx, .. } = account.get_deploy_tx(&counter, None, TxType::L2);
     vm.vm.push_transaction(tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    vm.vm.execute(VmExecutionMode::Batch);
+    vm.vm.execute(InspectExecutionMode::Batch);
 
     let state = vm.vm.get_current_execution_state();
     let long_messages = VmEvent::extract_long_l2_to_l1_messages(&state.events);

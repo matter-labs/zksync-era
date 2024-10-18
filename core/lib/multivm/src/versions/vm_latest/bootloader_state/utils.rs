@@ -128,6 +128,20 @@ fn apply_l2_block_inner(
     ])
 }
 
+fn bootloader_memory_input(
+    pubdata_builder: Rc<dyn PubdataBuilder>,
+    input: PubdataInput,
+    protocol_version: ProtocolVersionId,
+) -> Vec<u8> {
+    let l2_da_validator_address = pubdata_builder.l2_da_validator();
+    let operator_input = pubdata_builder.l1_messenger_operator_input(input, protocol_version);
+
+    ethabi::encode(&[
+        ethabi::Token::Address(l2_da_validator_address),
+        ethabi::Token::Bytes(operator_input),
+    ])
+}
+
 pub(crate) fn apply_pubdata_to_memory(
     memory: &mut BootloaderMemory,
     pubdata_builder: Rc<dyn PubdataBuilder>,
@@ -159,7 +173,7 @@ pub(crate) fn apply_pubdata_to_memory(
         let l1_messenger_pubdata_start_slot = OPERATOR_PROVIDED_L1_MESSENGER_PUBDATA_OFFSET + 1;
 
         let pubdata =
-            pubdata_builder.bootloader_memory_input(pubdata_information, protocol_version);
+            bootloader_memory_input(pubdata_builder, pubdata_information, protocol_version);
 
         assert!(
             // Note that unlike the previous version, the difference is `1`, since now it also includes the offset

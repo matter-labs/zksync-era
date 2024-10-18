@@ -3,14 +3,14 @@ use std::{collections::HashSet, rc::Rc};
 use zksync_types::{vm::VmVersion, Transaction};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 use zksync_vm_interface::pubdata::PubdataBuilder;
+use zksync_vm_interface::InspectExecutionMode;
 
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
         storage::StoragePtr, BytecodeCompressionError, BytecodeCompressionResult, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
-        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics,
+        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmFactory,
+        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::old::TracerDispatcher,
     utils::bytecode,
@@ -85,7 +85,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
     fn inspect(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         if let Some(storage_invocations) = tracer.storage_invocations {
             self.vm
@@ -94,7 +94,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
 
         match execution_mode {
-            VmExecutionMode::OneTx => match self.system_env.execution_mode {
+            InspectExecutionMode::OneTx => match self.system_env.execution_mode {
                 TxExecutionMode::VerifyExecute => {
                     let enable_call_tracer = tracer.call_tracer.is_some();
                     let result = self.vm.execute_next_tx(
@@ -113,8 +113,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
                     )
                     .glue_into(),
             },
-            VmExecutionMode::Batch => self.finish_batch().block_tip_execution_result,
-            VmExecutionMode::Bootloader => self.vm.execute_block_tip().glue_into(),
+            InspectExecutionMode::Bootloader => self.vm.execute_block_tip().glue_into(),
         }
     }
 
@@ -204,7 +203,10 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
+    fn finish_batch(
+        &mut self,
+        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) -> FinishedL1Batch {
         self.vm
             .execute_till_block_end(
                 crate::vm_m6::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
@@ -214,12 +216,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
 }
 
 impl<S: Storage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
-    fn new(
-        batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        storage: StoragePtr<S>,
-        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
-    ) -> Self {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let vm_version: VmVersion = system_env.version.into();
         let vm_sub_version = match vm_version {
             VmVersion::M6Initial => MultiVMSubversion::V1,

@@ -8,7 +8,9 @@ use zksync_types::{
 };
 use zksync_utils::{be_words_to_bytes, h256_to_u256, u256_to_h256};
 use zksync_vm_interface::pubdata::PubdataBuilder;
+use zksync_vm_interface::InspectExecutionMode;
 
+use crate::vm_latest::tracers::PubdataTracer;
 use crate::{
     glue::GlueInto,
     interface::{
@@ -147,9 +149,9 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     fn inspect(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        self.inspect_inner(tracer, execution_mode, None)
+        self.inspect_inner(tracer, execution_mode.into(), None)
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
@@ -181,15 +183,32 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.inspect(&mut TracerDispatcher::default(), VmExecutionMode::Batch);
+    fn finish_batch(&mut self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> FinishedL1Batch {
+        let pubdata_builder = pubdata_builder.expect("`pubdata_builder` is required");
+        let pubdata_tracer = Some(PubdataTracer::new(
+            self.batch_env.clone(),
+            VmExecutionMode::Batch,
+            self.subversion,
+            Some(pubdata_builder.clone()),
+        ));
+
+        let result = self.inspect_inner(
+            &mut TracerDispatcher::default(),
+            VmExecutionMode::Batch,
+            pubdata_tracer,
+        );
         let execution_state = self.get_current_execution_state();
-        let bootloader_memory = self.bootloader_state.bootloader_memory();
+        let bootloader_memory = self
+            .bootloader_state
+            .bootloader_memory(pubdata_builder.clone());
         FinishedL1Batch {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
-            pubdata_input: Some(self.bootloader_state.settlement_layer_pubdata()),
+            pubdata_input: Some(
+                self.bootloader_state
+                    .settlement_layer_pubdata(pubdata_builder),
+            ),
             state_diffs: Some(
                 self.bootloader_state
                     .get_pubdata_information()
@@ -201,18 +220,12 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
-    fn new(
-        batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        storage: StoragePtr<S>,
-        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
-    ) -> Self {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let vm_version: VmVersion = system_env.version.into();
         Self::new_with_subversion(
             batch_env,
             system_env,
             storage,
-            pubdata_builder,
             vm_version.try_into().expect("Incorrect 1.5.0 VmVersion"),
         )
     }
@@ -223,12 +236,9 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<S>,
-        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
         subversion: MultiVMSubversion,
     ) -> Self {
-        let pubdata_builder = pubdata_builder.expect("pubdata_builder is required");
-        let (state, bootloader_state) =
-            new_vm_state(storage.clone(), &system_env, &batch_env, pubdata_builder);
+        let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
         Self {
             bootloader_state,
             state,

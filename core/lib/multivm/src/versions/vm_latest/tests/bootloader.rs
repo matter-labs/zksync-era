@@ -2,7 +2,7 @@ use assert_matches::assert_matches;
 use zksync_types::U256;
 
 use crate::{
-    interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterfaceExt},
+    interface::{ExecutionResult, Halt, InspectExecutionMode, TxExecutionMode, VmInterfaceExt},
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
         tests::{
@@ -24,7 +24,7 @@ fn test_dummy_bootloader() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
 
-    let result = vm.vm.execute(VmExecutionMode::Batch);
+    let result = vm.vm.execute(InspectExecutionMode::Batch);
     assert!(!result.result.is_failed());
 
     let correct_first_cell = U256::from_str_radix("123123123", 16).unwrap();
@@ -46,7 +46,7 @@ fn test_bootloader_out_of_gas() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
 
-    let res = vm.vm.execute(VmExecutionMode::Batch);
+    let res = vm.vm.execute(InspectExecutionMode::Batch);
 
     assert_matches!(
         res.result,

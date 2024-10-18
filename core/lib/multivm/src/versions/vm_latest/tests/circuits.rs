@@ -1,7 +1,7 @@
 use zksync_types::{Address, Execute, U256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterface},
     vm_latest::{
         constants::BATCH_COMPUTATIONAL_GAS_LIMIT, tests::tester::VmTesterBuilder, HistoryEnabled,
     },
@@ -32,7 +32,7 @@ fn test_circuits() {
     vm.vm.push_transaction(tx);
     let res = vm
         .vm
-        .inspect(&mut Default::default(), VmExecutionMode::OneTx);
+        .inspect(&mut Default::default(), InspectExecutionMode::OneTx);
 
     let s = res.statistics.circuit_statistic;
     // Check `circuit_statistic`.

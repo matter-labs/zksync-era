@@ -2,8 +2,8 @@ use zksync_types::{Execute, ExecuteTransactionCommon, Nonce};
 
 use crate::{
     interface::{
-        ExecutionResult, Halt, TxExecutionMode, TxRevertReason, VmExecutionMode, VmInterfaceExt,
-        VmRevertReason,
+        ExecutionResult, Halt, InspectExecutionMode, TxExecutionMode, TxRevertReason,
+        VmInterfaceExt, VmRevertReason,
     },
     versions::testonly::ContractToDeploy,
     vm_fast::tests::{
@@ -73,7 +73,7 @@ fn test_nonce_holder() {
         };
         tx_data.signature = vec![test_mode.into()];
         vm.vm.push_transaction_inner(transaction, 0, true);
-        let result = vm.vm.execute(VmExecutionMode::OneTx);
+        let result = vm.vm.execute(InspectExecutionMode::OneTx);
 
         if let Some(msg) = error_message {
             let expected_error =

@@ -2,7 +2,6 @@ use std::rc::Rc;
 
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataParams},
-    ethabi,
     l2_to_l1_log::L2ToL1Log,
     writes::StateDiffRecord,
     Address, ProtocolVersionId, U256,
@@ -94,20 +93,6 @@ pub trait PubdataBuilder: std::fmt::Debug {
         input: PubdataInput,
         protocol_version: ProtocolVersionId,
     ) -> Vec<u8>;
-
-    fn bootloader_memory_input(
-        &self,
-        input: PubdataInput,
-        protocol_version: ProtocolVersionId,
-    ) -> Vec<u8> {
-        let l2_da_validator_address = self.l2_da_validator();
-        let operator_input = self.l1_messenger_operator_input(input, protocol_version);
-
-        ethabi::encode(&[
-            ethabi::Token::Address(l2_da_validator_address),
-            ethabi::Token::Bytes(operator_input),
-        ])
-    }
 }
 
 pub fn pubdata_params_to_builder(params: PubdataParams) -> Rc<dyn PubdataBuilder> {

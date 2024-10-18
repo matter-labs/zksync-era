@@ -3,6 +3,7 @@ use std::{mem, rc::Rc};
 use zksync_types::{vm::VmVersion, ProtocolVersionId, Transaction};
 use zksync_vm2::interface::Tracer;
 use zksync_vm_interface::pubdata::PubdataBuilder;
+use zksync_vm_interface::InspectExecutionMode;
 
 use crate::{
     glue::history_mode::HistoryMode,
@@ -10,8 +11,8 @@ use crate::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
         utils::ShadowVm,
         BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
-        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
-        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
     vm_latest::HistoryEnabled,
@@ -65,7 +66,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     fn inspect(
         &mut self,
         dispatcher: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         dispatch_legacy_vm!(self.inspect(&mut mem::take(dispatcher).into(), execution_mode))
     }
@@ -89,8 +90,8 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     }
 
     /// Return the results of execution of all batch
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        dispatch_legacy_vm!(self.finish_batch())
+    fn finish_batch(&mut self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> FinishedL1Batch {
+        dispatch_legacy_vm!(self.finish_batch(pubdata_builder))
     }
 }
 
@@ -99,17 +100,10 @@ impl<S: ReadStorage, H: HistoryMode> VmFactory<StorageView<S>> for LegacyVmInsta
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage_view: StoragePtr<StorageView<S>>,
-        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
         let protocol_version = system_env.version;
         let vm_version: VmVersion = protocol_version.into();
-        Self::new_with_specific_version(
-            batch_env,
-            system_env,
-            storage_view,
-            vm_version,
-            pubdata_builder,
-        )
+        Self::new_with_specific_version(batch_env, system_env, storage_view, vm_version)
     }
 }
 
@@ -133,7 +127,6 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
         system_env: SystemEnv,
         storage_view: StoragePtr<StorageView<S>>,
         vm_version: VmVersion,
-        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
         match vm_version {
             VmVersion::M5WithoutRefunds => {
@@ -173,57 +166,29 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                 Self::VmM6(vm)
             }
             VmVersion::Vm1_3_2 => {
-                let vm = crate::vm_1_3_2::Vm::new(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    pubdata_builder,
-                );
+                let vm = crate::vm_1_3_2::Vm::new(l1_batch_env, system_env, storage_view);
                 Self::Vm1_3_2(vm)
             }
             VmVersion::VmVirtualBlocks => {
-                let vm = crate::vm_virtual_blocks::Vm::new(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    pubdata_builder,
-                );
+                let vm = crate::vm_virtual_blocks::Vm::new(l1_batch_env, system_env, storage_view);
                 Self::VmVirtualBlocks(vm)
             }
             VmVersion::VmVirtualBlocksRefundsEnhancement => {
-                let vm = crate::vm_refunds_enhancement::Vm::new(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    pubdata_builder,
-                );
+                let vm =
+                    crate::vm_refunds_enhancement::Vm::new(l1_batch_env, system_env, storage_view);
                 Self::VmVirtualBlocksRefundsEnhancement(vm)
             }
             VmVersion::VmBoojumIntegration => {
-                let vm = crate::vm_boojum_integration::Vm::new(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    pubdata_builder,
-                );
+                let vm =
+                    crate::vm_boojum_integration::Vm::new(l1_batch_env, system_env, storage_view);
                 Self::VmBoojumIntegration(vm)
             }
             VmVersion::Vm1_4_1 => {
-                let vm = crate::vm_1_4_1::Vm::new(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    pubdata_builder,
-                );
+                let vm = crate::vm_1_4_1::Vm::new(l1_batch_env, system_env, storage_view);
                 Self::Vm1_4_1(vm)
             }
             VmVersion::Vm1_4_2 => {
-                let vm = crate::vm_1_4_2::Vm::new(
-                    l1_batch_env,
-                    system_env,
-                    storage_view,
-                    pubdata_builder,
-                );
+                let vm = crate::vm_1_4_2::Vm::new(l1_batch_env, system_env, storage_view);
                 Self::Vm1_4_2(vm)
             }
             VmVersion::Vm1_5_0SmallBootloaderMemory => {
@@ -231,7 +196,6 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    pubdata_builder,
                     crate::vm_latest::MultiVMSubversion::SmallBootloaderMemory,
                 );
                 Self::Vm1_5_0(vm)
@@ -241,7 +205,6 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    pubdata_builder,
                     crate::vm_latest::MultiVMSubversion::IncreasedBootloaderMemory,
                 );
                 Self::Vm1_5_0(vm)
@@ -251,7 +214,6 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                     l1_batch_env,
                     system_env,
                     storage_view,
-                    pubdata_builder,
                     crate::vm_latest::MultiVMSubversion::Gateway,
                 );
                 Self::Vm1_5_0(vm)
@@ -303,7 +265,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInsta
     fn inspect(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         match self {
             Self::Fast(vm) => vm.inspect(&mut tracer.1, execution_mode),
@@ -333,8 +295,8 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInsta
         }
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        dispatch_fast_vm!(self.finish_batch())
+    fn finish_batch(&mut self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> FinishedL1Batch {
+        dispatch_fast_vm!(self.finish_batch(pubdata_builder))
     }
 }
 
@@ -360,13 +322,11 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> FastVmInstance<S, Tr> {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage_view: StoragePtr<StorageView<S>>,
-        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
         Self::Fast(crate::vm_fast::Vm::new(
             l1_batch_env,
             system_env,
             storage_view,
-            pubdata_builder,
         ))
     }
 
@@ -375,14 +335,8 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> FastVmInstance<S, Tr> {
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage_view: StoragePtr<StorageView<S>>,
-        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
-        Self::Shadowed(ShadowedFastVm::new(
-            l1_batch_env,
-            system_env,
-            storage_view,
-            pubdata_builder,
-        ))
+        Self::Shadowed(ShadowedFastVm::new(l1_batch_env, system_env, storage_view))
     }
 }
 

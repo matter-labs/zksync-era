@@ -22,6 +22,7 @@ use zksync_vm2::{
     ExecutionEnd, FatPointer, Program, Settings, StorageSlot, VirtualMachine,
 };
 use zksync_vm_interface::pubdata::PubdataBuilder;
+use zksync_vm_interface::InspectExecutionMode;
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
@@ -104,7 +105,7 @@ pub struct Vm<S, Tr = ()> {
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
 }
 
-impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
+impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
         assert!(
             is_supported_by_fast_vm(system_env.version),
@@ -534,34 +535,10 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
             pubdata_costs: world_diff.pubdata_costs().to_vec(),
         }
     }
-}
 
-impl<S, Tr> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
-where
-    S: ReadStorage,
-    Tr: Tracer + Default + 'static,
-{
-    fn new(
-        batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        storage: StoragePtr<StorageView<S>>,
-        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
-    ) -> Self {
-        let storage = ImmutableStorageView::new(storage);
-        Self::custom(batch_env, system_env, storage)
-    }
-}
-
-impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
-    type TracerDispatcher = Tr;
-
-    fn push_transaction(&mut self, tx: zksync_types::Transaction) {
-        self.push_transaction_inner(tx, 0, true);
-    }
-
-    fn inspect(
+    fn inspect_inner(
         &mut self,
-        tracer: &mut Self::TracerDispatcher,
+        tracer: &mut Tr,
         execution_mode: VmExecutionMode,
     ) -> VmExecutionResultAndLogs {
         let mut track_refunds = false;
@@ -651,6 +628,37 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
             new_known_factory_deps: None,
         }
     }
+}
+
+impl<S, Tr> VmFactory<StorageView<S>> for Vm<ImmutableStorageView<S>, Tr>
+where
+    S: ReadStorage,
+    Tr: Tracer + Default + 'static,
+{
+    fn new(
+        batch_env: L1BatchEnv,
+        system_env: SystemEnv,
+        storage: StoragePtr<StorageView<S>>,
+    ) -> Self {
+        let storage = ImmutableStorageView::new(storage);
+        Self::custom(batch_env, system_env, storage)
+    }
+}
+
+impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
+    type TracerDispatcher = Tr;
+
+    fn push_transaction(&mut self, tx: zksync_types::Transaction) {
+        self.push_transaction_inner(tx, 0, true);
+    }
+
+    fn inspect(
+        &mut self,
+        tracer: &mut Self::TracerDispatcher,
+        execution_mode: InspectExecutionMode,
+    ) -> VmExecutionResultAndLogs {
+        self.inspect_inner(tracer, execution_mode.into())
+    }
 
     fn inspect_transaction_with_bytecode_compression(
         &mut self,
@@ -659,7 +667,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.push_transaction_inner(tx, 0, with_compression);
-        let result = self.inspect(tracer, VmExecutionMode::OneTx);
+        let result = self.inspect(tracer, InspectExecutionMode::OneTx);
 
         let compression_result = if self.has_unpublished_bytecodes() {
             Err(BytecodeCompressionError::BytecodeCompressionFailed)
@@ -676,8 +684,11 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
         self.bootloader_state.start_new_l2_block(l2_block_env)
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.inspect(&mut Tr::default(), VmExecutionMode::Batch);
+    fn finish_batch(
+        &mut self,
+        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) -> FinishedL1Batch {
+        let result = self.inspect_inner(&mut Tr::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {

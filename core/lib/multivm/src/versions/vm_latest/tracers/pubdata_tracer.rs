@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zk_evm_1_5_0::{
@@ -7,6 +8,7 @@ use zk_evm_1_5_0::{
 };
 use zksync_types::{writes::StateDiffRecord, AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS};
 use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
+use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use crate::{
     interface::{
@@ -42,6 +44,7 @@ pub(crate) struct PubdataTracer<S> {
     // to the L1Messenger.
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
     subversion: MultiVMSubversion,
+    pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     _phantom_data: PhantomData<S>,
 }
 
@@ -50,6 +53,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
         l1_batch_env: L1BatchEnv,
         execution_mode: VmExecutionMode,
         subversion: MultiVMSubversion,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
         Self {
             l1_batch_env,
@@ -57,6 +61,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             execution_mode,
             enforced_state_diffs: None,
             subversion,
+            pubdata_builder,
             _phantom_data: Default::default(),
         }
     }
@@ -69,6 +74,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
         execution_mode: VmExecutionMode,
         forced_state_diffs: Vec<StateDiffRecord>,
         subversion: MultiVMSubversion,
+        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
         Self {
             l1_batch_env,
@@ -76,6 +82,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
             execution_mode,
             enforced_state_diffs: Some(forced_state_diffs),
             subversion,
+            pubdata_builder,
             _phantom_data: Default::default(),
         }
     }
@@ -230,7 +237,9 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
 
             apply_pubdata_to_memory(
                 &mut memory_to_apply,
-                bootloader_state.pubdata_builder(),
+                self.pubdata_builder
+                    .clone()
+                    .expect("`pubdata_builder` is required to finish batch"),
                 pubdata_input,
                 bootloader_state.protocol_version(),
             );

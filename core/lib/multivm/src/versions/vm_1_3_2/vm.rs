@@ -3,14 +3,15 @@ use std::{collections::HashSet, rc::Rc};
 use zksync_types::Transaction;
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 use zksync_vm_interface::pubdata::PubdataBuilder;
+use zksync_vm_interface::InspectExecutionMode;
 
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
         storage::{StoragePtr, WriteStorage},
         BytecodeCompressionError, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv,
-        L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs,
-        VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+        VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::old::TracerDispatcher,
     utils::bytecode,
@@ -57,7 +58,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     fn inspect(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         if let Some(storage_invocations) = tracer.storage_invocations {
             self.vm
@@ -66,7 +67,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
 
         match execution_mode {
-            VmExecutionMode::OneTx => {
+            InspectExecutionMode::OneTx => {
                 match self.system_env.execution_mode {
                     TxExecutionMode::VerifyExecute => {
                         let enable_call_tracer = tracer
@@ -89,8 +90,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
                         .glue_into(),
                 }
             }
-            VmExecutionMode::Batch => self.finish_batch().block_tip_execution_result,
-            VmExecutionMode::Bootloader => self.vm.execute_block_tip().glue_into(),
+            InspectExecutionMode::Bootloader => self.vm.execute_block_tip().glue_into(),
         }
     }
 
@@ -180,7 +180,10 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
+    fn finish_batch(
+        &mut self,
+        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) -> FinishedL1Batch {
         self.vm
             .execute_till_block_end(
                 crate::vm_1_3_2::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,
@@ -190,12 +193,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
-    fn new(
-        batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        storage: StoragePtr<S>,
-        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
-    ) -> Self {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let oracle_tools = crate::vm_1_3_2::OracleTools::new(storage.clone());
         let block_properties = crate::vm_1_3_2::BlockProperties {
             default_aa_code_hash: h256_to_u256(

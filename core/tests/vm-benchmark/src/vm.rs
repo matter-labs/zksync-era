@@ -2,11 +2,11 @@ use std::{cell::RefCell, rc::Rc};
 
 use once_cell::sync::Lazy;
 use zksync_contracts::BaseSystemContracts;
+use zksync_multivm::interface::InspectExecutionMode;
 use zksync_multivm::{
     interface::{
-        pubdata::{pubdata_params_to_builder, PubdataBuilder},
         storage::{InMemoryStorage, StorageView},
-        ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
@@ -15,9 +15,9 @@ use zksync_multivm::{
     zk_evm_latest::ethereum_types::{Address, U256},
 };
 use zksync_types::{
-    block::L2BlockHasher, commitment::PubdataParams, fee_model::BatchFeeInput,
-    helpers::unix_timestamp_ms, utils::storage_key_for_eth_balance, L1BatchNumber, L2BlockNumber,
-    L2ChainId, ProtocolVersionId, Transaction,
+    block::L2BlockHasher, fee_model::BatchFeeInput, helpers::unix_timestamp_ms,
+    utils::storage_key_for_eth_balance, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
+    Transaction,
 };
 use zksync_utils::bytecode::hash_bytecode;
 
@@ -72,7 +72,6 @@ pub trait BenchmarkingVmFactory {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: &'static InMemoryStorage,
-        pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> Self::Instance;
 
     /// Counts instructions executed by the VM while processing the transaction.
@@ -92,7 +91,6 @@ impl<Tr: vm_fast::Tracer + Default + 'static> BenchmarkingVmFactory for Fast<Tr>
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: &'static InMemoryStorage,
-        _pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> Self::Instance {
         vm_fast::Vm::custom(batch_env, system_env, storage)
     }
@@ -116,7 +114,7 @@ impl<Tr: vm_fast::Tracer + Default + 'static> BenchmarkingVmFactory for Fast<Tr>
         }
         let mut tracer = InstructionCount(0);
 
-        vm.0.inspect(&mut tracer, VmExecutionMode::OneTx);
+        vm.0.inspect(&mut tracer, InspectExecutionMode::OneTx);
         tracer.0
     }
 }
@@ -134,10 +132,9 @@ impl BenchmarkingVmFactory for Legacy {
         batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: &'static InMemoryStorage,
-        pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> Self::Instance {
         let storage = StorageView::new(storage).to_rc_ptr();
-        vm_latest::Vm::new(batch_env, system_env, storage, Some(pubdata_builder))
+        vm_latest::Vm::new(batch_env, system_env, storage)
     }
 
     fn count_instructions(tx: &Transaction) -> usize {
@@ -148,7 +145,7 @@ impl BenchmarkingVmFactory for Legacy {
             &mut InstructionCounter::new(count.clone())
                 .into_tracer_pointer()
                 .into(),
-            VmExecutionMode::OneTx,
+            InspectExecutionMode::OneTx,
         );
         count.take()
     }
@@ -188,7 +185,6 @@ impl<VM: BenchmarkingVmFactory> Default for BenchmarkingVm<VM> {
                 chain_id: L2ChainId::from(270),
             },
             &STORAGE,
-            pubdata_params_to_builder(PubdataParams::default()),
         ))
     }
 }
@@ -196,7 +192,7 @@ impl<VM: BenchmarkingVmFactory> Default for BenchmarkingVm<VM> {
 impl<VM: BenchmarkingVmFactory> BenchmarkingVm<VM> {
     pub fn run_transaction(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {
         self.0.push_transaction(tx.clone());
-        self.0.execute(VmExecutionMode::OneTx)
+        self.0.execute(InspectExecutionMode::OneTx)
     }
 
     pub fn run_transaction_full(&mut self, tx: &Transaction) -> VmExecutionResultAndLogs {

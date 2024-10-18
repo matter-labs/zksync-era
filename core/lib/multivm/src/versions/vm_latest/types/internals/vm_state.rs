@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use circuit_sequencer_api_1_3_3::INITIAL_MONOTONIC_CYCLE_COUNTER;
 use zk_evm_1_5_0::{
     aux_structures::{MemoryPage, PubdataCost, Timestamp},
@@ -15,7 +13,6 @@ use zk_evm_1_5_0::{
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::{block::L2BlockHasher, Address, L2BlockNumber};
 use zksync_utils::h256_to_u256;
-use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use crate::{
     interface::{
@@ -67,7 +64,6 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
     storage: StoragePtr<S>,
     system_env: &SystemEnv,
     l1_batch_env: &L1BatchEnv,
-    pubdata_builder: Rc<dyn PubdataBuilder>,
 ) -> (ZkSyncVmState<S, H>, BootloaderState) {
     let last_l2_block = if let Some(last_l2_block) = load_last_l2_block(&storage) {
         last_l2_block
@@ -196,7 +192,6 @@ pub(crate) fn new_vm_state<S: WriteStorage, H: HistoryMode>(
         bootloader_initial_memory,
         first_l2_block,
         system_env.version,
-        pubdata_builder,
     );
 
     (vm, bootloader_state)

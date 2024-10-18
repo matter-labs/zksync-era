@@ -51,8 +51,6 @@ pub struct BootloaderState {
     pubdata_information: OnceCell<PubdataInput>,
     /// Protocol version.
     protocol_version: ProtocolVersionId,
-    /// Pubdata builder which is used to convert pubdata input to bytes.
-    pubdata_builder: Rc<dyn PubdataBuilder>,
 }
 
 impl BootloaderState {
@@ -61,7 +59,6 @@ impl BootloaderState {
         initial_memory: BootloaderMemory,
         first_l2_block: L2BlockEnv,
         protocol_version: ProtocolVersionId,
-        pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> Self {
         let l2_block = BootloaderL2Block::new(first_l2_block, 0);
         Self {
@@ -73,7 +70,6 @@ impl BootloaderState {
             free_tx_offset: 0,
             pubdata_information: Default::default(),
             protocol_version,
-            pubdata_builder,
         }
     }
 
@@ -154,15 +150,17 @@ impl BootloaderState {
             .expect("Pubdata information is not set")
     }
 
-    pub(crate) fn settlement_layer_pubdata(&self) -> Vec<u8> {
+    pub(crate) fn settlement_layer_pubdata(
+        &self,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
+    ) -> Vec<u8> {
         let pubdata_information = self
             .pubdata_information
             .get()
             .expect("Pubdata information is not set")
             .clone();
 
-        self.pubdata_builder
-            .settlement_layer_pubdata(pubdata_information, self.protocol_version)
+        pubdata_builder.settlement_layer_pubdata(pubdata_information, self.protocol_version)
     }
 
     fn last_mut_l2_block(&mut self) -> &mut BootloaderL2Block {
@@ -170,7 +168,10 @@ impl BootloaderState {
     }
 
     /// Apply all bootloader transaction to the initial memory
-    pub(crate) fn bootloader_memory(&self) -> BootloaderMemory {
+    pub(crate) fn bootloader_memory(
+        &self,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
+    ) -> BootloaderMemory {
         let mut initial_memory = self.initial_memory.clone();
         let mut offset = 0;
         let mut compressed_bytecodes_offset = 0;
@@ -204,7 +205,7 @@ impl BootloaderState {
 
         apply_pubdata_to_memory(
             &mut initial_memory,
-            self.pubdata_builder.clone(),
+            pubdata_builder,
             pubdata_information,
             self.protocol_version,
         );
@@ -319,10 +320,6 @@ impl BootloaderState {
                 "Snapshot with no pubdata can not rollback to snapshot with one"
             );
         }
-    }
-
-    pub(crate) fn pubdata_builder(&self) -> Rc<dyn PubdataBuilder> {
-        self.pubdata_builder.clone()
     }
 
     pub(crate) fn protocol_version(&self) -> ProtocolVersionId {

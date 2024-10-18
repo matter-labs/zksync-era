@@ -10,7 +10,7 @@ use zksync_utils::h256_to_u256;
 
 use crate::{
     interface::{
-        storage::ReadStorage, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt,
+        storage::ReadStorage, InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt,
     },
     versions::testonly::ContractToDeploy,
     vm_fast::tests::{
@@ -81,7 +81,7 @@ fn test_require_eip712() {
     );
 
     vm.vm.push_transaction(tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed());
 
     let private_account_balance = vm.get_eth_balance(private_account.address);
@@ -114,7 +114,7 @@ fn test_require_eip712() {
     let transaction: Transaction = l2_tx.into();
 
     vm.vm.push_transaction(transaction);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed());
 
     assert_eq!(
@@ -162,7 +162,7 @@ fn test_require_eip712() {
 
     let transaction: Transaction = l2_tx.into();
     vm.vm.push_transaction(transaction);
-    vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
 
     assert_eq!(
         vm.get_eth_balance(beneficiary.address),

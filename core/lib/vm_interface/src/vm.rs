@@ -17,7 +17,7 @@ use zksync_types::{Transaction, H256};
 
 use crate::{
     pubdata::PubdataBuilder, storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch,
-    L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
+    InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionResultAndLogs,
 };
 
 pub trait VmInterface {
@@ -32,7 +32,7 @@ pub trait VmInterface {
     fn inspect(
         &mut self,
         dispatcher: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs;
 
     /// Start a new L2 block.
@@ -48,13 +48,13 @@ pub trait VmInterface {
 
     /// Execute batch till the end and return the result, with final execution state
     /// and bootloader memory.
-    fn finish_batch(&mut self) -> FinishedL1Batch;
+    fn finish_batch(&mut self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> FinishedL1Batch;
 }
 
 /// Extension trait for [`VmInterface`] that provides some additional methods.
 pub trait VmInterfaceExt: VmInterface {
     /// Executes the next VM step (either next transaction or bootloader or the whole batch).
-    fn execute(&mut self, execution_mode: VmExecutionMode) -> VmExecutionResultAndLogs {
+    fn execute(&mut self, execution_mode: InspectExecutionMode) -> VmExecutionResultAndLogs {
         self.inspect(&mut <Self::TracerDispatcher>::default(), execution_mode)
     }
 
@@ -77,12 +77,7 @@ impl<T: VmInterface> VmInterfaceExt for T {}
 /// Encapsulates creating VM instance based on the provided environment.
 pub trait VmFactory<S>: VmInterface {
     /// Creates a new VM instance.
-    fn new(
-        batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        storage: StoragePtr<S>,
-        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
-    ) -> Self;
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self;
 }
 
 /// Methods of VM requiring history manipulations.

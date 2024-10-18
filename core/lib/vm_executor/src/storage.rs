@@ -54,8 +54,7 @@ pub fn l1_batch_params(
     protocol_version: ProtocolVersionId,
     virtual_blocks: u32,
     chain_id: L2ChainId,
-    pubdata_params: PubdataParams,
-) -> (SystemEnv, L1BatchEnv, PubdataParams) {
+) -> (SystemEnv, L1BatchEnv) {
     (
         SystemEnv {
             zk_porter_available: ZKPORTER_IS_AVAILABLE,
@@ -80,7 +79,6 @@ pub fn l1_batch_params(
                 max_virtual_blocks_to_create: virtual_blocks,
             },
         },
-        pubdata_params,
     )
 }
 
@@ -320,7 +318,7 @@ impl L1BatchParamsProvider {
             .await
             .context("failed getting base system contracts")?;
 
-        Ok(l1_batch_params(
+        let (system_env, l1_batch_env) = l1_batch_params(
             first_l2_block_in_batch.l1_batch_number,
             first_l2_block_in_batch.header.fee_account_address,
             l1_batch_timestamp,
@@ -336,6 +334,11 @@ impl L1BatchParamsProvider {
                 .context("`protocol_version` must be set for L2 block")?,
             first_l2_block_in_batch.header.virtual_blocks,
             chain_id,
+        );
+
+        Ok((
+            system_env,
+            l1_batch_env,
             first_l2_block_in_batch.header.pubdata_params,
         ))
     }

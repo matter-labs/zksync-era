@@ -5,7 +5,7 @@ use zksync_test_account::TxType;
 use zksync_types::{utils::deployed_address_create, Execute, U256};
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{TxExecutionMode, InspectExecutionMode, VmInterface},
     tracers::PrestateTracer,
     vm_latest::{
         constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
@@ -40,7 +40,7 @@ fn test_prestate_tracer() {
     let prestate_tracer_result = Arc::new(OnceCell::default());
     let prestate_tracer = PrestateTracer::new(false, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
-    vm.vm.inspect(tracer_ptr.into(), VmExecutionMode::Batch);
+    vm.vm.inspect(tracer_ptr.into(), InspectExecutionMode::Batch);
 
     let prestate_result = Arc::try_unwrap(prestate_tracer_result)
         .unwrap()
@@ -68,7 +68,7 @@ fn test_prestate_tracer_diff_mode() {
         .tx;
     let nonce = tx.nonce().unwrap().0.into();
     vm.vm.push_transaction(tx);
-    vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
     let deployed_address = deployed_address_create(vm.deployer.as_ref().unwrap().address, nonce);
     vm.test_contract = Some(deployed_address);
 
@@ -81,7 +81,7 @@ fn test_prestate_tracer_diff_mode() {
         .tx;
     let nonce2 = tx2.nonce().unwrap().0.into();
     vm.vm.push_transaction(tx2);
-    vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
     let deployed_address2 = deployed_address_create(vm.deployer.as_ref().unwrap().address, nonce2);
 
     let account = &mut vm.rich_accounts[0];
@@ -110,7 +110,7 @@ fn test_prestate_tracer_diff_mode() {
     let prestate_tracer = PrestateTracer::new(true, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
     vm.vm
-        .inspect(tracer_ptr.into(), VmExecutionMode::Bootloader);
+        .inspect(tracer_ptr.into(), InspectExecutionMode::Bootloader);
 
     let prestate_result = Arc::try_unwrap(prestate_tracer_result)
         .unwrap()

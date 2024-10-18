@@ -5,7 +5,8 @@ use zksync_types::{fee::Fee, Address, Execute, U256};
 
 use crate::{
     interface::{
-        TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
+        InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt,
+        VmInterfaceHistoryEnabled,
     },
     vm_latest::{tests::tester::VmTesterBuilder, HistoryEnabled},
 };
@@ -59,7 +60,7 @@ fn test_storage(txs: Vec<TestTxInfo>) -> u32 {
         );
 
         vm.vm.push_transaction(tx);
-        let result = vm.vm.execute(VmExecutionMode::OneTx);
+        let result = vm.vm.execute(InspectExecutionMode::OneTx);
         if should_fail {
             assert!(result.result.is_failed(), "Transaction should fail");
             vm.vm.rollback_to_the_latest_snapshot();

@@ -84,7 +84,7 @@ impl L1BatchParams {
         cursor: &IoCursor,
         previous_batch_hash: H256,
     ) -> (SystemEnv, L1BatchEnv, PubdataParams) {
-        l1_batch_params(
+        let (system_env, l1_batch_env) = l1_batch_params(
             cursor.l1_batch,
             self.operator_address,
             self.first_l2_block.timestamp,
@@ -97,8 +97,9 @@ impl L1BatchParams {
             self.protocol_version,
             self.first_l2_block.virtual_blocks,
             chain_id,
-            self.pubdata_params,
-        )
+        );
+
+        (system_env, l1_batch_env, self.pubdata_params)
     }
 }
 

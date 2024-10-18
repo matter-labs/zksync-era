@@ -3,6 +3,7 @@
 
 use assert_matches::assert_matches;
 use ethabi::Contract;
+use std::rc::Rc;
 use zksync_contracts::{
     get_loadnext_contract, load_contract, read_bytecode,
     test_contracts::LoadnextContractExecutionParams,
@@ -13,6 +14,7 @@ use zksync_types::{
     ProtocolVersionId, StorageKey, H256, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
+use zksync_vm_interface::pubdata::rollup::RollupPubdataBuilder;
 
 use crate::{
     interface::{
@@ -197,7 +199,7 @@ impl Harness {
         assert!(!exec_result.result.is_failed(), "{:#?}", exec_result);
 
         self.new_block(vm, &[deploy_tx.tx.hash(), load_test_tx.hash()]);
-        vm.finish_batch();
+        vm.finish_batch(Some(default_pubdata_builder()));
     }
 }
 
@@ -207,13 +209,12 @@ where
 {
     let system_env = default_system_env();
     let l1_batch_env = default_l1_batch(L1BatchNumber(1));
-    let pubdata_builder = default_pubdata_builder();
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     let mut harness = Harness::new(&l1_batch_env);
     harness.setup_storage(&mut storage);
 
     let storage = StorageView::new(storage).to_rc_ptr();
-    let mut vm = Vm::new(l1_batch_env, system_env, storage, Some(pubdata_builder));
+    let mut vm = Vm::new(l1_batch_env, system_env, storage);
     harness.execute_on_vm(&mut vm);
     (vm, harness)
 }
@@ -232,7 +233,6 @@ fn sanity_check_harness_on_new_vm() {
 fn sanity_check_shadow_vm() {
     let system_env = default_system_env();
     let l1_batch_env = default_l1_batch(L1BatchNumber(1));
-    let pubdata_builder = default_pubdata_builder();
     let mut storage = InMemoryStorage::with_system_contracts(hash_bytecode);
     let mut harness = Harness::new(&l1_batch_env);
     harness.setup_storage(&mut storage);
@@ -245,7 +245,6 @@ fn sanity_check_shadow_vm() {
         system_env,
         main_storage,
         shadow_storage,
-        Some(pubdata_builder),
     );
     harness.execute_on_vm(&mut vm);
 }
@@ -253,11 +252,15 @@ fn sanity_check_shadow_vm() {
 #[test]
 fn shadow_vm_basics() {
     let (vm, harness) = sanity_check_vm::<ShadowedFastVm>();
-    let mut dump = vm.dump_state();
+    let pubdata_builder = default_pubdata_builder();
+    let mut dump = vm.dump_state(Some(pubdata_builder.clone()));
     Harness::assert_dump(&mut dump);
 
     // Test standard playback functionality.
-    let replayed_dump = dump.clone().play_back::<ShadowedFastVm<_>>().dump_state();
+    let replayed_dump = dump
+        .clone()
+        .play_back::<ShadowedFastVm<_>>()
+        .dump_state(Some(pubdata_builder.clone()));
     pretty_assertions::assert_eq!(replayed_dump, dump);
 
     // Check that the VM executes identically when reading from the original storage and one restored from the dump.
@@ -265,17 +268,16 @@ fn shadow_vm_basics() {
     harness.setup_storage(&mut storage);
     let storage = StorageView::new(storage).to_rc_ptr();
 
-    let vm =
-        dump.clone()
-            .play_back_custom(|l1_batch_env, system_env, dump_storage, pubdata_builder| {
-                ShadowVm::<_, ReferenceVm, ReferenceVm<_>>::with_custom_shadow(
-                    l1_batch_env,
-                    system_env,
-                    storage,
-                    dump_storage,
-                    pubdata_builder,
-                )
-            });
-    let new_dump = vm.dump_state();
+    let vm = dump
+        .clone()
+        .play_back_custom(|l1_batch_env, system_env, dump_storage| {
+            ShadowVm::<_, ReferenceVm, ReferenceVm<_>>::with_custom_shadow(
+                l1_batch_env,
+                system_env,
+                storage,
+                dump_storage,
+            )
+        });
+    let new_dump = vm.dump_state(Some(pubdata_builder));
     pretty_assertions::assert_eq!(new_dump, dump);
 }

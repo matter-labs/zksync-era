@@ -14,14 +14,14 @@ use std::{
 use anyhow::Context;
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
+use zksync_multivm::interface::InspectExecutionMode;
 use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
-        pubdata::pubdata_params_to_builder,
         storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
         tracer::{ValidationError, ValidationParams},
         ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
-        StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode, VmInterface,
+        StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmInterface,
     },
     tracers::{CallTracer, StorageInvocations, ValidationTracer},
     utils::adjust_pubdata_price_for_tx,
@@ -170,7 +170,7 @@ where
             );
             let exec_result = executor.apply(|vm, transaction| {
                 vm.push_transaction(transaction);
-                vm.inspect(&mut tracers.into(), VmExecutionMode::OneTx)
+                vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx)
             });
             let validation_result = Arc::make_mut(&mut validation_result)
                 .take()
@@ -222,7 +222,6 @@ impl<S: ReadStorage> VmSandbox<S> {
             env.system,
             storage_view.clone(),
             protocol_version.into_api_vm_version(),
-            Some(pubdata_params_to_builder(env.pubdata_params)),
         ));
 
         Self {

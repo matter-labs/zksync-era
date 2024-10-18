@@ -5,7 +5,7 @@ use zksync_types::{utils::storage_key_for_eth_balance, AccountTreeId, Address, E
 use zksync_utils::u256_to_h256;
 
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt},
     versions::testonly::ContractToDeploy,
     vm_fast::tests::{
         tester::{get_empty_storage, VmTesterBuilder},
@@ -80,13 +80,13 @@ fn test_send_or_transfer(test_option: TestOptions) {
     );
 
     vm.vm.push_transaction(tx);
-    let tx_result = vm.vm.execute(VmExecutionMode::OneTx);
+    let tx_result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !tx_result.result.is_failed(),
         "Transaction wasn't successful"
     );
 
-    let batch_result = vm.vm.execute(VmExecutionMode::Batch);
+    let batch_result = vm.vm.execute(InspectExecutionMode::Batch);
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
 
     let new_recipient_balance = get_balance(
@@ -177,7 +177,7 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
     );
 
     vm.vm.push_transaction(tx1);
-    let tx1_result = vm.vm.execute(VmExecutionMode::OneTx);
+    let tx1_result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !tx1_result.result.is_failed(),
         "Transaction 1 wasn't successful"
@@ -194,13 +194,13 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
     );
 
     vm.vm.push_transaction(tx2);
-    let tx2_result = vm.vm.execute(VmExecutionMode::OneTx);
+    let tx2_result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         tx2_result.result.is_failed(),
         "Transaction 2 should have failed, but it succeeded"
     );
 
-    let batch_result = vm.vm.execute(VmExecutionMode::Batch);
+    let batch_result = vm.vm.execute(InspectExecutionMode::Batch);
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
 }
 

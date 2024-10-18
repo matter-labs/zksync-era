@@ -3,6 +3,7 @@ use std::rc::Rc;
 use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{l2_to_l1_log::UserL2ToL1Log, Transaction};
 use zksync_vm_interface::pubdata::PubdataBuilder;
+use zksync_vm_interface::InspectExecutionMode;
 
 use crate::{
     glue::GlueInto,
@@ -86,9 +87,9 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     fn inspect(
         &mut self,
         dispatcher: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
-        self.inspect_inner(dispatcher, execution_mode)
+        self.inspect_inner(dispatcher, execution_mode.into())
     }
 
     fn start_new_l2_block(&mut self, l2_block_env: L2BlockEnv) {
@@ -103,7 +104,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
         self.push_transaction_with_compression(tx, with_compression);
-        let result = self.inspect(dispatcher, VmExecutionMode::OneTx);
+        let result = self.inspect(dispatcher, InspectExecutionMode::OneTx);
         if self.has_unpublished_bytecodes() {
             (
                 Err(BytecodeCompressionError::BytecodeCompressionFailed),
@@ -120,8 +121,11 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        let result = self.inspect(&mut TracerDispatcher::default(), VmExecutionMode::Batch);
+    fn finish_batch(
+        &mut self,
+        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+    ) -> FinishedL1Batch {
+        let result = self.inspect_inner(&mut TracerDispatcher::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();
         FinishedL1Batch {
@@ -135,12 +139,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
 }
 
 impl<S: WriteStorage, H: HistoryMode> VmFactory<S> for Vm<S, H> {
-    fn new(
-        batch_env: L1BatchEnv,
-        system_env: SystemEnv,
-        storage: StoragePtr<S>,
-        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
-    ) -> Self {
+    fn new(batch_env: L1BatchEnv, system_env: SystemEnv, storage: StoragePtr<S>) -> Self {
         let (state, bootloader_state) = new_vm_state(storage.clone(), &system_env, &batch_env);
         Self {
             bootloader_state,

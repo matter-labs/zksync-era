@@ -9,9 +9,9 @@ use zksync_types::{
 use crate::{
     pubdata::{pubdata_params_to_builder, PubdataBuilder},
     storage::{ReadStorage, StoragePtr, StorageSnapshot, StorageView},
-    BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-    VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
-    VmTrackingContracts,
+    BytecodeCompressionResult, FinishedL1Batch, InspectExecutionMode, L1BatchEnv, L2BlockEnv,
+    SystemEnv, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
+    VmInterfaceHistoryEnabled, VmTrackingContracts,
 };
 
 fn create_storage_snapshot<S: ReadStorage>(
@@ -78,20 +78,10 @@ impl VmDump {
     #[doc(hidden)] // too low-level
     pub fn play_back_custom<Vm: VmInterface>(
         self,
-        create_vm: impl FnOnce(
-            L1BatchEnv,
-            SystemEnv,
-            StoragePtr<StorageView<StorageSnapshot>>,
-            Option<Rc<dyn PubdataBuilder>>,
-        ) -> Vm,
+        create_vm: impl FnOnce(L1BatchEnv, SystemEnv, StoragePtr<StorageView<StorageSnapshot>>) -> Vm,
     ) -> Vm {
         let storage = StorageView::new(self.storage).to_rc_ptr();
-        let mut vm = create_vm(
-            self.l1_batch_env,
-            self.system_env,
-            storage,
-            self.pubdata_params.map(pubdata_params_to_builder),
-        );
+        let mut vm = create_vm(self.l1_batch_env, self.system_env, storage);
 
         for (i, l2_block) in self.l2_blocks.into_iter().enumerate() {
             if i > 0 {
@@ -113,7 +103,7 @@ impl VmDump {
                 }
             }
         }
-        vm.finish_batch();
+        vm.finish_batch(self.pubdata_params.map(pubdata_params_to_builder));
         vm
     }
 }
@@ -133,7 +123,6 @@ pub(super) struct DumpingVm<S, Vm> {
     system_env: SystemEnv,
     l2_blocks: Vec<L2BlockExecutionData>,
     l2_blocks_snapshot: Option<L2BlocksSnapshot>,
-    pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
 }
 
 impl<S: ReadStorage, Vm: VmTrackingContracts> DumpingVm<S, Vm> {
@@ -145,15 +134,13 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> DumpingVm<S, Vm> {
         self.last_block_mut().txs.push(tx);
     }
 
-    pub fn dump_state(&self) -> VmDump {
+    pub fn dump_state(&self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> VmDump {
         VmDump {
             l1_batch_env: self.l1_batch_env.clone(),
             system_env: self.system_env.clone(),
             l2_blocks: self.l2_blocks.clone(),
             storage: create_storage_snapshot(&self.storage, self.inner.used_contract_hashes()),
-            pubdata_params: self
-                .pubdata_builder
-                .clone()
+            pubdata_params: pubdata_builder
                 .map(|p| p.pubdata_params().expect("pubdata builder is not dumpable")),
         }
     }
@@ -170,7 +157,7 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
     fn inspect(
         &mut self,
         dispatcher: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         self.inner.inspect(dispatcher, execution_mode)
     }
@@ -197,8 +184,8 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
             .inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        self.inner.finish_batch()
+    fn finish_batch(&mut self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> FinishedL1Batch {
+        self.inner.finish_batch(pubdata_builder)
     }
 }
 
@@ -247,14 +234,8 @@ where
         l1_batch_env: L1BatchEnv,
         system_env: SystemEnv,
         storage: StoragePtr<StorageView<S>>,
-        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
     ) -> Self {
-        let inner = Vm::new(
-            l1_batch_env.clone(),
-            system_env.clone(),
-            storage.clone(),
-            pubdata_builder.clone(),
-        );
+        let inner = Vm::new(l1_batch_env.clone(), system_env.clone(), storage.clone());
         let first_block = L2BlockExecutionData {
             number: L2BlockNumber(l1_batch_env.first_l2_block.number),
             timestamp: l1_batch_env.first_l2_block.timestamp,
@@ -269,7 +250,6 @@ where
             l2_blocks_snapshot: None,
             storage,
             inner,
-            pubdata_builder,
         }
     }
 }

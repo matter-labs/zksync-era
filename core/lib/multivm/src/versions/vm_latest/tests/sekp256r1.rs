@@ -4,7 +4,9 @@ use zksync_types::{web3::keccak256, Execute, H256, U256};
 use zksync_utils::h256_to_u256;
 
 use crate::{
-    interface::{ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterface, VmInterfaceExt},
+    interface::{
+        ExecutionResult, InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt,
+    },
     vm_latest::{tests::tester::VmTesterBuilder, HistoryEnabled},
 };
 
@@ -58,7 +60,7 @@ fn test_sekp256r1() {
 
     vm.vm.push_transaction(tx);
 
-    let execution_result = vm.vm.execute(VmExecutionMode::Batch);
+    let execution_result = vm.vm.execute(InspectExecutionMode::Batch);
 
     let ExecutionResult::Success { output } = execution_result.result else {
         panic!("batch failed")
