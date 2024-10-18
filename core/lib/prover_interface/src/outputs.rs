@@ -1,5 +1,6 @@
 use core::fmt;
 
+use circuit_sequencer_api_1_5_0::proof::FinalProof;
 use fflonk::FflonkSnarkVerifierCircuitProof;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
@@ -8,11 +9,16 @@ use zksync_types::{protocol_version::ProtocolSemanticVersion, tee_types::TeeType
 
 /// A "final" ZK proof that can be sent to the L1 contract.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct L1BatchProofForL1 {
+pub struct L1BatchProofForL1<T: FinalProofExt> {
     pub aggregation_result_coords: [[u8; 32]; 4],
-    pub scheduler_proof: FflonkSnarkVerifierCircuitProof,
+    pub scheduler_proof: T,
     pub protocol_version: ProtocolSemanticVersion,
 }
+
+pub trait FinalProofExt: Serialize + Deserialize {}
+
+impl FinalProofExt for FinalProof {}
+impl FinalProofExt for FflonkSnarkVerifierCircuitProof {}
 
 /// A "final" TEE proof that can be sent to the L1 contract.
 #[serde_as]
@@ -32,7 +38,7 @@ pub struct L1BatchTeeProofForL1 {
     pub tee_type: TeeType,
 }
 
-impl fmt::Debug for L1BatchProofForL1 {
+impl<T: FinalProofExt> fmt::Debug for L1BatchProofForL1<T> {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("L1BatchProofForL1")
@@ -49,7 +55,7 @@ impl fmt::Debug for L1BatchTeeProofForL1 {
     }
 }
 
-impl StoredObject for L1BatchProofForL1 {
+impl<T: FinalProofExt> StoredObject for L1BatchProofForL1<T> {
     const BUCKET: Bucket = Bucket::ProofsFri;
     type Key<'a> = (L1BatchNumber, ProtocolSemanticVersion);
 

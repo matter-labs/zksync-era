@@ -8014,6 +8014,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "zksync-gpu-prover"
+version = "0.150.9"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#b9cc031a1c61835c7d250d371b8809d00b24aa5f"
+dependencies = [
+ "bit-vec",
+ "cfg-if 1.0.0",
+ "crossbeam 0.8.4",
+ "franklin-crypto 0.30.1 (git+https://github.com/matter-labs/zksync-crypto?branch=si/fflonk)",
+ "itertools 0.10.5",
+ "num_cpus",
+ "rand 0.4.6",
+ "serde",
+ "zksync-gpu-ffi",
+]
+
+[[package]]
+name = "zksync-wrapper-prover"
+version = "0.150.9"
+source = "git+https://github.com/matter-labs/zksync-crypto-gpu?branch=si/fflonk-gpu#b9cc031a1c61835c7d250d371b8809d00b24aa5f"
+dependencies = [
+ "circuit_definitions",
+ "zkevm_test_harness",
+ "zksync-gpu-prover",
+]
+
+[[package]]
 name = "zksync_basic_types"
 version = "0.1.0"
 dependencies = [
@@ -8589,6 +8615,7 @@ dependencies = [
  "tracing",
  "vise",
  "zkevm_test_harness",
+ "zksync-wrapper-prover",
  "zksync_config",
  "zksync_core_leftovers",
  "zksync_env_config",

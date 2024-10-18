@@ -29,6 +29,7 @@ circuit_sequencer_api.workspace = true
 zkevm_test_harness.workspace = true
 proof-compression-gpu.workspace = true
 fflonk-gpu.workspace = true
+wrapper_prover = { workspace = true, optional = true }
 
 anyhow.workspace = true
 tracing.workspace = true
@@ -45,3 +46,4 @@ serde = { workspace = true, features = ["derive"] }
 
 [features]
 default = []
+fflonk = []
