@@ -9,8 +9,6 @@ import * as ethers from 'ethers';
 import { deployContract, getTestContract } from '../src/helpers';
 import { ERC20_PER_ACCOUNT, L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import { shouldChangeETHBalances, shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
-import { TransactionResponse } from 'ethers';
-import { MatcherModifier } from '../src/modifiers';
 import { fail } from 'node:assert';
 
 const contracts = {
