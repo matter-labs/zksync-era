@@ -13,9 +13,9 @@ fn main() -> anyhow::Result<()> {
         .write_to_file(outdir.join("consensus_registry_abi.rs"))
         .context("Failed to write ABI to file")?;
 
-    // Copy completion scripts
-    if copy_completion_scripts().is_err() {
-        println!("WARNING: It was not possible to install autocomplete scripts. Please generate them manually with `zkstack autocomplete`")
+    if let Err(e) = configure_shell_autocompletion() {
+        println!("WARNING: It was not possible to install autocomplete scripts. Please generate them manually with `zkstack autocomplete`");
+        println!("ERROR: {}", e);
     };
 
     zksync_protobuf_build::Config {
@@ -30,19 +30,19 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn copy_completion_scripts() -> anyhow::Result<()> {
+fn configure_shell_autocompletion() -> anyhow::Result<()> {
     let crate_name = env!("CARGO_PKG_NAME");
 
     // Create local config directory
     let local_config_dir = config_local_dir().unwrap().join(crate_name);
-    std::fs::create_dir_all(&local_config_dir)?;
+    std::fs::create_dir_all(&local_config_dir)
+        .context("it was impossible to create the configuration directory")?;
 
     // Array of supported shells
     let shells = ["bash", "zsh"];
 
     // Copy completion files
     let completion_dir = local_config_dir.join("completion");
-    std::fs::create_dir_all(&completion_dir)?;
 
     for shell in &shells {
         let completion_file = format!("_{}_{}", crate_name, shell);
@@ -57,7 +57,8 @@ fn copy_completion_scripts() -> anyhow::Result<()> {
             .join(format!(".{}rc", shell));
 
         if shell_rc.exists() {
-            let shell_rc_content = std::fs::read_to_string(&shell_rc)?;
+            let shell_rc_content = std::fs::read_to_string(&shell_rc)
+                .context(format!("could not read .{}rc", shell))?;
 
             if !shell_rc_content.contains("# zkstack completion") {
                 let completion_path = completion_dir.join(&completion_file);
@@ -69,7 +70,8 @@ fn copy_completion_scripts() -> anyhow::Result<()> {
                         "{}\n# zkstack completion\nsource \"{}\"\n",
                         shell_rc_content, completion_path
                     ),
-                )?;
+                )
+                .context(format!("could not write .{}rc", shell))?;
             }
         }
     }
