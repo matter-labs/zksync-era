@@ -14,6 +14,9 @@ anyhow.workspace = true
 axum.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+rlp.workspace = true
+rand.workspace = true
+sha3.workspace = true
 # we can't use the workspace version of prost because
 # the tonic dependency requires a hugher version.
 prost = "0.13.1"

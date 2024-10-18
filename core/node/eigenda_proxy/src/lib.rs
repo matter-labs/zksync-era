@@ -8,6 +8,9 @@ use axum::{
     Router,
 };
 use tokio::sync::watch;
+mod blob_info;
+mod errors;
+mod memstore;
 
 pub async fn run_server(mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
     // TODO: Replace port for config
