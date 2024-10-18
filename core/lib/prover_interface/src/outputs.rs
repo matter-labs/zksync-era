@@ -88,6 +88,24 @@ impl fmt::Debug for L1BatchProofForL1 {
     }
 }
 
+impl fmt::Debug for PplonkL1BatchProofForL1 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PplonkL1BatchProofForL1")
+            .field("aggregation_result_coords", &self.aggregation_result_coords)
+            .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for FflonkL1BatchProofForL1 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FflonkL1BatchProofForL1")
+            .field("aggregation_result_coords", &self.aggregation_result_coords)
+            .finish_non_exhaustive()
+    }
+}
+
 impl fmt::Debug for L1BatchTeeProofForL1 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter

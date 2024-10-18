@@ -2,9 +2,7 @@ use fflonk::{
     bellman::{bn256, bn256::Fr, CurveAffine, Engine, PrimeField, PrimeFieldRepr},
     FflonkSnarkVerifierCircuitProof,
 };
-use zksync_prover_interface::outputs::{
-    FflonkL1BatchProofForL1, L1BatchProofForL1, PplonkL1BatchProofForL1,
-};
+use zksync_prover_interface::outputs::FflonkL1BatchProofForL1;
 use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token, U256};
 
 use crate::{i_executor::structures::StoredBatchInfo, Tokenizable, Tokenize};
