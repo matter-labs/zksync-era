@@ -31,9 +31,13 @@ impl DataAvailabilityClient for EigenDAClient {
         _batch_number: u32,
         blob_data: Vec<u8>,
     ) -> Result<types::DispatchResponse, types::DAError> {
+        let api_node_url = match &self.config {
+            EigenDAConfig::MemStore(config) => &config.api_node_url,
+            EigenDAConfig::Disperser(config) => &config.api_node_url,
+        }; // TODO: This should be removed once eigenda proxy is no longer used
         let response = self
             .client
-            .post(format!("{}/put/", self.config.api_node_url))
+            .post(format!("{}/put/", api_node_url))
             .header(http::header::CONTENT_TYPE, "application/octetstream")
             .body(blob_data)
             .send()
@@ -53,9 +57,13 @@ impl DataAvailabilityClient for EigenDAClient {
         &self,
         blob_id: &str,
     ) -> anyhow::Result<Option<types::InclusionData>, types::DAError> {
+        let api_node_url = match &self.config {
+            EigenDAConfig::MemStore(config) => &config.api_node_url,
+            EigenDAConfig::Disperser(config) => &config.api_node_url,
+        }; // TODO: This should be removed once eigenda proxy is no longer used
         let response = self
             .client
-            .get(format!("{}/get/0x{}", self.config.api_node_url, blob_id))
+            .get(format!("{}/get/0x{}", api_node_url, blob_id))
             .send()
             .await
             .map_err(to_retriable_error)?;

@@ -1,13 +1,17 @@
 # Zksync-era <> EigenDA Integration
 
-EigenDA is as a high-throughput data availability layer for rollups. It is an EigenLayer AVS (Actively Validated Service), so it leverages Ethereum's economic security instead of bootstrapping a new network with its own validators.
+EigenDA is as a high-throughput data availability layer for rollups. It is an EigenLayer AVS (Actively Validated
+Service), so it leverages Ethereum's economic security instead of bootstrapping a new network with its own validators.
 For more information you can check the [docs](https://docs.eigenda.xyz/).
 
 ## Scope
 
-The scope of this first milestone is to spin up a local EigenDA dev environment, spin up a local zksync-era dev environment and integrate them. Instead of sending 4844 blobs, the zksync-era sends blobs to EigenDA. EigenDA provides a high level client called [eigenda-proxy](https://github.com/Layr-Labs/eigenda-proxy), and it is used to communicate with the EigenDA disperser in a secury and easy way.
-On L1, mock the verification logic, such that blocks continue building. Increase the blob size from 4844 size to 2MiB blob.
-Deploy the integration to Holesky testnet and provide scripts to setup a network using EigenDA as DA provider. 
+The scope of this first milestone is to spin up a local EigenDA dev environment, spin up a local zksync-era dev
+environment and integrate them. Instead of sending 4844 blobs, the zksync-era sends blobs to EigenDA. EigenDA provides a
+high level client called [eigenda-proxy](https://github.com/Layr-Labs/eigenda-proxy), and it is used to communicate with
+the EigenDA disperser in a secury and easy way. On L1, mock the verification logic, such that blocks continue building.
+Increase the blob size from 4844 size to 2MiB blob. Deploy the integration to Holesky testnet and provide scripts to
+setup a network using EigenDA as DA provider.
 
 ## Common changes
 
@@ -15,10 +19,30 @@ Changes needed both for local and mainnet/testnet setup.
 
 1. Add `da_client` to `etc/env/file_based/general.yaml`:
 
+If you want to use memstore:
+
 ```yaml
 da_client:
   eigen_da:
-    api_node_url: http://127.0.0.1:4242
+    memstore:
+      api_node_url: http://127.0.0.1:4242 # TODO: This should be removed once eigenda proxy is no longer used
+      max_blob_size_bytes: 2097152
+      blob_expiration: 100000
+      get_latency: 100
+      put_latency: 100
+```
+
+If you want to use disperser:
+
+```yaml
+da_client:
+  eigen_da:
+    disperser:
+      api_node_url: http://127.0.0.1:4242 # TODO: This should be removed once eigenda proxy is no longer used
+      disperser_rpc: <your_desired_disperser>
+      eth_confirmation_depth: -1
+      eigenda_eth_rpc: <your_desired_rpc>
+      eigenda_svc_manager_addr: '0xD4A7E1Bd8015057293f0D0A557088c286942e84b'
 ```
 
 2. Add `eigenda-proxy` to the `docker-compose.yml` file:
@@ -27,7 +51,7 @@ da_client:
 eigenda-proxy:
   image: ghcr.io/layr-labs/eigenda-proxy
   ports:
-    - "4242:4242"
+    - '4242:4242'
   command: ./eigenda-proxy --addr 0.0.0.0 --port 4242 --memstore.enabled --eigenda-max-blob-length "2MiB"
 ```
 
