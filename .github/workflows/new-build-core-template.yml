@@ -77,6 +77,8 @@ jobs:
           tar -C ./contracts -zxf l1-contracts.tar.gz
           tar -C ./contracts -zxf l2-contracts.tar.gz
           tar -C ./contracts -zxf system-contracts.tar.gz
+          # TODO Remove mkdir once we use foundry inside contracts repo
+          mkdir -p contracts/l1-contracts/out
 
       - name: Install Apt dependencies
         if: env.BUILD_CONTRACTS == 'true'
@@ -141,6 +143,7 @@ jobs:
         run: |
           cp etc/tokens/{test,localhost}.json
           zkstack dev contracts
+
 
       - name: Upload contracts
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
@@ -207,6 +210,14 @@ jobs:
           name: contacts
           path: |
             ./contracts
+
+      # TODO Remove it when we migrate to foundry inside contracts repository
+      - name: Create necessary artefacts
+        shell: bash
+        run: |
+          mkdir -p contracts/l1-contracts/artifacts/
+          mkdir -p contracts/l1-contracts/out
+
 
       - name: login to Docker registries
         if: ${{ inputs.action == 'push' }}

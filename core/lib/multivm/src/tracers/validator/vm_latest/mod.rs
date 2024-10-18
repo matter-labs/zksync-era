@@ -1,9 +1,14 @@
+use std::{
+    cmp,
+    time::{SystemTime, UNIX_EPOCH},
+};
+
 use zk_evm_1_5_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
 };
 use zksync_system_constants::KECCAK256_PRECOMPILE_ADDRESS;
-use zksync_types::{get_code_key, AccountTreeId, StorageKey, H256};
+use zksync_types::{get_code_key, AccountTreeId, StorageKey, H256, U256};
 use zksync_utils::{h256_to_account_address, u256_to_account_address, u256_to_h256};
 
 use crate::{
@@ -80,6 +85,56 @@ impl<H: HistoryMode> ValidationTracer<H> {
                         return Err(ViolatedValidationRule::CalledContractWithNoCode(
                             called_address,
                         ));
+                    }
+                    // If this is a call to the timestamp asserter, extract the function arguments and store them in ValidationTraces.
+                    // These arguments are used by the mempool for transaction filtering. The call data length should be 68 bytes:
+                    // a 4-byte function selector followed by two U256 values.
+                    // TODO: if any more functions will be added to the TimestampAsserter contract in the future, verify the function selector too
+                    if Some(called_address) == self.timestamp_asserter_address
+                        && far_call_abi.memory_quasi_fat_pointer.length == 68
+                    {
+                        let calldata_page = get_calldata_page_via_abi(
+                            &far_call_abi,
+                            state.vm_local_state.callstack.current.base_memory_page,
+                        );
+                        let calldata = memory.read_unaligned_bytes(
+                            calldata_page as usize,
+                            far_call_abi.memory_quasi_fat_pointer.start as usize,
+                            68,
+                        );
+
+                        let start = U256::from_big_endian(
+                            &calldata[calldata.len() - 64..calldata.len() - 32],
+                        );
+                        let end = U256::from_big_endian(&calldata[calldata.len() - 32..]);
+
+                        if start.as_u32() - end.as_u32() < self.timestamp_asserter_min_range_sec {
+                            return Err(ViolatedValidationRule::TimestampAssertionOutOfRange);
+                        }
+
+                        let now = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .expect("Incorrect system time")
+                            .as_secs();
+
+                        if end.as_u32() < now as u32 + self.timestamp_asserter_min_time_till_end_sec
+                        {
+                            return Err(ViolatedValidationRule::TimestampAssertionOutOfRange);
+                        }
+
+                        {
+                            let mut traces_mut = self.traces.lock().unwrap();
+                            traces_mut.timestamp_asserter_range_start =
+                                match traces_mut.timestamp_asserter_range_start {
+                                    Some(current_value) => Some(cmp::max(current_value, start)),
+                                    None => Some(start),
+                                };
+                            traces_mut.timestamp_asserter_range_end =
+                                match traces_mut.timestamp_asserter_range_end {
+                                    Some(current_value) => Some(cmp::min(current_value, end)),
+                                    None => Some(end),
+                                };
+                        }
                     }
                 }
             }

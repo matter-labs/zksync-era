@@ -16,8 +16,8 @@ use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{
     configs::{
-        self, da_client::DAClientConfig::Avail, eth_sender::PubdataSendingMode,
-        external_price_api_client::ForcedPriceClientConfig,
+        self, chain::TimestampAsserterConfig, da_client::DAClientConfig::Avail,
+        eth_sender::PubdataSendingMode, external_price_api_client::ForcedPriceClientConfig,
     },
     AvailConfig,
 };
@@ -259,6 +259,7 @@ impl Distribution<configs::ContractsConfig> for EncodeDist {
             l1_weth_bridge_proxy_addr: self.sample_opt(|| rng.gen()),
             l2_weth_bridge_addr: self.sample_opt(|| rng.gen()),
             l2_testnet_paymaster_addr: self.sample_opt(|| rng.gen()),
+            l2_timestamp_asserter_addr: self.sample_opt(|| rng.gen()),
             l1_multicall3_addr: rng.gen(),
             ecosystem_contracts: self.sample(rng),
             base_token_addr: self.sample_opt(|| rng.gen()),
@@ -1177,6 +1178,16 @@ impl Distribution<configs::GeneralConfig> for EncodeDist {
             external_proof_integration_api_config: self.sample(rng),
             experimental_vm_config: self.sample(rng),
             prover_job_monitor_config: self.sample(rng),
+            timestamp_asserter_config: self.sample(rng),
+        }
+    }
+}
+
+impl Distribution<TimestampAsserterConfig> for EncodeDist {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> TimestampAsserterConfig {
+        TimestampAsserterConfig {
+            min_range_sec: self.sample(rng),
+            min_time_till_end_sec: self.sample(rng),
         }
     }
 }

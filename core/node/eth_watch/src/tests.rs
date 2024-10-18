@@ -620,6 +620,9 @@ async fn get_all_db_txs(storage: &mut Connection<'_, Core>) -> Vec<Transaction> 
         .sync_mempool(&[], &[], 0, 0, 1000)
         .await
         .unwrap()
+        .into_iter()
+        .map(|x| x.0)
+        .collect()
 }
 
 fn tx_into_log(tx: L1Tx) -> Log {
