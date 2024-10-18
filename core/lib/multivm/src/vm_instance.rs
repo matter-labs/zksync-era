@@ -8,8 +8,8 @@ use crate::{
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
         utils::ShadowVm,
-        BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
-        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+        BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, PushTransactionResult,
+        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
         VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
@@ -55,8 +55,7 @@ macro_rules! dispatch_legacy_vm {
 impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     type TracerDispatcher = TracerDispatcher<StorageView<S>, H>;
 
-    /// Push tx into memory for the future execution
-    fn push_transaction(&mut self, tx: Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         dispatch_legacy_vm!(self.push_transaction(tx))
     }
 
@@ -247,8 +246,8 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInsta
         Tr,
     );
 
-    fn push_transaction(&mut self, tx: Transaction) {
-        dispatch_fast_vm!(self.push_transaction(tx));
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
+        dispatch_fast_vm!(self.push_transaction(tx))
     }
 
     fn inspect(
