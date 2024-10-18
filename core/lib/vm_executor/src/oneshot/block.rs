@@ -7,7 +7,6 @@ use zksync_multivm::{
 use zksync_types::{
     api,
     block::{unpack_block_info, L2BlockHasher},
-    commitment::PubdataParams,
     fee_model::BatchFeeInput,
     AccountTreeId, L1BatchNumber, L2BlockNumber, ProtocolVersionId, StorageKey, H256,
     SYSTEM_CONTEXT_ADDRESS, SYSTEM_CONTEXT_CURRENT_L2_BLOCK_INFO_POSITION,
@@ -148,7 +147,6 @@ impl BlockInfo {
             protocol_version,
             use_evm_emulator,
             is_pending: self.is_pending_l2_block(),
-            pubdata_params: l2_block_header.pubdata_params,
         })
     }
 }
@@ -163,7 +161,6 @@ pub struct ResolvedBlockInfo {
     protocol_version: ProtocolVersionId,
     use_evm_emulator: bool,
     is_pending: bool,
-    pubdata_params: PubdataParams,
 }
 
 impl ResolvedBlockInfo {
@@ -197,7 +194,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         )
         .await?;
 
-        let (system, l1_batch, pubdata_params) = self
+        let (system, l1_batch) = self
             .prepare_env(
                 execution_mode,
                 resolved_block_info,
@@ -210,7 +207,6 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         Ok(OneshotEnv {
             system,
             l1_batch,
-            pubdata_params,
             current_block,
         })
     }
@@ -222,7 +218,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
         next_block: L2BlockEnv,
         fee_input: BatchFeeInput,
         enforced_base_fee: Option<u64>,
-    ) -> anyhow::Result<(SystemEnv, L1BatchEnv, PubdataParams)> {
+    ) -> anyhow::Result<(SystemEnv, L1BatchEnv)> {
         let &Self {
             operator_account,
             validation_computational_gas_limit,
@@ -252,7 +248,7 @@ impl<C: ContractsKind> OneshotEnvParameters<C> {
             enforced_base_fee,
             first_l2_block: next_block,
         };
-        Ok((system_env, l1_batch_env, resolved_block_info.pubdata_params))
+        Ok((system_env, l1_batch_env))
     }
 }
 
