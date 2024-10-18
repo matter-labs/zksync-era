@@ -419,7 +419,7 @@ pub async fn create_genesis_l1_batch(
         .await?;
     transaction
         .blocks_dal()
-        .insert_l1_batch(genesis_l1_batch_header.to_unsealed_header(batch_fee_input))
+        .insert_l1_batch(genesis_l1_batch_header.to_unsealed_header())
         .await?;
     transaction
         .blocks_dal()

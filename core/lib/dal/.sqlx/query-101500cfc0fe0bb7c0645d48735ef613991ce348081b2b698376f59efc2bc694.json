@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                compressed_state_diffs,\n                system_logs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                fee_address\n            FROM\n                l1_batches\n            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            WHERE\n                eth_commit_tx_id IS NOT NULL\n                AND eth_prove_tx_id IS NULL\n            ORDER BY\n                number\n            LIMIT\n                $1\n            ",
+  "query": "\n                    SELECT\n                        number,\n                        timestamp,\n                        l1_tx_count,\n                        l2_tx_count,\n                        bloom,\n                        priority_ops_onchain_data,\n                        hash,\n                        commitment,\n                        l2_to_l1_messages,\n                        used_contract_hashes,\n                        compressed_initial_writes,\n                        compressed_repeated_writes,\n                        l2_l1_merkle_root,\n                        rollup_last_leaf_index,\n                        zkporter_is_available,\n                        bootloader_code_hash,\n                        default_aa_code_hash,\n                        evm_emulator_code_hash,\n                        aux_data_hash,\n                        pass_through_data_hash,\n                        meta_parameters_hash,\n                        protocol_version,\n                        compressed_state_diffs,\n                        system_logs,\n                        events_queue_commitment,\n                        bootloader_initial_content_commitment,\n                        pubdata_input,\n                        fee_address,\n                        l1_gas_price,\n                        l2_fair_gas_price,\n                        fair_pubdata_price\n                    FROM\n                        l1_batches\n                    LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                    WHERE\n                        eth_prove_tx_id IS NOT NULL\n                        AND eth_execute_tx_id IS NULL\n                    ORDER BY\n                        number\n                    LIMIT\n                        $1\n                    ",
   "describe": {
     "columns": [
       {
@@ -142,6 +142,21 @@
         "ordinal": 27,
         "name": "fee_address",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 28,
+        "name": "l1_gas_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 29,
+        "name": "l2_fair_gas_price",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 30,
+        "name": "fair_pubdata_price",
+        "type_info": "Int8"
       }
     ],
     "parameters": {
@@ -177,8 +192,11 @@
       true,
       true,
       true,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "0784f2cc13f85763cc7da29902850fa76a03907957b7a0d87ea55a7873f3312e"
+  "hash": "101500cfc0fe0bb7c0645d48735ef613991ce348081b2b698376f59efc2bc694"
 }
