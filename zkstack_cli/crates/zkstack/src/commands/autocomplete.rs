@@ -15,10 +15,8 @@ use crate::{
 };
 
 pub fn run(args: AutocompleteArgs) -> anyhow::Result<()> {
-    let cmd = Inception::command();
     let filename = format!(
-        "_{}_{}",
-        cmd.get_name(),
+        "_zkstack_{}",
         args.generator.to_string().to_ascii_lowercase()
     );
     let path = args.out.join(&filename);
