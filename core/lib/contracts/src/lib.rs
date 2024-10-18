@@ -295,10 +295,11 @@ impl SystemContractsRepo {
                 ))) {
                     contract
                 } else {
-                    read_zbin_bytecode_from_path(self.root.join(format!(
-                        "contracts-preprocessed/{0}artifacts/{1}.yul.zbin",
-                        directory, name
-                    )))
+                    read_yul_bytecode_by_path(
+                        self.root
+                            .join(format!("contracts-preprocessed/{directory}artifacts")),
+                        name,
+                    )
                 }
             }
         }
@@ -313,10 +314,12 @@ pub fn read_bootloader_code(bootloader_type: &str) -> Vec<u8> {
     {
         return contract;
     };
-    read_zbin_bytecode(format!(
-        "contracts/system-contracts/bootloader/build/artifacts/{}.yul.zbin",
-        bootloader_type
-    ))
+    read_yul_bytecode_by_path(
+        home_path()
+            .join("contracts/system-contracts")
+            .join(format!("bootloader/build/artifacts")),
+        bootloader_type,
+    )
 }
 
 fn read_proved_batch_bootloader_bytecode() -> Vec<u8> {
