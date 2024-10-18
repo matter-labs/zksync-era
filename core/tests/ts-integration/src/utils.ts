@@ -152,70 +152,52 @@ export class NodeSpawner {
 
         if (fileConfig.loadFromFile) {
             this.restoreConfig();
-            this.setPropertyInGeneralConfig('transaction_slots', testMode ? 1 : 8192);
+            const config = this.readFileConfig();
+            config['state_keeper']['transaction_slots'] = testMode ? 1 : 8192;
 
             if (overrides != null) {
                 if (overrides.newL1GasPrice) {
-                    this.setChildProperty('gas_adjuster', 'internal_enforced_l1_gas_price', overrides.newL1GasPrice);
+                    config['eth']['gas_adjuster']['internal_enforced_l1_gas_price'] = overrides.newL1GasPrice;
                 }
 
                 if (overrides.newPubdataPrice) {
-                    this.setChildProperty('gas_adjuster', 'internal_enforced_pubdata_price', overrides.newPubdataPrice);
+                    config['eth']['gas_adjuster']['internal_enforced_pubdata_price'] = overrides.newPubdataPrice;
                 }
 
                 if (overrides.externalPriceApiClientForcedNumerator !== undefined) {
-                    this.setChildProperty(
-                        'external_price_api_client',
-                        'forced_numerator',
-                        overrides.externalPriceApiClientForcedNumerator
-                    );
+                    config['external_price_api_client']['forced_numerator'] =
+                        overrides.externalPriceApiClientForcedNumerator;
                 }
 
                 if (overrides.externalPriceApiClientForcedDenominator !== undefined) {
-                    this.setChildProperty(
-                        'external_price_api_client',
-                        'forced_denominator',
-                        overrides.externalPriceApiClientForcedDenominator
-                    );
+                    config['external_price_api_client']['forced_denominator'] =
+                        overrides.externalPriceApiClientForcedDenominator;
                 }
 
                 if (overrides.externalPriceApiClientForcedFluctuation !== undefined) {
-                    this.setChildProperty(
-                        'external_price_api_client',
-                        'forced_fluctuation',
-                        overrides.externalPriceApiClientForcedFluctuation
-                    );
+                    config['external_price_api_client']['forced_fluctuation'] =
+                        overrides.externalPriceApiClientForcedFluctuation;
                 }
 
                 if (overrides.baseTokenPricePollingIntervalMs !== undefined) {
                     const cacheUpdateInterval = overrides.baseTokenPricePollingIntervalMs / 2;
                     // To reduce price polling interval we also need to reduce base token receipt checking and tx sending sleeps as they are blocking the poller. Also cache update needs to be reduced appropriately.
-                    this.setChildProperty(
-                        'base_token_adjuster',
-                        'l1_receipt_checking_sleep_ms',
-                        overrides.baseTokenPricePollingIntervalMs
-                    );
-                    this.setChildProperty(
-                        'base_token_adjuster',
-                        'l1_tx_sending_sleep_ms',
-                        overrides.baseTokenPricePollingIntervalMs
-                    );
-                    this.setChildProperty(
-                        'base_token_adjuster',
-                        'price_polling_interval_ms',
-                        overrides.baseTokenPricePollingIntervalMs
-                    );
-                    this.setChildProperty('base_token_adjuster', 'price_cache_update_interval_ms', cacheUpdateInterval);
+
+                    config['base_token_adjuster']['l1_receipt_checking_sleep_ms'] =
+                        overrides.baseTokenPricePollingIntervalMs;
+                    config['base_token_adjuster']['l1_tx_sending_sleep_ms'] = overrides.baseTokenPricePollingIntervalMs;
+                    config['base_token_adjuster']['price_polling_interval_ms'] =
+                        overrides.baseTokenPricePollingIntervalMs;
+                    config['base_token_adjuster']['price_cache_update_interval_ms'] = cacheUpdateInterval;
                 }
 
                 if (overrides.baseTokenAdjusterL1UpdateDeviationPercentage !== undefined) {
-                    this.setChildProperty(
-                        'base_token_adjuster',
-                        'l1_update_deviation_percentage',
-                        overrides.baseTokenAdjusterL1UpdateDeviationPercentage
-                    );
+                    config['base_token_adjuster']['l1_update_deviation_percentage'] =
+                        overrides.baseTokenAdjusterL1UpdateDeviationPercentage;
                 }
             }
+
+            this.writeFileConfig(config);
         } else {
             env['DATABASE_MERKLE_TREE_MODE'] = 'full';
 
@@ -295,40 +277,18 @@ export class NodeSpawner {
             fsSync.writeFileSync(this.generalConfigPath, this.originalConfig, 'utf8');
     }
 
-    private setChildProperty(parentProperty: string, property: string, value: number | bigint) {
+    private readFileConfig() {
         if (this.generalConfigPath == void 0)
             throw new Error('Trying to set property in config while not in file mode');
         const generalConfig = fsSync.readFileSync(this.generalConfigPath, 'utf8');
-        const parsed = YAML.parse(generalConfig);
-
-        // TODO FIX THIS SHITTY CODE
-        if (parentProperty == 'gas_adjuster') {
-            if (parsed['eth'][parentProperty] == null) {
-                console.log(parsed);
-                throw new Error(`No eth->${parentProperty} config section in general.yaml`);
-            }
-            parsed['eth'][parentProperty][property] = value;
-        } else {
-            if (parsed[parentProperty] == null) {
-                console.log(parsed);
-                throw new Error(`No ${parentProperty} config section in general.yaml`);
-            }
-            parsed[parentProperty][property] = value;
-        }
-
-        const newGeneralConfig = YAML.stringify(parsed);
-
-        fsSync.writeFileSync(this.generalConfigPath, newGeneralConfig, 'utf8');
+        return YAML.parse(generalConfig);
     }
 
-    private setPropertyInGeneralConfig(property: string, value: number) {
+    private writeFileConfig(config: any) {
         if (this.generalConfigPath == void 0)
             throw new Error('Trying to set property in config while not in file mode');
-        const generalConfig = fsSync.readFileSync(this.generalConfigPath, 'utf8');
 
-        const regex = new RegExp(`${property}:\\s*\\d+(\\.\\d+)?`, 'g');
-        const newGeneralConfig = generalConfig.replace(regex, `${property}: ${value}`);
-
+        const newGeneralConfig = YAML.stringify(config);
         fsSync.writeFileSync(this.generalConfigPath, newGeneralConfig, 'utf8');
     }
 }
