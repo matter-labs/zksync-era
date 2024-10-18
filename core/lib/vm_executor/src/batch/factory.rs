@@ -3,10 +3,11 @@ use std::{borrow::Cow, fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Durati
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
+use zksync_multivm::pubdata_builders::pubdata_params_to_builder;
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
-        pubdata::{pubdata_params_to_builder, PubdataBuilder},
+        pubdata::PubdataBuilder,
         storage::{ReadStorage, StoragePtr, StorageView, StorageViewStats},
         utils::DivergenceHandler,
         BatchTransactionExecutionResult, BytecodeCompressionError, CompressedBytecodeInfo,

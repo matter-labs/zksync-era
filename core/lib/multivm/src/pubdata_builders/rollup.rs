@@ -1,3 +1,4 @@
+use crate::interface::pubdata::{PubdataBuilder, PubdataInput};
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataParams},
     ethabi,
@@ -7,8 +8,7 @@ use zksync_types::{
     Address, ProtocolVersionId,
 };
 
-use super::{PubdataBuilder, PubdataInput};
-use crate::pubdata::utils::{
+use super::utils::{
     build_chained_bytecode_hash, build_chained_log_hash, build_chained_message_hash,
     build_logs_root, encode_user_logs,
 };
@@ -38,12 +38,12 @@ impl PubdataBuilder for RollupPubdataBuilder {
 
     fn l1_messenger_operator_input(
         &self,
-        input: PubdataInput,
+        input: &PubdataInput,
         protocol_version: ProtocolVersionId,
     ) -> Vec<u8> {
         if protocol_version.is_pre_gateway() {
             let mut operator_input = vec![];
-            extend_from_pubdata_input(&mut operator_input, &input);
+            extend_from_pubdata_input(&mut operator_input, input);
 
             // Extend with uncompressed state diffs.
             operator_input.extend((input.state_diffs.len() as u32).to_be_bytes());
@@ -54,7 +54,7 @@ impl PubdataBuilder for RollupPubdataBuilder {
             operator_input
         } else {
             let mut pubdata = vec![];
-            extend_from_pubdata_input(&mut pubdata, &input);
+            extend_from_pubdata_input(&mut pubdata, input);
 
             // Extend with uncompressed state diffs.
             pubdata.extend((input.state_diffs.len() as u32).to_be_bytes());
@@ -94,11 +94,11 @@ impl PubdataBuilder for RollupPubdataBuilder {
 
     fn settlement_layer_pubdata(
         &self,
-        input: PubdataInput,
+        input: &PubdataInput,
         _protocol_version: ProtocolVersionId,
     ) -> Vec<u8> {
         let mut pubdata = vec![];
-        extend_from_pubdata_input(&mut pubdata, &input);
+        extend_from_pubdata_input(&mut pubdata, input);
 
         pubdata
     }

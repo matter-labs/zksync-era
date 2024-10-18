@@ -14,8 +14,8 @@ use zksync_types::{
     ProtocolVersionId, StorageKey, H256, U256,
 };
 use zksync_utils::bytecode::hash_bytecode;
-use zksync_vm_interface::pubdata::rollup::RollupPubdataBuilder;
 
+use crate::dump::{play_back_dump, play_back_dump_custom};
 use crate::{
     interface::{
         storage::{InMemoryStorage, ReadStorage, StorageView},
@@ -257,10 +257,8 @@ fn shadow_vm_basics() {
     Harness::assert_dump(&mut dump);
 
     // Test standard playback functionality.
-    let replayed_dump = dump
-        .clone()
-        .play_back::<ShadowedFastVm<_>>()
-        .dump_state(Some(pubdata_builder.clone()));
+    let replayed_dump =
+        play_back_dump::<ShadowedFastVm<_>>(dump.clone()).dump_state(Some(pubdata_builder.clone()));
     pretty_assertions::assert_eq!(replayed_dump, dump);
 
     // Check that the VM executes identically when reading from the original storage and one restored from the dump.
@@ -268,16 +266,14 @@ fn shadow_vm_basics() {
     harness.setup_storage(&mut storage);
     let storage = StorageView::new(storage).to_rc_ptr();
 
-    let vm = dump
-        .clone()
-        .play_back_custom(|l1_batch_env, system_env, dump_storage| {
-            ShadowVm::<_, ReferenceVm, ReferenceVm<_>>::with_custom_shadow(
-                l1_batch_env,
-                system_env,
-                storage,
-                dump_storage,
-            )
-        });
+    let vm = play_back_dump_custom(dump.clone(), |l1_batch_env, system_env, dump_storage| {
+        ShadowVm::<_, ReferenceVm, ReferenceVm<_>>::with_custom_shadow(
+            l1_batch_env,
+            system_env,
+            storage,
+            dump_storage,
+        )
+    });
     let new_dump = vm.dump_state(Some(pubdata_builder));
     pretty_assertions::assert_eq!(new_dump, dump);
 }

@@ -10,7 +10,7 @@ use zksync_types::{
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, Nonce, ProtocolVersionId, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
-use zksync_vm_interface::pubdata::{rollup::RollupPubdataBuilder, PubdataBuilder};
+use zksync_vm_interface::pubdata::PubdataBuilder;
 
 use crate::{
     interface::{

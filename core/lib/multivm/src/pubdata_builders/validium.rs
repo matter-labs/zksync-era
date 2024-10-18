@@ -1,3 +1,8 @@
+use super::utils::{
+    build_chained_bytecode_hash, build_chained_log_hash, build_chained_message_hash,
+    build_logs_root, encode_user_logs,
+};
+use crate::interface::pubdata::{PubdataBuilder, PubdataInput};
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataParams},
     ethabi,
@@ -5,14 +10,6 @@ use zksync_types::{
     l2_to_l1_log::l2_to_l1_logs_tree_size,
     web3::keccak256,
     Address, ProtocolVersionId,
-};
-
-use crate::pubdata::{
-    utils::{
-        build_chained_bytecode_hash, build_chained_log_hash, build_chained_message_hash,
-        build_logs_root, encode_user_logs,
-    },
-    PubdataBuilder, PubdataInput,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -40,7 +37,7 @@ impl PubdataBuilder for ValidiumPubdataBuilder {
 
     fn l1_messenger_operator_input(
         &self,
-        input: PubdataInput,
+        input: &PubdataInput,
         protocol_version: ProtocolVersionId,
     ) -> Vec<u8> {
         assert!(
@@ -84,7 +81,7 @@ impl PubdataBuilder for ValidiumPubdataBuilder {
 
     fn settlement_layer_pubdata(
         &self,
-        input: PubdataInput,
+        input: &PubdataInput,
         protocol_version: ProtocolVersionId,
     ) -> Vec<u8> {
         assert!(
@@ -94,7 +91,7 @@ impl PubdataBuilder for ValidiumPubdataBuilder {
 
         let state_diffs_packed = input
             .state_diffs
-            .into_iter()
+            .iter()
             .flat_map(|diff| diff.encode_padded())
             .collect::<Vec<_>>();
 

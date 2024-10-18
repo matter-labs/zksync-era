@@ -130,7 +130,7 @@ fn apply_l2_block_inner(
 
 fn bootloader_memory_input(
     pubdata_builder: Rc<dyn PubdataBuilder>,
-    input: PubdataInput,
+    input: &PubdataInput,
     protocol_version: ProtocolVersionId,
 ) -> Vec<u8> {
     let l2_da_validator_address = pubdata_builder.l2_da_validator();
@@ -145,7 +145,7 @@ fn bootloader_memory_input(
 pub(crate) fn apply_pubdata_to_memory(
     memory: &mut BootloaderMemory,
     pubdata_builder: Rc<dyn PubdataBuilder>,
-    pubdata_information: PubdataInput,
+    pubdata_information: &PubdataInput,
     protocol_version: ProtocolVersionId,
 ) {
     let (l1_messenger_pubdata_start_slot, pubdata) = if protocol_version.is_pre_gateway() {

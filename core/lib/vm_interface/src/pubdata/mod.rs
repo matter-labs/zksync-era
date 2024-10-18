@@ -1,21 +1,7 @@
-use std::rc::Rc;
-
 use zksync_types::{
-    commitment::{L1BatchCommitmentMode, PubdataParams},
-    l2_to_l1_log::L2ToL1Log,
-    writes::StateDiffRecord,
-    Address, ProtocolVersionId, U256,
+    commitment::PubdataParams, l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address,
+    ProtocolVersionId, H256, U256,
 };
-use zksync_utils::{u256_to_bytes_be, u256_to_h256};
-
-use crate::pubdata::{rollup::RollupPubdataBuilder, validium::ValidiumPubdataBuilder};
-
-pub mod rollup;
-pub mod utils;
-pub mod validium;
-
-#[cfg(test)]
-mod tests;
 
 /// Corresponds to the following solidity event:
 /// ```solidity
@@ -40,6 +26,13 @@ pub struct L1MessengerL2ToL1Log {
 
 impl L1MessengerL2ToL1Log {
     pub fn packed_encoding(&self) -> Vec<u8> {
+        /// Converts `U256` value into bytes array
+        fn u256_to_bytes_be(value: &U256) -> Vec<u8> {
+            let mut bytes = vec![0u8; 32];
+            value.to_big_endian(bytes.as_mut_slice());
+            bytes
+        }
+
         let mut res: Vec<u8> = vec![];
         res.push(self.l2_shard_id);
         res.push(self.is_service as u8);
@@ -53,6 +46,12 @@ impl L1MessengerL2ToL1Log {
 
 impl From<L1MessengerL2ToL1Log> for L2ToL1Log {
     fn from(log: L1MessengerL2ToL1Log) -> Self {
+        fn u256_to_h256(num: U256) -> H256 {
+            let mut bytes = [0u8; 32];
+            num.to_big_endian(&mut bytes);
+            H256::from_slice(&bytes)
+        }
+
         L2ToL1Log {
             shard_id: log.l2_shard_id,
             is_service: log.is_service,
@@ -84,24 +83,13 @@ pub trait PubdataBuilder: std::fmt::Debug {
 
     fn l1_messenger_operator_input(
         &self,
-        input: PubdataInput,
+        input: &PubdataInput,
         protocol_version: ProtocolVersionId,
     ) -> Vec<u8>;
 
     fn settlement_layer_pubdata(
         &self,
-        input: PubdataInput,
+        input: &PubdataInput,
         protocol_version: ProtocolVersionId,
     ) -> Vec<u8>;
-}
-
-pub fn pubdata_params_to_builder(params: PubdataParams) -> Rc<dyn PubdataBuilder> {
-    match params.pubdata_type {
-        L1BatchCommitmentMode::Rollup => {
-            Rc::new(RollupPubdataBuilder::new(params.l2_da_validator_address))
-        }
-        L1BatchCommitmentMode::Validium => {
-            Rc::new(ValidiumPubdataBuilder::new(params.l2_da_validator_address))
-        }
-    }
 }

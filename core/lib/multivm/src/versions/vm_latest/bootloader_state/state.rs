@@ -157,8 +157,7 @@ impl BootloaderState {
         let pubdata_information = self
             .pubdata_information
             .get()
-            .expect("Pubdata information is not set")
-            .clone();
+            .expect("Pubdata information is not set");
 
         pubdata_builder.settlement_layer_pubdata(pubdata_information, self.protocol_version)
     }
@@ -199,8 +198,7 @@ impl BootloaderState {
 
         let pubdata_information = self
             .pubdata_information
-            .clone()
-            .into_inner()
+            .get()
             .expect("Empty pubdata information");
 
         apply_pubdata_to_memory(

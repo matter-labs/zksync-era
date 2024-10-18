@@ -229,9 +229,6 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
         if self.pubdata_info_requested {
             let pubdata_input = self.build_pubdata_input(state);
 
-            // Save the pubdata for the future initial bootloader memory building
-            bootloader_state.set_pubdata_input(pubdata_input.clone());
-
             // Apply the pubdata to the current memory
             let mut memory_to_apply = vec![];
 
@@ -240,9 +237,13 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
                 self.pubdata_builder
                     .clone()
                     .expect("`pubdata_builder` is required to finish batch"),
-                pubdata_input,
+                &pubdata_input,
                 bootloader_state.protocol_version(),
             );
+
+            // Save the pubdata for the future initial bootloader memory building
+            bootloader_state.set_pubdata_input(pubdata_input);
+
             state.memory.populate_page(
                 BOOTLOADER_HEAP_PAGE as usize,
                 memory_to_apply,

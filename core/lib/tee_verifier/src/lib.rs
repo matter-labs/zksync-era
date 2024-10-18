@@ -9,7 +9,7 @@ use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof, ValueHash,
 };
-use zksync_multivm::interface::pubdata::pubdata_params_to_builder;
+use zksync_multivm::pubdata_builders::pubdata_params_to_builder;
 use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StorageSnapshot, StorageView},

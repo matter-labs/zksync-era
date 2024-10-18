@@ -7,11 +7,11 @@ use zksync_types::{
 };
 
 use crate::{
-    pubdata::{pubdata_params_to_builder, PubdataBuilder},
+    pubdata::PubdataBuilder,
     storage::{ReadStorage, StoragePtr, StorageSnapshot, StorageView},
     BytecodeCompressionResult, FinishedL1Batch, InspectExecutionMode, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
-    VmInterfaceHistoryEnabled, VmTrackingContracts,
+    SystemEnv, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+    VmTrackingContracts,
 };
 
 fn create_storage_snapshot<S: ReadStorage>(
@@ -64,47 +64,6 @@ pub struct VmDump {
 impl VmDump {
     pub fn l1_batch_number(&self) -> L1BatchNumber {
         self.l1_batch_env.number
-    }
-
-    /// Plays back this dump on the specified VM.
-    pub fn play_back<Vm>(self) -> Vm
-    where
-        Vm: VmFactory<StorageView<StorageSnapshot>>,
-    {
-        self.play_back_custom(Vm::new)
-    }
-
-    /// Plays back this dump on a VM created using the provided closure.
-    #[doc(hidden)] // too low-level
-    pub fn play_back_custom<Vm: VmInterface>(
-        self,
-        create_vm: impl FnOnce(L1BatchEnv, SystemEnv, StoragePtr<StorageView<StorageSnapshot>>) -> Vm,
-    ) -> Vm {
-        let storage = StorageView::new(self.storage).to_rc_ptr();
-        let mut vm = create_vm(self.l1_batch_env, self.system_env, storage);
-
-        for (i, l2_block) in self.l2_blocks.into_iter().enumerate() {
-            if i > 0 {
-                // First block is already set.
-                vm.start_new_l2_block(L2BlockEnv {
-                    number: l2_block.number.0,
-                    timestamp: l2_block.timestamp,
-                    prev_block_hash: l2_block.prev_block_hash,
-                    max_virtual_blocks_to_create: l2_block.virtual_blocks,
-                });
-            }
-
-            for tx in l2_block.txs {
-                let tx_hash = tx.hash();
-                let (compression_result, _) =
-                    vm.execute_transaction_with_bytecode_compression(tx, true);
-                if let Err(err) = compression_result {
-                    panic!("Failed compressing bytecodes for transaction {tx_hash:?}: {err}");
-                }
-            }
-        }
-        vm.finish_batch(self.pubdata_params.map(pubdata_params_to_builder));
-        vm
     }
 }
 
