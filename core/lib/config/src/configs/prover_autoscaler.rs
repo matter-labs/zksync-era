@@ -53,6 +53,8 @@ pub struct ProverAutoscalerScalerConfig {
     pub prover_speed: HashMap<Gpu, u32>,
     /// Maximum number of provers which can be run per cluster/GPU.
     pub max_provers: HashMap<String, HashMap<Gpu, u32>>,
+    /// Minimum number of provers per namespace.
+    pub min_provers: HashMap<String, u32>,
     /// Duration after which pending pod considered long pending.
     #[serde(default = "ProverAutoscalerScalerConfig::default_long_pending_duration")]
     pub long_pending_duration: Duration,

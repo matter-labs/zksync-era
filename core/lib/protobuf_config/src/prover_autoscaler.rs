@@ -103,6 +103,13 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                 }
                 acc
             }),
+            min_provers: self
+                .min_provers
+                .iter()
+                .enumerate()
+                .map(|(i, e)| e.read().context(i))
+                .collect::<Result<_, _>>()
+                .context("min_provers")?,
         })
     }
 
@@ -136,6 +143,11 @@ impl ProtoRepr for proto::ProverAutoscalerScalerConfig {
                         proto::MaxProver::build(&(format!("{}/{}", cluster, gpu), *max))
                     })
                 })
+                .collect(),
+            min_provers: this
+                .min_provers
+                .iter()
+                .map(|(k, v)| proto::MinProver::build(&(k.clone(), *v)))
                 .collect(),
         }
     }
@@ -205,6 +217,22 @@ impl ProtoRepr for proto::MaxProver {
         Self {
             cluster_and_gpu: Some(this.0.to_string()),
             max: Some(this.1),
+        }
+    }
+}
+
+impl ProtoRepr for proto::MinProver {
+    type Type = (String, u32);
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok((
+            required(&self.namespace).context("namespace")?.clone(),
+            *required(&self.min).context("min")?,
+        ))
+    }
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            namespace: Some(this.0.to_string()),
+            min: Some(this.1),
         }
     }
 }

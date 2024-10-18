@@ -28,7 +28,7 @@ pub fn check_is_ready(v: &Vec<bool>) -> Result<()> {
     Ok(())
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct Watcher {
     /// List of base URLs of all agents.
     pub cluster_agents: Vec<Arc<Url>>,
