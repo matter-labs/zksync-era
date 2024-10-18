@@ -171,7 +171,7 @@ fn lint_autocompletion_files(_shell: &Shell, check: bool) -> anyhow::Result<()> 
 
         let new = String::from_utf8(writer)?;
 
-        let path = completion_folder.join(&Path::new(shell.autocomplete_file_name().as_str()));
+        let path = completion_folder.join(shell.autocomplete_file_name());
         let mut autocomplete_file = File::open(path.clone())
             .context(format!("failed to open {}", shell.autocomplete_file_name()))?;
 

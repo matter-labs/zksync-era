@@ -42,15 +42,15 @@ pub fn generate_completions<G: Generator>(gen: G, buf: &mut dyn Write) -> anyhow
 }
 
 pub trait ShellAutocomplete {
-    fn autocomplete_file_name(&self) -> String;
+    fn autocomplete_file_name(&self) -> &'static str;
 }
 
 impl ShellAutocomplete for clap_complete::Shell {
-    fn autocomplete_file_name(&self) -> String {
+    fn autocomplete_file_name(&self) -> &'static str {
         match self {
-            clap_complete::Shell::Bash => format!("zkstack.sh"),
-            clap_complete::Shell::Fish => format!("zkstack.fish"),
-            clap_complete::Shell::Zsh => format!("_zkstack.zsh"),
+            clap_complete::Shell::Bash => "zkstack.sh",
+            clap_complete::Shell::Fish => "zkstack.fish",
+            clap_complete::Shell::Zsh => "_zkstack.zsh",
             _ => todo!(),
         }
     }
