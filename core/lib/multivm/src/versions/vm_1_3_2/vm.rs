@@ -8,8 +8,9 @@ use crate::{
     interface::{
         storage::{StoragePtr, WriteStorage},
         BytecodeCompressionError, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv,
-        L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs,
-        VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        L2BlockEnv, PushTransactionResult, SystemEnv, TxExecutionMode, VmExecutionMode,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     tracers::old::TracerDispatcher,
     utils::bytecode,
@@ -44,13 +45,17 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher;
 
-    fn push_transaction(&mut self, tx: Transaction) {
-        crate::vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
-            &mut self.vm,
-            &tx,
-            self.system_env.execution_mode.glue_into(),
-            None,
-        )
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
+        let compressed_bytecodes =
+            crate::vm_1_3_2::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                &mut self.vm,
+                &tx,
+                self.system_env.execution_mode.glue_into(),
+                None,
+            );
+        PushTransactionResult {
+            compressed_bytecodes: compressed_bytecodes.into(),
+        }
     }
 
     fn inspect(
