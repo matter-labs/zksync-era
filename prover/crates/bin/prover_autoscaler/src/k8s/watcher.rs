@@ -9,10 +9,7 @@ use kube::{
 };
 use tokio::sync::Mutex;
 
-use crate::{
-    cluster_types::{Cluster, Deployment, Namespace, Pod},
-    metrics::AUTOSCALER_METRICS,
-};
+use crate::cluster_types::{Cluster, Deployment, Namespace, Pod};
 
 #[derive(Clone)]
 pub struct Watcher {
@@ -38,8 +35,6 @@ impl Watcher {
 
     pub async fn run(self) -> anyhow::Result<()> {
         // TODO: add actual metrics
-        AUTOSCALER_METRICS.protocol_version.set(1);
-        AUTOSCALER_METRICS.calls.inc_by(1);
 
         // TODO: watch for a list of namespaces, get:
         //  - deployments (name, running, desired) [done]

@@ -43,3 +43,4 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 tracing.workspace = true
 url.workspace = true
 vise.workspace = true
+tracing-test.workspace = true
