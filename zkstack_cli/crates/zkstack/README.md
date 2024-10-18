@@ -508,7 +508,11 @@ Initialize prover
 - `--public-location <PUBLIC_LOCATION>`
 - `--public-project-id <PUBLIC_PROJECT_ID>`
 - `--bellman-cuda-dir <BELLMAN_CUDA_DIR>`
-- `--download-key <DOWNLOAD_KEY>`
+- `--bellman-cuda`
+
+  Possible values: `true`, `false`
+
+- `--setup-compressor-key <SETUP_COMPRESSOR_KEY>`
 
   Possible values: `true`, `false`
 
@@ -563,6 +567,10 @@ Run prover
 - `--docker` - Whether to run image of the component instead of binary.
 
   Possible values: `true`, `false`
+
+- `--tag' - Tag of the docker image to run.
+
+  Default value is `latest2.0` but you can specify your prefered one.
 
 - `--round <ROUND>`
 

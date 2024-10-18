@@ -25,13 +25,15 @@ If not provided as arguments, the tool can retrieve certain values from environm
 2. `l2rpc` - `API_WEB3_JSON_RPC_HTTP_URL`
 3. `create2-address` - `CONTRACTS_CREATE2_FACTORY_ADDR`
 4. `zksync-address` - `CONTRACTS_DIAMOND_PROXY_ADDR`
-5. `nonce` - Taken from the node via `l1rpc`
-6. `gas-price` - Taken from the node via `l1rpc`
-7. `environment` - By default, set to `localhost`. Always specify it explicitly. Possible values: `localhost`,
+5. `upgrade-address` - `CONTRACTS_DEFAULT_UPGRADE_ADDR`
+6. `l2-upgrader-address` - `CONTRACTS_L2_DEFAULT_UPGRADE_ADDR`
+7. `nonce` - Taken from the node via `l1rpc`
+8. `gas-price` - Taken from the node via `l1rpc`
+9. `environment` - By default, set to `localhost`. Always specify it explicitly. Possible values: `localhost`,
    `testnet2`, `stage2`, `mainnet2`. Each upgrade on different environments is performed separately since the contract
    addresses differ between environments.
-8. `private-key` - If not specified, the default key from the default mnemonic will be used. Always specify it
-   explicitly.
+10. `private-key` - If not specified, the default key from the default mnemonic will be used. Always specify it
+    explicitly.
 
 ### Create a Protocol Upgrade Proposal
 
@@ -215,8 +217,7 @@ $ zk f yarn start transactions build-default \
 --l2-upgrader-address <l2UpgraderAddress> \
 --diamond-upgrade-proposal-id <diamondUpgradeProposalId> \
 --l1rpc <l1prc> \
---zksync-address <zksyncAddress> \
---use-new-governance
+--zksync-address <zksyncAddress>
 ```
 
 To execute the `proposeTransparentUpgrade` transaction on L1, use the following command:
@@ -228,7 +229,6 @@ $ zk f yarn start transactions propose-upgrade \
 --gas-price <gas-price> \
 --nonce <nonce> \
 --zksync-address <zksyncAddress> \
---new-governance <governanceAddress> \
 --environment <environment>
 ```
 
@@ -241,7 +241,6 @@ $ zk f yarn start transactions execute-upgrade \
 --gas-price <gas-price> \
 --nonce <nonce> \
 --zksync-address <zksyncAddress> \
---new-governance <governanceAddress> \
 --environment <environment>
 ```
 
@@ -254,6 +253,5 @@ $ zk f yarn start transactions cancel-upgrade \
 --zksync-address <zksyncAddress> \
 --gas-price <gas-price> \
 --nonce <nonce> \
---new-governance <governanceAddress> \
 --environment <environment>
 ```

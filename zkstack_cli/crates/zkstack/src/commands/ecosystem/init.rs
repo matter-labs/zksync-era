@@ -3,6 +3,7 @@ use std::{path::PathBuf, str::FromStr};
 use anyhow::Context;
 use common::{
     config::global_config,
+    contracts::build_system_contracts,
     forge::{Forge, ForgeScriptArgs},
     git, logger,
     spinner::Spinner,
@@ -26,7 +27,6 @@ use super::{
     args::init::{EcosystemArgsFinal, EcosystemInitArgs, EcosystemInitArgsFinal},
     common::deploy_l1,
     setup_observability,
-    utils::{build_system_contracts, install_yarn_dependencies},
 };
 use crate::{
     accept_ownership::{accept_admin, accept_owner},
@@ -108,8 +108,7 @@ async fn init_ecosystem(
     initial_deployment_config: &InitialDeploymentConfig,
 ) -> anyhow::Result<ContractsConfig> {
     let spinner = Spinner::new(MSG_INTALLING_DEPS_SPINNER);
-    install_yarn_dependencies(shell, &ecosystem_config.link_to_code)?;
-    build_system_contracts(shell, &ecosystem_config.link_to_code)?;
+    build_system_contracts(shell.clone(), ecosystem_config.link_to_code.clone())?;
     spinner.finish();
 
     let contracts = deploy_ecosystem(

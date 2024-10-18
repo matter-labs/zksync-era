@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+
+# Configuration
+# DATABASE_URL - The URL of the prover database to connect to
+# BATCH_NUMBER - The batch number to check readiness for
+# INTERVAL - Time interval for polling in seconds
+# TIMEOUT - Timeout of script in seconds
+
+# Start timer
+START_TIME=$(date +%s)
+
+# Loop to query periodically
+while true; do
+    # Calculate the elapsed time
+    CURRENT_TIME=$(date +%s)
+    ELAPSED_TIME=$((CURRENT_TIME - START_TIME))
+
+    # Check if the timeout has been reached
+    if [ $ELAPSED_TIME -ge $TIMEOUT ]; then
+        echo "Timeout reached. Failing CI..."
+        exit 1  # Exit with non-zero status to fail CI
+    fi
+
+    # Run the SQL query and capture the result
+    RESULT=$(psql $DATABASE_URL -c "SELECT count(*) FROM proof_compression_jobs_fri WHERE l1_batch_number = $BATCH_NUMBER AND status = 'queued';" -t -A)
+
+    # Check if the result is 1
+    if [ "$RESULT" -eq 1 ]; then
+        echo "Query result is 1. Success!"
+        exit 0  # Exit with zero status to succeed CI
+    else
+        STATUS=$(psql $DATABASE_URL -c "SELECT COUNT(*), status FROM prover_jobs_fri WHERE l1_batch_number = $BATCH_NUMBER GROUP BY status;" -t -A)
+        echo "Current status is $STATUS"
+        echo "Retrying in $INTERVAL seconds..."
+    fi
+
+    # Wait for the next interval
+    sleep $INTERVAL
+done

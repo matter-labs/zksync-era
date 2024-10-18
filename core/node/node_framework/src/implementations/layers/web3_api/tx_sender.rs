@@ -32,6 +32,7 @@ pub struct PostgresStorageCachesConfig {
     pub factory_deps_cache_size: u64,
     pub initial_writes_cache_size: u64,
     pub latest_values_cache_size: u64,
+    pub latest_values_max_block_lag: u32,
 }
 
 /// Wiring layer for the `TxSender`.
@@ -133,10 +134,13 @@ impl WiringLayer for TxSenderLayer {
             PostgresStorageCaches::new(factory_deps_capacity, initial_writes_capacity);
 
         let postgres_storage_caches_task = if values_capacity > 0 {
-            Some(
-                storage_caches
-                    .configure_storage_values_cache(values_capacity, replica_pool.clone()),
-            )
+            let update_task = storage_caches.configure_storage_values_cache(
+                values_capacity,
+                self.postgres_storage_caches_config
+                    .latest_values_max_block_lag,
+                replica_pool.clone(),
+            );
+            Some(update_task)
         } else {
             None
         };
