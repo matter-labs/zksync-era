@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use ethabi::Token;
 use test_casing::{test_casing, Product};
-use zksync_contracts::SystemContractCode;
+use zksync_contracts::{load_contract, read_bytecode, SystemContractCode};
 use zksync_system_constants::{
     CONTRACT_DEPLOYER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, L2_BASE_TOKEN_ADDRESS,
 };
-use zksync_test_contracts::{TestContract, TxType};
+use zksync_test_contracts::TxType;
 use zksync_types::{
     get_code_key, get_known_code_key,
     utils::{key_for_eth_balance, storage_key_for_eth_balance},
@@ -18,21 +18,25 @@ use zksync_utils::{
     bytes_to_be_words, h256_to_u256,
 };
 
+use super::TestedLatestVm;
 use crate::{
     interface::{
         storage::InMemoryStorage, TxExecutionMode, VmExecutionResultAndLogs, VmInterfaceExt,
     },
-    versions::testonly::default_system_env,
-    vm_latest::{
-        tests::tester::{VmTester, VmTesterBuilder},
-        HistoryEnabled,
-    },
+    versions::testonly::{default_system_env, VmTester, VmTesterBuilder},
 };
 
+const MOCK_DEPLOYER_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockContractDeployer.json";
+const MOCK_KNOWN_CODE_STORAGE_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockKnownCodeStorage.json";
+const MOCK_EMULATOR_PATH: &str =
+    "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/MockEvmEmulator.json";
+const RECURSIVE_CONTRACT_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/NativeRecursiveContract.json";
+const INCREMENTING_CONTRACT_PATH: &str = "etc/contracts-test-data/artifacts-zk/contracts/mock-evm/mock-evm.sol/IncrementingContract.json";
+
 fn override_system_contracts(storage: &mut InMemoryStorage) {
-    let mock_deployer = TestContract::mock_deployer().bytecode.to_vec();
+    let mock_deployer = read_bytecode(MOCK_DEPLOYER_PATH);
     let mock_deployer_hash = hash_bytecode(&mock_deployer);
-    let mock_known_code_storage = TestContract::mock_known_code_storage().bytecode.to_vec();
+    let mock_known_code_storage = read_bytecode(MOCK_KNOWN_CODE_STORAGE_PATH);
     let mock_known_code_storage_hash = hash_bytecode(&mock_known_code_storage);
 
     storage.set_value(get_code_key(&CONTRACT_DEPLOYER_ADDRESS), mock_deployer_hash);
@@ -78,8 +82,8 @@ impl EvmTestBuilder {
         self
     }
 
-    fn build(self) -> VmTester<HistoryEnabled> {
-        let mock_emulator = TestContract::mock_evm_emulator().bytecode.to_vec();
+    fn build(self) -> VmTester<TestedLatestVm> {
+        let mock_emulator = read_bytecode(MOCK_EMULATOR_PATH);
         let mut storage = self.storage;
         let mut system_env = default_system_env();
         if self.deploy_emulator {
@@ -112,11 +116,11 @@ impl EvmTestBuilder {
             }
         }
 
-        VmTesterBuilder::new(HistoryEnabled)
+        VmTesterBuilder::new()
             .with_system_env(system_env)
             .with_storage(storage)
             .with_execution_mode(TxExecutionMode::VerifyExecute)
-            .with_random_rich_accounts(1)
+            .with_rich_accounts(1)
             .build()
     }
 }
@@ -130,12 +134,12 @@ fn tracing_evm_contract_deployment() {
     // The EVM emulator will not be accessed, so we set it to a dummy value.
     system_env.base_system_smart_contracts.evm_emulator =
         Some(system_env.base_system_smart_contracts.default_aa.clone());
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_system_env(system_env)
         .with_storage(storage)
         .with_execution_mode(TxExecutionMode::VerifyExecute)
-        .with_random_rich_accounts(1)
-        .build();
+        .with_rich_accounts(1)
+        .build::<TestedLatestVm>();
     let account = &mut vm.rich_accounts[0];
 
     let args = [Token::Bytes((0..32).collect())];
@@ -189,6 +193,7 @@ const RECIPIENT_ADDRESS: Address = Address::repeat_byte(0x12);
 #[test_casing(2, [false, true])]
 #[test]
 fn mock_emulator_with_payment(deploy_emulator: bool) {
+    let mock_emulator_abi = load_contract(MOCK_EMULATOR_PATH);
     let mut vm = EvmTestBuilder::new(deploy_emulator, RECIPIENT_ADDRESS).build();
 
     let mut current_balance = U256::zero();
@@ -196,7 +201,7 @@ fn mock_emulator_with_payment(deploy_emulator: bool) {
         let transferred_value = (1_000_000_000 * i).into();
         let vm_result = test_payment(
             &mut vm,
-            &TestContract::mock_evm_emulator().abi,
+            &mock_emulator_abi,
             &mut current_balance,
             transferred_value,
         );
@@ -214,7 +219,7 @@ fn mock_emulator_with_payment(deploy_emulator: bool) {
 }
 
 fn test_payment(
-    vm: &mut VmTester<HistoryEnabled>,
+    vm: &mut VmTester<TestedLatestVm>,
     mock_emulator_abi: &ethabi::Contract,
     balance: &mut U256,
     transferred_value: U256,
@@ -244,7 +249,7 @@ fn test_payment(
 #[test_casing(4, Product(([false, true], [false, true])))]
 #[test]
 fn mock_emulator_with_recursion(deploy_emulator: bool, is_external: bool) {
-    let mock_emulator_abi = &TestContract::mock_evm_emulator().abi;
+    let mock_emulator_abi = load_contract(MOCK_EMULATOR_PATH);
     let recipient_address = Address::repeat_byte(0x12);
     let mut vm = EvmTestBuilder::new(deploy_emulator, recipient_address).build();
     let account = &mut vm.rich_accounts[0];
@@ -263,7 +268,7 @@ fn mock_emulator_with_recursion(deploy_emulator: bool, is_external: bool) {
     }
 
     let factory_deps = if is_external {
-        vec![TestContract::recursive_test().bytecode.to_vec()]
+        vec![read_bytecode(RECURSIVE_CONTRACT_PATH)]
     } else {
         vec![]
     };
@@ -291,8 +296,10 @@ fn calling_to_mock_emulator_from_native_contract() {
     let account = &mut vm.rich_accounts[0];
 
     // Deploy a native contract.
+    let native_contract = read_bytecode(RECURSIVE_CONTRACT_PATH);
+    let native_contract_abi = load_contract(RECURSIVE_CONTRACT_PATH);
     let deploy_tx = account.get_deploy_tx(
-        TestContract::recursive_test().bytecode,
+        &native_contract,
         Some(&[Token::Address(recipient_address)]),
         TxType::L2,
     );
@@ -302,10 +309,7 @@ fn calling_to_mock_emulator_from_native_contract() {
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
 
     // Call from the native contract to the EVM emulator.
-    let test_fn = TestContract::recursive_test()
-        .abi
-        .function("recurse")
-        .unwrap();
+    let test_fn = native_contract_abi.function("recurse").unwrap();
     let test_tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(deploy_tx.address),
@@ -329,7 +333,7 @@ fn mock_emulator_with_deployment() {
         .build();
     let account = &mut vm.rich_accounts[0];
 
-    let mock_emulator_abi = &TestContract::mock_evm_emulator().abi;
+    let mock_emulator_abi = load_contract(MOCK_EMULATOR_PATH);
     let new_evm_bytecode = vec![0xfe; 96];
     let new_evm_bytecode_hash = hash_evm_bytecode(&new_evm_bytecode);
 
@@ -377,17 +381,15 @@ fn mock_emulator_with_delegate_call() {
     let account = &mut vm.rich_accounts[0];
 
     // Deploy a native contract.
-    let deploy_tx =
-        account.get_deploy_tx(TestContract::increment_test().bytecode, None, TxType::L2);
+    let native_contract = read_bytecode(INCREMENTING_CONTRACT_PATH);
+    let native_contract_abi = load_contract(INCREMENTING_CONTRACT_PATH);
+    let deploy_tx = account.get_deploy_tx(&native_contract, None, TxType::L2);
     let (_, vm_result) = vm
         .vm
         .execute_transaction_with_bytecode_compression(deploy_tx.tx, true);
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
 
-    let test_fn = TestContract::increment_test()
-        .abi
-        .function("testDelegateCall")
-        .unwrap();
+    let test_fn = native_contract_abi.function("testDelegateCall").unwrap();
     // Delegate to the native contract from EVM.
     test_delegate_call(&mut vm, test_fn, evm_contract_address, deploy_tx.address);
     // Delegate to EVM from the native contract.
@@ -402,7 +404,7 @@ fn mock_emulator_with_delegate_call() {
 }
 
 fn test_delegate_call(
-    vm: &mut VmTester<HistoryEnabled>,
+    vm: &mut VmTester<TestedLatestVm>,
     test_fn: &ethabi::Function,
     from: Address,
     to: Address,
@@ -450,17 +452,15 @@ fn mock_emulator_with_static_call() {
     let account = &mut vm.rich_accounts[0];
 
     // Deploy a native contract.
-    let deploy_tx =
-        account.get_deploy_tx(TestContract::increment_test().bytecode, None, TxType::L2);
+    let native_contract = read_bytecode(INCREMENTING_CONTRACT_PATH);
+    let native_contract_abi = load_contract(INCREMENTING_CONTRACT_PATH);
+    let deploy_tx = account.get_deploy_tx(&native_contract, None, TxType::L2);
     let (_, vm_result) = vm
         .vm
         .execute_transaction_with_bytecode_compression(deploy_tx.tx, true);
     assert!(!vm_result.result.is_failed(), "{:?}", vm_result.result);
 
-    let test_fn = TestContract::increment_test()
-        .abi
-        .function("testStaticCall")
-        .unwrap();
+    let test_fn = native_contract_abi.function("testStaticCall").unwrap();
     // Call to the native contract from EVM.
     test_static_call(&mut vm, test_fn, evm_contract_address, deploy_tx.address, 0);
     // Call to EVM from the native contract.
@@ -482,7 +482,7 @@ fn mock_emulator_with_static_call() {
 }
 
 fn test_static_call(
-    vm: &mut VmTester<HistoryEnabled>,
+    vm: &mut VmTester<TestedLatestVm>,
     test_fn: &ethabi::Function,
     from: Address,
     to: Address,

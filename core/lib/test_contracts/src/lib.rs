@@ -54,6 +54,12 @@ impl Account {
         Self::new(K256PrivateKey::random_using(rng))
     }
 
+    /// Creates an account deterministically from the provided seed.
+    pub fn from_seed(seed: u32) -> Self {
+        let private_key_bytes = H256::from_low_u64_be(u64::from(seed) + 1);
+        Self::new(K256PrivateKey::from_bytes(private_key_bytes).unwrap())
+    }
+
     pub fn get_l2_tx_for_execute(&mut self, execute: Execute, fee: Option<Fee>) -> Transaction {
         let tx = self.get_l2_tx_for_execute_with_nonce(execute, fee, self.nonce);
         self.nonce += 1;

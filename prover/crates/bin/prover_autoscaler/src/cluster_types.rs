@@ -36,18 +36,10 @@ pub struct Namespace {
     pub pods: HashMap<String, Pod>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Cluster {
     pub name: String,
     pub namespaces: HashMap<String, Namespace>,
-}
-impl Default for Cluster {
-    fn default() -> Self {
-        Self {
-            name: "".to_string(),
-            namespaces: HashMap::new(),
-        }
-    }
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]

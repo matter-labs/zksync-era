@@ -1,15 +1,21 @@
 use std::path::PathBuf;
 
 use clap::Parser;
-use common::{cmd::Cmd, logger, spinner::Spinner};
+use common::{
+    contracts::{
+        build_l1_contracts, build_l2_contracts, build_system_contracts, build_test_contracts,
+    },
+    logger,
+    spinner::Spinner,
+};
 use config::EcosystemConfig;
-use xshell::{cmd, Shell};
+use xshell::Shell;
 
 use crate::commands::dev::messages::{
     MSG_BUILDING_CONTRACTS, MSG_BUILDING_CONTRACTS_SUCCESS, MSG_BUILDING_L1_CONTRACTS_SPINNER,
     MSG_BUILDING_L2_CONTRACTS_SPINNER, MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER,
-    MSG_BUILD_L1_CONTRACTS_HELP, MSG_BUILD_L2_CONTRACTS_HELP, MSG_BUILD_SYSTEM_CONTRACTS_HELP,
-    MSG_CONTRACTS_DEPS_SPINNER, MSG_NOTHING_TO_BUILD_MSG,
+    MSG_BUILDING_TEST_CONTRACTS_SPINNER, MSG_BUILD_L1_CONTRACTS_HELP, MSG_BUILD_L2_CONTRACTS_HELP,
+    MSG_BUILD_SYSTEM_CONTRACTS_HELP, MSG_BUILD_TEST_CONTRACTS_HELP, MSG_NOTHING_TO_BUILD_MSG,
 };
 
 #[derive(Debug, Parser)]
@@ -20,6 +26,8 @@ pub struct ContractsArgs {
     pub l2_contracts: Option<bool>,
     #[clap(long, alias = "sc", help = MSG_BUILD_SYSTEM_CONTRACTS_HELP, default_missing_value = "true", num_args = 0..=1)]
     pub system_contracts: Option<bool>,
+    #[clap(long, alias = "test", help = MSG_BUILD_TEST_CONTRACTS_HELP, default_missing_value = "true", num_args = 0..=1)]
+    pub test_contracts: Option<bool>,
 }
 
 impl ContractsArgs {
@@ -27,11 +35,13 @@ impl ContractsArgs {
         if self.l1_contracts.is_none()
             && self.l2_contracts.is_none()
             && self.system_contracts.is_none()
+            && self.test_contracts.is_none()
         {
             return vec![
                 ContractType::L1,
                 ContractType::L2,
                 ContractType::SystemContracts,
+                ContractType::TestContracts,
             ];
         }
 
@@ -46,6 +56,9 @@ impl ContractsArgs {
         if self.system_contracts.unwrap_or(false) {
             contracts.push(ContractType::SystemContracts);
         }
+        if self.test_contracts.unwrap_or(false) {
+            contracts.push(ContractType::TestContracts);
+        }
 
         contracts
     }
@@ -56,50 +69,44 @@ pub enum ContractType {
     L1,
     L2,
     SystemContracts,
+    TestContracts,
 }
 
-#[derive(Debug)]
 struct ContractBuilder {
-    dir: PathBuf,
-    cmd: String,
+    cmd: Box<dyn FnOnce(Shell, PathBuf) -> anyhow::Result<()>>,
     msg: String,
+    link_to_code: PathBuf,
 }
 
 impl ContractBuilder {
     fn new(ecosystem: &EcosystemConfig, contract_type: ContractType) -> Self {
         match contract_type {
             ContractType::L1 => Self {
-                dir: ecosystem.path_to_foundry(),
-                cmd: "forge build".to_string(),
+                cmd: Box::new(build_l1_contracts),
                 msg: MSG_BUILDING_L1_CONTRACTS_SPINNER.to_string(),
+                link_to_code: ecosystem.link_to_code.clone(),
             },
             ContractType::L2 => Self {
-                dir: ecosystem.link_to_code.clone(),
-                cmd: "yarn l2-contracts build".to_string(),
+                cmd: Box::new(build_l2_contracts),
                 msg: MSG_BUILDING_L2_CONTRACTS_SPINNER.to_string(),
+                link_to_code: ecosystem.link_to_code.clone(),
             },
             ContractType::SystemContracts => Self {
-                dir: ecosystem.link_to_code.join("contracts"),
-                cmd: "yarn sc build".to_string(),
+                cmd: Box::new(build_system_contracts),
                 msg: MSG_BUILDING_SYSTEM_CONTRACTS_SPINNER.to_string(),
+                link_to_code: ecosystem.link_to_code.clone(),
+            },
+            ContractType::TestContracts => Self {
+                cmd: Box::new(build_test_contracts),
+                msg: MSG_BUILDING_TEST_CONTRACTS_SPINNER.to_string(),
+                link_to_code: ecosystem.link_to_code.clone(),
             },
         }
     }
 
-    fn build(&self, shell: &Shell) -> anyhow::Result<()> {
+    fn build(self, shell: Shell) -> anyhow::Result<()> {
         let spinner = Spinner::new(&self.msg);
-        let _dir_guard = shell.push_dir(&self.dir);
-
-        let mut args = self.cmd.split_whitespace().collect::<Vec<_>>();
-        let command = args.remove(0); // It's safe to unwrap here because we know that the vec is not empty
-        let mut cmd = cmd!(shell, "{command}");
-
-        for arg in args {
-            cmd = cmd.arg(arg);
-        }
-
-        Cmd::new(cmd).run()?;
-
+        (self.cmd)(shell, self.link_to_code.clone())?;
         spinner.finish();
         Ok(())
     }
@@ -115,17 +122,11 @@ pub fn run(shell: &Shell, args: ContractsArgs) -> anyhow::Result<()> {
     logger::info(MSG_BUILDING_CONTRACTS);
 
     let ecosystem = EcosystemConfig::from_file(shell)?;
-    let link_to_code = ecosystem.link_to_code.clone();
-
-    let spinner = Spinner::new(MSG_CONTRACTS_DEPS_SPINNER);
-    let _dir_guard = shell.push_dir(&link_to_code);
-    Cmd::new(cmd!(shell, "yarn install")).run()?;
-    spinner.finish();
 
     contracts
         .iter()
         .map(|contract| ContractBuilder::new(&ecosystem, *contract))
-        .try_for_each(|builder| builder.build(shell))?;
+        .try_for_each(|builder| builder.build(shell.clone()))?;
 
     logger::outro(MSG_BUILDING_CONTRACTS_SUCCESS);
 
