@@ -148,7 +148,7 @@ jobs:
       - name: Run server
         run: |
           ci_run zkstack dev config-writer --path ${{ matrix.vm_mode == 'NEW' && 'etc/env/file_based/overrides/tests/loadtest-new.yaml' || 'etc/env/file_based/overrides/tests/loadtest-old.yaml' }} --chain legacy
-          ci_run zkstack server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
+          ci_run zkstack chain server --uring --chain=legacy --components api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads &>server.log &
           ci_run sleep 60
 
       - name: Perform loadtest
@@ -351,15 +351,15 @@ jobs:
 
       - name: Initialize Contract verifier
         run: |
-          ci_run zkstack contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
-          ci_run zkstack contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
+          ci_run zkstack chain contract-verifier init --zksolc-version=v1.5.3 --zkvyper-version=v1.5.4 --solc-version=0.8.26 --vyper-version=v0.3.10 --era-vm-solc-version=0.8.26-1.0.1 --only --chain era
+          ci_run zkstack chain contract-verifier run --chain era &> ${{ env.SERVER_LOGS_DIR }}/contract-verifier-rollup.log &
 
       - name: Run servers
         run: |
-          ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
-          ci_run zkstack server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
-          ci_run zkstack server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
-          ci_run zkstack server --ignore-prerequisites --chain consensus \
+          ci_run zkstack chain server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          ci_run zkstack chain server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
+          ci_run zkstack chain server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
+          ci_run zkstack chain server --ignore-prerequisites --chain consensus \
           --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus \
           &> ${{ env.SERVER_LOGS_DIR }}/consensus.log &
 
@@ -367,7 +367,7 @@ jobs:
 
       - name: Setup attester committee for the consensus chain
         run: |
-          ci_run zkstack consensus set-attester-committee --chain consensus --from-genesis &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log 
+          ci_run zkstack chain consensus set-attester-committee --chain consensus --from-genesis &> ${{ env.INTEGRATION_TESTS_LOGS_DIR }}/consensus.log 
 
       - name: Run integration tests
         run: |

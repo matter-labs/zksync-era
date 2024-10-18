@@ -22,6 +22,7 @@ mod general;
 mod genesis;
 mod manipulations;
 mod secrets;
+mod utils;
 mod wallet_creation;
 mod wallets;
 
@@ -34,3 +35,4 @@ pub mod external_node;
 pub mod forge_interface;
 pub mod portal;
 pub mod traits;
+pub mod zkstack_config;

@@ -22,6 +22,7 @@ use crate::{
         output::{ERC20Tokens, Erc20Token},
     },
     traits::{FileConfigWithDefaultName, ReadConfig, SaveConfig, ZkStackConfig},
+    utils::find_file,
     ChainConfig, ChainConfigInternal, ContractsConfig, WalletsConfig,
 };
 
@@ -280,20 +281,6 @@ pub enum EcosystemConfigFromFileError {
 
 pub fn get_default_era_chain_id() -> L2ChainId {
     L2ChainId::from(ERA_CHAIN_ID)
-}
-
-// Find file in all parents repository and return necessary path or an empty error if nothing has been found
-fn find_file(shell: &Shell, path_buf: PathBuf, file_name: &str) -> Result<PathBuf, ()> {
-    let _dir = shell.push_dir(path_buf);
-    if shell.path_exists(file_name) {
-        Ok(shell.current_dir())
-    } else {
-        let current_dir = shell.current_dir();
-        let Some(path) = current_dir.parent() else {
-            return Err(());
-        };
-        find_file(shell, path.to_path_buf(), file_name)
-    }
 }
 
 pub fn get_link_to_prover(config: &EcosystemConfig) -> PathBuf {

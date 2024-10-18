@@ -1,7 +1,9 @@
 use ::common::forge::ForgeScriptArgs;
-use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
+use args::{build_transactions::BuildTransactionsArgs, run_server::RunServerArgs};
 use clap::{command, Subcommand};
+use consensus::ConsensusCommand;
+use contract_verifier::ContractVerifierCommands;
 pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
@@ -14,12 +16,15 @@ mod accept_chain_ownership;
 pub(crate) mod args;
 mod build_transactions;
 mod common;
+mod consensus;
+pub mod contract_verifier;
 mod create;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
 pub mod genesis;
 pub mod init;
 pub mod register_chain;
+mod server;
 mod set_token_multiplier_setter;
 mod setup_legacy_bridge;
 
@@ -51,7 +56,6 @@ pub enum ChainCommands {
     #[command(alias = "bridge")]
     InitializeBridges(ForgeScriptArgs),
     /// Deploy L2 consensus registry
-    #[command(alias = "consensus")]
     DeployConsensusRegistry(ForgeScriptArgs),
     /// Deploy L2 multicall3
     #[command(alias = "multicall3")]
@@ -64,10 +68,17 @@ pub enum ChainCommands {
     DeployPaymaster(ForgeScriptArgs),
     /// Update Token Multiplier Setter address on L1
     UpdateTokenMultiplierSetter(ForgeScriptArgs),
+    /// Run server
+    Server(RunServerArgs),
+    /// Run contract verifier
+    #[command(subcommand)]
+    ContractVerifier(ContractVerifierCommands),
+    #[command(subcommand)]
+    Consensus(ConsensusCommand),
 }
 
-pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
-    match args {
+pub(crate) async fn run(shell: &Shell, cmd: ChainCommands) -> anyhow::Result<()> {
+    match cmd {
         ChainCommands::Create(args) => create::run(args, shell),
         ChainCommands::Init(args) => init::run(*args, shell).await,
         ChainCommands::BuildTransactions(args) => build_transactions::run(args, shell).await,
@@ -93,5 +104,8 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::UpdateTokenMultiplierSetter(args) => {
             set_token_multiplier_setter::run(args, shell).await
         }
+        ChainCommands::Server(args) => server::run(shell, args),
+        ChainCommands::ContractVerifier(args) => contract_verifier::run(shell, args).await,
+        ChainCommands::Consensus(cmd) => cmd.run(shell).await,
     }
 }

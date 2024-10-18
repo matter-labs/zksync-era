@@ -8,7 +8,7 @@ use common::{
 };
 use config::{
     override_config, set_file_artifacts, set_rocks_db_config, set_server_database,
-    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, FileArtifacts,
+    traits::SaveConfigWithBasePath, zkstack_config::ZkStackConfig, ChainConfig, FileArtifacts,
 };
 use types::ProverMode;
 use xshell::Shell;
@@ -21,18 +21,14 @@ use crate::{
         SERVER_MIGRATIONS,
     },
     messages::{
-        MSG_CHAIN_NOT_INITIALIZED, MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR,
-        MSG_GENESIS_DATABASES_INITIALIZED, MSG_INITIALIZING_SERVER_DATABASE,
-        MSG_RECREATE_ROCKS_DB_ERRROR,
+        MSG_FAILED_TO_DROP_SERVER_DATABASE_ERR, MSG_GENESIS_DATABASES_INITIALIZED,
+        MSG_INITIALIZING_SERVER_DATABASE, MSG_RECREATE_ROCKS_DB_ERRROR,
     },
     utils::rocks_db::{recreate_rocksdb_dirs, RocksDBDirOption},
 };
 
 pub async fn run(args: GenesisArgs, shell: &Shell) -> anyhow::Result<()> {
-    let ecosystem_config = EcosystemConfig::from_file(shell)?;
-    let chain_config = ecosystem_config
-        .load_current_chain()
-        .context(MSG_CHAIN_NOT_INITIALIZED)?;
+    let chain_config = ZkStackConfig::load_current_chain(shell)?;
 
     let mut secrets = chain_config.get_secrets_config()?;
     let args = args.fill_values_with_secrets(&chain_config)?;
