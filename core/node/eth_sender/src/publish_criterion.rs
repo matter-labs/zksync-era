@@ -8,7 +8,7 @@ use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
     ethabi,
-    pubdata_da::PubdataDA,
+    pubdata_da::PubdataSendingMode,
     L1BatchNumber,
 };
 
@@ -202,7 +202,7 @@ impl L1BatchPublishCriterion for GasCriterion {
 pub struct DataSizeCriterion {
     pub op: AggregatedActionType,
     pub data_limit: usize,
-    pub pubdata_da: PubdataDA,
+    pub pubdata_da: PubdataSendingMode,
     pub commitment_mode: L1BatchCommitmentMode,
 }
 

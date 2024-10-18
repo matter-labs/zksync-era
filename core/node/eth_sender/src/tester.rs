@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use zksync_config::{
-    configs::eth_sender::{ProofSendingMode, PubdataSendingMode, SenderConfig},
+    configs::eth_sender::{ProofSendingMode, SenderConfig},
     ContractsConfig, EthConfig, GasAdjusterConfig,
 };
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -12,7 +12,7 @@ use zksync_node_test_utils::{create_l1_batch, l1_batch_metadata_to_commitment_ar
 use zksync_object_store::MockObjectStore;
 use zksync_types::{
     aggregated_operations::AggregatedActionType, block::L1BatchHeader,
-    commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataDA,
+    commitment::L1BatchCommitmentMode, eth_sender::EthTx, pubdata_da::PubdataSendingMode,
     settlement::SettlementMode, Address, L1BatchNumber, ProtocolVersion, H256,
 };
 
@@ -485,9 +485,9 @@ impl EthSenderTester {
     pub async fn save_commit_tx(&mut self, l1_batch_number: L1BatchNumber) -> EthTx {
         assert_eq!(l1_batch_number, self.next_l1_batch_number_to_commit);
         let pubdata_mode = if self.pubdata_sending_mode == PubdataSendingMode::Blobs {
-            PubdataDA::Blobs
+            PubdataSendingMode::Blobs
         } else {
-            PubdataDA::Calldata
+            PubdataSendingMode::Calldata
         };
         let operation = AggregatedOperation::Commit(
             l1_batch_with_metadata(
