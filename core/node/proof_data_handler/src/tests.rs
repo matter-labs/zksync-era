@@ -25,6 +25,7 @@ async fn request_tee_proof_inputs() {
         ProofDataHandlerConfig {
             http_port: 1337,
             proof_generation_timeout_in_secs: 10,
+            tee_proof_generation_timeout_in_secs: 5,
             tee_support: true,
         },
         L1BatchCommitmentMode::Rollup,
@@ -80,6 +81,7 @@ async fn submit_tee_proof() {
         ProofDataHandlerConfig {
             http_port: 1337,
             proof_generation_timeout_in_secs: 10,
+            tee_proof_generation_timeout_in_secs: 5,
             tee_support: true,
         },
         L1BatchCommitmentMode::Rollup,
