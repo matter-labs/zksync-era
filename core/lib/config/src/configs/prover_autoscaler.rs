@@ -51,6 +51,8 @@ pub struct ProverAutoscalerScalerConfig {
     pub cluster_priorities: HashMap<String, u32>,
     /// Prover speed per GPU. Used to calculate desired number of provers for queue size.
     pub prover_speed: HashMap<Gpu, u32>,
+    /// Maximum number of provers which can be run per cluster/GPU.
+    pub max_provers: HashMap<String, HashMap<Gpu, u32>>,
     /// Duration after which pending pod considered long pending.
     #[serde(default = "ProverAutoscalerScalerConfig::default_long_pending_duration")]
     pub long_pending_duration: Duration,

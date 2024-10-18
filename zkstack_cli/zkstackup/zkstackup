@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
-HOME_DIR=${XDG_CONFIG_HOME:-$HOME}
-LOCAL_DIR=${LOCAL_DIR:-"$HOME_DIR/.local"}
+LOCAL_DIR="$HOME/.local/"
 BIN_DIR="$LOCAL_DIR/bin"
 
 BINS=()
