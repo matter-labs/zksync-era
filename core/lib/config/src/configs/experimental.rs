@@ -106,4 +106,8 @@ pub struct ExperimentalVmConfig {
     /// the new VM doesn't produce call traces and can diverge from the old VM!
     #[serde(default)]
     pub state_keeper_fast_vm_mode: FastVmMode,
+
+    /// Fast VM mode to use for gas estimation in the API server.
+    #[serde(default)]
+    pub api_fast_vm_mode_for_gas_estimation: FastVmMode,
 }

@@ -7,6 +7,14 @@ use zksync_protobuf::{repr::ProtoRepr, required};
 
 use crate::{proto::experimental as proto, read_optional_repr};
 
+fn parse_vm_mode(raw: Option<i32>) -> anyhow::Result<FastVmMode> {
+    Ok(raw
+        .map(proto::FastVmMode::try_from)
+        .transpose()
+        .context("fast_vm_mode")?
+        .map_or_else(FastVmMode::default, |mode| mode.parse()))
+}
+
 impl ProtoRepr for proto::Db {
     type Type = configs::ExperimentalDBConfig;
 
@@ -105,12 +113,10 @@ impl ProtoRepr for proto::Vm {
     fn read(&self) -> anyhow::Result<Self::Type> {
         Ok(Self::Type {
             playground: read_optional_repr(&self.playground).unwrap_or_default(),
-            state_keeper_fast_vm_mode: self
-                .state_keeper_fast_vm_mode
-                .map(proto::FastVmMode::try_from)
-                .transpose()
-                .context("fast_vm_mode")?
-                .map_or_else(FastVmMode::default, |mode| mode.parse()),
+            state_keeper_fast_vm_mode: parse_vm_mode(self.state_keeper_fast_vm_mode)?,
+            api_fast_vm_mode_for_gas_estimation: parse_vm_mode(
+                self.api_fast_vm_mode_for_gas_estimation,
+            )?,
         })
     }
 
@@ -119,6 +125,9 @@ impl ProtoRepr for proto::Vm {
             playground: Some(ProtoRepr::build(&this.playground)),
             state_keeper_fast_vm_mode: Some(
                 proto::FastVmMode::new(this.state_keeper_fast_vm_mode).into(),
+            ),
+            api_fast_vm_mode_for_gas_estimation: Some(
+                proto::FastVmMode::new(this.api_fast_vm_mode_for_gas_estimation).into(),
             ),
         }
     }
