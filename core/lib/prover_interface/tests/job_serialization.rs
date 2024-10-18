@@ -1,6 +1,7 @@
 //! Integration tests for object store serialization of job objects.
 
 use circuit_sequencer_api_1_5_0::proof::FinalProof;
+use fflonk::FflonkProof;
 use tokio::fs;
 use zksync_object_store::{Bucket, MockObjectStore};
 use zksync_prover_interface::{
@@ -85,7 +86,7 @@ async fn test_final_proof_deserialization() {
 fn test_proof_request_serialization() {
     let proof = SubmitProofRequest::Proof(Box::new(L1BatchProofForL1 {
         aggregation_result_coords: [[0; 32]; 4],
-        scheduler_proof: FinalProof::empty(),
+        scheduler_proof: FflonkProof::empty(),
         protocol_version: ProtocolSemanticVersion {
             minor: ProtocolVersionId::Version25,
             patch: 10.into(),

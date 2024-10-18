@@ -23,9 +23,13 @@ zksync_prover_fri_types.workspace = true
 zksync_queued_job_processor.workspace = true
 zksync_prover_keystore.workspace = true
 zksync_vlog.workspace = true
+franklin-crypto.workspace = true
 
 circuit_sequencer_api.workspace = true
 zkevm_test_harness.workspace = true
+proof-compression-gpu.workspace = true
+fflonk-gpu.workspace = true
+wrapper_prover = { workspace = true, optional = true }
 
 anyhow.workspace = true
 tracing.workspace = true
@@ -39,9 +43,7 @@ bincode.workspace = true
 reqwest = { workspace = true, features = ["blocking"] }
 serde_json.workspace = true
 serde = { workspace = true, features = ["derive"] }
-wrapper_prover = { workspace = true, optional = true }
 
 [features]
 default = []
-gpu = ["wrapper_prover"]
-
+fflonk = []

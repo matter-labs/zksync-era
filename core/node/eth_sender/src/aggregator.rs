@@ -5,7 +5,9 @@ use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
 use zksync_object_store::{ObjectStore, ObjectStoreError};
-use zksync_prover_interface::outputs::L1BatchProofForL1;
+use zksync_prover_interface::outputs::{
+    FflonkL1BatchProofForL1, L1BatchProofForL1, PplonkL1BatchProofForL1,
+};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata},
@@ -514,10 +516,10 @@ pub async fn load_wrapped_fri_proofs_for_range(
     l1_batch_number: L1BatchNumber,
     blob_store: &dyn ObjectStore,
     allowed_versions: &[ProtocolSemanticVersion],
-) -> Option<L1BatchProofForL1> {
+) -> Option<FflonkL1BatchProofForL1> {
     for version in allowed_versions {
         match blob_store.get((l1_batch_number, *version)).await {
-            Ok(proof) => return Some(proof),
+            Ok(proof) => return Some(proof.into()),
             Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
             Err(err) => panic!(
                 "Failed to load proof for batch {}: {}",
