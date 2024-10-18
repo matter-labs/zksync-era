@@ -164,6 +164,7 @@ pub(super) const MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT: &str =
 pub(super) const MSG_BASE_TOKEN_PRICE_DENOMINATOR_PROMPT: &str =
     "What is the base token price denominator?";
 pub(super) const MSG_SET_AS_DEFAULT_PROMPT: &str = "Set this chain as default?";
+pub(super) const MSG_EVM_EMULATOR_PROMPT: &str = "Enable EVM emulator?";
 pub(super) const MSG_WALLET_PATH_INVALID_ERR: &str = "Invalid path";
 pub(super) const MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR: &str = "Number is not zero";
 pub(super) const MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR: &str =
@@ -178,6 +179,9 @@ pub(super) const MSG_WALLET_CREATION_VALIDATOR_ERR: &str =
     "Localhost wallet is not supported for external networks";
 pub(super) const MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND: &str =
     "Token Multiplier Setter not found. Specify it in a wallet config";
+pub(super) const MSG_EVM_EMULATOR_HASH_MISSING_ERR: &str =
+    "Impossible to initialize a chain with EVM emulator: the template genesis config \
+     does not contain EVM emulator hash";
 
 /// Chain genesis related messages
 pub(super) const MSG_L1_SECRETS_MUST_BE_PRESENTED: &str = "L1 secret must be presented";
