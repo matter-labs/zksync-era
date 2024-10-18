@@ -2058,6 +2058,30 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    /// Deletes the unsealed L1 batch from the storage. Expects the caller to make sure there are no
+    /// associated L2 blocks.
+    ///
+    /// Accepts `batch_to_keep` as a safety mechanism.
+    pub async fn delete_unsealed_l1_batch(
+        &mut self,
+        batch_to_keep: L1BatchNumber,
+    ) -> DalResult<()> {
+        sqlx::query!(
+            r#"
+            DELETE FROM l1_batches
+            WHERE
+                number > $1
+                AND NOT is_sealed
+            "#,
+            i64::from(batch_to_keep.0)
+        )
+        .instrument("delete_unsealed_l1_batch")
+        .with_arg("batch_to_keep", &batch_to_keep)
+        .execute(self.storage)
+        .await?;
+        Ok(())
+    }
+
     /// Deletes all L1 batches from the storage so that the specified batch number is the last one left.
     pub async fn delete_l1_batches(&mut self, last_batch_to_keep: L1BatchNumber) -> DalResult<()> {
         self.delete_l1_batches_inner(Some(last_batch_to_keep)).await
