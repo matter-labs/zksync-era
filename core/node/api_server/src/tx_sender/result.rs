@@ -24,8 +24,6 @@ pub enum SubmitTxError {
     GasLimitIsTooBig,
     #[error("{0}")]
     Unexecutable(String),
-    #[error("too many transactions")]
-    RateLimitExceeded,
     #[error("server shutting down")]
     ServerShuttingDown,
     #[error("failed to include transaction in the system. reason: {0}")]
@@ -49,29 +47,23 @@ pub enum SubmitTxError {
         that caused this error. Error description: {0}"
     )]
     UnexpectedVMBehavior(String),
-    #[error("pubdata price limit is too low, ensure that the price limit is correct")]
-    UnrealisticPubdataPriceLimit,
     #[error(
         "too many factory dependencies in the transaction. {0} provided, while only {1} allowed"
     )]
     TooManyFactoryDependencies(usize, usize),
-    #[error("max fee per gas higher than 2^32")]
-    FeePerGasTooHigh,
-    #[error("max fee per pubdata byte higher than 2^32")]
-    FeePerPubdataByteTooHigh,
-    /// InsufficientFundsForTransfer is returned if the transaction sender doesn't
-    /// have enough funds for transfer.
-    #[error("insufficient balance for transfer")]
-    InsufficientFundsForTransfer,
     /// IntrinsicGas is returned if the transaction is specified to use less gas
     /// than required to start the invocation.
     #[error("intrinsic gas too low")]
     IntrinsicGas,
-    /// Error returned from main node
-    #[error("{0}")]
-    ProxyError(#[from] EnrichedClientError),
     #[error("not enough gas to publish compressed bytecodes")]
     FailedToPublishCompressedBytecodes,
+    /// Currently only triggered during gas estimation for L1 and protocol upgrade transactions.
+    #[error("integer overflow computing base token amount to mint")]
+    MintedAmountOverflow,
+
+    /// Error returned from main node.
+    #[error("{0}")]
+    ProxyError(#[from] EnrichedClientError),
     /// Catch-all internal error (e.g., database error) that should not be exposed to the caller.
     #[error("internal error")]
     Internal(#[from] anyhow::Error),
@@ -88,7 +80,6 @@ impl SubmitTxError {
             Self::ExecutionReverted(_, _) => "execution-reverted",
             Self::GasLimitIsTooBig => "gas-limit-is-too-big",
             Self::Unexecutable(_) => "unexecutable",
-            Self::RateLimitExceeded => "rate-limit-exceeded",
             Self::ServerShuttingDown => "shutting-down",
             Self::BootloaderFailure(_) => "bootloader-failure",
             Self::ValidationFailed(_) => "validation-failed",
@@ -99,14 +90,11 @@ impl SubmitTxError {
             Self::MaxFeePerGasTooLow => "max-fee-per-gas-too-low",
             Self::MaxPriorityFeeGreaterThanMaxFee => "max-priority-fee-greater-than-max-fee",
             Self::UnexpectedVMBehavior(_) => "unexpected-vm-behavior",
-            Self::UnrealisticPubdataPriceLimit => "unrealistic-pubdata-price-limit",
             Self::TooManyFactoryDependencies(_, _) => "too-many-factory-dependencies",
-            Self::FeePerGasTooHigh => "gas-price-limit-too-high",
-            Self::FeePerPubdataByteTooHigh => "pubdata-price-limit-too-high",
-            Self::InsufficientFundsForTransfer => "insufficient-funds-for-transfer",
             Self::IntrinsicGas => "intrinsic-gas",
-            Self::ProxyError(_) => "proxy-error",
             Self::FailedToPublishCompressedBytecodes => "failed-to-publish-compressed-bytecodes",
+            Self::MintedAmountOverflow => "minted-amount-overflow",
+            Self::ProxyError(_) => "proxy-error",
             Self::Internal(_) => "internal",
         }
     }

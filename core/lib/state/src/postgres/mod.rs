@@ -72,8 +72,7 @@ impl CacheValue<H256> for TimestampedStorageValue {
     #[allow(clippy::cast_possible_truncation)] // doesn't happen in practice
     fn cache_weight(&self) -> u32 {
         const WEIGHT: usize = mem::size_of::<TimestampedStorageValue>() + mem::size_of::<H256>();
-        // ^ Since values are small in size, we want to account for key sizes as well
-
+        // ^ Since values are small, we want to account for key sizes as well
         WEIGHT as u32
     }
 }
@@ -112,6 +111,14 @@ impl ValuesCache {
             values: LruCache::new("values_cache", capacity),
         };
         Self(Arc::new(RwLock::new(inner)))
+    }
+
+    fn capacity(&self) -> u64 {
+        self.0
+            .read()
+            .expect("values cache is poisoned")
+            .values
+            .capacity()
     }
 
     /// *NB.* The returned value should be considered immediately stale; at best, it can be
@@ -154,80 +161,86 @@ impl ValuesCache {
         }
     }
 
+    fn reset(
+        &self,
+        from_l2_block: L2BlockNumber,
+        to_l2_block: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        // We can spend too much time loading data from Postgres, so we opt for an easier "update" route:
+        // evict *everything* from cache and call it a day. This should not happen too often in practice.
+        tracing::info!(
+            "Storage values cache is too far behind (current L2 block is {from_l2_block}; \
+             requested update to {to_l2_block}); resetting the cache"
+        );
+        let mut lock = self
+            .0
+            .write()
+            .map_err(|_| anyhow::anyhow!("values cache is poisoned"))?;
+        anyhow::ensure!(
+            lock.valid_for == from_l2_block,
+            "sanity check failed: values cache was expected to be valid for L2 block #{from_l2_block}, but it's actually \
+             valid for L2 block #{}",
+            lock.valid_for
+        );
+        lock.valid_for = to_l2_block;
+        lock.values.clear();
+
+        CACHE_METRICS.values_emptied.inc();
+        CACHE_METRICS
+            .values_valid_for_miniblock
+            .set(u64::from(to_l2_block.0));
+        Ok(())
+    }
+
     async fn update(
         &self,
         from_l2_block: L2BlockNumber,
         to_l2_block: L2BlockNumber,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
-        const MAX_L2_BLOCKS_LAG: u32 = 5;
-
         tracing::debug!(
             "Updating storage values cache from L2 block {from_l2_block} to {to_l2_block}"
         );
 
-        if to_l2_block.0 - from_l2_block.0 > MAX_L2_BLOCKS_LAG {
-            // We can spend too much time loading data from Postgres, so we opt for an easier "update" route:
-            // evict *everything* from cache and call it a day. This should not happen too often in practice.
-            tracing::info!(
-                "Storage values cache is too far behind (current L2 block is {from_l2_block}; \
-                 requested update to {to_l2_block}); resetting the cache"
-            );
-            let mut lock = self
-                .0
-                .write()
-                .map_err(|_| anyhow::anyhow!("values cache is poisoned"))?;
-            anyhow::ensure!(
-                lock.valid_for == from_l2_block,
-                "sanity check failed: values cache was expected to be valid for L2 block #{from_l2_block}, but it's actually \
-                 valid for L2 block #{}",
-                lock.valid_for
-            );
-            lock.valid_for = to_l2_block;
-            lock.values.clear();
+        let update_latency = CACHE_METRICS.values_update[&ValuesUpdateStage::LoadKeys].start();
+        let l2_blocks = (from_l2_block + 1)..=to_l2_block;
+        let modified_keys = connection
+            .storage_logs_dal()
+            .modified_keys_in_l2_blocks(l2_blocks.clone())
+            .await?;
 
-            CACHE_METRICS.values_emptied.inc();
-        } else {
-            let update_latency = CACHE_METRICS.values_update[&ValuesUpdateStage::LoadKeys].start();
-            let l2_blocks = (from_l2_block + 1)..=to_l2_block;
-            let modified_keys = connection
-                .storage_logs_dal()
-                .modified_keys_in_l2_blocks(l2_blocks.clone())
-                .await?;
+        let elapsed = update_latency.observe();
+        CACHE_METRICS
+            .values_update_modified_keys
+            .observe(modified_keys.len());
+        tracing::debug!(
+            "Loaded {modified_keys_len} modified storage keys from L2 blocks {l2_blocks:?}; \
+             took {elapsed:?}",
+            modified_keys_len = modified_keys.len()
+        );
 
-            let elapsed = update_latency.observe();
-            CACHE_METRICS
-                .values_update_modified_keys
-                .observe(modified_keys.len());
-            tracing::debug!(
-                "Loaded {modified_keys_len} modified storage keys from L2 blocks {l2_blocks:?}; \
-                 took {elapsed:?}",
-                modified_keys_len = modified_keys.len()
-            );
-
-            let update_latency =
-                CACHE_METRICS.values_update[&ValuesUpdateStage::RemoveStaleKeys].start();
-            let mut lock = self
-                .0
-                .write()
-                .map_err(|_| anyhow::anyhow!("values cache is poisoned"))?;
-            // The code below holding onto the write `lock` is the only code that can theoretically poison the `RwLock`
-            // (other than emptying the cache above). Thus, it's kept as simple and tight as possible.
-            // E.g., we load data from Postgres beforehand.
-            anyhow::ensure!(
-                lock.valid_for == from_l2_block,
-                "sanity check failed: values cache was expected to be valid for L2 block #{from_l2_block}, but it's actually \
-                 valid for L2 block #{}",
-                lock.valid_for
-            );
-            lock.valid_for = to_l2_block;
-            for modified_key in &modified_keys {
-                lock.values.remove(modified_key);
-            }
-            lock.values.report_size();
-            drop(lock);
-            update_latency.observe();
+        let update_latency =
+            CACHE_METRICS.values_update[&ValuesUpdateStage::RemoveStaleKeys].start();
+        let mut lock = self
+            .0
+            .write()
+            .map_err(|_| anyhow::anyhow!("values cache is poisoned"))?;
+        // The code below holding onto the write `lock` is the only code that can theoretically poison the `RwLock`
+        // (other than emptying the cache above). Thus, it's kept as simple and tight as possible.
+        // E.g., we load data from Postgres beforehand.
+        anyhow::ensure!(
+            lock.valid_for == from_l2_block,
+            "sanity check failed: values cache was expected to be valid for L2 block #{from_l2_block}, but it's actually \
+             valid for L2 block #{}",
+            lock.valid_for
+        );
+        lock.valid_for = to_l2_block;
+        for modified_key in &modified_keys {
+            lock.values.remove(modified_key);
         }
+        lock.values.report_size();
+        drop(lock);
+        update_latency.observe();
 
         CACHE_METRICS
             .values_valid_for_miniblock
@@ -298,6 +311,7 @@ impl PostgresStorageCaches {
     pub fn configure_storage_values_cache(
         &mut self,
         capacity: u64,
+        max_l2_blocks_lag: u32,
         connection_pool: ConnectionPool<Core>,
     ) -> PostgresStorageCachesTask {
         assert!(
@@ -320,6 +334,7 @@ impl PostgresStorageCaches {
         PostgresStorageCachesTask {
             connection_pool,
             values_cache,
+            max_l2_blocks_lag,
             command_receiver,
         }
     }
@@ -349,6 +364,7 @@ impl PostgresStorageCaches {
 pub struct PostgresStorageCachesTask {
     connection_pool: ConnectionPool<Core>,
     values_cache: ValuesCache,
+    max_l2_blocks_lag: u32,
     command_receiver: UnboundedReceiver<L2BlockNumber>,
 }
 
@@ -359,32 +375,41 @@ impl PostgresStorageCachesTask {
     ///
     /// - Propagates Postgres errors.
     /// - Propagates errors from the cache update task.
+    #[tracing::instrument(name = "PostgresStorageCachesTask::run", skip_all)]
     pub async fn run(mut self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        tracing::info!(
+            max_l2_blocks_lag = self.max_l2_blocks_lag,
+            values_cache.capacity = self.values_cache.capacity(),
+            "Starting task"
+        );
+
         let mut current_l2_block = self.values_cache.valid_for();
         loop {
-            tokio::select! {
-                _ = stop_receiver.changed() => {
-                    break;
-                }
-                Some(to_l2_block) = self.command_receiver.recv() => {
-                    if to_l2_block <= current_l2_block {
-                        continue;
-                    }
-                    let mut connection = self
-                        .connection_pool
-                        .connection_tagged("values_cache_updater")
-                        .await?;
-                    self.values_cache
-                        .update(current_l2_block, to_l2_block, &mut connection)
-                        .await?;
-                    current_l2_block = to_l2_block;
-                }
+            let to_l2_block = tokio::select! {
+                _ = stop_receiver.changed() => break,
+                Some(to_l2_block) = self.command_receiver.recv() => to_l2_block,
                 else => {
                     // The command sender has been dropped, which means that we must receive the stop signal soon.
                     stop_receiver.changed().await?;
                     break;
                 }
+            };
+            if to_l2_block <= current_l2_block {
+                continue;
             }
+
+            if to_l2_block.0 - current_l2_block.0 > self.max_l2_blocks_lag {
+                self.values_cache.reset(current_l2_block, to_l2_block)?;
+            } else {
+                let mut connection = self
+                    .connection_pool
+                    .connection_tagged("values_cache_updater")
+                    .await?;
+                self.values_cache
+                    .update(current_l2_block, to_l2_block, &mut connection)
+                    .await?;
+            }
+            current_l2_block = to_l2_block;
         }
         Ok(())
     }

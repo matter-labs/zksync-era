@@ -81,7 +81,7 @@ impl EthNamespace {
         let tx = L2Tx::from_request(
             request.into(),
             self.state.api_config.max_tx_size,
-            false, // Even with EVM emulation enabled, calls must specify `to` field
+            block_args.use_evm_emulator(),
         )?;
 
         // It is assumed that the previous checks has already enforced that the `max_fee_per_gas` is at most u64.
@@ -683,7 +683,7 @@ impl EthNamespace {
 
     pub async fn fee_history_impl(
         &self,
-        block_count: U64,
+        block_count: u64,
         newest_block: BlockNumber,
         reward_percentiles: Vec<f32>,
     ) -> Result<FeeHistory, Web3Error> {
@@ -691,10 +691,7 @@ impl EthNamespace {
             .set_block_id(BlockId::Number(newest_block));
 
         // Limit `block_count`.
-        let block_count = block_count
-            .as_u64()
-            .min(self.state.api_config.fee_history_limit)
-            .max(1);
+        let block_count = block_count.clamp(1, self.state.api_config.fee_history_limit);
 
         let mut connection = self.state.acquire_connection().await?;
         let newest_l2_block = self
