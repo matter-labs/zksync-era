@@ -17,7 +17,7 @@ use subxt_signer::{
 };
 use zksync_types::H256;
 
-use crate::avail::client::{to_non_retriable_da_error, to_retriable_da_error};
+use crate::avail::client::to_non_retriable_da_error;
 
 const PROTOCOL_VERSION: u8 = 4;
 
@@ -420,13 +420,11 @@ impl GasRelayClient {
             .header("Content-Type", "text/plain")
             .header("Authorization", &self.api_key)
             .send()
-            .await
-            .map_err(to_retriable_da_error)?;
+            .await?;
 
         let submit_response = submit_response
             .json::<GasRelayAPISubmissionResponse>()
-            .await
-            .map_err(to_retriable_da_error)?;
+            .await?;
 
         let status_url = format!(
             "{}/user/get_submission_info?submission_id={}",
@@ -441,13 +439,9 @@ impl GasRelayClient {
                 .get(&status_url)
                 .header("Authorization", &self.api_key)
                 .send()
-                .await
-                .map_err(to_retriable_da_error)?;
+                .await?;
 
-            let status_response = status_response
-                .json::<GasRelayAPIStatusResponse>()
-                .await
-                .map_err(to_retriable_da_error)?;
+            let status_response = status_response.json::<GasRelayAPIStatusResponse>().await?;
 
             if status_response.submission.block_hash.is_some() {
                 break (
