@@ -166,7 +166,7 @@ fn lint_autocompletion_files(_shell: &Shell, check: bool) -> anyhow::Result<()> 
         generate_completions(clap_complete::Shell::from_str(shell).unwrap(), &mut writer)
             .context("Failed to generate autocompletion file")?;
 
-        let new = writer.iter().map(|b| *b as char).collect::<String>();
+        let new = String::from_utf8(writer)?;
 
         let path = completion_folder.join(format!("_zkstack_{}", shell));
         let mut old = String::new();
