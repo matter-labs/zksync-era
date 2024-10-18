@@ -144,7 +144,8 @@ pub(super) fn default_system_env() -> SystemEnv {
 }
 
 pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
-    let timestamp = number.0.into();
+    // Add a bias to the timestamp to make it more realistic / "random".
+    let timestamp = 1_700_000_000 + u64::from(number.0);
     L1BatchEnv {
         previous_batch_hash: None,
         number,
