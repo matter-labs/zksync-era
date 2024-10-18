@@ -14,3 +14,11 @@ anyhow.workspace = true
 axum.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+# we can't use the workspace version of prost because
+# the tonic dependency requires a hugher version.
+prost = "0.13.1"
+tonic = { version = "0.12.1", features = ["tls", "channel", "tls-roots"]}
+tonic-web = "0.12.1"
+
+[build-dependencies]
+tonic-build = { version = "0.12.1", features = ["prost"] }

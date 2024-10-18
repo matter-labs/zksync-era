@@ -5477,7 +5477,28 @@ dependencies = [
  "petgraph",
  "prettyplease",
  "prost 0.12.6",
- "prost-types",
+ "prost-types 0.12.6",
+ "regex",
+ "syn 2.0.77",
+ "tempfile",
+]
+
+[[package]]
+name = "prost-build"
+version = "0.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c1318b19085f08681016926435853bbf7858f9c082d0999b80550ff5d9abe15"
+dependencies = [
+ "bytes",
+ "heck 0.5.0",
+ "itertools 0.13.0",
+ "log",
+ "multimap",
+ "once_cell",
+ "petgraph",
+ "prettyplease",
+ "prost 0.13.3",
+ "prost-types 0.13.3",
  "regex",
  "syn 2.0.77",
  "tempfile",
@@ -5520,7 +5541,7 @@ dependencies = [
  "miette",
  "once_cell",
  "prost 0.12.6",
- "prost-types",
+ "prost-types 0.12.6",
  "serde",
  "serde-value",
 ]
@@ -5535,6 +5556,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost-types"
+version = "0.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4759aa0d3a6232fb8dbdb97b61de2c20047c68aca932c7ed76da9d788508d670"
+dependencies = [
+ "prost 0.13.3",
+]
+
+[[package]]
 name = "protox"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5544,7 +5574,7 @@ dependencies = [
  "miette",
  "prost 0.12.6",
  "prost-reflect",
- "prost-types",
+ "prost-types 0.12.6",
  "protox-parse",
  "thiserror",
 ]
@@ -5557,7 +5587,7 @@ checksum = "7b4581f441c58863525a3e6bec7b8de98188cf75239a56c725a3e7288450a33f"
 dependencies = [
  "logos",
  "miette",
- "prost-types",
+ "prost-types 0.12.6",
  "thiserror",
 ]
 
@@ -6178,6 +6208,19 @@ name = "rustls-native-certs"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5bfb394eeed242e909609f56089eecfe5fda225042e8b171791b9c95f5931e5"
+dependencies = [
+ "openssl-probe",
+ "rustls-pemfile 2.1.3",
+ "rustls-pki-types",
+ "schannel",
+ "security-framework",
+]
+
+[[package]]
+name = "rustls-native-certs"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcaf18a4f2be7326cd874a5fa579fae794320a0f388d365dca7e480e55f83f8a"
 dependencies = [
  "openssl-probe",
  "rustls-pemfile 2.1.3",
@@ -8243,10 +8286,47 @@ dependencies = [
  "percent-encoding",
  "pin-project",
  "prost 0.13.3",
+ "rustls-native-certs 0.8.0",
+ "rustls-pemfile 2.1.3",
  "socket2",
  "tokio",
+ "tokio-rustls 0.26.0",
  "tokio-stream",
  "tower 0.4.13",
+ "tower-layer",
+ "tower-service",
+ "tracing",
+]
+
+[[package]]
+name = "tonic-build"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9557ce109ea773b399c9b9e5dca39294110b74f1f342cb347a80d1fce8c26a11"
+dependencies = [
+ "prettyplease",
+ "proc-macro2 1.0.86",
+ "prost-build 0.13.3",
+ "prost-types 0.13.3",
+ "quote 1.0.37",
+ "syn 2.0.77",
+]
+
+[[package]]
+name = "tonic-web"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5299dd20801ad736dccb4a5ea0da7376e59cd98f213bf1c3d478cf53f4834b58"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "http 1.1.0",
+ "http-body 1.0.1",
+ "http-body-util",
+ "pin-project",
+ "tokio-stream",
+ "tonic",
+ "tower-http",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -10089,7 +10169,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "prost 0.13.3",
  "tokio",
+ "tonic",
+ "tonic-build",
+ "tonic-web",
  "tracing",
 ]
 
@@ -10894,7 +10978,7 @@ dependencies = [
  "heck 0.5.0",
  "prettyplease",
  "proc-macro2 1.0.86",
- "prost-build",
+ "prost-build 0.12.6",
  "prost-reflect",
  "protox",
  "quote 1.0.37",
