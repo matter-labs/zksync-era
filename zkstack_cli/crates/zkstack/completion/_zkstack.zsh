@@ -1486,6 +1486,64 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(status)
+_arguments "${_arguments_options[@]}" : \
+'-u+[URL of the health check endpoint]:URL: ' \
+'--url=[URL of the health check endpoint]:URL: ' \
+'--chain=[Chain to use]:CHAIN: ' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_zkstack__dev__status_commands" \
+"*::: :->status" \
+&& ret=0
+
+    case $state in
+    (status)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-dev-status-command-$line[1]:"
+        case $line[1] in
+            (ports)
+_arguments "${_arguments_options[@]}" : \
+'--chain=[Chain to use]:CHAIN: ' \
+'-v[Verbose mode]' \
+'--verbose[Verbose mode]' \
+'--ignore-prerequisites[Ignores prerequisites checks]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_zkstack__dev__status__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-dev-status-help-command-$line[1]:"
+        case $line[1] in
+            (ports)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
 (generate-genesis)
 _arguments "${_arguments_options[@]}" : \
 '--chain=[Chain to use]:CHAIN: ' \
@@ -1731,6 +1789,26 @@ _arguments "${_arguments_options[@]}" : \
 (send-transactions)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
+;;
+(status)
+_arguments "${_arguments_options[@]}" : \
+":: :_zkstack__dev__help__status_commands" \
+"*::: :->status" \
+&& ret=0
+
+    case $state in
+    (status)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-dev-help-status-command-$line[1]:"
+        case $line[1] in
+            (ports)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
 ;;
 (generate-genesis)
 _arguments "${_arguments_options[@]}" : \
@@ -2681,6 +2759,26 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(status)
+_arguments "${_arguments_options[@]}" : \
+":: :_zkstack__help__dev__status_commands" \
+"*::: :->status" \
+&& ret=0
+
+    case $state in
+    (status)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:zkstack-help-dev-status-command-$line[1]:"
+        case $line[1] in
+            (ports)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
 (generate-genesis)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -3251,6 +3349,7 @@ _zkstack__dev_commands() {
 'contracts:Build contracts' \
 'config-writer:Overwrite general config' \
 'send-transactions:Send transactions from file' \
+'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
@@ -3497,6 +3596,7 @@ _zkstack__dev__help_commands() {
 'contracts:Build contracts' \
 'config-writer:Overwrite general config' \
 'send-transactions:Send transactions from file' \
+'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
@@ -3663,6 +3763,18 @@ _zkstack__dev__help__snapshot_commands() {
 _zkstack__dev__help__snapshot__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev help snapshot create commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__help__status_commands] )) ||
+_zkstack__dev__help__status_commands() {
+    local commands; commands=(
+'ports:Show used ports' \
+    )
+    _describe -t commands 'zkstack dev help status commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__help__status__ports_commands] )) ||
+_zkstack__dev__help__status__ports_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev help status ports commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__help__test_commands] )) ||
 _zkstack__dev__help__test_commands() {
@@ -3831,6 +3943,37 @@ _zkstack__dev__snapshot__help__create_commands() {
 _zkstack__dev__snapshot__help__help_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack dev snapshot help help commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__status_commands] )) ||
+_zkstack__dev__status_commands() {
+    local commands; commands=(
+'ports:Show used ports' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'zkstack dev status commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__status__help_commands] )) ||
+_zkstack__dev__status__help_commands() {
+    local commands; commands=(
+'ports:Show used ports' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'zkstack dev status help commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__status__help__help_commands] )) ||
+_zkstack__dev__status__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev status help help commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__status__help__ports_commands] )) ||
+_zkstack__dev__status__help__ports_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev status help ports commands' commands "$@"
+}
+(( $+functions[_zkstack__dev__status__ports_commands] )) ||
+_zkstack__dev__status__ports_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack dev status ports commands' commands "$@"
 }
 (( $+functions[_zkstack__dev__test_commands] )) ||
 _zkstack__dev__test_commands() {
@@ -4356,6 +4499,7 @@ _zkstack__help__dev_commands() {
 'contracts:Build contracts' \
 'config-writer:Overwrite general config' \
 'send-transactions:Send transactions from file' \
+'status:Get status of the server' \
 'generate-genesis:Generate new genesis file based on current contracts' \
     )
     _describe -t commands 'zkstack help dev commands' commands "$@"
@@ -4516,6 +4660,18 @@ _zkstack__help__dev__snapshot_commands() {
 _zkstack__help__dev__snapshot__create_commands() {
     local commands; commands=()
     _describe -t commands 'zkstack help dev snapshot create commands' commands "$@"
+}
+(( $+functions[_zkstack__help__dev__status_commands] )) ||
+_zkstack__help__dev__status_commands() {
+    local commands; commands=(
+'ports:Show used ports' \
+    )
+    _describe -t commands 'zkstack help dev status commands' commands "$@"
+}
+(( $+functions[_zkstack__help__dev__status__ports_commands] )) ||
+_zkstack__help__dev__status__ports_commands() {
+    local commands; commands=()
+    _describe -t commands 'zkstack help dev status ports commands' commands "$@"
 }
 (( $+functions[_zkstack__help__dev__test_commands] )) ||
 _zkstack__help__dev__test_commands() {

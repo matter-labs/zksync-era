@@ -249,6 +249,9 @@ _zkstack() {
             zkstack__dev,snapshot)
                 cmd="zkstack__dev__snapshot"
                 ;;
+            zkstack__dev,status)
+                cmd="zkstack__dev__status"
+                ;;
             zkstack__dev,test)
                 cmd="zkstack__dev__test"
                 ;;
@@ -381,6 +384,9 @@ _zkstack() {
             zkstack__dev__help,snapshot)
                 cmd="zkstack__dev__help__snapshot"
                 ;;
+            zkstack__dev__help,status)
+                cmd="zkstack__dev__help__status"
+                ;;
             zkstack__dev__help,test)
                 cmd="zkstack__dev__help__test"
                 ;;
@@ -434,6 +440,9 @@ _zkstack() {
                 ;;
             zkstack__dev__help__snapshot,create)
                 cmd="zkstack__dev__help__snapshot__create"
+                ;;
+            zkstack__dev__help__status,ports)
+                cmd="zkstack__dev__help__status__ports"
                 ;;
             zkstack__dev__help__test,build)
                 cmd="zkstack__dev__help__test__build"
@@ -503,6 +512,18 @@ _zkstack() {
                 ;;
             zkstack__dev__snapshot__help,help)
                 cmd="zkstack__dev__snapshot__help__help"
+                ;;
+            zkstack__dev__status,help)
+                cmd="zkstack__dev__status__help"
+                ;;
+            zkstack__dev__status,ports)
+                cmd="zkstack__dev__status__ports"
+                ;;
+            zkstack__dev__status__help,help)
+                cmd="zkstack__dev__status__help__help"
+                ;;
+            zkstack__dev__status__help,ports)
+                cmd="zkstack__dev__status__help__ports"
                 ;;
             zkstack__dev__test,build)
                 cmd="zkstack__dev__test__build"
@@ -795,6 +816,9 @@ _zkstack() {
             zkstack__help__dev,snapshot)
                 cmd="zkstack__help__dev__snapshot"
                 ;;
+            zkstack__help__dev,status)
+                cmd="zkstack__help__dev__status"
+                ;;
             zkstack__help__dev,test)
                 cmd="zkstack__help__dev__test"
                 ;;
@@ -848,6 +872,9 @@ _zkstack() {
                 ;;
             zkstack__help__dev__snapshot,create)
                 cmd="zkstack__help__dev__snapshot__create"
+                ;;
+            zkstack__help__dev__status,ports)
+                cmd="zkstack__help__dev__status__ports"
                 ;;
             zkstack__help__dev__test,build)
                 cmd="zkstack__help__dev__test__build"
@@ -2318,7 +2345,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev)
-            opts="-v -h --verbose --chain --ignore-prerequisites --help database test clean snapshot lint fmt prover contracts config-writer send-transactions generate-genesis help"
+            opts="-v -h --verbose --chain --ignore-prerequisites --help database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3128,7 +3155,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__help)
-            opts="database test clean snapshot lint fmt prover contracts config-writer send-transactions generate-genesis help"
+            opts="database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -3520,6 +3547,34 @@ _zkstack() {
             return 0
             ;;
         zkstack__dev__help__snapshot__create)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__dev__help__status)
+            opts="ports"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__dev__help__status__ports)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
@@ -3990,6 +4045,92 @@ _zkstack() {
                 return 0
             fi
             case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__dev__status)
+            opts="-u -v -h --url --verbose --chain --ignore-prerequisites --help ports help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --url)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -u)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                --chain)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__dev__status__help)
+            opts="ports help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__dev__status__help__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__dev__status__help__ports)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__dev__status__ports)
+            opts="-v -h --verbose --chain --ignore-prerequisites --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --chain)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
                 *)
                     COMPREPLY=()
                     ;;
@@ -5460,7 +5601,7 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__dev)
-            opts="database test clean snapshot lint fmt prover contracts config-writer send-transactions generate-genesis"
+            opts="database test clean snapshot lint fmt prover contracts config-writer send-transactions status generate-genesis"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -5838,6 +5979,34 @@ _zkstack() {
             return 0
             ;;
         zkstack__help__dev__snapshot__create)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__help__dev__status)
+            opts="ports"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        zkstack__help__dev__status__ports)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 5 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
