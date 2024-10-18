@@ -20,9 +20,9 @@ use zksync_types::{
         StorageOracleInfo,
     },
     commitment::{L1BatchCommitmentArtifacts, L1BatchWithMetadata},
-    l2_to_l1_log::UserL2ToL1Log,
+    l2_to_l1_log::{BatchAndChainMerklePath, UserL2ToL1Log},
     writes::TreeWrite,
-    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, H256, U256,
+    Address, Bloom, L1BatchNumber, L2BlockNumber, ProtocolVersionId, SLChainId, H256, U256,
 };
 use zksync_vm_interface::CircuitStatistic;
 
@@ -1847,6 +1847,150 @@ impl BlocksDal<'_, '_> {
             return Ok(None);
         };
         Ok(Some((H256::from_slice(&hash), row.timestamp as u64)))
+    }
+
+    pub async fn get_l1_batch_local_root(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<H256>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                local_root
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(number.0)
+        )
+        .instrument("get_l1_batch_local_root")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(local_root) = row.local_root else {
+            return Ok(None);
+        };
+        Ok(Some(H256::from_slice(&local_root)))
+    }
+
+    pub async fn get_l1_batch_l2_l1_merkle_root(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<H256>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                l2_l1_merkle_root
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(number.0)
+        )
+        .instrument("get_l1_batch_l2_l1_merkle_root")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(l2_l1_merkle_root) = row.l2_l1_merkle_root else {
+            return Ok(None);
+        };
+        Ok(Some(H256::from_slice(&l2_l1_merkle_root)))
+    }
+
+    pub async fn get_l1_batch_chain_merkle_path(
+        &mut self,
+        number: L1BatchNumber,
+    ) -> DalResult<Option<BatchAndChainMerklePath>> {
+        let Some(row) = sqlx::query!(
+            r#"
+            SELECT
+                batch_chain_merkle_path
+            FROM
+                l1_batches
+            WHERE
+                number = $1
+            "#,
+            i64::from(number.0)
+        )
+        .instrument("get_l1_batch_chain_merkle_path")
+        .with_arg("number", &number)
+        .fetch_optional(self.storage)
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(batch_chain_merkle_path) = row.batch_chain_merkle_path else {
+            return Ok(None);
+        };
+        Ok(Some(
+            bincode::deserialize(&batch_chain_merkle_path).unwrap(),
+        ))
+    }
+
+    pub async fn get_executed_batch_roots_on_sl(
+        &mut self,
+        sl_chain_id: SLChainId,
+    ) -> DalResult<Vec<(L1BatchNumber, H256)>> {
+        let result = sqlx::query!(
+            r#"
+            SELECT
+                number, l2_l1_merkle_root
+            FROM
+                l1_batches
+            JOIN eth_txs ON eth_txs.id = l1_batches.eth_execute_tx_id
+            WHERE
+                batch_chain_merkle_path IS NOT NULL
+                AND chain_id = $1
+            ORDER BY number
+            "#,
+            sl_chain_id.0 as i64
+        )
+        .instrument("get_executed_batch_roots_on_sl")
+        .with_arg("sl_chain_id", &sl_chain_id)
+        .fetch_all(self.storage)
+        .await?
+        .into_iter()
+        .map(|row| {
+            let number = L1BatchNumber(row.number as u32);
+            let root = H256::from_slice(&row.l2_l1_merkle_root.unwrap());
+            (number, root)
+        })
+        .collect();
+        Ok(result)
+    }
+
+    pub async fn set_batch_chain_merkle_path(
+        &mut self,
+        number: L1BatchNumber,
+        proof: BatchAndChainMerklePath,
+    ) -> DalResult<()> {
+        let proof_bin = bincode::serialize(&proof).unwrap();
+        sqlx::query!(
+            r#"
+            UPDATE
+            l1_batches
+            SET
+                batch_chain_merkle_path = $2
+            WHERE
+                number = $1
+            "#,
+            i64::from(number.0),
+            &proof_bin
+        )
+        .instrument("set_batch_chain_merkle_path")
+        .with_arg("number", &number)
+        .execute(self.storage)
+        .await?;
+
+        Ok(())
     }
 
     pub async fn get_l1_batch_metadata(

@@ -1,7 +1,7 @@
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
 use zksync_contracts::chain_admin_contract;
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
-use zksync_types::settlement::SettlementMode;
+use zksync_types::{settlement::SettlementMode, L2ChainId};
 
 use crate::{
     implementations::resources::{
@@ -24,6 +24,7 @@ pub struct EthWatchLayer {
     contracts_config: ContractsConfig,
     gateway_contracts_config: Option<GatewayChainConfig>,
     settlement_mode: SettlementMode,
+    chain_id: L2ChainId,
 }
 
 #[derive(Debug, FromContext)]
@@ -47,12 +48,14 @@ impl EthWatchLayer {
         contracts_config: ContractsConfig,
         gateway_contracts_config: Option<GatewayChainConfig>,
         settlement_mode: SettlementMode,
+        chain_id: L2ChainId,
     ) -> Self {
         Self {
             eth_watch_config,
             contracts_config,
             gateway_contracts_config,
             settlement_mode,
+            chain_id,
         }
     }
 }
@@ -118,6 +121,7 @@ impl WiringLayer for EthWatchLayer {
             Box::new(sl_client),
             main_pool,
             self.eth_watch_config.poll_interval(),
+            self.chain_id,
         )
         .await?;
 

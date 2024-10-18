@@ -133,6 +133,14 @@ export async function waitForBlockToBeFinalizedOnL1(wallet: zksync.Wallet, block
     }
 }
 
+export async function waitForL2ToL1LogProof(wallet: zksync.Wallet, blockNumber: number, txHash: string) {
+    await waitForBlockToBeFinalizedOnL1(wallet, blockNumber);
+
+    while ((await wallet.provider.getLogProof(txHash)) == null) {
+        await zksync.utils.sleep(wallet.provider.pollingInterval);
+    }
+}
+
 /**
  * Returns an increased gas price to decrease chances of L1 transactions being stuck
  *

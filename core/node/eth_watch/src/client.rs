@@ -9,10 +9,12 @@ use zksync_eth_client::{
     CallFunctionArgs, ClientError, ContractCallError, EnrichedClientError, EnrichedClientResult,
     EthInterface,
 };
+use zksync_system_constants::L2_MESSAGE_ROOT_ADDRESS;
 use zksync_types::{
+    api::{ChainAggProof, Log},
     ethabi::Contract,
-    web3::{BlockId, BlockNumber, FilterBuilder, Log},
-    Address, SLChainId, H256, U256,
+    web3::{BlockId, BlockNumber, FilterBuilder},
+    Address, L1BatchNumber, L2ChainId, SLChainId, H256, U256,
 };
 
 /// L1 client functionality used by [`EthWatch`](crate::EthWatch) and constituent event processors.
@@ -27,6 +29,10 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
         topic2: Option<H256>,
         retries_left: usize,
     ) -> EnrichedClientResult<Vec<Log>>;
+
+    /// Returns either finalized L1 block number or block number that satisfies `self.confirmations_for_eth_event` if it's set.
+    async fn confirmed_block_number(&self) -> EnrichedClientResult<u64>;
+
     /// Returns finalized L1 block number.
     async fn finalized_block_number(&self) -> EnrichedClientResult<u64>;
 
@@ -41,6 +47,12 @@ pub trait EthClient: 'static + fmt::Debug + Send + Sync {
     ) -> EnrichedClientResult<Option<Vec<u8>>>;
 
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId>;
+
+    async fn get_chain_log_proof(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>>;
 }
 
 pub const RETRY_LIMIT: usize = 5;
@@ -101,6 +113,7 @@ impl EthHttpQueryClient {
             Some(self.governance_address),
             self.state_transition_manager_address,
             self.chain_admin_address,
+            Some(L2_MESSAGE_ROOT_ADDRESS),
         ]
         .into_iter()
         .flatten()
@@ -125,7 +138,7 @@ impl EthHttpQueryClient {
             builder = builder.address(addresses);
         }
         let filter = builder.build();
-        let mut result = self.client.logs(&filter).await;
+        let mut result = self.client.logs_extended(&filter).await;
 
         // This code is compatible with both Infura and Alchemy API providers.
         // Note: we don't handle rate-limits here - assumption is that we're never going to hit them.
@@ -272,25 +285,29 @@ impl EthClient for EthHttpQueryClient {
         .await
     }
 
-    async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
+    async fn confirmed_block_number(&self) -> EnrichedClientResult<u64> {
         if let Some(confirmations) = self.confirmations_for_eth_event {
             let latest_block_number = self.client.block_number().await?.as_u64();
             Ok(latest_block_number.saturating_sub(confirmations))
         } else {
-            let block = self
-                .client
-                .block(BlockId::Number(BlockNumber::Finalized))
-                .await?
-                .ok_or_else(|| {
-                    let err = ClientError::Custom("Finalized block must be present on L1".into());
-                    EnrichedClientError::new(err, "block")
-                })?;
-            let block_number = block.number.ok_or_else(|| {
-                let err = ClientError::Custom("Finalized block must contain number".into());
-                EnrichedClientError::new(err, "block").with_arg("block", &block)
-            })?;
-            Ok(block_number.as_u64())
+            self.finalized_block_number().await
         }
+    }
+
+    async fn finalized_block_number(&self) -> EnrichedClientResult<u64> {
+        let block = self
+            .client
+            .block(BlockId::Number(BlockNumber::Finalized))
+            .await?
+            .ok_or_else(|| {
+                let err = ClientError::Custom("Finalized block must be present on L1".into());
+                EnrichedClientError::new(err, "block")
+            })?;
+        let block_number = block.number.ok_or_else(|| {
+            let err = ClientError::Custom("Finalized block must contain number".into());
+            EnrichedClientError::new(err, "block").with_arg("block", &block)
+        })?;
+        Ok(block_number.as_u64())
     }
 
     async fn get_total_priority_txs(&self) -> Result<u64, ContractCallError> {
@@ -303,5 +320,16 @@ impl EthClient for EthHttpQueryClient {
 
     async fn chain_id(&self) -> EnrichedClientResult<SLChainId> {
         Ok(self.client.fetch_chain_id().await?)
+    }
+
+    async fn get_chain_log_proof(
+        &self,
+        l1_batch_number: L1BatchNumber,
+        chain_id: L2ChainId,
+    ) -> EnrichedClientResult<Option<ChainAggProof>> {
+        Ok(self
+            .client
+            .get_chain_log_proof(l1_batch_number, chain_id)
+            .await?)
     }
 }

@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_types::{
-    ethabi::Contract, protocol_version::ProtocolSemanticVersion, web3::Log, ProtocolUpgrade, H256,
+    api::Log, ethabi::Contract, protocol_version::ProtocolSemanticVersion, ProtocolUpgrade, H256,
     U256,
 };
 
@@ -128,7 +128,7 @@ impl EventProcessor for DecentralizedUpgradesEventProcessor {
         Ok(events.len())
     }
 
-    fn relevant_topic(&self) -> H256 {
+    fn topic1(&self) -> H256 {
         self.update_upgrade_timestamp_signature
     }
 

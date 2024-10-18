@@ -4,7 +4,7 @@ use anyhow::Context;
 use zksync_contracts::hyperchain_contract;
 use zksync_dal::{eth_watcher_dal::EventType, Connection, Core, CoreDal, DalError};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
-use zksync_types::{l1::L1Tx, web3::Log, PriorityOpId, H256};
+use zksync_types::{api::Log, l1::L1Tx, PriorityOpId, H256};
 
 use crate::{
     client::EthClient,
@@ -43,7 +43,7 @@ impl EventProcessor for PriorityOpsEventProcessor {
         let events_count = events.len();
         for event in events {
             assert_eq!(event.topics[0], self.new_priority_request_signature); // guaranteed by the watcher
-            let tx = L1Tx::try_from(event)
+            let tx = L1Tx::try_from(Into::<zksync_types::web3::Log>::into(event))
                 .map_err(|err| EventProcessorError::log_parse(err, "priority op"))?;
             priority_ops.push(tx);
         }
@@ -105,7 +105,7 @@ impl EventProcessor for PriorityOpsEventProcessor {
         Ok(skipped_ops + ops_to_insert.len())
     }
 
-    fn relevant_topic(&self) -> H256 {
+    fn topic1(&self) -> H256 {
         self.new_priority_request_signature
     }
 
