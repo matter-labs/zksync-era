@@ -2,9 +2,6 @@
 
 use std::{iter, sync::Arc, time::Duration};
 
-use super::{
-    fetcher::FetchedTransaction, sync_action::SyncAction, testonly::MockMainNodeClient, *,
-};
 use backon::{ConstantBuilder, Retryable};
 use test_casing::test_casing;
 use tokio::{sync::watch, task::JoinHandle};
@@ -20,13 +17,16 @@ use zksync_state_keeper::{
     testonly::test_batch_executor::{MockReadStorageFactory, TestBatchExecutorBuilder},
     OutputHandler, StateKeeperPersistence, TreeWritesPersistence, ZkSyncStateKeeper,
 };
-use zksync_types::block::UnsealedL1BatchHeader;
 use zksync_types::{
     api,
-    block::L2BlockHasher,
+    block::{L2BlockHasher, UnsealedL1BatchHeader},
     fee_model::{BatchFeeInput, PubdataIndependentBatchFeeModelInput},
     snapshots::SnapshotRecoveryStatus,
     Address, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
+};
+
+use super::{
+    fetcher::FetchedTransaction, sync_action::SyncAction, testonly::MockMainNodeClient, *,
 };
 
 const TEST_TIMEOUT: Duration = Duration::from_secs(10);
@@ -711,7 +711,7 @@ async fn external_io_empty_unsealed_batch() {
     // Unchecked insert of batch #2 to simulate restart in the middle of processing an action sequence
     // In other words batch #2 is inserted completely empty with no blocks/txs present in it
     actions_sender
-        .push_action_unchecked(open_batch_two)
+        .push_action_unchecked(open_batch_two.clone())
         .await
         .unwrap();
     // Wait until the L2 block is sealed.
@@ -728,13 +728,6 @@ async fn external_io_empty_unsealed_batch() {
     let tx = create_l2_transaction(20, 200);
     let tx_hash = tx.hash();
     let tx = FetchedTransaction::new(tx.into());
-    let l2_block = SyncAction::L2Block {
-        params: L2BlockParams {
-            timestamp: 3,
-            virtual_blocks: 0,
-        },
-        number: L2BlockNumber(3),
-    };
     let fictive_l2_block = SyncAction::L2Block {
         params: L2BlockParams {
             timestamp: 4,
@@ -742,7 +735,7 @@ async fn external_io_empty_unsealed_batch() {
         },
         number: L2BlockNumber(4),
     };
-    let actions1 = vec![l2_block, tx.into(), SyncAction::SealL2Block];
+    let actions1 = vec![open_batch_two, tx.into(), SyncAction::SealL2Block];
     let actions2 = vec![fictive_l2_block, SyncAction::SealBatch];
 
     // Restart state keeper
@@ -753,6 +746,8 @@ async fn external_io_empty_unsealed_batch() {
     actions_sender.push_actions(actions1).await.unwrap();
     actions_sender.push_actions(actions2).await.unwrap();
 
+    let hash_task = tokio::spawn(mock_l1_batch_hash_computation(pool.clone(), 1));
     // Wait until the block #4 is sealed.
     state_keeper.wait_for_local_block(L2BlockNumber(4)).await;
+    hash_task.await.unwrap();
 }
