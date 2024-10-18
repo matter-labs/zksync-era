@@ -11,7 +11,7 @@ use common::logger;
 use super::args::AutocompleteArgs;
 use crate::{
     messages::{msg_generate_autocomplete_file, MSG_OUTRO_AUTOCOMPLETE_GENERATION},
-    Inception,
+    ZkStack,
 };
 
 pub fn run(args: AutocompleteArgs) -> anyhow::Result<()> {
@@ -33,7 +33,7 @@ pub fn run(args: AutocompleteArgs) -> anyhow::Result<()> {
 }
 
 pub fn generate_completions<G: Generator>(gen: G, buf: &mut dyn Write) -> anyhow::Result<()> {
-    let mut cmd = Inception::command();
+    let mut cmd = ZkStack::command();
     let cmd_name = cmd.get_name().to_string();
 
     generate(gen, &mut cmd, cmd_name, buf);
