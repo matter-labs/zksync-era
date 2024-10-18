@@ -1,6 +1,6 @@
-use zksync_test_contracts::{DeployContractsTx, TxType};
+use zksync_test_contracts::{DeployContractsTx, TestContract, TxType};
 
-use super::{read_test_contract, tester::VmTesterBuilder, TestedVm};
+use super::{tester::VmTesterBuilder, TestedVm};
 use crate::{
     interface::{TxExecutionMode, VmEvent, VmExecutionMode, VmInterfaceExt},
     utils::bytecode,
@@ -15,12 +15,12 @@ pub(crate) fn test_bytecode_publishing<VM: TestedVm>() {
         .with_rich_accounts(1)
         .build::<VM>();
 
-    let counter = read_test_contract();
+    let counter = TestContract::counter().bytecode;
     let account = &mut vm.rich_accounts[0];
 
-    let compressed_bytecode = bytecode::compress(counter.clone()).unwrap().compressed;
+    let compressed_bytecode = bytecode::compress(counter.to_vec()).unwrap().compressed;
 
-    let DeployContractsTx { tx, .. } = account.get_deploy_tx(&counter, None, TxType::L2);
+    let DeployContractsTx { tx, .. } = account.get_deploy_tx(counter, None, TxType::L2);
     vm.vm.push_transaction(tx);
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");

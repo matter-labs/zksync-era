@@ -4,12 +4,11 @@ use assert_matches::assert_matches;
 use ethabi::Token;
 use zk_evm_1_3_1::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
 use zksync_system_constants::CONTRACT_DEPLOYER_ADDRESS;
-use zksync_test_contracts::{Account, TxType};
+use zksync_test_contracts::{Account, TestContract, TxType};
 use zksync_types::{AccountTreeId, Address, Execute, StorageKey, H256, U256};
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 
 use super::{
-    read_proxy_counter_contract, read_test_contract,
     tester::{VmTester, VmTesterBuilder},
     TestedVm, BASE_SYSTEM_CONTRACTS,
 };
@@ -31,9 +30,9 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
 
     // create and push and execute some not-empty factory deps transaction with success status
     // to check that `get_decommitted_hashes()` updates
-    let contract_code = read_test_contract();
+    let contract_code = TestContract::counter().bytecode;
     let account = &mut vm.rich_accounts[0];
-    let tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 0 });
+    let tx = account.get_deploy_tx(contract_code, None, TxType::L1 { serial_id: 0 });
     vm.vm.push_transaction(tx.tx.clone());
     let result = vm.vm.execute(VmExecutionMode::OneTx);
     assert!(!result.result.is_failed());
@@ -100,7 +99,7 @@ fn known_bytecodes_without_base_system_contracts(vm: &impl TestedVm) -> HashSet<
 /// Counter test contract bytecode inflated by appending lots of `NOP` opcodes at the end. This leads to non-trivial
 /// decommitment cost (>10,000 gas).
 fn inflated_counter_bytecode() -> Vec<u8> {
-    let mut counter_bytecode = read_test_contract();
+    let mut counter_bytecode = TestContract::counter().bytecode.to_vec();
     counter_bytecode.extend(
         iter::repeat(EncodingModeProduction::nop_encoding().to_be_bytes())
             .take(10_000)
@@ -132,10 +131,9 @@ fn execute_proxy_counter<VM: TestedVm>(
         .with_rich_accounts(1)
         .build::<VM>();
 
-    let (proxy_counter_bytecode, proxy_counter_abi) = read_proxy_counter_contract();
     let account = &mut vm.rich_accounts[0];
     let deploy_tx = account.get_deploy_tx(
-        &proxy_counter_bytecode,
+        TestContract::proxy_counter().bytecode,
         Some(&[Token::Address(counter_address)]),
         TxType::L2,
     );
@@ -151,7 +149,7 @@ fn execute_proxy_counter<VM: TestedVm>(
         "{decommitted_hashes:?}"
     );
 
-    let increment = proxy_counter_abi.function("increment").unwrap();
+    let increment = TestContract::proxy_counter().function("increment");
     let increment_tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(deploy_tx.address),
@@ -195,8 +193,7 @@ pub(crate) fn test_get_used_contracts_with_out_of_gas_far_call<VM: TestedVm>() {
 
     // Execute another transaction with a successful far call and check that it's still charged for decommitment.
     let account = &mut vm.rich_accounts[0];
-    let (_, proxy_counter_abi) = read_proxy_counter_contract();
-    let increment = proxy_counter_abi.function("increment").unwrap();
+    let increment = TestContract::proxy_counter().function("increment");
     let increment_tx = account.get_l2_tx_for_execute(
         Execute {
             contract_address: Some(data.proxy_counter_address),

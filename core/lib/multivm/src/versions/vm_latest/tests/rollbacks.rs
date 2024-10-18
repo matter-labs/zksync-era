@@ -1,5 +1,7 @@
 use ethabi::Token;
-use zksync_test_contracts::{DeployContractsTx, LoadnextContractExecutionParams, TxType};
+use zksync_test_contracts::{
+    DeployContractsTx, LoadnextContractExecutionParams, TestContract, TxType,
+};
 use zksync_types::{get_nonce_key, U256};
 
 use super::TestedLatestVm;
@@ -56,7 +58,7 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for MaxRecursionTracer {
 }
 
 #[test]
-fn test_layered_rollback() {
+fn layered_rollback() {
     // This test checks that the layered rollbacks work correctly, i.e.
     // the rollback by the operator will always revert all the changes
 
@@ -67,14 +69,13 @@ fn test_layered_rollback() {
         .build::<TestedLatestVm>();
 
     let account = &mut vm.rich_accounts[0];
-    let loadnext_contract = vec![]; // FIXME
 
     let DeployContractsTx {
         tx: deploy_tx,
         address,
         ..
     } = account.get_deploy_tx(
-        &loadnext_contract,
+        TestContract::load_test().bytecode,
         Some(&[Token::Uint(0.into())]),
         TxType::L2,
     );
