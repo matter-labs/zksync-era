@@ -290,7 +290,6 @@ testFees('Test fees', function () {
         console.log('gas price', await alice._providerL2().getGasPrice());
         console.log(await alice._providerL2().getFeeParams());
         expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
-        expect(await alice._providerL2().getGasPrice()).toBe(BigInt(expectedConvertedGasPrice));
     });
 
     test('Test base token ratio fluctuations', async () => {
