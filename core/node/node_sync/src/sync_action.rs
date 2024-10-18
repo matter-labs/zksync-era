@@ -42,9 +42,6 @@ impl ActionQueueSender {
             .send(action)
             .await
             .map_err(|_| anyhow::anyhow!("node action processor stopped"))?;
-        QUEUE_METRICS
-            .action_queue_size
-            .set(self.0.max_capacity() - self.0.capacity());
         Ok(())
     }
 
