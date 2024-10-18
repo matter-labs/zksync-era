@@ -89,6 +89,7 @@ pub(crate) fn create_chain_inner(
         wallet_creation: args.wallet_creation,
         shell: OnceCell::from(shell.clone()),
         legacy_bridge,
+        evm_emulator: args.evm_emulator,
     };
 
     create_wallets(

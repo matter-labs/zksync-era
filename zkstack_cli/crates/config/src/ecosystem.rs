@@ -178,6 +178,7 @@ impl EcosystemConfig {
                 .artifacts_path
                 .unwrap_or_else(|| self.get_chain_artifacts_path(name)),
             legacy_bridge: config.legacy_bridge,
+            evm_emulator: config.evm_emulator,
         })
     }
 

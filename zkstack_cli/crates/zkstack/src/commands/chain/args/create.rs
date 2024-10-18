@@ -18,12 +18,12 @@ use crate::{
         MSG_BASE_TOKEN_PRICE_DENOMINATOR_PROMPT, MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP,
         MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT, MSG_BASE_TOKEN_SELECTION_PROMPT, MSG_CHAIN_ID_HELP,
         MSG_CHAIN_ID_PROMPT, MSG_CHAIN_ID_VALIDATOR_ERR, MSG_CHAIN_NAME_PROMPT,
-        MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT, MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP,
-        MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR, MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR,
-        MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT, MSG_SET_AS_DEFAULT_HELP,
-        MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLET_CREATION_HELP, MSG_WALLET_CREATION_PROMPT,
-        MSG_WALLET_CREATION_VALIDATOR_ERR, MSG_WALLET_PATH_HELP, MSG_WALLET_PATH_INVALID_ERR,
-        MSG_WALLET_PATH_PROMPT,
+        MSG_EVM_EMULATOR_HELP, MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT,
+        MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP, MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR,
+        MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR, MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT,
+        MSG_SET_AS_DEFAULT_HELP, MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLET_CREATION_HELP,
+        MSG_WALLET_CREATION_PROMPT, MSG_WALLET_CREATION_VALIDATOR_ERR, MSG_WALLET_PATH_HELP,
+        MSG_WALLET_PATH_INVALID_ERR, MSG_WALLET_PATH_PROMPT,
     },
 };
 
@@ -67,6 +67,8 @@ pub struct ChainCreateArgs {
     pub(crate) set_as_default: Option<bool>,
     #[clap(long, default_value = "false")]
     pub(crate) legacy_bridge: bool,
+    #[arg(long, help = MSG_EVM_EMULATOR_HELP, default_value = "false")]
+    evm_emulator: bool, // FIXME: optional?
 }
 
 impl ChainCreateArgs {
@@ -227,6 +229,7 @@ impl ChainCreateArgs {
             base_token,
             set_as_default,
             legacy_bridge: self.legacy_bridge,
+            evm_emulator: self.evm_emulator,
         })
     }
 }
@@ -242,6 +245,7 @@ pub struct ChainCreateArgsFinal {
     pub base_token: BaseToken,
     pub set_as_default: bool,
     pub legacy_bridge: bool,
+    pub evm_emulator: bool,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
