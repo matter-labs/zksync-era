@@ -3,8 +3,7 @@ set -eo pipefail
 
 BIN_URL="https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkstackup/zkstackup"
 
-HOME_DIR=${XDG_CONFIG_HOME:-$HOME}
-BIN_DIR="$HOME_DIR/.local/bin"
+BIN_DIR="$HOME/.local/bin"
 BIN_PATH="$BIN_DIR/zkstackup"
 
 main() {

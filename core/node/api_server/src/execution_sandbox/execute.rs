@@ -128,9 +128,16 @@ impl SandboxExecutor {
     }
 
     pub(crate) async fn mock(executor: MockOneshotExecutor) -> Self {
+        Self::custom_mock(executor, SandboxExecutorOptions::mock().await)
+    }
+
+    pub(crate) fn custom_mock(
+        executor: MockOneshotExecutor,
+        options: SandboxExecutorOptions,
+    ) -> Self {
         Self {
             engine: SandboxExecutorEngine::Mock(executor),
-            options: SandboxExecutorOptions::mock().await,
+            options,
             storage_caches: None,
             timestamp_asserter_address: None,
             timestamp_asserter_min_range_sec: 0,

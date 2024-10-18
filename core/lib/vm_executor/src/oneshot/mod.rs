@@ -40,7 +40,11 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 
 pub use self::{
     block::{BlockInfo, ResolvedBlockInfo},
-    env::{CallOrExecute, EstimateGas, OneshotEnvParameters},
+    contracts::{
+        BaseSystemContractsProvider, CallOrExecute, ContractsKind, EstimateGas,
+        MultiVMBaseSystemContracts,
+    },
+    env::OneshotEnvParameters,
     mock::MockOneshotExecutor,
 };
 
