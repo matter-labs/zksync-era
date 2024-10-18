@@ -15,7 +15,7 @@ pub struct L1BatchProofForL1<T: FinalProofExt> {
     pub protocol_version: ProtocolSemanticVersion,
 }
 
-pub trait FinalProofExt: Serialize + Deserialize {}
+pub trait FinalProofExt<'a>: Serialize + Deserialize<'a> {}
 
 impl FinalProofExt for FinalProof {}
 impl FinalProofExt for FflonkSnarkVerifierCircuitProof {}
