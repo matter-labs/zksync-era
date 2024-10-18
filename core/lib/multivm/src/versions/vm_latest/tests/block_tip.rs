@@ -12,10 +12,12 @@ use zksync_types::{
     l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address, Execute, H256, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
+use zksync_vm_interface::VmExecutionMode;
 
 use super::utils::{get_complex_upgrade_abi, read_complex_upgrade};
 use crate::{
     interface::{InspectExecutionMode, L1BatchEnv, TxExecutionMode, VmInterface, VmInterfaceExt},
+    versions::testonly::default_pubdata_builder,
     vm_latest::{
         constants::{
             BOOTLOADER_BATCH_TIP_CIRCUIT_STATISTICS_OVERHEAD,
@@ -190,14 +192,15 @@ fn execute_test(test_data: L1MessengerTestData) -> TestStatistics {
     // We ensure that indeed the provided state diffs are used
     let pubdata_tracer = PubdataTracer::<InMemoryStorageView>::new_with_forced_state_diffs(
         vm.vm.batch_env.clone(),
-        InspectExecutionMode::Batch,
+        VmExecutionMode::Batch,
         test_data.state_diffs.clone(),
         crate::vm_latest::MultiVMSubversion::latest(),
+        Some(default_pubdata_builder()),
     );
 
     let result = vm.vm.inspect_inner(
         &mut TracerDispatcher::default(),
-        InspectExecutionMode::Batch,
+        VmExecutionMode::Batch,
         Some(pubdata_tracer),
     );
 

@@ -41,7 +41,7 @@ fn test_prestate_tracer() {
     let prestate_tracer = PrestateTracer::new(false, prestate_tracer_result.clone());
     let tracer_ptr = prestate_tracer.into_tracer_pointer();
     vm.vm
-        .inspect(&mut tracer_ptr.into(), InspectExecutionMode::Batch);
+        .inspect(&mut tracer_ptr.into(), InspectExecutionMode::OneTx);
 
     let prestate_result = Arc::try_unwrap(prestate_tracer_result)
         .unwrap()

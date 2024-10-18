@@ -3,7 +3,6 @@ use std::{borrow::Cow, fmt, marker::PhantomData, rc::Rc, sync::Arc, time::Durati
 use anyhow::Context as _;
 use once_cell::sync::OnceCell;
 use tokio::sync::mpsc;
-use zksync_multivm::pubdata_builders::pubdata_params_to_builder;
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
@@ -15,6 +14,7 @@ use zksync_multivm::{
         VmInterface, VmInterfaceHistoryEnabled,
     },
     is_supported_by_fast_vm,
+    pubdata_builders::pubdata_params_to_builder,
     tracers::CallTracer,
     vm_fast,
     vm_latest::HistoryEnabled,
@@ -466,9 +466,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
 #[cfg(test)]
 mod tests {
     use assert_matches::assert_matches;
-    use zksync_multivm::interface::{
-        pubdata::rollup::RollupPubdataBuilder, storage::InMemoryStorage, TxExecutionMode,
-    };
+    use zksync_multivm::interface::{storage::InMemoryStorage, TxExecutionMode};
     use zksync_types::ProtocolVersionId;
 
     use super::*;

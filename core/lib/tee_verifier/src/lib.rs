@@ -9,22 +9,22 @@ use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_merkle_tree::{
     BlockOutputWithProofs, TreeInstruction, TreeLogEntry, TreeLogEntryWithProof, ValueHash,
 };
-use zksync_multivm::pubdata_builders::pubdata_params_to_builder;
 use zksync_multivm::{
     interface::{
         storage::{ReadStorage, StorageSnapshot, StorageView},
         FinishedL1Batch, L2BlockEnv, VmFactory, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
+    pubdata_builders::pubdata_params_to_builder,
     vm_latest::HistoryEnabled,
     LegacyVmInstance,
 };
 use zksync_prover_interface::inputs::{
     StorageLogMetadata, V1TeeVerifierInput, WitnessInputMerklePaths,
 };
-use zksync_types::commitment::PubdataParams;
 use zksync_types::{
-    block::L2BlockExecutionData, L1BatchNumber, StorageLog, StorageValue, Transaction, H256,
+    block::L2BlockExecutionData, commitment::PubdataParams, L1BatchNumber, StorageLog,
+    StorageValue, Transaction, H256,
 };
 use zksync_utils::u256_to_h256;
 

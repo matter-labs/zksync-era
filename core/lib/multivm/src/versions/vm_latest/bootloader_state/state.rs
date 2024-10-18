@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, rc::Rc};
+use std::cmp::Ordering;
 
 use once_cell::sync::OnceCell;
 use zksync_types::{L2ChainId, ProtocolVersionId, U256};
@@ -150,10 +150,7 @@ impl BootloaderState {
             .expect("Pubdata information is not set")
     }
 
-    pub(crate) fn settlement_layer_pubdata(
-        &self,
-        pubdata_builder: Rc<dyn PubdataBuilder>,
-    ) -> Vec<u8> {
+    pub(crate) fn settlement_layer_pubdata(&self, pubdata_builder: &dyn PubdataBuilder) -> Vec<u8> {
         let pubdata_information = self
             .pubdata_information
             .get()
@@ -169,7 +166,7 @@ impl BootloaderState {
     /// Apply all bootloader transaction to the initial memory
     pub(crate) fn bootloader_memory(
         &self,
-        pubdata_builder: Rc<dyn PubdataBuilder>,
+        pubdata_builder: &dyn PubdataBuilder,
     ) -> BootloaderMemory {
         let mut initial_memory = self.initial_memory.clone();
         let mut offset = 0;

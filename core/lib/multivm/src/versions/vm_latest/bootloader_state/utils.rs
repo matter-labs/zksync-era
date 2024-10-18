@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use zksync_types::{ethabi, ProtocolVersionId, U256};
 use zksync_utils::{bytes_to_be_words, h256_to_u256};
 
@@ -129,7 +127,7 @@ fn apply_l2_block_inner(
 }
 
 fn bootloader_memory_input(
-    pubdata_builder: Rc<dyn PubdataBuilder>,
+    pubdata_builder: &dyn PubdataBuilder,
     input: &PubdataInput,
     protocol_version: ProtocolVersionId,
 ) -> Vec<u8> {
@@ -144,7 +142,7 @@ fn bootloader_memory_input(
 
 pub(crate) fn apply_pubdata_to_memory(
     memory: &mut BootloaderMemory,
-    pubdata_builder: Rc<dyn PubdataBuilder>,
+    pubdata_builder: &dyn PubdataBuilder,
     pubdata_information: &PubdataInput,
     protocol_version: ProtocolVersionId,
 ) {

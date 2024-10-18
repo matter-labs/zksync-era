@@ -2,11 +2,10 @@ use std::{cell::RefCell, rc::Rc};
 
 use once_cell::sync::Lazy;
 use zksync_contracts::BaseSystemContracts;
-use zksync_multivm::interface::InspectExecutionMode;
 use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, StorageView},
-        ExecutionResult, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+        ExecutionResult, InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },

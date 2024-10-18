@@ -8,6 +8,7 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt},
+    versions::testonly::default_pubdata_builder,
     vm_fast::tests::{
         tester::{DeployContractsTx, TxType, VmTesterBuilder},
         utils::{get_balance, read_test_contract, verify_required_storage},
@@ -38,7 +39,7 @@ fn test_default_aa_interaction() {
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    vm.vm.execute(InspectExecutionMode::Batch);
+    vm.vm.finish_batch(Some(default_pubdata_builder()));
 
     vm.vm.get_current_execution_state();
 

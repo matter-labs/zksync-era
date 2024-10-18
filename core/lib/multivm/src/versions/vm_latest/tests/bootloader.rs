@@ -1,8 +1,10 @@
 use assert_matches::assert_matches;
 use zksync_types::U256;
+use zksync_vm_interface::VmInterface;
 
 use crate::{
-    interface::{ExecutionResult, Halt, InspectExecutionMode, TxExecutionMode, VmInterfaceExt},
+    interface::{ExecutionResult, Halt, TxExecutionMode},
+    versions::testonly::default_pubdata_builder,
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
         tests::{
@@ -24,8 +26,8 @@ fn test_dummy_bootloader() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
 
-    let result = vm.vm.execute(InspectExecutionMode::Batch);
-    assert!(!result.result.is_failed());
+    let result = vm.vm.finish_batch(Some(default_pubdata_builder()));
+    assert!(!result.block_tip_execution_result.result.is_failed());
 
     let correct_first_cell = U256::from_str_radix("123123123", 16).unwrap();
     verify_required_memory(
@@ -46,10 +48,10 @@ fn test_bootloader_out_of_gas() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build();
 
-    let res = vm.vm.execute(InspectExecutionMode::Batch);
+    let res = vm.vm.finish_batch(Some(default_pubdata_builder()));
 
     assert_matches!(
-        res.result,
+        res.block_tip_execution_result.result,
         ExecutionResult::Halt {
             reason: Halt::BootloaderOutOfGas
         }

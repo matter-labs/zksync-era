@@ -1,4 +1,3 @@
-use crate::interface::pubdata::{L1MessengerL2ToL1Log, PubdataBuilder, PubdataInput};
 use zksync_types::{
     writes::StateDiffRecord, Address, ProtocolVersionId, ACCOUNT_CODE_STORAGE_ADDRESS,
     BOOTLOADER_ADDRESS,
@@ -6,6 +5,7 @@ use zksync_types::{
 use zksync_utils::u256_to_h256;
 
 use super::{rollup::RollupPubdataBuilder, validium::ValidiumPubdataBuilder};
+use crate::interface::pubdata::{L1MessengerL2ToL1Log, PubdataBuilder, PubdataInput};
 
 fn mock_input() -> PubdataInput {
     // Just using some constant addresses for tests

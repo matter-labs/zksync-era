@@ -3,6 +3,7 @@ use zksync_types::{Address, Execute, U256};
 
 use crate::{
     interface::{InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt},
+    versions::testonly::default_pubdata_builder,
     vm_latest::{
         tests::{
             tester::{DeployContractsTx, TxType, VmTesterBuilder},
@@ -47,9 +48,12 @@ fn test_predetermined_refunded_gas() {
     );
     assert!(result.refunds.gas_refunded > 0, "The final refund is 0");
 
-    let result_without_predefined_refunds = vm.vm.execute(InspectExecutionMode::Batch);
+    let result_without_predefined_refunds = vm.vm.finish_batch(Some(default_pubdata_builder()));
     let mut current_state_without_predefined_refunds = vm.vm.get_current_execution_state();
-    assert!(!result_without_predefined_refunds.result.is_failed(),);
+    assert!(!result_without_predefined_refunds
+        .block_tip_execution_result
+        .result
+        .is_failed());
 
     // Here we want to provide the same refund from the operator and check that it's the correct one.
     // We execute the whole block without refund tracer, because refund tracer will eventually override the provided refund.
@@ -68,10 +72,13 @@ fn test_predetermined_refunded_gas() {
     vm.vm
         .push_raw_transaction(tx.clone(), overhead, result.refunds.gas_refunded, true);
 
-    let result_with_predefined_refunds = vm.vm.execute(InspectExecutionMode::Batch);
+    let result_with_predefined_refunds = vm.vm.finish_batch(Some(default_pubdata_builder()));
     let mut current_state_with_predefined_refunds = vm.vm.get_current_execution_state();
 
-    assert!(!result_with_predefined_refunds.result.is_failed());
+    assert!(!result_with_predefined_refunds
+        .block_tip_execution_result
+        .result
+        .is_failed());
 
     // We need to sort these lists as those are flattened from HashMaps
     current_state_with_predefined_refunds
@@ -118,7 +125,10 @@ fn test_predetermined_refunded_gas() {
     let changed_operator_suggested_refund = result.refunds.gas_refunded + 1000;
     vm.vm
         .push_raw_transaction(tx, overhead, changed_operator_suggested_refund, true);
-    let result = vm.vm.execute(InspectExecutionMode::Batch);
+    let result = vm
+        .vm
+        .finish_batch(Some(default_pubdata_builder()))
+        .block_tip_execution_result;
     let mut current_state_with_changed_predefined_refunds = vm.vm.get_current_execution_state();
 
     assert!(!result.result.is_failed());

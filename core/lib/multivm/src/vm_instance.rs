@@ -2,8 +2,7 @@ use std::{mem, rc::Rc};
 
 use zksync_types::{vm::VmVersion, ProtocolVersionId, Transaction};
 use zksync_vm2::interface::Tracer;
-use zksync_vm_interface::pubdata::PubdataBuilder;
-use zksync_vm_interface::InspectExecutionMode;
+use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
     glue::history_mode::HistoryMode,

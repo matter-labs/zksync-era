@@ -1,5 +1,4 @@
-use std::marker::PhantomData;
-use std::rc::Rc;
+use std::{marker::PhantomData, rc::Rc};
 
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zk_evm_1_5_0::{
@@ -235,8 +234,9 @@ impl<S: WriteStorage, H: HistoryMode> VmTracer<S, H> for PubdataTracer<S> {
             apply_pubdata_to_memory(
                 &mut memory_to_apply,
                 self.pubdata_builder
-                    .clone()
-                    .expect("`pubdata_builder` is required to finish batch"),
+                    .as_ref()
+                    .expect("`pubdata_builder` is required to finish batch")
+                    .as_ref(),
                 &pubdata_input,
                 bootloader_state.protocol_version(),
             );

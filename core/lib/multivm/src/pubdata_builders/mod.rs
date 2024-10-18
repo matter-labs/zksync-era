@@ -1,9 +1,10 @@
-use crate::interface::pubdata::PubdataBuilder;
 use std::rc::Rc;
-use zksync_types::commitment::{L1BatchCommitmentMode, PubdataParams};
 
 pub use rollup::RollupPubdataBuilder;
 pub use validium::ValidiumPubdataBuilder;
+use zksync_types::commitment::{L1BatchCommitmentMode, PubdataParams};
+
+use crate::interface::pubdata::PubdataBuilder;
 
 mod rollup;
 #[cfg(test)]

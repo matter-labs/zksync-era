@@ -2,6 +2,7 @@ use assert_matches::assert_matches;
 
 use crate::{
     interface::{ExecutionResult, InspectExecutionMode, VmInterface, VmInterfaceExt},
+    versions::testonly::default_pubdata_builder,
     vm_fast::tests::tester::{TxType, VmTesterBuilder},
 };
 
@@ -75,6 +76,8 @@ fn simple_execute() {
     assert_matches!(tx.result, ExecutionResult::Revert { .. });
     let tx = vm.execute(InspectExecutionMode::OneTx);
     assert_matches!(tx.result, ExecutionResult::Success { .. });
-    let block_tip = vm.execute(InspectExecutionMode::Batch);
+    let block_tip = vm
+        .finish_batch(Some(default_pubdata_builder()))
+        .block_tip_execution_result;
     assert_matches!(block_tip.result, ExecutionResult::Success { .. });
 }

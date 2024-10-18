@@ -9,12 +9,12 @@ use zksync_types::{
 };
 use zksync_utils::{bytecode::hash_bytecode, u256_to_h256};
 
-use crate::pubdata_builders::RollupPubdataBuilder;
 use crate::{
     interface::{
         pubdata::PubdataBuilder, storage::InMemoryStorage, L1BatchEnv, L2BlockEnv, SystemEnv,
         TxExecutionMode,
     },
+    pubdata_builders::RollupPubdataBuilder,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 

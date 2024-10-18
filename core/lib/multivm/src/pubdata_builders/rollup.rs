@@ -1,4 +1,3 @@
-use crate::interface::pubdata::{PubdataBuilder, PubdataInput};
 use zksync_types::{
     commitment::{L1BatchCommitmentMode, PubdataParams},
     ethabi,
@@ -12,6 +11,7 @@ use super::utils::{
     build_chained_bytecode_hash, build_chained_log_hash, build_chained_message_hash,
     build_logs_root, encode_user_logs,
 };
+use crate::interface::pubdata::{PubdataBuilder, PubdataInput};
 
 #[derive(Debug, Clone, Copy)]
 pub struct RollupPubdataBuilder {

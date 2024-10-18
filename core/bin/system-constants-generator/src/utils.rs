@@ -5,12 +5,12 @@ use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_bytecode_from_path, read_sys_contract_bytecode,
     read_zbin_bytecode, BaseSystemContracts, ContractLanguage, SystemContractCode,
 };
-use zksync_multivm::interface::InspectExecutionMode;
 use zksync_multivm::{
     interface::{
         storage::{InMemoryStorage, StorageView, WriteStorage},
         tracer::VmExecutionStopReason,
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmFactory, VmInterface, VmInterfaceExt,
+        InspectExecutionMode, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmFactory,
+        VmInterface, VmInterfaceExt,
     },
     tracers::dynamic::vm_1_5_0::DynTracer,
     vm_latest::{

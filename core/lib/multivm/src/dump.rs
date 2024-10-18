@@ -1,7 +1,11 @@
-use crate::interface::storage::{StoragePtr, StorageSnapshot, StorageView};
-use crate::interface::utils::VmDump;
-use crate::interface::{L1BatchEnv, L2BlockEnv, SystemEnv, VmFactory, VmInterface, VmInterfaceExt};
-use crate::pubdata_builders::pubdata_params_to_builder;
+use crate::{
+    interface::{
+        storage::{StoragePtr, StorageSnapshot, StorageView},
+        utils::VmDump,
+        L1BatchEnv, L2BlockEnv, SystemEnv, VmFactory, VmInterface, VmInterfaceExt,
+    },
+    pubdata_builders::pubdata_params_to_builder,
+};
 
 /// Plays back dump on the specified VM.
 pub fn play_back_dump<Vm>(dump: VmDump) -> Vm

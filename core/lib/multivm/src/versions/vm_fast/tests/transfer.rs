@@ -6,7 +6,7 @@ use zksync_utils::u256_to_h256;
 
 use crate::{
     interface::{InspectExecutionMode, TxExecutionMode, VmInterface, VmInterfaceExt},
-    versions::testonly::ContractToDeploy,
+    versions::testonly::{default_pubdata_builder, ContractToDeploy},
     vm_fast::tests::{
         tester::{get_empty_storage, VmTesterBuilder},
         utils::get_balance,
@@ -86,8 +86,11 @@ fn test_send_or_transfer(test_option: TestOptions) {
         "Transaction wasn't successful"
     );
 
-    let batch_result = vm.vm.execute(InspectExecutionMode::Batch);
-    assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
+    let batch_result = vm.vm.finish_batch(Some(default_pubdata_builder()));
+    assert!(
+        !batch_result.block_tip_execution_result.result.is_failed(),
+        "Batch wasn't successful"
+    );
 
     let new_recipient_balance = get_balance(
         AccountTreeId::new(L2_BASE_TOKEN_ADDRESS),
@@ -200,8 +203,11 @@ fn test_reentrancy_protection_send_or_transfer(test_option: TestOptions) {
         "Transaction 2 should have failed, but it succeeded"
     );
 
-    let batch_result = vm.vm.execute(InspectExecutionMode::Batch);
-    assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
+    let batch_result = vm.vm.finish_batch(Some(default_pubdata_builder()));
+    assert!(
+        !batch_result.block_tip_execution_result.result.is_failed(),
+        "Batch wasn't successful"
+    );
 }
 
 #[test]

@@ -3,7 +3,6 @@
 
 use assert_matches::assert_matches;
 use ethabi::Contract;
-use std::rc::Rc;
 use zksync_contracts::{
     get_loadnext_contract, load_contract, read_bytecode,
     test_contracts::LoadnextContractExecutionParams,
@@ -15,8 +14,8 @@ use zksync_types::{
 };
 use zksync_utils::bytecode::hash_bytecode;
 
-use crate::dump::{play_back_dump, play_back_dump_custom};
 use crate::{
+    dump::{play_back_dump, play_back_dump_custom},
     interface::{
         storage::{InMemoryStorage, ReadStorage, StorageView},
         utils::{ShadowVm, VmDump},

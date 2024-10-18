@@ -7,10 +7,8 @@ use zksync_types::{
     Transaction, H256,
 };
 use zksync_utils::{be_words_to_bytes, h256_to_u256, u256_to_h256};
-use zksync_vm_interface::pubdata::PubdataBuilder;
-use zksync_vm_interface::InspectExecutionMode;
+use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
-use crate::vm_latest::tracers::PubdataTracer;
 use crate::{
     glue::GlueInto,
     interface::{
@@ -24,7 +22,7 @@ use crate::{
     vm_latest::{
         bootloader_state::BootloaderState,
         old_vm::{events::merge_events, history_recorder::HistoryEnabled},
-        tracers::dispatcher::TracerDispatcher,
+        tracers::{dispatcher::TracerDispatcher, PubdataTracer},
         types::internals::{new_vm_state, VmSnapshot, ZkSyncVmState},
     },
     HistoryMode,
@@ -200,14 +198,14 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self
             .bootloader_state
-            .bootloader_memory(pubdata_builder.clone());
+            .bootloader_memory(pubdata_builder.as_ref());
         FinishedL1Batch {
             block_tip_execution_result: result,
             final_execution_state: execution_state,
             final_bootloader_memory: Some(bootloader_memory),
             pubdata_input: Some(
                 self.bootloader_state
-                    .settlement_layer_pubdata(pubdata_builder),
+                    .settlement_layer_pubdata(pubdata_builder.as_ref()),
             ),
             state_diffs: Some(
                 self.bootloader_state

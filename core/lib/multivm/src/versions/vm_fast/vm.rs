@@ -21,8 +21,7 @@ use zksync_vm2::{
     interface::{CallframeInterface, HeapId, StateInterface, Tracer},
     ExecutionEnd, FatPointer, Program, Settings, StorageSlot, VirtualMachine,
 };
-use zksync_vm_interface::pubdata::PubdataBuilder;
-use zksync_vm_interface::InspectExecutionMode;
+use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},

@@ -5,8 +5,7 @@ use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     Transaction,
 };
-use zksync_vm_interface::pubdata::PubdataBuilder;
-use zksync_vm_interface::InspectExecutionMode;
+use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
     glue::GlueInto,

@@ -14,14 +14,14 @@ use std::{
 use anyhow::Context;
 use async_trait::async_trait;
 use once_cell::sync::OnceCell;
-use zksync_multivm::interface::InspectExecutionMode;
 use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
         storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
         tracer::{ValidationError, ValidationParams},
-        ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
-        StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmInterface,
+        ExecutionResult, InspectExecutionMode, OneshotEnv, OneshotTracingParams,
+        OneshotTransactionExecutionResult, StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode,
+        VmInterface,
     },
     tracers::{CallTracer, StorageInvocations, ValidationTracer},
     utils::adjust_pubdata_price_for_tx,

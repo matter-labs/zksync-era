@@ -2,8 +2,7 @@ use std::rc::Rc;
 
 use circuit_sequencer_api_1_3_3::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{l2_to_l1_log::UserL2ToL1Log, Transaction};
-use zksync_vm_interface::pubdata::PubdataBuilder;
-use zksync_vm_interface::InspectExecutionMode;
+use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
     glue::GlueInto,

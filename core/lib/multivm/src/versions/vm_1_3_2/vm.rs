@@ -2,8 +2,7 @@ use std::{collections::HashSet, rc::Rc};
 
 use zksync_types::Transaction;
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
-use zksync_vm_interface::pubdata::PubdataBuilder;
-use zksync_vm_interface::InspectExecutionMode;
+use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
