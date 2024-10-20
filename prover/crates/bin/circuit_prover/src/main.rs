@@ -7,28 +7,27 @@ use std::{
 use anyhow::Context as _;
 use clap::Parser;
 use tokio_util::sync::CancellationToken;
+use zksync_circuit_prover::{
+    Backoff,
+    CircuitProver,
+    FinalizationHintsCache,
+    // WitnessVectorGenerator,
+    SetupDataCache,
+    PROVER_BINARY_METRICS,
+};
+use zksync_circuit_prover_service::{
+    job_runner::light_wvg_runner, witness_vector_generator::WitnessVectorGeneratorJobPicker,
+};
 use zksync_config::{
     configs::{FriProverConfig, ObservabilityConfig},
     ObjectStoreConfig,
 };
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
-use zksync_utils::wait_for_tasks::ManagedTasks;
-
-use zksync_circuit_prover::{
-    Backoff,
-    CircuitProver,
-    FinalizationHintsCache,
-    PROVER_BINARY_METRICS,
-    // WitnessVectorGenerator,
-    SetupDataCache,
-};
-use zksync_circuit_prover_service::{
-    job_runner::light_wvg_runner, witness_vector_generator::WitnessVectorGeneratorJobPicker,
-};
 use zksync_prover_dal::{ConnectionPool, Prover};
 use zksync_prover_fri_types::{get_current_pod_name, PROVER_PROTOCOL_SEMANTIC_VERSION};
 use zksync_prover_keystore::keystore::Keystore;
+use zksync_utils::wait_for_tasks::ManagedTasks;
 
 // #[command(name = "circuit_prover")]
 // #[command(about = "CLI for running circuit provers")]
@@ -90,8 +89,8 @@ async fn main() -> anyhow::Result<()> {
         prover_config.setup_data_path.into(),
         wvg_count,
     )
-        .await
-        .context("failed to load configs")?;
+    .await
+    .context("failed to load configs")?;
 
     PROVER_BINARY_METRICS.start_up.observe(time.elapsed());
 
@@ -148,7 +147,7 @@ async fn main() -> anyhow::Result<()> {
         opt.max_allocation,
         setup_data_cache,
     )
-        .context("failed to create circuit prover")?;
+    .context("failed to create circuit prover")?;
     tasks.push(tokio::spawn(prover.run(cancellation_token.clone())));
 
     let mut tasks = ManagedTasks::new(tasks);

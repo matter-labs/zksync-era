@@ -21,18 +21,17 @@ use zksync_multivm::{
     zk_evm_latest::ethereum_types::Address,
 };
 use zksync_object_store::ObjectStore;
+use zksync_prover_fri_types::keys::ClosedFormInputKey;
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::L1BatchNumber;
-
-use zksync_prover_fri_types::keys::ClosedFormInputKey;
 
 use crate::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
     rounds::basic_circuits::Witness,
     storage_oracle::StorageOracle,
     utils::{
-        ClosedFormInputWrapper, expand_bootloader_contents, KZG_TRUSTED_SETUP_FILE, save_circuit,
+        expand_bootloader_contents, save_circuit, ClosedFormInputWrapper, KZG_TRUSTED_SETUP_FILE,
     },
     witness::WitnessStorage,
 };
@@ -137,7 +136,7 @@ pub(super) async fn generate_witness(
         );
         (scheduler_witness, block_witness)
     })
-        .instrument(make_circuits_span);
+    .instrument(make_circuits_span);
 
     let semaphore = Arc::new(Semaphore::new(max_circuits_in_flight));
 
@@ -174,7 +173,7 @@ pub(super) async fn generate_witness(
             }));
         }
     }
-        .instrument(save_circuits_span);
+    .instrument(save_circuits_span);
 
     let mut save_queue_handles = vec![];
 
@@ -199,7 +198,7 @@ pub(super) async fn generate_witness(
             )));
         }
     }
-        .instrument(save_queues_span);
+    .instrument(save_queues_span);
 
     let (witnesses, _, _) = tokio::join!(
         make_circuits_handle,

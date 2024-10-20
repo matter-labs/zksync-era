@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 
-use crate::{Executor, JobPicker, task_wiring::task::Task};
+use crate::{task_wiring::task::Task, Executor, JobPicker};
 
 pub struct JobPickerTask<P: JobPicker> {
     picker: Arc<P>,
