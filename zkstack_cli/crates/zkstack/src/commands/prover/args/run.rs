@@ -182,7 +182,7 @@ impl ProverComponent {
                     .is_some()
                 {
                     additional_args.push(format!(
-                        "--witness-vector-generator-count={}",
+                        "-l={}",
                         args.circuit_prover_args
                             .witness_vector_generator_count
                             .unwrap()
