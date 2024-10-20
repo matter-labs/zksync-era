@@ -12,3 +12,6 @@ categories.workspace = true
 [dependencies]
 async-trait.workspace = true
 anyhow.workspace = true
+futures = "0.3.31"
+tokio = "1.40.0"
+tokio-stream = "0.1.16"

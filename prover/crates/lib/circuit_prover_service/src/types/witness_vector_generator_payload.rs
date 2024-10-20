@@ -21,6 +21,10 @@ impl WitnessVectorGeneratorPayload {
         &self.circuit
     }
 
+    pub fn into_circuit(self) -> Circuit {
+        self.circuit
+    }
+
     pub fn finalization_hints(&self) -> Arc<FinalizationHintsForProver> {
         self.finalization_hints.clone()
     }

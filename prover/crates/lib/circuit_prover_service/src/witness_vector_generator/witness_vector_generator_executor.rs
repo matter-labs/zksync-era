@@ -1,20 +1,32 @@
+use anyhow::Context;
 use zksync_prover_fri_types::circuit_definitions::boojum::{
     cs::implementations::witness::WitnessVec, field::goldilocks::GoldilocksField,
 };
 use zksync_prover_job_processor::Executor;
+use zksync_types::prover_dal::FriProverJobMetadata;
 
-use crate::types::witness_vector_generator_payload::WitnessVectorGeneratorPayload;
+use crate::types::{
+    witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
+    witness_vector_generator_payload::WitnessVectorGeneratorPayload,
+};
 
 pub struct WitnessVectorGeneratorExecutor;
 
 impl Executor for WitnessVectorGeneratorExecutor {
     type Input = WitnessVectorGeneratorPayload;
-    type Output = WitnessVec<GoldilocksField>;
+    type Output = WitnessVectorGeneratorExecutionOutput;
+    type Metadata = FriProverJobMetadata;
 
     fn execute(&self, input: Self::Input) -> anyhow::Result<Self::Output> {
-        let circuit = input.circuit();
+        let inner_circuit = input.circuit();
         let finalization_hints = input.finalization_hints();
-        circuit.synthesize_vector(finalization_hints)
+        let vector = inner_circuit
+            .synthesize_vector(finalization_hints)
+            .context("failed to generate witness vector")?;
+        Ok(WitnessVectorGeneratorExecutionOutput::new(
+            input.into_circuit(),
+            vector,
+        ))
     }
 }
 

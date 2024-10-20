@@ -8,10 +8,11 @@ use shivini::{
 use tokio::{sync::mpsc::Receiver, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
 use zkevm_test_harness::prover_utils::{verify_base_layer_proof, verify_recursion_layer_proof};
-use zksync_circuit_prover_service::{
-    gpu_circuit_prover::GpuCircuitProverExecutor,
-    types::circuit_prover_payload::GpuCircuitProverPayload,
-};
+use zksync_circuit_prover_service::types::witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput;
+// use zksync_circuit_prover_service::{
+//     gpu_circuit_prover::GpuCircuitProverExecutor,
+//     types::circuit_prover_payload::GpuCircuitProverPayload,
+// };
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
 use zksync_prover_fri_types::{
@@ -27,11 +28,12 @@ use zksync_prover_fri_types::{
         },
         recursion_layer_proof_config,
     },
-    CircuitWrapper, FriProofWrapper, ProverArtifacts, WitnessVectorArtifactsTemp,
+    CircuitWrapper, FriProofWrapper, ProverArtifacts, ProverServiceDataKey,
+    WitnessVectorArtifactsTemp,
 };
 use zksync_prover_job_processor::Executor;
 use zksync_prover_keystore::GoldilocksGpuProverSetupData;
-use zksync_types::protocol_version::ProtocolSemanticVersion;
+use zksync_types::{protocol_version::ProtocolSemanticVersion, prover_dal::FriProverJobMetadata};
 use zksync_utils::panic_extractor::try_extract_panic_message;
 
 use crate::{
@@ -48,7 +50,7 @@ pub struct CircuitProver {
     object_store: Arc<dyn ObjectStore>,
     protocol_version: ProtocolSemanticVersion,
     /// Witness Vector source receiver
-    receiver: Receiver<WitnessVectorArtifactsTemp>,
+    receiver: Receiver<(WitnessVectorGeneratorExecutionOutput, FriProverJobMetadata)>,
     /// Setup Data used for proving & proof verification
     setup_data_cache: SetupDataCache,
 }
@@ -58,7 +60,7 @@ impl CircuitProver {
         connection_pool: ConnectionPool<Prover>,
         object_store: Arc<dyn ObjectStore>,
         protocol_version: ProtocolSemanticVersion,
-        receiver: Receiver<WitnessVectorArtifactsTemp>,
+        receiver: Receiver<(WitnessVectorGeneratorExecutionOutput, FriProverJobMetadata)>,
         max_allocation: Option<usize>,
         setup_data_cache: SetupDataCache,
     ) -> anyhow::Result<(Self, ProverContext)> {
@@ -88,19 +90,19 @@ impl CircuitProver {
         while !cancellation_token.is_cancelled() {
             let time = Instant::now();
 
-            let artifact = self
+            let (prover_data, metadata) = self
                 .receiver
                 .recv()
                 .await
                 .context("no Witness Vector Generators are available")?;
             tracing::info!(
                 "Circuit Prover received job {:?} after: {:?}",
-                artifact.prover_job.job_id,
+                metadata.id,
                 time.elapsed()
             );
             CIRCUIT_PROVER_METRICS.job_wait_time.observe(time.elapsed());
 
-            self.prove(artifact, cancellation_token.clone())
+            self.prove(prover_data, metadata, cancellation_token.clone())
                 .await
                 .context("failed to prove circuit proof")?;
         }
@@ -111,14 +113,21 @@ impl CircuitProver {
     /// Proves a job, with persistence of execution.
     async fn prove(
         &self,
-        artifact: WitnessVectorArtifactsTemp,
+        prover_data: WitnessVectorGeneratorExecutionOutput,
+        metadata: FriProverJobMetadata,
         cancellation_token: CancellationToken,
     ) -> anyhow::Result<()> {
         let time = Instant::now();
-        let block_number = artifact.prover_job.block_number;
-        let job_id = artifact.prover_job.job_id;
-        let job_start_time = artifact.time;
-        let setup_data_key = artifact.prover_job.setup_data_key.crypto_setup_key();
+        // let block_number = metadata.block_number;
+        let job_id = metadata.id;
+        // let job_start_time = artifact.time;
+        let job_start_time = Instant::now();
+        let setup_data_key = ProverServiceDataKey {
+            circuit_id: metadata.circuit_id,
+            round: metadata.aggregation_round,
+        }
+        .crypto_setup_key();
+        // let setup_data_key = artifact.prover_job.setup_data_key.crypto_setup_key();
         let setup_data = self
             .setup_data_cache
             .get(&setup_data_key)
@@ -127,14 +136,15 @@ impl CircuitProver {
             ))?
             .clone();
         let task = tokio::task::spawn_blocking(move || {
-            let payload = GpuCircuitProverPayload::new(
-                artifact.prover_job.circuit_wrapper.into(),
-                artifact.witness_vector,
-                setup_data,
-            );
+            // let payload = GpuCircuitProverPayload::new(
+            //     artifact.prover_job.circuit_wrapper.into(),
+            //     artifact.witness_vector,
+            //     setup_data,
+            // );
             // TODO: this should be moved up, somewhere?
-            GpuCircuitProverExecutor::execute(payload).context("failed to prove circuit proof")
-            // Self::prove_circuit_proof(artifact, setup_data).context("failed to prove circuit")
+            // GpuCircuitProverExecutor::execute(payload).context("failed to prove circuit proof")
+            Self::prove_circuit_proof(prover_data, metadata, setup_data)
+                .context("failed to prove circuit")
         });
 
         self.finish_task(
@@ -159,132 +169,117 @@ impl CircuitProver {
         Ok(())
     }
 
-    // /// Proves a job using crypto primitives (proof generation & proof verification).
-    // #[tracing::instrument(
-    //     name = "Prover::prove_circuit_proof",
-    //     skip_all,
-    //     fields(l1_batch = % witness_vector_artifacts.prover_job.block_number)
-    // )]
-    // pub fn prove_circuit_proof(
-    //     witness_vector_artifacts: WitnessVectorArtifactsTemp,
-    //     setup_data: Arc<GoldilocksGpuProverSetupData>,
-    // ) -> anyhow::Result<ProverArtifacts> {
-    //     let time = Instant::now();
-    //     let WitnessVectorArtifactsTemp {
-    //         witness_vector,
-    //         prover_job,
-    //         ..
-    //     } = witness_vector_artifacts;
-    //
-    //     let job_id = prover_job.job_id;
-    //     let circuit_wrapper = prover_job.circuit_wrapper;
-    //     let block_number = prover_job.block_number;
-    //
-    //     let (proof, circuit_id) =
-    //         Self::generate_proof(&circuit_wrapper, witness_vector, &setup_data)
-    //             .context(format!("failed to generate proof for job id {job_id}"))?;
-    //
-    //     Self::verify_proof(&circuit_wrapper, &proof, &setup_data.vk).context(format!(
-    //         "failed to verify proof with job_id {job_id}, circuit_id: {circuit_id}"
-    //     ))?;
-    //
-    //     let proof_wrapper = match &circuit_wrapper {
-    //         CircuitWrapper::Base(_) => {
-    //             FriProofWrapper::Base(ZkSyncBaseLayerProof::from_inner(circuit_id, proof))
-    //         }
-    //         CircuitWrapper::Recursive(_) => {
-    //             FriProofWrapper::Recursive(ZkSyncRecursionLayerProof::from_inner(circuit_id, proof))
-    //         }
-    //         CircuitWrapper::BasePartial(_) => {
-    //             return Self::partial_proof_error();
-    //         }
-    //     };
-    //     CIRCUIT_PROVER_METRICS
-    //         .crypto_primitives_time
-    //         .observe(time.elapsed());
-    //     Ok(ProverArtifacts::new(block_number, proof_wrapper))
-    // }
-    //
-    // /// Generates a proof from crypto primitives.
-    // fn generate_proof(
-    //     circuit_wrapper: &CircuitWrapper,
-    //     witness_vector: WitnessVec<GoldilocksField>,
-    //     setup_data: &Arc<GoldilocksGpuProverSetupData>,
-    // ) -> anyhow::Result<(Proof, u8)> {
-    //     let time = Instant::now();
-    //
-    //     let worker = Worker::new();
-    //
-    //     let (gpu_proof_config, proof_config, circuit_id) = match circuit_wrapper {
-    //         CircuitWrapper::Base(circuit) => (
-    //             GpuProofConfig::from_base_layer_circuit(circuit),
-    //             base_layer_proof_config(),
-    //             circuit.numeric_circuit_type(),
-    //         ),
-    //         CircuitWrapper::Recursive(circuit) => (
-    //             GpuProofConfig::from_recursive_layer_circuit(circuit),
-    //             recursion_layer_proof_config(),
-    //             circuit.numeric_circuit_type(),
-    //         ),
-    //         CircuitWrapper::BasePartial(_) => {
-    //             return Self::partial_proof_error();
-    //         }
-    //     };
-    //
-    //     let proof =
-    //         gpu_prove_from_external_witness_data::<DefaultTranscript, DefaultTreeHasher, NoPow, _>(
-    //             &gpu_proof_config,
-    //             &witness_vector,
-    //             proof_config,
-    //             &setup_data.setup,
-    //             &setup_data.vk,
-    //             (),
-    //             &worker,
-    //         )
-    //             .context("crypto primitive: failed to generate proof")?;
-    //     CIRCUIT_PROVER_METRICS
-    //         .generate_proof_time
-    //         .observe(time.elapsed());
-    //     Ok((proof.into(), circuit_id))
-    // }
-    //
-    // /// Verifies a proof from crypto primitives
-    // fn verify_proof(
-    //     circuit_wrapper: &CircuitWrapper,
-    //     proof: &Proof,
-    //     verification_key: &VerificationKey,
-    // ) -> anyhow::Result<()> {
-    //     let time = Instant::now();
-    //
-    //     let is_valid = match circuit_wrapper {
-    //         CircuitWrapper::Base(base_circuit) => {
-    //             verify_base_layer_proof::<NoPow>(base_circuit, proof, verification_key)
-    //         }
-    //         CircuitWrapper::Recursive(recursive_circuit) => {
-    //             verify_recursion_layer_proof::<NoPow>(recursive_circuit, proof, verification_key)
-    //         }
-    //         CircuitWrapper::BasePartial(_) => {
-    //             return Self::partial_proof_error();
-    //         }
-    //     };
-    //
-    //     CIRCUIT_PROVER_METRICS
-    //         .verify_proof_time
-    //         .observe(time.elapsed());
-    //
-    //     if !is_valid {
-    //         return Err(anyhow::anyhow!("crypto primitive: failed to verify proof"));
-    //     }
-    //     Ok(())
-    // }
+    /// Proves a job using crypto primitives (proof generation & proof verification).
+    #[tracing::instrument(
+        name = "Prover::prove_circuit_proof",
+        skip_all,
+        fields(l1_batch = % metadata.block_number)
+    )]
+    pub fn prove_circuit_proof(
+        prover_data: WitnessVectorGeneratorExecutionOutput,
+        metadata: FriProverJobMetadata,
+        setup_data: Arc<GoldilocksGpuProverSetupData>,
+    ) -> anyhow::Result<ProverArtifacts> {
+        let time = Instant::now();
 
-    // /// This code path should never trigger. All proofs are hydrated during Witness Vector Generator.
-    // /// If this triggers, it means that proof hydration in Witness Vector Generator was not done -- logic bug.
-    // fn partial_proof_error<T>() -> anyhow::Result<T> {
-    //     Err(anyhow::anyhow!("received unexpected dehydrated proof"))
-    // }
+        let job_id = metadata.id;
+        let WitnessVectorGeneratorExecutionOutput {
+            circuit,
+            witness_vector,
+        } = prover_data;
+        let block_number = metadata.block_number;
 
-    /// Runs task to completion and persists result.
+        let proof_wrapper = circuit
+            .prove(witness_vector, setup_data)
+            .context(format!("failed to generate proof for job id {job_id}"))?;
+        let circuit_id = metadata.circuit_id;
+
+        CIRCUIT_PROVER_METRICS
+            .crypto_primitives_time
+            .observe(time.elapsed());
+        Ok(ProverArtifacts::new(block_number, proof_wrapper))
+    }
+
+    /// Generates a proof from crypto primitives.
+    fn generate_proof(
+        circuit_wrapper: &CircuitWrapper,
+        witness_vector: WitnessVec<GoldilocksField>,
+        setup_data: &Arc<GoldilocksGpuProverSetupData>,
+    ) -> anyhow::Result<(Proof, u8)> {
+        let time = Instant::now();
+
+        let worker = Worker::new();
+
+        let (gpu_proof_config, proof_config, circuit_id) = match circuit_wrapper {
+            CircuitWrapper::Base(circuit) => (
+                GpuProofConfig::from_base_layer_circuit(circuit),
+                base_layer_proof_config(),
+                circuit.numeric_circuit_type(),
+            ),
+            CircuitWrapper::Recursive(circuit) => (
+                GpuProofConfig::from_recursive_layer_circuit(circuit),
+                recursion_layer_proof_config(),
+                circuit.numeric_circuit_type(),
+            ),
+            CircuitWrapper::BasePartial(_) => {
+                return Self::partial_proof_error();
+            }
+        };
+
+        let proof =
+            gpu_prove_from_external_witness_data::<DefaultTranscript, DefaultTreeHasher, NoPow, _>(
+                &gpu_proof_config,
+                &witness_vector,
+                proof_config,
+                &setup_data.setup,
+                &setup_data.vk,
+                (),
+                &worker,
+            )
+            .context("crypto primitive: failed to generate proof")?;
+        CIRCUIT_PROVER_METRICS
+            .generate_proof_time
+            .observe(time.elapsed());
+        Ok((proof.into(), circuit_id))
+    }
+
+    /// Verifies a proof from crypto primitives
+    fn verify_proof(
+        circuit_wrapper: &CircuitWrapper,
+        proof: &Proof,
+        verification_key: &VerificationKey,
+    ) -> anyhow::Result<()> {
+        let time = Instant::now();
+
+        let is_valid = match circuit_wrapper {
+            CircuitWrapper::Base(base_circuit) => {
+                verify_base_layer_proof::<NoPow>(base_circuit, proof, verification_key)
+            }
+            CircuitWrapper::Recursive(recursive_circuit) => {
+                verify_recursion_layer_proof::<NoPow>(recursive_circuit, proof, verification_key)
+            }
+            CircuitWrapper::BasePartial(_) => {
+                return Self::partial_proof_error();
+            }
+        };
+
+        CIRCUIT_PROVER_METRICS
+            .verify_proof_time
+            .observe(time.elapsed());
+
+        if !is_valid {
+            return Err(anyhow::anyhow!("crypto primitive: failed to verify proof"));
+        }
+        Ok(())
+    }
+
+    /// This code path should never trigger. All proofs are hydrated during Witness Vector Generator.
+    /// If this triggers, it means that proof hydration in Witness Vector Generator was not done -- logic bug.
+    fn partial_proof_error<T>() -> anyhow::Result<T> {
+        Err(anyhow::anyhow!("received unexpected dehydrated proof"))
+    }
+
+    /// Runs task_wiring to completion and persists result.
     /// NOTE: Task may be cancelled mid-flight.
     async fn finish_task(
         &self,

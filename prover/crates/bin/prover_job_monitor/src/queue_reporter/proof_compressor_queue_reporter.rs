@@ -9,7 +9,7 @@ use crate::{
     task_wiring::Task,
 };
 
-/// `ProofCompressorQueueReporter` is a task that reports compression jobs status.
+/// `ProofCompressorQueueReporter` is a task_wiring that reports compression jobs status.
 /// Note: these values will be used for auto-scaling proof compressor.
 #[derive(Debug)]
 pub struct ProofCompressorQueueReporter {}

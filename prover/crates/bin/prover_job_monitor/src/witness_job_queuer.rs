@@ -3,8 +3,8 @@ use zksync_prover_dal::{Connection, Prover, ProverDal};
 
 use crate::{metrics::SERVER_METRICS, task_wiring::Task};
 
-/// `WitnessJobQueuer` is a task that moves witness generator jobs from 'waiting_for_proofs' to 'queued'.
-/// Note: this task is the backbone of scheduling/getting ready witness jobs to execute.
+/// `WitnessJobQueuer` is a task_wiring that moves witness generator jobs from 'waiting_for_proofs' to 'queued'.
+/// Note: this task_wiring is the backbone of scheduling/getting ready witness jobs to execute.
 #[derive(Debug)]
 pub struct WitnessJobQueuer;
 

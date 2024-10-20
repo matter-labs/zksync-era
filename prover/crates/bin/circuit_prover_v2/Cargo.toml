@@ -10,3 +10,15 @@ keywords.workspace = true
 categories.workspace = true
 
 [dependencies]
+zksync_prover_job_processor.workspace = true
+zksync_circuit_prover_service.workspace = true
+
+clap.workspace = true
+anyhow.workspace = true
+tokio = { workspace = true, features = ["macros", "time"] }
+
+#async-trait.workspace = true
+#anyhow.workspace = true
+#futures.workspace = true
+#tokio.workspace = true
+#tokio-stream.workspace = true

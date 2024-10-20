@@ -5,7 +5,7 @@ use zksync_types::{basic_fri_types::CircuitIdRoundTuple, prover_dal::JobCountSta
 
 use crate::{metrics::FRI_PROVER_METRICS, task_wiring::Task};
 
-/// `ProverQueueReporter` is a task that reports prover jobs status.
+/// `ProverQueueReporter` is a task_wiring that reports prover jobs status.
 /// Note: these values will be used for auto-scaling provers and Witness Vector Generators.
 #[derive(Debug)]
 pub struct ProverQueueReporter {

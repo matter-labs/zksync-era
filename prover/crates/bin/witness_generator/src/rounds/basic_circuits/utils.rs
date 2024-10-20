@@ -164,7 +164,7 @@ pub(super) async fn generate_witness(
             let permit = semaphore
                 .acquire_owned()
                 .await
-                .expect("failed to get permit for running save circuit task");
+                .expect("failed to get permit for running save circuit task_wiring");
 
             let partial_circuit_aux_data = match &circuit {
                 ZkSyncBaseLayerCircuit::RAMPermutation(_) => {
@@ -210,10 +210,9 @@ pub(super) async fn generate_witness(
         {
             let object_store = object_store.clone();
             let semaphore = semaphore.clone();
-            let permit = semaphore
-                .acquire_owned()
-                .await
-                .expect("failed to get permit for running save ram permutation queue witness task");
+            let permit = semaphore.acquire_owned().await.expect(
+                "failed to get permit for running save ram permutation queue witness task_wiring",
+            );
             let (is_sorted, witness, sequence) = match witness_artifact {
                 WitnessGenerationArtifact::MemoryQueueWitness((witness, sorted)) => {
                     let sequence = if sorted {

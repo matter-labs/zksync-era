@@ -5,7 +5,7 @@ use zksync_prover_dal::{Connection, Prover, ProverDal};
 
 use crate::{metrics::SERVER_METRICS, task_wiring::Task};
 
-/// `ProverJobRequeuer` is a task that requeues prover jobs that have not made progress in a given unit of time.
+/// `ProverJobRequeuer` is a task_wiring that requeues prover jobs that have not made progress in a given unit of time.
 #[derive(Debug)]
 pub struct ProverJobRequeuer {
     /// max attempts before giving up on the job

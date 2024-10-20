@@ -33,24 +33,24 @@ pub struct BatchData {
 #[derive(Default, Debug, EnumString, Clone, Display)]
 pub enum Status {
     /// A custom status that can be set manually.
-    /// Mostly used when a task has singular status.
+    /// Mostly used when a task_wiring has singular status.
     Custom(String),
-    /// A task is considered queued when all of its jobs is queued.
+    /// A task_wiring is considered queued when all of its jobs is queued.
     #[strum(to_string = "Queued 📥")]
     Queued,
-    /// A task is considered in progress when at least one of its jobs differs in its status.
+    /// A task_wiring is considered in progress when at least one of its jobs differs in its status.
     #[strum(to_string = "In Progress ⌛️")]
     InProgress,
-    /// A task is considered successful when all of its jobs were processed successfully.
+    /// A task_wiring is considered successful when all of its jobs were processed successfully.
     #[strum(to_string = "Successful ✅")]
     Successful,
-    /// A task is considered waiting for proofs when all of its jobs are waiting for proofs.
+    /// A task_wiring is considered waiting for proofs when all of its jobs are waiting for proofs.
     #[strum(to_string = "Waiting for Proof ⏱️")]
     WaitingForProofs,
-    /// A task is considered stuck when at least one of its jobs is stuck.
+    /// A task_wiring is considered stuck when at least one of its jobs is stuck.
     #[strum(to_string = "Stuck ⛔️")]
     Stuck,
-    /// A task has no jobs.
+    /// A task_wiring has no jobs.
     #[default]
     #[strum(to_string = "Jobs not found 🚫")]
     JobsNotFound,

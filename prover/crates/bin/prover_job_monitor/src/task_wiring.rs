@@ -10,7 +10,7 @@ pub trait Task {
     async fn invoke(&self, connection: &mut Connection<Prover>) -> anyhow::Result<()>;
 }
 
-/// Wrapper for Task with a periodic interface. Holds information about the task and provides DB connectivity.
+/// Wrapper for Task with a periodic interface. Holds information about the task_wiring and provides DB connectivity.
 struct PeriodicTask {
     job: Box<dyn Task + Send + Sync>,
     name: String,
@@ -41,14 +41,14 @@ impl PeriodicTask {
                 .invoke(&mut connection)
                 .instrument(tracing::info_span!("run", service_name = %self.name))
                 .await
-                .context("failed to invoke task")?;
+                .context("failed to invoke task_wiring")?;
         }
         tracing::info!("Stop signal received; Task {} is shut down", self.name);
         Ok(())
     }
 }
 
-/// Wrapper on a vector of task. Makes adding/spawning tasks and sharing resources ergonomic.
+/// Wrapper on a vector of task_wiring. Makes adding/spawning tasks and sharing resources ergonomic.
 pub struct TaskRunner {
     pool: ConnectionPool<Prover>,
     tasks: Vec<PeriodicTask>,
