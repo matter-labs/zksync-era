@@ -1,19 +1,21 @@
+use std::collections::HashMap;
+
 use circuit_sequencer_api_1_5_0::sort_storage_access::sort_storage_access_queries;
 use zksync_types::{
     l2_to_l1_log::{SystemL2ToL1Log, UserL2ToL1Log},
     vm::VmVersion,
     Transaction, H256,
 };
-use zksync_utils::u256_to_h256;
+use zksync_utils::{be_words_to_bytes, h256_to_u256, u256_to_h256};
 
 use crate::{
     glue::GlueInto,
     interface::{
         storage::{StoragePtr, WriteStorage},
         BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
-        FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
+        FinishedL1Batch, L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-        VmMemoryMetrics, VmTrackingContracts,
+        VmTrackingContracts,
     },
     utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_latest::{
@@ -79,6 +81,20 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
         self.state.local_state.callstack.current.ergs_remaining
     }
 
+    pub(crate) fn decommit_bytecodes(&self, hashes: &[H256]) -> HashMap<H256, Vec<u8>> {
+        let bytecodes = hashes.iter().map(|&hash| {
+            let bytecode_words = self
+                .state
+                .decommittment_processor
+                .known_bytecodes
+                .inner()
+                .get(&h256_to_u256(hash))
+                .unwrap_or_else(|| panic!("Bytecode with hash {hash:?} not found"));
+            (hash, be_words_to_bytes(bytecode_words))
+        });
+        bytecodes.collect()
+    }
+
     // visible for testing
     pub(super) fn get_current_execution_state(&self) -> CurrentExecutionState {
         let (raw_events, l1_messages) = self.state.event_sink.flatten();
@@ -118,9 +134,14 @@ impl<S: WriteStorage, H: HistoryMode> Vm<S, H> {
 impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher<S, H::Vm1_5_0>;
 
-    /// Push tx into memory for the future execution
-    fn push_transaction(&mut self, tx: Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         self.push_transaction_with_compression(tx, true);
+        PushTransactionResult {
+            compressed_bytecodes: self
+                .bootloader_state
+                .get_last_tx_compressed_bytecodes()
+                .into(),
+        }
     }
 
     /// Execute VM with custom tracers.
@@ -159,10 +180,6 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
                 result,
             )
         }
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        self.record_vm_memory_metrics_inner()
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

@@ -25,6 +25,7 @@ const DEFAULT_MULTIPLIER: f64 = 64.0 / 63.0;
 async fn initial_gas_estimation_is_somewhat_accurate() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
+    let block_args = pending_block_args(&tx_sender).await;
 
     let alice = K256PrivateKey::random();
     let transfer_value = U256::from(1_000_000_000);
@@ -35,7 +36,7 @@ async fn initial_gas_estimation_is_somewhat_accurate() {
     let state_override = StateOverride::new(HashMap::from([(alice.address(), account_overrides)]));
     let tx = alice.create_transfer(transfer_value);
 
-    let mut estimator = GasEstimator::new(&tx_sender, tx.into(), Some(state_override))
+    let mut estimator = GasEstimator::new(&tx_sender, tx.into(), block_args, Some(state_override))
         .await
         .unwrap();
     estimator.adjust_transaction_fee();
@@ -131,7 +132,8 @@ async fn test_initial_estimate(
 ) -> VmExecutionResultAndLogs {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
-    let mut estimator = GasEstimator::new(&tx_sender, tx.into(), Some(state_override))
+    let block_args = pending_block_args(&tx_sender).await;
+    let mut estimator = GasEstimator::new(&tx_sender, tx.into(), block_args, Some(state_override))
         .await
         .unwrap();
     estimator.adjust_transaction_fee();
@@ -153,7 +155,8 @@ async fn test_initial_estimate(
 async fn test_initial_estimate_error(state_override: StateOverride, tx: L2Tx) -> SubmitTxError {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
-    let mut estimator = GasEstimator::new(&tx_sender, tx.into(), Some(state_override))
+    let block_args = pending_block_args(&tx_sender).await;
+    let mut estimator = GasEstimator::new(&tx_sender, tx.into(), block_args, Some(state_override))
         .await
         .unwrap();
     estimator.adjust_transaction_fee();
@@ -292,14 +295,17 @@ async fn out_of_gas_during_initial_estimate() {
 async fn insufficient_funds_error_for_transfer() {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
+    let block_args = pending_block_args(&tx_sender).await;
 
     let alice = K256PrivateKey::random();
-    let tx = alice.create_transfer(1_000_000_000.into());
+    let transferred_value = 1_000_000_000.into();
+    let tx = alice.create_transfer(transferred_value);
     let fee_scale_factor = 1.0;
     // Without overrides, the transaction should fail because of insufficient balance.
     let err = tx_sender
         .get_txs_fee_in_wei(
             tx.clone().into(),
+            block_args,
             fee_scale_factor,
             1_000,
             None,
@@ -307,7 +313,11 @@ async fn insufficient_funds_error_for_transfer() {
         )
         .await
         .unwrap_err();
-    assert_matches!(err, SubmitTxError::InsufficientFundsForTransfer);
+    assert_matches!(
+        err,
+        SubmitTxError::NotEnoughBalanceForFeeValue(balance, fee, value)
+            if balance.is_zero() && fee.is_zero() && value == transferred_value
+    );
 }
 
 async fn test_estimating_gas(
@@ -317,11 +327,13 @@ async fn test_estimating_gas(
 ) {
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
+    let block_args = pending_block_args(&tx_sender).await;
 
     let fee_scale_factor = 1.0;
     let fee = tx_sender
         .get_txs_fee_in_wei(
             tx.clone().into(),
+            block_args.clone(),
             fee_scale_factor,
             acceptable_overestimation,
             Some(state_override.clone()),
@@ -339,6 +351,7 @@ async fn test_estimating_gas(
     let fee = tx_sender
         .get_txs_fee_in_wei(
             tx.into(),
+            block_args,
             fee_scale_factor,
             acceptable_overestimation,
             Some(state_override.clone()),
@@ -419,6 +432,7 @@ async fn estimating_gas_for_reverting_tx() {
     let tx = alice.create_counter_tx(1.into(), true);
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
+    let block_args = pending_block_args(&tx_sender).await;
 
     let fee_scale_factor = 1.0;
     let acceptable_overestimation = 0;
@@ -426,6 +440,7 @@ async fn estimating_gas_for_reverting_tx() {
         let err = tx_sender
             .get_txs_fee_in_wei(
                 tx.clone().into(),
+                block_args.clone(),
                 fee_scale_factor,
                 acceptable_overestimation,
                 Some(state_override.clone()),
@@ -447,6 +462,7 @@ async fn estimating_gas_for_infinite_loop_tx() {
     let tx = alice.create_infinite_loop_tx();
     let pool = ConnectionPool::<Core>::constrained_test_pool(1).await;
     let tx_sender = create_real_tx_sender(pool).await;
+    let block_args = pending_block_args(&tx_sender).await;
 
     let fee_scale_factor = 1.0;
     let acceptable_overestimation = 0;
@@ -454,6 +470,7 @@ async fn estimating_gas_for_infinite_loop_tx() {
         let err = tx_sender
             .get_txs_fee_in_wei(
                 tx.clone().into(),
+                block_args.clone(),
                 fee_scale_factor,
                 acceptable_overestimation,
                 Some(state_override.clone()),

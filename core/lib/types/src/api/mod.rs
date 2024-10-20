@@ -14,8 +14,9 @@ pub use crate::transaction_request::{
     Eip712Meta, SerializationTransactionError, TransactionRequest,
 };
 use crate::{
-    debug_flat_call::DebugCallFlat, protocol_version::L1VerifierConfig, Address, L2BlockNumber,
-    ProtocolVersionId,
+    debug_flat_call::{DebugCallFlat, ResultDebugCallFlat},
+    protocol_version::L1VerifierConfig,
+    Address, L2BlockNumber, ProtocolVersionId,
 };
 
 pub mod en;
@@ -643,7 +644,7 @@ pub struct ProtocolVersion {
     /// Verifier configuration
     #[deprecated]
     pub verification_keys_hashes: Option<L1VerifierConfig>,
-    /// Hashes of base system contracts (bootloader and default account)
+    /// Hashes of base system contracts (bootloader, default account and evm emulator)
     #[deprecated]
     pub base_system_contracts: Option<BaseSystemContractsHashes>,
     /// Bootloader code hash
@@ -652,6 +653,9 @@ pub struct ProtocolVersion {
     /// Default account code hash
     #[serde(rename = "defaultAccountCodeHash")]
     pub default_account_code_hash: Option<H256>,
+    /// EVM emulator code hash
+    #[serde(rename = "evmSimulatorCodeHash")]
+    pub evm_emulator_code_hash: Option<H256>,
     /// L2 Upgrade transaction hash
     #[deprecated]
     pub l2_system_upgrade_tx_hash: Option<H256>,
@@ -667,6 +671,7 @@ impl ProtocolVersion {
         timestamp: u64,
         bootloader_code_hash: H256,
         default_account_code_hash: H256,
+        evm_emulator_code_hash: Option<H256>,
         l2_system_upgrade_tx_hash: Option<H256>,
     ) -> Self {
         Self {
@@ -677,9 +682,11 @@ impl ProtocolVersion {
             base_system_contracts: Some(BaseSystemContractsHashes {
                 bootloader: bootloader_code_hash,
                 default_aa: default_account_code_hash,
+                evm_emulator: evm_emulator_code_hash,
             }),
             bootloader_code_hash: Some(bootloader_code_hash),
             default_account_code_hash: Some(default_account_code_hash),
+            evm_emulator_code_hash,
             l2_system_upgrade_tx_hash,
             l2_system_upgrade_tx_hash_new: l2_system_upgrade_tx_hash,
         }
@@ -693,6 +700,13 @@ impl ProtocolVersion {
     pub fn default_account_code_hash(&self) -> Option<H256> {
         self.default_account_code_hash
             .or_else(|| self.base_system_contracts.map(|hashes| hashes.default_aa))
+    }
+
+    pub fn evm_emulator_code_hash(&self) -> Option<H256> {
+        self.evm_emulator_code_hash.or_else(|| {
+            self.base_system_contracts
+                .and_then(|hashes| hashes.evm_emulator)
+        })
     }
 
     pub fn minor_version(&self) -> Option<u16> {
@@ -750,11 +764,11 @@ pub enum BlockStatus {
 #[serde(untagged)]
 pub enum CallTracerBlockResult {
     CallTrace(Vec<ResultDebugCall>),
-    FlatCallTrace(Vec<DebugCallFlat>),
+    FlatCallTrace(Vec<ResultDebugCallFlat>),
 }
 
 impl CallTracerBlockResult {
-    pub fn unwrap_flat(self) -> Vec<DebugCallFlat> {
+    pub fn unwrap_flat(self) -> Vec<ResultDebugCallFlat> {
         match self {
             Self::CallTrace(_) => panic!("Result is a FlatCallTrace"),
             Self::FlatCallTrace(trace) => trace,
@@ -917,6 +931,7 @@ mod tests {
             base_system_contracts: Some(Default::default()),
             bootloader_code_hash: Some(Default::default()),
             default_account_code_hash: Some(Default::default()),
+            evm_emulator_code_hash: Some(Default::default()),
             l2_system_upgrade_tx_hash: Default::default(),
             l2_system_upgrade_tx_hash_new: Default::default(),
         };

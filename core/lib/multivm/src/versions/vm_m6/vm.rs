@@ -7,7 +7,7 @@ use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
         storage::StoragePtr, BytecodeCompressionError, BytecodeCompressionResult, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv, TxExecutionMode, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmMemoryMetrics,
     },
@@ -50,18 +50,39 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
             system_env,
         }
     }
+
+    pub(crate) fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        VmMemoryMetrics {
+            event_sink_inner: self.vm.state.event_sink.get_size(),
+            event_sink_history: self.vm.state.event_sink.get_history_size(),
+            memory_inner: self.vm.state.memory.get_size(),
+            memory_history: self.vm.state.memory.get_history_size(),
+            decommittment_processor_inner: self.vm.state.decommittment_processor.get_size(),
+            decommittment_processor_history: self
+                .vm
+                .state
+                .decommittment_processor
+                .get_history_size(),
+            storage_inner: self.vm.state.storage.get_size(),
+            storage_history: self.vm.state.storage.get_history_size(),
+        }
+    }
 }
 
 impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher;
 
-    fn push_transaction(&mut self, tx: Transaction) {
-        crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
-            &mut self.vm,
-            &tx,
-            self.system_env.execution_mode.glue_into(),
-            None,
-        )
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult {
+        let compressed_bytecodes =
+            crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                &mut self.vm,
+                &tx,
+                self.system_env.execution_mode.glue_into(),
+                None,
+            );
+        PushTransactionResult {
+            compressed_bytecodes: compressed_bytecodes.into(),
+        }
     }
 
     fn inspect(
@@ -183,23 +204,6 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
             )
         } else {
             (Ok(compressed_bytecodes.into()), result)
-        }
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        VmMemoryMetrics {
-            event_sink_inner: self.vm.state.event_sink.get_size(),
-            event_sink_history: self.vm.state.event_sink.get_history_size(),
-            memory_inner: self.vm.state.memory.get_size(),
-            memory_history: self.vm.state.memory.get_history_size(),
-            decommittment_processor_inner: self.vm.state.decommittment_processor.get_size(),
-            decommittment_processor_history: self
-                .vm
-                .state
-                .decommittment_processor
-                .get_history_size(),
-            storage_inner: self.vm.state.storage.get_size(),
-            storage_history: self.vm.state.storage.get_history_size(),
         }
     }
 

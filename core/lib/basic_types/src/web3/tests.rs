@@ -128,3 +128,13 @@ fn test_bytes_serde_json() {
     let decoded: Bytes = serde_json::from_str(&encoded).unwrap();
     assert_eq!(original, decoded);
 }
+
+#[test]
+fn deserializing_u64_number() {
+    let number: U64Number = serde_json::from_value(serde_json::json!(123)).unwrap();
+    assert_eq!(u64::from(number), 123);
+    let number: U64Number = serde_json::from_value(serde_json::json!("0x123")).unwrap();
+    assert_eq!(u64::from(number), 0x123);
+    let number: U64Number = serde_json::from_value(serde_json::json!("123")).unwrap();
+    assert_eq!(u64::from(number), 0x123);
+}

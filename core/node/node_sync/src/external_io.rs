@@ -15,6 +15,7 @@ use zksync_state_keeper::{
     updates::UpdatesManager,
 };
 use zksync_types::{
+    block::UnsealedL1BatchHeader,
     protocol_upgrade::ProtocolUpgradeTx,
     protocol_version::{ProtocolSemanticVersion, VersionPatch},
     L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId, Transaction, H256,
@@ -154,6 +155,14 @@ impl StateKeeperIO for ExternalIO {
                 )
             })?;
         let Some(mut pending_l2_block_header) = pending_l2_block_header else {
+            tracing::info!(
+                l1_batch_number = %cursor.l1_batch,
+                "No pending L2 blocks found; pruning unsealed batch if exists as we need at least one L2 block to initialize"
+            );
+            storage
+                .blocks_dal()
+                .delete_unsealed_l1_batch(cursor.l1_batch - 1)
+                .await?;
             return Ok((cursor, None));
         };
 
@@ -200,6 +209,14 @@ impl StateKeeperIO for ExternalIO {
                     cursor.l1_batch
                 )
             })?;
+        storage
+            .blocks_dal()
+            .ensure_unsealed_l1_batch_exists(
+                l1_batch_env
+                    .clone()
+                    .into_unsealed_header(Some(system_env.version)),
+            )
+            .await?;
         let data = load_pending_batch(&mut storage, system_env, l1_batch_env)
             .await
             .with_context(|| {
@@ -236,6 +253,19 @@ impl StateKeeperIO for ExternalIO {
                     "L2 block number mismatch: expected {}, got {first_l2_block_number}",
                     cursor.next_l2_block
                 );
+
+                self.pool
+                    .connection_tagged("sync_layer")
+                    .await?
+                    .blocks_dal()
+                    .insert_l1_batch(UnsealedL1BatchHeader {
+                        number: cursor.l1_batch,
+                        timestamp: params.first_l2_block.timestamp,
+                        protocol_version: None,
+                        fee_address: params.operator_address,
+                        fee_input: params.fee_input,
+                    })
+                    .await?;
                 return Ok(Some(params));
             }
             other => {
@@ -345,6 +375,7 @@ impl StateKeeperIO for ExternalIO {
         let default_account_code_hash = protocol_version
             .default_account_code_hash()
             .context("Missing default account code hash")?;
+        let evm_emulator_code_hash = protocol_version.evm_emulator_code_hash();
         let l2_system_upgrade_tx_hash = protocol_version.l2_system_upgrade_tx_hash();
         self.pool
             .connection_tagged("sync_layer")
@@ -362,6 +393,7 @@ impl StateKeeperIO for ExternalIO {
                 BaseSystemContractsHashes {
                     bootloader: bootloader_code_hash,
                     default_aa: default_account_code_hash,
+                    evm_emulator: evm_emulator_code_hash,
                 },
                 l2_system_upgrade_tx_hash,
             )
@@ -375,9 +407,22 @@ impl StateKeeperIO for ExternalIO {
             .get_base_system_contract(default_account_code_hash, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch default AA code for {protocol_version:?}"))?;
+        let evm_emulator = if let Some(hash) = evm_emulator_code_hash {
+            Some(
+                self.get_base_system_contract(hash, cursor.next_l2_block)
+                    .await
+                    .with_context(|| {
+                        format!("cannot fetch EVM emulator code for {protocol_version:?}")
+                    })?,
+            )
+        } else {
+            None
+        };
+
         Ok(BaseSystemContracts {
             bootloader,
             default_aa,
+            evm_emulator,
         })
     }
 

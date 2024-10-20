@@ -14,13 +14,14 @@ use circuit_definitions::{
         aux::BaseLayerCircuitType, block_header::BlockAuxilaryOutputWitness,
     },
 };
-use keys::RamPermutationQueueWitnessKey;
-use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
+use zksync_object_store::{Bucket, serialize_using_bincode, StoredObject};
 use zksync_types::{
     basic_fri_types::AggregationRound,
-    protocol_version::{ProtocolSemanticVersion, VersionPatch},
-    L1BatchNumber, ProtocolVersionId,
+    L1BatchNumber,
+    protocol_version::{ProtocolSemanticVersion, VersionPatch}, ProtocolVersionId,
 };
+
+use keys::RamPermutationQueueWitnessKey;
 
 use crate::keys::FriCircuitKey;
 
@@ -194,10 +195,10 @@ fn get_round_for_recursive_circuit_type(circuit_type: u8) -> AggregationRound {
             AggregationRound::NodeAggregation
         }
         circuit_type
-            if circuit_type == ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8 =>
-        {
-            AggregationRound::RecursionTip
-        }
+        if circuit_type == ZkSyncRecursionLayerStorageType::RecursionTipCircuit as u8 =>
+            {
+                AggregationRound::RecursionTip
+            }
         _ => AggregationRound::LeafAggregation,
     }
 }

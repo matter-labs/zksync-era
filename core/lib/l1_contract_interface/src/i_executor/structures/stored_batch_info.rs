@@ -1,7 +1,8 @@
+use anyhow::Context as _;
 use zksync_types::{
     commitment::L1BatchWithMetadata,
-    ethabi::{self, Token},
-    web3,
+    ethabi::{self, ParamType, Token},
+    parse_h256, web3,
     web3::contract::Error as ContractError,
     H256, U256,
 };
@@ -9,7 +10,7 @@ use zksync_types::{
 use crate::Tokenizable;
 
 /// `StoredBatchInfo` from `IExecutor.sol`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StoredBatchInfo {
     pub batch_number: u64,
     pub batch_hash: H256,
@@ -22,11 +23,35 @@ pub struct StoredBatchInfo {
 }
 
 impl StoredBatchInfo {
+    fn schema() -> Vec<ParamType> {
+        vec![ParamType::Tuple(vec![
+            ParamType::Uint(64),
+            ParamType::FixedBytes(32),
+            ParamType::Uint(64),
+            ParamType::Uint(256),
+            ParamType::FixedBytes(32),
+            ParamType::FixedBytes(32),
+            ParamType::Uint(256),
+            ParamType::FixedBytes(32),
+        ])]
+    }
+
+    /// Encodes the struct into RLP.
+    pub fn encode(&self) -> Vec<u8> {
+        ethabi::encode(&[self.clone().into_token()])
+    }
+
+    /// Decodes the struct from RLP.
+    pub fn decode(rlp: &[u8]) -> anyhow::Result<Self> {
+        let [token] = ethabi::decode_whole(&Self::schema(), rlp)?
+            .try_into()
+            .unwrap();
+        Ok(Self::from_token(token)?)
+    }
+
     /// `_hashStoredBatchInfo` from `Executor.sol`.
     pub fn hash(&self) -> H256 {
-        H256(web3::keccak256(&ethabi::encode(&[self
-            .clone()
-            .into_token()])))
+        H256(web3::keccak256(&self.encode()))
     }
 }
 
@@ -46,11 +71,42 @@ impl From<&L1BatchWithMetadata> for StoredBatchInfo {
 }
 
 impl Tokenizable for StoredBatchInfo {
-    fn from_token(_token: Token) -> Result<Self, ContractError> {
-        // Currently there is no need to decode this struct.
-        // We still want to implement `Tokenizable` trait for it, so that *once* it's needed
-        // the implementation is provided here and not in some other inconsistent way.
-        Err(ContractError::Other("Not implemented".into()))
+    fn from_token(token: Token) -> Result<Self, ContractError> {
+        (|| {
+            let [
+                Token::Uint(batch_number),
+                Token::FixedBytes(batch_hash),
+                Token::Uint(index_repeated_storage_changes),
+                Token::Uint(number_of_layer1_txs),
+                Token::FixedBytes(priority_operations_hash),
+                Token::FixedBytes(l2_logs_tree_root),
+                Token::Uint(timestamp),
+                Token::FixedBytes(commitment),
+            ] : [Token;8] = token
+                .into_tuple().context("not a tuple")?
+                .try_into().ok().context("bad length")?
+            else { anyhow::bail!("bad format") };
+            Ok(Self {
+                batch_number: batch_number
+                    .try_into()
+                    .ok()
+                    .context("overflow")
+                    .context("batch_number")?,
+                batch_hash: parse_h256(&batch_hash).context("batch_hash")?,
+                index_repeated_storage_changes: index_repeated_storage_changes
+                    .try_into()
+                    .ok()
+                    .context("overflow")
+                    .context("index_repeated_storage_changes")?,
+                number_of_layer1_txs,
+                priority_operations_hash: parse_h256(&priority_operations_hash)
+                    .context("priority_operations_hash")?,
+                l2_logs_tree_root: parse_h256(&l2_logs_tree_root).context("l2_logs_tree_root")?,
+                timestamp,
+                commitment: parse_h256(&commitment).context("commitment")?,
+            })
+        })()
+        .map_err(|err| ContractError::InvalidOutputType(format!("{err:#}")))
     }
 
     fn into_token(self) -> Token {

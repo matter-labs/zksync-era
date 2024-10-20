@@ -11,8 +11,8 @@ use super::dump::{DumpingVm, VmDump};
 use crate::{
     storage::{ReadStorage, StoragePtr, StorageView},
     BytecodeCompressionResult, CurrentExecutionState, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
-    VmInterfaceHistoryEnabled, VmMemoryMetrics, VmTrackingContracts,
+    PushTransactionResult, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
+    VmInterface, VmInterfaceHistoryEnabled, VmTrackingContracts,
 };
 
 /// Handler for VM divergences.
@@ -163,11 +163,30 @@ where
         <Shadow as VmInterface>::TracerDispatcher,
     );
 
-    fn push_transaction(&mut self, tx: Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
+        let main_result = self.main.push_transaction(tx.clone());
+        // Extend lifetime to `'static` so that the result isn't mutably borrowed from the main VM.
+        // Unfortunately, there's no way to express that this borrow is actually immutable, which would allow not extending the lifetime unless there's a divergence.
+        let main_result: PushTransactionResult<'static> = PushTransactionResult {
+            compressed_bytecodes: main_result.compressed_bytecodes.into_owned().into(),
+        };
+
         if let Some(shadow) = self.shadow.get_mut() {
-            shadow.vm.push_transaction(tx.clone());
+            let tx_repr = format!("{tx:?}"); // includes little data, so is OK to call proactively
+            let shadow_result = shadow.vm.push_transaction(tx);
+
+            let mut errors = DivergenceErrors::new();
+            errors.check_match(
+                "bytecodes",
+                &main_result.compressed_bytecodes,
+                &shadow_result.compressed_bytecodes,
+            );
+            if let Err(err) = errors.into_result() {
+                let ctx = format!("pushing transaction {tx_repr}");
+                self.report(err.context(ctx));
+            }
         }
-        self.main.push_transaction(tx);
+        main_result
     }
 
     fn inspect(
@@ -202,7 +221,8 @@ where
         tx: Transaction,
         with_compression: bool,
     ) -> (BytecodeCompressionResult<'_>, VmExecutionResultAndLogs) {
-        let tx_hash = tx.hash();
+        let tx_repr = format!("{tx:?}"); // includes little data, so is OK to call proactively
+
         let (main_bytecodes_result, main_tx_result) =
             self.main.inspect_transaction_with_bytecode_compression(
                 main_tracer,
@@ -224,16 +244,12 @@ where
             errors.check_results_match(&main_tx_result, &shadow_result.1);
             if let Err(err) = errors.into_result() {
                 let ctx = format!(
-                    "inspecting transaction {tx_hash:?}, with_compression={with_compression:?}"
+                    "inspecting transaction {tx_repr}, with_compression={with_compression:?}"
                 );
                 self.report(err.context(ctx));
             }
         }
         (main_bytecodes_result, main_tx_result)
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        self.main.record_vm_memory_metrics()
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
@@ -341,9 +357,24 @@ impl DivergenceErrors {
             &shadow_result.statistics.circuit_statistic,
         );
         self.check_match(
-            "gas_remaining",
+            "statistics.pubdata_published",
+            &main_result.statistics.pubdata_published,
+            &shadow_result.statistics.pubdata_published,
+        );
+        self.check_match(
+            "statistics.gas_remaining",
             &main_result.statistics.gas_remaining,
             &shadow_result.statistics.gas_remaining,
+        );
+        self.check_match(
+            "statistics.gas_used",
+            &main_result.statistics.gas_used,
+            &shadow_result.statistics.gas_used,
+        );
+        self.check_match(
+            "statistics.computational_gas_used",
+            &main_result.statistics.computational_gas_used,
+            &shadow_result.statistics.computational_gas_used,
         );
     }
 

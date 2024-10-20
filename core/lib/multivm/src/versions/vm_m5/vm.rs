@@ -5,8 +5,9 @@ use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
         storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-        SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        PushTransactionResult, SystemEnv, TxExecutionMode, VmExecutionMode,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     vm_m5::{
         storage::Storage,
@@ -50,18 +51,25 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
             _phantom: Default::default(),
         }
     }
+
+    pub(crate) fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        VmMemoryMetrics::default()
+    }
 }
 
 impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
     /// Tracers are not supported for here we use `()` as a placeholder
     type TracerDispatcher = ();
 
-    fn push_transaction(&mut self, tx: Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
             &mut self.vm,
             &tx,
             self.system_env.execution_mode.glue_into(),
-        )
+        );
+        PushTransactionResult {
+            compressed_bytecodes: (&[]).into(), // bytecode compression isn't supported
+        }
     }
 
     fn inspect(
@@ -104,19 +112,6 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
             Ok(vec![].into()),
             self.inspect(&mut (), VmExecutionMode::OneTx),
         )
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        VmMemoryMetrics {
-            event_sink_inner: 0,
-            event_sink_history: 0,
-            memory_inner: 0,
-            memory_history: 0,
-            decommittment_processor_inner: 0,
-            decommittment_processor_history: 0,
-            storage_inner: 0,
-            storage_history: 0,
-        }
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {

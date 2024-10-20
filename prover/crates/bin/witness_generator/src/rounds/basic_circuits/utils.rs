@@ -5,7 +5,7 @@ use std::{
 };
 
 use circuit_definitions::{
-    circuit_definitions::base_layer::{ZkSyncBaseLayerCircuit, ZkSyncBaseLayerStorage},
+    circuit_definitions::base_layer::ZkSyncBaseLayerStorage,
     encodings::recursion_request::RecursionQueueSimulator,
     zkevm_circuits::fsm_input_output::ClosedFormInputCompactFormWitness,
 };
@@ -21,23 +21,23 @@ use zksync_multivm::{
     zk_evm_latest::ethereum_types::Address,
 };
 use zksync_object_store::ObjectStore;
-use zksync_prover_fri_types::{keys::ClosedFormInputKey, CircuitAuxData};
 use zksync_prover_interface::inputs::WitnessInputData;
 use zksync_system_constants::BOOTLOADER_ADDRESS;
 use zksync_types::L1BatchNumber;
+
+use zksync_prover_fri_types::keys::ClosedFormInputKey;
 
 use crate::{
     precalculated_merkle_paths_provider::PrecalculatedMerklePathsProvider,
     rounds::basic_circuits::Witness,
     storage_oracle::StorageOracle,
     utils::{
-        expand_bootloader_contents, save_circuit, save_ram_premutation_queue_witness,
-        ClosedFormInputWrapper, KZG_TRUSTED_SETUP_FILE,
+        ClosedFormInputWrapper, expand_bootloader_contents, KZG_TRUSTED_SETUP_FILE, save_circuit,
     },
     witness::WitnessStorage,
 };
 
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
+#[tracing::instrument(skip_all, fields(l1_batch = % block_number))]
 pub(super) async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: Arc<dyn ObjectStore>,
@@ -64,17 +64,38 @@ pub(super) async fn generate_witness(
 
     let (circuit_sender, mut circuit_receiver) = tokio::sync::mpsc::channel(1);
     let (queue_sender, mut queue_receiver) = tokio::sync::mpsc::channel(1);
-    let (ram_permutation_queue_sender, mut ram_permutation_queue_receiver) =
-        tokio::sync::mpsc::channel(1);
 
     let make_circuits_span = tracing::info_span!("make_circuits");
     let make_circuits_span_copy = make_circuits_span.clone();
+
+    use std::{sync::mpsc::sync_channel, thread};
+    let (artifacts_sender, artifacts_receiver) = sync_channel(1);
+
+    let artifacts_receiver_handle = thread::spawn(move || {
+        let span = tracing::info_span!(parent: make_circuits_span_copy, "make_circuits_blocking");
+
+        while let Ok(artifact) = artifacts_receiver.recv() {
+            match artifact {
+                WitnessGenerationArtifact::BaseLayerCircuit(circuit) => {
+                    let parent_span = span.clone();
+                    tracing::info_span!(parent: parent_span, "send_circuit").in_scope(|| {
+                        circuit_sender
+                            .blocking_send(circuit)
+                            .expect("failed to send circuit from harness");
+                    });
+                }
+                WitnessGenerationArtifact::RecursionQueue((a, b, c)) => queue_sender
+                    .blocking_send((a as u8, b, c))
+                    .expect("failed to send recursion queue from harness"),
+                _ => {}
+            }
+        }
+    });
+
     // Blocking call from harness that does the CPU heavy lifting.
     // Provides circuits and recursion queue via callback functions and returns scheduler witnesses.
     // Circuits are "streamed" one by one as they're being generated.
     let make_circuits_handle = tokio::task::spawn_blocking(move || {
-        let span = tracing::info_span!(parent: make_circuits_span_copy, "make_circuits_blocking");
-
         let witness_storage = WitnessStorage::new(input.vm_run_data.witness_block_state);
         let storage_view = StorageView::new(witness_storage).to_rc_ptr();
 
@@ -91,28 +112,10 @@ pub(super) async fn generate_witness(
             .to_str()
             .expect("Path to KZG trusted setup is not a UTF-8 string");
 
-        let artifacts_callback = |artifact: WitnessGenerationArtifact| match artifact {
-            WitnessGenerationArtifact::BaseLayerCircuit(circuit) => {
-                let parent_span = span.clone();
-                tracing::info_span!(parent: parent_span, "send_circuit").in_scope(|| {
-                    circuit_sender
-                        .blocking_send(circuit)
-                        .expect("failed to send circuit from harness");
-                });
-            }
-            WitnessGenerationArtifact::RecursionQueue((a, b, c)) => queue_sender
-                .blocking_send((a as u8, b, c))
-                .expect("failed to send recursion queue from harness"),
-            a @ WitnessGenerationArtifact::MemoryQueueWitness(_) => {
-                let parent_span = span.clone();
-                tracing::info_span!(parent: parent_span, "send_ram_permutation_queue_witness")
-                    .in_scope(|| {
-                        ram_permutation_queue_sender
-                            .blocking_send(a)
-                            .expect("failed to send ram permutation queue sitness from harness");
-                    });
-            }
-        };
+        let evm_emulator_code_hash = input.vm_run_data.evm_emulator_code_hash;
+        // By convention, default AA is used instead of the EVM emulator if the latter is disabled.
+        let evm_emulator_code_hash =
+            evm_emulator_code_hash.unwrap_or(input.vm_run_data.default_account_code_hash);
 
         let (scheduler_witness, block_witness) = zkevm_test_harness::external_calls::run(
             Address::zero(),
@@ -121,21 +124,20 @@ pub(super) async fn generate_witness(
             bootloader_contents,
             false,
             input.vm_run_data.default_account_code_hash,
-            // NOTE: this will be evm_simulator_code_hash in future releases
-            input.vm_run_data.default_account_code_hash,
+            evm_emulator_code_hash,
             input.vm_run_data.used_bytecodes,
             Vec::default(),
             MAX_CYCLES_FOR_TX as usize,
             geometry_config,
             storage_oracle,
             tree,
-            path,
+            path.to_owned(),
             input.eip_4844_blobs.blobs(),
-            artifacts_callback,
+            artifacts_sender,
         );
         (scheduler_witness, block_witness)
     })
-    .instrument(make_circuits_span);
+        .instrument(make_circuits_span);
 
     let semaphore = Arc::new(Semaphore::new(max_circuits_in_flight));
 
@@ -149,8 +151,6 @@ pub(super) async fn generate_witness(
         // Sequence is used to determine circuit ordering (the sequencing of instructions) .
         // If the order is tampered with, proving will fail (as the proof would be computed for a different sequence of instruction).
         let mut circuit_sequence = 0;
-
-        let mut ram_circuit_sequence = 0;
 
         while let Some(circuit) = circuit_receiver
             .recv()
@@ -166,82 +166,15 @@ pub(super) async fn generate_witness(
                 .await
                 .expect("failed to get permit for running save circuit task_wiring");
 
-            let partial_circuit_aux_data = match &circuit {
-                ZkSyncBaseLayerCircuit::RAMPermutation(_) => {
-                    let circuit_subsequence_number = ram_circuit_sequence;
-                    ram_circuit_sequence += 1;
-                    Some(CircuitAuxData {
-                        circuit_subsequence_number,
-                    })
-                }
-                _ => None,
-            };
-
             save_circuit_handles.push(tokio::task::spawn(async move {
-                let (circuit_id, circuit_url) = save_circuit(
-                    block_number,
-                    circuit,
-                    sequence,
-                    partial_circuit_aux_data,
-                    object_store,
-                )
-                .await;
+                let (circuit_id, circuit_url) =
+                    save_circuit(block_number, circuit, sequence, object_store).await;
                 drop(permit);
                 (circuit_id, circuit_url)
             }));
         }
     }
-    .instrument(save_circuits_span);
-
-    let mut save_ram_queue_witness_handles = vec![];
-
-    let save_ram_queue_witness_span = tracing::info_span!("save_circuits");
-
-    // Future which receives part of RAM permutation circuits witnesses and saves them async.
-    // Uses semaphore because these artifacts are of significant size
-    let ram_queue_witness_receiver_handle = async {
-        let mut sorted_sequence = 0;
-        let mut unsorted_sequence = 0;
-
-        while let Some(witness_artifact) = ram_permutation_queue_receiver
-            .recv()
-            .instrument(tracing::info_span!("wait_for_ram_witness"))
-            .await
-        {
-            let object_store = object_store.clone();
-            let semaphore = semaphore.clone();
-            let permit = semaphore.acquire_owned().await.expect(
-                "failed to get permit for running save ram permutation queue witness task_wiring",
-            );
-            let (is_sorted, witness, sequence) = match witness_artifact {
-                WitnessGenerationArtifact::MemoryQueueWitness((witness, sorted)) => {
-                    let sequence = if sorted {
-                        let sequence = sorted_sequence;
-                        sorted_sequence += 1;
-                        sequence
-                    } else {
-                        let sequence = unsorted_sequence;
-                        unsorted_sequence += 1;
-                        sequence
-                    };
-                    (sorted, witness, sequence)
-                }
-                _ => panic!("Invalid artifact received"),
-            };
-            save_ram_queue_witness_handles.push(tokio::task::spawn(async move {
-                let _ = save_ram_premutation_queue_witness(
-                    block_number,
-                    sequence,
-                    is_sorted,
-                    witness,
-                    object_store,
-                )
-                .await;
-                drop(permit);
-            }));
-        }
-    }
-    .instrument(save_ram_queue_witness_span);
+        .instrument(save_circuits_span);
 
     let mut save_queue_handles = vec![];
 
@@ -266,13 +199,12 @@ pub(super) async fn generate_witness(
             )));
         }
     }
-    .instrument(save_queues_span);
+        .instrument(save_queues_span);
 
-    let (witnesses, _, _, _) = tokio::join!(
+    let (witnesses, _, _) = tokio::join!(
         make_circuits_handle,
         circuit_receiver_handle,
-        queue_receiver_handle,
-        ram_queue_witness_receiver_handle
+        queue_receiver_handle
     );
     let (mut scheduler_witness, block_aux_witness) = witnesses.unwrap();
 
@@ -297,11 +229,7 @@ pub(super) async fn generate_witness(
         .filter(|(circuit_id, _, _)| circuits_present.contains(circuit_id))
         .collect();
 
-    let _: Vec<_> = futures::future::join_all(save_ram_queue_witness_handles)
-        .await
-        .into_iter()
-        .map(|result| result.expect("failed to save ram permutation queue witness"))
-        .collect();
+    artifacts_receiver_handle.join().unwrap();
 
     scheduler_witness.previous_block_meta_hash = input.previous_batch_metadata.meta_hash.0;
     scheduler_witness.previous_block_aux_hash = input.previous_batch_metadata.aux_hash.0;
@@ -314,7 +242,7 @@ pub(super) async fn generate_witness(
     )
 }
 
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number, circuit_id = %circuit_id))]
+#[tracing::instrument(skip_all, fields(l1_batch = % block_number, circuit_id = % circuit_id))]
 async fn save_recursion_queue(
     block_number: L1BatchNumber,
     circuit_id: u8,

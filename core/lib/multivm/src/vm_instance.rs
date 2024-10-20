@@ -1,6 +1,6 @@
 use std::mem;
 
-use zksync_types::{vm::VmVersion, Transaction};
+use zksync_types::{vm::VmVersion, ProtocolVersionId, Transaction};
 use zksync_vm2::interface::Tracer;
 
 use crate::{
@@ -8,8 +8,8 @@ use crate::{
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
         utils::ShadowVm,
-        BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv,
-        VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
+        BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, PushTransactionResult,
+        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
         VmInterfaceHistoryEnabled, VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
@@ -55,8 +55,7 @@ macro_rules! dispatch_legacy_vm {
 impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     type TracerDispatcher = TracerDispatcher<StorageView<S>, H>;
 
-    /// Push tx into memory for the future execution
-    fn push_transaction(&mut self, tx: Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         dispatch_legacy_vm!(self.push_transaction(tx))
     }
 
@@ -85,10 +84,6 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
             tx,
             with_compression
         ))
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        dispatch_legacy_vm!(self.record_vm_memory_metrics())
     }
 
     /// Return the results of execution of all batch
@@ -213,6 +208,11 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
             }
         }
     }
+
+    /// Returns memory-related oracle metrics.
+    pub fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
+        dispatch_legacy_vm!(self.record_vm_memory_metrics())
+    }
 }
 
 /// Fast VM shadowed by the latest legacy VM.
@@ -246,8 +246,8 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInsta
         Tr,
     );
 
-    fn push_transaction(&mut self, tx: Transaction) {
-        dispatch_fast_vm!(self.push_transaction(tx));
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
+        dispatch_fast_vm!(self.push_transaction(tx))
     }
 
     fn inspect(
@@ -281,10 +281,6 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInsta
                 vm.inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
             }
         }
-    }
-
-    fn record_vm_memory_metrics(&self) -> VmMemoryMetrics {
-        dispatch_fast_vm!(self.record_vm_memory_metrics())
     }
 
     fn finish_batch(&mut self) -> FinishedL1Batch {
@@ -330,4 +326,12 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> FastVmInstance<S, Tr> {
     ) -> Self {
         Self::Shadowed(ShadowedFastVm::new(l1_batch_env, system_env, storage_view))
     }
+}
+
+/// Checks whether the protocol version is supported by the fast VM.
+pub fn is_supported_by_fast_vm(protocol_version: ProtocolVersionId) -> bool {
+    matches!(
+        protocol_version.into(),
+        VmVersion::Vm1_5_0IncreasedBootloaderMemory
+    )
 }
