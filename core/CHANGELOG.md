@@ -1,5 +1,12 @@
 # Changelog
 
+## [24.29.1](https://github.com/matter-labs/zksync-era/compare/core-v24.29.0...core-v24.29.1) (2024-10-21)
+
+
+### Bug Fixes
+
+* **external-node:** delete empty unsealed batch on EN initialization ([#3125](https://github.com/matter-labs/zksync-era/issues/3125)) ([5d5214b](https://github.com/matter-labs/zksync-era/commit/5d5214ba983823b306495d34fdd1d46abacce07a))
+
 ## [24.29.0](https://github.com/matter-labs/zksync-era/compare/core-v24.28.0...core-v24.29.0) (2024-10-14)
 
 
