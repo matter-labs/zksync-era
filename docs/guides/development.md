@@ -22,9 +22,8 @@ zkstackup --local
 ```
 
 > NOTE: you might find convenient to add this alias to your shell profile:
-> 
-> `alias zkstackup='zkstackup --path $ZKSYNC_HOME'`
 >
+> `alias zkstackup='zkstackup --path $ZKSYNC_HOME'`
 
 This command installs `zkstack` from the current source directory.
 
