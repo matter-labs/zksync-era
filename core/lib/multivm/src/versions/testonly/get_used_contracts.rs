@@ -27,6 +27,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
         .with_rich_accounts(1)
         .build::<VM>();
 
+    // FIXME: diverges here; old VM includes default AA hash
     assert!(known_bytecodes_without_base_system_contracts(&vm.vm).is_empty());
 
     // create and push and execute some not-empty factory deps transaction with success status
@@ -44,6 +45,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
         .contains(&h256_to_u256(tx.bytecode_hash)));
 
     // Note: `Default_AA` will be in the list of used contracts if L2 tx is used
+    dbg!(2);
     assert_eq!(
         vm.vm.decommitted_hashes(),
         known_bytecodes_without_base_system_contracts(&vm.vm)
