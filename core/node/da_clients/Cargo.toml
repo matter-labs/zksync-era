@@ -41,7 +41,8 @@ jsonrpsee = { workspace = true, features = ["ws-client"] }
 http.workspace = true
 bincode.workspace = true
 celestia-types.workspace = true
-k256.workspace = true
+secp256k1.workspace = true
+sha2.workspace = true
 prost.workspace = true
 bech32.workspace = true
 ripemd.workspace = true

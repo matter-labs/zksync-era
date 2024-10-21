@@ -1,15 +1,13 @@
 use std::{
     fmt::{Display, Formatter, Result},
+    str::FromStr,
     time::{Duration, Instant},
 };
 
 use celestia_types::Blob;
-use k256::{
-    ecdsa::{signature::Signer, Signature, SigningKey, VerifyingKey},
-    sha2,
-    sha2::{Digest, Sha256},
-};
 use prost::{bytes::Bytes, Message, Name};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use sha2::Digest;
 use tonic::transport::Channel;
 
 use super::{
@@ -29,7 +27,7 @@ use super::{
             },
             v1beta1::Coin,
         },
-        crypto::secp256k1,
+        crypto::secp256k1 as ec_proto,
         tx::v1beta1::{
             mode_info::{Single, Sum},
             service_client::ServiceClient as TxClient,
@@ -50,7 +48,7 @@ pub(crate) struct RawCelestiaClient {
     grpc_channel: Channel,
     address: String,
     chain_id: String,
-    signing_key: SigningKey,
+    signing_key: SecretKey,
 }
 
 impl RawCelestiaClient {
@@ -59,9 +57,9 @@ impl RawCelestiaClient {
         private_key: String,
         chain_id: String,
     ) -> anyhow::Result<Self> {
-        let bytes = hex::decode(private_key.trim())?;
-        let signing_key = SigningKey::from_slice(bytes.as_slice())?;
-        let address = get_address(*signing_key.verifying_key())?;
+        let signing_key = SecretKey::from_str(&private_key)
+            .map_err(|e| anyhow::anyhow!("Failed to parse private key: {}", e))?;
+        let address = get_address(signing_key.public_key(&Secp256k1::new()))?;
 
         Ok(Self {
             grpc_channel,
@@ -405,7 +403,7 @@ fn new_signed_tx(
     gas_limit: u64,
     fee: u64,
     chain_id: String,
-    signing_key: &SigningKey,
+    signing_key: &SecretKey,
 ) -> Tx {
     const SIGNING_MODE_INFO: Option<ModeInfo> = Some(ModeInfo {
         sum: Some(Sum::Single(Single { mode: 1 })),
@@ -421,16 +419,16 @@ fn new_signed_tx(
         ..Fee::default()
     };
 
-    let public_key = secp256k1::PubKey {
+    let public_key = ec_proto::PubKey {
         key: Bytes::from(
-            (*signing_key.verifying_key())
-                .to_encoded_point(true)
-                .as_bytes()
+            signing_key
+                .public_key(&Secp256k1::new())
+                .serialize()
                 .to_vec(),
         ),
     };
     let public_key_as_any = pbjson_types::Any {
-        type_url: secp256k1::PubKey::type_url(),
+        type_url: ec_proto::PubKey::type_url(),
         value: public_key.encode_to_vec().into(),
     };
     let auth_info = AuthInfo {
@@ -459,11 +457,15 @@ fn new_signed_tx(
         account_number: base_account.account_number,
     }
     .encode_to_vec();
-    let signature: Signature = signing_key.sign(&bytes_to_sign);
+    let hashed_bytes: [u8; 32] = sha2::Sha256::digest(bytes_to_sign).into();
+    let signature = secp256k1::Secp256k1::new().sign_ecdsa(
+        &secp256k1::Message::from_slice(&hashed_bytes[..]).unwrap(), // unwrap is safe here because we know the length of the hashed bytes
+        signing_key,
+    );
     Tx {
         body: Some(tx_body),
         auth_info: Some(auth_info),
-        signatures: vec![Bytes::from(signature.to_bytes().to_vec())],
+        signatures: vec![Bytes::from(signature.serialize_compact().to_vec())],
     }
 }
 
@@ -566,10 +568,10 @@ fn new_msg_pay_for_blobs(blobs: &[Blob], signer: String) -> anyhow::Result<MsgPa
     })
 }
 
-fn get_address(public_key: VerifyingKey) -> anyhow::Result<String> {
+fn get_address(public_key: PublicKey) -> anyhow::Result<String> {
     use ripemd::{Digest, Ripemd160};
 
-    let sha_digest = sha2::Sha256::digest(public_key.to_sec1_bytes());
+    let sha_digest = sha2::Sha256::digest(public_key.serialize().to_vec());
     let ripemd_digest = Ripemd160::digest(&sha_digest[..]);
     let mut bytes = [0u8; ADDRESS_LENGTH];
     bytes.copy_from_slice(&ripemd_digest[..ADDRESS_LENGTH]);
@@ -585,8 +587,7 @@ pub(super) struct BlobTxHash([u8; 32]);
 
 impl BlobTxHash {
     pub(super) fn compute(blob_tx: &BlobTx) -> Self {
-        let sha2 = Sha256::digest(&blob_tx.tx);
-        Self(sha2.into())
+        Self(sha2::Sha256::digest(&blob_tx.tx).into())
     }
 
     pub(super) fn hex(self) -> String {
