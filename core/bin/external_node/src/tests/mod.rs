@@ -22,10 +22,18 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 #[tracing::instrument] // Add args to the test logs
 async fn external_node_basics(components_str: &'static str) {
     let _guard = zksync_vlog::ObservabilityBuilder::new().try_build().ok(); // Enable logging to simplify debugging
-
     let (env, env_handles) = utils::TestEnvironment::with_genesis_block(components_str).await;
 
-    let expected_health_components = utils::expected_health_components(&env.components);
+    let mut expected_health_components = utils::expected_health_components(&env.components);
+    let expected_shutdown_components = expected_health_components.clone();
+    let has_core_or_api = env.components.0.iter().any(|component| {
+        [Component::Core, Component::HttpApi, Component::WsApi].contains(component)
+    });
+    if has_core_or_api {
+        // The `sync_state` component doesn't signal its shutdown, but should be present in the list of components
+        expected_health_components.push("sync_state");
+    }
+
     let l2_client = utils::mock_l2_client(&env);
     let eth_client = utils::mock_eth_client(env.config.diamond_proxy_address());
 
@@ -84,7 +92,7 @@ async fn external_node_basics(components_str: &'static str) {
     let health_data = app_health.check_health().await;
     tracing::info!(?health_data, "final health data");
     assert_matches!(health_data.inner().status(), HealthStatus::ShutDown);
-    for name in expected_health_components {
+    for name in expected_shutdown_components {
         let component_health = &health_data.components()[name];
         assert_matches!(component_health.status(), HealthStatus::ShutDown);
     }

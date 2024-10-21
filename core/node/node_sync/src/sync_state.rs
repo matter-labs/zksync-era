@@ -173,6 +173,7 @@ impl CheckHealth for SyncState {
         Health::from(&*self.0.borrow())
     }
 }
+
 impl SyncStateInner {
     fn is_synced(&self) -> (bool, Option<u32>) {
         if let (Some(main_node_block), Some(local_block)) = (self.main_node_block, self.local_block)
