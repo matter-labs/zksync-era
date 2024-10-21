@@ -1,5 +1,3 @@
-# zk_supervisor clean all      
-
 sudo rm -rf ./volumes && zk_supervisor clean containers && zk_inception up -o false
 
 zk_inception ecosystem init --deploy-paymaster --deploy-erc20 \
@@ -16,7 +14,7 @@ zk_inception server --ignore-prerequisites --chain era &> ./era.log &
 
 sleep 20
 
-zk_inception chain extract-last-tx-hash --chain era --verbose     
+zk_inception chain deploy-and-bridge-zk --chain era --verbose     
 
 # Define the path to the TOML file
 TOML_FILE="contracts/l1-contracts/script-out/output-deploy-zk-token.toml"
