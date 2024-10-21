@@ -31,7 +31,9 @@ use zksync_prover_fri_types::{
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
-use zksync_prover_interface::outputs::{L1BatchProofForL1, SchedulerProof};
+use zksync_prover_interface::outputs::{
+    FflonkL1BatchProofForL1, L1BatchProofForL1, SchedulerProof,
+};
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
@@ -333,17 +335,17 @@ impl JobProcessor for ProofCompressor {
         let aggregation_result_coords =
             Self::aux_output_witness_to_array(aux_output_witness_wrapper.0);
         #[cfg(feature = "fflonk")]
-        let l1_batch_proof = L1BatchProofForL1 {
+        let l1_batch_proof = L1BatchProofForL1::Fflonk(FflonkL1BatchProofForL1 {
             aggregation_result_coords,
-            scheduler_proof: SchedulerProof::Fflonk(Box::new(artifacts)),
+            scheduler_proof: artifacts,
             protocol_version: self.protocol_version,
-        };
+        });
         #[cfg(not(feature = "fflonk"))]
-        let l1_batch_proof = L1BatchProofForL1 {
+        let l1_batch_proof = L1BatchProofForL1::Plonk(PlonkL1BatchProofForL1 {
             aggregation_result_coords,
-            scheduler_proof: SchedulerProof::Pplonk(Box::new(artifacts)),
+            scheduler_proof: artifacts,
             protocol_version: self.protocol_version,
-        };
+        });
 
         let blob_save_started_at = Instant::now();
         let blob_url = self
