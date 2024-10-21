@@ -92,7 +92,7 @@ jobs:
 
       - name: Setup rust
         if: env.BUILD_CONTRACTS == 'true'
-        uses: actions-rust-lang/setup-rust-toolchain@1fbea72663f6d4c03efaab13560c8a24cfd2a7cc # v1.9.0
+        uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8 # v1.10.1
         with:
           toolchain: nightly-2024-08-01
 
