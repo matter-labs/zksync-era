@@ -2058,6 +2058,37 @@ impl BlocksDal<'_, '_> {
         Ok(())
     }
 
+    /// Deletes the unsealed L1 batch from the storage. Expects the caller to make sure there are no
+    /// associated L2 blocks.
+    ///
+    /// Accepts `batch_to_keep` as a safety mechanism.
+    pub async fn delete_unsealed_l1_batch(
+        &mut self,
+        batch_to_keep: L1BatchNumber,
+    ) -> DalResult<()> {
+        let deleted_row = sqlx::query!(
+            r#"
+            DELETE FROM l1_batches
+            WHERE
+                number > $1
+                AND NOT is_sealed
+            RETURNING number
+            "#,
+            i64::from(batch_to_keep.0)
+        )
+        .instrument("delete_unsealed_l1_batch")
+        .with_arg("batch_to_keep", &batch_to_keep)
+        .fetch_optional(self.storage)
+        .await?;
+        if let Some(deleted_row) = deleted_row {
+            tracing::info!(
+                l1_batch_number = %deleted_row.number,
+                "Deleted unsealed batch"
+            );
+        }
+        Ok(())
+    }
+
     /// Deletes all L1 batches from the storage so that the specified batch number is the last one left.
     pub async fn delete_l1_batches(&mut self, last_batch_to_keep: L1BatchNumber) -> DalResult<()> {
         self.delete_l1_batches_inner(Some(last_batch_to_keep)).await
@@ -2182,6 +2213,20 @@ impl BlocksDal<'_, '_> {
         let Some(min) = row.min else { return Ok(None) };
         let Some(max) = row.max else { return Ok(None) };
         Ok(Some((L2BlockNumber(min as u32), L2BlockNumber(max as u32))))
+    }
+
+    /// Returns `true` if there exists a non-sealed batch (i.e. there is one+ stored L2 block that isn't assigned
+    /// to any batch yet).
+    pub async fn pending_batch_exists(&mut self) -> DalResult<bool> {
+        let count = sqlx::query_scalar!(
+            "SELECT COUNT(miniblocks.number) FROM miniblocks WHERE l1_batch_number IS NULL"
+        )
+        .instrument("pending_batch_exists")
+        .fetch_one(self.storage)
+        .await?
+        .unwrap_or(0);
+
+        Ok(count != 0)
     }
 
     // methods used for measuring Eth tx stage transition latencies
