@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.2.0](https://github.com/matter-labs/zksync-era/compare/zkstack_cli-v0.1.2...zkstack_cli-v0.2.0) (2024-10-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* **contracts:** integrate protocol defense changes ([#2737](https://github.com/matter-labs/zksync-era/issues/2737))
+
+### Features
+
+* Add option to run prover images from tag ([#3120](https://github.com/matter-labs/zksync-era/issues/3120)) ([3b532f5](https://github.com/matter-labs/zksync-era/commit/3b532f5e363e0cb093221e6d064ce1a7d7428b52))
+* **contracts:** integrate protocol defense changes ([#2737](https://github.com/matter-labs/zksync-era/issues/2737)) ([c60a348](https://github.com/matter-labs/zksync-era/commit/c60a3482ee09b3e371163e62f49e83bc6d6f4548))
+* Prover e2e test ([#2975](https://github.com/matter-labs/zksync-era/issues/2975)) ([0edd796](https://github.com/matter-labs/zksync-era/commit/0edd7962429b3530ae751bd7cc947c97193dd0ca))
+* **zk_toolbox:** Redesign zk_toolbox commands ([#3003](https://github.com/matter-labs/zksync-era/issues/3003)) ([114834f](https://github.com/matter-labs/zksync-era/commit/114834f357421c62d596a1954fac8ce615cfde49))
+* **zkstack_cli:** Add status page ([#3036](https://github.com/matter-labs/zksync-era/issues/3036)) ([dd4b7cc](https://github.com/matter-labs/zksync-era/commit/dd4b7cc94e324dfa5a86df09f0cf15642ea2f5c2))
+
+
+### Bug Fixes
+
+* **zkstack:** Move installation always to .local/bin ([#3108](https://github.com/matter-labs/zksync-era/issues/3108)) ([223e4dd](https://github.com/matter-labs/zksync-era/commit/223e4dd59414904f2b26afffc4b72bb78266b783))
+
 ## [0.1.2](https://github.com/matter-labs/zksync-era/compare/zk_toolbox-v0.1.1...zk_toolbox-v0.1.2) (2024-08-20)
 
 
