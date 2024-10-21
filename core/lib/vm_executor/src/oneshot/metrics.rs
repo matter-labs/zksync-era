@@ -50,7 +50,7 @@ pub(super) fn report_vm_memory_metrics(
     tx_id: &str,
     memory_metrics: &VmMemoryMetrics,
     vm_execution_took: Duration,
-    storage_metrics: &StorageViewStats,
+    storage_stats: &StorageViewStats,
 ) {
     MEMORY_METRICS.event_sink_size[&SizeType::Inner].observe(memory_metrics.event_sink_inner);
     MEMORY_METRICS.event_sink_size[&SizeType::History].observe(memory_metrics.event_sink_history);
@@ -65,10 +65,18 @@ pub(super) fn report_vm_memory_metrics(
 
     MEMORY_METRICS
         .storage_view_cache_size
-        .observe(storage_metrics.cache_size);
+        .observe(storage_stats.cache_size);
     MEMORY_METRICS
         .full
-        .observe(memory_metrics.full_size() + storage_metrics.cache_size);
+        .observe(memory_metrics.full_size() + storage_stats.cache_size);
 
-    STORAGE_METRICS.observe(&format!("Tx {tx_id}"), vm_execution_took, storage_metrics);
+    report_vm_storage_metrics(tx_id, vm_execution_took, storage_stats);
+}
+
+pub(super) fn report_vm_storage_metrics(
+    tx_id: &str,
+    vm_execution_took: Duration,
+    storage_stats: &StorageViewStats,
+) {
+    STORAGE_METRICS.observe(&format!("Tx {tx_id}"), vm_execution_took, storage_stats);
 }

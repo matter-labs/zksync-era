@@ -37,4 +37,5 @@ message VmPlayground {
 message Vm {
   optional VmPlayground playground = 1; // optional
   optional FastVmMode state_keeper_fast_vm_mode = 2; // optional; if not set, fast VM is not used
+  optional FastVmMode api_fast_vm_mode = 3; // optional; if not set, fast VM is not used
 }

@@ -11327,6 +11327,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "once_cell",
+ "test-casing",
  "tokio",
  "tracing",
  "vise",

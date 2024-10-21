@@ -16,8 +16,8 @@ use zksync_multivm::interface::{
 };
 use zksync_types::{
     api::ApiStorageLog, fee_model::BatchFeeInput, get_intrinsic_constants,
-    transaction_request::CallRequest, K256PrivateKey, L2ChainId, PackedEthSignature,
-    StorageLogKind, StorageLogWithPreviousValue, Transaction, U256,
+    transaction_request::CallRequest, vm::FastVmMode, K256PrivateKey, L2ChainId,
+    PackedEthSignature, StorageLogKind, StorageLogWithPreviousValue, Transaction, U256,
 };
 use zksync_utils::u256_to_h256;
 use zksync_vm_executor::oneshot::{
@@ -92,6 +92,7 @@ impl<C: ContractsKind> BaseSystemContractsProvider<C> for BaseContractsWithMockE
 fn executor_options_with_evm_emulator() -> SandboxExecutorOptions {
     let base_contracts = Arc::<BaseContractsWithMockEvmEmulator>::default();
     SandboxExecutorOptions {
+        fast_vm_mode: FastVmMode::Old,
         estimate_gas: OneshotEnvParameters::new(
             base_contracts.clone(),
             L2ChainId::default(),
