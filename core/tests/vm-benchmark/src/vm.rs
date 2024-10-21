@@ -142,9 +142,6 @@ impl BenchmarkingVmFactory for Legacy {
     }
 }
 
-#[derive(Debug)]
-pub struct BenchmarkingVm<VM: BenchmarkingVmFactory>(VM::Instance);
-
 impl CountInstructions for Legacy {
     fn count_instructions(tx: &Transaction) -> usize {
         let mut vm = BenchmarkingVm::<Self>::default();
@@ -190,6 +187,9 @@ fn test_env() -> (SystemEnv, L1BatchEnv) {
     };
     (system_env, l1_batch_env)
 }
+
+#[derive(Debug)]
+pub struct BenchmarkingVm<VM: BenchmarkingVmFactory>(VM::Instance);
 
 impl<VM: BenchmarkingVmFactory> Default for BenchmarkingVm<VM> {
     fn default() -> Self {

@@ -1,10 +1,6 @@
-//! Measures instruction counts for the fuzzed bytecodes.
+//! Measures the number of host instructions required to run the benchmark bytecodes.
 
-use std::{
-    collections::BTreeMap,
-    env,
-    sync::{Arc, Mutex},
-};
+use std::{env, sync::mpsc};
 
 use vise::{Gauge, LabeledFamily, Metrics};
 use vm_benchmark::{
@@ -12,7 +8,7 @@ use vm_benchmark::{
 };
 use yab::{
     reporter::{BenchmarkOutput, BenchmarkReporter, Reporter},
-    AccessSummary, Bencher, BenchmarkId,
+    AccessSummary, BenchMode, Bencher, BenchmarkId,
 };
 
 fn benchmarks_for_vm<VM: BenchmarkingVmFactory>(bencher: &mut Bencher) {
@@ -122,13 +118,31 @@ impl Comparison {
 /// Reporter that outputs diffs in a Markdown table to stdout after all benchmarks are completed.
 ///
 /// Significant diff level can be changed via `BENCHMARK_DIFF_THRESHOLD_PERCENT` env var; it is set to 1% by default.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct ComparisonReporter {
-    comparisons: Arc<Mutex<BTreeMap<String, Comparison>>>,
+    comparisons_sender: mpsc::Sender<(String, Comparison)>,
+    comparisons_receiver: mpsc::Receiver<(String, Comparison)>,
 }
 
-impl Drop for ComparisonReporter {
-    fn drop(&mut self) {
+impl Default for ComparisonReporter {
+    fn default() -> Self {
+        let (comparisons_sender, comparisons_receiver) = mpsc::channel();
+        Self {
+            comparisons_sender,
+            comparisons_receiver,
+        }
+    }
+}
+
+impl Reporter for ComparisonReporter {
+    fn new_benchmark(&mut self, id: &BenchmarkId) -> Box<dyn BenchmarkReporter> {
+        Box::new(BenchmarkComparison {
+            comparisons_sender: self.comparisons_sender.clone(),
+            id: id.clone(),
+        })
+    }
+
+    fn ok(self: Box<Self>) {
         const ENV_VAR: &str = "BENCHMARK_DIFF_THRESHOLD_PERCENT";
 
         let diff_threshold = env::var(ENV_VAR).unwrap_or_else(|_| "1.0".into());
@@ -136,14 +150,18 @@ impl Drop for ComparisonReporter {
             panic!("incorrect `{ENV_VAR}` value: {err}");
         });
 
-        let mut comparisons = self.comparisons.lock().expect("poisoned").clone();
-        comparisons.retain(|_, diff| {
+        // Drop the sender to not hang on the iteration below.
+        drop(self.comparisons_sender);
+        let mut comparisons: Vec<_> = self.comparisons_receiver.iter().collect();
+        comparisons.retain(|(_, diff)| {
             // Output all stats if `diff_threshold <= 0.0` since this is what the user expects
             diff.cycles_diff().unwrap_or(0.0) >= diff_threshold
         });
         if comparisons.is_empty() {
             return;
         }
+
+        comparisons.sort_unstable_by(|(name, _), (other_name, _)| name.cmp(other_name));
 
         println!("\n## Detected VM performance changes");
         println!("Benchmark name | Est. cycles | Change in est. cycles |");
@@ -157,34 +175,24 @@ impl Drop for ComparisonReporter {
     }
 }
 
-impl Reporter for ComparisonReporter {
-    fn new_benchmark(&mut self, id: &BenchmarkId) -> Box<dyn BenchmarkReporter> {
-        Box::new(BenchmarkComparison {
-            comparisons: self.comparisons.clone(),
-            id: id.clone(),
-        })
-    }
-}
-
 #[derive(Debug)]
 struct BenchmarkComparison {
-    comparisons: Arc<Mutex<BTreeMap<String, Comparison>>>,
+    comparisons_sender: mpsc::Sender<(String, Comparison)>,
     id: BenchmarkId,
 }
 
 impl BenchmarkReporter for BenchmarkComparison {
     fn ok(self: Box<Self>, output: &BenchmarkOutput) {
         if let Some(diff) = Comparison::new(output) {
-            self.comparisons
-                .lock()
-                .expect("poisoned")
-                .insert(self.id.to_string(), diff);
+            self.comparisons_sender
+                .send((self.id.to_string(), diff))
+                .ok();
         }
     }
 }
 
 fn benchmarks(bencher: &mut Bencher) {
-    if env::args().any(|arg| arg == "--print") {
+    if bencher.mode() == BenchMode::PrintResults {
         // Only customize reporting if outputting previously collected benchmark result in order to prevent
         // reporters influencing cachegrind stats.
         bencher
