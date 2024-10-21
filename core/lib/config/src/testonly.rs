@@ -7,6 +7,7 @@ use zksync_basic_types::{
     commitment::L1BatchCommitmentMode,
     network::Network,
     protocol_version::{ProtocolSemanticVersion, ProtocolVersionId, VersionPatch},
+    pubdata_da::PubdataSendingMode,
     seed_phrase::SeedPhrase,
     vm::FastVmMode,
     L1BatchNumber, L1ChainId, L2ChainId,
@@ -16,8 +17,7 @@ use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{
     configs::{
-        self, da_client::DAClientConfig::Avail, eth_sender::PubdataSendingMode,
-        external_price_api_client::ForcedPriceClientConfig,
+        self, da_client::DAClientConfig::Avail, external_price_api_client::ForcedPriceClientConfig,
     },
     AvailConfig,
 };
@@ -86,6 +86,7 @@ impl Distribution<configs::api::Web3JsonRpcConfig> for EncodeDist {
             factory_deps_cache_size_mb: self.sample(rng),
             initial_writes_cache_size_mb: self.sample(rng),
             latest_values_cache_size_mb: self.sample(rng),
+            latest_values_max_block_lag: self.sample(rng),
             fee_history_limit: self.sample(rng),
             max_batch_request_size: self.sample(rng),
             max_response_body_size_mb: self.sample(rng),
@@ -383,17 +384,6 @@ impl Distribution<configs::eth_sender::ProofLoadingMode> for EncodeDist {
         match rng.gen_range(0..2) {
             0 => T::OldProofFromDb,
             _ => T::FriProofFromGcs,
-        }
-    }
-}
-
-impl Distribution<configs::eth_sender::PubdataSendingMode> for EncodeDist {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::eth_sender::PubdataSendingMode {
-        type T = configs::eth_sender::PubdataSendingMode;
-        match rng.gen_range(0..3) {
-            0 => T::Calldata,
-            1 => T::Blobs,
-            _ => T::Custom,
         }
     }
 }

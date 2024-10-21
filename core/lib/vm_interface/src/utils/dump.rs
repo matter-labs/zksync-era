@@ -5,9 +5,9 @@ use zksync_types::{block::L2BlockExecutionData, L1BatchNumber, L2BlockNumber, Tr
 
 use crate::{
     storage::{ReadStorage, StoragePtr, StorageSnapshot, StorageView},
-    BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, SystemEnv, VmExecutionMode,
-    VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
-    VmTrackingContracts,
+    BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, PushTransactionResult,
+    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
+    VmInterfaceHistoryEnabled, VmTrackingContracts,
 };
 
 fn create_storage_snapshot<S: ReadStorage>(
@@ -142,9 +142,9 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> DumpingVm<S, Vm> {
 impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
     type TracerDispatcher = Vm::TracerDispatcher;
 
-    fn push_transaction(&mut self, tx: Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult {
         self.record_transaction(tx.clone());
-        self.inner.push_transaction(tx);
+        self.inner.push_transaction(tx)
     }
 
     fn inspect(

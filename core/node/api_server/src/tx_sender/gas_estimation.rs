@@ -131,10 +131,7 @@ impl TxSender {
 
         if let Some(pivot) = initial_pivot {
             let iteration_started_at = Instant::now();
-            let (result, _) = estimator
-                .step(pivot)
-                .await
-                .context("estimate_gas step failed")?;
+            let (result, _) = estimator.step(pivot).await?;
             Self::adjust_search_bounds(&mut lower_bound, &mut upper_bound, pivot, &result);
 
             tracing::trace!(
@@ -151,10 +148,7 @@ impl TxSender {
             // or normal execution errors, so we just hope that increasing the
             // gas limit will make the transaction successful
             let iteration_started_at = Instant::now();
-            let (result, _) = estimator
-                .step(mid)
-                .await
-                .context("estimate_gas step failed")?;
+            let (result, _) = estimator.step(mid).await?;
             Self::adjust_search_bounds(&mut lower_bound, &mut upper_bound, mid, &result);
 
             tracing::trace!(
@@ -206,7 +200,11 @@ impl TxSender {
                     tx.initiator_account(),
                     tx.execute.value
                 );
-                return Err(SubmitTxError::InsufficientFundsForTransfer);
+                return Err(SubmitTxError::NotEnoughBalanceForFeeValue(
+                    balance,
+                    0.into(),
+                    tx.execute.value,
+                ));
             }
         }
         Ok(())
@@ -393,10 +391,7 @@ impl<'a> GasEstimator<'a> {
             // For L2 transactions, we estimate the amount of gas needed to cover for the pubdata by creating a transaction with infinite gas limit,
             // and getting how much pubdata it used.
 
-            let (result, _) = self
-                .unadjusted_step(self.max_gas_limit)
-                .await
-                .context("estimate_gas step failed")?;
+            let (result, _) = self.unadjusted_step(self.max_gas_limit).await?;
             // If the transaction has failed with such a large gas limit, we return an API error here right away,
             // since the inferred gas bounds would be unreliable in this case.
             result.check_api_call_result()?;
@@ -430,7 +425,7 @@ impl<'a> GasEstimator<'a> {
     async fn step(
         &self,
         tx_gas_limit: u64,
-    ) -> anyhow::Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics)> {
+    ) -> Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics), SubmitTxError> {
         let gas_limit_with_overhead = tx_gas_limit + self.tx_overhead(tx_gas_limit);
         // We need to ensure that we never use a gas limit that is higher than the maximum allowed
         let forced_gas_limit =
@@ -441,13 +436,16 @@ impl<'a> GasEstimator<'a> {
     pub(super) async fn unadjusted_step(
         &self,
         forced_gas_limit: u64,
-    ) -> anyhow::Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics)> {
+    ) -> Result<(VmExecutionResultAndLogs, TransactionExecutionMetrics), SubmitTxError> {
         let mut tx = self.transaction.clone();
         match &mut tx.common_data {
             ExecuteTransactionCommon::L1(l1_common_data) => {
                 l1_common_data.gas_limit = forced_gas_limit.into();
-                let required_funds =
-                    l1_common_data.gas_limit * l1_common_data.max_fee_per_gas + tx.execute.value;
+                // Since `tx.execute.value` is supplied by the client and is not checked against the current balance (unlike for L2 transactions),
+                // we may hit an integer overflow. Ditto for protocol upgrade transactions below.
+                let required_funds = (l1_common_data.gas_limit * l1_common_data.max_fee_per_gas)
+                    .checked_add(tx.execute.value)
+                    .ok_or(SubmitTxError::MintedAmountOverflow)?;
                 l1_common_data.to_mint = required_funds;
             }
             ExecuteTransactionCommon::L2(l2_common_data) => {
@@ -455,8 +453,9 @@ impl<'a> GasEstimator<'a> {
             }
             ExecuteTransactionCommon::ProtocolUpgrade(common_data) => {
                 common_data.gas_limit = forced_gas_limit.into();
-                let required_funds =
-                    common_data.gas_limit * common_data.max_fee_per_gas + tx.execute.value;
+                let required_funds = (common_data.gas_limit * common_data.max_fee_per_gas)
+                    .checked_add(tx.execute.value)
+                    .ok_or(SubmitTxError::MintedAmountOverflow)?;
                 common_data.to_mint = required_funds;
             }
         }
@@ -485,10 +484,7 @@ impl<'a> GasEstimator<'a> {
         suggested_gas_limit: u64,
         estimated_fee_scale_factor: f64,
     ) -> Result<Fee, SubmitTxError> {
-        let (result, tx_metrics) = self
-            .step(suggested_gas_limit)
-            .await
-            .context("final estimate_gas step failed")?;
+        let (result, tx_metrics) = self.step(suggested_gas_limit).await?;
         result.into_api_call_result()?;
         self.sender
             .ensure_tx_executable(&self.transaction, &tx_metrics, false)?;

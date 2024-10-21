@@ -5,8 +5,9 @@ use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
         storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-        SystemEnv, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmFactory,
-        VmInterface, VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        PushTransactionResult, SystemEnv, TxExecutionMode, VmExecutionMode,
+        VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     vm_m5::{
         storage::Storage,
@@ -60,12 +61,15 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
     /// Tracers are not supported for here we use `()` as a placeholder
     type TracerDispatcher = ();
 
-    fn push_transaction(&mut self, tx: Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         crate::vm_m5::vm_with_bootloader::push_transaction_to_bootloader_memory(
             &mut self.vm,
             &tx,
             self.system_env.execution_mode.glue_into(),
-        )
+        );
+        PushTransactionResult {
+            compressed_bytecodes: (&[]).into(), // bytecode compression isn't supported
+        }
     }
 
     fn inspect(

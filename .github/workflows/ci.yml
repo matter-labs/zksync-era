@@ -42,6 +42,9 @@ jobs:
               - '!prover/extract-setup-data-keys.sh'
               - 'docker/prover*/**'
               - '.github/workflows/build-prover-template.yml'
+              - '.github/workflows/new-build-prover-template.yml'
+              - '.github/workflows/build-witness-generator-template.yml'
+              - '.github/workflows/new-build-witness-generator-template.yml'
               - '.github/workflows/ci-prover-reusable.yml'
               - 'docker-compose-runner-nightly.yml'
               - '!**/*.md'
@@ -53,7 +56,9 @@ jobs:
               - 'docker/external-node/**'
               - 'docker/server/**'
               - '.github/workflows/build-core-template.yml'
+              - '.github/workflows/new-build-core-template.yml'
               - '.github/workflows/build-contract-verifier-template.yml'
+              - '.github/workflows/new-build-contract-verifier-template.yml'
               - '.github/workflows/ci-core-reusable.yml'
               - '.github/workflows/ci-core-lint-reusable.yml'
               - 'Cargo.toml'
@@ -93,6 +98,12 @@ jobs:
     if: ${{ (needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
     name: CI for Prover Components
     uses: ./.github/workflows/ci-prover-reusable.yml
+
+  e2e-for-prover:
+    name: E2E Test for Prover Components
+    needs: changed_files
+    if: ${{(needs.changed_files.outputs.prover == 'true' || needs.changed_files.outputs.all == 'true') && !contains(github.ref_name, 'release-please--branches') }}
+    uses: ./.github/workflows/ci-prover-e2e.yml
 
   ci-for-docs:
     needs: changed_files

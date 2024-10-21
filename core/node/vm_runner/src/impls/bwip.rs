@@ -248,7 +248,7 @@ async fn get_updates_manager_witness_input_data(
                 .factory_deps_dal()
                 .get_sealed_factory_dep(evm_emulator)
                 .await?
-                .ok_or_else(|| anyhow!("EVM Simulator bytecode should exist"))?;
+                .ok_or_else(|| anyhow!("EVM emulator bytecode should exist"))?;
             let evm_emulator_bytecode = bytes_to_chunks(&evm_emulator_bytecode);
             used_bytecodes.insert(evm_emulator_code_hash, evm_emulator_bytecode);
         }

@@ -8,7 +8,8 @@ use strum::{EnumIter, IntoEnumIterator};
 
 use crate::{
     consts::{
-        COMPRESSOR_BINARY_NAME, COMPRESSOR_DOCKER_IMAGE, PROVER_BINARY_NAME, PROVER_DOCKER_IMAGE,
+        CIRCUIT_PROVER_BINARY_NAME, CIRCUIT_PROVER_DOCKER_IMAGE, COMPRESSOR_BINARY_NAME,
+        COMPRESSOR_DOCKER_IMAGE, PROVER_BINARY_NAME, PROVER_DOCKER_IMAGE,
         PROVER_GATEWAY_BINARY_NAME, PROVER_GATEWAY_DOCKER_IMAGE, PROVER_JOB_MONITOR_BINARY_NAME,
         PROVER_JOB_MONITOR_DOCKER_IMAGE, WITNESS_GENERATOR_BINARY_NAME,
         WITNESS_GENERATOR_DOCKER_IMAGE, WITNESS_VECTOR_GENERATOR_BINARY_NAME,
@@ -30,8 +31,12 @@ pub struct ProverRunArgs {
     pub witness_vector_generator_args: WitnessVectorGeneratorArgs,
     #[clap(flatten)]
     pub fri_prover_args: FriProverRunArgs,
+    #[clap(flatten)]
+    pub circuit_prover_args: CircuitProverArgs,
     #[clap(long)]
     pub docker: Option<bool>,
+    #[clap(long)]
+    pub tag: Option<String>,
 }
 
 #[derive(
@@ -46,6 +51,8 @@ pub enum ProverComponent {
     WitnessVectorGenerator,
     #[strum(to_string = "Prover")]
     Prover,
+    #[strum(to_string = "CircuitProver")]
+    CircuitProver,
     #[strum(to_string = "Compressor")]
     Compressor,
     #[strum(to_string = "ProverJobMonitor")]
@@ -59,6 +66,7 @@ impl ProverComponent {
             Self::WitnessGenerator => WITNESS_GENERATOR_DOCKER_IMAGE,
             Self::WitnessVectorGenerator => WITNESS_VECTOR_GENERATOR_DOCKER_IMAGE,
             Self::Prover => PROVER_DOCKER_IMAGE,
+            Self::CircuitProver => CIRCUIT_PROVER_DOCKER_IMAGE,
             Self::Compressor => COMPRESSOR_DOCKER_IMAGE,
             Self::ProverJobMonitor => PROVER_JOB_MONITOR_DOCKER_IMAGE,
         }
@@ -70,6 +78,7 @@ impl ProverComponent {
             Self::WitnessGenerator => WITNESS_GENERATOR_BINARY_NAME,
             Self::WitnessVectorGenerator => WITNESS_VECTOR_GENERATOR_BINARY_NAME,
             Self::Prover => PROVER_BINARY_NAME,
+            Self::CircuitProver => CIRCUIT_PROVER_BINARY_NAME,
             Self::Compressor => COMPRESSOR_BINARY_NAME,
             Self::ProverJobMonitor => PROVER_JOB_MONITOR_BINARY_NAME,
         }
@@ -78,10 +87,10 @@ impl ProverComponent {
     pub fn get_application_args(&self, in_docker: bool) -> anyhow::Result<Vec<String>> {
         let mut application_args = vec![];
 
-        if self == &Self::Prover || self == &Self::Compressor {
+        if self == &Self::Prover || self == &Self::Compressor || self == &Self::CircuitProver {
             if in_docker {
                 application_args.push("--gpus=all".to_string());
-            } else {
+            } else if self != &Self::CircuitProver {
                 application_args.push("--features=gpu".to_string());
             }
         }
@@ -160,6 +169,26 @@ impl ProverComponent {
                     ));
                 };
             }
+            Self::CircuitProver => {
+                if args.circuit_prover_args.max_allocation.is_some() {
+                    additional_args.push(format!(
+                        "--max-allocation={}",
+                        args.fri_prover_args.max_allocation.unwrap()
+                    ));
+                };
+                if args
+                    .circuit_prover_args
+                    .witness_vector_generator_count
+                    .is_some()
+                {
+                    additional_args.push(format!(
+                        "--witness-vector-generator-count={}",
+                        args.circuit_prover_args
+                            .witness_vector_generator_count
+                            .unwrap()
+                    ));
+                };
+            }
             _ => {}
         };
 
@@ -212,6 +241,37 @@ impl WitnessVectorGeneratorArgs {
 }
 
 #[derive(Debug, Clone, Parser, Default)]
+pub struct CircuitProverArgs {
+    #[clap(long)]
+    pub witness_vector_generator_count: Option<usize>,
+    #[clap(long)]
+    pub max_allocation: Option<usize>,
+}
+
+impl CircuitProverArgs {
+    pub fn fill_values_with_prompt(
+        self,
+        component: ProverComponent,
+    ) -> anyhow::Result<CircuitProverArgs> {
+        if component != ProverComponent::CircuitProver {
+            return Ok(Self::default());
+        }
+
+        let witness_vector_generator_count =
+            self.witness_vector_generator_count.unwrap_or_else(|| {
+                Prompt::new("Number of WVG jobs to run in parallel")
+                    .default("1")
+                    .ask()
+            });
+
+        Ok(CircuitProverArgs {
+            witness_vector_generator_count: Some(witness_vector_generator_count),
+            max_allocation: self.max_allocation,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Parser, Default)]
 pub struct FriProverRunArgs {
     /// Memory allocation limit in bytes (for prover component)
     #[clap(long)]
@@ -232,18 +292,26 @@ impl ProverRunArgs {
             .witness_vector_generator_args
             .fill_values_with_prompt(component)?;
 
+        let circuit_prover_args = self
+            .circuit_prover_args
+            .fill_values_with_prompt(component)?;
+
         let docker = self.docker.unwrap_or_else(|| {
             Prompt::new("Do you want to run Docker image for the component?")
                 .default("false")
                 .ask()
         });
 
+        let tag = self.tag.unwrap_or("latest2.0".to_string());
+
         Ok(ProverRunArgs {
             component: Some(component),
             witness_generator_args,
             witness_vector_generator_args,
             fri_prover_args: self.fri_prover_args,
+            circuit_prover_args,
             docker: Some(docker),
+            tag: Some(tag),
         })
     }
 }

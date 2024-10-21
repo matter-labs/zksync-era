@@ -15,15 +15,20 @@ use zksync_types::{Transaction, H256};
 
 use crate::{
     storage::StoragePtr, BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
+    PushTransactionResult, SystemEnv, VmExecutionMode, VmExecutionResultAndLogs,
 };
 
 pub trait VmInterface {
     /// Lifetime is used to be able to define `Option<&mut _>` as a dispatcher.
     type TracerDispatcher: Default;
 
-    /// Push transaction to bootloader memory.
-    fn push_transaction(&mut self, tx: Transaction);
+    /// Pushes a transaction to bootloader memory for future execution with bytecode compression (if it's supported by the VM).
+    ///
+    /// # Return value
+    ///
+    /// Returns preprocessing results, such as compressed bytecodes. The results may borrow from the VM state,
+    /// so you may want to inspect results before next operations with the VM, or clone the necessary parts.
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_>;
 
     /// Executes the next VM step (either next transaction or bootloader or the whole batch)
     /// with custom tracers.

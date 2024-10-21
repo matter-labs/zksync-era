@@ -105,7 +105,7 @@ impl CountInstructions for Fast {
         struct InstructionCount(usize);
 
         impl vm2::Tracer for InstructionCount {
-            fn before_instruction<OP: vm2::OpcodeType, S: vm2::StateInterface>(
+            fn before_instruction<OP: vm2::OpcodeType, S: vm2::GlobalStateInterface>(
                 &mut self,
                 _: &mut S,
             ) {

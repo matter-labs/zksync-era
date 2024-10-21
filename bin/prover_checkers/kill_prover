@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o pipefail
+
+# Use pkill to find and kill processes using circuit prover
+if ! pkill -f 'zksync_circuit_prover|zkstack prover run --component=circuit-prover'; then
+  echo "No processes are currently using the GPU."
+  exit 0
+fi
+
+echo "All GPU-related processes have been killed."
