@@ -88,7 +88,7 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
     } else {
         (L2ChainId::from(args.chain_id), None)
     };
-    let internal_id = ecosystem_config.list_of_chains().len() as u32;
+    let internal_id = args.number_of_chains;
 
     let chain_config = ChainConfig {
         id: internal_id,

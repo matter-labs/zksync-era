@@ -241,6 +241,7 @@ impl ChainCreateArgs {
             legacy_bridge: self.legacy_bridge,
             chain_path,
             era_chain_id,
+            number_of_chains,
         })
     }
 }
@@ -258,6 +259,7 @@ pub struct ChainCreateArgsFinal {
     pub legacy_bridge: bool,
     pub chain_path: PathBuf,
     pub era_chain_id: L2ChainId,
+    pub number_of_chains: u32,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
