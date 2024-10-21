@@ -27,26 +27,40 @@ fn create(
     ecosystem: &mut Option<EcosystemConfig>,
     shell: &Shell,
 ) -> anyhow::Result<()> {
-    let tokens = ecosystem
+    let possible_erc20 = ecosystem
         .as_ref()
         .map(|ecosystem| ecosystem.get_erc20_tokens())
-        .unwrap_or_default();
+        .unwrap_or(vec![]);
 
     let number_of_chains = ecosystem
         .as_ref()
         .map(|ecosystem| ecosystem.list_of_chains().len() as u32)
-        .unwrap_or_default();
+        .unwrap_or(0);
 
     let l1_network = ecosystem
         .as_ref()
         .map(|ecosystem| ecosystem.l1_network.clone());
+
+    let chains_path = ecosystem.as_ref().map(|ecosystem| ecosystem.chains.clone());
+    let era_chain_id = ecosystem
+        .as_ref()
+        .map(|ecosystem| ecosystem.era_chain_id)
+        .unwrap_or(get_default_era_chain_id());
 
     let link_to_code = ecosystem
         .as_ref()
         .map(|ecosystem| ecosystem.link_to_code.clone().display().to_string());
 
     let args = args
-        .fill_values_with_prompt(shell, number_of_chains, l1_network, tokens, link_to_code)
+        .fill_values_with_prompt(
+            shell,
+            number_of_chains,
+            l1_network,
+            possible_erc20,
+            link_to_code,
+            chains_path,
+            era_chain_id,
+        )
         .context(MSG_ARGS_VALIDATOR_ERR)?;
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&args));
@@ -77,11 +91,11 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
         logger::warn("WARNING!!! You are creating a chain with legacy bridge, use it only for testing compatibility")
     }
     let default_chain_name = args.chain_name.clone();
-    let chain_path = shell.current_dir(); // ecosystem_config.chains.join(&default_chain_name);
+    let chain_path = args.chain_path;
     let chain_configs_path = create_local_configs_dir(shell, &chain_path)?;
     let (chain_id, legacy_bridge) = if args.legacy_bridge {
         // Legacy bridge is distinguished by using the same chain id as ecosystem
-        (get_default_era_chain_id(), Some(true)) // (ecosystem_config.era_chain_id, Some(true))
+        (args.era_chain_id, Some(true))
     } else {
         (L2ChainId::from(args.chain_id), None)
     };

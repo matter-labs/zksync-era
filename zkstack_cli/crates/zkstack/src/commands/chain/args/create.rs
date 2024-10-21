@@ -12,7 +12,7 @@ use slugify_rs::slugify;
 use strum::{Display, EnumIter, IntoEnumIterator};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
-use zksync_basic_types::H160;
+use zksync_basic_types::{L2ChainId, H160};
 use zksync_config::GenesisConfig;
 
 use crate::{
@@ -88,11 +88,15 @@ impl ChainCreateArgs {
         l1_network: Option<L1Network>,
         possible_erc20: Vec<Erc20Token>,
         link_to_code: Option<String>,
+        chains_path: Option<PathBuf>,
+        era_chain_id: L2ChainId,
     ) -> anyhow::Result<ChainCreateArgsFinal> {
         let mut chain_name = self
             .chain_name
             .unwrap_or_else(|| Prompt::new(MSG_CHAIN_NAME_PROMPT).ask());
         chain_name = slugify!(&chain_name, separator = "_");
+
+        let chain_path = chains_path.unwrap_or_default().join(&chain_name);
 
         let chain_id = self
             .chain_id
@@ -270,6 +274,8 @@ impl ChainCreateArgs {
             legacy_bridge: self.legacy_bridge,
             evm_emulator,
             link_to_code,
+            chain_path,
+            era_chain_id,
         })
     }
 }
@@ -287,6 +293,8 @@ pub struct ChainCreateArgsFinal {
     pub legacy_bridge: bool,
     pub evm_emulator: bool,
     pub link_to_code: PathBuf,
+    pub chain_path: PathBuf,
+    pub era_chain_id: L2ChainId,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
