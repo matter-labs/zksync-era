@@ -1,4 +1,4 @@
-use std::{fs, fs::File, io::BufReader, path::PathBuf, thread, time::Duration};
+use std::{fs, fs::File, io::BufReader, path::PathBuf, time::Duration};
 
 use anyhow::Context;
 use common::{
@@ -37,7 +37,7 @@ struct Transaction {
 }
 
 lazy_static! {
-    static ref FINALIZE_ZK_TOKEN_WITHDRAWAL_INTERFACE: BaseContract = BaseContract::from(
+    static ref DEPLOY_AND_BRIDGE_ZK_TOKEN_INTERFACE: BaseContract = BaseContract::from(
         parse_abi(&[
             "function run() public",
             "function supplyEraWallet(address addr, uint256 amount) public",
@@ -62,7 +62,6 @@ fn find_latest_json_file(directory: &str) -> Option<PathBuf> {
 
 pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     // Setup
-
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
     let chain_name = global_config().chain_name.clone();
@@ -78,7 +77,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .expose_str()
         .to_string();
 
-    // let era_chain_id = era_chain_config.chain_id.0;
+    let era_chain_id = U256::from(chain_config.chain_id.0);
     let era_provider = Provider::<Http>::try_from(
         chain_config
             .get_general_config()
@@ -88,9 +87,6 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
             .web3_json_rpc
             .http_url,
     )?;
-
-    let era_chain_id = U256::from(chain_config.chain_id.0);
-
     let era_client: Client<L2> = Client::http(
         chain_config
             .get_general_config()
@@ -108,7 +104,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     let hash = call_script(
         shell,
         args.clone(),
-        &FINALIZE_ZK_TOKEN_WITHDRAWAL_INTERFACE
+        &DEPLOY_AND_BRIDGE_ZK_TOKEN_INTERFACE
             .encode(
                 "supplyEraWallet",
                 (
@@ -124,16 +120,13 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     .await?;
 
     println!("Pausing for 20 seconds after funding wallet...");
-    thread::sleep(Duration::from_secs(20));
+    tokio::time::sleep(tokio::time::Duration::from_secs(20)).await;
     println!("Resuming execution");
 
     // Call the `finalizeZkTokenWithdrawal` function using the extracted parameters
-    let calldata = FINALIZE_ZK_TOKEN_WITHDRAWAL_INTERFACE
+    let calldata = DEPLOY_AND_BRIDGE_ZK_TOKEN_INTERFACE
         .encode("run", ())
         .unwrap();
-
-    println!("Args {:?}", args.clone());
-    println!("Era chain config {:?}", chain_config);
 
     let tx_hash = call_script_era(
         shell,
@@ -148,37 +141,23 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     println!("ZK Token Deployed and Withdrawn to L1!");
 
     println!("Pausing for 20 seconds...");
-    thread::sleep(Duration::from_secs(20));
+    tokio::time::sleep(tokio::time::Duration::from_secs(20)).await;
     println!("Resuming execution");
 
     let directory = "contracts/l1-contracts/broadcast/DeployZKAndBridgeToL1.s.sol/271/";
-    // let latest_json_file = find_latest_json_file(directory)?;
-
-    // Define the path to the JSON file.
-    // let file_path = "contracts/l1-contracts/broadcast/DeployZKAndBridgeToL1.s.sol/271/run-latest.json";
     let file_path = find_latest_json_file(directory).ok_or(anyhow::anyhow!(
         "No file with `-latest.json` suffix found in the directory"
     ))?;
-
-    // Open the file and create a buffered reader.
     let file = File::open(file_path)?;
     let reader = BufReader::new(file);
-
-    // Deserialize the JSON data into the `JsonData` struct.
     let data: JsonData = serde_json::from_reader(reader)?;
-
-    // Get the last transaction hash.
     let tx_hash = if let Some(last_transaction) = data.transactions.last() {
         H256::from_slice(&hex::decode(&last_transaction.hash)?)
     } else {
         anyhow::bail!("No transactions found in the file.");
     };
 
-    println!("The last transaction hash is: {}", tx_hash);
-
     // Finalizing transaction
-    // let provider = Provider::<Http>::try_from("http://127.0.0.1:3052")?;
-
     println!("Withdrawal hash: {}", hex::encode(tx_hash));
     await_for_tx_to_complete(&era_provider, tx_hash).await?;
     await_for_withdrawal_to_finalize(&era_client, tx_hash).await?;
@@ -188,10 +167,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .get_finalize_withdrawal_params(tx_hash, 0)
         .await?;
 
-    // let params = ZKSProvider::get_finalize_withdrawal_params(&era_provider, tx_hash, 0).await?;
-
-    // Call the `finalizeZkTokenWithdrawal` function using the extracted parameters
-    let calldata = FINALIZE_ZK_TOKEN_WITHDRAWAL_INTERFACE
+    let calldata = DEPLOY_AND_BRIDGE_ZK_TOKEN_INTERFACE
         .encode(
             "finalizeZkTokenWithdrawal",
             (
@@ -215,10 +191,9 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     )
     .await?;
 
-    println!("ZK Token withdrawal finalization started! Tx hash");
+    println!("ZK Token withdrawal finalization started!");
 
-    // Call the `finalizeZkTokenWithdrawal` function using the extracted parameters
-    let calldata = FINALIZE_ZK_TOKEN_WITHDRAWAL_INTERFACE
+    let calldata = DEPLOY_AND_BRIDGE_ZK_TOKEN_INTERFACE
         .encode("saveL1Address", ())
         .unwrap();
 
