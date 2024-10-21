@@ -137,6 +137,7 @@ impl MockSettlementLayerInner {
             unimplemented!("Getting nonce for custom account is not supported");
         }
 
+        tracing::info!("Getting nonce for account {address:?} at block {block:?}, pending nonce: {}, current nonce: {}", self.pending_nonce, self.current_nonce);
         match block {
             web3::BlockNumber::Number(block_number) => {
                 let mut nonce_range = self.nonces.range(..=block_number.as_u64());

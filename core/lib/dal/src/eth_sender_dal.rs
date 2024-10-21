@@ -1,18 +1,16 @@
 use std::{convert::TryFrom, str::FromStr};
 
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
 use sqlx::types::chrono::{DateTime, Utc};
 use zksync_db_connection::{connection::Connection, interpolate_query, match_query_as};
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
-    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory, TxHistoryToSend},
+    eth_sender::{EthTx, EthTxBlobSidecar, TxHistory},
     Address, L1BatchNumber, H256, U256,
 };
 
 use crate::{
-    models::storage_eth_tx::{
-        L1BatchEthSenderStats, StorageEthTx, StorageTxHistory, StorageTxHistoryToSend,
-    },
+    models::storage_eth_tx::{L1BatchEthSenderStats, StorageEthTx, StorageTxHistory},
     Core,
 };
 
@@ -37,6 +35,7 @@ impl EthSenderDal<'_, '_> {
             WHERE
                 from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL
                 AND confirmed_eth_tx_history_id IS NULL
+                AND has_failed = FALSE
                 AND is_gateway = $2
                 AND id <= (
                     SELECT
@@ -71,6 +70,7 @@ impl EthSenderDal<'_, '_> {
                 eth_txs
             WHERE
                 confirmed_eth_tx_history_id IS NULL
+                AND has_failed = FALSE
                 AND is_gateway = FALSE
             "#
         )
@@ -194,33 +194,6 @@ impl EthSenderDal<'_, '_> {
         Ok(txs.into_iter().map(|tx| tx.into()).collect())
     }
 
-    pub async fn get_unsent_txs(&mut self) -> sqlx::Result<Vec<TxHistoryToSend>> {
-        let txs = sqlx::query_as!(
-            StorageTxHistoryToSend,
-            r#"
-            SELECT
-                eth_txs_history.id,
-                eth_txs_history.eth_tx_id,
-                eth_txs_history.tx_hash,
-                eth_txs_history.base_fee_per_gas,
-                eth_txs_history.priority_fee_per_gas,
-                eth_txs_history.signed_raw_tx,
-                eth_txs.nonce
-            FROM
-                eth_txs_history
-            JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id
-            WHERE
-                eth_txs_history.sent_at_block IS NULL
-                AND eth_txs.confirmed_eth_tx_history_id IS NULL
-            ORDER BY
-                eth_txs_history.id DESC
-            "#,
-        )
-        .fetch_all(self.storage.conn())
-        .await?;
-        Ok(txs.into_iter().map(|tx| tx.into()).collect())
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub async fn save_eth_tx(
         &mut self,
@@ -319,29 +292,6 @@ impl EthSenderDal<'_, '_> {
         .fetch_optional(self.storage.conn())
         .await?
         .map(|row| row.id as u32))
-    }
-
-    pub async fn set_sent_at_block(
-        &mut self,
-        eth_txs_history_id: u32,
-        sent_at_block: u32,
-    ) -> sqlx::Result<()> {
-        sqlx::query!(
-            r#"
-            UPDATE eth_txs_history
-            SET
-                sent_at_block = $2,
-                sent_at = NOW()
-            WHERE
-                id = $1
-                AND sent_at_block IS NULL
-            "#,
-            eth_txs_history_id as i32,
-            sent_at_block as i32
-        )
-        .execute(self.storage.conn())
-        .await?;
-        Ok(())
     }
 
     pub async fn remove_tx_history(&mut self, eth_txs_history_id: u32) -> sqlx::Result<()> {
@@ -686,24 +636,51 @@ impl EthSenderDal<'_, '_> {
         .context("count field is missing")
     }
 
-    pub async fn clear_failed_transactions(&mut self) -> sqlx::Result<()> {
+    pub async fn clear_failed_transactions(&mut self) -> anyhow::Result<()> {
+        // we don't allow in-flight txs as they might be confirmed on Ethereum, but not in db
+        if self.count_all_inflight_txs().await.unwrap() != 0 {
+            return Err(anyhow!(
+                "There are still some in-flight txs, cannot proceed. \
+            Please wait for eth-sender to process all in-flight txs and try again!"
+            ));
+        }
         sqlx::query!(
             r#"
             DELETE FROM eth_txs
-            WHERE
-                id >= (
-                    SELECT
-                        MIN(id)
-                    FROM
-                        eth_txs
-                    WHERE
-                        has_failed = TRUE
-                )
+            WHERE has_failed = TRUE
+            "#
+        )
+        .execute(self.storage.conn())
+        .await?;
+        // removing never sent txs just to be sure
+        sqlx::query!(
+            r#"
+            DELETE FROM eth_txs
+            WHERE confirmed_eth_tx_history_id IS NULL
             "#
         )
         .execute(self.storage.conn())
         .await?;
         Ok(())
+    }
+
+    pub async fn count_all_inflight_txs(&mut self) -> anyhow::Result<i64> {
+        sqlx::query!(
+            r#"
+            SELECT
+                COUNT(*)
+            FROM
+                eth_txs
+            WHERE
+                confirmed_eth_tx_history_id IS NULL
+                AND has_failed = FALSE
+                AND EXISTS (SELECT * FROM eth_txs_history WHERE eth_tx_id = eth_txs.id)
+            "#
+        )
+        .fetch_one(self.storage.conn())
+        .await?
+        .count
+        .context("count field is missing")
     }
 
     pub async fn delete_eth_txs(&mut self, last_batch_to_keep: L1BatchNumber) -> sqlx::Result<()> {
