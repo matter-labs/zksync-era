@@ -266,17 +266,6 @@ RUSTFLAGS as env var, or pass it in `config.toml` (either project level or globa
 rustflags = ["--cfg=no_cuda"]
 ```
 
-## Environment
-
-Edit the lines below and add them to your shell profile file (e.g. `~/.bash_profile`, `~/.zshrc`):
-
-```bash
-# Add path here:
-export ZKSYNC_HOME=/path/to/zksync
-
-export PATH=$ZKSYNC_HOME/bin:$PATH
-```
-
 ## Tips
 
 ### Tip: `mold`
