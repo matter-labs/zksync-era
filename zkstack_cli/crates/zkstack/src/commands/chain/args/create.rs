@@ -28,11 +28,11 @@ use crate::{
         MSG_CHAIN_ID_PROMPT, MSG_CHAIN_ID_VALIDATOR_ERR, MSG_CHAIN_NAME_PROMPT,
         MSG_EVM_EMULATOR_HASH_MISSING_ERR, MSG_EVM_EMULATOR_HELP, MSG_EVM_EMULATOR_PROMPT,
         MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT, MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP,
-        MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR, MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR,
-        MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT, MSG_SET_AS_DEFAULT_HELP,
-        MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLET_CREATION_HELP, MSG_WALLET_CREATION_PROMPT,
-        MSG_WALLET_CREATION_VALIDATOR_ERR, MSG_WALLET_PATH_HELP, MSG_WALLET_PATH_INVALID_ERR,
-        MSG_WALLET_PATH_PROMPT,
+        MSG_L1_NETWORK_HELP, MSG_L1_NETWORK_PROMPT, MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR,
+        MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR, MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT,
+        MSG_SET_AS_DEFAULT_HELP, MSG_SET_AS_DEFAULT_PROMPT, MSG_WALLET_CREATION_HELP,
+        MSG_WALLET_CREATION_PROMPT, MSG_WALLET_CREATION_VALIDATOR_ERR, MSG_WALLET_PATH_HELP,
+        MSG_WALLET_PATH_INVALID_ERR, MSG_WALLET_PATH_PROMPT,
     },
 };
 
@@ -78,6 +78,8 @@ pub struct ChainCreateArgs {
     pub(crate) legacy_bridge: bool,
     #[arg(long, help = MSG_EVM_EMULATOR_HELP, default_missing_value = "true", num_args = 0..=1)]
     evm_emulator: Option<bool>,
+    #[clap(long, help = MSG_L1_NETWORK_HELP, value_enum)]
+    pub l1_network: Option<L1Network>,
 }
 
 impl ChainCreateArgs {
@@ -85,7 +87,7 @@ impl ChainCreateArgs {
         self,
         shell: &Shell,
         number_of_chains: u32,
-        l1_network: &L1Network,
+        l1_network: Option<L1Network>,
         possible_erc20: Vec<Erc20Token>,
         link_to_code: &Path,
     ) -> anyhow::Result<ChainCreateArgsFinal> {
@@ -106,8 +108,14 @@ impl ChainCreateArgs {
                     .ask()
             });
 
+        let l1_network = l1_network.unwrap_or_else(|| {
+            self.l1_network.unwrap_or_else(|| {
+                PromptSelect::new(MSG_L1_NETWORK_PROMPT, L1Network::iter()).ask()
+            })
+        });
+
         let wallet_creation = if let Some(wallet) = self.wallet_creation {
-            if wallet == WalletCreation::Localhost && *l1_network != L1Network::Localhost {
+            if wallet == WalletCreation::Localhost && l1_network != L1Network::Localhost {
                 bail!(MSG_WALLET_CREATION_VALIDATOR_ERR);
             } else {
                 wallet
@@ -117,7 +125,7 @@ impl ChainCreateArgs {
                 MSG_WALLET_CREATION_PROMPT,
                 WalletCreation::iter().filter(|wallet| {
                     // Disable localhost wallets for external networks
-                    if *l1_network == L1Network::Localhost {
+                    if l1_network == L1Network::Localhost {
                         true
                     } else {
                         *wallet != WalletCreation::Localhost

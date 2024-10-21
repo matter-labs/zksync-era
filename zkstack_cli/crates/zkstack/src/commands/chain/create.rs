@@ -18,23 +18,40 @@ use crate::{
 };
 
 pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let mut ecosystem_config = EcosystemConfig::from_file(shell).ok();
     create(args, &mut ecosystem_config, shell)
 }
 
 fn create(
     args: ChainCreateArgs,
-    ecosystem_config: &mut EcosystemConfig,
+    ecosystem: &mut Option<EcosystemConfig>,
     shell: &Shell,
 ) -> anyhow::Result<()> {
-    let tokens = ecosystem_config.get_erc20_tokens();
+    let tokens = ecosystem
+        .as_ref()
+        .map(|ecosystem| ecosystem.get_erc20_tokens())
+        .unwrap_or_default();
+
+    let number_of_chains = ecosystem
+        .as_ref()
+        .map(|ecosystem| ecosystem.list_of_chains().len() as u32)
+        .unwrap_or_default();
+
+    let l1_network = ecosystem
+        .as_ref()
+        .map(|ecosystem| ecosystem.l1_network.clone());
+
+    let link_to_code = ecosystem
+        .as_ref()
+        .map(|ecosystem| ecosystem.link_to_code.clone());
+
     let args = args
         .fill_values_with_prompt(
             shell,
-            ecosystem_config.list_of_chains().len() as u32,
-            &ecosystem_config.l1_network,
+            number_of_chains,
+            l1_network,
             tokens,
-            &ecosystem_config.link_to_code,
+            &link_to_code.unwrap(),
         )
         .context(MSG_ARGS_VALIDATOR_ERR)?;
 
@@ -44,11 +61,16 @@ fn create(
     let spinner = Spinner::new(MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER);
     let name = args.chain_name.clone();
     let set_as_default = args.set_as_default;
-    create_chain_inner(args, ecosystem_config, shell)?;
-    if set_as_default {
-        ecosystem_config.default_chain = name;
-        ecosystem_config.save_with_base_path(shell, ".")?;
+
+    create_chain_inner(args, &ecosystem.clone().unwrap(), shell)?;
+
+    if let Some(ecosystem) = ecosystem.as_mut() {
+        if set_as_default {
+            ecosystem.default_chain = name;
+            ecosystem.save_with_base_path(shell, ".")?;
+        }
     }
+
     spinner.finish();
 
     logger::success(MSG_CHAIN_CREATED);

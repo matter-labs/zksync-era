@@ -74,7 +74,7 @@ impl EcosystemCreateArgs {
         let chain = self.chain.fill_values_with_prompt(
             shell,
             0,
-            &l1_network,
+            Some(l1_network),
             vec![],
             Path::new(&link_to_code),
         )?;
