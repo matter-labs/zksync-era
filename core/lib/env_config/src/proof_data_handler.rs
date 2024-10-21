@@ -10,6 +10,9 @@ impl FromEnv for ProofDataHandlerConfig {
 
 #[cfg(test)]
 mod tests {
+    use zksync_basic_types::L1BatchNumber;
+    use zksync_config::configs::TeeConfig;
+
     use super::*;
     use crate::test_utils::EnvMutex;
 
@@ -19,7 +22,10 @@ mod tests {
         ProofDataHandlerConfig {
             http_port: 3320,
             proof_generation_timeout_in_secs: 18000,
-            tee_support: true,
+            tee_config: TeeConfig {
+                tee_support: true,
+                first_tee_processed_batch: L1BatchNumber(1337),
+            },
         }
     }
 
@@ -29,6 +35,7 @@ mod tests {
             PROOF_DATA_HANDLER_PROOF_GENERATION_TIMEOUT_IN_SECS="18000"
             PROOF_DATA_HANDLER_HTTP_PORT="3320"
             PROOF_DATA_HANDLER_TEE_SUPPORT="true"
+            PROOF_DATA_HANDLER_FIRST_TEE_PROCESSED_BATCH="1337"
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);
