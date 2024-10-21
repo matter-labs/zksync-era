@@ -95,7 +95,7 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
         name: default_chain_name.clone(),
         chain_id,
         prover_version: args.prover_version,
-        l1_network: ecosystem_config.l1_network,
+        l1_network: args.l1_network,
         link_to_code: ecosystem_config.link_to_code.clone(),
         rocks_db_path: ecosystem_config.get_chain_rocks_db_path(&default_chain_name),
         artifacts: ecosystem_config.get_chain_artifacts_path(&default_chain_name),
