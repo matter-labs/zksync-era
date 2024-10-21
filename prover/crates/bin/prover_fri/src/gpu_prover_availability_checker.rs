@@ -9,7 +9,7 @@ pub mod availability_checker {
 
     use crate::metrics::{KillingReason, METRICS};
 
-    /// Availability checker is a task that periodically checks the status of the prover instance in the database.
+    /// Availability checker is a task_wiring that periodically checks the status of the prover instance in the database.
     /// If the prover instance is not found in the database or marked as dead, the availability checker will shut down the prover.
     pub struct AvailabilityChecker {
         address: SocketAddress,
@@ -59,7 +59,7 @@ pub mod availability_checker {
                             self.address,
                             self.zone
                         );
-                        // After returning from the task, it will shut down all the other tasks
+                        // After returning from the task_wiring, it will shut down all the other tasks
                         return Ok(());
                     }
                     Some(GpuProverInstanceStatus::Dead) => {
@@ -69,7 +69,7 @@ pub mod availability_checker {
                             self.address,
                             self.zone
                         );
-                        // After returning from the task, it will shut down all the other tasks
+                        // After returning from the task_wiring, it will shut down all the other tasks
                         return Ok(());
                     }
                     Some(_) => (),

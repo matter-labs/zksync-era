@@ -4,8 +4,8 @@ use zksync_prover_dal::{Connection, Prover, ProverDal};
 
 use crate::{metrics::HOUSE_KEEPER_METRICS, task_wiring::Task};
 
-/// `GpuProverArchiver` is a task that archives old fri GPU provers.
-/// The task will archive the `dead` prover records that have not been updated for a certain amount of time.
+/// `GpuProverArchiver` is a task_wiring that archives old fri GPU provers.
+/// The task_wiring will archive the `dead` prover records that have not been updated for a certain amount of time.
 /// Note: This component speeds up provers, in their absence, queries would slow down due to state growth.
 #[derive(Debug)]
 pub struct GpuProverArchiver {
