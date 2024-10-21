@@ -311,7 +311,11 @@ impl Keystore {
     pub fn load_compression_wrapper_setup_data(
         &self,
     ) -> anyhow::Result<GpuProverSetupData<CompressionTreeHasherForWrapper>> {
-        let filepath = self.get_file_path(key, ProverServiceDataType::CompressionWrapper);
+        let filepath = self.get_file_path(
+            // todo: this is a stub and I believe it should be reworked
+            ProverServiceDataKey::snark(),
+            ProverServiceDataType::CompressionWrapper,
+        );
 
         let mut file = File::open(filepath.clone())
             .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
