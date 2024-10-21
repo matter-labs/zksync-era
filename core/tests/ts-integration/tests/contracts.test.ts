@@ -107,7 +107,6 @@ describe('Smart contract behavior checks', () => {
         // await expect(infiniteLoop.callStatic.infiniteLoop()).toBeRejected('cannot estimate transaction: out of gas');
         // ...and then an actual transaction
         await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000, gasPrice })).toBeReverted([]);
-        // await expect(infiniteLoop.infiniteLoop({ gasLimit: 1_000_000, gasPrice })).toBeRevertedEstimateGas();
     });
 
     test('Should test reverting storage logs', async () => {

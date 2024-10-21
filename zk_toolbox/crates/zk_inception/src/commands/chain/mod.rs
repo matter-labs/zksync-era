@@ -3,7 +3,7 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::Subcommand;
 pub(crate) use create::create_chain_inner;
-use migrate_from_gateway::MigrateToGatewayArgs as MigrateFromGatewayArgs;
+use migrate_from_gateway::MigrateFromGatewayArgs;
 use migrate_to_gateway::MigrateToGatewayArgs;
 use xshell::Shell;
 
@@ -17,9 +17,9 @@ mod build_transactions;
 mod common;
 mod convert_to_gateway;
 mod create;
+mod deploy_and_bridge_zk;
 pub mod deploy_l2_contracts;
 pub mod deploy_paymaster;
-mod deploy_and_bridge_zk;
 pub mod genesis;
 pub(crate) mod init;
 mod migrate_from_gateway;
@@ -59,7 +59,7 @@ pub enum ChainCommands {
     MigrateToGateway(MigrateToGatewayArgs),
     /// Migrate chain from gateway
     MigrateFromGateway(MigrateFromGatewayArgs),
-    /// Deploy ZK token on Era and bridge it to L1q
+    /// Deploy ZK token on Era and bridge it to L1
     DeployAndBridgeZK(ForgeScriptArgs),
 }
 
