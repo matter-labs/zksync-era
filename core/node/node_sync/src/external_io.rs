@@ -476,3 +476,97 @@ impl StateKeeperIO for ExternalIO {
         Ok(hash)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use zksync_dal::{ConnectionPool, CoreDal};
+    use zksync_node_genesis::{insert_genesis_batch, GenesisParams};
+    use zksync_state_keeper::{io::L1BatchParams, L2BlockParams, StateKeeperIO};
+    use zksync_types::{
+        api, fee_model::BatchFeeInput, L1BatchNumber, L2BlockNumber, L2ChainId, ProtocolVersionId,
+        H256,
+    };
+
+    use crate::{sync_action::SyncAction, testonly::MockMainNodeClient, ActionQueue, ExternalIO};
+
+    #[tokio::test]
+    async fn insert_batch_with_protocol_version() {
+        // Whenever ExternalIO inserts an unsealed batch into DB it should populate it with protocol
+        // version and make sure that it is present in the DB (i.e. fetch it from main node if not).
+        let pool = ConnectionPool::test_pool().await;
+        let mut conn = pool.connection().await.unwrap();
+        insert_genesis_batch(&mut conn, &GenesisParams::mock())
+            .await
+            .unwrap();
+        let (actions_sender, action_queue) = ActionQueue::new();
+        let mut client = MockMainNodeClient::default();
+        let next_protocol_version = api::ProtocolVersion {
+            minor_version: Some(ProtocolVersionId::next() as u16),
+            timestamp: 1,
+            bootloader_code_hash: Some(H256::repeat_byte(1)),
+            default_account_code_hash: Some(H256::repeat_byte(1)),
+            evm_emulator_code_hash: Some(H256::repeat_byte(1)),
+            ..api::ProtocolVersion::default()
+        };
+        client.insert_protocol_version(next_protocol_version.clone());
+        let mut external_io = ExternalIO::new(
+            pool.clone(),
+            action_queue,
+            Box::new(client),
+            L2ChainId::default(),
+        )
+        .unwrap();
+
+        let (cursor, _) = external_io.initialize().await.unwrap();
+        let params = L1BatchParams {
+            protocol_version: ProtocolVersionId::next(),
+            validation_computational_gas_limit: u32::MAX,
+            operator_address: Default::default(),
+            fee_input: BatchFeeInput::pubdata_independent(2, 3, 4),
+            first_l2_block: L2BlockParams {
+                timestamp: 1,
+                virtual_blocks: 1,
+            },
+        };
+        actions_sender
+            .push_action_unchecked(SyncAction::OpenBatch {
+                params: params.clone(),
+                number: L1BatchNumber(1),
+                first_l2_block_number: L2BlockNumber(1),
+            })
+            .await
+            .unwrap();
+        let fetched_params = external_io
+            .wait_for_new_batch_params(&cursor, Duration::from_secs(10))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(fetched_params, params);
+
+        // Verify that the next protocol version is in DB
+        let fetched_protocol_version = conn
+            .protocol_versions_dal()
+            .get_protocol_version_with_latest_patch(ProtocolVersionId::next())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            fetched_protocol_version.version.minor as u16,
+            next_protocol_version.minor_version.unwrap()
+        );
+
+        // Verify that the unsealed batch has protocol version
+        let unsealed_batch = conn
+            .blocks_dal()
+            .get_unsealed_l1_batch()
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            unsealed_batch.protocol_version,
+            Some(fetched_protocol_version.version.minor)
+        );
+    }
+}
