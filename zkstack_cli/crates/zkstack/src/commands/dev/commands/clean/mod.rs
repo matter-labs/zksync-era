@@ -5,8 +5,7 @@ use config::{EcosystemConfig, DOCKER_COMPOSE_FILE};
 use xshell::Shell;
 
 use crate::commands::dev::messages::{
-    MSG_CONTRACTS_CLEANING, MSG_CONTRACTS_CLEANING_FINISHED, MSG_DOCKER_COMPOSE_CLEANED,
-    MSG_DOCKER_COMPOSE_DOWN, MSG_DOCKER_COMPOSE_REMOVE_VOLUMES,
+    MSG_CONTRACTS_CLEANING, MSG_CONTRACTS_CLEANING_FINISHED, MSG_DOCKER_COMPOSE_DOWN,
 };
 
 #[derive(Subcommand, Debug)]
@@ -35,9 +34,6 @@ pub fn run(shell: &Shell, args: CleanCommands) -> anyhow::Result<()> {
 pub fn containers(shell: &Shell) -> anyhow::Result<()> {
     logger::info(MSG_DOCKER_COMPOSE_DOWN);
     docker::down(shell, DOCKER_COMPOSE_FILE)?;
-    logger::info(MSG_DOCKER_COMPOSE_REMOVE_VOLUMES);
-    shell.remove_path("volumes")?;
-    logger::info(MSG_DOCKER_COMPOSE_CLEANED);
     Ok(())
 }
 

@@ -1,4 +1,3 @@
-version: '3.2'
 name: unit_tests
 services:
   # An instance of postgres configured to execute Rust unit-tests, tuned for performance.

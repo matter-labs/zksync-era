@@ -157,9 +157,7 @@ pub(super) const MSG_UPGRADE_TEST_RUN_INFO: &str = "Running upgrade test";
 pub(super) const MSG_UPGRADE_TEST_RUN_SUCCESS: &str = "Upgrade test ran successfully";
 
 // Cleaning related messages
-pub(super) const MSG_DOCKER_COMPOSE_DOWN: &str = "docker compose down";
-pub(super) const MSG_DOCKER_COMPOSE_REMOVE_VOLUMES: &str = "docker compose remove volumes";
-pub(super) const MSG_DOCKER_COMPOSE_CLEANED: &str = "docker compose network cleaned";
+pub(super) const MSG_DOCKER_COMPOSE_DOWN: &str = "docker compose down -v";
 pub(super) const MSG_CONTRACTS_CLEANING: &str =
     "Removing contracts building and deployment artifacts";
 pub(super) const MSG_CONTRACTS_CLEANING_FINISHED: &str =
