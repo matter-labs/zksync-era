@@ -6,3 +6,12 @@ pub enum MemStoreError {
     IncorrectCommitment,
     BlobNotFound,
 }
+
+#[derive(Debug)]
+pub enum EigenDAError {
+    TlsError,
+    UriError,
+    ConnectionError,
+    PutError,
+    GetError,
+}
