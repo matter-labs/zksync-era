@@ -6,6 +6,6 @@ api:
     estimate_gas_optimize_search: true
 experimental_vm:
   state_keeper_fast_vm_mode: NEW
-  api_fast_vm_mode_for_gas_estimation: NEW
+  api_fast_vm_mode: NEW
 mempool:
   delay_interval: 50

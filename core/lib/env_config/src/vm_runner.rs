@@ -55,7 +55,7 @@ mod tests {
         let mut lock = MUTEX.lock();
         let config = r#"
             EXPERIMENTAL_VM_STATE_KEEPER_FAST_VM_MODE=new
-            EXPERIMENTAL_VM_API_FAST_VM_MODE_FOR_GAS_ESTIMATION=shadow
+            EXPERIMENTAL_VM_API_FAST_VM_MODE=shadow
             EXPERIMENTAL_VM_PLAYGROUND_FAST_VM_MODE=shadow
             EXPERIMENTAL_VM_PLAYGROUND_DB_PATH=/db/vm_playground
             EXPERIMENTAL_VM_PLAYGROUND_FIRST_PROCESSED_BATCH=123
