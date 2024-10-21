@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use zksync_config::configs::chain::StateKeeperConfig;
+use zksync_config::configs::chain::{FeeModelVersion, StateKeeperConfig};
 use zksync_node_fee_model::{ApiFeeInputProvider, MainNodeFeeInputProvider};
-use zksync_types::fee_model::FeeModelConfig;
+use zksync_types::fee_model::{FeeModelConfig, FeeModelConfigV1, FeeModelConfigV2};
 
 use crate::{
     implementations::resources::{
@@ -20,7 +20,7 @@ use crate::{
 /// Adds several resources that depend on L1 gas price.
 #[derive(Debug)]
 pub struct L1GasLayer {
-    state_keeper_config: StateKeeperConfig,
+    fee_model_config: FeeModelConfig,
 }
 
 #[derive(Debug, FromContext)]
@@ -42,9 +42,25 @@ pub struct Output {
 }
 
 impl L1GasLayer {
-    pub fn new(state_keeper_config: StateKeeperConfig) -> Self {
+    pub fn new(state_keeper_config: &StateKeeperConfig) -> Self {
         Self {
-            state_keeper_config,
+            fee_model_config: Self::map_config(state_keeper_config),
+        }
+    }
+
+    fn map_config(state_keeper_config: &StateKeeperConfig) -> FeeModelConfig {
+        match state_keeper_config.fee_model_version {
+            FeeModelVersion::V1 => FeeModelConfig::V1(FeeModelConfigV1 {
+                minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
+            }),
+            FeeModelVersion::V2 => FeeModelConfig::V2(FeeModelConfigV2 {
+                minimal_l2_gas_price: state_keeper_config.minimal_l2_gas_price,
+                compute_overhead_part: state_keeper_config.compute_overhead_part,
+                pubdata_overhead_part: state_keeper_config.pubdata_overhead_part,
+                batch_overhead_l1_gas: state_keeper_config.batch_overhead_l1_gas,
+                max_gas_per_batch: state_keeper_config.max_gas_per_batch,
+                max_pubdata_per_batch: state_keeper_config.max_pubdata_per_batch,
+            }),
         }
     }
 }
@@ -64,7 +80,7 @@ impl WiringLayer for L1GasLayer {
         let main_fee_input_provider = Arc::new(MainNodeFeeInputProvider::new(
             input.gas_adjuster.0.clone(),
             ratio_provider.0,
-            FeeModelConfig::from_state_keeper_config(&self.state_keeper_config),
+            self.fee_model_config,
         ));
 
         let replica_pool = input.replica_pool.get().await?;

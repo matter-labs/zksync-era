@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use once_cell::sync::Lazy;
 use zksync_contracts::{
     load_sys_contract, read_bootloader_code, read_bytecode_from_path, read_sys_contract_bytecode,
-    read_zbin_bytecode, BaseSystemContracts, ContractLanguage, SystemContractCode,
+    read_yul_bytecode, BaseSystemContracts, ContractLanguage, SystemContractCode,
 };
 use zksync_multivm::{
     interface::{
@@ -176,10 +176,10 @@ fn read_bootloader_test_code(test: &str) -> Vec<u8> {
     )){
         contract
     } else  {
-        read_zbin_bytecode(format!(
-            "contracts/system-contracts/bootloader/tests/artifacts/{}.yul.zbin",
+        read_yul_bytecode(
+            "contracts/system-contracts/bootloader/tests/artifacts",
             test
-        ))
+        )
     }
 }
 
