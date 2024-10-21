@@ -323,7 +323,7 @@ impl Keystore {
         file.read_to_end(&mut buffer).with_context(|| {
             format!("Failed reading setup-data to buffer from path: {filepath:?}")
         })?;
-        tracing::info!("loading {:?} setup data from path: {:?}", key, filepath);
+        tracing::info!("loading setup data from path: {:?}", filepath);
         bincode::deserialize::<GpuProverSetupData<CompressionTreeHasherForWrapper>>(&buffer)
             .with_context(|| {
                 format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
