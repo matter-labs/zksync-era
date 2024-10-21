@@ -25,11 +25,10 @@ zkstackup --local
 >
 > `alias zkstackup='zkstackup --path $ZKSYNC_HOME'`
 
-This command installs `zkstack` from the current source directory. 
+This command installs `zkstack` from the current source directory.
 
-> Whenever you want to update you local installation
-> with your changes, just rerun:
-> 
+> Whenever you want to update you local installation with your changes, just rerun:
+>
 > ```bash
 > zkstackup --local
 > ```
