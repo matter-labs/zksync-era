@@ -12,7 +12,7 @@ Since the 'call' method is only for reading data, all the calculations will happ
 ### Calling the 'call' method
 
 If you need to make calls quickly, you can use the 'cast' binary from the
-[foundry](https://github.com/foundry-rs/foundry) suite:
+[Foundry ZKsync](https://foundry-book.zksync.io/getting-started/installation) suite:
 
 ```shell=
 cast call 0x23DF7589897C2C9cBa1C3282be2ee6a938138f10 "myfunction()()" --rpc-url http://localhost:3050

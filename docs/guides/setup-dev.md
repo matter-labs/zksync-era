@@ -45,9 +45,9 @@ cargo install cargo-nextest
 # SQL tools
 cargo install sqlx-cli --version 0.8.1
 
-# Foundry
-curl -L https://foundry.paradigm.xyz | bash
-foundryup --branch master
+# Foundry ZKsync
+curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
+foundryup-zksync --branch master
 
 # Non CUDA (GPU) setup, can be skipped if the machine has a CUDA installed for provers
 # Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
@@ -236,10 +236,10 @@ enable nix-ld.
 
 Go to the zksync folder and run `nix develop`. After it finishes, you are in a shell that has all the dependencies.
 
-## Foundry
+## Foundry ZKsync
 
-[Foundry](https://book.getfoundry.sh/getting-started/installation) can be utilized for deploying smart contracts. For
-commands related to deployment, you can pass flags for Foundry integration.
+[Foundry ZKsync](https://foundry-book.zksync.io/getting-started/installation) can be utilized for deploying smart
+contracts. For commands related to deployment, you can pass flags for Foundry integration.
 
 ## Non-GPU setup
 
@@ -264,17 +264,6 @@ RUSTFLAGS as env var, or pass it in `config.toml` (either project level or globa
 ```toml
 [build]
 rustflags = ["--cfg=no_cuda"]
-```
-
-## Environment
-
-Edit the lines below and add them to your shell profile file (e.g. `~/.bash_profile`, `~/.zshrc`):
-
-```bash
-# Add path here:
-export ZKSYNC_HOME=/path/to/zksync
-
-export PATH=$ZKSYNC_HOME/bin:$PATH
 ```
 
 ## Tips
