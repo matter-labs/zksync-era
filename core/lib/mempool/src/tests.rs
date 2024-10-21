@@ -374,7 +374,7 @@ fn mempool_does_not_purge_all_accounts() {
         gen_l2_tx(account0, Nonce(1)),
         gen_l2_tx(account1, Nonce(1)),
     ];
-    mempool.insert(transactions, HashMap::new());
+    mempool.insert_without_constraints(transactions, HashMap::new());
     // Mempool is full. Account 1 has tx with non-sequential nonce so it should be purged.
     // Txs from account 0 have sequential nonces but their number is greater than capacity; they should be kept.
     assert_eq!(mempool.get_mempool_info().purged_accounts, vec![account1]);
