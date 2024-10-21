@@ -10645,7 +10645,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "bigdecimal",
  "test-casing",
  "tokio",
  "tracing",
@@ -10654,7 +10653,6 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_types",
- "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -11235,7 +11233,6 @@ dependencies = [
  "once_cell",
  "prost 0.12.6",
  "rlp",
- "secp256k1",
  "serde",
  "serde_json",
  "serde_with",
@@ -11244,7 +11241,6 @@ dependencies = [
  "tokio",
  "tracing",
  "zksync_basic_types",
- "zksync_config",
  "zksync_contracts",
  "zksync_crypto_primitives",
  "zksync_mini_merkle_tree",

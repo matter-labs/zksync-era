@@ -29,6 +29,7 @@ pub mod commitment;
 pub mod network;
 pub mod protocol_version;
 pub mod prover_dal;
+pub mod pubdata_da;
 pub mod seed_phrase;
 pub mod settlement;
 pub mod tee_types;
