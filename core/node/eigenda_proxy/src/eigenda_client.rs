@@ -21,10 +21,6 @@ pub struct EigenDAClient {
 }
 
 impl EigenDAClient {
-    pub const BLOB_SIZE_LIMIT_IN_BYTES: usize = 2 * 1024 * 1024; // 2MB todo: add to config
-    pub const STATUS_QUERY_TIMEOUT: u64 = 1800; // 30 minutes todo: add to config
-    pub const STATUS_QUERY_RETRY_INTERVAL: u64 = 5; // 5 seconds todo: add to config
-    pub const WAIT_FOR_FINALAZATION: bool = false; // todo: add to config
     pub async fn new(config: DisperserConfig) -> Result<Self, EigenDAError> {
         match rustls::crypto::ring::default_provider().install_default() {
             Ok(_) => {}
@@ -63,6 +59,9 @@ impl EigenDAClient {
 
     pub async fn put_blob(&self, blob_data: Vec<u8>) -> Result<Vec<u8>, EigenDAError> {
         println!("Putting blob");
+        if blob_data.len() > self.config.blob_size_limit as usize {
+            return Err(EigenDAError::PutError);
+        }
         let reply = self
             .disperser
             .lock()
@@ -87,9 +86,9 @@ impl EigenDAClient {
         let request_id_str =
             String::from_utf8(reply.request_id.clone()).map_err(|_| EigenDAError::PutError)?;
 
-        let mut interval = interval(Duration::from_secs(Self::STATUS_QUERY_RETRY_INTERVAL));
+        let mut interval = interval(Duration::from_secs(self.config.status_query_interval));
         let start_time = Instant::now();
-        while Instant::now() - start_time < Duration::from_secs(Self::STATUS_QUERY_TIMEOUT) {
+        while Instant::now() - start_time < Duration::from_secs(self.config.status_query_timeout) {
             let blob_status_reply = self
                 .disperser
                 .lock()
@@ -116,7 +115,7 @@ impl EigenDAClient {
                     interval.tick().await;
                 }
                 disperser::BlobStatus::Confirmed => {
-                    if Self::WAIT_FOR_FINALAZATION {
+                    if self.config.wait_for_finalization {
                         interval.tick().await;
                     } else {
                         match blob_status_reply.info {
@@ -190,7 +189,7 @@ mod test {
     use super::*;
 
     #[tokio::test]
-    async fn test_eigenda_proxy() {
+    async fn test_eigenda_client() {
         let config = DisperserConfig {
             api_node_url: "".to_string(),
             custom_quorum_numbers: Some(vec![]),
@@ -199,6 +198,10 @@ mod test {
             eth_confirmation_depth: -1,
             eigenda_eth_rpc: "".to_string(),
             eigenda_svc_manager_addr: "".to_string(),
+            blob_size_limit: 2 * 1024 * 1024, // 2MB
+            status_query_timeout: 1800,       // 30 minutes
+            status_query_interval: 5,         // 5 seconds
+            wait_for_finalization: false,
         };
         let store = match EigenDAClient::new(config).await {
             Ok(store) => store,
@@ -221,6 +224,10 @@ mod test {
             eth_confirmation_depth: -1,
             eigenda_eth_rpc: "".to_string(),
             eigenda_svc_manager_addr: "".to_string(),
+            blob_size_limit: 2 * 1024 * 1024, // 2MB
+            status_query_timeout: 1800,       // 30 minutes
+            status_query_interval: 5,         // 5 seconds
+            wait_for_finalization: false,
         };
         let store = match EigenDAClient::new(config).await {
             Ok(store) => store,
@@ -236,5 +243,30 @@ mod test {
         let blob_result2 = store.get_blob(val2.unwrap()).await.unwrap();
         assert_eq!(blob, blob_result);
         assert_eq!(blob2, blob_result2);
+    }
+
+    #[tokio::test]
+    async fn test_eigenda_blob_size_limit() {
+        let config = DisperserConfig {
+            api_node_url: "".to_string(),
+            custom_quorum_numbers: Some(vec![]),
+            account_id: Some("".to_string()),
+            disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
+            eth_confirmation_depth: -1,
+            eigenda_eth_rpc: "".to_string(),
+            eigenda_svc_manager_addr: "".to_string(),
+            blob_size_limit: 2,         // 2MB
+            status_query_timeout: 1800, // 30 minutes
+            status_query_interval: 5,   // 5 seconds
+            wait_for_finalization: false,
+        };
+        let store = match EigenDAClient::new(config).await {
+            Ok(store) => store,
+            Err(e) => panic!("Failed to create EigenDAProxyClient {:?}", e),
+        };
+
+        let blob = vec![0u8; 3];
+        let cert = store.put_blob(blob.clone()).await;
+        assert!(cert.is_err());
     }
 }

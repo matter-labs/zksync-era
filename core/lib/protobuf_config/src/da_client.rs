@@ -77,6 +77,18 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                             eigenda_svc_manager_addr: required(&conf.eigenda_svc_manager_addr)
                                 .context("eigenda_svc_manager_addr")?
                                 .clone(),
+                            blob_size_limit: required(&conf.blob_size_limit)
+                                .context("blob_size_limit")?
+                                .clone(),
+                            status_query_timeout: required(&conf.status_query_timeout)
+                                .context("status_query_timeout")?
+                                .clone(),
+                            status_query_interval: required(&conf.status_query_interval)
+                                .context("status_query_interval")?
+                                .clone(),
+                            wait_for_finalization: required(&conf.wait_for_finalization)
+                                .context("wait_for_finalization")?
+                                .clone(),
                         })
                     }
                 };
@@ -143,6 +155,10 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                                     eigenda_svc_manager_addr: Some(
                                         config.eigenda_svc_manager_addr.clone(),
                                     ),
+                                    blob_size_limit: Some(config.blob_size_limit),
+                                    status_query_timeout: Some(config.status_query_timeout),
+                                    status_query_interval: Some(config.status_query_interval),
+                                    wait_for_finalization: Some(config.wait_for_finalization),
                                 },
                             )),
                         },
