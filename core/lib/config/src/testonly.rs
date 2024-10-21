@@ -669,6 +669,7 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
         configs::ProofDataHandlerConfig {
             http_port: self.sample(rng),
             proof_generation_timeout_in_secs: self.sample(rng),
+            tee_proof_generation_timeout_in_secs: self.sample(rng),
             tee_support: self.sample(rng),
         }
     }
