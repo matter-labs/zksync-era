@@ -40,7 +40,7 @@ impl HttpTest for SnapshotBasicsTest {
             &[execute_l2_transaction(create_l2_transaction(1, 2))],
         )
         .await?;
-        seal_l1_batch(&mut storage, L1BatchNumber(1)).await?;
+        seal_l1_batch(&mut storage, L1BatchNumber(1), None).await?;
         storage
             .snapshots_dal()
             .add_snapshot(
