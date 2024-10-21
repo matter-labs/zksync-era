@@ -28,6 +28,8 @@ use crate::{
     vm_latest::HistoryEnabled,
 };
 
+mod tests;
+
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;
 type ShadowedFastVm<S = InMemoryStorage> = crate::vm_instance::ShadowedFastVm<S>;
 

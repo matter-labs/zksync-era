@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod shadow;
 mod shared;
 #[cfg(test)]
 mod testonly;

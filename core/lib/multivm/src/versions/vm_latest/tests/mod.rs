@@ -14,7 +14,7 @@ use crate::{
         storage::{InMemoryStorage, ReadStorage, StorageView, WriteStorage},
         CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
-    versions::testonly::TestedVm,
+    versions::testonly::{filter_out_base_system_contracts, TestedVm},
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{event_sink::InMemoryEventSink, history_recorder::HistoryRecorder},
@@ -104,13 +104,16 @@ impl TestedVm for TestedLatestVm {
     }
 
     fn known_bytecode_hashes(&self) -> HashSet<U256> {
-        self.state
+        let mut bytecode_hashes: HashSet<_> = self
+            .state
             .decommittment_processor
             .known_bytecodes
             .inner()
             .keys()
             .copied()
-            .collect()
+            .collect();
+        filter_out_base_system_contracts(&mut bytecode_hashes);
+        bytecode_hashes
     }
 
     fn manually_decommit(&mut self, code_hash: H256) -> bool {
