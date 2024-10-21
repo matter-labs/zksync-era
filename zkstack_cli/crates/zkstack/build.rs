@@ -51,7 +51,7 @@ fn configure_shell_autocompletion() -> anyhow::Result<()> {
         std::fs::copy(src, dst)?;
 
         shell
-            .autocomplete_extra()
+            .configure_autocomplete()
             .context("failed to run extra configuration requirements")?;
     }
 
@@ -61,7 +61,8 @@ fn configure_shell_autocompletion() -> anyhow::Result<()> {
 pub trait ShellAutocomplete {
     fn autocomplete_folder(&self) -> anyhow::Result<PathBuf>;
     fn autocomplete_file_name(&self) -> anyhow::Result<String>;
-    fn autocomplete_extra(&self) -> anyhow::Result<()>;
+    /// Extra steps required for shells enable command autocomplete.
+    fn configure_autocomplete(&self) -> anyhow::Result<()>;
 }
 
 impl ShellAutocomplete for clap_complete::Shell {
@@ -87,7 +88,7 @@ impl ShellAutocomplete for clap_complete::Shell {
         }
     }
 
-    fn autocomplete_extra(&self) -> anyhow::Result<()> {
+    fn configure_autocomplete(&self) -> anyhow::Result<()> {
         match self {
             clap_complete::Shell::Bash | clap_complete::Shell::Zsh => {
                 let shell = &self.to_string().to_lowercase();
