@@ -13,6 +13,6 @@ pub struct RevertArgs {
     pub external_node: bool,
     #[clap(short, long, help = MSG_NO_DEPS_HELP)]
     pub no_deps: bool,
-    #[clap(short, long, help = MSG_NO_KILL_HELP)]
+    #[clap(long, help = MSG_NO_KILL_HELP)]
     pub no_kill: bool,
 }

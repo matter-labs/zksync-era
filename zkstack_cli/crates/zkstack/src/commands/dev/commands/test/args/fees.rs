@@ -7,6 +7,6 @@ use crate::commands::dev::messages::{MSG_NO_DEPS_HELP, MSG_NO_KILL_HELP};
 pub struct FeesArgs {
     #[clap(short, long, help = MSG_NO_DEPS_HELP)]
     pub no_deps: bool,
-    #[clap(short, long, help = MSG_NO_KILL_HELP)]
+    #[clap(long, help = MSG_NO_KILL_HELP)]
     pub no_kill: bool,
 }

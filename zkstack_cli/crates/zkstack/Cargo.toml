@@ -14,10 +14,12 @@ keywords.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 clap.workspace = true
+clap_complete.workspace = true
 clap-markdown.workspace = true
 cliclack.workspace = true
 common.workspace = true
 config.workspace = true
+dirs.workspace = true
 ethers.workspace = true
 futures.workspace = true
 human-panic.workspace = true
@@ -49,6 +51,8 @@ rand.workspace = true
 zksync_consensus_utils.workspace = true
 
 [build-dependencies]
-eyre.workspace = true
+anyhow.workspace = true
+clap_complete.workspace = true
+dirs.workspace = true
 ethers.workspace = true
 zksync_protobuf_build.workspace = true
