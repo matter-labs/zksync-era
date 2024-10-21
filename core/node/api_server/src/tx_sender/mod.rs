@@ -32,7 +32,6 @@ use zksync_types::{
 use zksync_utils::h256_to_u256;
 use zksync_vm_executor::oneshot::{
     CallOrExecute, EstimateGas, MultiVMBaseSystemContracts, OneshotEnvParameters,
-    OneshotExecutorVmModes,
 };
 
 pub(super) use self::{gas_estimation::BinarySearchKind, result::SubmitTxError};
@@ -91,7 +90,7 @@ pub async fn build_tx_sender(
 /// Oneshot executor options used by the API server sandbox.
 #[derive(Debug)]
 pub struct SandboxExecutorOptions {
-    pub(crate) fast_vm_modes: OneshotExecutorVmModes,
+    pub(crate) fast_vm_mode: FastVmMode,
     /// Env parameters to be used when estimating gas.
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
@@ -117,7 +116,7 @@ impl SandboxExecutorOptions {
                 .context("failed loading base contracts for calls / tx execution")?;
 
         Ok(Self {
-            fast_vm_modes: FastVmMode::Old.into(),
+            fast_vm_mode: FastVmMode::Old,
             estimate_gas: OneshotEnvParameters::new(
                 Arc::new(estimate_gas_contracts),
                 chain_id,
@@ -133,9 +132,9 @@ impl SandboxExecutorOptions {
         })
     }
 
-    /// Sets the fast VM modes used by this executor.
-    pub fn set_fast_vm_modes(&mut self, fast_vm_modes: OneshotExecutorVmModes) {
-        self.fast_vm_modes = fast_vm_modes;
+    /// Sets the fast VM mode used by this executor.
+    pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
+        self.fast_vm_mode = fast_vm_mode;
     }
 
     pub(crate) async fn mock() -> Self {

@@ -324,8 +324,7 @@ impl MainNodeBuilder {
             postgres_storage_caches_config,
             rpc_config.vm_concurrency_limit(),
         );
-        let layer =
-            layer.with_gas_estimation_vm_mode(vm_config.api_fast_vm_mode_for_gas_estimation);
+        let layer = layer.with_vm_mode(vm_config.api_fast_vm_mode);
         self.node.add_layer(layer);
         Ok(self)
     }

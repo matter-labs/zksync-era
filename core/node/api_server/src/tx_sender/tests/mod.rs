@@ -152,7 +152,7 @@ async fn create_real_tx_sender(pool: ConnectionPool<Core>) -> TxSender {
     )
     .await
     .unwrap();
-    executor_options.set_fast_vm_modes(FastVmMode::Shadow.into());
+    executor_options.set_fast_vm_mode(FastVmMode::Shadow);
 
     let pg_caches = PostgresStorageCaches::new(1, 1);
     let tx_executor = SandboxExecutor::real(executor_options, pg_caches, usize::MAX);

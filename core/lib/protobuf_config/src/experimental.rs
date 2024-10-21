@@ -114,9 +114,7 @@ impl ProtoRepr for proto::Vm {
         Ok(Self::Type {
             playground: read_optional_repr(&self.playground).unwrap_or_default(),
             state_keeper_fast_vm_mode: parse_vm_mode(self.state_keeper_fast_vm_mode)?,
-            api_fast_vm_mode_for_gas_estimation: parse_vm_mode(
-                self.api_fast_vm_mode_for_gas_estimation,
-            )?,
+            api_fast_vm_mode: parse_vm_mode(self.api_fast_vm_mode)?,
         })
     }
 
@@ -126,9 +124,7 @@ impl ProtoRepr for proto::Vm {
             state_keeper_fast_vm_mode: Some(
                 proto::FastVmMode::new(this.state_keeper_fast_vm_mode).into(),
             ),
-            api_fast_vm_mode_for_gas_estimation: Some(
-                proto::FastVmMode::new(this.api_fast_vm_mode_for_gas_estimation).into(),
-            ),
+            api_fast_vm_mode: Some(proto::FastVmMode::new(this.api_fast_vm_mode).into()),
         }
     }
 }

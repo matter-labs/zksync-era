@@ -65,10 +65,7 @@ mod tests {
 
         let config = ExperimentalVmConfig::from_env().unwrap();
         assert_eq!(config.state_keeper_fast_vm_mode, FastVmMode::New);
-        assert_eq!(
-            config.api_fast_vm_mode_for_gas_estimation,
-            FastVmMode::Shadow
-        );
+        assert_eq!(config.api_fast_vm_mode, FastVmMode::Shadow);
         assert_eq!(config.playground.fast_vm_mode, FastVmMode::Shadow);
         assert_eq!(config.playground.db_path.unwrap(), "/db/vm_playground");
         assert_eq!(config.playground.first_processed_batch, L1BatchNumber(123));

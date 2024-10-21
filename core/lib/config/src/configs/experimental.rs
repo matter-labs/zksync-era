@@ -107,7 +107,8 @@ pub struct ExperimentalVmConfig {
     #[serde(default)]
     pub state_keeper_fast_vm_mode: FastVmMode,
 
-    /// Fast VM mode to use for gas estimation in the API server.
+    /// Fast VM mode to use in the API server. Currently, some operations are not supported by the fast VM (e.g., `debug_traceCall`
+    /// or transaction validation), so the legacy VM will always be used for them.
     #[serde(default)]
-    pub api_fast_vm_mode_for_gas_estimation: FastVmMode,
+    pub api_fast_vm_mode: FastVmMode,
 }

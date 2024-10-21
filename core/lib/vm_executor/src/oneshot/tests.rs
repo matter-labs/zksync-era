@@ -20,7 +20,7 @@ const EXEC_MODES: [TxExecutionMode; 3] = [
 #[test]
 fn selecting_vm_for_execution() {
     let mut executor = MainOneshotExecutor::new(usize::MAX);
-    executor.set_fast_vm_modes(FastVmMode::New.into());
+    executor.set_fast_vm_mode(FastVmMode::New);
 
     for exec_mode in EXEC_MODES {
         let env = OneshotEnv {
@@ -39,25 +39,6 @@ fn selecting_vm_for_execution() {
         let mut old_env = env.clone();
         old_env.system.version = ProtocolVersionId::Version22;
         let mode = executor.select_fast_vm_mode(&old_env, &OneshotTracingParams::default());
-        assert_matches!(mode, FastVmMode::Old);
-    }
-
-    executor.set_fast_vm_modes(OneshotExecutorVmModes {
-        gas_estimation: FastVmMode::New,
-        ..OneshotExecutorVmModes::default()
-    });
-
-    let mut env = OneshotEnv {
-        system: default_system_env(TxExecutionMode::EstimateFee),
-        l1_batch: default_l1_batch_env(1),
-        current_block: None,
-    };
-    let mode = executor.select_fast_vm_mode(&env, &OneshotTracingParams::default());
-    assert_matches!(mode, FastVmMode::New);
-
-    for exec_mode in [TxExecutionMode::VerifyExecute, TxExecutionMode::EthCall] {
-        env.system.execution_mode = exec_mode;
-        let mode = executor.select_fast_vm_mode(&env, &OneshotTracingParams::default());
         assert_matches!(mode, FastVmMode::Old);
     }
 }
@@ -115,7 +96,7 @@ async fn inspecting_transfer(exec_mode: TxExecutionMode, fast_vm_mode: FastVmMod
     let tracing = OneshotTracingParams::default();
 
     let mut executor = MainOneshotExecutor::new(usize::MAX);
-    executor.set_fast_vm_modes(fast_vm_mode.into());
+    executor.set_fast_vm_mode(fast_vm_mode);
     let result = executor
         .inspect_transaction_with_bytecode_compression(storage, env, args, tracing)
         .await

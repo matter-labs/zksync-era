@@ -7,7 +7,6 @@ use zksync_node_api_server::{
 };
 use zksync_state::{PostgresStorageCaches, PostgresStorageCachesTask};
 use zksync_types::{vm::FastVmMode, AccountTreeId, Address};
-use zksync_vm_executor::oneshot::OneshotExecutorVmModes;
 use zksync_web3_decl::{
     client::{DynClient, L2},
     jsonrpsee,
@@ -61,7 +60,7 @@ pub struct TxSenderLayer {
     postgres_storage_caches_config: PostgresStorageCachesConfig,
     max_vm_concurrency: usize,
     whitelisted_tokens_for_aa_cache: bool,
-    vm_modes: OneshotExecutorVmModes,
+    vm_mode: FastVmMode,
 }
 
 #[derive(Debug, FromContext)]
@@ -97,7 +96,7 @@ impl TxSenderLayer {
             postgres_storage_caches_config,
             max_vm_concurrency,
             whitelisted_tokens_for_aa_cache: false,
-            vm_modes: OneshotExecutorVmModes::default(),
+            vm_mode: FastVmMode::Old,
         }
     }
 
@@ -110,9 +109,9 @@ impl TxSenderLayer {
         self
     }
 
-    /// Sets the fast VM modes used for gas estimation.
-    pub fn with_gas_estimation_vm_mode(mut self, mode: FastVmMode) -> Self {
-        self.vm_modes.gas_estimation = mode;
+    /// Sets the fast VM modes used for all supported operations.
+    pub fn with_vm_mode(mut self, mode: FastVmMode) -> Self {
+        self.vm_mode = mode;
         self
     }
 }
@@ -166,7 +165,7 @@ impl WiringLayer for TxSenderLayer {
             config.validation_computational_gas_limit,
         )
         .await?;
-        executor_options.set_fast_vm_modes(self.vm_modes);
+        executor_options.set_fast_vm_mode(self.vm_mode);
 
         // Build `TxSender`.
         let mut tx_sender = TxSenderBuilder::new(config, replica_pool, tx_sink);

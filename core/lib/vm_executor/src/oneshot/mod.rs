@@ -60,48 +60,10 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-/// Fast VM modes utilized for different kinds of operations.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct OneshotExecutorVmModes {
-    /// Mode used for gas estimation.
-    pub gas_estimation: FastVmMode,
-    /// Mode used for `eth_call`s.
-    pub call: FastVmMode,
-    /// Mode used for transaction execution. This temporarily doesn't include the validation step since it's not supported by the fast VM.
-    pub tx_execution: FastVmMode,
-}
-
-/// Sets all modes to the specified value.
-impl From<FastVmMode> for OneshotExecutorVmModes {
-    fn from(mode: FastVmMode) -> Self {
-        Self {
-            gas_estimation: mode,
-            call: mode,
-            tx_execution: mode,
-        }
-    }
-}
-
-impl OneshotExecutorVmModes {
-    fn uses_fast_vm(&self) -> bool {
-        !matches!(self.gas_estimation, FastVmMode::Old)
-            || !matches!(self.call, FastVmMode::Old)
-            || !matches!(self.tx_execution, FastVmMode::Old)
-    }
-
-    fn get(&self, mode: TxExecutionMode) -> FastVmMode {
-        match mode {
-            TxExecutionMode::VerifyExecute => self.tx_execution,
-            TxExecutionMode::EthCall => self.call,
-            TxExecutionMode::EstimateFee => self.gas_estimation,
-        }
-    }
-}
-
 /// Main [`OneshotExecutor`] implementation used by the API server.
 #[derive(Debug)]
 pub struct MainOneshotExecutor {
-    fast_vm_modes: OneshotExecutorVmModes,
+    fast_vm_mode: FastVmMode,
     panic_on_divergence: bool,
     missed_storage_invocation_limit: usize,
     execution_latency_histogram: Option<&'static vise::Histogram<Duration>>,
@@ -112,21 +74,21 @@ impl MainOneshotExecutor {
     /// The limit is applied for calls and gas estimations, but not during transaction validation.
     pub fn new(missed_storage_invocation_limit: usize) -> Self {
         Self {
-            fast_vm_modes: OneshotExecutorVmModes::default(),
+            fast_vm_mode: FastVmMode::Old,
             panic_on_divergence: false,
             missed_storage_invocation_limit,
             execution_latency_histogram: None,
         }
     }
 
-    /// Sets the fast VM modes used by this executor.
-    pub fn set_fast_vm_modes(&mut self, fast_vm_modes: OneshotExecutorVmModes) {
-        if fast_vm_modes.uses_fast_vm() {
+    /// Sets the fast VM mode used by this executor.
+    pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
+        if !matches!(fast_vm_mode, FastVmMode::Old) {
             tracing::warn!(
-                "Running new VM with modes {fast_vm_modes:?}; this can lead to incorrect node behavior"
+                "Running new VM with modes {fast_vm_mode:?}; this can lead to incorrect node behavior"
             );
         }
-        self.fast_vm_modes = fast_vm_modes;
+        self.fast_vm_mode = fast_vm_mode;
     }
 
     /// Causes the VM to panic on divergence whenever it executes in the shadow mode. By default, a divergence is logged on `ERROR` level.
@@ -150,7 +112,7 @@ impl MainOneshotExecutor {
         if tracing_params.trace_calls || !is_supported_by_fast_vm(env.system.version) {
             FastVmMode::Old // the fast VM doesn't support call tracing or old protocol versions
         } else {
-            self.fast_vm_modes.get(env.system.execution_mode)
+            self.fast_vm_mode
         }
     }
 }
