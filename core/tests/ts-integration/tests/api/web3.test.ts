@@ -189,7 +189,8 @@ describe('web3 API compatibility tests', () => {
         ['eth_getCompilers', [], []],
         ['eth_hashrate', [], '0x0'],
         ['eth_mining', [], false],
-        ['eth_getUncleCountByBlockNumber', ['0x0'], '0x0']
+        ['eth_getUncleCountByBlockNumber', ['0x0'], '0x0'],
+        ['eth_maxPriorityFeePerGas', [], '0x0']
     ])('Should test bogus web3 methods (%s)', async (method: string, input: string[], output: string) => {
         await expect(alice.provider.send(method, input)).resolves.toEqual(output);
     });
