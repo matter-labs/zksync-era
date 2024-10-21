@@ -15,7 +15,7 @@ publish = false
 anyhow.workspace = true
 async-trait.workspace = true
 envy.workspace = true
-reqwest.workspace = true
+reqwest = { workspace = true, features = ["zstd"] }
 secp256k1 = { workspace = true, features = ["serde"] }
 serde = { workspace = true, features = ["derive"] }
 thiserror.workspace = true
