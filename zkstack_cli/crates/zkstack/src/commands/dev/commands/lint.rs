@@ -11,7 +11,7 @@ use config::EcosystemConfig;
 use xshell::{cmd, Shell};
 
 use crate::commands::{
-    autocomplete::{generate_completions, ShellAutocomplete},
+    autocomplete::{autocomplete_file_name, generate_completions},
     dev::{
         commands::lint_utils::{get_unignored_files, Target},
         messages::{
@@ -171,9 +171,9 @@ fn lint_autocompletion_files(_shell: &Shell, check: bool) -> anyhow::Result<()> 
 
         let new = String::from_utf8(writer)?;
 
-        let path = completion_folder.join(shell.autocomplete_file_name());
+        let path = completion_folder.join(autocomplete_file_name(&shell));
         let mut autocomplete_file = File::open(path.clone())
-            .context(format!("failed to open {}", shell.autocomplete_file_name()))?;
+            .context(format!("failed to open {}", autocomplete_file_name(&shell)))?;
 
         let mut old = String::new();
         autocomplete_file.read_to_string(&mut old)?;

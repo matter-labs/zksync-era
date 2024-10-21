@@ -15,7 +15,8 @@ use crate::{
 };
 
 pub fn run(args: AutocompleteArgs) -> anyhow::Result<()> {
-    let path = args.out.join(args.generator.autocomplete_file_name());
+    let filename = autocomplete_file_name(&args.generator);
+    let path = args.out.join(filename);
 
     logger::info(msg_generate_autocomplete_file(
         path.to_str()
@@ -41,17 +42,11 @@ pub fn generate_completions<G: Generator>(gen: G, buf: &mut dyn Write) -> anyhow
     Ok(())
 }
 
-pub trait ShellAutocomplete {
-    fn autocomplete_file_name(&self) -> &'static str;
-}
-
-impl ShellAutocomplete for clap_complete::Shell {
-    fn autocomplete_file_name(&self) -> &'static str {
-        match self {
-            clap_complete::Shell::Bash => "zkstack.sh",
-            clap_complete::Shell::Fish => "zkstack.fish",
-            clap_complete::Shell::Zsh => "_zkstack.zsh",
-            _ => todo!(),
-        }
+pub fn autocomplete_file_name(shell: &clap_complete::Shell) -> &'static str {
+    match shell {
+        clap_complete::Shell::Bash => "zkstack.sh",
+        clap_complete::Shell::Fish => "zkstack.fish",
+        clap_complete::Shell::Zsh => "_zkstack.zsh",
+        _ => todo!(),
     }
 }
