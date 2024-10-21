@@ -36,6 +36,9 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                             gas_relay_api_url: required(&gas_relay_conf.gas_relay_api_url)
                                 .context("gas_relay_api_url")?
                                 .clone(),
+                            max_retries: *required(&gas_relay_conf.max_retries)
+                                .context("max_retries")?
+                                as usize,
                         })
                     }
                     None => return Err(anyhow::anyhow!("Invalid Avail DA configuration")),
@@ -66,6 +69,7 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                             AvailClientConfig::GasRelay(conf) => Some(
                                 proto::avail_config::Config::GasRelay(proto::AvailGasRelayConfig {
                                     gas_relay_api_url: Some(conf.gas_relay_api_url.clone()),
+                                    max_retries: Some(conf.max_retries as u64),
                                 }),
                             ),
                         },

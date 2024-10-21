@@ -378,6 +378,7 @@ fn ss58hash(data: &[u8]) -> Vec<u8> {
 pub(crate) struct GasRelayClient {
     api_url: String,
     api_key: String,
+    max_retries: usize,
     api_client: Arc<reqwest::Client>,
 }
 
@@ -401,11 +402,13 @@ impl GasRelayClient {
     pub(crate) async fn new(
         api_url: &str,
         api_key: &str,
+        max_retries: usize,
         api_client: Arc<reqwest::Client>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             api_url: api_url.to_owned(),
             api_key: api_key.to_owned(),
+            max_retries,
             api_client,
         })
     }
@@ -431,9 +434,11 @@ impl GasRelayClient {
             self.api_url, submit_response.submission_id
         );
 
+        let mut retries: usize = 0;
+
         let (block_hash, extrinsic_index) = loop {
-            // usually takes around 40s to finalize, but polling every 5s is enough here
-            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+            // minimum finalization time is 40s but can go upto 90s depending on network usage
+            tokio::time::sleep(tokio::time::Duration::from_secs(40)).await;
             let status_response = self
                 .api_client
                 .get(&status_url)
@@ -448,6 +453,10 @@ impl GasRelayClient {
                     status_response.submission.block_hash.unwrap(),
                     status_response.submission.extrinsic_index.unwrap(),
                 );
+            }
+            retries += 1;
+            if retries > self.max_retries {
+                anyhow::bail!("Gas relay submission max_retries exceeded");
             }
         };
 

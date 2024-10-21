@@ -28,6 +28,7 @@ pub struct AvailDefaultConfig {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct AvailGasRelayConfig {
     pub gas_relay_api_url: String,
+    pub max_retries: usize,
 }
 
 #[derive(Clone, Debug, PartialEq)]

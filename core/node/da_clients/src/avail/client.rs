@@ -103,6 +103,7 @@ impl AvailClient {
                 let gas_relay_client = GasRelayClient::new(
                     &conf.gas_relay_api_url,
                     gas_relay_api_key.0.expose_secret(),
+                    conf.max_retries,
                     Arc::clone(&api_client),
                 )
                 .await?;
@@ -208,7 +209,11 @@ impl DataAvailabilityClient for AvailClient {
                     "Inclusion check timeout exceeded"
                 )));
             }
-            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(std::cmp::min(
+                self.config.timeout as u64,
+                60,
+            )))
+            .await;
         };
 
         let attestation_data: MerkleProofInput = MerkleProofInput {

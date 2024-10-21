@@ -24,6 +24,7 @@ message AvailClientConfig {
 
 message AvailGasRelayConfig {
   optional string gas_relay_api_url = 1;
+  optional uint64 max_retries = 2;
 }
 
 message DataAvailabilityClient {
