@@ -116,7 +116,7 @@ impl ExternalIO {
             .protocol_versions_dal()
             .get_base_system_contract_hashes_by_version_id(protocol_version as u16)
             .await?;
-        if let Some(_) = base_system_contract_hashes {
+        if base_system_contract_hashes.is_some() {
             return Ok(());
         }
         tracing::info!("Fetching protocol version {protocol_version:?} from the main node");
