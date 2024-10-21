@@ -262,6 +262,7 @@ impl ChainCreateArgs {
             chain_path,
             era_chain_id,
             number_of_chains,
+            l1_network,
         })
     }
 }
@@ -282,6 +283,7 @@ pub struct ChainCreateArgsFinal {
     pub chain_path: PathBuf,
     pub era_chain_id: L2ChainId,
     pub number_of_chains: u32,
+    pub l1_network: L1Network,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
