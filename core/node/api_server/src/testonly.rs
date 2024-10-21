@@ -26,7 +26,7 @@ use zksync_types::{
 use zksync_utils::{address_to_u256, u256_to_h256};
 
 const MULTICALL3_CONTRACT_PATH: &str =
-    "contracts/l2-contracts/artifacts-zk/contracts/dev-contracts/Multicall3.sol/Multicall3.json";
+    "contracts/l2-contracts/zkout/Multicall3.sol/Multicall3.json";
 
 pub(crate) const RAW_EVM_BYTECODE: &[u8] = &const_decoder::decode!(
     Decoder::Hex,
