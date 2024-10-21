@@ -21,6 +21,11 @@ run:
 zkstackup --local
 ```
 
+> NOTE: you might find convenient to add this alias to your shell profile:
+> 
+> `alias zkstackup='zkstackup --path $ZKSYNC_HOME'`
+>
+
 This command installs `zkstack` from the current source directory.
 
 The root directory includes configuration files for an ecosystem with a single chain, `era`. To initialize the
