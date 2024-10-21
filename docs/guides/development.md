@@ -21,17 +21,17 @@ run:
 zkstackup --local
 ```
 
-> NOTE: you might find convenient to add this alias to your shell profile:
->
-> `alias zkstackup='zkstackup --path $ZKSYNC_HOME'`
-
 This command installs `zkstack` from the current source directory.
 
-> Whenever you want to update you local installation with your changes, just rerun:
+> NOTE: Whenever you want to update you local installation with your changes, just rerun:
 >
 > ```bash
 > zkstackup --local
 > ```
+>
+> You might find convenient to add this alias to your shell profile:
+>
+> `alias zkstackup='zkstackup --path $ZKSYNC_HOME'`
 
 ## Configure Ecosystem
 
