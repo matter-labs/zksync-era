@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::bail;
 use clap::Parser;
 use common::{cmd::Cmd, logger, Prompt, PromptConfirm, PromptSelect};
+use config::get_default_era_chain_id;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::{EnumIter, IntoEnumIterator};
@@ -71,9 +72,17 @@ impl EcosystemCreateArgs {
         // Make the only chain as a default one
         self.chain.set_as_default = Some(true);
 
-        let chain = self
-            .chain
-            .fill_values_with_prompt(0, Some(l1_network), vec![])?;
+        let chains_path = PathBuf::from(ecosystem_name.clone()).join("chains");
+
+        let era_chain_id = get_default_era_chain_id();
+
+        let chain = self.chain.fill_values_with_prompt(
+            0,
+            Some(l1_network),
+            vec![],
+            Some(chains_path),
+            era_chain_id,
+        )?;
 
         let start_containers = self.start_containers.unwrap_or_else(|| {
             PromptConfirm::new(MSG_START_CONTAINERS_PROMPT)

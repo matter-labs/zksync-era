@@ -3,8 +3,8 @@ use std::cell::OnceCell;
 use anyhow::Context;
 use common::{logger, spinner::Spinner};
 use config::{
-    create_local_configs_dir, create_wallets, traits::SaveConfigWithBasePath, ChainConfig,
-    EcosystemConfig,
+    create_local_configs_dir, create_wallets, get_default_era_chain_id,
+    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig,
 };
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
@@ -27,22 +27,34 @@ fn create(
     ecosystem: &mut Option<EcosystemConfig>,
     shell: &Shell,
 ) -> anyhow::Result<()> {
-    let tokens = ecosystem
+    let possible_erc20 = ecosystem
         .as_ref()
         .map(|ecosystem| ecosystem.get_erc20_tokens())
-        .unwrap_or_default();
+        .unwrap_or(vec![]);
 
     let number_of_chains = ecosystem
         .as_ref()
         .map(|ecosystem| ecosystem.list_of_chains().len() as u32)
-        .unwrap_or_default();
+        .unwrap_or(0);
 
     let l1_network = ecosystem
         .as_ref()
         .map(|ecosystem| ecosystem.l1_network.clone());
 
+    let chains_path = ecosystem.as_ref().map(|ecosystem| ecosystem.chains.clone());
+    let era_chain_id = ecosystem
+        .as_ref()
+        .map(|ecosystem| ecosystem.era_chain_id)
+        .unwrap_or(get_default_era_chain_id());
+
     let args = args
-        .fill_values_with_prompt(number_of_chains, l1_network, tokens)
+        .fill_values_with_prompt(
+            number_of_chains,
+            l1_network,
+            possible_erc20,
+            chains_path,
+            era_chain_id,
+        )
         .context(MSG_ARGS_VALIDATOR_ERR)?;
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&args));
@@ -51,7 +63,7 @@ fn create(
     let spinner = Spinner::new(MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER);
     let name = args.chain_name.clone();
     let set_as_default = args.set_as_default;
-    create_chain_inner(args, ecosystem_config, shell)?;
+    create_chain_inner(args, shell)?;
     if set_as_default {
         ecosystem_config.default_chain = name;
         ecosystem_config.save_with_base_path(shell, ".")?;
@@ -63,20 +75,16 @@ fn create(
     Ok(())
 }
 
-pub(crate) fn create_chain_inner(
-    args: ChainCreateArgsFinal,
-    ecosystem_config: &EcosystemConfig,
-    shell: &Shell,
-) -> anyhow::Result<()> {
+pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> anyhow::Result<()> {
     if args.legacy_bridge {
         logger::warn("WARNING!!! You are creating a chain with legacy bridge, use it only for testing compatibility")
     }
     let default_chain_name = args.chain_name.clone();
-    let chain_path = ecosystem_config.chains.join(&default_chain_name);
+    let chain_path = args.chain_path;
     let chain_configs_path = create_local_configs_dir(shell, &chain_path)?;
     let (chain_id, legacy_bridge) = if args.legacy_bridge {
         // Legacy bridge is distinguished by using the same chain id as ecosystem
-        (ecosystem_config.era_chain_id, Some(true))
+        (args.era_chain_id, Some(true))
     } else {
         (L2ChainId::from(args.chain_id), None)
     };
