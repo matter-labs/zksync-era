@@ -43,9 +43,6 @@ pub enum Component {
     EthTxManager,
     /// State keeper.
     StateKeeper,
-    /// Produces input for the TEE verifier.
-    /// The blob is later used as input for TEE verifier.
-    TeeVerifierInputProducer,
     /// Component for housekeeping task such as cleaning blobs from GCS, reporting metrics etc.
     Housekeeper,
     /// Component for exposing APIs to prover for providing proof generation data and accepting proofs.
@@ -88,9 +85,6 @@ impl FromStr for Components {
             "tree_api" => Ok(Components(vec![Component::TreeApi])),
             "state_keeper" => Ok(Components(vec![Component::StateKeeper])),
             "housekeeper" => Ok(Components(vec![Component::Housekeeper])),
-            "tee_verifier_input_producer" => {
-                Ok(Components(vec![Component::TeeVerifierInputProducer]))
-            }
             "eth" => Ok(Components(vec![
                 Component::EthWatcher,
                 Component::EthTxAggregator,
