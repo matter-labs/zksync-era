@@ -9,9 +9,11 @@ use zksync_utils::http_with_retries::send_request_with_retries;
 
 use crate::{
     cluster_types::{Cluster, Clusters},
-    metrics::AUTOSCALER_METRICS,
+    metrics::{AUTOSCALER_METRICS, DEFAULT_ERROR_CODE},
     task_wiring::Task,
 };
+
+const MAX_RETRIES: usize = 5;
 
 #[derive(Default)]
 pub struct WatchedData {
@@ -74,19 +76,20 @@ impl Task for Watcher {
                         .join("/cluster")
                         .context("Failed to join URL with /cluster")?
                         .to_string();
-                    let res = send_request_with_retries(&url, 5, Method::GET, None, None).await;
+                    let response_or_err =
+                        send_request_with_retries(&url, MAX_RETRIES, Method::GET, None, None).await;
 
-                    let response = res.map_err(|err| {
+                    let response = response_or_err.map_err(|err| {
                         // TODO: refactor send_request_with_retries to return status.
-                        AUTOSCALER_METRICS.calls[&(url.clone(), 500)].inc();
+                        AUTOSCALER_METRICS.calls[&(url.clone(), DEFAULT_ERROR_CODE)].inc();
                         anyhow::anyhow!("Failed fetching cluster from url: {url}: {err:?}")
                     })?;
                     AUTOSCALER_METRICS.calls[&(url, response.status().as_u16())].inc();
-                    let j = response
+                    let json_response = response
                         .json::<Cluster>()
                         .await
                         .context("Failed to read response as json");
-                    Ok((i, j))
+                    Ok((i, json_response))
                 })
             })
             .collect();

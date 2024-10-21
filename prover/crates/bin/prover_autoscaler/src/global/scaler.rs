@@ -43,10 +43,6 @@ struct GPUPoolKey {
     gpu: Gpu,
 }
 
-//static PROVER_DEPLOYMENT_RE: Lazy<Regex> =
-//    Lazy::new(|| Regex::new(r"^prover-gpu-fri-spec-(\d{1,2})?(-(?<gpu>[ltvpa]\d+))?$").unwrap());
-//static PROVER_POD_RE: Lazy<Regex> =
-//    Lazy::new(|| Regex::new(r"^prover-gpu-fri-spec-(\d{1,2})?(-(?<gpu>[ltvpa]\d+))?").unwrap());
 static PROVER_DEPLOYMENT_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^circuit-prover-gpu(-(?<gpu>[ltvpa]\d+))?$").unwrap());
 static PROVER_POD_RE: Lazy<Regex> =
@@ -88,9 +84,13 @@ impl Scaler {
         queuer: queuer::Queuer,
         config: ProverAutoscalerScalerConfig,
     ) -> Self {
-        config.protocol_versions.iter().for_each(|(ns, v)| {
-            AUTOSCALER_METRICS.prover_protocol_version[&(ns.clone(), v.clone())].set(1);
-        });
+        config
+            .protocol_versions
+            .iter()
+            .for_each(|(namespace, version)| {
+                AUTOSCALER_METRICS.prover_protocol_version[&(namespace.clone(), version.clone())]
+                    .set(1);
+            });
         Self {
             namespaces: config.protocol_versions,
             watcher,
@@ -215,21 +215,14 @@ impl Scaler {
         (queue + speed - 1) / speed * speed
     }
 
-    fn run(
-        &self,
-        namespace: &String,
-        mut queue: u64,
-        clusters: &Clusters,
-    ) -> HashMap<GPUPoolKey, u32> {
+    fn run(&self, namespace: &String, queue: u64, clusters: &Clusters) -> HashMap<GPUPoolKey, u32> {
         let sc = self.sorted_clusters(namespace, clusters);
         tracing::debug!("Sorted clusters for namespace {}: {:?}", namespace, &sc);
 
-        if let Some(min) = self.min_provers.get(namespace) {
-            let min_queue = self.provers_to_speed(Gpu::L4, *min);
-            if self.normalize_queue(Gpu::L4, queue) < min_queue {
-                queue = min_queue;
-            }
-        }
+        let queue: u64 = self.min_provers.get(namespace).map_or(queue, |min| {
+            self.normalize_queue(Gpu::L4, queue)
+                .max(self.provers_to_speed(Gpu::L4, *min))
+        });
 
         let mut total: i64 = 0;
         let mut provers: HashMap<GPUPoolKey, u32> = HashMap::new();

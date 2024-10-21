@@ -5,7 +5,9 @@ use reqwest::Method;
 use zksync_prover_job_monitor::autoscaler_queue_reporter::VersionedQueueReport;
 use zksync_utils::http_with_retries::send_request_with_retries;
 
-use crate::metrics::AUTOSCALER_METRICS;
+use crate::metrics::{AUTOSCALER_METRICS, DEFAULT_ERROR_CODE};
+
+const MAX_RETRIES: usize = 5;
 
 #[derive(Debug)]
 pub struct Queue {
@@ -26,19 +28,20 @@ impl Queuer {
 
     pub async fn get_queue(&self) -> anyhow::Result<Queue> {
         let url = &self.prover_job_monitor_url;
-        let res = send_request_with_retries(url, 5, Method::GET, None, None).await;
-        let response = res.map_err(|err| {
-            AUTOSCALER_METRICS.calls[&(url.clone(), 500)].inc();
+        let response_or_err =
+            send_request_with_retries(url, MAX_RETRIES, Method::GET, None, None).await;
+        let response = response_or_err.map_err(|err| {
+            AUTOSCALER_METRICS.calls[&(url.clone(), DEFAULT_ERROR_CODE)].inc();
             anyhow::anyhow!("Failed fetching queue from url: {url}: {err:?}")
         })?;
+
         AUTOSCALER_METRICS.calls[&(url.clone(), response.status().as_u16())].inc();
-        let j = response
+        let json_response = response
             .json::<Vec<VersionedQueueReport>>()
             .await
             .context("Failed to read response as json")?;
-
         Ok(Queue {
-            queue: j
+            queue: json_response
                 .iter()
                 .map(|x| (x.version.to_string(), x.report.prover_jobs.queued as u64))
                 .collect::<HashMap<_, _>>(),
