@@ -185,6 +185,9 @@ pub trait EthNamespace {
         newest_block: BlockNumber,
         reward_percentiles: Vec<f32>,
     ) -> RpcResult<FeeHistory>;
+
+    #[method(name = "maxPriorityFeePerGas")]
+    async fn max_priority_fee_per_gas(&self) -> RpcResult<U256>;
 }
 
 #[cfg(feature = "server")]
