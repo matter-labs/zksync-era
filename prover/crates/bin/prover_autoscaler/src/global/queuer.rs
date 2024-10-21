@@ -28,20 +28,19 @@ impl Queuer {
 
     pub async fn get_queue(&self) -> anyhow::Result<Queue> {
         let url = &self.prover_job_monitor_url;
-        let response_or_err =
-            send_request_with_retries(url, MAX_RETRIES, Method::GET, None, None).await;
-        let response = response_or_err.map_err(|err| {
+        let response = send_request_with_retries(url, MAX_RETRIES, Method::GET, None, None).await;
+        let response = response.map_err(|err| {
             AUTOSCALER_METRICS.calls[&(url.clone(), DEFAULT_ERROR_CODE)].inc();
             anyhow::anyhow!("Failed fetching queue from url: {url}: {err:?}")
         })?;
 
         AUTOSCALER_METRICS.calls[&(url.clone(), response.status().as_u16())].inc();
-        let json_response = response
+        let response = response
             .json::<Vec<VersionedQueueReport>>()
             .await
             .context("Failed to read response as json")?;
         Ok(Queue {
-            queue: json_response
+            queue: response
                 .iter()
                 .map(|x| (x.version.to_string(), x.report.prover_jobs.queued as u64))
                 .collect::<HashMap<_, _>>(),

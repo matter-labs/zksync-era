@@ -76,20 +76,20 @@ impl Task for Watcher {
                         .join("/cluster")
                         .context("Failed to join URL with /cluster")?
                         .to_string();
-                    let response_or_err =
+                    let response =
                         send_request_with_retries(&url, MAX_RETRIES, Method::GET, None, None).await;
 
-                    let response = response_or_err.map_err(|err| {
+                    let response = response.map_err(|err| {
                         // TODO: refactor send_request_with_retries to return status.
                         AUTOSCALER_METRICS.calls[&(url.clone(), DEFAULT_ERROR_CODE)].inc();
                         anyhow::anyhow!("Failed fetching cluster from url: {url}: {err:?}")
                     })?;
                     AUTOSCALER_METRICS.calls[&(url, response.status().as_u16())].inc();
-                    let json_response = response
+                    let response = response
                         .json::<Cluster>()
                         .await
                         .context("Failed to read response as json");
-                    Ok((i, json_response))
+                    Ok((i, response))
                 })
             })
             .collect();

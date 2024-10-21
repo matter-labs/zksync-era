@@ -219,6 +219,8 @@ impl Scaler {
         let sc = self.sorted_clusters(namespace, clusters);
         tracing::debug!("Sorted clusters for namespace {}: {:?}", namespace, &sc);
 
+        // Increase queue size, if it's too small, to make sure that required min_provers are
+        // running.
         let queue: u64 = self.min_provers.get(namespace).map_or(queue, |min| {
             self.normalize_queue(Gpu::L4, queue)
                 .max(self.provers_to_speed(Gpu::L4, *min))
