@@ -4,8 +4,8 @@
 use anyhow::Context;
 use zksync_config::{
     configs::{
-        da_client::DAClientConfig, eth_sender::PubdataSendingMode,
-        secrets::DataAvailabilitySecrets, wallets::Wallets, GeneralConfig, Secrets,
+        da_client::DAClientConfig, secrets::DataAvailabilitySecrets, wallets::Wallets,
+        GeneralConfig, Secrets,
     },
     ContractsConfig, GenesisConfig,
 };
@@ -69,7 +69,9 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
-use zksync_types::{settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS};
+use zksync_types::{
+    pubdata_da::PubdataSendingMode, settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
@@ -189,7 +191,7 @@ impl MainNodeBuilder {
                 .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         }
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let l1_gas_layer = L1GasLayer::new(state_keeper_config);
+        let l1_gas_layer = L1GasLayer::new(&state_keeper_config);
         self.node.add_layer(l1_gas_layer);
         Ok(self)
     }
