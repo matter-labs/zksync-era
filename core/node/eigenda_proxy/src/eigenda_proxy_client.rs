@@ -4,6 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use rlp::decode;
 use tokio::{sync::Mutex, time::interval};
 use tonic::transport::{Channel, ClientTlsConfig};
 use zksync_config::configs::da_client::eigen_da::DisperserConfig;
@@ -24,12 +25,13 @@ impl EigenDAProxyClient {
     pub const STATUS_QUERY_RETRY_INTERVAL: u64 = 5; // 5 seconds todo: add to config
     pub const WAIT_FOR_FINALAZATION: bool = false; // todo: add to config
     pub async fn new(config: DisperserConfig) -> anyhow::Result<Self> {
+        rustls::crypto::ring::default_provider().install_default();
         let inner = Channel::builder(config.disperser_rpc.parse()?)
             .tls_config(ClientTlsConfig::new().with_native_roots())?;
-        Ok(Self {
-            disperser: Arc::new(Mutex::new(DisperserClient::connect(inner).await?)),
-            config,
-        })
+
+        let disperser = Arc::new(Mutex::new(DisperserClient::connect(inner).await?));
+
+        Ok(Self { disperser, config })
     }
 
     fn result_to_status(&self, result: i32) -> disperser::BlobStatus {
@@ -45,13 +47,14 @@ impl EigenDAProxyClient {
         }
     }
 
-    pub async fn put_blob(&self, blob_data: Vec<u8>) -> Result<BlobInfo, ()> {
+    pub async fn put_blob(&self, blob_data: Vec<u8>) -> Result<Vec<u8>, ()> {
+        println!("Putting blob");
         let reply = self
             .disperser
             .lock()
             .await
             .disperse_blob(DisperseBlobRequest {
-                data: kzgpad_rs::convert_by_padding_empty_byte(&blob_data),
+                data: blob_data,
                 custom_quorum_numbers: self
                     .config
                     .custom_quorum_numbers
@@ -66,6 +69,8 @@ impl EigenDAProxyClient {
         if self.result_to_status(reply.result) == disperser::BlobStatus::Failed {
             return Err(());
         }
+
+        let request_id_str = String::from_utf8(reply.request_id.clone()).unwrap();
 
         let mut interval = interval(Duration::from_secs(Self::STATUS_QUERY_RETRY_INTERVAL));
         let start_time = Instant::now();
@@ -83,6 +88,11 @@ impl EigenDAProxyClient {
 
             let blob_status = blob_status_reply.status();
 
+            println!(
+                "Dispersing blob {:?}, status: {:?}",
+                request_id_str, blob_status
+            );
+
             match blob_status {
                 disperser::BlobStatus::Unknown => {
                     interval.tick().await;
@@ -96,7 +106,8 @@ impl EigenDAProxyClient {
                     } else {
                         match blob_status_reply.info {
                             Some(info) => {
-                                return BlobInfo::try_from(info).map_err(|_| ());
+                                let blob_info = BlobInfo::try_from(info).map_err(|_| ())?;
+                                return Ok(rlp::encode(&blob_info).to_vec());
                             }
                             None => {
                                 return Err(());
@@ -115,7 +126,8 @@ impl EigenDAProxyClient {
                 }
                 disperser::BlobStatus::Finalized => match blob_status_reply.info {
                     Some(info) => {
-                        return BlobInfo::try_from(info).map_err(|_| ());
+                        let blob_info = BlobInfo::try_from(info).map_err(|_| ())?;
+                        return Ok(rlp::encode(&blob_info).to_vec());
                     }
                     None => {
                         return Err(());
@@ -127,18 +139,21 @@ impl EigenDAProxyClient {
         return Err(());
     }
 
-    pub async fn get_blob(
-        &self,
-        batch_header_hash: Vec<u8>,
-        blob_index: u32,
-    ) -> Result<Vec<u8>, ()> {
+    pub async fn get_blob(&self, commit: Vec<u8>) -> Result<Vec<u8>, ()> {
+        println!("Getting blob");
+        let blob_info: BlobInfo = decode(&commit).map_err(|_| ())?;
+        let blob_index = blob_info.blob_verification_proof.blob_index;
+        let batch_header_hash = blob_info
+            .blob_verification_proof
+            .batch_medatada
+            .batch_header_hash;
         let get_response = self
             .disperser
             .lock()
             .await
             .retrieve_blob(disperser::RetrieveBlobRequest {
                 batch_header_hash: batch_header_hash,
-                blob_index: blob_index,
+                blob_index,
             })
             .await
             .unwrap()
@@ -149,5 +164,60 @@ impl EigenDAProxyClient {
         }
 
         return Ok(get_response.data);
+    }
+}
+
+mod test {
+    use std::time::Duration;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_eigenda_proxy() {
+        let config = DisperserConfig {
+            api_node_url: "".to_string(),
+            custom_quorum_numbers: Some(vec![]),
+            account_id: Some("".to_string()),
+            disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
+            eth_confirmation_depth: -1,
+            eigenda_eth_rpc: "".to_string(),
+            eigenda_svc_manager_addr: "".to_string(),
+        };
+        let store = match EigenDAProxyClient::new(config).await {
+            Ok(store) => store,
+            Err(e) => panic!("Failed to create EigenDAProxyClient {:?}", e),
+        };
+
+        let blob = vec![0u8; 100];
+        let cert = store.put_blob(blob.clone()).await.unwrap();
+        let blob2 = store.get_blob(cert).await.unwrap();
+        assert_eq!(blob, blob2);
+    }
+
+    #[tokio::test]
+    async fn test_eigenda_multiple() {
+        let config = DisperserConfig {
+            api_node_url: "".to_string(),
+            custom_quorum_numbers: Some(vec![]),
+            account_id: Some("".to_string()),
+            disperser_rpc: "https://disperser-holesky.eigenda.xyz:443".to_string(),
+            eth_confirmation_depth: -1,
+            eigenda_eth_rpc: "".to_string(),
+            eigenda_svc_manager_addr: "".to_string(),
+        };
+        let store = match EigenDAProxyClient::new(config).await {
+            Ok(store) => store,
+            Err(e) => panic!("Failed to create EigenDAProxyClient {:?}", e),
+        };
+
+        let blob = vec![0u8; 100];
+        let blob2 = vec![1u8; 100];
+        let cert = store.put_blob(blob.clone());
+        let cert2 = store.put_blob(blob2.clone());
+        let (val1, val2) = tokio::join!(cert, cert2);
+        let blob_result = store.get_blob(val1.unwrap()).await.unwrap();
+        let blob_result2 = store.get_blob(val2.unwrap()).await.unwrap();
+        assert_eq!(blob, blob_result);
+        assert_eq!(blob2, blob_result2);
     }
 }
