@@ -2,14 +2,15 @@ use std::sync::Arc;
 
 use zksync_config::configs::eth_sender::{ProofSendingMode, SenderConfig};
 use zksync_contracts::BaseSystemContractsHashes;
-use zksync_dal::{Connection, Core, CoreDal};
+use zksync_dal::{Connection, Core, CoreDal, DalError};
 use zksync_l1_contract_interface::i_executor::methods::{ExecuteBatches, ProveBatches};
-use zksync_mini_merkle_tree::SyncMerkleTree;
+use zksync_mini_merkle_tree::MiniMerkleTree;
 use zksync_object_store::{ObjectStore, ObjectStoreError};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{
     aggregated_operations::AggregatedActionType,
     commitment::{L1BatchCommitmentMode, L1BatchWithMetadata, PriorityOpsMerkleProof},
+    hasher::keccak::KeccakHasher,
     helpers::unix_timestamp_ms,
     l1::L1Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
@@ -40,20 +41,29 @@ pub struct Aggregator {
     operate_4844_mode: bool,
     pubdata_da: PubdataDA,
     commitment_mode: L1BatchCommitmentMode,
-    priority_merkle_tree: SyncMerkleTree<L1Tx>,
+    priority_merkle_tree: MiniMerkleTree<L1Tx>,
 }
 
 impl Aggregator {
-    pub fn new(
+    pub async fn new(
         config: SenderConfig,
         blob_store: Arc<dyn ObjectStore>,
         operate_4844_mode: bool,
         commitment_mode: L1BatchCommitmentMode,
-        priority_merkle_tree: SyncMerkleTree<L1Tx>,
-    ) -> Self {
+        connection: &mut Connection<'_, Core>,
+    ) -> anyhow::Result<Self> {
         let pubdata_da = config.pubdata_sending_mode.into();
 
-        Self {
+        let priority_tree_start_index = config.priority_tree_start_index.unwrap_or(0);
+        let priority_op_hashes = connection
+            .transactions_dal()
+            .get_l1_transactions_hashes(priority_tree_start_index)
+            .await
+            .map_err(DalError::generalize)?;
+        let priority_merkle_tree =
+            MiniMerkleTree::<L1Tx>::from_hashes(KeccakHasher, priority_op_hashes.into_iter(), None);
+
+        Ok(Self {
             commit_criteria: vec![
                 Box::from(NumberCriterion {
                     op: AggregatedActionType::Commit,
@@ -114,7 +124,7 @@ impl Aggregator {
             pubdata_da,
             commitment_mode,
             priority_merkle_tree,
-        }
+        })
     }
 
     pub async fn get_next_ready_operation(
@@ -204,9 +214,21 @@ impl Aggregator {
             };
 
             let count = batch.header.l1_tx_count as usize;
-            if let Some(first_priority_op_id) = first_priority_op_id_option {
+            if let Some(first_priority_op_id_in_batch) = first_priority_op_id_option {
+                let priority_tree_start_index = self.config.priority_tree_start_index.unwrap_or(0);
+                let new_l1_tx_hashes = storage
+                    .transactions_dal()
+                    .get_l1_transactions_hashes(
+                        priority_tree_start_index + self.priority_merkle_tree.length(),
+                    )
+                    .await
+                    .unwrap();
+                for hash in new_l1_tx_hashes {
+                    self.priority_merkle_tree.push_hash(hash);
+                }
+
                 self.priority_merkle_tree.trim_start(
-                    first_priority_op_id // global index
+                    first_priority_op_id_in_batch // global index
                         - priority_tree_start_index // first index when tree is activated
                         - self.priority_merkle_tree.start_index(), // first index in the tree
                 );
