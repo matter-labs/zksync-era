@@ -68,7 +68,8 @@ Ecosystem configuration can be found in:
 - `/configs` folder
 - `/chains` folder
 
-These files are created at ecosystem initialization `zkstack ecosystem init` and at chain initialization `zkstack chain init`.
+These files are created at ecosystem initialization `zkstack ecosystem init` and at chain initialization
+`zkstack chain init`.
 
 ## Build and run server
 
