@@ -1,6 +1,7 @@
 use core::fmt;
 
 use circuit_sequencer_api_1_5_0::proof::FinalProof;
+use fflonk::FflonkSnarkVerifierCircuitProof;
 use serde::{Deserialize, Serialize};
 use serde_with::{hex::Hex, serde_as};
 use zksync_object_store::{serialize_using_bincode, Bucket, StoredObject};
@@ -8,7 +9,20 @@ use zksync_types::{protocol_version::ProtocolSemanticVersion, tee_types::TeeType
 
 /// A "final" ZK proof that can be sent to the L1 contract.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct L1BatchProofForL1 {
+pub enum L1BatchProofForL1 {
+    Fflonk(FflonkL1BatchProofForL1),
+    Plonk(PlonkL1BatchProofForL1),
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct FflonkL1BatchProofForL1 {
+    pub aggregation_result_coords: [[u8; 32]; 4],
+    pub scheduler_proof: FflonkSnarkVerifierCircuitProof,
+    pub protocol_version: ProtocolSemanticVersion,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct PlonkL1BatchProofForL1 {
     pub aggregation_result_coords: [[u8; 32]; 4],
     pub scheduler_proof: FinalProof,
     pub protocol_version: ProtocolSemanticVersion,
@@ -36,6 +50,23 @@ impl fmt::Debug for L1BatchProofForL1 {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
             .debug_struct("L1BatchProofForL1")
+            .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for PlonkL1BatchProofForL1 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PplonkL1BatchProofForL1")
+            .field("aggregation_result_coords", &self.aggregation_result_coords)
+            .finish_non_exhaustive()
+    }
+}
+
+impl fmt::Debug for FflonkL1BatchProofForL1 {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("FflonkL1BatchProofForL1")
             .field("aggregation_result_coords", &self.aggregation_result_coords)
             .finish_non_exhaustive()
     }

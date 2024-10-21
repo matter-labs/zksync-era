@@ -1,5 +1,6 @@
 #![feature(allocator_api)]
 
+use boojum_cuda::poseidon2::GLHasher;
 use serde::{Deserialize, Serialize};
 use zkevm_test_harness::compute_setups::CircuitSetupData;
 use zksync_prover_fri_types::circuit_definitions::boojum::{
@@ -85,7 +86,7 @@ impl From<CircuitSetupData> for GoldilocksProverSetupData {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "F: serde::Serialize + serde::de::DeserializeOwned")]
 pub struct GpuProverSetupData<F: PrimeField + SmallField, H: TreeHasher<F>> {
-    pub setup: GpuSetup<Global>,
+    pub setup: GpuSetup<GLHasher, Global>,
     #[serde(bound(
         serialize = "H::Output: serde::Serialize",
         deserialize = "H::Output: serde::de::DeserializeOwned"
