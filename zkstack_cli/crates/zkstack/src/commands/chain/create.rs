@@ -18,22 +18,31 @@ use crate::{
 };
 
 pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
-    let mut ecosystem_config = EcosystemConfig::from_file(shell)?;
+    let mut ecosystem_config = EcosystemConfig::from_file(shell).ok();
     create(args, &mut ecosystem_config, shell)
 }
 
 fn create(
     args: ChainCreateArgs,
-    ecosystem_config: &mut EcosystemConfig,
+    ecosystem: &mut Option<EcosystemConfig>,
     shell: &Shell,
 ) -> anyhow::Result<()> {
-    let tokens = ecosystem_config.get_erc20_tokens();
+    let tokens = ecosystem
+        .as_ref()
+        .map(|ecosystem| ecosystem.get_erc20_tokens())
+        .unwrap_or_default();
+
+    let number_of_chains = ecosystem
+        .as_ref()
+        .map(|ecosystem| ecosystem.list_of_chains().len() as u32)
+        .unwrap_or_default();
+
+    let l1_network = ecosystem
+        .as_ref()
+        .map(|ecosystem| ecosystem.l1_network.clone());
+
     let args = args
-        .fill_values_with_prompt(
-            ecosystem_config.list_of_chains().len() as u32,
-            &ecosystem_config.l1_network,
-            tokens,
-        )
+        .fill_values_with_prompt(number_of_chains, l1_network, tokens)
         .context(MSG_ARGS_VALIDATOR_ERR)?;
 
     logger::note(MSG_SELECTED_CONFIG, logger::object_to_string(&args));
