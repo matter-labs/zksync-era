@@ -104,6 +104,63 @@ impl ExternalIO {
             }
         })
     }
+
+    async fn ensure_protocol_version_is_saved(
+        &self,
+        protocol_version: ProtocolVersionId,
+    ) -> anyhow::Result<()> {
+        let base_system_contract_hashes = self
+            .pool
+            .connection_tagged("sync_layer")
+            .await?
+            .protocol_versions_dal()
+            .get_base_system_contract_hashes_by_version_id(protocol_version as u16)
+            .await?;
+        if let Some(_) = base_system_contract_hashes {
+            return Ok(());
+        }
+        tracing::info!("Fetching protocol version {protocol_version:?} from the main node");
+
+        let protocol_version = self
+            .main_node_client
+            .fetch_protocol_version(protocol_version)
+            .await
+            .context("failed to fetch protocol version from the main node")?
+            .context("protocol version is missing on the main node")?;
+        let minor = protocol_version
+            .minor_version()
+            .context("Missing minor protocol version")?;
+        let bootloader_code_hash = protocol_version
+            .bootloader_code_hash()
+            .context("Missing bootloader code hash")?;
+        let default_account_code_hash = protocol_version
+            .default_account_code_hash()
+            .context("Missing default account code hash")?;
+        let evm_emulator_code_hash = protocol_version.evm_emulator_code_hash();
+        let l2_system_upgrade_tx_hash = protocol_version.l2_system_upgrade_tx_hash();
+        self.pool
+            .connection_tagged("sync_layer")
+            .await?
+            .protocol_versions_dal()
+            .save_protocol_version(
+                ProtocolSemanticVersion {
+                    minor: minor
+                        .try_into()
+                        .context("cannot convert protocol version")?,
+                    patch: VersionPatch(0),
+                },
+                protocol_version.timestamp,
+                Default::default(), // verification keys are unused for EN
+                BaseSystemContractsHashes {
+                    bootloader: bootloader_code_hash,
+                    default_aa: default_account_code_hash,
+                    evm_emulator: evm_emulator_code_hash,
+                },
+                l2_system_upgrade_tx_hash,
+            )
+            .await?;
+        Ok(())
+    }
 }
 
 impl IoSealCriteria for ExternalIO {
@@ -254,6 +311,8 @@ impl StateKeeperIO for ExternalIO {
                     cursor.next_l2_block
                 );
 
+                self.ensure_protocol_version_is_saved(params.protocol_version)
+                    .await?;
                 self.pool
                     .connection_tagged("sync_layer")
                     .await?
@@ -261,7 +320,7 @@ impl StateKeeperIO for ExternalIO {
                     .insert_l1_batch(UnsealedL1BatchHeader {
                         number: cursor.l1_batch,
                         timestamp: params.first_l2_block.timestamp,
-                        protocol_version: None,
+                        protocol_version: Some(params.protocol_version),
                         fee_address: params.operator_address,
                         fee_input: params.fee_input,
                     })
@@ -351,63 +410,21 @@ impl StateKeeperIO for ExternalIO {
             .connection_tagged("sync_layer")
             .await?
             .protocol_versions_dal()
-            .load_base_system_contracts_by_version_id(protocol_version as u16)
-            .await
-            .context("failed loading base system contracts")?;
-
-        if let Some(contracts) = base_system_contracts {
-            return Ok(contracts);
-        }
-        tracing::info!("Fetching protocol version {protocol_version:?} from the main node");
-
-        let protocol_version = self
-            .main_node_client
-            .fetch_protocol_version(protocol_version)
-            .await
-            .context("failed to fetch protocol version from the main node")?
-            .context("protocol version is missing on the main node")?;
-        let minor = protocol_version
-            .minor_version()
-            .context("Missing minor protocol version")?;
-        let bootloader_code_hash = protocol_version
-            .bootloader_code_hash()
-            .context("Missing bootloader code hash")?;
-        let default_account_code_hash = protocol_version
-            .default_account_code_hash()
-            .context("Missing default account code hash")?;
-        let evm_emulator_code_hash = protocol_version.evm_emulator_code_hash();
-        let l2_system_upgrade_tx_hash = protocol_version.l2_system_upgrade_tx_hash();
-        self.pool
-            .connection_tagged("sync_layer")
+            .get_base_system_contract_hashes_by_version_id(protocol_version as u16)
             .await?
-            .protocol_versions_dal()
-            .save_protocol_version(
-                ProtocolSemanticVersion {
-                    minor: minor
-                        .try_into()
-                        .context("cannot convert protocol version")?,
-                    patch: VersionPatch(0),
-                },
-                protocol_version.timestamp,
-                Default::default(), // verification keys are unused for EN
-                BaseSystemContractsHashes {
-                    bootloader: bootloader_code_hash,
-                    default_aa: default_account_code_hash,
-                    evm_emulator: evm_emulator_code_hash,
-                },
-                l2_system_upgrade_tx_hash,
-            )
-            .await?;
+            .with_context(|| {
+                format!("Cannot load base system contracts' hashes for {protocol_version:?}. They should already be present")
+            })?;
 
         let bootloader = self
-            .get_base_system_contract(bootloader_code_hash, cursor.next_l2_block)
+            .get_base_system_contract(base_system_contracts.bootloader, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch bootloader code for {protocol_version:?}"))?;
         let default_aa = self
-            .get_base_system_contract(default_account_code_hash, cursor.next_l2_block)
+            .get_base_system_contract(base_system_contracts.default_aa, cursor.next_l2_block)
             .await
             .with_context(|| format!("cannot fetch default AA code for {protocol_version:?}"))?;
-        let evm_emulator = if let Some(hash) = evm_emulator_code_hash {
+        let evm_emulator = if let Some(hash) = base_system_contracts.evm_emulator {
             Some(
                 self.get_base_system_contract(hash, cursor.next_l2_block)
                     .await
