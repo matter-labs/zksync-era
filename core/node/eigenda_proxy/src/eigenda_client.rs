@@ -1,5 +1,4 @@
 use std::{
-    fmt::Debug,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -58,7 +57,7 @@ impl EigenDAClient {
     }
 
     pub async fn put_blob(&self, blob_data: Vec<u8>) -> Result<Vec<u8>, EigenDAError> {
-        println!("Putting blob");
+        tracing::info!("Putting blob");
         if blob_data.len() > self.config.blob_size_limit as usize {
             return Err(EigenDAError::PutError);
         }
@@ -102,9 +101,10 @@ impl EigenDAClient {
 
             let blob_status = blob_status_reply.status();
 
-            println!(
+            tracing::info!(
                 "Dispersing blob {:?}, status: {:?}",
-                request_id_str, blob_status
+                request_id_str,
+                blob_status
             );
 
             match blob_status {
@@ -156,7 +156,7 @@ impl EigenDAClient {
     }
 
     pub async fn get_blob(&self, commit: Vec<u8>) -> Result<Vec<u8>, EigenDAError> {
-        println!("Getting blob");
+        tracing::info!("Getting blob");
         let blob_info: BlobInfo = decode(&commit).map_err(|_| EigenDAError::GetError)?;
         let blob_index = blob_info.blob_verification_proof.blob_index;
         let batch_header_hash = blob_info
@@ -168,7 +168,7 @@ impl EigenDAClient {
             .lock()
             .await
             .retrieve_blob(disperser::RetrieveBlobRequest {
-                batch_header_hash: batch_header_hash,
+                batch_header_hash,
                 blob_index,
             })
             .await
@@ -183,9 +183,8 @@ impl EigenDAClient {
     }
 }
 
+#[cfg(test)]
 mod test {
-    use std::time::Duration;
-
     use super::*;
 
     #[tokio::test]
