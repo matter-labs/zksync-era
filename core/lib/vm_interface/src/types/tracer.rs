@@ -77,8 +77,10 @@ pub enum ViolatedValidationRule {
     TouchedDisallowedContext,
     /// The transaction used too much gas during validation.
     TookTooManyComputationalGas(u32),
-    /// The transaction failed block.timestamp assertion
-    TimestampAssertionOutOfRange,
+    /// The transaction failed block.timestamp assertion because the range is too short
+    TimestampAssertionShortRange,
+    /// The transaction failed block.timestamp assertion because the block.timestamp is too close to the range end
+    TimestampAssertionCloseToRangeEnd,
 }
 
 impl fmt::Display for ViolatedValidationRule {
@@ -100,8 +102,11 @@ impl fmt::Display for ViolatedValidationRule {
                     "Took too many computational gas, allowed limit: {gas_limit}"
                 )
             }
-            ViolatedValidationRule::TimestampAssertionOutOfRange => {
-                write!(f, "Transaction failed block.timestamp assertion")
+            ViolatedValidationRule::TimestampAssertionShortRange => {
+                write!(f, "block.timestamp range is too short")
+            }
+            ViolatedValidationRule::TimestampAssertionCloseToRangeEnd => {
+                write!(f, "block.timestamp is too close to the range end")
             }
         }
     }
