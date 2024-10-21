@@ -2,7 +2,7 @@
 
 This document outlines the steps for setting up and working with ZKsync.
 
-## Initializing the project
+## Installing the local ZK Stack CLI
 
 To set up the local toolkit, begin by installing `zkstackup`. From the project's root directory, run the following
 commands:
@@ -25,7 +25,16 @@ zkstackup --local
 >
 > `alias zkstackup='zkstackup --path $ZKSYNC_HOME'`
 
-This command installs `zkstack` from the current source directory.
+This command installs `zkstack` from the current source directory. 
+
+> Whenever you want to update you local installation
+> with your changes, just rerun:
+> 
+> ```bash
+> zkstackup --local
+> ```
+
+## Configure Ecosystem
 
 The root directory includes configuration files for an ecosystem with a single chain, `era`. To initialize the
 ecosystem, first start the required containers:
