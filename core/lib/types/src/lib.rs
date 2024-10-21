@@ -8,6 +8,7 @@
 use std::fmt;
 
 use anyhow::Context as _;
+use chrono::NaiveDateTime;
 use fee::encoding_len;
 pub use l1::L1TxCommonData;
 pub use l2::L2TxCommonData;
@@ -415,4 +416,20 @@ impl Transaction {
             }
         })
     }
+}
+
+#[derive(
+    Clone,
+    Serialize,
+    Deserialize,
+    Debug,
+    Default,
+    Eq,
+    PartialEq,
+    Hash,
+    Copy
+)]
+pub struct TransactionTimeRangeConstraint {
+    pub timestamp_asserter_range_start: Option<NaiveDateTime>,
+    pub timestamp_asserter_range_end: Option<NaiveDateTime>,
 }

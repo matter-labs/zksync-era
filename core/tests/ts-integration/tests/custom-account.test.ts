@@ -9,6 +9,7 @@ import * as ethers from 'ethers';
 import { deployContract, getTestContract } from '../src/helpers';
 import { ERC20_PER_ACCOUNT, L2_DEFAULT_ETH_PER_ACCOUNT } from '../src/context-owner';
 import { shouldChangeETHBalances, shouldChangeTokenBalances } from '../src/modifiers/balance-checker';
+import { fail } from 'node:assert';
 
 const contracts = {
     customAccount: getTestContract('CustomAccount'),
@@ -18,6 +19,8 @@ const contracts = {
 // We create multiple custom accounts and we need to fund them with ETH to pay for fees.
 const ETH_PER_CUSTOM_ACCOUNT = L2_DEFAULT_ETH_PER_ACCOUNT / 8n;
 const TRANSFER_AMOUNT = 1n;
+const DEFAULT_TIMESTAMP_ASSERTER_RANGE_START = 0;
+const DEFAULT_TIMESTAMP_ASSERTER_RANGE_END = 2555971200;
 
 describe('Tests for the custom account behavior', () => {
     let testMaster: TestMaster;
@@ -25,11 +28,13 @@ describe('Tests for the custom account behavior', () => {
     let customAccount: zksync.Contract;
     let erc20Address: string;
     let erc20: zksync.Contract;
+    let timestampAsserterAddress: string;
 
     beforeAll(() => {
         testMaster = TestMaster.getInstance(__filename);
         alice = testMaster.mainAccount();
         erc20Address = testMaster.environment().erc20Token.l2Address;
+        timestampAsserterAddress = testMaster.environment().timestampAsserterAddress;
         erc20 = new zksync.Contract(
             erc20Address,
             zksync.utils.IERC20,
@@ -40,7 +45,18 @@ describe('Tests for the custom account behavior', () => {
 
     test('Should deploy custom account', async () => {
         const violateRules = false;
-        customAccount = await deployContract(alice, contracts.customAccount, [violateRules], 'createAccount');
+        customAccount = await deployContract(
+            alice,
+            contracts.customAccount,
+            // 2555971200 is a number of seconds up to 30/12/2050
+            [
+                violateRules,
+                timestampAsserterAddress,
+                DEFAULT_TIMESTAMP_ASSERTER_RANGE_START,
+                DEFAULT_TIMESTAMP_ASSERTER_RANGE_END
+            ],
+            'createAccount'
+        );
 
         // Now we need to check that it was correctly marked as an account:
         const contractAccountInfo = await alice.provider.getContractAccountInfo(await customAccount.getAddress());
@@ -50,6 +66,8 @@ describe('Tests for the custom account behavior', () => {
 
         // Checking that the nonce ordering is correct
         expect(contractAccountInfo.nonceOrdering).toEqual(zksync.types.AccountNonceOrdering.Sequential);
+
+        return customAccount;
     });
 
     test('Should fund the custom account', async () => {
@@ -60,7 +78,7 @@ describe('Tests for the custom account behavior', () => {
             .transfer({
                 to: await customAccount.getAddress(),
                 token: erc20Address,
-                amount: ERC20_PER_ACCOUNT / 4n
+                amount: ERC20_PER_ACCOUNT / 8n
             })
             .then((tx) => tx.wait());
     });
@@ -95,6 +113,94 @@ describe('Tests for the custom account behavior', () => {
         ).toBeAccepted([erc20BalanceChange, feeCheck]);
     });
 
+    test('Should fail transaction validation due to timestamp assertion in the validation tracer - short time window', async () => {
+        const now = Math.floor(Date.now() / 1000);
+        const rangeStart = now - 60;
+        const rangeEnd = now + 60;
+
+        const customAccount = await deployAndFundCustomAccount(
+            alice,
+            erc20Address,
+            timestampAsserterAddress,
+            rangeStart,
+            rangeEnd
+        );
+
+        const tx = await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT);
+        await expect(
+            sendCustomAccountTransaction(
+                tx as zksync.types.Transaction,
+                alice.provider,
+                await customAccount.getAddress(),
+                testMaster.environment().l2ChainId
+            )
+        ).toBeRejected(
+            'failed to validate the transaction. reason: Violated validation rules: block.timestamp range is too short'
+        );
+    });
+
+    test('Should fail transaction validation due to timestamp assertion in the validation tracer - close to the range end', async () => {
+        const now = Math.floor(Date.now() / 1000);
+        const rangeStart = now - 600;
+        const rangeEnd = now + 30;
+
+        const customAccount = await deployAndFundCustomAccount(
+            alice,
+            erc20Address,
+            timestampAsserterAddress,
+            rangeStart,
+            rangeEnd
+        );
+
+        const tx = await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT);
+
+        await expect(
+            sendCustomAccountTransaction(
+                tx as zksync.types.Transaction,
+                alice.provider,
+                await customAccount.getAddress(),
+                testMaster.environment().l2ChainId
+            )
+        ).toBeRejected(
+            'failed to validate the transaction. reason: Violated validation rules: block.timestamp is too close to the range end'
+        );
+    });
+
+    test('Should fail to estimate fee due to block.timestamp assertion in the smart contract', async () => {
+        const now = Math.floor(Date.now() / 1000);
+        const rangeStart = now + 300;
+        const rangeEnd = now + 1000;
+
+        const customAccount = await deployAndFundCustomAccount(
+            alice,
+            erc20Address,
+            timestampAsserterAddress,
+            rangeStart,
+            rangeEnd
+        );
+
+        const promise = alice.provider.estimateGas({
+            ...(await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT)),
+            from: await customAccount.getAddress()
+        });
+
+        // requires custom assertion because the transaction would fail in "estimateFee" that is not handled correctly by zksync ethers
+        promise
+            .then((_) => {
+                fail('The transaction was expected to fail due to timestamp assertion');
+            })
+            .catch((error) => {
+                // If it's an error object with the structure you're mentioning, check its properties
+                if (error.info && error.info.error && error.info.error.message) {
+                    expect(error.info.error.message).toEqual(
+                        'failed to validate the transaction. reason: Timestamp is out of range'
+                    );
+                } else {
+                    fail('The transaction was expected to fail with a different message');
+                }
+            });
+    });
+
     test('Should fail the validation with incorrect signature', async () => {
         const tx = await erc20.transfer.populateTransaction(alice.address, TRANSFER_AMOUNT);
         const fakeSignature = new Uint8Array(12);
@@ -112,7 +218,17 @@ describe('Tests for the custom account behavior', () => {
     test('Should not allow violating validation rules', async () => {
         // We configure account to violate storage access rules during tx validation.
         const violateRules = true;
-        const badCustomAccount = await deployContract(alice, contracts.customAccount, [violateRules], 'createAccount');
+        const badCustomAccount = await deployContract(
+            alice,
+            contracts.customAccount,
+            [
+                violateRules,
+                timestampAsserterAddress,
+                DEFAULT_TIMESTAMP_ASSERTER_RANGE_START,
+                DEFAULT_TIMESTAMP_ASSERTER_RANGE_END
+            ],
+            'createAccount'
+        );
         const badCustomAccountAddress = await badCustomAccount.getAddress();
 
         // Fund the account.
@@ -145,7 +261,17 @@ describe('Tests for the custom account behavior', () => {
         // Note that we supply "create" instead of "createAccount" here -- the code is the same, but it'll
         // be treated as a common contract.
         const violateRules = false;
-        const nonAccount = await deployContract(alice, contracts.customAccount, [violateRules], 'create');
+        const nonAccount = await deployContract(
+            alice,
+            contracts.customAccount,
+            [
+                violateRules,
+                timestampAsserterAddress,
+                DEFAULT_TIMESTAMP_ASSERTER_RANGE_START,
+                DEFAULT_TIMESTAMP_ASSERTER_RANGE_END
+            ],
+            'create'
+        );
         const nonAccountAddress = await nonAccount.getAddress();
 
         // Fund the account.
@@ -203,7 +329,12 @@ describe('Tests for the custom account behavior', () => {
         const badCustomAccount = await deployContract(
             alice,
             contracts.customAccount,
-            [violateStorageRules],
+            [
+                violateStorageRules,
+                timestampAsserterAddress,
+                DEFAULT_TIMESTAMP_ASSERTER_RANGE_START,
+                DEFAULT_TIMESTAMP_ASSERTER_RANGE_END
+            ],
             'createAccount'
         );
         const badCustomAccountAddress = await badCustomAccount.getAddress();
@@ -244,7 +375,12 @@ describe('Tests for the custom account behavior', () => {
         const badCustomAccount = await deployContract(
             alice,
             contracts.customAccount,
-            [violateStorageRules],
+            [
+                violateStorageRules,
+                timestampAsserterAddress,
+                DEFAULT_TIMESTAMP_ASSERTER_RANGE_START,
+                DEFAULT_TIMESTAMP_ASSERTER_RANGE_END
+            ],
             'createAccount'
         );
         const badCustomAccountAddress = await badCustomAccount.getAddress();
@@ -344,4 +480,31 @@ async function sendCustomAccountTransaction(
     const serializedTx = zksync.utils.serializeEip712({ ...tx });
 
     return await browserProvider.broadcastTransaction(serializedTx);
+}
+
+async function deployAndFundCustomAccount(
+    richAccount: zksync.Wallet,
+    erc20Address: string,
+    timestampAsserterAddress: string,
+    rangeStart: number,
+    rangeEnd: number
+): Promise<zksync.Contract> {
+    const customAccount = await deployContract(
+        richAccount,
+        contracts.customAccount,
+        [false, timestampAsserterAddress, rangeStart, rangeEnd],
+        'createAccount'
+    );
+
+    await richAccount
+        .transfer({ to: await customAccount.getAddress(), amount: ETH_PER_CUSTOM_ACCOUNT })
+        .then((tx) => tx.wait());
+    await richAccount
+        .transfer({
+            to: await customAccount.getAddress(),
+            token: erc20Address,
+            amount: ERC20_PER_ACCOUNT / 8n
+        })
+        .then((tx) => tx.wait());
+    return customAccount;
 }

@@ -803,7 +803,7 @@ mod tests {
         block::{L2BlockHasher, L2BlockHeader},
         Address, L2BlockNumber, ProtocolVersion, ProtocolVersionId,
     };
-    use zksync_vm_interface::TransactionExecutionMetrics;
+    use zksync_vm_interface::{tracer::ValidationTraces, TransactionExecutionMetrics};
 
     use super::*;
     use crate::{
@@ -1090,7 +1090,11 @@ mod tests {
         let mut tx_results = vec![];
         for (i, tx) in transactions.into_iter().enumerate() {
             conn.transactions_dal()
-                .insert_transaction_l2(&tx, TransactionExecutionMetrics::default())
+                .insert_transaction_l2(
+                    &tx,
+                    TransactionExecutionMetrics::default(),
+                    ValidationTraces::default(),
+                )
                 .await
                 .unwrap();
             let mut tx_result = mock_execution_result(tx);
