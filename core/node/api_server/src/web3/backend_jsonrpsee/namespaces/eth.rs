@@ -268,4 +268,8 @@ impl EthNamespaceServer for EthNamespace {
             .await
             .map_err(|err| self.current_method().map_err(err))
     }
+
+    async fn max_priority_fee_per_gas(&self) -> RpcResult<U256> {
+        Ok(self.max_priority_fee_per_gas_impl())
+    }
 }
