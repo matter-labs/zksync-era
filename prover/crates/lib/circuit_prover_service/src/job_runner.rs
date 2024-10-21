@@ -13,7 +13,7 @@ use crate::{
     types::witness_vector_generator_execution_output::WitnessVectorGeneratorExecutionOutput,
     witness_vector_generator::{
         WitnessVectorGeneratorExecutor, WitnessVectorGeneratorJobPicker,
-        WitnessVectorGeneratorJobSaver,
+        WitnessVectorGeneratorJobSaver, WvgJobType,
     },
 };
 
@@ -33,6 +33,63 @@ pub fn light_wvg_runner(
     WitnessVectorGeneratorJobPicker,
     WitnessVectorGeneratorJobSaver,
 > {
+    wvg_runner(
+        connection_pool,
+        object_store,
+        pod_name,
+        protocol_version,
+        finalization_hints_cache,
+        count,
+        sender,
+        WvgJobType::Light,
+    )
+}
+
+pub fn heavy_wvg_runner(
+    connection_pool: ConnectionPool<Prover>,
+    object_store: Arc<dyn ObjectStore>,
+    pod_name: String,
+    protocol_version: ProtocolSemanticVersion,
+    finalization_hints_cache: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
+    count: usize,
+    sender: tokio::sync::mpsc::Sender<(
+        WitnessVectorGeneratorExecutionOutput,
+        FriProverJobMetadata,
+    )>,
+) -> JobRunner<
+    WitnessVectorGeneratorExecutor,
+    WitnessVectorGeneratorJobPicker,
+    WitnessVectorGeneratorJobSaver,
+> {
+    wvg_runner(
+        connection_pool,
+        object_store,
+        pod_name,
+        protocol_version,
+        finalization_hints_cache,
+        count,
+        sender,
+        WvgJobType::Heavy,
+    )
+}
+
+pub fn wvg_runner(
+    connection_pool: ConnectionPool<Prover>,
+    object_store: Arc<dyn ObjectStore>,
+    pod_name: String,
+    protocol_version: ProtocolSemanticVersion,
+    finalization_hints_cache: HashMap<ProverServiceDataKey, Arc<FinalizationHintsForProver>>,
+    count: usize,
+    sender: tokio::sync::mpsc::Sender<(
+        WitnessVectorGeneratorExecutionOutput,
+        FriProverJobMetadata,
+    )>,
+    wvg_job_type: WvgJobType,
+) -> JobRunner<
+    WitnessVectorGeneratorExecutor,
+    WitnessVectorGeneratorJobPicker,
+    WitnessVectorGeneratorJobSaver,
+> {
     let executor = WitnessVectorGeneratorExecutor;
     let job_picker = WitnessVectorGeneratorJobPicker::new(
         connection_pool.clone(),
@@ -40,15 +97,8 @@ pub fn light_wvg_runner(
         pod_name,
         protocol_version,
         finalization_hints_cache,
+        wvg_job_type,
     );
     let job_saver = WitnessVectorGeneratorJobSaver::new(connection_pool, sender);
     JobRunner::new(executor, job_picker, job_saver, count)
 }
-
-// async fn heavy_wvg_runner() -> JobRunner<WitnessVectorGeneratorExecutor, WitnessVectorGeneratorJobPicker, WitnessVectorGeneratorJobSaver> {
-//     let executor = WitnessVectorGeneratorExecutor;
-//     // TODO: different picker
-//     let job_picker = WitnessVectorGeneratorJobPicker::new(connection_pool, object_store, pod_name, protocol_version, finalization_hints_cache);
-//     let job_saver = WitnessVectorGeneratorJobSaver;
-//     let job_runner = JobRunner::new(executor, job_picker, job_saver, count);
-// }

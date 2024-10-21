@@ -94,6 +94,8 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
         )?
     } else {
         update_setup_data_path(&chain, "data/keys".to_string())?;
+        println!("{application_args:?}");
+        println!("{additional_args:?}");
         run_binary_component(
             shell,
             component.binary_name(),

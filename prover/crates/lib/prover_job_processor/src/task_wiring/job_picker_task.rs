@@ -28,23 +28,18 @@ impl<P: JobPicker> JobPickerTask<P> {
 impl<P: JobPicker> Task for JobPickerTask<P> {
     async fn run(mut self) -> anyhow::Result<()> {
         loop {
-            println!("taking job");
             match self.picker.pick_job().await {
                 Ok(Some((input, metadata))) => {
-                    println!("got job");
                     if self.input_tx.send((input, metadata)).await.is_err() {
                         // Worker pool has been dropped
                         break;
                     }
-                    println!("send job");
                 }
                 Ok(None) => {
-                    println!("got no job");
                     // No job available, sleep and retry
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 }
                 Err(e) => {
-                    eprintln!("Error picking job: {:?}", e);
                     // Sleep and retry
                     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 }

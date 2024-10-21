@@ -11,8 +11,8 @@ use zksync_circuit_prover::{
     Backoff,
     CircuitProver,
     FinalizationHintsCache,
-    // WitnessVectorGenerator,
     SetupDataCache,
+    // WitnessVectorGenerator,
     PROVER_BINARY_METRICS,
 };
 use zksync_circuit_prover_service::{
@@ -101,40 +101,35 @@ async fn main() -> anyhow::Result<()> {
 
     let (witness_vector_sender, witness_vector_receiver) = tokio::sync::mpsc::channel(5);
 
-    tracing::info!("Starting {wvg_count} Witness Vector Generators.");
+    tracing::info!(
+        "Starting {} light WVGs and {} heavy WVGs.",
+        opt.light_wvg_count,
+        opt.heavy_wvg_count
+    );
 
-    let wvg_runner = light_wvg_runner(
+    let light_wvg_runner = light_wvg_runner(
+        connection_pool.clone(),
+        object_store.clone(),
+        get_current_pod_name(),
+        PROVER_PROTOCOL_SEMANTIC_VERSION,
+        hints.clone(),
+        opt.light_wvg_count,
+        witness_vector_sender.clone(),
+    );
+
+    tasks.extend(light_wvg_runner.run());
+
+    let heavy_wvg_runner = zksync_circuit_prover_service::job_runner::heavy_wvg_runner(
         connection_pool.clone(),
         object_store.clone(),
         get_current_pod_name(),
         PROVER_PROTOCOL_SEMANTIC_VERSION,
         hints,
-        opt.light_wvg_count,
+        opt.heavy_wvg_count,
         witness_vector_sender,
     );
 
-    tasks.extend(wvg_runner.run());
-
-    // for _ in 0..wvg_count {
-    //     let witness_vector_generator_job_picker = WitnessVectorGeneratorJobPicker::new(
-    //         connection_pool.clone(),
-    //         object_store.clone(),
-    //         get_current_pod_name(),
-    //         PROVER_PROTOCOL_SEMANTIC_VERSION,
-    //         hints.clone(),
-    //     );
-    //     let wvg = WitnessVectorGenerator::new(
-    //         // object_store.clone(),
-    //         // connection_pool.clone(),
-    //         // PROVER_PROTOCOL_SEMANTIC_VERSION,
-    //         sender.clone(),
-    //         witness_vector_generator_job_picker,
-    //         // hints.clone(),
-    //     );
-    //     tasks.push(tokio::spawn(
-    //         wvg.run(cancellation_token.clone(), backoff.clone()),
-    //     ));
-    // }
+    tasks.extend(heavy_wvg_runner.run());
 
     // NOTE: Prover Context is the way VRAM is allocated. If it is dropped, the claim on VRAM allocation is dropped as well.
     // It has to be kept until prover dies. Whilst it may be kept in prover struct, during cancellation, prover can `drop`, but the thread doing the processing can still be alive.

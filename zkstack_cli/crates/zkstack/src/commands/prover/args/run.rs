@@ -176,16 +176,16 @@ impl ProverComponent {
                         args.fri_prover_args.max_allocation.unwrap()
                     ));
                 };
-                if args
-                    .circuit_prover_args
-                    .witness_vector_generator_count
-                    .is_some()
-                {
+                if args.circuit_prover_args.light_wvg_count.is_some() {
                     additional_args.push(format!(
                         "-l={}",
-                        args.circuit_prover_args
-                            .witness_vector_generator_count
-                            .unwrap()
+                        args.circuit_prover_args.light_wvg_count.unwrap()
+                    ));
+                };
+                if args.circuit_prover_args.heavy_wvg_count.is_some() {
+                    additional_args.push(format!(
+                        "-h={}",
+                        args.circuit_prover_args.heavy_wvg_count.unwrap()
                     ));
                 };
             }
@@ -243,7 +243,9 @@ impl WitnessVectorGeneratorArgs {
 #[derive(Debug, Clone, Parser, Default)]
 pub struct CircuitProverArgs {
     #[clap(long)]
-    pub witness_vector_generator_count: Option<usize>,
+    pub light_wvg_count: Option<usize>,
+    #[clap(long)]
+    pub heavy_wvg_count: Option<usize>,
     #[clap(long)]
     pub max_allocation: Option<usize>,
 }
@@ -257,15 +259,21 @@ impl CircuitProverArgs {
             return Ok(Self::default());
         }
 
-        let witness_vector_generator_count =
-            self.witness_vector_generator_count.unwrap_or_else(|| {
-                Prompt::new("Number of WVG jobs to run in parallel")
-                    .default("1")
-                    .ask()
-            });
+        let light_wvg_count = self.light_wvg_count.unwrap_or_else(|| {
+            Prompt::new("Number of light WVG jobs to run in parallel")
+                .default("5")
+                .ask()
+        });
+
+        let heavy_wvg_count = self.heavy_wvg_count.unwrap_or_else(|| {
+            Prompt::new("Number of heavy WVG jobs to run in parallel")
+                .default("1")
+                .ask()
+        });
 
         Ok(CircuitProverArgs {
-            witness_vector_generator_count: Some(witness_vector_generator_count),
+            light_wvg_count: Some(light_wvg_count),
+            heavy_wvg_count: Some(heavy_wvg_count),
             max_allocation: self.max_allocation,
         })
     }
