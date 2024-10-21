@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use secrecy::ExposeSecret;
-use zksync_basic_types::{seed_phrase::SeedPhrase, url::SensitiveUrl};
+use zksync_basic_types::{api_key::APIKey, seed_phrase::SeedPhrase, url::SensitiveUrl};
 use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
     da_client::avail::AvailSecrets,
@@ -103,14 +103,31 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
         let secrets = required(&self.da_secrets).context("config")?;
 
         let client = match secrets {
-            DaSecrets::Avail(avail_secret) => DataAvailabilitySecrets::Avail(AvailSecrets {
-                seed_phrase: Some(
-                    SeedPhrase::from_str(
-                        required(&avail_secret.seed_phrase).context("seed_phrase")?,
-                    )
-                    .unwrap(),
-                ),
-            }),
+            DaSecrets::Avail(avail_secret) => {
+                let seed_phrase = match avail_secret.seed_phrase.as_ref() {
+                    Some(seed) => match SeedPhrase::from_str(seed) {
+                        Ok(seed) => Some(seed),
+                        Err(_) => None,
+                    },
+                    None => None,
+                };
+                let gas_relay_api_key = match avail_secret.gas_relay_api_key.as_ref() {
+                    Some(api_key) => match APIKey::from_str(api_key) {
+                        Ok(api_key) => Some(api_key),
+                        Err(_) => None,
+                    },
+                    None => None,
+                };
+                if seed_phrase.is_none() && gas_relay_api_key.is_none() {
+                    return Err(anyhow::anyhow!(
+                        "At least one of seed_phrase or gas_relay_api_key must be provided"
+                    ));
+                }
+                DataAvailabilitySecrets::Avail(AvailSecrets {
+                    seed_phrase,
+                    gas_relay_api_key,
+                })
+            }
         };
 
         Ok(client)
@@ -133,7 +150,24 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                     None
                 };
 
-                Some(DaSecrets::Avail(AvailSecret { seed_phrase }))
+                let gas_relay_api_key = if config.gas_relay_api_key.is_some() {
+                    Some(
+                        config
+                            .clone()
+                            .gas_relay_api_key
+                            .unwrap()
+                            .0
+                            .expose_secret()
+                            .to_string(),
+                    )
+                } else {
+                    None
+                };
+
+                Some(DaSecrets::Avail(AvailSecret {
+                    seed_phrase,
+                    gas_relay_api_key,
+                }))
             }
         };
 
