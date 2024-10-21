@@ -1,0 +1,3 @@
+ALTER TABLE tee_proof_generation_details DROP CONSTRAINT tee_proof_generation_details_l1_batch_number_fkey;
+
+DROP TABLE IF EXISTS tee_verifier_input_producer_jobs;

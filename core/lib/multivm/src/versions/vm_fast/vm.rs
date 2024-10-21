@@ -13,7 +13,7 @@ use zksync_types::{
         BYTES_PER_ENUMERATION_INDEX,
     },
     AccountTreeId, StorageKey, StorageLog, StorageLogKind, StorageLogWithPreviousValue,
-    BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
+    Transaction, BOOTLOADER_ADDRESS, H160, H256, KNOWN_CODES_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS,
     L2_BASE_TOKEN_ADDRESS, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, h256_to_u256, u256_to_h256};
@@ -35,11 +35,12 @@ use crate::{
     interface::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
         BytecodeCompressionError, BytecodeCompressionResult, CurrentExecutionState,
-        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, Refunds, SystemEnv,
-        TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode, VmExecutionResultAndLogs,
-        VmExecutionStatistics, VmFactory, VmInterface, VmInterfaceHistoryEnabled, VmRevertReason,
-        VmTrackingContracts,
+        ExecutionResult, FinishedL1Batch, Halt, L1BatchEnv, L2BlockEnv, PushTransactionResult,
+        Refunds, SystemEnv, TxRevertReason, VmEvent, VmExecutionLogs, VmExecutionMode,
+        VmExecutionResultAndLogs, VmExecutionStatistics, VmFactory, VmInterface,
+        VmInterfaceHistoryEnabled, VmRevertReason, VmTrackingContracts,
     },
+    is_supported_by_fast_vm,
     utils::events::extract_l2tol1logs_from_l1_messenger,
     vm_fast::{
         bootloader_state::utils::{apply_l2_block, apply_pubdata_to_memory},
@@ -104,6 +105,12 @@ pub struct Vm<S, Tr = ()> {
 
 impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
     pub fn custom(batch_env: L1BatchEnv, system_env: SystemEnv, storage: S) -> Self {
+        assert!(
+            is_supported_by_fast_vm(system_env.version),
+            "Protocol version {:?} is not supported by fast VM",
+            system_env.version
+        );
+
         let default_aa_code_hash = system_env
             .base_system_smart_contracts
             .default_aa
@@ -546,8 +553,14 @@ where
 impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
     type TracerDispatcher = Tr;
 
-    fn push_transaction(&mut self, tx: zksync_types::Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult<'_> {
         self.push_transaction_inner(tx, 0, true);
+        PushTransactionResult {
+            compressed_bytecodes: self
+                .bootloader_state
+                .get_last_tx_compressed_bytecodes()
+                .into(),
+        }
     }
 
     fn inspect(

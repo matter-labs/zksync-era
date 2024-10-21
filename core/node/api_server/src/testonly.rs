@@ -2,6 +2,7 @@
 
 use std::{collections::HashMap, iter};
 
+use const_decoder::Decoder;
 use zk_evm_1_5_0::zkevm_opcode_defs::decoding::{EncodingModeProduction, VmEncodingMode};
 use zksync_contracts::{
     eth_contract, get_loadnext_contract, load_contract, read_bytecode,
@@ -9,7 +10,6 @@ use zksync_contracts::{
 };
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_multivm::utils::derive_base_fee_and_gas_per_pubdata;
-use zksync_node_fee_model::BatchFeeModelInputProvider;
 use zksync_system_constants::L2_BASE_TOKEN_ADDRESS;
 use zksync_types::{
     api::state_override::{Bytecode, OverrideAccount, OverrideState, StateOverride},
@@ -26,6 +26,30 @@ use zksync_types::{
 };
 use zksync_utils::{address_to_u256, u256_to_h256};
 
+pub(crate) const RAW_EVM_BYTECODE: &[u8] = &const_decoder::decode!(
+    Decoder::Hex,
+    b"00000000000000000000000000000000000000000000000000000000000001266080604052348015\
+      600e575f80fd5b50600436106030575f3560e01c8063816898ff146034578063fb5343f314604c57\
+      5b5f80fd5b604a60048036038101906046919060a6565b6066565b005b6052606f565b604051605d\
+      919060d9565b60405180910390f35b805f8190555050565b5f5481565b5f80fd5b5f819050919050\
+      565b6088816078565b81146091575f80fd5b50565b5f8135905060a0816081565b92915050565b5f\
+      6020828403121560b85760b76074565b5b5f60c3848285016094565b91505092915050565b60d381\
+      6078565b82525050565b5f60208201905060ea5f83018460cc565b9291505056fea2646970667358\
+      221220caca1247066da378f2ec77c310f2ae51576272367b4fa11cc4350af4e9ce4d0964736f6c63\
+      4300081a00330000000000000000000000000000000000000000000000000000"
+);
+pub(crate) const PROCESSED_EVM_BYTECODE: &[u8] = &const_decoder::decode!(
+    Decoder::Hex,
+    b"6080604052348015600e575f80fd5b50600436106030575f3560e01c8063816898ff146034578063\
+      fb5343f314604c575b5f80fd5b604a60048036038101906046919060a6565b6066565b005b605260\
+      6f565b604051605d919060d9565b60405180910390f35b805f8190555050565b5f5481565b5f80fd\
+      5b5f819050919050565b6088816078565b81146091575f80fd5b50565b5f8135905060a081608156\
+      5b92915050565b5f6020828403121560b85760b76074565b5b5f60c3848285016094565b91505092\
+      915050565b60d3816078565b82525050565b5f60208201905060ea5f83018460cc565b9291505056\
+      fea2646970667358221220caca1247066da378f2ec77c310f2ae51576272367b4fa11cc4350af4e9\
+      ce4d0964736f6c634300081a0033"
+);
+
 const EXPENSIVE_CONTRACT_PATH: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/expensive/expensive.sol/Expensive.json";
 const PRECOMPILES_CONTRACT_PATH: &str =
@@ -35,7 +59,7 @@ const COUNTER_CONTRACT_PATH: &str =
 const INFINITE_LOOP_CONTRACT_PATH: &str =
     "etc/contracts-test-data/artifacts-zk/contracts/infinite/infinite.sol/InfiniteLoop.json";
 const MULTICALL3_CONTRACT_PATH: &str =
-    "contracts/l2-contracts/artifacts-zk/contracts/dev-contracts/Multicall3.sol/Multicall3.json";
+    "contracts/l2-contracts/zkout/Multicall3.sol/Multicall3.json";
 
 /// Inflates the provided bytecode by appending the specified amount of NOP instructions at the end.
 fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {
@@ -47,11 +71,7 @@ fn inflate_bytecode(bytecode: &mut Vec<u8>, nop_count: usize) {
 }
 
 fn default_fee() -> Fee {
-    let fee_input = <dyn BatchFeeModelInputProvider>::default_batch_fee_input_scaled(
-        FeeParams::sensible_v1_default(),
-        1.0,
-        1.0,
-    );
+    let fee_input = FeeParams::sensible_v1_default().scale(1.0, 1.0);
     let (max_fee_per_gas, gas_per_pubdata_limit) =
         derive_base_fee_and_gas_per_pubdata(fee_input, ProtocolVersionId::default().into());
     Fee {

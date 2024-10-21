@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use zksync_concurrency::{ctx, error::Wrap as _, scope, time};
 use zksync_consensus_executor::{self as executor, attestation};
 use zksync_consensus_roles::{attester, validator};
-use zksync_consensus_storage::BlockStore;
+use zksync_consensus_storage::{BlockStore, PersistentBlockStore as _};
 use zksync_dal::consensus_dal;
 use zksync_node_sync::{fetcher::FetchedBlock, sync_action::ActionQueueSender, SyncState};
 use zksync_types::L2BlockNumber;
@@ -20,6 +20,10 @@ use crate::{
     registry,
     storage::{self, ConnectionPool},
 };
+
+/// If less than TEMPORARY_FETCHER_THRESHOLD certificates are missing,
+/// the temporary fetcher will stop fetching blocks.
+pub(crate) const TEMPORARY_FETCHER_THRESHOLD: u64 = 10;
 
 /// External node.
 pub(super) struct EN {
@@ -119,6 +123,20 @@ impl EN {
             .await
             .wrap("Store::new()")?;
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
+
+            // Run the temporary fetcher until the certificates are backfilled.
+            // Temporary fetcher should be removed once json RPC syncing is fully deprecated.
+            s.spawn_bg({
+                let store = store.clone();
+                async {
+                    let store = store;
+                    self.temporary_block_fetcher(ctx, &store).await?;
+                    tracing::info!(
+                        "temporary block fetcher finished, switching to p2p fetching only"
+                    );
+                    Ok(())
+                }
+            });
 
             let (block_store, runner) = BlockStore::new(ctx, Box::new(store.clone()))
                 .await
@@ -358,8 +376,42 @@ impl EN {
         }
     }
 
+    /// Fetches blocks from the main node directly, until the certificates
+    /// are backfilled. This allows for smooth transition from json RPC to p2p block syncing.
+    pub(crate) async fn temporary_block_fetcher(
+        &self,
+        ctx: &ctx::Ctx,
+        store: &Store,
+    ) -> ctx::Result<()> {
+        const MAX_CONCURRENT_REQUESTS: usize = 30;
+        scope::run!(ctx, |ctx, s| async {
+            let (send, mut recv) = ctx::channel::bounded(MAX_CONCURRENT_REQUESTS);
+            s.spawn(async {
+                let Some(mut next) = store.next_block(ctx).await? else {
+                    return Ok(());
+                };
+                while store.persisted().borrow().next().0 + TEMPORARY_FETCHER_THRESHOLD < next.0 {
+                    let n = L2BlockNumber(next.0.try_into().context("overflow")?);
+                    self.sync_state.wait_for_main_node_block(ctx, n).await?;
+                    send.send(ctx, s.spawn(self.fetch_block(ctx, n))).await?;
+                    next = next.next();
+                }
+                drop(send);
+                Ok(())
+            });
+            while let Ok(block) = recv.recv_or_disconnected(ctx).await? {
+                store
+                    .queue_next_fetched_block(ctx, block.join(ctx).await?)
+                    .await
+                    .wrap("queue_next_fetched_block()")?;
+            }
+            Ok(())
+        })
+        .await
+    }
+
     /// Fetches blocks from the main node in range `[cursor.next()..end)`.
-    pub(super) async fn fetch_blocks(
+    async fn fetch_blocks(
         &self,
         ctx: &ctx::Ctx,
         queue: &mut storage::PayloadQueue,
@@ -373,7 +425,7 @@ impl EN {
             s.spawn(async {
                 let send = send;
                 while end.map_or(true, |end| next < end) {
-                    let n = L2BlockNumber(next.0.try_into().unwrap());
+                    let n = L2BlockNumber(next.0.try_into().context("overflow")?);
                     self.sync_state.wait_for_main_node_block(ctx, n).await?;
                     send.send(ctx, s.spawn(self.fetch_block(ctx, n))).await?;
                     next = next.next();

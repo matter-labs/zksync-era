@@ -14,17 +14,25 @@ GPU, which requires an NVIDIA A100 80GB GPU.
 
 ### Prerequisites
 
-First of all, you need to install CUDA drivers, all other things will be dealt with by `zk_inception` and `prover_cli`
-tools. For that, check the following [guide](./02_setup.md)(you can skip bellman-cuda step).
+First of all, you need to install CUDA drivers, all other things will be dealt with by `zkstack` and `prover_cli` tools.
+For that, check the following [guide](./02_setup.md)(you can skip bellman-cuda step).
 
 Install the prerequisites, which you can find
 [here](https://github.com/matter-labs/zksync-era/blob/main/docs/guides/setup-dev.md). Note, that if you are not using
 Google VM instance, you also need to install [gcloud](https://cloud.google.com/sdk/docs/install#deb).
 
-Now, you can use `zk_inception` and `prover_cli` tools for setting up the env and running prover subsystem.
+Now, you can use `zkstack` and `prover_cli` tools for setting up the env and running prover subsystem.
 
-```shell
-cargo +nightly-2024-08-01 install --git https://github.com/matter-labs/zksync-era/ --locked zk_inception zk_supervisor prover_cli --force
+First, install `zkstackup` with:
+
+```bash
+curl -L https://raw.githubusercontent.com/matter-labs/zksync-era/main/zkstack_cli/zkstackup/install | bash
+```
+
+Then install the most recent version of `zkstack` with:
+
+```bash
+zkstackup
 ```
 
 ## Initializing system
@@ -33,14 +41,14 @@ After you have installed the tool, you can create ecosystem(you need to run only
 running:
 
 ```shell
-zk_inception ecosystem create --l1-network=localhost --prover-mode=gpu --wallet-creation=localhost --l1-batch-commit-data-generator-mode=rollup --start-containers=true
+zkstack ecosystem create --l1-network=localhost --prover-mode=gpu --wallet-creation=localhost --l1-batch-commit-data-generator-mode=rollup --start-containers=true
 ```
 
 The command will create the ecosystem and all the necessary components for the prover subsystem. You can leave default
 values for all the prompts you will see Now, you need to initialize the prover subsystem by running:
 
 ```shell
-zk_inception prover init --shall-save-to-public-bucket=false --setup-database=true --use-default=true --dont-drop=false
+zkstack prover init --shall-save-to-public-bucket=false --setup-database=true --use-default=true --dont-drop=false
 ```
 
 For prompts you can leave default values as well.
@@ -87,13 +95,23 @@ After you have the data, you need to prepare the system to run the batch. So, da
 the protocol version it should use. You can do that with running
 
 ```shell
-zk_supervisor prover-version
+zkstack dev prover info
 ```
 
 Example output:
 
 ```shell
-Current protocol version found in zksync-era: 0.24.2, snark_wrapper: "0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2"
+===============================
+
+Current prover setup information:
+
+Protocol version: 0.24.2
+
+Snark wrapper: 0x14f97b81e54b35fe673d8708cc1a19e1ea5b5e348e12d31e39824ed4f42bbca2
+
+Database URL: postgres://postgres:notsecurepassword@localhost:5432/zksync_prover_localhost_era
+
+===============================
 ```
 
 This command will provide you with the information about the semantic protocol version(you need to know only minor and
@@ -118,7 +136,7 @@ prover_cli <DATABASE_URL> insert-batch --number=<BATCH_NUMBER> --version=<MINOR_
 Also, provers need to know which setup keys they should use. It may take some time, but you can generate them with:
 
 ```shell
-zk_inception prover generate-sk
+zkstack prover generate-sk
 ```
 
 ## Running prover subsystem
@@ -126,11 +144,11 @@ zk_inception prover generate-sk
 At this step, all the data is prepared and you can run the prover subsystem. To do that, run the following commands:
 
 ```shell
-zk_inception prover run --component=prover
-zk_inception prover run --component=witness-generator --round=all-rounds
-zk_inception prover run --component=witness-vector-generator --threads=10
-zk_inception prover run --component=compressor
-zk_inception prover run --component=prover-job-monitor
+zkstack prover run --component=prover
+zkstack prover run --component=witness-generator --round=all-rounds
+zkstack prover run --component=witness-vector-generator --threads=10
+zkstack prover run --component=compressor
+zkstack prover run --component=prover-job-monitor
 ```
 
 And you are good to go! The prover subsystem will prove the batch and you can check the results in the database.

@@ -16,6 +16,7 @@ use zksync_config::{
     },
     GenesisConfig,
 };
+use zksync_contracts::BaseSystemContracts;
 use zksync_dal::{transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, CoreDal};
 use zksync_multivm::interface::{
     TransactionExecutionMetrics, TransactionExecutionResult, TxExecutionStatus, VmEvent,
@@ -31,17 +32,22 @@ use zksync_system_constants::{
 };
 use zksync_types::{
     api,
-    block::{pack_block_info, L2BlockHeader},
+    block::{pack_block_info, L2BlockHasher, L2BlockHeader},
+    fee_model::{BatchFeeInput, FeeParams},
     get_nonce_key,
     l2::L2Tx,
     storage::get_code_key,
+    system_contracts::get_system_smart_contracts,
     tokens::{TokenInfo, TokenMetadata},
     tx::IncludedTxLocation,
     utils::{storage_key_for_eth_balance, storage_key_for_standard_token_balance},
     AccountTreeId, Address, L1BatchNumber, Nonce, ProtocolVersionId, StorageKey, StorageLog, H256,
     U256, U64,
 };
-use zksync_utils::u256_to_h256;
+use zksync_utils::{
+    bytecode::{hash_bytecode, hash_evm_bytecode},
+    u256_to_h256,
+};
 use zksync_vm_executor::oneshot::MockOneshotExecutor;
 use zksync_web3_decl::{
     client::{Client, DynClient, L2},
@@ -50,7 +56,7 @@ use zksync_web3_decl::{
         http_client::HttpClient,
         rpc_params,
         types::{
-            error::{ErrorCode, OVERSIZED_RESPONSE_CODE},
+            error::{ErrorCode, INVALID_PARAMS_CODE, OVERSIZED_RESPONSE_CODE},
             ErrorObjectOwned,
         },
     },
@@ -58,7 +64,11 @@ use zksync_web3_decl::{
 };
 
 use super::*;
-use crate::web3::testonly::TestServerBuilder;
+use crate::{
+    testonly::{PROCESSED_EVM_BYTECODE, RAW_EVM_BYTECODE},
+    tx_sender::SandboxExecutorOptions,
+    web3::testonly::TestServerBuilder,
+};
 
 mod debug;
 mod filters;
@@ -134,11 +144,16 @@ async fn setting_response_size_limits() {
 trait HttpTest: Send + Sync {
     /// Prepares the storage before the server is started. The default implementation performs genesis.
     fn storage_initialization(&self) -> StorageInitialization {
-        StorageInitialization::Genesis
+        StorageInitialization::genesis()
     }
 
     fn transaction_executor(&self) -> MockOneshotExecutor {
         MockOneshotExecutor::default()
+    }
+
+    /// Allows to override sandbox executor options.
+    fn executor_options(&self) -> Option<SandboxExecutorOptions> {
+        None
     }
 
     fn method_tracer(&self) -> Arc<MethodTracer> {
@@ -157,7 +172,9 @@ trait HttpTest: Send + Sync {
 /// Storage initialization strategy.
 #[derive(Debug)]
 enum StorageInitialization {
-    Genesis,
+    Genesis {
+        evm_emulator: bool,
+    },
     Recovery {
         logs: Vec<StorageLog>,
         factory_deps: HashMap<H256, Vec<u8>>,
@@ -167,6 +184,16 @@ enum StorageInitialization {
 impl StorageInitialization {
     const SNAPSHOT_RECOVERY_BATCH: L1BatchNumber = L1BatchNumber(23);
     const SNAPSHOT_RECOVERY_BLOCK: L2BlockNumber = L2BlockNumber(23);
+
+    const fn genesis() -> Self {
+        Self::Genesis {
+            evm_emulator: false,
+        }
+    }
+
+    const fn genesis_with_evm() -> Self {
+        Self::Genesis { evm_emulator: true }
+    }
 
     fn empty_recovery() -> Self {
         Self::Recovery {
@@ -181,12 +208,29 @@ impl StorageInitialization {
         storage: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         match self {
-            Self::Genesis => {
-                let params = GenesisParams::load_genesis_params(GenesisConfig {
+            Self::Genesis { evm_emulator } => {
+                let mut config = GenesisConfig {
                     l2_chain_id: network_config.zksync_network_id,
                     ..mock_genesis_config()
-                })
+                };
+                let mut base_system_contracts = BaseSystemContracts::load_from_disk();
+                if evm_emulator {
+                    config.evm_emulator_hash = Some(config.default_aa_hash.unwrap());
+                    base_system_contracts.evm_emulator =
+                        Some(base_system_contracts.default_aa.clone());
+                } else {
+                    assert!(config.evm_emulator_hash.is_none());
+                }
+
+                let params = GenesisParams::from_genesis_config(
+                    config,
+                    base_system_contracts,
+                    // We cannot load system contracts with EVM emulator yet because these contracts are missing.
+                    // This doesn't matter for tests because the EVM emulator won't be invoked.
+                    get_system_smart_contracts(false),
+                )
                 .unwrap();
+
                 if storage.blocks_dal().is_genesis_needed().await? {
                     insert_genesis_batch(storage, &params).await?;
                 }
@@ -245,11 +289,13 @@ async fn test_http_server(test: impl HttpTest) {
     let genesis = GenesisConfig::for_tests();
     let mut api_config = InternalApiConfig::new(&web3_config, &contracts_config, &genesis);
     api_config.filters_disabled = test.filters_disabled();
-    let mut server_handles = TestServerBuilder::new(pool.clone(), api_config)
+    let mut server_builder = TestServerBuilder::new(pool.clone(), api_config)
         .with_tx_executor(test.transaction_executor())
-        .with_method_tracer(test.method_tracer())
-        .build_http(stop_receiver)
-        .await;
+        .with_method_tracer(test.method_tracer());
+    if let Some(executor_options) = test.executor_options() {
+        server_builder = server_builder.with_executor_options(executor_options);
+    }
+    let mut server_handles = server_builder.build_http(stop_receiver).await;
 
     let local_addr = server_handles.wait_until_ready().await;
     let client = Client::http(format!("http://{local_addr}/").parse().unwrap())
@@ -426,6 +472,10 @@ async fn store_events(
         )
         .await?;
     Ok((tx_location, events))
+}
+
+fn scaled_sensible_fee_input(scale: f64) -> BatchFeeInput {
+    FeeParams::sensible_v1_default().scale(scale, scale)
 }
 
 #[derive(Debug)]
@@ -625,7 +675,7 @@ impl HttpTest for StorageAccessWithSnapshotRecovery {
     fn storage_initialization(&self) -> StorageInitialization {
         let address = Address::repeat_byte(1);
         let code_key = get_code_key(&address);
-        let code_hash = H256::repeat_byte(2);
+        let code_hash = hash_bytecode(&[0; 32]);
         let balance_key = storage_key_for_eth_balance(&address);
         let logs = vec![
             StorageLog::new_write_log(code_key, code_hash),
@@ -1101,4 +1151,234 @@ impl HttpTest for GenesisConfigTest {
 #[tokio::test]
 async fn tracing_genesis_config() {
     test_http_server(GenesisConfigTest).await;
+}
+
+#[derive(Debug)]
+struct GetBytecodeTest;
+
+impl GetBytecodeTest {
+    async fn insert_evm_bytecode(
+        connection: &mut Connection<'_, Core>,
+        at_block: L2BlockNumber,
+        address: Address,
+    ) -> anyhow::Result<()> {
+        let evm_bytecode_hash = hash_evm_bytecode(RAW_EVM_BYTECODE);
+        let code_log = StorageLog::new_write_log(get_code_key(&address), evm_bytecode_hash);
+        connection
+            .storage_logs_dal()
+            .append_storage_logs(at_block, &[code_log])
+            .await?;
+
+        let factory_deps = HashMap::from([(evm_bytecode_hash, RAW_EVM_BYTECODE.to_vec())]);
+        connection
+            .factory_deps_dal()
+            .insert_factory_deps(at_block, &factory_deps)
+            .await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl HttpTest for GetBytecodeTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let genesis_evm_address = Address::repeat_byte(1);
+        let mut connection = pool.connection().await?;
+        Self::insert_evm_bytecode(&mut connection, L2BlockNumber(0), genesis_evm_address).await?;
+
+        for contract in get_system_smart_contracts(false) {
+            let bytecode = client
+                .get_code(*contract.account_id.address(), None)
+                .await?;
+            assert_eq!(bytecode.0, contract.bytecode);
+        }
+
+        let bytecode = client.get_code(genesis_evm_address, None).await?;
+        assert_eq!(bytecode.0, PROCESSED_EVM_BYTECODE);
+
+        let latest_block_variants = [
+            api::BlockNumber::Pending,
+            api::BlockNumber::Latest,
+            api::BlockNumber::Committed,
+        ];
+        let latest_block_variants = latest_block_variants.map(api::BlockIdVariant::BlockNumber);
+
+        let genesis_block_variants = [
+            api::BlockIdVariant::BlockNumber(api::BlockNumber::Earliest),
+            api::BlockIdVariant::BlockNumber(api::BlockNumber::Number(0.into())),
+            api::BlockIdVariant::BlockHashObject(api::BlockHashObject {
+                block_hash: L2BlockHasher::legacy_hash(L2BlockNumber(0)),
+            }),
+        ];
+        for at_block in latest_block_variants
+            .into_iter()
+            .chain(genesis_block_variants)
+        {
+            println!("Testing {at_block:?} with genesis EVM code, latest block: 0");
+            let bytecode = client.get_code(genesis_evm_address, Some(at_block)).await?;
+            assert_eq!(bytecode.0, PROCESSED_EVM_BYTECODE);
+        }
+
+        // Create another block with an EVM bytecode.
+        let new_bytecode_address = Address::repeat_byte(2);
+        let mut connection = pool.connection().await?;
+        let block_header = store_l2_block(&mut connection, L2BlockNumber(1), &[]).await?;
+        Self::insert_evm_bytecode(&mut connection, L2BlockNumber(1), new_bytecode_address).await?;
+
+        let bytecode = client.get_code(genesis_evm_address, None).await?;
+        assert_eq!(bytecode.0, PROCESSED_EVM_BYTECODE);
+        let bytecode = client.get_code(new_bytecode_address, None).await?;
+        assert_eq!(bytecode.0, PROCESSED_EVM_BYTECODE);
+
+        let new_block_variants = [
+            api::BlockIdVariant::BlockNumber(api::BlockNumber::Number(1.into())),
+            api::BlockIdVariant::BlockHashObject(api::BlockHashObject {
+                block_hash: block_header.hash,
+            }),
+        ];
+        for at_block in latest_block_variants.into_iter().chain(new_block_variants) {
+            println!("Testing {at_block:?} with new EVM code, latest block: 1");
+            let bytecode = client
+                .get_code(new_bytecode_address, Some(at_block))
+                .await?;
+            assert_eq!(bytecode.0, PROCESSED_EVM_BYTECODE);
+        }
+        for at_block in genesis_block_variants {
+            println!("Testing {at_block:?} with new EVM code, latest block: 1");
+            let bytecode = client
+                .get_code(new_bytecode_address, Some(at_block))
+                .await?;
+            assert!(bytecode.0.is_empty());
+        }
+
+        for at_block in latest_block_variants
+            .into_iter()
+            .chain(new_block_variants)
+            .chain(genesis_block_variants)
+        {
+            println!("Testing {at_block:?} with genesis EVM code, latest block: 1");
+            let bytecode = client.get_code(genesis_evm_address, Some(at_block)).await?;
+            assert_eq!(bytecode.0, PROCESSED_EVM_BYTECODE);
+        }
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn getting_bytecodes() {
+    test_http_server(GetBytecodeTest).await;
+}
+
+#[derive(Debug)]
+struct FeeHistoryTest;
+
+#[async_trait]
+impl HttpTest for FeeHistoryTest {
+    async fn test(
+        &self,
+        client: &DynClient<L2>,
+        pool: &ConnectionPool<Core>,
+    ) -> anyhow::Result<()> {
+        let mut connection = pool.connection().await?;
+        let block1 = L2BlockHeader {
+            batch_fee_input: scaled_sensible_fee_input(1.0),
+            base_fee_per_gas: 100,
+            ..create_l2_block(1)
+        };
+        store_custom_l2_block(&mut connection, &block1, &[]).await?;
+        let block2 = L2BlockHeader {
+            batch_fee_input: scaled_sensible_fee_input(2.0),
+            base_fee_per_gas: 200,
+            ..create_l2_block(2)
+        };
+        store_custom_l2_block(&mut connection, &block2, &[]).await?;
+
+        let all_pubdata_prices = [
+            0,
+            block1.batch_fee_input.fair_pubdata_price(),
+            block2.batch_fee_input.fair_pubdata_price(),
+        ]
+        .map(U256::from);
+
+        let history = client
+            .fee_history(1_000.into(), api::BlockNumber::Latest, vec![])
+            .await?;
+        assert_eq!(history.inner.oldest_block, 0.into());
+        assert_eq!(
+            history.inner.base_fee_per_gas,
+            [0, 100, 200, 200].map(U256::from) // The latest value is duplicated
+        );
+        assert_eq!(history.l2_pubdata_price, all_pubdata_prices);
+        // Values below are not filled.
+        assert_eq!(history.inner.gas_used_ratio, [0.0; 3]);
+        assert_eq!(history.inner.base_fee_per_blob_gas, [U256::zero(); 4]);
+        assert_eq!(history.inner.blob_gas_used_ratio, [0.0; 3]);
+
+        // Check supplying hexadecimal block count
+        let hex_history: api::FeeHistory = client
+            .request(
+                "eth_feeHistory",
+                rpc_params!["0xaa", "latest", [] as [f64; 0]],
+            )
+            .await?;
+        assert_eq!(hex_history, history);
+
+        // ...and explicitly decimal count (which should've been supplied in the first call) for exhaustiveness
+        let dec_history: api::FeeHistory = client
+            .request(
+                "eth_feeHistory",
+                rpc_params![1_000, "latest", [] as [f64; 0]],
+            )
+            .await?;
+        assert_eq!(dec_history, history);
+
+        // Check partial histories: blocks 0..=1
+        let history = client
+            .fee_history(1_000.into(), api::BlockNumber::Number(1.into()), vec![])
+            .await?;
+        assert_eq!(history.inner.oldest_block, 0.into());
+        assert_eq!(
+            history.inner.base_fee_per_gas,
+            [0, 100, 100].map(U256::from)
+        );
+        assert_eq!(history.l2_pubdata_price, all_pubdata_prices[..2]);
+
+        // Blocks 1..=2
+        let history = client
+            .fee_history(2.into(), api::BlockNumber::Latest, vec![])
+            .await?;
+        assert_eq!(history.inner.oldest_block, 1.into());
+        assert_eq!(
+            history.inner.base_fee_per_gas,
+            [100, 200, 200].map(U256::from)
+        );
+        assert_eq!(history.l2_pubdata_price, all_pubdata_prices[1..]);
+
+        // Blocks 1..=1
+        let history = client
+            .fee_history(1.into(), api::BlockNumber::Number(1.into()), vec![])
+            .await?;
+        assert_eq!(history.inner.oldest_block, 1.into());
+        assert_eq!(history.inner.base_fee_per_gas, [100, 100].map(U256::from));
+        assert_eq!(history.l2_pubdata_price, all_pubdata_prices[1..2]);
+
+        // Non-existing newest block.
+        let err = client
+            .fee_history(1000.into(), api::BlockNumber::Number(100.into()), vec![])
+            .await
+            .unwrap_err();
+        assert_matches!(
+            err,
+            ClientError::Call(err) if err.code() == INVALID_PARAMS_CODE
+        );
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn getting_fee_history() {
+    test_http_server(FeeHistoryTest).await;
 }

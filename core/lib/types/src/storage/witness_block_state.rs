@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{StorageKey, StorageValue};
 
 /// Storage data used during Witness Generation.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct WitnessStorageState {
     pub read_storage_key: HashMap<StorageKey, StorageValue>,
     pub is_write_initial: HashMap<StorageKey, bool>,

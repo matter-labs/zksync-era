@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use serde::Deserialize;
-use zksync_basic_types::{settlement::SettlementMode, H256};
+use zksync_basic_types::{pubdata_da::PubdataSendingMode, settlement::SettlementMode, H256};
 use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::EthWatchConfig;
@@ -78,15 +78,6 @@ pub enum ProofSendingMode {
 pub enum ProofLoadingMode {
     OldProofFromDb,
     FriProofFromGcs,
-}
-
-#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Default)]
-pub enum PubdataSendingMode {
-    #[default]
-    Calldata,
-    Blobs,
-    Custom,
-    RelayedL2Calldata,
 }
 
 #[derive(Debug, Deserialize, Clone, PartialEq)]

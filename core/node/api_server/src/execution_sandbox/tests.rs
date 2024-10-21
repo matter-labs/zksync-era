@@ -307,9 +307,6 @@ async fn validating_transaction(set_balance: bool) {
     if set_balance {
         assert_matches!(result, ExecutionResult::Success { .. });
     } else {
-        assert_matches!(
-            result,
-            ExecutionResult::Halt { reason } if reason.to_string().contains("Not enough balance")
-        );
+        assert_matches!(result, ExecutionResult::Halt { .. });
     }
 }

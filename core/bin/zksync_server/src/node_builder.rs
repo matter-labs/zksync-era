@@ -4,8 +4,8 @@
 use anyhow::{bail, Context};
 use zksync_config::{
     configs::{
-        da_client::DAClientConfig, eth_sender::PubdataSendingMode,
-        secrets::DataAvailabilitySecrets, wallets::Wallets, GeneralConfig, Secrets,
+        da_client::DAClientConfig, secrets::DataAvailabilitySecrets, wallets::Wallets,
+        GeneralConfig, Secrets,
     },
     ContractsConfig, GenesisConfig,
 };
@@ -19,9 +19,7 @@ use zksync_node_framework::{
     implementations::layers::{
         base_token::{
             base_token_ratio_persister::BaseTokenRatioPersisterLayer,
-            base_token_ratio_provider::BaseTokenRatioProviderLayer,
-            coingecko_client::CoingeckoClientLayer, forced_price_client::ForcedPriceClientLayer,
-            no_op_external_price_api_client::NoOpExternalPriceApiClientLayer,
+            base_token_ratio_provider::BaseTokenRatioProviderLayer, ExternalPriceApiLayer,
         },
         circuit_breaker_checker::CircuitBreakerCheckerLayer,
         commitment_generator::CommitmentGeneratorLayer,
@@ -57,7 +55,6 @@ use zksync_node_framework::{
             main_batch_executor::MainBatchExecutorLayer, mempool_io::MempoolIOLayer,
             output_handler::OutputHandlerLayer, RocksdbStorageOptions, StateKeeperLayer,
         },
-        tee_verifier_input_producer::TeeVerifierInputProducerLayer,
         vm_runner::{
             bwip::BasicWitnessInputProducerLayer, playground::VmPlaygroundLayer,
             protective_reads::ProtectiveReadsWriterLayer,
@@ -72,7 +69,9 @@ use zksync_node_framework::{
     },
     service::{ZkStackService, ZkStackServiceBuilder},
 };
-use zksync_types::{settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS};
+use zksync_types::{
+    pubdata_da::PubdataSendingMode, settlement::SettlementMode, SHARED_BRIDGE_ETHER_TOKEN_ADDRESS,
+};
 use zksync_vlog::prometheus::PrometheusExporterConfig;
 
 /// Macro that looks into a path to fetch an optional config,
@@ -192,7 +191,7 @@ impl MainNodeBuilder {
                 .add_layer(BaseTokenRatioProviderLayer::new(base_token_adjuster_config));
         }
         let state_keeper_config = try_load_config!(self.configs.state_keeper_config);
-        let l1_gas_layer = L1GasLayer::new(state_keeper_config);
+        let l1_gas_layer = L1GasLayer::new(&state_keeper_config);
         self.node.add_layer(l1_gas_layer);
         Ok(self)
     }
@@ -290,6 +289,7 @@ impl MainNodeBuilder {
         self.node.add_layer(ProofDataHandlerLayer::new(
             try_load_config!(self.configs.proof_data_handler_config),
             self.genesis_config.l1_batch_commit_data_generator_mode,
+            self.genesis_config.l2_chain_id,
         ));
         Ok(self)
     }
@@ -307,6 +307,7 @@ impl MainNodeBuilder {
             factory_deps_cache_size: rpc_config.factory_deps_cache_size() as u64,
             initial_writes_cache_size: rpc_config.initial_writes_cache_size() as u64,
             latest_values_cache_size: rpc_config.latest_values_cache_size() as u64,
+            latest_values_max_block_lag: rpc_config.latest_values_max_block_lag(),
         };
 
         // On main node we always use master pool sink.
@@ -494,14 +495,6 @@ impl MainNodeBuilder {
         Ok(self)
     }
 
-    fn add_tee_verifier_input_producer_layer(mut self) -> anyhow::Result<Self> {
-        self.node.add_layer(TeeVerifierInputProducerLayer::new(
-            self.genesis_config.l2_chain_id,
-        ));
-
-        Ok(self)
-    }
-
     fn add_da_client_layer(mut self) -> anyhow::Result<Self> {
         let Some(da_client_config) = self.configs.da_client_config.clone() else {
             tracing::warn!("No config for DA client, using the NoDA client");
@@ -562,24 +555,8 @@ impl MainNodeBuilder {
 
     fn add_external_api_client_layer(mut self) -> anyhow::Result<Self> {
         let config = try_load_config!(self.configs.external_price_api_client_config);
-        match config.source.as_str() {
-            CoingeckoClientLayer::CLIENT_NAME => {
-                self.node.add_layer(CoingeckoClientLayer::new(config));
-            }
-            NoOpExternalPriceApiClientLayer::CLIENT_NAME => {
-                self.node.add_layer(NoOpExternalPriceApiClientLayer);
-            }
-            ForcedPriceClientLayer::CLIENT_NAME => {
-                self.node.add_layer(ForcedPriceClientLayer::new(config));
-            }
-            _ => {
-                anyhow::bail!(
-                    "Unknown external price API client source: {}",
-                    config.source
-                );
-            }
-        }
-
+        self.node
+            .add_layer(ExternalPriceApiLayer::try_from(config)?);
         Ok(self)
     }
 
@@ -748,9 +725,6 @@ impl MainNodeBuilder {
                 }
                 Component::EthTxManager => {
                     self = self.add_eth_tx_manager_layer()?;
-                }
-                Component::TeeVerifierInputProducer => {
-                    self = self.add_tee_verifier_input_producer_layer()?;
                 }
                 Component::Housekeeper => {
                     self = self
