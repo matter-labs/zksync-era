@@ -10,7 +10,7 @@ use axum::{
 };
 use tokio::sync::watch;
 mod blob_info;
-mod eigenda_proxy_client;
+mod eigenda_client;
 mod errors;
 mod memstore;
 

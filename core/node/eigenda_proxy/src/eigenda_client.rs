@@ -15,12 +15,12 @@ use crate::{
     errors::EigenDAError,
 };
 
-pub struct EigenDAProxyClient {
+pub struct EigenDAClient {
     disperser: Arc<Mutex<DisperserClient<Channel>>>,
     config: DisperserConfig,
 }
 
-impl EigenDAProxyClient {
+impl EigenDAClient {
     pub const BLOB_SIZE_LIMIT_IN_BYTES: usize = 2 * 1024 * 1024; // 2MB todo: add to config
     pub const STATUS_QUERY_TIMEOUT: u64 = 1800; // 30 minutes todo: add to config
     pub const STATUS_QUERY_RETRY_INTERVAL: u64 = 5; // 5 seconds todo: add to config
@@ -200,7 +200,7 @@ mod test {
             eigenda_eth_rpc: "".to_string(),
             eigenda_svc_manager_addr: "".to_string(),
         };
-        let store = match EigenDAProxyClient::new(config).await {
+        let store = match EigenDAClient::new(config).await {
             Ok(store) => store,
             Err(e) => panic!("Failed to create EigenDAProxyClient {:?}", e),
         };
@@ -222,7 +222,7 @@ mod test {
             eigenda_eth_rpc: "".to_string(),
             eigenda_svc_manager_addr: "".to_string(),
         };
-        let store = match EigenDAProxyClient::new(config).await {
+        let store = match EigenDAClient::new(config).await {
             Ok(store) => store,
             Err(e) => panic!("Failed to create EigenDAProxyClient {:?}", e),
         };
