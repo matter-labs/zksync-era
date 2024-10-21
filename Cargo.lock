@@ -10177,6 +10177,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "hex",
  "kzgpad-rs",
  "prost 0.13.3",
  "rand 0.8.5",

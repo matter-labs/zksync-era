@@ -14,6 +14,7 @@ use crate::{
     errors::EigenDAError,
 };
 
+#[derive(Clone)]
 pub struct EigenDAClient {
     disperser: Arc<Mutex<DisperserClient<Channel>>>,
     config: DisperserConfig,

@@ -17,6 +17,7 @@ tracing.workspace = true
 rlp.workspace = true
 rand.workspace = true
 sha3.workspace = true
+hex.workspace = true
 zksync_config.workspace = true
 # we can't use the workspace version of prost because
 # the tonic dependency requires a hugher version.

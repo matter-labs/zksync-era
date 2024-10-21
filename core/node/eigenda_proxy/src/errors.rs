@@ -1,3 +1,5 @@
+use axum::response::{IntoResponse, Response};
+
 #[derive(Debug, PartialEq)]
 pub enum MemStoreError {
     BlobToLarge,
@@ -14,4 +16,12 @@ pub enum EigenDAError {
     ConnectionError,
     PutError,
     GetError,
+}
+
+pub(crate) enum RequestProcessorError {}
+
+impl IntoResponse for RequestProcessorError {
+    fn into_response(self) -> Response {
+        unimplemented!("EigenDA request error into response")
+    }
 }

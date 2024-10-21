@@ -47,14 +47,18 @@ impl WiringLayer for EigenDAProxyLayer {
     }
 
     async fn wire(self, _input: Self::Input) -> Result<Self::Output, WiringError> {
-        let task = EigenDAProxyTask {};
+        let task = EigenDAProxyTask {
+            eigenda_config: self.eigenda_config,
+        };
 
         Ok(Output { task })
     }
 }
 
 #[derive(Debug)]
-pub struct EigenDAProxyTask {}
+pub struct EigenDAProxyTask {
+    eigenda_config: EigenDAConfig,
+}
 
 #[async_trait::async_trait]
 impl Task for EigenDAProxyTask {
@@ -63,6 +67,6 @@ impl Task for EigenDAProxyTask {
     }
 
     async fn run(self: Box<Self>, stop_receiver: StopReceiver) -> anyhow::Result<()> {
-        zksync_eigenda_proxy::run_server(stop_receiver.0).await
+        zksync_eigenda_proxy::run_server(self.eigenda_config, stop_receiver.0).await
     }
 }
