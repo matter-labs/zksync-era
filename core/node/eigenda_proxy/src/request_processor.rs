@@ -1,18 +1,6 @@
-use std::sync::Arc;
+use axum::{extract::Path, http::Response};
 
-use axum::{
-    extract::Path,
-    http::{header, Response, StatusCode},
-    Json,
-};
-use tokio::sync::Mutex;
-use tonic::transport::Channel;
-
-use crate::{
-    disperser::{disperser_client::DisperserClient, BlobStatus, BlobStatusRequest},
-    eigenda_client::EigenDAClient,
-    errors::RequestProcessorError,
-};
+use crate::eigenda_client::EigenDAClient;
 
 #[derive(Clone)]
 pub(crate) struct RequestProcessor {
