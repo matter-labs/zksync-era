@@ -99,7 +99,7 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
         (L2ChainId::from(args.chain_id), None)
     };
 
-    let internal_id = 0; // ecosystem_config.list_of_chains().len() as u32;
+    let internal_id = args.number_of_chains;
     let link_to_code = resolve_link_to_code(shell, chain_path.clone(), args.link_to_code.clone())?;
     let default_genesis_config = GenesisConfig::read_with_base_path(
         shell,

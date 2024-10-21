@@ -258,6 +258,7 @@ impl ChainCreateArgs {
             link_to_code,
             chain_path,
             era_chain_id,
+            number_of_chains,
         })
     }
 }
@@ -277,6 +278,7 @@ pub struct ChainCreateArgsFinal {
     pub link_to_code: String,
     pub chain_path: PathBuf,
     pub era_chain_id: L2ChainId,
+    pub number_of_chains: u32,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]
