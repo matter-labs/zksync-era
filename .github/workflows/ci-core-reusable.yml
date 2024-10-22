@@ -245,7 +245,7 @@ jobs:
       
       - name: Gracefully shut down Era server
         run: |
-          ERA_SERVER_PID=$(lsof -t -i :3075)
+          ERA_SERVER_PID=$(netstat -tuln | grep :3075 | awk '{print $7}' | cut -d'/' -f1)
           if [ -n "$ERA_SERVER_PID" ]; then
               kill -2 $ERA_SERVER_PID
               echo "Gracefully shutting down Era server with PID: $ERA_SERVER_PID"
