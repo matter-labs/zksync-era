@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::Context;
-use bigdecimal::{num_bigint::ToBigInt, BigDecimal, ToPrimitive, Zero};
+use bigdecimal::{BigDecimal, Zero};
 use zksync_config::BaseTokenAdjusterConfig;
 use zksync_eth_client::{BoundEthInterface, CallFunctionArgs, Options};
 use zksync_node_fee_model::l1_gas_price::TxParamsProvider;
@@ -57,7 +57,7 @@ impl BaseTokenL1Behaviour {
             self.update_last_persisted_l1_ratio(prev_ratio.clone());
             tracing::info!(
                 "Fetched current base token ratio from the L1: {}",
-                prev_ratio
+                prev_ratio.to_bigint()
             );
             prev_ratio
         };
