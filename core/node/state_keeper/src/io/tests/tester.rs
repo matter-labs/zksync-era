@@ -4,7 +4,7 @@ use std::{slice, sync::Arc, time::Duration};
 
 use zksync_base_token_adjuster::NoOpRatioProvider;
 use zksync_config::{
-    configs::{chain::StateKeeperConfig, eth_sender::PubdataSendingMode, wallets::Wallets},
+    configs::{chain::StateKeeperConfig, wallets::Wallets},
     GasAdjusterConfig,
 };
 use zksync_contracts::BaseSystemContracts;
@@ -28,6 +28,7 @@ use zksync_types::{
     fee_model::{BatchFeeInput, FeeModelConfig, FeeModelConfigV2},
     l2::L2Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
+    pubdata_da::PubdataSendingMode,
     system_contracts::get_system_smart_contracts,
     L2BlockNumber, L2ChainId, PriorityOpId, ProtocolVersionId, H256,
 };

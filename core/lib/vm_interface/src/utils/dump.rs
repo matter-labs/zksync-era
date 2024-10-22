@@ -10,8 +10,8 @@ use crate::{
     pubdata::PubdataBuilder,
     storage::{ReadStorage, StoragePtr, StorageSnapshot, StorageView},
     BytecodeCompressionResult, FinishedL1Batch, InspectExecutionMode, L1BatchEnv, L2BlockEnv,
-    SystemEnv, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
-    VmTrackingContracts,
+    PushTransactionResult, SystemEnv, VmExecutionResultAndLogs, VmFactory, VmInterface,
+    VmInterfaceHistoryEnabled, VmTrackingContracts,
 };
 
 fn create_storage_snapshot<S: ReadStorage>(
@@ -108,9 +108,9 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> DumpingVm<S, Vm> {
 impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
     type TracerDispatcher = Vm::TracerDispatcher;
 
-    fn push_transaction(&mut self, tx: Transaction) {
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult {
         self.record_transaction(tx.clone());
-        self.inner.push_transaction(tx);
+        self.inner.push_transaction(tx)
     }
 
     fn inspect(

@@ -3,21 +3,18 @@ use zksync_system_constants::P256VERIFY_PRECOMPILE_ADDRESS;
 use zksync_types::{web3::keccak256, Execute, H256, U256};
 use zksync_utils::h256_to_u256;
 
-use crate::{
-    interface::{ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterface},
-    vm_latest::{tests::tester::VmTesterBuilder, HistoryEnabled},
-};
+use super::{tester::VmTesterBuilder, TestedVm};
+use crate::interface::{ExecutionResult, InspectExecutionMode, TxExecutionMode, VmInterfaceExt};
 
-#[test]
-fn test_sekp256r1() {
+pub(crate) fn test_secp256r1<VM: TestedVm>() {
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
     // will work. The account will try to deploy a simple contract from integration tests.
-    let mut vm = VmTesterBuilder::new(HistoryEnabled)
+    let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .with_execution_mode(TxExecutionMode::EthCall)
-        .with_random_rich_accounts(1)
-        .build();
+        .with_rich_accounts(1)
+        .build::<VM>();
 
     let account = &mut vm.rich_accounts[0];
 
@@ -58,9 +55,7 @@ fn test_sekp256r1() {
 
     vm.vm.push_transaction(tx);
 
-    let execution_result =
-        vm.vm
-            .inspect_inner(&mut Default::default(), VmExecutionMode::Batch, None);
+    let execution_result = vm.vm.execute(InspectExecutionMode::OneTx);
 
     let ExecutionResult::Success { output } = execution_result.result else {
         panic!("batch failed")

@@ -1,13 +1,12 @@
 use zksync_types::{ExecuteTransactionCommon, Nonce, Transaction, H160};
 
+use super::{TestedVm, VmTester};
 use crate::{
     interface::{
         CurrentExecutionState, ExecutionResult, Halt, InspectExecutionMode, TxRevertReason,
-        VmExecutionResultAndLogs, VmInterface, VmInterfaceExt, VmInterfaceHistoryEnabled,
-        VmRevertReason,
+        VmExecutionResultAndLogs, VmInterfaceExt, VmRevertReason,
     },
     versions::testonly::default_pubdata_builder,
-    vm_latest::{tests::tester::vm_tester::VmTester, HistoryEnabled},
 };
 
 #[derive(Debug, Clone)]
@@ -177,7 +176,7 @@ impl TransactionTestInfo {
     }
 }
 
-impl VmTester<HistoryEnabled> {
+impl<VM: TestedVm> VmTester<VM> {
     pub(crate) fn execute_and_verify_txs(
         &mut self,
         txs: &[TransactionTestInfo],
@@ -195,19 +194,29 @@ impl VmTester<HistoryEnabled> {
         &mut self,
         tx_test_info: TransactionTestInfo,
     ) -> VmExecutionResultAndLogs {
-        let inner_state_before = self.vm.dump_inner_state();
-        self.vm.make_snapshot();
-        self.vm.push_transaction(tx_test_info.tx.clone());
-        let result = self.vm.execute(InspectExecutionMode::OneTx);
-        tx_test_info.verify_result(&result);
-        if tx_test_info.should_rollback() {
-            self.vm.rollback_to_the_latest_snapshot();
-            let inner_state_after = self.vm.dump_inner_state();
-            assert_eq!(
-                inner_state_before, inner_state_after,
-                "Inner state before and after rollback should be equal"
-            );
-        }
-        result
+        execute_tx_and_verify(&mut self.vm, tx_test_info)
     }
+}
+
+fn execute_tx_and_verify(
+    vm: &mut impl TestedVm,
+    tx_test_info: TransactionTestInfo,
+) -> VmExecutionResultAndLogs {
+    let inner_state_before = vm.dump_state();
+    vm.make_snapshot();
+    vm.push_transaction(tx_test_info.tx.clone());
+    let result = vm.execute(InspectExecutionMode::OneTx);
+    tx_test_info.verify_result(&result);
+    if tx_test_info.should_rollback() {
+        vm.rollback_to_the_latest_snapshot();
+        let inner_state_after = vm.dump_state();
+        pretty_assertions::assert_eq!(
+            inner_state_before,
+            inner_state_after,
+            "Inner state before and after rollback should be equal"
+        );
+    } else {
+        vm.pop_snapshot_no_rollback();
+    }
+    result
 }

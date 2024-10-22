@@ -103,7 +103,7 @@ impl<Tr: vm_fast::Tracer + Default + 'static> BenchmarkingVmFactory for Fast<Tr>
         impl vm_fast::Tracer for InstructionCount {
             fn before_instruction<
                 OP: zksync_vm2::interface::OpcodeType,
-                S: zksync_vm2::interface::StateInterface,
+                S: zksync_vm2::interface::GlobalStateInterface,
             >(
                 &mut self,
                 _: &mut S,

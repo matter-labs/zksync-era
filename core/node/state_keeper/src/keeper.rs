@@ -692,6 +692,7 @@ impl ZkSyncStateKeeper {
                     tx_result,
                     tx_metrics,
                     compressed_bytecodes,
+                    call_tracer_result,
                     ..
                 } = exec_result
                 else {
@@ -716,7 +717,7 @@ impl ZkSyncStateKeeper {
                     tx_result.new_known_factory_deps.unwrap_or_default(),
                     tx_l1_gas_this_tx,
                     tx_execution_metrics,
-                    vec![],
+                    call_tracer_result,
                 );
                 Ok(())
             }
