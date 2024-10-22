@@ -1,4 +1,3 @@
-use crypto_codegen::serialize_proof;
 use fflonk::{
     bellman::{bn256, bn256::Fr, CurveAffine, Engine, PrimeField, PrimeFieldRepr},
     FflonkSnarkVerifierCircuitProof,
@@ -99,7 +98,7 @@ impl Tokenize for &ProveBatches {
                     let serialized_proof = serialize_evm(&scheduler_proof);
                     (serialized_proof, proof.aggregation_result_coords)
                 }
-                L1BatchProofForL1::Plonk(proof) => {
+                L1BatchProofForL1::Plonk(_proof) => {
                     unreachable!("Plonk proof support is not enabled yet")
                     // todo: this produces type conflicts. Uncomment and check the work of the code after dependencies are merged to main
                     // let (_, serialized_proof) = serialize_proof(&proof.scheduler_proof);
