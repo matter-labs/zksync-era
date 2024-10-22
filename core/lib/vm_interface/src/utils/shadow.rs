@@ -91,25 +91,21 @@ where
     }
 
     /// Mutable ref is not necessary, but it automatically drops potential borrows.
-    fn report(&mut self, err: DivergenceErrors, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) {
-        self.report_shared(err, pubdata_builder);
+    fn report(&mut self, err: DivergenceErrors) {
+        self.report_shared(err);
     }
 
     /// The caller is responsible for dropping any `shadow` borrows beforehand.
-    fn report_shared(
-        &self,
-        err: DivergenceErrors,
-        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
-    ) {
+    fn report_shared(&self, err: DivergenceErrors) {
         self.shadow
             .take()
             .unwrap()
-            .report(err, self.main.dump_state(pubdata_builder));
+            .report(err, self.main.dump_state());
     }
 
     /// Dumps the current VM state.
-    pub fn dump_state(&self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> VmDump {
-        self.main.dump_state(pubdata_builder)
+    pub fn dump_state(&self) -> VmDump {
+        self.main.dump_state()
     }
 }
 
@@ -189,7 +185,7 @@ where
             );
             if let Err(err) = errors.into_result() {
                 let ctx = format!("pushing transaction {tx_repr}");
-                self.report(err.context(ctx), None);
+                self.report(err.context(ctx));
             }
         }
         main_result
@@ -208,7 +204,7 @@ where
 
             if let Err(err) = errors.into_result() {
                 let ctx = format!("executing VM with mode {execution_mode:?}");
-                self.report(err.context(ctx), None);
+                self.report(err.context(ctx));
             }
         }
         main_result
@@ -252,7 +248,7 @@ where
                 let ctx = format!(
                     "inspecting transaction {tx_repr}, with_compression={with_compression:?}"
                 );
-                self.report(err.context(ctx), None);
+                self.report(err.context(ctx));
             }
         }
         (main_bytecodes_result, main_tx_result)
@@ -288,7 +284,7 @@ where
             );
 
             if let Err(err) = errors.into_result() {
-                self.report(err, pubdata_builder);
+                self.report(err);
             }
         }
         main_batch

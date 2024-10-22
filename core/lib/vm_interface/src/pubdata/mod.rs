@@ -1,6 +1,5 @@
 use zksync_types::{
-    commitment::PubdataParams, l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address,
-    ProtocolVersionId, H256, U256,
+    l2_to_l1_log::L2ToL1Log, writes::StateDiffRecord, Address, ProtocolVersionId, H256, U256,
 };
 
 /// Corresponds to the following solidity event:
@@ -75,10 +74,6 @@ pub struct PubdataInput {
 /// Trait that encapsulates pubdata building logic. It is implemented for rollup and validium cases.
 /// If chains needs custom pubdata format then another implementation should be added.
 pub trait PubdataBuilder: std::fmt::Debug {
-    fn pubdata_params(&self) -> Option<PubdataParams> {
-        None
-    }
-
     fn l2_da_validator(&self) -> Address;
 
     fn l1_messenger_operator_input(

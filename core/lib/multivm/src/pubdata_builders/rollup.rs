@@ -1,5 +1,4 @@
 use zksync_types::{
-    commitment::{L1BatchCommitmentMode, PubdataParams},
     ethabi,
     ethabi::{ParamType, Token},
     l2_to_l1_log::l2_to_l1_logs_tree_size,
@@ -25,13 +24,6 @@ impl RollupPubdataBuilder {
 }
 
 impl PubdataBuilder for RollupPubdataBuilder {
-    fn pubdata_params(&self) -> Option<PubdataParams> {
-        Some(PubdataParams {
-            l2_da_validator_address: self.l2_da_validator,
-            pubdata_type: L1BatchCommitmentMode::Rollup,
-        })
-    }
-
     fn l2_da_validator(&self) -> Address {
         self.l2_da_validator
     }
