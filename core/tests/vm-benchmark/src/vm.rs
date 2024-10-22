@@ -9,7 +9,7 @@ use zksync_multivm::{
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
-    vm_fast,
+    vm_fast::{self, TracerExt},
     vm_latest::{self, constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled, ToTracerPointer},
     zk_evm_latest::ethereum_types::{Address, U256},
 };
@@ -112,6 +112,7 @@ impl CountInstructions for Fast {
                 self.0 += 1;
             }
         }
+        impl TracerExt for InstructionCount {}
 
         let (system_env, l1_batch_env) = test_env();
         let mut vm =

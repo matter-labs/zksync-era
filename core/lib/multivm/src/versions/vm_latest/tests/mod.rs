@@ -33,6 +33,7 @@ mod bootloader;
 mod default_aa;
 // TODO - fix this test
 // `mod invalid_bytecode;`
+mod account_validation_rules;
 mod block_tip;
 mod bytecode_publishing;
 mod call_tracer;

@@ -13,7 +13,7 @@ use crate::{
         VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
-    vm_fast::Tracer,
+    vm_fast::TracerExt,
     vm_latest::HistoryEnabled,
 };
 
@@ -250,7 +250,7 @@ macro_rules! dispatch_fast_vm {
     };
 }
 
-impl<S: ReadStorage, Tr: crate::vm_fast::Tracer + Default + 'static> VmInterface
+impl<S: ReadStorage, Tr: crate::vm_fast::TracerExt + Default + 'static> VmInterface
     for FastVmInstance<S, Tr>
 {
     type TracerDispatcher = (
@@ -300,7 +300,7 @@ impl<S: ReadStorage, Tr: crate::vm_fast::Tracer + Default + 'static> VmInterface
     }
 }
 
-impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterfaceHistoryEnabled
+impl<S: ReadStorage, Tr: TracerExt + Default + 'static> VmInterfaceHistoryEnabled
     for FastVmInstance<S, Tr>
 {
     fn make_snapshot(&mut self) {
@@ -316,7 +316,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterfaceHistoryEnabled
     }
 }
 
-impl<S: ReadStorage, Tr: Tracer + Default + 'static> FastVmInstance<S, Tr> {
+impl<S: ReadStorage, Tr: TracerExt + Default + 'static> FastVmInstance<S, Tr> {
     /// Creates an isolated fast VM.
     pub fn fast(
         l1_batch_env: L1BatchEnv,

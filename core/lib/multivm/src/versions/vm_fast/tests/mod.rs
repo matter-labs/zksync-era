@@ -8,13 +8,13 @@ use zksync_vm_interface::{
     VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
 };
 
-use super::Vm;
+use super::{TracerExt, Vm};
 use crate::{
     interface::storage::{ImmutableStorageView, InMemoryStorage},
     versions::testonly::TestedVm,
-    vm_fast::CircuitsTracer,
 };
 
+mod account_validation_rules;
 mod block_tip;
 mod bootloader;
 mod bytecode_publishing;
@@ -76,7 +76,9 @@ impl PartialEq for VmStateDump {
     }
 }
 
-impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
+impl<T: TracerExt + Default + std::fmt::Debug + 'static> TestedVm
+    for Vm<ImmutableStorageView<InMemoryStorage>, T>
+{
     type StateDump = VmStateDump;
 
     fn dump_state(&self) -> Self::StateDump {
@@ -124,7 +126,7 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
     fn manually_decommit(&mut self, code_hash: H256) -> bool {
         let (_, is_fresh) = self.inner.world_diff_mut().decommit_opcode(
             &mut self.world,
-            &mut ((), CircuitsTracer::default()),
+            &mut Default::default(),
             h256_to_u256(code_hash),
         );
         is_fresh

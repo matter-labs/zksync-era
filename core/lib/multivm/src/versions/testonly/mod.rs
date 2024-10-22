@@ -33,6 +33,7 @@ use crate::{
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
+pub(super) mod account_validation_rules;
 pub(super) mod block_tip;
 pub(super) mod bootloader;
 pub(super) mod bytecode_publishing;
@@ -126,6 +127,11 @@ pub(crate) fn read_simple_transfer_contract() -> Vec<u8> {
     read_bytecode(
         "etc/contracts-test-data/artifacts-zk/contracts/simple-transfer/simple-transfer.sol/SimpleTransfer.json",
     )
+}
+
+pub(crate) fn read_validation_test_contract() -> Vec<u8> {
+    let path = "etc/contracts-test-data/artifacts-zk/contracts/custom-account/validation-rule-breaker.sol/ValidationRuleBreaker.json";
+    read_bytecode(path)
 }
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {

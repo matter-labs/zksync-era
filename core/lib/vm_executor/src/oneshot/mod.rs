@@ -27,7 +27,7 @@ use zksync_multivm::{
     is_supported_by_fast_vm,
     tracers::{CallTracer, StorageInvocations, TracerDispatcher, ValidationTracer},
     utils::adjust_pubdata_price_for_tx,
-    vm_fast::Tracer,
+    vm_fast::TracerExt,
     vm_latest::{HistoryDisabled, HistoryEnabled},
     zk_evm_latest::ethereum_types::U256,
     FastVmInstance, HistoryMode, LegacyVmInstance, MultiVMTracer,
@@ -379,7 +379,7 @@ impl<S: ReadStorage> VmSandbox<S> {
         self.execute_in_vm_with_tracer(action)
     }
 
-    fn execute_in_vm_with_tracer<T, Tr: Tracer + Default + 'static>(
+    fn execute_in_vm_with_tracer<T, Tr: TracerExt + Default + 'static>(
         mut self,
         action: impl FnOnce(&mut Vm<StorageWithOverrides<S>, Tr>, Transaction) -> T,
     ) -> T {

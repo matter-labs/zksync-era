@@ -2,7 +2,7 @@ pub use zksync_vm2::interface;
 
 pub use self::{
     circuits_tracer::CircuitsTracer,
-    vm::{TracerExt as Tracer, Vm},
+    vm::{TracerExt, Vm},
 };
 
 mod bootloader_state;
