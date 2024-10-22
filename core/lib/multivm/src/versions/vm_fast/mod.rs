@@ -1,6 +1,6 @@
 pub use self::{
     circuits_tracer::CircuitsTracer,
-    vm::{TracerExt as Tracer, Vm},
+    vm::{TracerExt, Vm},
 };
 
 mod bootloader_state;

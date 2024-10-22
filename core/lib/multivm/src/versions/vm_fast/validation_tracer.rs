@@ -4,18 +4,10 @@ use zksync_vm2::interface::{
 
 use super::vm::TracerExt;
 
+#[derive(Debug, Default)]
 pub struct ValidationTracer {
     probably_out_of_gas: bool,
     in_validation: bool,
-}
-
-impl Default for ValidationTracer {
-    fn default() -> Self {
-        Self {
-            probably_out_of_gas: false,
-            in_validation: false,
-        }
-    }
 }
 
 impl Tracer for ValidationTracer {

@@ -9,7 +9,7 @@ use zksync_multivm::{
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceExt,
         VmInterfaceHistoryEnabled,
     },
-    vm_fast,
+    vm_fast::{self, TracerExt},
     vm_latest::{self, constants::BATCH_COMPUTATIONAL_GAS_LIMIT, HistoryEnabled, ToTracerPointer},
     zk_evm_latest::ethereum_types::{Address, U256},
 };
@@ -19,6 +19,7 @@ use zksync_types::{
     Transaction,
 };
 use zksync_utils::bytecode::hash_bytecode;
+use zksync_vm2::interface::Tracer;
 
 use crate::{instruction_counter::InstructionCounter, transaction::PRIVATE_KEY};
 
@@ -81,7 +82,7 @@ pub trait BenchmarkingVmFactory {
 #[derive(Debug)]
 pub struct Fast<Tr = ()>(Tr);
 
-impl<Tr: vm_fast::Tracer + Default + 'static> BenchmarkingVmFactory for Fast<Tr> {
+impl<Tr: vm_fast::TracerExt + Default + 'static> BenchmarkingVmFactory for Fast<Tr> {
     const LABEL: VmLabel = VmLabel::Fast;
 
     type Instance = vm_fast::Vm<&'static InMemoryStorage, Tr>;
@@ -100,7 +101,7 @@ impl<Tr: vm_fast::Tracer + Default + 'static> BenchmarkingVmFactory for Fast<Tr>
 
         #[derive(Default)]
         struct InstructionCount(usize);
-        impl vm_fast::Tracer for InstructionCount {
+        impl Tracer for InstructionCount {
             fn before_instruction<
                 OP: zksync_vm2::interface::OpcodeType,
                 S: zksync_vm2::interface::GlobalStateInterface,
@@ -111,6 +112,7 @@ impl<Tr: vm_fast::Tracer + Default + 'static> BenchmarkingVmFactory for Fast<Tr>
                 self.0 += 1;
             }
         }
+        impl TracerExt for InstructionCount {}
         let mut tracer = InstructionCount(0);
 
         vm.0.inspect(&mut tracer, VmExecutionMode::OneTx);
