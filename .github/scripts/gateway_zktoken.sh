@@ -53,6 +53,10 @@ zk_inception chain init \
 
 zk_inception chain convert-to-gateway --chain gateway --ignore-prerequisites
 
+SERVER_PID=$(lsof -t -i :3075)
+
+kill -2 $SERVER_PID
+
 zk_inception server --ignore-prerequisites --chain gateway &> ./gateway.log & 
 
 sleep 20
@@ -67,4 +71,4 @@ zk_inception server --ignore-prerequisites --chain era &> ./rollup.log &
 
 sleep 20
 
-# zk_supervisor test integration --no-deps --ignore-prerequisites --chain era
+zk_supervisor test integration --no-deps --ignore-prerequisites --chain era

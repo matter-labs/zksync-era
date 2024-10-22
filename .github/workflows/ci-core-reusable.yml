@@ -276,6 +276,24 @@ jobs:
           --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --prover-db-name=zksync_prover_localhost_custom_token \
           --chain custom_token
+      
+      - name: Start Era server
+        run: |
+          ci_run zk_inception server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+          ci_run sleep 20  # Wait for server to start
+      
+      - name: Deploy and bridge ZK token on Era chain
+        run: ci_run zk_inception chain deploy-and-bridge-zk --chain era --verbose
+
+      - name: Extract ZK token L1 address
+        run: |
+          TOML_FILE="contracts/l1-contracts/script-out/output-deploy-zk-token.toml"
+          zkL1Address=$(grep -A 1 "\[ZK.l1Address\]" "$TOML_FILE" | grep "l1Address" | awk -F' = ' '{print $2}' | tr -d '"' | tr -d ' ' | tr -d '\n')
+          if [[ $zkL1Address == 0x* ]]; then
+              zkL1Address="${zkL1Address:2}"
+          fi
+          echo "ZK_L1_ADDRESS=$zkL1Address" >> $GITHUB_ENV
+          echo "Extracted ZK L1 Address: $zkL1Address"
 
       - name: Initialize gateway chain
         run: |
@@ -285,7 +303,7 @@ jobs:
             --prover-mode no-proofs \
             --wallet-creation localhost \
             --l1-batch-commit-data-generator-mode rollup \
-            --base-token-address 0x0000000000000000000000000000000000000001 \
+            --base-token-address ${{ env.ZK_L1_ADDRESS }} \
             --base-token-price-nominator 1 \
             --base-token-price-denominator 1 \
             --set-as-default false \
@@ -302,6 +320,15 @@ jobs:
 
           ci_run zk_inception chain convert-to-gateway --chain gateway --ignore-prerequisites
 
+      - name: Gracefully shut down Era server
+        run: |
+          ERA_SERVER_PID=$(lsof -t -i :3075)
+          if [ -n "$ERA_SERVER_PID" ]; then
+              kill -2 $ERA_SERVER_PID
+              echo "Gracefully shutting down Era server with PID: $ERA_SERVER_PID"
+              sleep 5  # Wait for the shutdown to complete
+          fi
+          
       - name: Run gateway
         run: |
           ci_run zk_inception server --ignore-prerequisites --chain gateway &> ${{ env.SERVER_LOGS_DIR }}/gateway.log &

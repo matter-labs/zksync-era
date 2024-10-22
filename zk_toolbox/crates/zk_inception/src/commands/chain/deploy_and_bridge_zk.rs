@@ -1,4 +1,4 @@
-use std::{fs, fs::File, io::BufReader, path::PathBuf, time::Duration};
+use std::{fs, fs::File, io::BufReader, path::PathBuf};
 
 use anyhow::Context;
 use common::{
@@ -15,7 +15,7 @@ use ethers::{
     utils::hex,
 };
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use xshell::Shell;
 use zksync_basic_types::{H256, U256, U64};
 use zksync_types::L2ChainId;
@@ -101,7 +101,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     .for_network(L2::from(L2ChainId(chain_config.chain_id.0)))
     .build();
 
-    let hash = call_script(
+    let _hash = call_script(
         shell,
         args.clone(),
         &DEPLOY_AND_BRIDGE_ZK_TOKEN_INTERFACE
@@ -128,7 +128,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .encode("run", ())
         .unwrap();
 
-    let tx_hash = call_script_era(
+    let _tx_hash = call_script_era(
         shell,
         args.clone(),
         &calldata,
@@ -140,7 +140,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     println!("ZK Token Deployed and Withdrawn to L1!");
 
-    println!("Pausing for 20 seconds...");
+    println!("Pausing for 20 seconds after withdrawing to L1...");
     tokio::time::sleep(tokio::time::Duration::from_secs(20)).await;
     println!("Resuming execution");
 
@@ -181,7 +181,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         )
         .unwrap();
 
-    let tx_hash = call_script(
+    let _tx_hash = call_script(
         shell,
         args.clone(),
         &calldata,
@@ -197,7 +197,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
         .encode("saveL1Address", ())
         .unwrap();
 
-    let tx_hash = call_script(
+    let _tx_hash = call_script(
         shell,
         args,
         &calldata,
