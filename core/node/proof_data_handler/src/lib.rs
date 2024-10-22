@@ -139,4 +139,6 @@ fn create_proof_processing_router(
     }
 
     router
+        .layer(tower_http::compression::CompressionLayer::new())
+        .layer(tower_http::decompression::RequestDecompressionLayer::new().zstd(true))
 }
