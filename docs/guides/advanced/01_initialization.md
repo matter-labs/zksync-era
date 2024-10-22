@@ -1,4 +1,4 @@
-# ZKsync deeper dive
+# ZKsync Deeper Dive
 
 The goal of this doc is to show you some more details on how ZKsync works internally.
 
@@ -7,18 +7,21 @@ system).
 
 Now let's take a look at what's inside:
 
-### Initialization (zk init)
+### Initialization
 
-Let's take a deeper look into what `zk init` does.
+Let's take a deeper look into what `zkstack ecosystem init` does.
 
-#### zk tool
+#### ZK Stack CLI
 
-`zk` itself is implemented in typescript (you can see the code in `infrastructure` directory). If you change anything
-there, make sure to run `zk` (that compiles this code), before re-running `zk init`.
+`zkstack` itself is implemented in Rust (you can see the code in `/zkstack_cli` directory). If you change anything
+there, make sure to run `zkstackup --local` from the root folder (that compiles and installs this code), before
+re-running any `zkstack` command.
 
-#### zk init
+#### Containers
 
-As first step, it gets the docker images for postgres and reth.
+As first step, running `zkstack containers` gets the docker images for postgres and reth. If the `--observability`
+option is passed to the command, or the corresponding option is selected in the interactive prompt, then Prometheus,
+Grafana and other observability-related images are downloaded and run.
 
 Reth (one of the Ethereum clients) will be used to setup our own copy of L1 chain (that our local ZKsync would use).
 
@@ -26,32 +29,19 @@ Postgres is one of the two databases, that is used by ZKsync (the other one is R
 stored in postgres (blocks, transactions etc) - while RocksDB is only storing the state (Tree & Map) - and it used by
 VM.
 
-Then we compile JS packages (these include our web3 sdk, tools and testing infrastructure).
+#### Ecosystem
 
-Then L1 & L2 contracts.
+Then, running `zkstack ecosystem init`:.
 
-And now we're ready to start setting up the system.
+- Collects and finalize the ecosystem configuration.
+- Builds and deploys L1 & L2 contracts.
+- Initialize each chain defined in the `/chains` folder. (Currently, a single chain `era` is defined there, but you can
+  create your own chains running `zkstack chain create`).
+- Sets up observability.
+- Runs the genesis process.
+- Initializes the database.
 
 #### Postgres
-
-First - postgres database: you'll be able to see something like
-
-```
-DATABASE_URL = postgres://postgres:notsecurepassword@localhost/zksync_local
-```
-
-After which we setup the schema (lots of lines with `Applied XX`).
-
-You can try connecting to postgres now, to see what's inside:
-
-```shell
-psql postgres://postgres:notsecurepassword@localhost/zksync_local
-```
-
-(and then commands like `\dt` to see the tables, `\d TABLE_NAME` to see the schema, and `select * from XX` to see the
-contents).
-
-As our network has just started, the database would be quite empty.
 
 You can see the schema for the database in [dal/README.md](../../../core/lib/dal/README.md) TODO: add the link to the
 document with DB schema.
@@ -83,8 +73,8 @@ If everything goes well, you should see that L1 blocks are being produced.
 
 Now we can start the main server:
 
-```shell
-zk server
+```bash
+zkstack server
 ```
 
 This will actually run a cargo binary (`zksync_server`).
@@ -96,7 +86,7 @@ Currently we don't send any transactions there (so the logs might be empty).
 
 But you should see some initial blocks in postgres:
 
-```
+```sql
 select * from miniblocks;
 ```
 
@@ -107,7 +97,7 @@ Let's finish this article, by taking a look at our L1:
 We will use the `web3` tool to communicate with the L1, have a look at [02_deposits.md](02_deposits.md) for installation
 instructions. You can check that you're a (localnet) crypto trillionaire, by running:
 
-```shell
+```bash
 ./web3 --rpc-url http://localhost:8545 balance 0x36615Cf349d7F6344891B1e7CA7C72883F5dc049
 ```
 
@@ -120,14 +110,14 @@ In order to communicate with L2 (our ZKsync) - we have to deploy multiple contra
 Ethereum). You can look on the `deployL1.log` file - to see the list of contracts that were deployed and their accounts.
 
 First thing in the file, is the deployer/governor wallet - this is the account that can change, freeze and unfreeze the
-contracts (basically the owner). You can also verify (using the getBalance method above), that is has a lot of tokens.
+contracts (basically the owner). You can also verify (using the getBalance method above), that has a lot of tokens.
 
 Then, there are a bunch of contracts (CRATE2_FACTOR, DIAMOND_PROXY, L1_ALLOW_LIST etc etc) - for each one, the file
 contains the address.
 
 You can quickly verify that they were really deployed, by calling:
 
-```shell
+```bash
 ./web3 --rpc-url http://localhost:8545 address XXX
 ```
 
