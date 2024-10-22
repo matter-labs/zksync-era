@@ -429,5 +429,6 @@ impl Transaction {
     Copy
 )]
 pub struct TransactionTimeRangeConstraint {
-    pub timestamp_asserter_range: Option<(i64, i64)>, // (start, end)
+    /// Represents a range from-to. Each field is a number of seconds since the epoch.
+    pub timestamp_asserter_range: Option<(i64, i64)>,
 }

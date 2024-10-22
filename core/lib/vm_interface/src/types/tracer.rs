@@ -128,15 +128,18 @@ pub enum ValidationError {
 }
 
 /// Traces the validation of a transaction, providing visibility into the aspects the transaction interacts with.
-/// For instance, the `range_start` and `range_end` fields represent the range within which the transaction might make
+/// For instance, the `timestamp_asserter_range` represent the range within which the transaction might make
 /// assertions on `block.timestamp`. This information is crucial for the caller, as expired transactions should
 /// be excluded from the mempool.
 #[derive(Debug, Clone, Default)]
 pub struct ValidationTraces {
+    /// Represents a range from-to. Each field is a number of seconds since the epoch.
     pub timestamp_asserter_range: Option<(i64, i64)>,
 }
 
 impl ValidationTraces {
+    /// Merges two ranges together by taking the maximum of the starts and the minimum of the ends
+    /// resulting into the narrowest possible time window
     pub fn apply_range(&mut self, new_range: (i64, i64)) {
         if let Some(mut range) = self.timestamp_asserter_range {
             range.0 = cmp::max(range.0, new_range.0);
