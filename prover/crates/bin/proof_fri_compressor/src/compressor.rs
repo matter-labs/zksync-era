@@ -8,25 +8,30 @@ use circuit_sequencer_api::proof::FinalProof;
 use fflonk_gpu::FflonkSnarkVerifierCircuitProof;
 #[cfg(feature = "fflonk")]
 use fflonk_gpu::{bellman::worker::Worker, FflonkSnarkVerifierCircuit};
+#[cfg(feature = "fflonk")]
 use proof_compression_gpu::{CompressionInput, CompressionMode, CompressionSchedule};
 use tokio::task::JoinHandle;
-use tracing::Instrument;
+#[cfg(not(feature = "fflonk"))]
 use wrapper_prover::{GPUWrapperConfigs, WrapperProver};
+#[cfg(not(feature = "fflonk"))]
 use zkevm_test_harness::proof_wrapper_utils::{get_trusted_setup, DEFAULT_WRAPPER_CONFIG};
 use zksync_object_store::ObjectStore;
 use zksync_prover_dal::{ConnectionPool, Prover, ProverDal};
+#[cfg(feature = "fflonk")]
+use zksync_prover_fri_types::circuit_definitions::circuit_definitions::aux_layer::wrapper::ZkSyncCompressionWrapper;
+#[cfg(feature = "fflonk")]
+use zksync_prover_fri_types::circuit_definitions::circuit_definitions::{
+    aux_layer::{
+        ZkSyncCompressionProof, ZkSyncCompressionProofForWrapper,
+        ZkSyncCompressionVerificationKeyForWrapper,
+    },
+    recursion_layer::ZkSyncRecursionVerificationKey,
+};
 use zksync_prover_fri_types::{
     circuit_definitions::{
         boojum::field::goldilocks::GoldilocksField,
-        circuit_definitions::{
-            aux_layer::{
-                wrapper::ZkSyncCompressionWrapper, ZkSyncCompressionProof,
-                ZkSyncCompressionProofForWrapper, ZkSyncCompressionVerificationKeyForWrapper,
-            },
-            recursion_layer::{
-                ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
-                ZkSyncRecursionVerificationKey,
-            },
+        circuit_definitions::recursion_layer::{
+            ZkSyncRecursionLayerProof, ZkSyncRecursionLayerStorageType,
         },
         zkevm_circuits::scheduler::block_header::BlockAuxilaryOutputWitness,
     },
