@@ -98,7 +98,7 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
             protocol_version: parse_protocol_version(block.protocol_version)?,
             pubdata_params: PubdataParams {
                 pubdata_type: L1BatchCommitmentMode::from_str(&block.pubdata_type)
-                    .expect("Invalid pubdata type"),
+                    .decode_column("Invalid pubdata type")?,
                 l2_da_validator_address: parse_h160(&block.l2_da_validator_address)
                     .decode_column("l2_da_validator_address")?,
             },

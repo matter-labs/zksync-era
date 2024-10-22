@@ -131,10 +131,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn finish_batch(
-        &mut self,
-        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
-    ) -> FinishedL1Batch {
+    fn finish_batch(&mut self, _pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         let result = self.inspect_inner(TracerDispatcher::default(), VmExecutionMode::Batch, None);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();

@@ -45,7 +45,7 @@ impl StateKeeperPersistence {
         pool: &ConnectionPool<Core>,
         l2_legacy_shared_bridge_addr: Option<Address>,
     ) -> anyhow::Result<()> {
-        let mut connection = pool.connection().await.context("Get DB connection")?;
+        let mut connection = pool.connection_tagged("state_keeper").await?;
 
         if let Some(l2_block) = connection
             .blocks_dal()
@@ -64,9 +64,7 @@ impl StateKeeperPersistence {
                 .unwrap_or_else(ProtocolVersionId::last_potentially_undefined);
 
             if protocol_version.is_pre_gateway() && l2_legacy_shared_bridge_addr.is_none() {
-                anyhow::bail!(
-                    "Missing `l2_legacy_shared_bridge_addr` for chain that was initialized before gateway upgrade".to_string()
-                );
+                anyhow::bail!("Missing `l2_legacy_shared_bridge_addr` for chain that was initialized before gateway upgrade");
             }
         }
 

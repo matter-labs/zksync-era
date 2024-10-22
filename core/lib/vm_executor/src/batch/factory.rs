@@ -138,7 +138,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
                 storage,
                 l1_batch_params,
                 system_env,
-                Some(pubdata_params_to_builder(pubdata_params)),
+                pubdata_params_to_builder(pubdata_params),
             )
         });
         Box::new(MainBatchExecutor::new(handle, commands_sender))
@@ -192,7 +192,7 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         dispatch_batch_vm!(self.start_new_l2_block(l2_block));
     }
 
-    fn finish_batch(&mut self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> FinishedL1Batch {
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         dispatch_batch_vm!(self.finish_batch(pubdata_builder))
     }
 
@@ -269,7 +269,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
-        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> anyhow::Result<StorageView<S>> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
 
@@ -378,7 +378,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
     fn finish_batch(
         &self,
         vm: &mut BatchVm<S, Tr>,
-        pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> anyhow::Result<FinishedL1Batch> {
         // The vm execution was paused right after the last transaction was executed.
         // There is some post-processing work that the VM needs to do before the block is fully processed.

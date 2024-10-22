@@ -39,7 +39,7 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
 
     let result_without_predefined_refunds = vm
         .vm
-        .finish_batch(Some(default_pubdata_builder()))
+        .finish_batch(default_pubdata_builder())
         .block_tip_execution_result;
     let mut current_state_without_predefined_refunds = vm.vm.get_current_execution_state();
     assert!(!result_without_predefined_refunds.result.is_failed(),);
@@ -61,7 +61,7 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
 
     let result_with_predefined_refunds = vm
         .vm
-        .finish_batch(Some(default_pubdata_builder()))
+        .finish_batch(default_pubdata_builder())
         .block_tip_execution_result;
     let mut current_state_with_predefined_refunds = vm.vm.get_current_execution_state();
 
@@ -115,7 +115,7 @@ pub(crate) fn test_predetermined_refunded_gas<VM: TestedVm>() {
         .push_transaction_with_refund(tx, changed_operator_suggested_refund);
     let result = vm
         .vm
-        .finish_batch(Some(default_pubdata_builder()))
+        .finish_batch(default_pubdata_builder())
         .block_tip_execution_result;
     let mut current_state_with_changed_predefined_refunds = vm.vm.get_current_execution_state();
 

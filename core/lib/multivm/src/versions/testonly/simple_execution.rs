@@ -71,7 +71,7 @@ pub(crate) fn test_simple_execute<VM: TestedVm>() {
     let tx = vm.execute(InspectExecutionMode::OneTx);
     assert_matches!(tx.result, ExecutionResult::Success { .. });
     let block_tip = vm
-        .finish_batch(Some(default_pubdata_builder()))
+        .finish_batch(default_pubdata_builder())
         .block_tip_execution_result;
     assert_matches!(block_tip.result, ExecutionResult::Success { .. });
 }

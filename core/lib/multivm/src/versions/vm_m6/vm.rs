@@ -207,10 +207,7 @@ impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn finish_batch(
-        &mut self,
-        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
-    ) -> FinishedL1Batch {
+    fn finish_batch(&mut self, _pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         self.vm
             .execute_till_block_end(
                 crate::vm_m6::vm_with_bootloader::BootloaderJobType::BlockPostprocessing,

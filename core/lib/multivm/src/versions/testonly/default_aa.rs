@@ -35,7 +35,7 @@ pub(crate) fn test_default_aa_interaction<VM: TestedVm>() {
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    vm.vm.finish_batch(Some(default_pubdata_builder()));
+    vm.vm.finish_batch(default_pubdata_builder());
 
     vm.vm.get_current_execution_state();
 

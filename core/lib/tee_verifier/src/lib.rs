@@ -209,7 +209,7 @@ fn execute_vm<S: ReadStorage>(
 
     tracing::trace!("about to vm.finish_batch()");
 
-    Ok(vm.finish_batch(Some(pubdata_params_to_builder(pubdata_params))))
+    Ok(vm.finish_batch(pubdata_params_to_builder(pubdata_params)))
 }
 
 /// Map `LogQuery` and `TreeLogEntry` to a `TreeInstruction`

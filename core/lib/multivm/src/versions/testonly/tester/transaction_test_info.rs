@@ -184,7 +184,7 @@ impl<VM: TestedVm> VmTester<VM> {
         for tx_test_info in txs {
             self.execute_tx_and_verify(tx_test_info.clone());
         }
-        self.vm.finish_batch(Some(default_pubdata_builder()));
+        self.vm.finish_batch(default_pubdata_builder());
         let mut state = self.vm.get_current_execution_state();
         state.used_contract_hashes.sort();
         state

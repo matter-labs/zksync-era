@@ -105,7 +105,7 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
         pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> VmExecutionResultAndLogs {
         self.enforce_state_diffs(diffs);
-        self.finish_batch(Some(pubdata_builder))
+        self.finish_batch(pubdata_builder)
             .block_tip_execution_result
     }
 

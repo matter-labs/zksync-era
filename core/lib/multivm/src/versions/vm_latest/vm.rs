@@ -186,8 +186,7 @@ impl<S: WriteStorage, H: HistoryMode> VmInterface for Vm<S, H> {
         }
     }
 
-    fn finish_batch(&mut self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> FinishedL1Batch {
-        let pubdata_builder = pubdata_builder.expect("`pubdata_builder` is required");
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         let pubdata_tracer = Some(PubdataTracer::new(
             self.batch_env.clone(),
             VmExecutionMode::Batch,

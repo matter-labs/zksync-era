@@ -82,7 +82,7 @@ fn test_send_or_transfer<VM: TestedVm>(test_option: TestOptions) {
 
     let batch_result = vm
         .vm
-        .finish_batch(Some(default_pubdata_builder()))
+        .finish_batch(default_pubdata_builder())
         .block_tip_execution_result;
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
 
@@ -191,7 +191,7 @@ fn test_reentrancy_protection_send_or_transfer<VM: TestedVm>(test_option: TestOp
 
     let batch_result = vm
         .vm
-        .finish_batch(Some(default_pubdata_builder()))
+        .finish_batch(default_pubdata_builder())
         .block_tip_execution_result;
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
 }

@@ -178,7 +178,7 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
             .inspect_transaction_with_bytecode_compression(tracer, tx, with_compression)
     }
 
-    fn finish_batch(&mut self, pubdata_builder: Option<Rc<dyn PubdataBuilder>>) -> FinishedL1Batch {
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         self.inner.finish_batch(pubdata_builder)
     }
 }

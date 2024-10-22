@@ -1,3 +1,4 @@
+use anyhow::Context;
 use zksync_dal::{Connection, Core, CoreDal};
 use zksync_shared_metrics::{TxStage, APP_METRICS};
 use zksync_state_keeper::io::{common::IoCursor, L1BatchParams, L2BlockParams};
@@ -78,6 +79,14 @@ impl TryFrom<SyncBlock> for FetchedBlock {
             ));
         }
 
+        let pubdata_params = if block.protocol_version.is_pre_gateway() {
+            block.pubdata_params.unwrap_or_default()
+        } else {
+            block
+                .pubdata_params
+                .context("Missing `pubdata_params` for post-gateway payload")?
+        };
+
         Ok(Self {
             number: block.number,
             l1_batch_number: block.l1_batch_number,
@@ -94,7 +103,7 @@ impl TryFrom<SyncBlock> for FetchedBlock {
                 .into_iter()
                 .map(FetchedTransaction::new)
                 .collect(),
-            pubdata_params: block.pubdata_params.unwrap_or_default(),
+            pubdata_params,
         })
     }
 }

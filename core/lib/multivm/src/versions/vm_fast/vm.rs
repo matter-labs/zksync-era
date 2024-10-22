@@ -689,10 +689,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
         self.bootloader_state.start_new_l2_block(l2_block_env)
     }
 
-    fn finish_batch(
-        &mut self,
-        _pubdata_builder: Option<Rc<dyn PubdataBuilder>>,
-    ) -> FinishedL1Batch {
+    fn finish_batch(&mut self, _pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         let result = self.inspect_inner(&mut Tr::default(), VmExecutionMode::Batch);
         let execution_state = self.get_current_execution_state();
         let bootloader_memory = self.bootloader_state.bootloader_memory();

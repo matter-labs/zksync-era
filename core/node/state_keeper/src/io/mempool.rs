@@ -165,19 +165,7 @@ impl StateKeeperIO for MempoolIO {
         {
             let protocol_version = unsealed_storage_batch
                 .protocol_version
-                .expect("unsealed batch is missing protocol version");
-            let pubdata_params = match (
-                protocol_version.is_pre_gateway(),
-                self.l2_da_validator_address,
-            ) {
-                (true, _) => PubdataParams::default(),
-                (false, Some(l2_da_validator_address)) => PubdataParams {
-                    l2_da_validator_address,
-                    pubdata_type: self.pubdata_type,
-                },
-                (false, None) => anyhow::bail!("L2 DA validator address not found"),
-            };
-
+                .context("unsealed batch is missing protocol version")?;
             return Ok(Some(L1BatchParams {
                 protocol_version,
                 validation_computational_gas_limit: self.validation_computational_gas_limit,
@@ -188,7 +176,7 @@ impl StateKeeperIO for MempoolIO {
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
                 },
-                pubdata_params,
+                pubdata_params: self.pubdata_params(protocol_version)?,
             }));
         }
 
@@ -235,18 +223,6 @@ impl StateKeeperIO for MempoolIO {
                 continue;
             }
 
-            let pubdata_params = match (
-                protocol_version.is_pre_gateway(),
-                self.l2_da_validator_address,
-            ) {
-                (true, _) => PubdataParams::default(),
-                (false, Some(l2_da_validator_address)) => PubdataParams {
-                    l2_da_validator_address,
-                    pubdata_type: self.pubdata_type,
-                },
-                (false, None) => anyhow::bail!("L2 DA validator address not found"),
-            };
-
             self.pool
                 .connection_tagged("state_keeper")
                 .await?
@@ -270,7 +246,7 @@ impl StateKeeperIO for MempoolIO {
                     // This value is effectively ignored by the protocol.
                     virtual_blocks: 1,
                 },
-                pubdata_params,
+                pubdata_params: self.pubdata_params(protocol_version)?,
             }));
         }
         Ok(None)
@@ -507,6 +483,22 @@ impl MempoolIO {
             l2_da_validator_address,
             pubdata_type,
         })
+    }
+
+    fn pubdata_params(&self, protocol_version: ProtocolVersionId) -> anyhow::Result<PubdataParams> {
+        let pubdata_params = match (
+            protocol_version.is_pre_gateway(),
+            self.l2_da_validator_address,
+        ) {
+            (true, _) => PubdataParams::default(),
+            (false, Some(l2_da_validator_address)) => PubdataParams {
+                l2_da_validator_address,
+                pubdata_type: self.pubdata_type,
+            },
+            (false, None) => anyhow::bail!("L2 DA validator address not found"),
+        };
+
+        Ok(pubdata_params)
     }
 }
 

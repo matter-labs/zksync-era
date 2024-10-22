@@ -296,7 +296,11 @@ impl CommitmentGenerator {
                 .connection_pool
                 .connection_tagged("commitment_generator")
                 .await?;
-            let aggregation_root = read_aggregation_root(&mut connection, l1_batch_number).await?;
+            let aggregation_root = if protocol_version.is_pre_gateway() {
+                read_aggregation_root(&mut connection, l1_batch_number).await?
+            } else {
+                H256::zero()
+            };
 
             CommitmentInput::PostBoojum {
                 common,
@@ -384,9 +388,9 @@ impl CommitmentGenerator {
                 // Do nothing
             }
             (L1BatchCommitmentMode::Validium, CommitmentInput::PostBoojum { blob_hashes, .. }) => {
-                blob_hashes
-                    .iter_mut()
-                    .for_each(|b| b.commitment = H256::zero());
+                for hashes in blob_hashes {
+                    hashes.commitment = H256::zero();
+                }
             }
             (L1BatchCommitmentMode::Validium, _) => { /* Do nothing */ }
         }

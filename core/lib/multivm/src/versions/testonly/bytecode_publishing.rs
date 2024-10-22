@@ -33,7 +33,7 @@ pub(crate) fn test_bytecode_publishing<VM: TestedVm>() {
     let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    vm.vm.finish_batch(Some(default_pubdata_builder()));
+    vm.vm.finish_batch(default_pubdata_builder());
 
     let state = vm.vm.get_current_execution_state();
     let long_messages = VmEvent::extract_long_l2_to_l1_messages(&state.events);
