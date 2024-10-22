@@ -65,7 +65,7 @@ impl Watcher {
     pub async fn send_scale(&self, requests: HashMap<String, ScaleRequest>) -> anyhow::Result<()> {
         let id_requests: HashMap<usize, ScaleRequest>;
         {
-            // Convert cluster names into ids. Holding data lock.
+            // Convert cluster names into ids. Holding the data lock.
             let guard = self.data.lock().await;
             id_requests = requests
                 .into_iter()

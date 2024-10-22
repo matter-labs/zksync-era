@@ -55,7 +55,7 @@ fn gpu_to_prover(gpu: Gpu) -> String {
     match gpu {
         Gpu::Unknown => "".into(),
         Gpu::L4 => s.into(),
-        _ => format!("{}-{}", s, gpu.to_string().to_lowercase()).into(),
+        _ => format!("{}-{}", s, gpu.to_string().to_lowercase()),
     }
 }
 
@@ -374,7 +374,7 @@ impl Task for Scaler {
 
         let mut scale_requests: HashMap<String, ScaleRequest> = HashMap::new();
         {
-            let guard = self.watcher.data.lock().await; // Keeping lock during all calls of run() for
+            let guard = self.watcher.data.lock().await; // Keeping the lock during all calls of run() for
                                                         // consitency.
             if let Err(err) = watcher::check_is_ready(&guard.is_ready) {
                 AUTOSCALER_METRICS.clusters_not_ready.inc();
