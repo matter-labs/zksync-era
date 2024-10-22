@@ -9,6 +9,7 @@ use zksync_types::{protocol_version::ProtocolSemanticVersion, tee_types::TeeType
 
 /// A "final" ZK proof that can be sent to the L1 contract.
 #[derive(Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum L1BatchProofForL1 {
     Fflonk(FflonkL1BatchProofForL1),
     Plonk(PlonkL1BatchProofForL1),

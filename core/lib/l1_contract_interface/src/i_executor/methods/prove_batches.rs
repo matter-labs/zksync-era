@@ -35,66 +35,6 @@ impl Tokenize for &ProveBatches {
                 L1BatchProofForL1::Fflonk(proof) => {
                     let scheduler_proof = proof.scheduler_proof.clone();
 
-                    fn serialize_fe_for_ethereum(field_element: &Fr) -> U256 {
-                        let mut be_bytes = [0u8; 32];
-                        field_element
-                            .into_repr()
-                            .write_be(&mut be_bytes[..])
-                            .expect("get new root BE bytes");
-                        U256::from_big_endian(&be_bytes[..])
-                    }
-
-                    fn serialize_g1_for_ethereum(
-                        point: &<bn256::Bn256 as Engine>::G1Affine,
-                    ) -> (U256, U256) {
-                        if <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::is_zero(point) {
-                            return (U256::zero(), U256::zero());
-                        }
-
-                        let (x, y) =
-                            <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::into_xy_unchecked(
-                                *point,
-                            );
-                        let _ =
-                            <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::from_xy_checked(
-                                x, y,
-                            )
-                            .unwrap();
-
-                        let mut buffer = [0u8; 32];
-                        x.into_repr().write_be(&mut buffer[..]).unwrap();
-                        let x = U256::from_big_endian(&buffer);
-
-                        let mut buffer = [0u8; 32];
-                        y.into_repr().write_be(&mut buffer[..]).unwrap();
-                        let y = U256::from_big_endian(&buffer);
-
-                        (x, y)
-                    }
-
-                    fn serialize_evm(proof: &FflonkSnarkVerifierCircuitProof) -> Vec<U256> {
-                        let mut serialized_proof = vec![];
-                        for input in proof.inputs.iter() {
-                            serialized_proof.push(serialize_fe_for_ethereum(input));
-                        }
-
-                        for c in proof.commitments.iter() {
-                            let (x, y) = serialize_g1_for_ethereum(c);
-                            serialized_proof.push(x);
-                            serialized_proof.push(y);
-                        }
-
-                        for el in proof.evaluations.iter() {
-                            serialized_proof.push(serialize_fe_for_ethereum(el));
-                        }
-
-                        for el in proof.lagrange_basis_inverses.iter() {
-                            serialized_proof.push(serialize_fe_for_ethereum(el));
-                        }
-
-                        serialized_proof
-                    }
-
                     let serialized_proof = serialize_evm(&scheduler_proof);
                     (serialized_proof, proof.aggregation_result_coords)
                 }
@@ -136,4 +76,55 @@ impl Tokenize for &ProveBatches {
             ]
         }
     }
+}
+
+fn serialize_fe_for_ethereum(field_element: &Fr) -> U256 {
+    let mut be_bytes = [0u8; 32];
+    field_element
+        .into_repr()
+        .write_be(&mut be_bytes[..])
+        .expect("get new root BE bytes");
+    U256::from_big_endian(&be_bytes[..])
+}
+
+fn serialize_g1_for_ethereum(point: &<bn256::Bn256 as Engine>::G1Affine) -> (U256, U256) {
+    if <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::is_zero(point) {
+        return (U256::zero(), U256::zero());
+    }
+
+    let (x, y) = <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::into_xy_unchecked(*point);
+    let _ = <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::from_xy_checked(x, y).unwrap();
+
+    let mut buffer = [0u8; 32];
+    x.into_repr().write_be(&mut buffer[..]).unwrap();
+    let x = U256::from_big_endian(&buffer);
+
+    let mut buffer = [0u8; 32];
+    y.into_repr().write_be(&mut buffer[..]).unwrap();
+    let y = U256::from_big_endian(&buffer);
+
+    (x, y)
+}
+
+fn serialize_evm(proof: &FflonkSnarkVerifierCircuitProof) -> Vec<U256> {
+    let mut serialized_proof = vec![];
+    for input in proof.inputs.iter() {
+        serialized_proof.push(serialize_fe_for_ethereum(input));
+    }
+
+    for c in proof.commitments.iter() {
+        let (x, y) = serialize_g1_for_ethereum(c);
+        serialized_proof.push(x);
+        serialized_proof.push(y);
+    }
+
+    for el in proof.evaluations.iter() {
+        serialized_proof.push(serialize_fe_for_ethereum(el));
+    }
+
+    for el in proof.lagrange_basis_inverses.iter() {
+        serialized_proof.push(serialize_fe_for_ethereum(el));
+    }
+
+    serialized_proof
 }

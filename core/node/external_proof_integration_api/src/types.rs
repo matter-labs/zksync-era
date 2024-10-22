@@ -50,7 +50,12 @@ impl ExternalProof {
     }
 
     pub fn verify(&self, correct: L1BatchProofForL1) -> Result<(), ProcessorError> {
-        if correct.protocol_version != self.protocol_version {
+        let protocol_version = match correct {
+            L1BatchProofForL1::Fflonk(proof) => proof.protocol_version,
+            L1BatchProofForL1::Plonk(proof) => proof.protocol_version,
+        };
+
+        if protocol_version != self.protocol_version {
             return Err(ProcessorError::InvalidProof);
         }
 
