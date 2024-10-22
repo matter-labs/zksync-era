@@ -57,7 +57,7 @@ impl BaseTokenL1Behaviour {
             self.update_last_persisted_l1_ratio(prev_ratio.clone());
             tracing::info!(
                 "Fetched current base token ratio from the L1: {}",
-                prev_ratio.to_bigint()
+                prev_ratio
             );
             prev_ratio
         };
