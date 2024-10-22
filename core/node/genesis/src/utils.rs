@@ -11,7 +11,7 @@ use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, ETHEREUM_ADDRESS};
 use zksync_types::{
     block::{DeployedContract, L1BatchTreeData},
     commitment::L1BatchCommitment,
-    get_code_key, get_known_code_key, get_system_context_init_logs,
+    get_allowed_bytecode_types_key, get_code_key, get_known_code_key, get_system_context_init_logs,
     tokens::{TokenInfo, TokenMetadata},
     zk_evm_types::{LogQuery, Timestamp},
     AccountTreeId, L1BatchNumber, L2BlockNumber, L2ChainId, StorageKey, StorageLog, H256,
@@ -40,7 +40,10 @@ pub(super) async fn add_eth_token(transaction: &mut Connection<'_, Core>) -> any
     Ok(())
 }
 
-pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<StorageLog> {
+pub(super) fn get_storage_logs(
+    system_contracts: &[DeployedContract],
+    allow_evm_emulation: bool,
+) -> Vec<StorageLog> {
     let system_context_init_logs =
         // During the genesis all chains have the same id.
         // TODO(EVM-579): make sure that the logic is compatible with Era.
@@ -59,6 +62,18 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
         .dedup_by(|a, b| a == b)
         .collect();
 
+    let evm_emulation_config_logs: Vec<_> = if allow_evm_emulation {
+        let allowed_bytecode_types_key = get_allowed_bytecode_types_key();
+        let allowed_bytecodes_mode = H256::from_low_u64_be(1u64);
+
+        vec![StorageLog::new_write_log(
+            allowed_bytecode_types_key,
+            allowed_bytecodes_mode,
+        )]
+    } else {
+        vec![]
+    };
+
     let storage_logs: Vec<_> = system_contracts
         .iter()
         .map(|contract| {
@@ -68,6 +83,7 @@ pub(super) fn get_storage_logs(system_contracts: &[DeployedContract]) -> Vec<Sto
         })
         .chain(system_context_init_logs)
         .chain(known_code_storage_logs)
+        .chain(evm_emulation_config_logs)
         .collect();
 
     storage_logs
