@@ -83,7 +83,7 @@ pub fn get_evm_code_hash_key(account: &Address) -> StorageKey {
 }
 
 pub fn get_allowed_bytecode_types_key() -> StorageKey {
-    get_deployer_key(H256::from_low_u64_be(2)) // TODO constant
+    get_deployer_key(ALLOWED_BYTECODES_MODE_SLOT)
 }
 
 pub fn get_known_code_key(hash: &H256) -> StorageKey {

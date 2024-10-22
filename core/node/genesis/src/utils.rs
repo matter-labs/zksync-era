@@ -10,6 +10,7 @@ use zksync_multivm::{
 use zksync_system_constants::{DEFAULT_ERA_CHAIN_ID, ETHEREUM_ADDRESS};
 use zksync_types::{
     block::{DeployedContract, L1BatchTreeData},
+    bytecode_modes::ERAVM_AND_EVM_MODE,
     commitment::L1BatchCommitment,
     get_allowed_bytecode_types_key, get_code_key, get_known_code_key, get_system_context_init_logs,
     tokens::{TokenInfo, TokenMetadata},
@@ -62,9 +63,9 @@ pub(super) fn get_storage_logs(
         .dedup_by(|a, b| a == b)
         .collect();
 
-    let evm_emulation_config_logs: Vec<_> = if allow_evm_emulation {
+    let allowed_bytecode_types_config_logs: Vec<_> = if allow_evm_emulation {
         let allowed_bytecode_types_key = get_allowed_bytecode_types_key();
-        let allowed_bytecodes_mode = H256::from_low_u64_be(1u64);
+        let allowed_bytecodes_mode = H256::from_low_u64_be(ERAVM_AND_EVM_MODE);
 
         vec![StorageLog::new_write_log(
             allowed_bytecode_types_key,
@@ -83,7 +84,7 @@ pub(super) fn get_storage_logs(
         })
         .chain(system_context_init_logs)
         .chain(known_code_storage_logs)
-        .chain(evm_emulation_config_logs)
+        .chain(allowed_bytecode_types_config_logs)
         .collect();
 
     storage_logs
