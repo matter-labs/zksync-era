@@ -2,9 +2,9 @@ use std::path::Path;
 
 use anyhow::anyhow;
 use clap::{Parser, ValueEnum};
-use serde::{Deserialize, Serialize};
 use common::{Prompt, PromptSelect};
 use config::ChainConfig;
+use serde::{Deserialize, Serialize};
 use strum::{EnumIter, IntoEnumIterator};
 
 use crate::{
@@ -87,7 +87,11 @@ impl ProverComponent {
         }
     }
 
-    pub fn get_application_args(&self, args: ProverRunArgs, in_docker: bool) -> anyhow::Result<Vec<String>> {
+    pub fn get_application_args(
+        &self,
+        args: ProverRunArgs,
+        in_docker: bool,
+    ) -> anyhow::Result<Vec<String>> {
         let mut application_args = vec![];
 
         if self == &Self::Prover || self == &Self::Compressor || self == &Self::CircuitProver {
