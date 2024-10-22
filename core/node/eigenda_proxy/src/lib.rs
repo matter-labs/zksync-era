@@ -25,13 +25,14 @@ pub async fn run_server(
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
     // TODO: Replace port for config
+
     let bind_address = SocketAddr::from(([0, 0, 0, 0], 4242));
     tracing::debug!("Starting eigenda proxy on {bind_address}");
 
     let eigenda_client = match config {
-        EigenDAConfig::Disperser(disperser_config) => {
-            EigenDAClient::new(disperser_config).await.unwrap()
-        }
+        EigenDAConfig::Disperser(disperser_config) => EigenDAClient::new(disperser_config)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to create EigenDA client: {:?}", e))?,
         _ => panic!("memstore unimplemented"),
     };
     let app = create_eigenda_proxy_router(eigenda_client);

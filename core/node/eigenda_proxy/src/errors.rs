@@ -18,7 +18,9 @@ pub enum EigenDAError {
     GetError,
 }
 
-pub(crate) enum RequestProcessorError {}
+pub(crate) enum RequestProcessorError {
+    EigenDA(EigenDAError),
+}
 
 impl IntoResponse for RequestProcessorError {
     fn into_response(self) -> Response {
