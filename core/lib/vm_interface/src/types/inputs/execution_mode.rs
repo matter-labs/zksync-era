@@ -27,8 +27,8 @@ pub enum InspectExecutionMode {
 impl From<InspectExecutionMode> for VmExecutionMode {
     fn from(mode: InspectExecutionMode) -> Self {
         match mode {
-            InspectExecutionMode::Bootloader => VmExecutionMode::Bootloader,
-            InspectExecutionMode::OneTx => VmExecutionMode::OneTx,
+            InspectExecutionMode::Bootloader => Self::Bootloader,
+            InspectExecutionMode::OneTx => Self::OneTx,
         }
     }
 }

@@ -257,7 +257,7 @@ where
     fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
         let main_batch = self.main.finish_batch(pubdata_builder.clone());
         if let Some(shadow) = self.shadow.get_mut() {
-            let shadow_batch = shadow.vm.finish_batch(pubdata_builder.clone());
+            let shadow_batch = shadow.vm.finish_batch(pubdata_builder);
             let mut errors = DivergenceErrors::new();
             errors.check_results_match(
                 &main_batch.block_tip_execution_result,

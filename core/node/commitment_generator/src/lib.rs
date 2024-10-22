@@ -292,11 +292,11 @@ impl CommitmentGenerator {
                 vec![Default::default(); num_blobs_required(&protocol_version)]
             };
 
-            let mut connection = self
-                .connection_pool
-                .connection_tagged("commitment_generator")
-                .await?;
             let aggregation_root = if protocol_version.is_pre_gateway() {
+                let mut connection = self
+                    .connection_pool
+                    .connection_tagged("commitment_generator")
+                    .await?;
                 read_aggregation_root(&mut connection, l1_batch_number).await?
             } else {
                 H256::zero()
