@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::anyhow;
 use clap::{Parser, ValueEnum};
+use serde::{Deserialize, Serialize};
 use common::{Prompt, PromptSelect};
 use config::ChainConfig;
 use strum::{EnumIter, IntoEnumIterator};
@@ -33,6 +34,8 @@ pub struct ProverRunArgs {
     pub fri_prover_args: FriProverRunArgs,
     #[clap(flatten)]
     pub circuit_prover_args: CircuitProverArgs,
+    #[clap(flatten)]
+    pub compressor_args: CompressorArgs,
     #[clap(long)]
     pub docker: Option<bool>,
     #[clap(long)]
@@ -84,14 +87,22 @@ impl ProverComponent {
         }
     }
 
-    pub fn get_application_args(&self, in_docker: bool) -> anyhow::Result<Vec<String>> {
+    pub fn get_application_args(&self, args: ProverRunArgs, in_docker: bool) -> anyhow::Result<Vec<String>> {
         let mut application_args = vec![];
 
         if self == &Self::Prover || self == &Self::Compressor || self == &Self::CircuitProver {
             if in_docker {
                 application_args.push("--gpus=all".to_string());
-            } else if self != &Self::CircuitProver {
-                application_args.push("--features=gpu".to_string());
+            }
+        }
+
+        if self == &Self::Prover {
+            application_args.push("--features=gpu".to_string());
+        }
+
+        if self == &Self::Compressor {
+            if args.compressor_args.mode == CompressorMode::Fflonk {
+                application_args.push("--features=fflonk".to_string());
             }
         }
 
@@ -272,6 +283,30 @@ impl CircuitProverArgs {
 }
 
 #[derive(Debug, Clone, Parser, Default)]
+pub struct CompressorArgs {
+    #[clap(long, default_value = "plonk")]
+    pub mode: CompressorMode,
+}
+
+#[derive(
+    Default,
+    Debug,
+    Clone,
+    ValueEnum,
+    EnumIter,
+    strum::Display,
+    PartialEq,
+    Eq,
+    Deserialize,
+    Serialize,
+)]
+pub enum CompressorMode {
+    Fflonk,
+    #[default]
+    Plonk,
+}
+
+#[derive(Debug, Clone, Parser, Default)]
 pub struct FriProverRunArgs {
     /// Memory allocation limit in bytes (for prover component)
     #[clap(long)]
@@ -310,6 +345,7 @@ impl ProverRunArgs {
             witness_vector_generator_args,
             fri_prover_args: self.fri_prover_args,
             circuit_prover_args,
+            compressor_args: self.compressor_args,
             docker: Some(docker),
             tag: Some(tag),
         })

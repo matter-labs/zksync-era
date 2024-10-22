@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use circuit_sequencer_api::proof::FinalProof;
 #[cfg(feature = "fflonk")]
 use fflonk_gpu::FflonkSnarkVerifierCircuitProof;
+#[cfg(feature = "fflonk")]
 use fflonk_gpu::{bellman::worker::Worker, FflonkSnarkVerifierCircuit};
 use proof_compression_gpu::{CompressionInput, CompressionMode, CompressionSchedule};
 use tokio::task::JoinHandle;
@@ -31,9 +32,11 @@ use zksync_prover_fri_types::{
     },
     get_current_pod_name, AuxOutputWitnessWrapper, FriProofWrapper,
 };
-use zksync_prover_interface::outputs::{
-    FflonkL1BatchProofForL1, L1BatchProofForL1, SchedulerProof,
-};
+#[cfg(feature = "fflonk")]
+use zksync_prover_interface::outputs::FflonkL1BatchProofForL1;
+use zksync_prover_interface::outputs::L1BatchProofForL1;
+#[cfg(not(feature = "fflonk"))]
+use zksync_prover_interface::outputs::PlonkL1BatchProofForL1;
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_queued_job_processor::JobProcessor;
 use zksync_types::{protocol_version::ProtocolSemanticVersion, L1BatchNumber};
@@ -119,7 +122,7 @@ impl ProofCompressor {
         Ok(final_proof)
     }
 
-    #[cfg(feature = fflonk)]
+    #[cfg(feature = "fflonk")]
     #[tracing::instrument(skip(proof, _compression_mode))]
     pub fn compress_proof(
         proof: ZkSyncRecursionLayerProof,
@@ -303,16 +306,13 @@ impl JobProcessor for ProofCompressor {
 
     async fn process_job(
         &self,
-        job_id: &L1BatchNumber,
+        _job_id: &L1BatchNumber,
         job: ZkSyncRecursionLayerProof,
         _started_at: Instant,
     ) -> JoinHandle<anyhow::Result<Self::JobArtifacts>> {
         let compression_mode = self.compression_mode;
         let keystore = self.keystore.clone();
-        tokio::task::spawn_blocking(move || {
-            Self::compress_proof(job, compression_mode, keystore)
-                .instrument(tracing::info_span!("Compress_proof", batch_number = %job_id))
-        })
+        tokio::task::spawn_blocking(move || Self::compress_proof(job, compression_mode, keystore))
     }
 
     async fn save_result(

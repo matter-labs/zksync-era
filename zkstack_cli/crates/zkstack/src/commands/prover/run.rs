@@ -31,7 +31,7 @@ pub(crate) async fn run(args: ProverRunArgs, shell: &Shell) -> anyhow::Result<()
     let component = args.component.context(anyhow!(MSG_MISSING_COMPONENT_ERR))?;
     let in_docker = args.docker.unwrap_or(false);
 
-    let application_args = component.get_application_args(in_docker)?;
+    let application_args = component.get_application_args(args.clone(), in_docker)?;
     let additional_args =
         component.get_additional_args(in_docker, args.clone(), &chain, &path_to_ecosystem)?;
 
