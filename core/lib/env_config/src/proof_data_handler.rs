@@ -4,7 +4,14 @@ use crate::{envy_load, FromEnv};
 
 impl FromEnv for ProofDataHandlerConfig {
     fn from_env() -> anyhow::Result<Self> {
-        envy_load("proof_data_handler", "PROOF_DATA_HANDLER_")
+        Ok(Self {
+            http_port: std::env::var("PROOF_DATA_HANDLER_HTTP_PORT")?.parse()?,
+            proof_generation_timeout_in_secs: std::env::var(
+                "PROOF_DATA_HANDLER_PROOF_GENERATION_TIMEOUT_IN_SECS",
+            )?
+            .parse()?,
+            tee_config: envy_load("proof_data_handler", "PROOF_DATA_HANDLER_")?,
+        })
     }
 }
 
