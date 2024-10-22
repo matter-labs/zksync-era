@@ -3,7 +3,6 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use chrono::NaiveDateTime;
 use test_casing::test_casing;
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -708,14 +707,7 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
         want_filter.fee_per_gas,
         want_filter.gas_per_pubdata,
         TransactionTimeRangeConstraint {
-            timestamp_asserter_range_start: Some(NaiveDateTime::from_timestamp(
-                system_time - 20000,
-                0,
-            )),
-            timestamp_asserter_range_end: Some(NaiveDateTime::from_timestamp(
-                system_time - 10000,
-                0,
-            )),
+            timestamp_asserter_range: Some((system_time - 20000, system_time - 10000)),
         },
     );
     #[allow(deprecated)]
@@ -724,14 +716,7 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
         want_filter.fee_per_gas,
         want_filter.gas_per_pubdata,
         TransactionTimeRangeConstraint {
-            timestamp_asserter_range_start: Some(NaiveDateTime::from_timestamp(
-                system_time - 1000,
-                0,
-            )),
-            timestamp_asserter_range_end: Some(NaiveDateTime::from_timestamp(
-                system_time + 1000,
-                0,
-            )),
+            timestamp_asserter_range: Some((system_time - 1000, system_time + 1000)),
         },
     );
     #[allow(deprecated)]
@@ -740,14 +725,7 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
         want_filter.fee_per_gas,
         want_filter.gas_per_pubdata,
         TransactionTimeRangeConstraint {
-            timestamp_asserter_range_start: Some(NaiveDateTime::from_timestamp(
-                system_time + 10000,
-                0,
-            )),
-            timestamp_asserter_range_end: Some(NaiveDateTime::from_timestamp(
-                system_time + 20000,
-                0,
-            )),
+            timestamp_asserter_range: Some((system_time + 10000, system_time + 20000)),
         },
     );
     insert_l2_transaction(&mut storage, &rejected_tx_1).await;
@@ -755,14 +733,14 @@ async fn test_mempool_with_timestamp_assertion(commitment_mode: L1BatchCommitmen
     insert_l2_transaction(&mut storage, &rejected_tx_2).await;
 
     let tx = mempool
-        .wait_for_next_tx(Duration::from_secs(2))
+        .wait_for_next_tx(Duration::from_secs(2), system_time as u64)
         .await
         .expect("No expected transaction in the mempool")
         .unwrap();
     assert_eq!(expected_tx.hash(), tx.hash());
 
     let next_tx = mempool
-        .wait_for_next_tx(Duration::from_secs(2))
+        .wait_for_next_tx(Duration::from_secs(2), system_time as u64)
         .await
         .expect("Should be no more transactions in the mempool");
     assert!(next_tx.is_none());
