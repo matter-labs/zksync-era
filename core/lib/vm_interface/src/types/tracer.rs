@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt};
+use std::{cmp, collections::HashSet, fmt};
 
 use zksync_types::{Address, U256};
 
@@ -57,13 +57,19 @@ pub struct ValidationParams {
     pub trusted_address_slots: HashSet<(Address, U256)>,
     /// Number of computational gas that validation step is allowed to use.
     pub computational_gas_limit: u32,
+    /// Parameters of the timestamp asserter if configured
+    pub timestamp_asserter_params: Option<TimestampAsserterParams>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimestampAsserterParams {
     /// Address of the timestamp asserter. This contract is allowed to touch block.timestamp regardless
     /// of the calling context.
-    pub timestamp_asserter_address: Option<Address>,
+    pub address: Address,
     /// Minimum difference in seconds between the range start and range end
-    pub timestamp_asserter_min_range_sec: u32,
+    pub min_range_sec: u32,
     /// Minimum time between current block.timestamp and the end of the asserted range
-    pub timestamp_asserter_min_time_till_end_sec: u32,
+    pub min_time_till_end_sec: u32,
 }
 
 /// Rules that can be violated when validating a transaction.
@@ -127,8 +133,18 @@ pub enum ValidationError {
 /// be excluded from the mempool.
 #[derive(Debug, Clone, Default)]
 pub struct ValidationTraces {
-    pub timestamp_asserter_range_start: Option<U256>,
-    pub timestamp_asserter_range_end: Option<U256>,
+    pub timestamp_asserter_range: Option<(i64, i64)>,
+}
+
+impl ValidationTraces {
+    pub fn apply_range(&mut self, new_range: (i64, i64)) {
+        if let Some(mut range) = self.timestamp_asserter_range {
+            range.0 = cmp::max(range.0, new_range.0);
+            range.1 = cmp::min(range.1, new_range.1);
+        } else {
+            self.timestamp_asserter_range = Some(new_range);
+        }
+    }
 }
 
 impl fmt::Display for ValidationError {

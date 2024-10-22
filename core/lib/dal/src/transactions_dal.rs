@@ -318,12 +318,12 @@ impl TransactionsDal<'_, '_> {
         let received_at = NaiveDateTime::from_timestamp_opt(secs, nanosecs).unwrap();
         #[allow(deprecated)]
         let timestamp_asserter_range_start = validation_traces
-            .timestamp_asserter_range_start
-            .map(|x| NaiveDateTime::from_timestamp_opt(x.as_u64() as i64, 0).unwrap());
+            .timestamp_asserter_range
+            .map(|x| NaiveDateTime::from_timestamp_opt(x.0, 0).unwrap());
         #[allow(deprecated)]
         let timestamp_asserter_range_end = validation_traces
-            .timestamp_asserter_range_end
-            .map(|x| NaiveDateTime::from_timestamp_opt(x.as_u64() as i64, 0).unwrap());
+            .timestamp_asserter_range
+            .map(|x| NaiveDateTime::from_timestamp_opt(x.1, 0).unwrap());
         // Besides just adding or updating(on conflict) the record, we want to extract some info
         // from the query below, to indicate what actually happened:
         // 1) transaction is added
@@ -356,10 +356,10 @@ impl TransactionsDal<'_, '_> {
                 paymaster_input,
                 execution_info,
                 received_at,
-                created_at,
-                updated_at,
                 timestamp_asserter_range_start,
-                timestamp_asserter_range_end
+                timestamp_asserter_range_end,
+                created_at,
+                updated_at
             )
             VALUES
             (
@@ -388,10 +388,10 @@ impl TransactionsDal<'_, '_> {
                     $18::INT
                 ),
                 $19,
-                NOW(),
-                NOW(),
                 $20,
-                $21
+                $21,
+                NOW(),
+                NOW()
             )
             ON CONFLICT (initiator_address, nonce) DO
             UPDATE
@@ -420,11 +420,11 @@ impl TransactionsDal<'_, '_> {
             ),
             in_mempool = FALSE,
             received_at = $19,
+            timestamp_asserter_range_start = $20,
+            timestamp_asserter_range_end = $21,
             created_at = NOW(),
             updated_at = NOW(),
-            error = NULL,
-            timestamp_asserter_range_start = $20,
-            timestamp_asserter_range_end = $21
+            error = NULL
             WHERE
             transactions.is_priority = FALSE
             AND transactions.miniblock_number IS NULL
@@ -1837,11 +1837,14 @@ impl TransactionsDal<'_, '_> {
         .fetch_all(self.storage)
         .await?;
 
-        let transactions = transactions
+        let transactions_with_constraints = transactions
             .into_iter()
-            .map(|tx| (tx.clone().into(), tx.into()))
+            .map(|tx| {
+                let constraint: TransactionTimeRangeConstraint = (&tx).into();
+                (tx.into(), constraint)
+            })
             .collect();
-        Ok(transactions)
+        Ok(transactions_with_constraints)
     }
 
     pub async fn reset_mempool(&mut self) -> DalResult<()> {

@@ -12,7 +12,10 @@ use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_multivm::{
-    interface::{OneshotTracingParams, TransactionExecutionMetrics, VmExecutionResultAndLogs},
+    interface::{
+        tracer::TimestampAsserterParams, OneshotTracingParams, TransactionExecutionMetrics,
+        VmExecutionResultAndLogs,
+    },
     utils::{derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit},
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
@@ -200,9 +203,13 @@ impl TxSenderBuilder {
             executor_options,
             storage_caches,
             missed_storage_invocation_limit,
-            self.config.timestamp_asserter_address,
-            self.config.timestamp_asserter_min_range_sec,
-            self.config.timestamp_asserter_min_time_till_end_sec,
+            self.config
+                .timestamp_asserter_address
+                .map(|address| TimestampAsserterParams {
+                    address,
+                    min_range_sec: self.config.timestamp_asserter_min_range_sec,
+                    min_time_till_end_sec: self.config.timestamp_asserter_min_time_till_end_sec,
+                }),
         );
 
         TxSender(Arc::new(TxSenderInner {

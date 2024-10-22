@@ -158,6 +158,7 @@ where
                 ValidationTracer::<HistoryDisabled>::new(
                     validation_params,
                     env.system.version.into(),
+                    env.l1_batch.clone(),
                 );
             let tracers = vec![validation_tracer.into_tracer_pointer()];
 

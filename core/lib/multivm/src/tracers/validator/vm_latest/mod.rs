@@ -1,8 +1,3 @@
-use std::{
-    cmp,
-    time::{SystemTime, UNIX_EPOCH},
-};
-
 use zk_evm_1_5_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
     zkevm_opcode_defs::{ContextOpcode, FarCallABI, LogOpcode, Opcode},
@@ -30,6 +25,8 @@ use crate::{
     },
     HistoryMode,
 };
+
+pub const TIMESTAMP_ASSERTER_FUNCTION_SELECTOR: [u8; 4] = [0x5b, 0x1a, 0x0c, 0x91];
 
 impl<H: HistoryMode> ValidationTracer<H> {
     fn check_user_restrictions_vm_latest<S: WriteStorage>(
@@ -89,8 +86,8 @@ impl<H: HistoryMode> ValidationTracer<H> {
                     // If this is a call to the timestamp asserter, extract the function arguments and store them in ValidationTraces.
                     // These arguments are used by the mempool for transaction filtering. The call data length should be 68 bytes:
                     // a 4-byte function selector followed by two U256 values.
-                    // TODO: if any more functions will be added to the TimestampAsserter contract in the future, verify the function selector too
-                    if Some(called_address) == self.timestamp_asserter_address
+                    let address = self.timestamp_asserter_params.as_ref().map(|x| x.address);
+                    if Some(called_address) == address
                         && far_call_abi.memory_quasi_fat_pointer.length == 68
                     {
                         let calldata_page = get_calldata_page_via_abi(
@@ -103,37 +100,31 @@ impl<H: HistoryMode> ValidationTracer<H> {
                             68,
                         );
 
-                        let start = U256::from_big_endian(
-                            &calldata[calldata.len() - 64..calldata.len() - 32],
-                        );
-                        let end = U256::from_big_endian(&calldata[calldata.len() - 32..]);
+                        if calldata[..4] == TIMESTAMP_ASSERTER_FUNCTION_SELECTOR {
+                            let start = U256::from_big_endian(
+                                &calldata[calldata.len() - 64..calldata.len() - 32],
+                            );
+                            let end = U256::from_big_endian(&calldata[calldata.len() - 32..]);
 
-                        if end.as_u32() - start.as_u32() < self.timestamp_asserter_min_range_sec {
-                            return Err(ViolatedValidationRule::TimestampAssertionShortRange);
-                        }
+                            let params = self.timestamp_asserter_params.as_ref().unwrap();
 
-                        let now = SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .expect("Incorrect system time")
-                            .as_secs();
+                            if end.as_u32() - start.as_u32() < params.min_range_sec {
+                                return Err(ViolatedValidationRule::TimestampAssertionShortRange);
+                            }
 
-                        if end.as_u32() < now as u32 + self.timestamp_asserter_min_time_till_end_sec
-                        {
-                            return Err(ViolatedValidationRule::TimestampAssertionCloseToRangeEnd);
-                        }
+                            if end.as_u32()
+                                < self.l1_batch_env.timestamp as u32 + params.min_time_till_end_sec
+                            {
+                                return Err(
+                                    ViolatedValidationRule::TimestampAssertionCloseToRangeEnd,
+                                );
+                            }
 
-                        {
-                            let mut traces_mut = self.traces.lock().unwrap();
-                            traces_mut.timestamp_asserter_range_start =
-                                match traces_mut.timestamp_asserter_range_start {
-                                    Some(current_value) => Some(cmp::max(current_value, start)),
-                                    None => Some(start),
-                                };
-                            traces_mut.timestamp_asserter_range_end =
-                                match traces_mut.timestamp_asserter_range_end {
-                                    Some(current_value) => Some(cmp::min(current_value, end)),
-                                    None => Some(end),
-                                };
+                            {
+                                let mut traces_mut = self.traces.lock().unwrap();
+                                traces_mut
+                                    .apply_range((start.as_u64() as i64, end.as_u64() as i64));
+                            }
                         }
                     }
                 }

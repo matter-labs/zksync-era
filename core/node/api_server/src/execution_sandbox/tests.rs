@@ -218,8 +218,6 @@ async fn test_instantiating_vm(connection: Connection<'static, Core>, block_args
         PostgresStorageCaches::new(1, 1),
         usize::MAX,
         None,
-        0,
-        0,
     );
 
     let fee_input = BatchFeeInput::l1_pegged(55, 555);
@@ -269,8 +267,6 @@ async fn validating_transaction(set_balance: bool) {
         PostgresStorageCaches::new(1, 1),
         usize::MAX,
         None,
-        0,
-        0,
     );
 
     let fee_input = BatchFeeInput::l1_pegged(55, 555);

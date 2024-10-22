@@ -324,11 +324,26 @@ impl From<StorageTransaction> for Transaction {
     }
 }
 
-impl From<StorageTransaction> for TransactionTimeRangeConstraint {
-    fn from(tx: StorageTransaction) -> Self {
-        Self {
-            timestamp_asserter_range_start: tx.timestamp_asserter_range_start,
-            timestamp_asserter_range_end: tx.timestamp_asserter_range_end,
+impl From<&StorageTransaction> for TransactionTimeRangeConstraint {
+    fn from(tx: &StorageTransaction) -> Self {
+        if tx.timestamp_asserter_range_start.is_some() && tx.timestamp_asserter_range_end.is_some()
+        {
+            Self {
+                timestamp_asserter_range: Some((
+                    tx.timestamp_asserter_range_start
+                        .unwrap()
+                        .and_utc()
+                        .timestamp(),
+                    tx.timestamp_asserter_range_end
+                        .unwrap()
+                        .and_utc()
+                        .timestamp(),
+                )),
+            }
+        } else {
+            Self {
+                timestamp_asserter_range: None,
+            }
         }
     }
 }

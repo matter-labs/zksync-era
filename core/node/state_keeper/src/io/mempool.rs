@@ -2,7 +2,7 @@ use std::{
     cmp,
     collections::HashMap,
     sync::Arc,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
 use anyhow::Context as _;
@@ -109,6 +109,7 @@ impl StateKeeperIO for MempoolIO {
         else {
             return Ok((cursor, None));
         };
+
         let pending_batch_data = load_pending_batch(&mut storage, system_env, l1_batch_env)
             .await
             .with_context(|| {
@@ -278,6 +279,7 @@ impl StateKeeperIO for MempoolIO {
     async fn wait_for_next_tx(
         &mut self,
         max_wait: Duration,
+        l2_block_timestamp: u64,
     ) -> anyhow::Result<Option<Transaction>> {
         let started_at = Instant::now();
         while started_at.elapsed() <= max_wait {
@@ -302,17 +304,9 @@ impl StateKeeperIO for MempoolIO {
                 // Reject transactions that violate block.timestamp constraints. Such transactions should be
                 // rejected at the API level, but we need to protect ourselves in case if a transaction
                 // goes outside of the allowed range while being in the mempool
-                let now = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .expect("Invalid system time")
-                    .as_secs() as i64;
-
-                let matches_range = constraint
-                    .timestamp_asserter_range_start
-                    .map_or(true, |x| x.and_utc().timestamp() < now)
-                    && constraint
-                        .timestamp_asserter_range_end
-                        .map_or(true, |x| x.and_utc().timestamp() > now);
+                let matches_range = constraint.timestamp_asserter_range.map_or(true, |x| {
+                    x.0 < l2_block_timestamp as i64 && x.1 > l2_block_timestamp as i64
+                });
 
                 if !matches_range {
                     self.reject(
