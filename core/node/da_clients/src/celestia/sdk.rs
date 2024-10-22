@@ -571,7 +571,7 @@ fn new_msg_pay_for_blobs(blobs: &[Blob], signer: String) -> anyhow::Result<MsgPa
 fn get_address(public_key: PublicKey) -> anyhow::Result<String> {
     use ripemd::{Digest, Ripemd160};
 
-    let sha_digest = sha2::Sha256::digest(public_key.serialize().to_vec());
+    let sha_digest = sha2::Sha256::digest(public_key.serialize());
     let ripemd_digest = Ripemd160::digest(&sha_digest[..]);
     let mut bytes = [0u8; ADDRESS_LENGTH];
     bytes.copy_from_slice(&ripemd_digest[..ADDRESS_LENGTH]);
