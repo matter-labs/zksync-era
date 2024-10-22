@@ -38,7 +38,7 @@ impl EigenDAClient {
         let disperser = Arc::new(Mutex::new(
             DisperserClient::connect(inner)
                 .await
-                .map_err(|_| EigenDAError::ConnectionError)?,
+                .map_err(|err| EigenDAError::ConnectionError(err))?,
         ));
 
         Ok(Self { disperser, config })

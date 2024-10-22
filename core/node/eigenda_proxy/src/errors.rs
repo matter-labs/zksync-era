@@ -13,7 +13,7 @@ pub enum MemStoreError {
 pub enum EigenDAError {
     TlsError,
     UriError,
-    ConnectionError,
+    ConnectionError(tonic::transport::Error),
     PutError,
     GetError,
 }
