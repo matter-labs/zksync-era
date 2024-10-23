@@ -44,7 +44,6 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
         .contains(&h256_to_u256(tx.bytecode_hash)));
 
     // Note: `Default_AA` will be in the list of used contracts if L2 tx is used
-    dbg!(2);
     assert_eq!(vm.vm.decommitted_hashes(), vm.vm.known_bytecode_hashes());
 
     // create push and execute some non-empty factory deps transaction that fails
