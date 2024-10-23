@@ -214,8 +214,11 @@ subxt-signer = { version = "0.34", default-features = false }
 celestia-types = "0.6.1"
 bech32 = "0.11.0"
 ripemd = "0.1.3"
-tonic = "0.11.0"
+tonic = { version = "0.11.0", default-features = false }
 pbjson-types = "0.6.0"
+
+# Eigen
+tokio-stream = "0.1.16"
 
 # Here and below:
 # We *always* pin the latest version of protocol to disallow accidental changes in the execution logic.
