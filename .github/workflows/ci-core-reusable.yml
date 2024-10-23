@@ -313,7 +313,7 @@ jobs:
           if [ -n "$PIDS" ]; then
               echo "Killing process(es) on ports 3071 or 3075 with PID(s): $PIDS"
               for PID in $PIDS; do
-                  kill -9 "$PID" || true  # Use SIGKILL to ensure termination
+                  sudo kill -9 "$PID" || true  # Use SIGKILL to ensure termination
               done
           else
               echo "No processes found on ports 3071 or 3075."
