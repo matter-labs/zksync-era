@@ -341,7 +341,7 @@ async fn init_chains(
     };
     // Set default values for dev mode
     let mut deploy_paymaster = init_args.deploy_paymaster;
-    let mut genesis_args = init_args.genesis_args.clone();
+    let mut genesis_args = init_args.get_genesis_args().clone();
     if final_init_args.dev {
         deploy_paymaster = Some(true);
         genesis_args.dev = true;
