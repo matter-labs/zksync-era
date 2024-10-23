@@ -8,31 +8,25 @@ use rand::{rngs::OsRng, Rng, RngCore};
 use rlp::decode;
 use sha3::{Digest, Keccak256};
 use tokio::time::interval;
+use zksync_config::configs::da_client::eigen_da::MemStoreConfig;
 
 use crate::{
     blob_info::{self, BlobInfo},
     errors::MemStoreError,
 };
 
-struct MemStoreConfig {
-    max_blob_size_bytes: u64,
-    blob_expiration: Duration,
-    put_latency: Duration,
-    get_latency: Duration,
-}
-
 struct MemStoreData {
     store: HashMap<String, Vec<u8>>,
     key_starts: HashMap<String, Instant>,
 }
 
-struct MemStore {
+pub struct MemStore {
     config: MemStoreConfig,
     data: Arc<RwLock<MemStoreData>>,
 }
 
 impl MemStore {
-    fn new(config: MemStoreConfig) -> Arc<Self> {
+    pub fn new(config: MemStoreConfig) -> Arc<Self> {
         let memstore = Arc::new(Self {
             config,
             data: Arc::new(RwLock::new(MemStoreData {
@@ -48,7 +42,7 @@ impl MemStore {
     }
 
     async fn put(self: Arc<Self>, value: Vec<u8>) -> Result<Vec<u8>, MemStoreError> {
-        tokio::time::sleep(self.config.put_latency).await;
+        tokio::time::sleep(Duration::from_millis(self.config.put_latency)).await;
         if value.len() as u64 > self.config.max_blob_size_bytes {
             return Err(MemStoreError::BlobToLarge.into());
         }
@@ -122,7 +116,7 @@ impl MemStore {
     }
 
     async fn get(self: Arc<Self>, commit: Vec<u8>) -> Result<Vec<u8>, MemStoreError> {
-        tokio::time::sleep(self.config.get_latency).await;
+        tokio::time::sleep(Duration::from_millis(self.config.get_latency)).await;
         let blob_info: BlobInfo =
             decode(&commit).map_err(|_| MemStoreError::IncorrectCommitment)?;
         let key = String::from_utf8_lossy(
@@ -147,7 +141,7 @@ impl MemStore {
         let mut data = self.data.write().unwrap();
         let mut to_remove = vec![];
         for (key, start) in data.key_starts.iter() {
-            if start.elapsed() > self.config.blob_expiration {
+            if start.elapsed() > Duration::from_secs(self.config.blob_expiration) {
                 to_remove.push(key.clone());
             }
         }
@@ -158,7 +152,7 @@ impl MemStore {
     }
 
     async fn pruning_loop(self: Arc<Self>) {
-        let mut interval = interval(self.config.blob_expiration);
+        let mut interval = interval(Duration::from_secs(self.config.blob_expiration));
 
         loop {
             interval.tick().await;
@@ -178,9 +172,12 @@ mod test {
     async fn test_memstore() {
         let config = MemStoreConfig {
             max_blob_size_bytes: 1024,
-            blob_expiration: Duration::from_secs(60),
-            put_latency: Duration::from_millis(100),
-            get_latency: Duration::from_millis(100),
+            blob_expiration: 60,
+            put_latency: 100,
+            get_latency: 100,
+            api_node_url: String::default(), // unused for this test
+            custom_quorum_numbers: None,     // unused for this test
+            account_id: None,                // unused for this test
         };
         let store = MemStore::new(config);
 
@@ -194,9 +191,12 @@ mod test {
     async fn test_memstore_multiple() {
         let config = MemStoreConfig {
             max_blob_size_bytes: 1024,
-            blob_expiration: Duration::from_secs(60),
-            put_latency: Duration::from_millis(100),
-            get_latency: Duration::from_millis(100),
+            blob_expiration: 60,
+            put_latency: 100,
+            get_latency: 100,
+            api_node_url: String::default(), // unused for this test
+            custom_quorum_numbers: None,     // unused for this test
+            account_id: None,                // unused for this test
         };
         let store = MemStore::new(config);
 
@@ -212,23 +212,24 @@ mod test {
 
     #[tokio::test]
     async fn test_memstore_latency() {
-        let put_latency = Duration::from_millis(1000);
-        let get_latency = Duration::from_millis(1000);
         let config = MemStoreConfig {
             max_blob_size_bytes: 1024,
-            blob_expiration: Duration::from_secs(60),
-            put_latency,
-            get_latency,
+            blob_expiration: 60,
+            put_latency: 1000,
+            get_latency: 1000,
+            api_node_url: String::default(), // unused for this test
+            custom_quorum_numbers: None,     // unused for this test
+            account_id: None,                // unused for this test
         };
-        let store = MemStore::new(config);
+        let store = MemStore::new(config.clone());
 
         let blob = vec![0u8; 100];
         let time_before_put = Instant::now();
         let cert = store.clone().put(blob.clone()).await.unwrap();
-        assert!(time_before_put.elapsed() >= put_latency);
+        assert!(time_before_put.elapsed() >= Duration::from_millis(config.put_latency));
         let time_before_get = Instant::now();
         let blob2 = store.get(cert).await.unwrap();
-        assert!(time_before_get.elapsed() >= get_latency);
+        assert!(time_before_get.elapsed() >= Duration::from_millis(config.get_latency));
         assert_eq!(blob, blob2);
     }
 
@@ -237,9 +238,12 @@ mod test {
         let blob_expiration = Duration::from_millis(100);
         let config = MemStoreConfig {
             max_blob_size_bytes: 1024,
-            blob_expiration,
-            put_latency: Duration::from_millis(1),
-            get_latency: Duration::from_millis(1),
+            blob_expiration: 100,
+            put_latency: 1,
+            get_latency: 1,
+            api_node_url: String::default(), // unused for this test
+            custom_quorum_numbers: None,     // unused for this test
+            account_id: None,                // unused for this test
         };
         let store = MemStore::new(config);
 

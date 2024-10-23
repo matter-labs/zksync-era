@@ -1,7 +1,7 @@
 mod common;
 mod disperser;
 
-use std::net::SocketAddr;
+use std::{net::SocketAddr, str::FromStr};
 
 use anyhow::Context as _;
 use axum::{
@@ -10,6 +10,7 @@ use axum::{
     Router,
 };
 use eigenda_client::EigenDAClient;
+use memstore::MemStore;
 use request_processor::RequestProcessor;
 use tokio::sync::watch;
 use zksync_config::configs::da_client::eigen_da::EigenDAConfig;
@@ -24,9 +25,23 @@ pub async fn run_server(
     config: EigenDAConfig,
     mut stop_receiver: watch::Receiver<bool>,
 ) -> anyhow::Result<()> {
-    // TODO: Replace port for config
+    let (bind_address, client) = match config {
+        EigenDAConfig::MemStore(cfg) => {
+            let bind_address = SocketAddr::from_str(&cfg.api_node_url)?;
 
-    let bind_address = SocketAddr::from(([0, 0, 0, 0], 4242));
+            let client = MemStore::new(cfg);
+            (bind_address, client)
+        }
+        EigenDAConfig::Disperser(cfg) => {
+            let bind_address = SocketAddr::from_str(&cfg.api_node_url)?;
+
+            let client = EigenDAClient::new(cfg)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to create EigenDA client: {:?}", e))?;
+            (bind_address, client)
+        }
+    };
+
     tracing::debug!("Starting eigenda proxy on {bind_address}");
 
     let eigenda_client = match config {
@@ -35,6 +50,8 @@ pub async fn run_server(
             .map_err(|e| anyhow::anyhow!("Failed to create EigenDA client: {:?}", e))?,
         _ => panic!("memstore unimplemented"),
     };
+
+    // TODO: app should receive an impl instead of a struct
     let app = create_eigenda_proxy_router(eigenda_client);
 
     let listener = tokio::net::TcpListener::bind(bind_address)
