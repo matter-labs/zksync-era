@@ -113,16 +113,22 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
             system_env.version
         );
 
-        let default_aa_code_hash = system_env
+        let default_aa_code_hash = system_env.base_system_smart_contracts.default_aa.hash;
+        let evm_emulator_hash = system_env
             .base_system_smart_contracts
-            .default_aa
-            .hash
-            .into();
+            .evm_emulator
+            .as_ref()
+            .map(|evm| evm.hash)
+            .unwrap_or(system_env.base_system_smart_contracts.default_aa.hash);
 
-        let program_cache = HashMap::from([World::convert_system_contract_code(
+        let mut program_cache = HashMap::from([World::convert_system_contract_code(
             &system_env.base_system_smart_contracts.default_aa,
             false,
         )]);
+        if let Some(evm_emulator) = &system_env.base_system_smart_contracts.evm_emulator {
+            let (bytecode_hash, program) = World::convert_system_contract_code(evm_emulator, false);
+            program_cache.insert(bytecode_hash, program);
+        }
 
         let (_, bootloader) = World::convert_system_contract_code(
             &system_env.base_system_smart_contracts.bootloader,
@@ -137,9 +143,8 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
             &[],
             system_env.bootloader_gas_limit,
             Settings {
-                default_aa_code_hash,
-                // this will change after 1.5
-                evm_interpreter_code_hash: default_aa_code_hash,
+                default_aa_code_hash: default_aa_code_hash.into(),
+                evm_interpreter_code_hash: evm_emulator_hash.into(),
                 hook_address: get_vm_hook_position(VM_VERSION) * 32,
             },
         );
@@ -805,11 +810,14 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
 
     fn decommit_bytecodes(&self, hashes: &[H256]) -> HashMap<H256, Vec<u8>> {
         let bytecodes = hashes.iter().map(|&hash| {
+            let int_hash = h256_to_u256(hash);
             let bytecode = self
                 .bytecode_cache
-                .get(&h256_to_u256(hash))
+                .get(&int_hash)
+                .cloned()
+                .or_else(|| self.dynamic_bytecodes.take(int_hash))
                 .unwrap_or_else(|| panic!("Bytecode with hash {hash:?} not found"));
-            (hash, bytecode.clone())
+            (hash, bytecode)
         });
         bytecodes.collect()
     }
@@ -872,12 +880,13 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
             .entry(hash)
             .or_insert_with(|| {
                 let bytecode = self.bytecode_cache.entry(hash).or_insert_with(|| {
-                    // Since we put the bytecode in the cache anyway, it's safe to *take* it out from `dynamic_bytecodes`.
+                    // Since we put the bytecode in the cache anyway, it's safe to *take* it out from `dynamic_bytecodes`
+                    // and put it in `bytecode_cache`.
                     self.dynamic_bytecodes
                         .take(hash)
                         .or_else(|| self.storage.load_factory_dep(u256_to_h256(hash)))
                         .unwrap_or_else(|| {
-                            panic!("VM tried to decommit nonexistent bytecode: {hash:?}")
+                            panic!("VM tried to decommit nonexistent bytecode: {hash:?}");
                         })
                 });
                 Program::new(bytecode, false)
