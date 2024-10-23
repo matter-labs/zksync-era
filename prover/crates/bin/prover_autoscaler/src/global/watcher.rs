@@ -9,8 +9,11 @@ use zksync_utils::http_with_retries::send_request_with_retries;
 
 use crate::{
     cluster_types::{Cluster, Clusters},
+    metrics::{AUTOSCALER_METRICS, DEFAULT_ERROR_CODE},
     task_wiring::Task,
 };
+
+const MAX_RETRIES: usize = 5;
 
 #[derive(Default)]
 pub struct WatchedData {
@@ -27,7 +30,7 @@ pub fn check_is_ready(v: &Vec<bool>) -> Result<()> {
     Ok(())
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct Watcher {
     /// List of base URLs of all agents.
     pub cluster_agents: Vec<Arc<Url>>,
@@ -74,15 +77,19 @@ impl Task for Watcher {
                         .context("Failed to join URL with /cluster")?
                         .to_string();
                     let response =
-                        send_request_with_retries(&url, 5, Method::GET, None, None).await;
-                    let res = response
-                        .map_err(|err| {
-                            anyhow::anyhow!("Failed fetching cluster from url: {url}: {err:?}")
-                        })?
+                        send_request_with_retries(&url, MAX_RETRIES, Method::GET, None, None).await;
+
+                    let response = response.map_err(|err| {
+                        // TODO: refactor send_request_with_retries to return status.
+                        AUTOSCALER_METRICS.calls[&(url.clone(), DEFAULT_ERROR_CODE)].inc();
+                        anyhow::anyhow!("Failed fetching cluster from url: {url}: {err:?}")
+                    })?;
+                    AUTOSCALER_METRICS.calls[&(url, response.status().as_u16())].inc();
+                    let response = response
                         .json::<Cluster>()
                         .await
                         .context("Failed to read response as json");
-                    Ok((i, res))
+                    Ok((i, response))
                 })
             })
             .collect();
