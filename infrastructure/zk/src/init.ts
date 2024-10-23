@@ -106,7 +106,7 @@ type InitHyperchainOptions = {
     baseTokenName?: string;
     localLegacyBridgeTesting?: boolean;
     deploymentMode: DeploymentMode;
-    allowEvmEmulator?: boolean
+    allowEvmEmulator?: boolean;
 };
 const initHyperchain = async ({
     includePaymaster,
@@ -115,7 +115,10 @@ const initHyperchain = async ({
     deploymentMode,
     allowEvmEmulator
 }: InitHyperchainOptions): Promise<void> => {
-    await announced('Registering Hyperchain', contract.registerHyperchain({ baseTokenName, deploymentMode, allowEvmEmulator}));
+    await announced(
+        'Registering Hyperchain',
+        contract.registerHyperchain({ baseTokenName, deploymentMode, allowEvmEmulator })
+    );
     await announced('Reloading env', env.reload());
     await announced('Running server genesis setup', server.genesisFromSources());
     await announced(
