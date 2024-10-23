@@ -5,10 +5,7 @@ use crate::{
     consts::CONTRACTS_FILE,
     forge_interface::{
         deploy_ecosystem::output::DeployL1Output,
-        deploy_l2_contracts::output::{
-            ConsensusRegistryOutput, DefaultL2UpgradeOutput, InitializeBridgeOutput,
-            Multicall3Output,
-        },
+        deploy_l2_contracts,
         register_chain::output::RegisterChainOutput,
     },
     traits::{FileConfigWithDefaultName, ZkStackConfig},
@@ -79,36 +76,32 @@ impl ContractsConfig {
         self.l1.chain_admin_addr = register_chain_output.chain_admin_addr;
     }
 
-    pub fn set_l2_shared_bridge(
+    pub fn set_l2_contracts(
         &mut self,
-        initialize_bridges_output: &InitializeBridgeOutput,
-    ) -> anyhow::Result<()> {
-        self.bridges.shared.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
-        self.bridges.erc20.l2_address = Some(initialize_bridges_output.l2_shared_bridge_proxy);
-        Ok(())
-    }
-
-    pub fn set_consensus_registry(
-        &mut self,
-        consensus_registry_output: &ConsensusRegistryOutput,
-    ) -> anyhow::Result<()> {
-        self.l2.consensus_registry_implementation = Some(consensus_registry_output.consensus_registry_implementation);
-        self.l2.consensus_registry = Some(consensus_registry_output.consensus_registry_proxy);
-        self.l2.consensus_registry_proxy_constructor_data = Some(consensus_registry_output.consensus_registry_proxy_constructor_data.clone());
-        Ok(())
-    }
-
-    pub fn set_default_l2_upgrade(
-        &mut self,
-        default_upgrade_output: &DefaultL2UpgradeOutput,
-    ) -> anyhow::Result<()> {
-        self.l2.default_l2_upgrader = default_upgrade_output.l2_default_upgrader;
-        Ok(())
-    }
-
-    pub fn set_multicall3(&mut self, multicall3_output: &Multicall3Output) -> anyhow::Result<()> {
-        self.l2.multicall3 = Some(multicall3_output.multicall3);
-        Ok(())
+        output: &deploy_l2_contracts::output::Output,
+    ) {
+        if let Some(addr) = output.l2_shared_bridge_proxy {
+            self.bridges.shared.l2_address = Some(addr);
+            self.bridges.erc20.l2_address = Some(addr);
+            self.l2.shared_bridge_proxy_constructor_data = output.l2_shared_bridge_proxy_constructor_data.clone();
+        }
+        if let Some(addr) = output.l2_shared_bridge_implementation {
+            self.l2.shared_bridge_implementation = Some(addr);
+            self.l2.shared_bridge_implementation_constructor_data = output.l2_shared_bridge_implementation_constructor_data.clone();
+        }
+        if let Some(addr) = output.l2_consensus_registry_implementation {
+            self.l2.consensus_registry_implementation = Some(addr);
+        }
+        if let Some(addr) = output.l2_consensus_registry_proxy {
+            self.l2.consensus_registry = Some(addr);
+            self.l2.consensus_registry_proxy_constructor_data = output.l2_consensus_registry_proxy_constructor_data.clone();
+        }
+        if let Some(addr) = output.l2_force_deploy_upgrader {
+            self.l2.default_l2_upgrader = addr;
+        }
+        if let Some(addr) = output.l2_multicall3 {
+            self.l2.multicall3 = Some(addr);
+        }
     }
 }
 
@@ -159,6 +152,9 @@ pub struct L1Contracts {
 pub struct L2Contracts {
     pub testnet_paymaster_addr: Address,
     pub default_l2_upgrader: Address,
+    pub shared_bridge_implementation: Option<Address>,
+    pub shared_bridge_implementation_constructor_data: Option<Bytes>,
+    pub shared_bridge_proxy_constructor_data: Option<Bytes>,
     pub consensus_registry: Option<Address>,
     pub consensus_registry_implementation: Option<Address>,
     pub consensus_registry_proxy_constructor_data: Option<Bytes>,

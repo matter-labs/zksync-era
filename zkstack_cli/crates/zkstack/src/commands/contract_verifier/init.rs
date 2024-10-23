@@ -8,7 +8,7 @@ use super::args::{init::InitContractVerifierArgs, releases::Version};
 use crate::messages::{msg_binary_already_exists, msg_downloading_binary_spinner};
 
 pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow::Result<()> {
-    let args = args.fill_values_with_prompt(shell)?;
+    let args = args.fill_values_with_prompt(shell).await?;
     let ecosystem = EcosystemConfig::from_file(shell)?;
     let link_to_code = ecosystem.link_to_code;
 
@@ -18,7 +18,7 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
         get_zksolc_path,
         &link_to_code,
         "zksolc",
-    )?;
+    ).await?;
 
     download_binaries(
         shell,
@@ -26,7 +26,7 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
         get_zkvyper_path,
         &link_to_code,
         "zkvyper",
-    )?;
+    ).await?;
 
     download_binaries(
         shell,
@@ -34,7 +34,7 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
         get_solc_path,
         &link_to_code,
         "solc",
-    )?;
+    ).await?;
 
     download_binaries(
         shell,
@@ -42,7 +42,7 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
         get_era_vm_solc_path,
         &link_to_code,
         "solc",
-    )?;
+    ).await?;
 
     download_binaries(
         shell,
@@ -50,12 +50,12 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
         get_vyper_path,
         &link_to_code,
         "vyper",
-    )?;
+    ).await?;
 
     Ok(())
 }
 
-fn download_binaries(
+async fn download_binaries(
     shell: &Shell,
     releases: Vec<Version>,
     get_path: fn(&Path, &str) -> PathBuf,
@@ -69,12 +69,12 @@ fn download_binaries(
             &get_path(link_to_code, &release.version),
             name,
             &release.version,
-        )?;
+        ).await?;
     }
     Ok(())
 }
 
-fn download_binary(
+async fn download_binary(
     shell: &Shell,
     url: &str,
     path: &Path,
@@ -89,7 +89,7 @@ fn download_binary(
 
     let spinner = Spinner::new(&msg_downloading_binary_spinner(name, version));
     Cmd::new(cmd!(shell, "mkdir -p {path}")).run()?;
-    let response = reqwest::blocking::get(url)?.bytes()?;
+    let response = reqwest::get(url).await?.bytes().await?;
     shell.write_file(binary_path.clone(), &response)?;
     Cmd::new(cmd!(shell, "chmod +x {binary_path}")).run()?;
     spinner.finish();

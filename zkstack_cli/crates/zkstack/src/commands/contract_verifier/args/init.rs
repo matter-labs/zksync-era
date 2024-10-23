@@ -46,7 +46,7 @@ pub struct InitContractVerifierArgsFinal {
 }
 
 impl InitContractVerifierArgs {
-    pub fn fill_values_with_prompt(
+    pub async fn fill_values_with_prompt(
         self,
         shell: &Shell,
     ) -> anyhow::Result<InitContractVerifierArgsFinal> {
@@ -58,7 +58,7 @@ impl InitContractVerifierArgs {
             arch,
             MSG_FETCHING_ZKSOLC_RELEASES_SPINNER,
         )
-        .context(MSG_GET_ZKSOLC_RELEASES_ERR)?;
+        .await.context(MSG_GET_ZKSOLC_RELEASES_ERR)?;
 
         let zkvyper_releases = get_releases_with_arch(
             shell,
@@ -66,7 +66,7 @@ impl InitContractVerifierArgs {
             arch,
             MSG_FETCHING_ZKVYPER_RELEASES_SPINNER,
         )
-        .context(MSG_GET_ZKVYPER_RELEASES_ERR)?;
+        .await.context(MSG_GET_ZKVYPER_RELEASES_ERR)?;
 
         let solc_releases = get_releases_with_arch(
             shell,
@@ -74,7 +74,7 @@ impl InitContractVerifierArgs {
             arch,
             MSG_FETCH_SOLC_RELEASES_SPINNER,
         )
-        .context(MSG_GET_SOLC_RELEASES_ERR)?;
+        .await.context(MSG_GET_SOLC_RELEASES_ERR)?;
 
         let era_vm_solc_releases = get_releases_with_arch(
             shell,
@@ -82,7 +82,7 @@ impl InitContractVerifierArgs {
             arch,
             MSG_FETCH_ERA_VM_SOLC_RELEASES_SPINNER,
         )
-        .context(MSG_GET_ERA_VM_SOLC_RELEASES_ERR)?;
+        .await.context(MSG_GET_ERA_VM_SOLC_RELEASES_ERR)?;
 
         let vyper_releases = get_releases_with_arch(
             shell,
@@ -90,7 +90,7 @@ impl InitContractVerifierArgs {
             arch,
             MSG_FETCHING_VYPER_RELEASES_SPINNER,
         )
-        .context(MSG_GET_VYPER_RELEASES_ERR)?;
+        .await.context(MSG_GET_VYPER_RELEASES_ERR)?;
 
         let zksolc_version = select_min_version(
             self.zksolc_version,

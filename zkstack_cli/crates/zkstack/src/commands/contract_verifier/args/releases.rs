@@ -74,12 +74,12 @@ fn get_compatible_archs(asset_name: &str) -> anyhow::Result<Vec<Arch>> {
     }
 }
 
-fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Version>> {
+async fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Version>> {
     if repo == "ethereum/solc-bin" {
-        return get_solc_releases(arch);
+        return get_solc_releases(arch).await;
     }
 
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     let mut request = client
         .get(format!("https://api.github.com/repos/{repo}/releases"))
         .header("User-Agent", "zkstack");
@@ -88,7 +88,7 @@ fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Ver
         request = request.header("Authorization", format!("Bearer {}", token));
     }
 
-    let response = request.send()?.text()?;
+    let response = request.send().await?.text().await?;
     let releases: Vec<GitHubRelease> = serde_json::from_str(&response)?;
 
     let mut versions = vec![];
@@ -108,11 +108,10 @@ fn get_releases(shell: &Shell, repo: &str, arch: Arch) -> anyhow::Result<Vec<Ver
             });
         }
     }
-
     Ok(versions)
 }
 
-fn get_solc_releases(arch: Arch) -> anyhow::Result<Vec<Version>> {
+async fn get_solc_releases(arch: Arch) -> anyhow::Result<Vec<Version>> {
     let (arch_str, compatible_archs) = match arch {
         Arch::LinuxAmd => ("linux-amd64", vec![Arch::LinuxAmd, Arch::LinuxArm]),
         Arch::LinuxArm => ("linux-amd64", vec![Arch::LinuxAmd, Arch::LinuxArm]),
@@ -120,14 +119,14 @@ fn get_solc_releases(arch: Arch) -> anyhow::Result<Vec<Version>> {
         Arch::MacosArm => ("macosx-amd64", vec![Arch::MacosAmd, Arch::MacosArm]),
     };
 
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
     let response = client
         .get(format!(
             "https://raw.githubusercontent.com/ethereum/solc-bin/gh-pages/{arch_str}/list.json"
         ))
         .header("User-Agent", "zkstack")
-        .send()?
-        .text()?;
+        .send().await?
+        .text().await?;
 
     let solc_list: SolcList = serde_json::from_str(&response)?;
 
@@ -144,14 +143,14 @@ fn get_solc_releases(arch: Arch) -> anyhow::Result<Vec<Version>> {
     Ok(versions)
 }
 
-pub fn get_releases_with_arch(
+pub async fn get_releases_with_arch(
     shell: &Shell,
     repo: &str,
     arch: Arch,
     message: &str,
 ) -> anyhow::Result<Vec<Version>> {
     let spinner = Spinner::new(message);
-    let releases = get_releases(shell, repo, arch)?;
+    let releases = get_releases(shell, repo, arch).await?;
     let releases = releases
         .into_iter()
         .filter(|r| r.arch.contains(&arch))
