@@ -12,10 +12,14 @@ import "./interfaces/IAccount.sol";
 contract ValidationRuleBreaker is IAccount {
     using TransactionHelper for Transaction;
 
-    uint32 public validationRulesBroken;
+    uint32 public typeOfRuleBreak;
 
     constructor() {
-        validationRulesBroken = 0;
+        typeOfRuleBreak = 0;
+    }
+
+    function setTypeOfRuleBreak(uint32 _typeOfRuleBreak) external {
+        typeOfRuleBreak = _typeOfRuleBreak;
     }
 
     function validateTransaction(
@@ -26,15 +30,13 @@ contract ValidationRuleBreaker is IAccount {
         // By default we consider the transaction as successful
         magic = VALIDATION_SUCCESS_MAGIC;
 
-        if (validationRulesBroken == 0) {
+        if (typeOfRuleBreak == 1) {
             // Such a tx should not pass the validation step, because it depends on the balance of another account
             require(
                 BOOTLOADER_FORMAL_ADDRESS.balance == 0,
                 "Bootloader balance must be zero"
             );
-        }
-
-        validationRulesBroken += 1;
+        } else if (typeOfRuleBreak == 2) {}
 
         _validateTransaction(_suggestedSignedTxHash, _transaction);
     }

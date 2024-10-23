@@ -20,9 +20,9 @@ use zksync_multivm::{
         storage::{ReadStorage, StorageView, StorageWithOverrides},
         tracer::{ValidationError, ValidationParams, ViolatedValidationRule},
         utils::{DivergenceHandler, ShadowVm},
-        Call, ExecutionResult, Halt, OneshotEnv, OneshotTracingParams,
-        OneshotTransactionExecutionResult, StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode,
-        VmExecutionMode, VmFactory, VmInterface,
+        Call, ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
+        StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode, VmFactory,
+        VmInterface,
     },
     is_supported_by_fast_vm,
     tracers::{CallTracer, StorageInvocations, TracerDispatcher, ValidationTracer},
@@ -270,7 +270,7 @@ where
                                 Err(ValidationError::FailedTx(reason))
                             }
                         }
-                        ExecutionResult::Revert { output } => {
+                        ExecutionResult::Revert { .. } => {
                             unreachable!("Revert can only happen at the end of a transaction")
                         }
                         ExecutionResult::Success { .. } => Ok(()),

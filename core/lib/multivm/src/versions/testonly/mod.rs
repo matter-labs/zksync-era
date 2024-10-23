@@ -23,7 +23,7 @@ use zksync_types::{
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, u256_to_h256};
 use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
 
-pub(super) use self::tester::{TestedVm, VmTester, VmTesterBuilder};
+pub(super) use self::tester::{TestedVm, TestedVmForValidation, VmTester, VmTesterBuilder};
 use crate::{
     interface::storage::InMemoryStorage, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
@@ -125,9 +125,9 @@ pub(crate) fn read_simple_transfer_contract() -> Vec<u8> {
     )
 }
 
-pub(crate) fn read_validation_test_contract() -> Vec<u8> {
+pub(crate) fn read_validation_test_contract() -> (Vec<u8>, Contract) {
     let path = "etc/contracts-test-data/artifacts-zk/contracts/custom-account/validation-rule-breaker.sol/ValidationRuleBreaker.json";
-    read_bytecode(path)
+    (read_bytecode(path), load_contract(path))
 }
 
 pub(crate) fn get_bootloader(test: &str) -> SystemContractCode {
