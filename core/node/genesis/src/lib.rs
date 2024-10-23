@@ -208,10 +208,8 @@ pub async fn insert_genesis_batch(
     tracing::info!("chain_schema_genesis is complete");
 
     let allow_evm_emulation = genesis_params.base_system_contracts.evm_emulator.is_some();
-    let deduped_log_queries = get_deduped_log_queries(&get_storage_logs(
-        genesis_params.system_contracts(),
-        allow_evm_emulation,
-    ));
+    let deduped_log_queries =
+        get_deduped_log_queries(&get_storage_logs(genesis_params.system_contracts()));
 
     let (deduplicated_writes, _): (Vec<_>, Vec<_>) = deduped_log_queries
         .into_iter()
@@ -444,8 +442,7 @@ pub async fn create_genesis_l1_batch(
         .mark_l2_blocks_as_executed_in_l1_batch(L1BatchNumber(0))
         .await?;
 
-    let allow_evm_emulation = base_system_contracts.evm_emulator.is_some();
-    let storage_logs = get_storage_logs(system_contracts, allow_evm_emulation);
+    let storage_logs = get_storage_logs(system_contracts);
 
     let factory_deps = system_contracts
         .iter()

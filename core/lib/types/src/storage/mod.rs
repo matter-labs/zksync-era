@@ -82,10 +82,6 @@ pub fn get_evm_code_hash_key(account: &Address) -> StorageKey {
     get_deployer_key(get_address_mapping_key(account, u256_to_h256(1.into())))
 }
 
-pub fn get_allowed_bytecode_types_key() -> StorageKey {
-    get_deployer_key(ALLOWED_BYTECODES_MODE_SLOT)
-}
-
 pub fn get_known_code_key(hash: &H256) -> StorageKey {
     let known_codes_storage = AccountTreeId::new(KNOWN_CODES_STORAGE_ADDRESS);
     StorageKey::new(known_codes_storage, *hash)

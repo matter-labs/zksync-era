@@ -1,5 +1,4 @@
 pub mod blocks;
-pub mod bytecode_modes;
 pub mod contracts;
 pub mod crypto;
 pub mod ethereum;
