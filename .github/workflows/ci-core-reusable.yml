@@ -229,15 +229,6 @@ jobs:
         run: |
           ci_run zk_inception server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
 
-          # Capture the PID of the last background process
-          ERA_PID=$!
-
-          # Export the PID as an environment variable to use in later steps
-          echo "ERA_PID=$ERA_PID" >> $GITHUB_ENV
-
-          # Log the PID for debugging purposes
-          echo "Started zk_inception server with PID: $ERA_PID"
-
           ci_run sleep 20  # Wait for server to start
       
       - name: Deploy and bridge ZK token on Era chain
@@ -311,43 +302,18 @@ jobs:
       
       - name: Shut down Era server (sends the kill command to all era zksync_server proccesses)
         run: |
-          # Allow script to continue even if a command fails
-          set +e
+          # Find the PID using ports 3071 or 3075
+          PIDS=$(lsof -ti :3071 -ti :3075)
 
-          # Find all processes in the same group as ERA_PID
-          PIDS=$(pgrep -g $(ps -o pgid= $ERA_PID))
-
-          # Convert newline-separated PIDs to an array
-          PIDS_ARRAY=()
-          while IFS= read -r PID; do
-              PIDS_ARRAY+=("$PID")
-          done <<< "$PIDS"
-
-          # If there are any PIDs found, kill them
-          if [ ${#PIDS_ARRAY[@]} -gt 0 ]; then
-              echo "Killing PIDs: ${PIDS_ARRAY[*]}"
-              for PID in "${PIDS_ARRAY[@]}"; do
-                  kill -2 "$PID" || true  # Sends SIGINT to gracefully terminate each related process
+          # If any PIDs are found, kill them
+          if [ -n "$PIDS" ]; then
+              echo "Killing process(es) on ports 3071 or 3075 with PID(s): $PIDS"
+              for PID in $PIDS; do
+                  kill -9 "$PID" || true  # Use SIGKILL to ensure termination
               done
-
-              # # Give processes a moment to terminate
-              # sleep 5
-
-              # # Check if any processes are still running and force kill if needed
-              # REMAINING_PIDS=$(pgrep -g $(ps -o pgid= $ERA_PID))
-              # if [ -n "$REMAINING_PIDS" ]; then
-              #     echo "Force killing remaining PIDs: $REMAINING_PIDS"
-              #     kill -9 $REMAINING_PIDS || true
-              # fi
           else
-              echo "No processes found in the same group as ERA_PID: $ERA_PID"
+              echo "No processes found on ports 3071 or 3075."
           fi
-
-          # Restore error handling
-          set -e
-
-          # Ensure the script exits successfully
-          exit 0
 
       - name: Initialize gateway chain
         run: |
