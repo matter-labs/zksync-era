@@ -302,8 +302,8 @@ jobs:
       
       - name: Shut down Era server (sends the kill command to all era zksync_server proccesses)
         run: |
-          # Find the PID using ports 3071 or 3075
-          PIDS=$(lsof -ti :3071 -ti :3075)
+          # Find the PID using ports 3071 or 3075 using netstat
+          PIDS=$(netstat -tuln | grep -E ':3071|:3075' | awk '{print $7}' | cut -d'/' -f1)
 
           # If any PIDs are found, kill them
           if [ -n "$PIDS" ]; then
