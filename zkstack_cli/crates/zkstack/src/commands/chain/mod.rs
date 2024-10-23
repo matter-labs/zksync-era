@@ -52,10 +52,10 @@ pub enum ChainCommands {
     InitializeBridges(ForgeScriptArgs),
     /// Deploy L2 consensus registry
     #[command(alias = "consensus")]
-    DeployConsensusRegistry(ForgeScriptArgs),
+    DeployConsensusRegistry(deploy_l2_contracts::Command),
     /// Deploy L2 multicall3
     #[command(alias = "multicall3")]
-    DeployMulticall3(ForgeScriptArgs),
+    DeployMulticall3(deploy_l2_contracts::Command),
     /// Deploy Default Upgrader
     #[command(alias = "upgrader")]
     DeployUpgrader(ForgeScriptArgs),

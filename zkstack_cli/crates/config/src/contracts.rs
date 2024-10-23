@@ -1,4 +1,4 @@
-use ethers::types::{Address, H256};
+use ethers::types::{Address, Bytes, H256};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -92,7 +92,9 @@ impl ContractsConfig {
         &mut self,
         consensus_registry_output: &ConsensusRegistryOutput,
     ) -> anyhow::Result<()> {
+        self.l2.consensus_registry_implementation = Some(consensus_registry_output.consensus_registry_implementation);
         self.l2.consensus_registry = Some(consensus_registry_output.consensus_registry_proxy);
+        self.l2.consensus_registry_proxy_constructor_data = Some(consensus_registry_output.consensus_registry_proxy_constructor_data.clone());
         Ok(())
     }
 
@@ -158,5 +160,7 @@ pub struct L2Contracts {
     pub testnet_paymaster_addr: Address,
     pub default_l2_upgrader: Address,
     pub consensus_registry: Option<Address>,
+    pub consensus_registry_implementation: Option<Address>,
+    pub consensus_registry_proxy_constructor_data: Option<Bytes>,
     pub multicall3: Option<Address>,
 }

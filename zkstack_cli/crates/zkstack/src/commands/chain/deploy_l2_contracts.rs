@@ -30,6 +30,14 @@ use crate::{
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
 
+#[derive(Subcommand, Debug)]
+pub struct Command {
+    #[clap(flatten)]
+    pub args: ForgeScriptArgs,
+    #[clap(long, about = "Verify the deployment")]
+    pub verify: bool,
+}
+
 pub enum Deploy2ContractsOption {
     All,
     Upgrader,

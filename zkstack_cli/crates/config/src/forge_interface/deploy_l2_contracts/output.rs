@@ -1,4 +1,4 @@
-use ethers::types::Address;
+use ethers::types::{Bytes,Address};
 use serde::{Deserialize, Serialize};
 
 use crate::traits::ZkStackConfig;
@@ -23,6 +23,7 @@ pub struct DefaultL2UpgradeOutput {
 pub struct ConsensusRegistryOutput {
     pub consensus_registry_implementation: Address,
     pub consensus_registry_proxy: Address,
+    pub consensus_registry_proxy_constructor_data: Bytes,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
