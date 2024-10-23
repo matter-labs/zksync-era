@@ -40,7 +40,7 @@ jobs:
           ci_run zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
 
       - name: Formatting
-        run: ci_run zkstack dev fmt --check
+        run: ci_run zkstack dev fmt --check rustfmt
 
   unit-tests:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
