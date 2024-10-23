@@ -311,6 +311,9 @@ jobs:
       
       - name: Shut down Era server (sends the kill command to all era zksync_server proccesses)
         run: |
+          # Allow script to continue even if a command fails
+          set +e
+
           # Find all processes in the same group as ERA_PID
           PIDS=$(pgrep -g $(ps -o pgid= $ERA_PID))
 
@@ -324,13 +327,26 @@ jobs:
           if [ ${#PIDS_ARRAY[@]} -gt 0 ]; then
               echo "Killing PIDs: ${PIDS_ARRAY[*]}"
               for PID in "${PIDS_ARRAY[@]}"; do
-                  kill -2 "$PID"  # Sends SIGINT to gracefully terminate each related process
+                  kill -2 "$PID" || true  # Sends SIGINT to gracefully terminate each related process
               done
+
+              # # Give processes a moment to terminate
+              # sleep 5
+
+              # # Check if any processes are still running and force kill if needed
+              # REMAINING_PIDS=$(pgrep -g $(ps -o pgid= $ERA_PID))
+              # if [ -n "$REMAINING_PIDS" ]; then
+              #     echo "Force killing remaining PIDs: $REMAINING_PIDS"
+              #     kill -9 $REMAINING_PIDS || true
+              # fi
           else
               echo "No processes found in the same group as ERA_PID: $ERA_PID"
           fi
 
-          # Ensure the script exits successfully even if the processes were terminated
+          # Restore error handling
+          set -e
+
+          # Ensure the script exits successfully
           exit 0
 
       - name: Initialize gateway chain
