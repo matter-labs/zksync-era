@@ -31,11 +31,6 @@ jobs:
           echo "SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com" >> .env
           echo "SCCACHE_GCS_RW_MODE=READ_WRITE" >> .env
           echo "RUSTC_WRAPPER=sccache" >> .env
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y lsof
       
       # TODO: Remove when we after upgrade of hardhat-plugins
       - name: pre-download compilers
@@ -167,6 +162,10 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lsof
 
       - name: Setup environment
         run: |
