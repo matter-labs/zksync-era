@@ -230,6 +230,9 @@ impl ChainCreateArgs {
         };
 
         let set_as_default = self.set_as_default.unwrap_or_else(|| {
+            if number_of_chains == 0 {
+                return true;
+            }
             PromptConfirm::new(MSG_SET_AS_DEFAULT_PROMPT)
                 .default(true)
                 .ask()
