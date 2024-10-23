@@ -13,11 +13,12 @@ use zksync_vm2::{
     FatPointer,
 };
 
+/// Container for dynamic bytecodes added by [`EvmDeployTracer`].
 #[derive(Debug, Clone, Default)]
 pub(super) struct DynamicBytecodes(Rc<RefCell<HashMap<U256, Vec<u8>>>>);
 
 impl DynamicBytecodes {
-    pub fn take(&self, hash: U256) -> Option<Vec<u8>> {
+    pub(super) fn take(&self, hash: U256) -> Option<Vec<u8>> {
         self.0.borrow_mut().remove(&hash)
     }
 
@@ -26,6 +27,11 @@ impl DynamicBytecodes {
     }
 }
 
+/// Tracer that tracks EVM bytecode deployments.
+///
+/// Unlike EraVM bytecodes, EVM bytecodes are *dynamic*; they are not necessarily known before transaction execution.
+/// (EraVM bytecodes must be present in the storage or be mentioned in the `factory_deps` field of a transaction.)
+/// Hence, it's necessary to track which EVM bytecodes were deployed so that they are persisted after VM execution.
 #[derive(Debug)]
 pub(super) struct EvmDeployTracer {
     tracked_signature: [u8; 4],
@@ -41,15 +47,8 @@ impl EvmDeployTracer {
             bytecodes,
         }
     }
-}
 
-impl Tracer for EvmDeployTracer {
-    #[inline(always)]
-    fn after_instruction<OP: OpcodeType, S: GlobalStateInterface>(&mut self, state: &mut S) {
-        if !matches!(OP::VALUE, Opcode::FarCall(CallingMode::Normal)) {
-            return;
-        }
-
+    fn handle_far_call(&self, state: &mut impl GlobalStateInterface) {
         let from = state.current_frame().caller();
         let to = state.current_frame().code_address();
         if from != CONTRACT_DEPLOYER_ADDRESS || to != KNOWN_CODES_STORAGE_ADDRESS {
@@ -65,7 +64,7 @@ impl Tracer for EvmDeployTracer {
         let calldata_ptr = FatPointer::from(calldata_ptr);
         assert_eq!(
             calldata_ptr.offset, 0,
-            "far call convention violated: calldata fat pointer is not shrunk"
+            "far call convention violated: calldata fat pointer is not shrunk to have 0 offset"
         );
 
         let data: Vec<_> = (calldata_ptr.start..calldata_ptr.start + calldata_ptr.length)
@@ -88,5 +87,15 @@ impl Tracer for EvmDeployTracer {
             }
             Err(err) => tracing::error!("Unable to decode `publishEVMBytecode` call: {err}"),
         }
+    }
+}
+
+impl Tracer for EvmDeployTracer {
+    #[inline(always)]
+    fn after_instruction<OP: OpcodeType, S: GlobalStateInterface>(&mut self, state: &mut S) {
+        if !matches!(OP::VALUE, Opcode::FarCall(CallingMode::Normal)) {
+            return;
+        }
+        self.handle_far_call(state);
     }
 }

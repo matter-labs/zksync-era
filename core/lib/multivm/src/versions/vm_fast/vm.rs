@@ -874,6 +874,21 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::StorageInterface for World<S, T> {
     }
 }
 
+/// It may look like that an append-only cache for EVM bytecodes / `Program`s can lead to the following scenario:
+///
+/// 1. A transaction deploys an EVM bytecode with hash `H`, then reverts.
+/// 2. A following transaction in the same VM run queries a bytecode with hash `H` and gets it.
+///
+/// This would be incorrect behavior because bytecode deployments must be reverted along with transactions.
+///
+/// In reality, this cannot happen because both `decommit()` and `decommit_code()` calls perform storage-based checks
+/// before a decommit:
+///
+/// - `decommit_code()` is called from the `CodeOracle` system contract, which checks that the decommitted bytecode is known.
+/// - `decommit()` is called during far calls, which obtains address -> bytecode hash mapping beforehand.
+///
+/// Thus, if storage is reverted correctly, additional EVM bytecodes occupy the cache, but are unreachable.
+// FIXME: can it be used for DoS?
 impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
     fn decommit(&mut self, hash: U256) -> Program<T, Self> {
         self.program_cache
