@@ -141,13 +141,9 @@ fn build_dependencies() -> anyhow::Result<()> {
     let shell = Shell::new()?;
     let code_dir = Path::new("../");
 
-    // install yarn dependencies
     let _dir_guard = shell.push_dir(code_dir);
-    cmd!(shell, "yarn install").run()?;
 
-    // nuild contracts
-    let _dir_guard = shell.push_dir(code_dir.join("contracts"));
-    cmd!(shell, "yarn sc build").run()?;
-
-    Ok(())
+    cmd!(shell, "yarn install")
+        .run()
+        .context("Failed to install dependencies")
 }
