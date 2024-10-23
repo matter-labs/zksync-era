@@ -26,6 +26,7 @@ use super::{
     bootloader_state::{BootloaderState, BootloaderStateSnapshot},
     bytecode::compress_bytecodes,
     circuits_tracer::CircuitsTracer,
+    evm_deploy_tracer::{DynamicBytecodes, EvmDeployTracer},
     hook::Hook,
     initial_bootloader_memory::bootloader_initial_memory,
     transaction_data::TransactionData,
@@ -53,13 +54,14 @@ use crate::{
             get_vm_hook_params_start_position, get_vm_hook_position, OPERATOR_REFUNDS_OFFSET,
             TX_GAS_LIMIT_OFFSET, VM_HOOK_PARAMS_COUNT,
         },
+        utils::extract_bytecodes_marked_as_known,
         MultiVMSubversion,
     },
 };
 
 const VM_VERSION: MultiVMSubversion = MultiVMSubversion::IncreasedBootloaderMemory;
 
-type FullTracer<Tr> = (Tr, CircuitsTracer);
+type FullTracer<Tr> = ((Tr, CircuitsTracer), EvmDeployTracer);
 
 #[derive(Debug)]
 struct VmRunResult {
@@ -92,12 +94,12 @@ impl VmRunResult {
 /// and implement [`Default`] (the latter is necessary to complete batches). [`CircuitsTracer`] is currently always enabled;
 /// you don't need to specify it explicitly.
 pub struct Vm<S, Tr = ()> {
-    pub(crate) world: World<S, FullTracer<Tr>>,
-    pub(crate) inner: VirtualMachine<FullTracer<Tr>, World<S, FullTracer<Tr>>>,
+    pub(super) world: World<S, FullTracer<Tr>>,
+    pub(super) inner: VirtualMachine<FullTracer<Tr>, World<S, FullTracer<Tr>>>,
     gas_for_account_validation: u32,
-    pub(crate) bootloader_state: BootloaderState,
-    pub(crate) batch_env: L1BatchEnv,
-    pub(crate) system_env: SystemEnv,
+    pub(super) bootloader_state: BootloaderState,
+    pub(super) batch_env: L1BatchEnv,
+    pub(super) system_env: SystemEnv,
     snapshot: Option<VmSnapshot>,
     #[cfg(test)]
     enforced_state_diffs: Option<Vec<StateDiffRecord>>,
@@ -172,7 +174,7 @@ impl<S: ReadStorage, Tr: Tracer> Vm<S, Tr> {
     fn run(
         &mut self,
         execution_mode: VmExecutionMode,
-        tracer: &mut (Tr, CircuitsTracer),
+        tracer: &mut FullTracer<Tr>,
         track_refunds: bool,
     ) -> VmRunResult {
         let mut refunds = Refunds {
@@ -578,8 +580,12 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
         let start = self.inner.world_diff().snapshot();
         let gas_before = self.gas_remaining();
 
-        let mut full_tracer = (mem::take(tracer), CircuitsTracer::default());
+        let mut full_tracer = (
+            (mem::take(tracer), CircuitsTracer::default()),
+            EvmDeployTracer::new(self.world.dynamic_bytecodes.clone()),
+        );
         let result = self.run(execution_mode, &mut full_tracer, track_refunds);
+        let (full_tracer, _) = full_tracer;
         *tracer = full_tracer.0; // place the tracer back
 
         let ignore_world_diff =
@@ -637,6 +643,11 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
         let gas_remaining = self.gas_remaining();
         let gas_used = gas_before - gas_remaining;
 
+        // We need to filter out bytecodes the deployment of which may have been reverted; the tracer is not aware of reverts.
+        // To do this, we check bytecodes against deployer events.
+        let factory_deps_marked_as_known = extract_bytecodes_marked_as_known(&logs.events);
+        let new_known_factory_deps = self.world.decommit_bytecodes(&factory_deps_marked_as_known);
+
         VmExecutionResultAndLogs {
             result: result.execution_result,
             logs,
@@ -652,7 +663,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for Vm<S, Tr> {
                 total_log_queries: 0,
             },
             refunds: result.refunds,
-            new_known_factory_deps: None,
+            new_known_factory_deps: Some(new_known_factory_deps),
         }
     }
 
@@ -767,6 +778,7 @@ impl<S: fmt::Debug, Tr: fmt::Debug> fmt::Debug for Vm<S, Tr> {
 #[derive(Debug)]
 pub(crate) struct World<S, T> {
     pub(crate) storage: S,
+    dynamic_bytecodes: DynamicBytecodes,
     program_cache: HashMap<U256, Program<T, Self>>,
     pub(crate) bytecode_cache: HashMap<U256, Vec<u8>>,
 }
@@ -775,8 +787,9 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
     fn new(storage: S, program_cache: HashMap<U256, Program<T, Self>>) -> Self {
         Self {
             storage,
+            dynamic_bytecodes: DynamicBytecodes::default(),
             program_cache,
-            bytecode_cache: Default::default(),
+            bytecode_cache: HashMap::default(),
         }
     }
 
@@ -788,6 +801,17 @@ impl<S: ReadStorage, T: Tracer> World<S, T> {
             h256_to_u256(code.hash),
             Program::from_words(code.code.clone(), is_bootloader),
         )
+    }
+
+    fn decommit_bytecodes(&self, hashes: &[H256]) -> HashMap<H256, Vec<u8>> {
+        let bytecodes = hashes.iter().map(|&hash| {
+            let bytecode = self
+                .bytecode_cache
+                .get(&h256_to_u256(hash))
+                .unwrap_or_else(|| panic!("Bytecode with hash {hash:?} not found"));
+            (hash, bytecode.clone())
+        });
+        bytecodes.collect()
     }
 }
 
@@ -848,9 +872,13 @@ impl<S: ReadStorage, T: Tracer> zksync_vm2::World<T> for World<S, T> {
             .entry(hash)
             .or_insert_with(|| {
                 let bytecode = self.bytecode_cache.entry(hash).or_insert_with(|| {
-                    self.storage
-                        .load_factory_dep(u256_to_h256(hash))
-                        .expect("vm tried to decommit nonexistent bytecode")
+                    // Since we put the bytecode in the cache anyway, it's safe to *take* it out from `dynamic_bytecodes`.
+                    self.dynamic_bytecodes
+                        .take(hash)
+                        .or_else(|| self.storage.load_factory_dep(u256_to_h256(hash)))
+                        .unwrap_or_else(|| {
+                            panic!("VM tried to decommit nonexistent bytecode: {hash:?}")
+                        })
                 });
                 Program::new(bytecode, false)
             })

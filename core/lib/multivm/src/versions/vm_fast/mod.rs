@@ -1,11 +1,12 @@
 pub use zksync_vm2::interface::Tracer;
 
-pub use self::{circuits_tracer::CircuitsTracer, vm::Vm};
+pub use self::vm::Vm;
 
 mod bootloader_state;
 mod bytecode;
 mod circuits_tracer;
 mod events;
+mod evm_deploy_tracer;
 mod glue;
 mod hook;
 mod initial_bootloader_memory;
