@@ -1,18 +1,31 @@
+use assert_matches::assert_matches;
+use ethabi::Token;
 use zksync_types::{
-    fee::Fee, l2::L2Tx, transaction_request::TransactionRequest, Address, Eip712Domain, L2ChainId,
-    Transaction, U256,
+    fee::Fee, l2::L2Tx, transaction_request::TransactionRequest, Address, Eip712Domain, Execute,
+    L2ChainId, U256,
 };
-use zksync_vm_interface::{ExecutionResult, Halt, VmRevertReason};
+use zksync_vm_interface::{tracer::ViolatedValidationRule, InspectExecutionMode, VmInterfaceExt};
 
-use super::{read_validation_test_contract, tester::VmTesterBuilder, ContractToDeploy, TestedVm};
-use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterfaceExt};
+use super::{
+    read_validation_test_contract, tester::VmTesterBuilder, ContractToDeploy, TestedVm,
+    TestedVmForValidation,
+};
+use crate::interface::TxExecutionMode;
 
 /// Checks that every limitation imposed on account validation results in an appropriate error.
-pub(crate) fn test_account_validation_rules<VM: TestedVm>() {
+pub(crate) fn test_account_validation_rules<VM: TestedVm + TestedVmForValidation>() {
+    assert_matches!(test_rule::<VM>(0), None);
+    assert_matches!(
+        test_rule::<VM>(1),
+        Some(ViolatedValidationRule::TouchedDisallowedStorageSlots(_, _))
+    );
+}
+
+fn test_rule<VM: TestedVm + TestedVmForValidation>(rule: u32) -> Option<ViolatedValidationRule> {
     let aa_address = Address::repeat_byte(0x10);
     let beneficiary_address = Address::repeat_byte(0x20);
 
-    let bytecode = read_validation_test_contract();
+    let (bytecode, contract) = read_validation_test_contract();
     let mut vm = VmTesterBuilder::new()
         .with_empty_in_memory_storage()
         .with_custom_contracts(vec![
@@ -22,8 +35,28 @@ pub(crate) fn test_account_validation_rules<VM: TestedVm>() {
         .with_rich_accounts(1)
         .build::<VM>();
 
+    let mut private_account = vm.rich_accounts[0].clone();
+
+    // Set the type of misbehaviour of the AA contract
+    let function = contract.function("setTypeOfRuleBreak").unwrap();
+    let transaction = private_account.get_l2_tx_for_execute(
+        Execute {
+            contract_address: Some(aa_address),
+            calldata: function.encode_input(&[Token::Uint(rule.into())]).unwrap(),
+            value: U256::zero(),
+            factory_deps: vec![],
+        },
+        None,
+    );
+    vm.vm.push_transaction(transaction);
+    assert!(!vm
+        .vm
+        .execute(InspectExecutionMode::OneTx)
+        .result
+        .is_failed());
+
+    // Use account abstraction
     let chain_id: u32 = 270;
-    let private_account = vm.rich_accounts[0].clone();
 
     let tx_712 = L2Tx::new(
         Some(beneficiary_address),
@@ -57,23 +90,5 @@ pub(crate) fn test_account_validation_rules<VM: TestedVm>() {
     let mut l2_tx = L2Tx::from_request(aa_txn_request, 100000, false).unwrap();
     l2_tx.set_input(encoded_tx, aa_hash);
 
-    let transaction: Transaction = l2_tx.into();
-    vm.vm.push_transaction(transaction);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
-
-    assert!(result.result.is_failed());
-    match result.result {
-        ExecutionResult::Halt {
-            reason:
-                Halt::ValidationFailed(VmRevertReason::Unknown {
-                    function_selector: s,
-                    data,
-                }),
-        } => {
-            s.into_iter().for_each(|x| print!("{:x}", x));
-            println!();
-            dbg!(data);
-        }
-        _ => {}
-    }
+    vm.vm.run_validation(l2_tx)
 }

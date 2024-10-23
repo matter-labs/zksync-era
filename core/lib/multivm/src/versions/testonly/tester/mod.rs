@@ -3,13 +3,14 @@ use std::{collections::HashSet, fmt, rc::Rc};
 use zksync_contracts::BaseSystemContracts;
 use zksync_test_account::{Account, TxType};
 use zksync_types::{
+    l2::L2Tx,
     utils::{deployed_address_create, storage_key_for_eth_balance},
     writes::StateDiffRecord,
     Address, L1BatchNumber, StorageKey, Transaction, H256, U256,
 };
 use zksync_vm_interface::{
-    pubdata::PubdataBuilder, CurrentExecutionState, InspectExecutionMode, VmExecutionResultAndLogs,
-    VmInterfaceHistoryEnabled,
+    pubdata::PubdataBuilder, tracer::ViolatedValidationRule, CurrentExecutionState,
+    InspectExecutionMode, VmExecutionResultAndLogs, VmInterfaceHistoryEnabled,
 };
 
 pub(crate) use self::transaction_test_info::{ExpectedError, TransactionTestInfo, TxModifier};
@@ -228,4 +229,8 @@ pub(crate) trait TestedVm:
 
     /// Pushes a transaction with predefined refund value.
     fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64);
+}
+
+pub(crate) trait TestedVmForValidation {
+    fn run_validation(&mut self, tx: L2Tx) -> Option<ViolatedValidationRule>;
 }

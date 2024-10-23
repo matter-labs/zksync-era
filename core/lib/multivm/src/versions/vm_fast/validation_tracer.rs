@@ -1,12 +1,13 @@
 use zksync_vm2::interface::{
     self, CallframeInterface, Opcode::*, OpcodeType, ReturnType::*, Tracer,
 };
+use zksync_vm_interface::tracer::ViolatedValidationRule;
 
 use super::vm::TracerExt;
 
 #[derive(Debug, Default)]
 pub struct ValidationTracer {
-    probably_out_of_gas: bool,
+    out_of_gas: bool,
     in_validation: bool,
 }
 
@@ -16,7 +17,8 @@ impl Tracer for ValidationTracer {
             return;
         }
         match OP::VALUE {
-            Ret(Panic) if state.current_frame().gas() == 0 => self.probably_out_of_gas = true,
+            // Out of gas once means out of gas for the whole validation, as the EIP forbids handling out of gas errors
+            Ret(Panic) if state.current_frame().gas() == 0 => self.out_of_gas = true,
             _ => {}
         }
     }
@@ -34,6 +36,14 @@ impl TracerExt for ValidationTracer {
 
 impl ValidationTracer {
     pub fn probably_out_of_gas(&self) -> bool {
-        self.probably_out_of_gas
+        self.out_of_gas
+    }
+
+    pub fn validation_error(&self) -> Option<ViolatedValidationRule> {
+        if self.out_of_gas {
+            Some(ViolatedValidationRule::TookTooManyComputationalGas(0))
+        } else {
+            None
+        }
     }
 }

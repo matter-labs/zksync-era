@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     rc::Rc,
+    sync::Arc,
 };
 
 use zk_evm_1_5_0::{
@@ -8,17 +9,25 @@ use zk_evm_1_5_0::{
     vm_state::VmLocalState,
     zkevm_opcode_defs::{ContractCodeSha256Format, VersionedHashLen32},
 };
-use zksync_types::{writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256, U256};
+use zksync_types::{
+    l2::L2Tx, vm::VmVersion, writes::StateDiffRecord, StorageKey, StorageValue, Transaction, H256,
+    U256,
+};
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
 use zksync_vm_interface::pubdata::PubdataBuilder;
+use zksync_vm_interface::{
+    tracer::{ValidationParams, ViolatedValidationRule},
+    VmInterface,
+};
 
-use super::{HistoryEnabled, Vm};
+use super::{HistoryEnabled, ToTracerPointer, Vm};
 use crate::{
     interface::{
         storage::{InMemoryStorage, ReadStorage, StorageView, WriteStorage},
         CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
-    versions::testonly::{filter_out_base_system_contracts, TestedVm},
+    tracers::ValidationTracer,
+    versions::testonly::{filter_out_base_system_contracts, TestedVm, TestedVmForValidation},
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{event_sink::InMemoryEventSink, history_recorder::HistoryRecorder},
@@ -185,6 +194,32 @@ impl TestedVm for TestedLatestVm {
         let tx = TransactionData::new(tx, false);
         let overhead = tx.overhead_gas();
         self.push_raw_transaction(tx, overhead, refund, true)
+    }
+}
+
+impl TestedVmForValidation for TestedLatestVm {
+    fn run_validation(&mut self, tx: L2Tx) -> Option<ViolatedValidationRule> {
+        let user_address = tx.common_data.initiator_address;
+        let paymaster_address = tx.common_data.paymaster_params.paymaster;
+        self.push_transaction(tx.into());
+
+        let (tracer, mut failures) = ValidationTracer::<HistoryEnabled>::new(
+            ValidationParams {
+                user_address,
+                paymaster_address,
+                trusted_slots: Default::default(),
+                trusted_addresses: Default::default(),
+                trusted_address_slots: Default::default(),
+                computational_gas_limit: 100_000,
+            },
+            VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+        );
+        self.inspect_inner(
+            &mut tracer.into_tracer_pointer().into(),
+            VmExecutionMode::OneTx,
+            None,
+        );
+        Arc::make_mut(&mut failures).take()
     }
 }
 

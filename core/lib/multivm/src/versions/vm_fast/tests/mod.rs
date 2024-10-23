@@ -1,17 +1,18 @@
 use std::{any::Any, collections::HashSet, fmt, rc::Rc};
 
-use zksync_types::{writes::StateDiffRecord, StorageKey, Transaction, H160, H256, U256};
+use zksync_types::{l2::L2Tx, writes::StateDiffRecord, StorageKey, Transaction, H160, H256, U256};
 use zksync_utils::h256_to_u256;
 use zksync_vm2::interface::{Event, HeapId, StateInterface};
 use zksync_vm_interface::{
-    pubdata::PubdataBuilder, storage::ReadStorage, CurrentExecutionState, L2BlockEnv,
-    VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
+    pubdata::PubdataBuilder, storage::ReadStorage, tracer::ViolatedValidationRule,
+    CurrentExecutionState, InspectExecutionMode, L2BlockEnv, VmExecutionMode,
+    VmExecutionResultAndLogs, VmInterface,
 };
 
-use super::{TracerExt, Vm};
+use super::{validation_tracer::ValidationTracer, TracerExt, Vm};
 use crate::{
     interface::storage::{ImmutableStorageView, InMemoryStorage},
-    versions::testonly::TestedVm,
+    versions::testonly::{TestedVm, TestedVmForValidation},
 };
 
 mod account_validation_rules;
@@ -162,5 +163,17 @@ impl<T: TracerExt + Default + std::fmt::Debug + 'static> TestedVm
 
     fn push_transaction_with_refund(&mut self, tx: Transaction, refund: u64) {
         self.push_transaction_inner(tx, refund, true);
+    }
+}
+
+impl TestedVmForValidation for Vm<ImmutableStorageView<InMemoryStorage>, ValidationTracer> {
+    fn run_validation(&mut self, tx: L2Tx) -> Option<ViolatedValidationRule> {
+        self.push_transaction(tx.into());
+
+        let mut tracer = ValidationTracer::default();
+        self.stop_after_validation();
+        self.inspect(&mut tracer, InspectExecutionMode::OneTx);
+
+        tracer.validation_error()
     }
 }
