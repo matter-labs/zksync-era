@@ -8,7 +8,7 @@ use zksync_basic_types::{
 };
 use zksync_config::configs::{
     consensus::{AttesterSecretKey, ConsensusSecrets, NodeSecretKey, ValidatorSecretKey},
-    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets},
+    da_client::{avail::AvailSecrets, celestia::CelestiaSecrets, eigen::EigenSecrets},
     secrets::{DataAvailabilitySecrets, Secrets},
     DatabaseSecrets, L1Secrets,
 };
@@ -106,14 +106,17 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
             DaSecrets::Avail(avail) => DataAvailabilitySecrets::Avail(AvailSecrets {
                 seed_phrase: SeedPhrase::from_str(
                     required(&avail.seed_phrase).context("seed_phrase")?,
-                )
-                .unwrap(),
+                )?,
             }),
             DaSecrets::Celestia(celestia) => DataAvailabilitySecrets::Celestia(CelestiaSecrets {
                 private_key: PrivateKey::from_str(
                     required(&celestia.private_key).context("private_key")?,
-                )
-                .unwrap(),
+                )?,
+            }),
+            DaSecrets::Eigen(eigen) => DataAvailabilitySecrets::Eigen(EigenSecrets {
+                private_key: PrivateKey::from_str(
+                    required(&eigen.private_key).context("private_key")?,
+                )?,
             }),
         };
 
@@ -130,6 +133,9 @@ impl ProtoRepr for proto::DataAvailabilitySecrets {
                     private_key: Some(config.private_key.0.expose_secret().to_string()),
                 }))
             }
+            DataAvailabilitySecrets::Eigen(config) => Some(DaSecrets::Eigen(proto::EigenSecret {
+                private_key: Some(config.private_key.0.expose_secret().to_string()),
+            })),
         };
 
         Self {
