@@ -299,10 +299,9 @@ jobs:
 
           ci_run zk_inception chain deploy-and-bridge-zk --chain era --only-funding-tx --verbose
       
-      - name: Gracefully shut down Era server
+      - name: Shut down Era server (sends the kill command to all zksync_server proccesses)
         run: |
-          ERA_SERVER_PID=$(netstat -tuln | grep :3075 | awk '{print $7}' | cut -d'/' -f1)
-          kill -2 $ERA_SERVER_PID
+          ci_run kill $(ps -ef | grep -v "grep" | grep zksync_server | awk '{print $2}')
 
       - name: Initialize gateway chain
         run: |
