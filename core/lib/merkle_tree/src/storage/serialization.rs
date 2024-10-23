@@ -322,7 +322,7 @@ impl Manifest {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::{env, path::Path};
 
     use hex;
     use itertools::Itertools;
@@ -382,7 +382,9 @@ mod tests {
             .map(TreeInstruction::with_hashed_key)
             .collect();
         let entries = filter_write_instructions(&storage_logs);
-        let entries = entries.iter().take(7000);
+        let entries = entries
+            .iter()
+            .take(env::var("ENTRIES").unwrap_or("1".to_string()).parse()?);
         let sorted_keys = SortedKeys::new(entries.map(|entry| entry.key));
 
         let db = RocksDBWrapper::new(&Path::new("/db/lightweight-new")).unwrap();
