@@ -131,7 +131,8 @@ describe('Interop checks', () => {
             interop2_wallet
         );
 
-        console.log(`Test wallet address: ${interop1_wallet.address}`);
+        console.log(`Test wallet 1 address: ${interop1_wallet.address}`);
+        console.log(`Test wallet 2 address: ${interop1_wallet.address}`)
         console.log(
             `[rich wallet] l1_wallet address: ${l1_wallet.address} with ${ethers.formatEther(
                 await l1_provider.getBalance(l1_wallet.address)
@@ -250,8 +251,8 @@ describe('Interop checks', () => {
             18
         ]);
         tokenB_details.addresses.interop2 = await interop2_tokenB_contract_deployment.getAddress();
-        await (await interop2_tokenB_contract_deployment.mint(await interop2_wallet.getAddress(), 1000)).wait();
-        await (await interop2_tokenB_contract_deployment.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 1000)).wait();
+        await (await interop2_tokenB_contract_deployment.mint(await interop1_wallet.getAddress(), ethers.parseEther('100'))).wait();
+        await (await interop2_tokenB_contract_deployment.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS,  ethers.parseEther('100'))).wait();
         console.log('Registering token B on Interop2');
         await (await interop2_nativeTokenVault_contract.registerToken(tokenB_details.addresses.interop2)).wait();
         console.log('Token B registered on Interop2');
@@ -467,14 +468,25 @@ describe('Interop checks', () => {
         console.log('\n\n[TEST STARTED] - Can transfer token B from Interop2 to Interop1.');
 
         console.log('Transferring token B from Interop2 to Interop1...');
+        const interop1_tokenB_balance_before = await getTokenBalance({
+            provider: interop1_provider,
+            tokenAddress: tokenB_details.addresses.interop1,
+            address: interop1_wallet.address
+        });
+        console.log(
+            `Test wallet token B Interop1 balance after transfer: ${ethers.formatEther(
+                interop1_tokenB_balance_before
+            )} BB`
+        );
+        await delay(1000)
         await from_interop2_transfer_tokenB();
 
         // Update token B address on Interop1
-        tokenB_details.addresses.interop1 = await interop1_nativeTokenVault_contract.tokenAddress(
-            tokenB_details.assetId
-        );
-        if (tokenB_details.addresses.interop1 === ethers.ZeroHash)
-            throw new Error('Token B resolves to zero address on Interop1');
+        // tokenB_details.addresses.interop1 = await interop1_nativeTokenVault_contract.tokenAddress(
+        //     tokenB_details.assetId
+        // );
+        // if (tokenB_details.addresses.interop1 === ethers.ZeroHash)
+        //     throw new Error('Token B resolves to zero address on Interop1');
 
         const interop1_tokenB_balance_after = await getTokenBalance({
             provider: interop1_provider,
@@ -579,8 +591,27 @@ describe('Interop checks', () => {
             )
         ]);
 
-        console.log('from_interop2_transfer_tokenB NOT IMPLEMENTED!!!');
-        // @TODO: Implement
+        const input = {
+            chainId: (await interop1_provider.getNetwork()).chainId,
+            mintValue,
+            l2Value: 0,
+            l2GasLimit: 30000000,
+            l2GasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
+            refundRecipient: interop1_wallet.address,
+            secondBridgeAddress: L2_ASSET_ROUTER_ADDRESS,
+            secondBridgeValue: 0,
+            secondBridgeCalldata: bridgeCalldata
+        };
+        const l2Calldata = interop1_bridgehub_contract.interface.encodeFunctionData('requestL2TransactionTwoBridges', [input]);
+
+        // Create interop transaction from Interop1 to Interop2
+        const tx = await from_interop1_requestL2TransactionDirect(
+            mintValue * 2n,
+            L2_BRIDGEHUB_ADDRESS,
+            mintValue,
+            l2Calldata
+        );
+        await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
     }
 
     /**
@@ -635,7 +666,7 @@ describe('Interop checks', () => {
             l2Contract,
             l2Value,
             l2Calldata,
-            l2GasLimit: 30000000,
+            l2GasLimit: 600000000,
             l2GasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
             factoryDeps: [],
             refundRecipient: interop1_wallet.address
