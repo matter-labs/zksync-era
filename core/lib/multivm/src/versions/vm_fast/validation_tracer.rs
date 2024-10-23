@@ -31,8 +31,9 @@ use super::vm::TracerExt;
 /// considering that contracts that the code depends on may get upgraded.
 #[derive(Debug, Default)]
 pub struct ValidationTracer {
-    out_of_gas: bool,
     in_validation: bool,
+    validation_error: Option<ViolatedValidationRule>,
+    previous_instruction_was_gasleft: bool,
 }
 
 impl Tracer for ValidationTracer {
@@ -40,9 +41,19 @@ impl Tracer for ValidationTracer {
         if !self.in_validation {
             return;
         }
+        if self.previous_instruction_was_gasleft {
+            match OP::VALUE {
+                // The far call wipes the register, so there is no way the gas number can be used for anything else
+                FarCall(_) => {}
+                _ => self.set_error(ViolatedValidationRule::TouchedDisallowedContext),
+            }
+            self.previous_instruction_was_gasleft = false;
+        }
         match OP::VALUE {
             // Out of gas once means out of gas for the whole validation, as the EIP forbids handling out of gas errors
-            Ret(Panic) if state.current_frame().gas() == 0 => self.out_of_gas = true,
+            Ret(Panic) if state.current_frame().gas() == 0 => {
+                self.set_error(ViolatedValidationRule::TookTooManyComputationalGas(0))
+            }
             _ => {}
         }
     }
@@ -59,15 +70,13 @@ impl TracerExt for ValidationTracer {
 }
 
 impl ValidationTracer {
-    pub fn probably_out_of_gas(&self) -> bool {
-        self.out_of_gas
+    fn set_error(&mut self, error: ViolatedValidationRule) {
+        if self.validation_error.is_none() {
+            self.validation_error = Some(error);
+        }
     }
 
     pub fn validation_error(&self) -> Option<ViolatedValidationRule> {
-        if self.out_of_gas {
-            Some(ViolatedValidationRule::TookTooManyComputationalGas(0))
-        } else {
-            None
-        }
+        self.validation_error.clone()
     }
 }

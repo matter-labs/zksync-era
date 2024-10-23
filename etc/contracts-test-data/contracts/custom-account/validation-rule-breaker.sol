@@ -31,12 +31,13 @@ contract ValidationRuleBreaker is IAccount {
         magic = VALIDATION_SUCCESS_MAGIC;
 
         if (typeOfRuleBreak == 1) {
-            // Such a tx should not pass the validation step, because it depends on the balance of another account
-            require(
-                BOOTLOADER_FORMAL_ADDRESS.balance == 0,
-                "Bootloader balance must be zero"
-            );
-        } else if (typeOfRuleBreak == 2) {}
+            // The balance of another account may not be read
+            // I'm writing assertions because otherwise the compiler would optimize away the access
+            require(BOOTLOADER_FORMAL_ADDRESS.balance != 0);
+        } else if (typeOfRuleBreak == 2) {
+            // Gas may only be queried to pass everything into a far call
+            gasleft();
+        }
 
         _validateTransaction(_suggestedSignedTxHash, _transaction);
     }

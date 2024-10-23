@@ -18,7 +18,7 @@ use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
         storage::{ReadStorage, StorageView, StorageWithOverrides},
-        tracer::{ValidationError, ValidationParams, ViolatedValidationRule},
+        tracer::{ValidationError, ValidationParams},
         utils::{DivergenceHandler, ShadowVm},
         Call, ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
         StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode, VmFactory,
@@ -260,16 +260,11 @@ where
                     let mut tracer =
                         zksync_multivm::vm_fast::validation_tracer::ValidationTracer::default();
                     let result_and_logs = vm.inspect(&mut tracer, VmExecutionMode::OneTx);
+                    if let Some(violation) = tracer.validation_error() {
+                        return Err(ValidationError::ViolatedRule(violation));
+                    }
                     match result_and_logs.result {
-                        ExecutionResult::Halt { reason } => {
-                            if tracer.probably_out_of_gas() {
-                                Err(ValidationError::ViolatedRule(
-                                    ViolatedValidationRule::TookTooManyComputationalGas(1),
-                                ))
-                            } else {
-                                Err(ValidationError::FailedTx(reason))
-                            }
-                        }
+                        ExecutionResult::Halt { reason } => Err(ValidationError::FailedTx(reason)),
                         ExecutionResult::Revert { .. } => {
                             unreachable!("Revert can only happen at the end of a transaction")
                         }
