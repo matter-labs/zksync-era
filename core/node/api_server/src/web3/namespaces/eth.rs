@@ -863,6 +863,11 @@ impl EthNamespace {
             }
         })
     }
+
+    pub fn max_priority_fee_per_gas_impl(&self) -> U256 {
+        // ZKsync does not require priority fee.
+        0u64.into()
+    }
 }
 
 // Bogus methods.

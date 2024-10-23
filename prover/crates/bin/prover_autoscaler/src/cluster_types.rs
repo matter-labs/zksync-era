@@ -45,6 +45,8 @@ pub struct Cluster {
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct Clusters {
     pub clusters: HashMap<String, Cluster>,
+    /// Map from cluster to index in agent URLs Vec.
+    pub agent_ids: HashMap<String, usize>,
 }
 
 #[derive(Default, Debug, EnumString, Display, Hash, PartialEq, Eq, Clone, Copy)]

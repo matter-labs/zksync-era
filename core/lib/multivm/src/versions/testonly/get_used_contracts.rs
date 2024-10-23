@@ -1,4 +1,4 @@
-use std::{collections::HashSet, iter};
+use std::iter;
 
 use assert_matches::assert_matches;
 use ethabi::Token;
@@ -11,7 +11,7 @@ use zksync_utils::{bytecode::hash_bytecode, h256_to_u256};
 use super::{
     read_proxy_counter_contract, read_test_contract,
     tester::{VmTester, VmTesterBuilder},
-    TestedVm, BASE_SYSTEM_CONTRACTS,
+    TestedVm,
 };
 use crate::{
     interface::{
@@ -27,7 +27,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
         .with_rich_accounts(1)
         .build::<VM>();
 
-    assert!(known_bytecodes_without_base_system_contracts(&vm.vm).is_empty());
+    assert!(vm.vm.known_bytecode_hashes().is_empty());
 
     // create and push and execute some not-empty factory deps transaction with success status
     // to check that `get_decommitted_hashes()` updates
@@ -44,10 +44,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
         .contains(&h256_to_u256(tx.bytecode_hash)));
 
     // Note: `Default_AA` will be in the list of used contracts if L2 tx is used
-    assert_eq!(
-        vm.vm.decommitted_hashes(),
-        known_bytecodes_without_base_system_contracts(&vm.vm)
-    );
+    assert_eq!(vm.vm.decommitted_hashes(), vm.vm.known_bytecode_hashes());
 
     // create push and execute some non-empty factory deps transaction that fails
     // (`known_bytecodes` will be updated but we expect `get_decommitted_hashes()` to not be updated)
@@ -80,21 +77,9 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
     for factory_dep in tx2.execute.factory_deps {
         let hash = hash_bytecode(&factory_dep);
         let hash_to_u256 = h256_to_u256(hash);
-        assert!(known_bytecodes_without_base_system_contracts(&vm.vm).contains(&hash_to_u256));
+        assert!(vm.vm.known_bytecode_hashes().contains(&hash_to_u256));
         assert!(!vm.vm.decommitted_hashes().contains(&hash_to_u256));
     }
-}
-
-fn known_bytecodes_without_base_system_contracts(vm: &impl TestedVm) -> HashSet<U256> {
-    let mut known_bytecodes_without_base_system_contracts = vm.known_bytecode_hashes();
-    known_bytecodes_without_base_system_contracts
-        .remove(&h256_to_u256(BASE_SYSTEM_CONTRACTS.default_aa.hash));
-    if let Some(evm_emulator) = &BASE_SYSTEM_CONTRACTS.evm_emulator {
-        let was_removed =
-            known_bytecodes_without_base_system_contracts.remove(&h256_to_u256(evm_emulator.hash));
-        assert!(was_removed);
-    }
-    known_bytecodes_without_base_system_contracts
 }
 
 /// Counter test contract bytecode inflated by appending lots of `NOP` opcodes at the end. This leads to non-trivial
