@@ -2,7 +2,6 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
-use backon::{ConstantBuilder, Retryable};
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
 use subxt_signer::ExposeSecret;

@@ -90,9 +90,9 @@ impl TeeProver {
     }
 
     async fn step(&self, public_key: &PublicKey) -> Result<Option<L1BatchNumber>, TeeProverError> {
-        match self.api_client.get_job(self.config.tee_type).await? {
-            Some(job) => {
-                let (signature, batch_number, root_hash) = self.verify(*job)?;
+        match self.api_client.get_job(self.config.tee_type).await {
+            Ok(Some(job)) => {
+                let (signature, batch_number, root_hash) = self.verify(job)?;
                 self.api_client
                     .submit_proof(
                         batch_number,
@@ -104,10 +104,11 @@ impl TeeProver {
                     .await?;
                 Ok(Some(batch_number))
             }
-            None => {
+            Ok(None) => {
                 tracing::trace!("There are currently no pending batches to be proven");
                 Ok(None)
             }
+            Err(err) => Err(err),
         }
     }
 }

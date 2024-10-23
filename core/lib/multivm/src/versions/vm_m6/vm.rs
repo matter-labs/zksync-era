@@ -7,7 +7,7 @@ use crate::{
     glue::{history_mode::HistoryMode, GlueInto},
     interface::{
         storage::StoragePtr, BytecodeCompressionError, BytecodeCompressionResult, FinishedL1Batch,
-        L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode, VmExecutionMode,
+        L1BatchEnv, L2BlockEnv, PushTransactionResult, SystemEnv, TxExecutionMode, VmExecutionMode,
         VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
         VmMemoryMetrics,
     },
@@ -72,13 +72,17 @@ impl<S: Storage, H: HistoryMode> Vm<S, H> {
 impl<S: Storage, H: HistoryMode> VmInterface for Vm<S, H> {
     type TracerDispatcher = TracerDispatcher;
 
-    fn push_transaction(&mut self, tx: Transaction) {
-        crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
-            &mut self.vm,
-            &tx,
-            self.system_env.execution_mode.glue_into(),
-            None,
-        )
+    fn push_transaction(&mut self, tx: Transaction) -> PushTransactionResult {
+        let compressed_bytecodes =
+            crate::vm_m6::vm_with_bootloader::push_transaction_to_bootloader_memory(
+                &mut self.vm,
+                &tx,
+                self.system_env.execution_mode.glue_into(),
+                None,
+            );
+        PushTransactionResult {
+            compressed_bytecodes: compressed_bytecodes.into(),
+        }
     }
 
     fn inspect(

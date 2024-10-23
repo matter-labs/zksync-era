@@ -438,7 +438,7 @@ impl GasRelayClient {
         );
 
         tokio::time::sleep(Self::DEFAULT_INCLUSION_DELAY).await;
-        let status_response = (async || {
+        let status_response = (|| async {
             self.api_client
                 .get(&status_url)
                 .header("Authorization", &self.api_key)
@@ -450,24 +450,6 @@ impl GasRelayClient {
                 .with_delay(Self::RETRY_DELAY)
                 .with_max_times(self.max_retries),
         )
-        .when(|response| async {
-            if response.is_err() {
-                return true;
-            }
-            let status_response = response.as_ref().unwrap();
-            if status_response.status().is_success() {
-                let status_response = status_response.json::<GasRelayAPIStatusResponse>().await;
-                if status_response.is_ok() {
-                    let status_response = status_response.unwrap();
-                    if status_response.submission.block_hash.is_some()
-                        && status_response.submission.extrinsic_index.is_some()
-                    {
-                        return false;
-                    }
-                }
-            }
-            true
-        })
         .await?;
 
         let status_response = status_response.json::<GasRelayAPIStatusResponse>().await?;
