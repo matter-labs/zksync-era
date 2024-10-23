@@ -195,7 +195,7 @@ pub(crate) trait TestedVm:
 
     fn insert_bytecodes(&mut self, bytecodes: &[&[u8]]);
 
-    /// Includes bytecodes that have failed to decommit.
+    /// Includes bytecodes that have failed to decommit. Should exclude base system contract bytecodes (default AA / EVM emulator).
     fn known_bytecode_hashes(&self) -> HashSet<U256>;
 
     /// Returns `true` iff the decommit is fresh.
