@@ -13,11 +13,16 @@ use super::{
 use crate::interface::TxExecutionMode;
 
 /// Checks that every limitation imposed on account validation results in an appropriate error.
+/// The actual misbehaviours are found in "validation-rule-breaker.sol".
 pub(crate) fn test_account_validation_rules<VM: TestedVm + TestedVmForValidation>() {
     assert_matches!(test_rule::<VM>(0), None);
     assert_matches!(
         test_rule::<VM>(1),
         Some(ViolatedValidationRule::TouchedDisallowedStorageSlots(_, _))
+    );
+    assert_matches!(
+        test_rule::<VM>(2),
+        Some(ViolatedValidationRule::TouchedDisallowedContext)
     );
 }
 
