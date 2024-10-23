@@ -131,8 +131,6 @@ _arguments "${_arguments_options[@]}" : \
 '--observability=[Enable Grafana]' \
 '--chain=[Chain to use]:CHAIN: ' \
 '--resume[]' \
-'-d[Use default database urls and names]' \
-'--dev[Use default database urls and names]' \
 '-d[]' \
 '--dont-drop[]' \
 '--ecosystem-only[Initialize ecosystem only and skip chain initialization (chain can be initialized later with \`chain init\` subcommand)]' \
