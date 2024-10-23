@@ -14,9 +14,19 @@ pub struct TeeConfig {
 impl Default for TeeConfig {
     fn default() -> Self {
         TeeConfig {
-            tee_support: false,
-            first_tee_processed_batch: L1BatchNumber(0),
+            tee_support: Self::default_tee_support(),
+            first_tee_processed_batch: Self::default_first_tee_processed_batch(),
         }
+    }
+}
+
+impl TeeConfig {
+    pub fn default_tee_support() -> bool {
+        false
+    }
+
+    pub fn default_first_tee_processed_batch() -> L1BatchNumber {
+        L1BatchNumber(0)
     }
 }
 

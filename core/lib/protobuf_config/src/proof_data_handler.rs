@@ -15,12 +15,8 @@ impl ProtoRepr for proto::ProofDataHandler {
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("proof_generation_timeout_in_secs")?,
             tee_config: configs::TeeConfig {
-                tee_support: required(&self.tee_support)
-                    .copied()
-                    .context("tee_support")?,
-                first_tee_processed_batch: required(&self.first_tee_processed_batch)
-                    .map(|x| (*x as u32).into())
-                    .context("first_tee_processed_batch")?,
+                tee_support: configs::TeeConfig::default_tee_support(),
+                first_tee_processed_batch: configs::TeeConfig::default_first_tee_processed_batch(),
             },
         })
     }
