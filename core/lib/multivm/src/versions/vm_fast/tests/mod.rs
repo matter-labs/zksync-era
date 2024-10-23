@@ -21,6 +21,7 @@ mod bytecode_publishing;
 mod circuits;
 mod code_oracle;
 mod default_aa;
+mod evm_emulator;
 mod gas_limit;
 mod get_used_contracts;
 mod is_write_initial;
