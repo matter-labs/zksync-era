@@ -20,7 +20,6 @@ use crate::{
 pub struct GatewayChainUpgradeOutput {
     // This should be the address that controls the current `ChainAdmin`
     // contract
-    pub l2_da_validator_addr: Address,
     pub chain_admin_addr: Address,
     pub access_control_restriction: Address,
 }
