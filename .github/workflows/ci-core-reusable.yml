@@ -302,18 +302,19 @@ jobs:
       
       - name: Shut down Era server (sends the kill command to all era zksync_server proccesses)
         run: |
-          # Find the PID using ports 3071 or 3075 using netstat
-          PIDS=$(netstat -tuln | grep -E ':3071|:3075' | awk '{print $7}' | cut -d'/' -f1)
-
-          # If any PIDs are found, kill them
-          if [ -n "$PIDS" ]; then
-              echo "Killing process(es) on ports 3071 or 3075 with PID(s): $PIDS"
-              for PID in $PIDS; do
-                  kill -9 "$PID" || true  # Use SIGKILL to ensure termination
-              done
-          else
-              echo "No processes found on ports 3071 or 3075."
-          fi
+          # Check if ports 3071 or 3075 are occupied
+          for PORT in 3071 3075; do
+              nc -z localhost $PORT
+              if [ $? -eq 0 ]; then
+                  PID=$(lsof -ti :$PORT)
+                  if [ -n "$PID" ]; then
+                      echo "Killing process on port $PORT with PID: $PID"
+                      kill -9 "$PID" || true
+                  fi
+              else
+                  echo "Port $PORT is not occupied."
+              fi
+          done
 
       - name: Initialize gateway chain
         run: |
