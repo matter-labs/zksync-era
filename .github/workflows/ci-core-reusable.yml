@@ -301,7 +301,7 @@ jobs:
       
       - name: Shut down Era server (sends the kill command to all zksync_server proccesses)
         run: |
-          ci_run kill $(ps -ef | grep -v "grep" | grep zksync_server | awk '{print $2}')
+          pkill -f zksync_server || echo "No zksync_server process found"
 
       - name: Initialize gateway chain
         run: |
