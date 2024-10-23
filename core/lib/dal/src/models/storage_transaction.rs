@@ -331,6 +331,15 @@ impl From<StorageTransaction> for XL2TxCommonData {
             input,
             ..
         } = tx;
+        println!("kl todo tx_mint, {:?}", &tx.l1_tx_mint.clone());
+        println!(
+            "kl todo {:?}",
+            &tx.l1_tx_mint
+                .clone()
+                .map(bigdecimal_to_u256)
+                .unwrap_or_default()
+                .to_string()
+        );
 
         let tx2 = XL2TxCommonData::new(
             Address::from_slice(&initiator_address),
@@ -345,9 +354,9 @@ impl From<StorageTransaction> for XL2TxCommonData {
             H256::from_slice(&hash),
             U256::from_dec_str(
                 &tx.l1_tx_mint
-                    .as_ref()
-                    .expect("l1 tx mint limit is mandatory xl2")
-                    .to_string(),
+                    .map(bigdecimal_to_u256)
+                    .unwrap_or_default()
+                    .to_string()
             )
             .unwrap(),
             Address::from_slice(&tx.l1_tx_refund_recipient.unwrap()),
@@ -357,7 +366,7 @@ impl From<StorageTransaction> for XL2TxCommonData {
                 data: input.expect("input data is mandatory for xl2 transactions"),
             }),
         );
-        println!("kl tx2: {:?}", tx2);
+        // println!("kl tx2: {:?}", tx2);
         tx2
     }
 }
