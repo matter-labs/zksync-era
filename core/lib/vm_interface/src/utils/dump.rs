@@ -139,6 +139,18 @@ impl<S: ReadStorage, Vm: VmTrackingContracts> DumpingVm<S, Vm> {
     }
 }
 
+impl<S, Vm> AsRef<Vm> for DumpingVm<S, Vm> {
+    fn as_ref(&self) -> &Vm {
+        &self.inner
+    }
+}
+
+impl<S, Vm> AsMut<Vm> for DumpingVm<S, Vm> {
+    fn as_mut(&mut self) -> &mut Vm {
+        &mut self.inner
+    }
+}
+
 impl<S: ReadStorage, Vm: VmTrackingContracts> VmInterface for DumpingVm<S, Vm> {
     type TracerDispatcher = Vm::TracerDispatcher;
 
