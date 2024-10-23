@@ -40,9 +40,8 @@ impl ProtoRepr for proto::DataAvailabilityClient {
                 rpc_node_url: required(&conf.rpc_node_url)
                     .context("rpc_node_url")?
                     .clone(),
-                inclusion_polling_interval_ms: required(&conf.inclusion_polling_interval_ms)
-                    .context("inclusion_polling_interval_ms")?
-                    .clone(),
+                inclusion_polling_interval_ms: *required(&conf.inclusion_polling_interval_ms)
+                    .context("inclusion_polling_interval_ms")?,
             }),
             proto::data_availability_client::Config::ObjectStore(conf) => {
                 ObjectStore(object_store_proto::ObjectStore::read(conf)?)
