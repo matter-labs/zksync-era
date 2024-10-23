@@ -1,8 +1,9 @@
 //! Minimal reimplementation of the Avail SDK client required for the DA client implementation.
 //! This is considered to be a temporary solution until a mature SDK is available on crates.io
 
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc, time};
 
+use backon::{ConstantBuilder, Retryable};
 use bytes::Bytes;
 use jsonrpsee::{
     core::client::{Client, ClientT, Subscription, SubscriptionClientT},
@@ -399,6 +400,8 @@ pub struct GasRelayAPISubmission {
 }
 
 impl GasRelayClient {
+    const DEFAULT_INCLUSION_DELAY: time::Duration = time::Duration::from_secs(60);
+    const RETRY_DELAY: time::Duration = time::Duration::from_secs(5);
     pub(crate) async fn new(
         api_url: &str,
         api_key: &str,
@@ -434,31 +437,48 @@ impl GasRelayClient {
             self.api_url, submit_response.submission_id
         );
 
-        let mut retries: usize = 0;
-
-        let (block_hash, extrinsic_index) = loop {
-            // minimum finalization time is 40s but can go upto 90s depending on network usage
-            tokio::time::sleep(tokio::time::Duration::from_secs(40)).await;
-            let status_response = self
-                .api_client
+        tokio::time::sleep(Self::DEFAULT_INCLUSION_DELAY).await;
+        let status_response = (async || {
+            self.api_client
                 .get(&status_url)
                 .header("Authorization", &self.api_key)
                 .send()
-                .await?;
-
-            let status_response = status_response.json::<GasRelayAPIStatusResponse>().await?;
-
-            if status_response.submission.block_hash.is_some() {
-                break (
-                    status_response.submission.block_hash.unwrap(),
-                    status_response.submission.extrinsic_index.unwrap(),
-                );
+                .await
+        })
+        .retry(
+            &ConstantBuilder::default()
+                .with_delay(Self::RETRY_DELAY)
+                .with_max_times(self.max_retries),
+        )
+        .when(|response| async {
+            if response.is_err() {
+                return true;
             }
-            retries += 1;
-            if retries > self.max_retries {
-                anyhow::bail!("Gas relay submission max_retries exceeded");
+            let status_response = response.as_ref().unwrap();
+            if status_response.status().is_success() {
+                let status_response = status_response.json::<GasRelayAPIStatusResponse>().await;
+                if status_response.is_ok() {
+                    let status_response = status_response.unwrap();
+                    if status_response.submission.block_hash.is_some()
+                        && status_response.submission.extrinsic_index.is_some()
+                    {
+                        return false;
+                    }
+                }
             }
-        };
+            true
+        })
+        .await?;
+
+        let status_response = status_response.json::<GasRelayAPIStatusResponse>().await?;
+        let (block_hash, extrinsic_index) = (
+            status_response.submission.block_hash.ok_or_else(|| {
+                anyhow::anyhow!("Block hash not found in the response from the gas relay")
+            })?,
+            status_response.submission.extrinsic_index.ok_or_else(|| {
+                anyhow::anyhow!("Extrinsic index not found in the response from the gas relay")
+            })?,
+        );
 
         Ok((block_hash, extrinsic_index))
     }

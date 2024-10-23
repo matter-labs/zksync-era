@@ -1,7 +1,8 @@
-use std::{fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc, time::Duration};
 
 use anyhow::anyhow;
 use async_trait::async_trait;
+use backon::{ConstantBuilder, Retryable};
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::{Deserialize, Serialize};
 use subxt_signer::ExposeSecret;
@@ -188,33 +189,19 @@ impl DataAvailabilityClient for AvailClient {
             "{}/eth/proof/{}?index={}",
             self.config.bridge_api_url, block_hash, tx_idx
         );
-        // record current time
-        let current_timestamp = std::time::Instant::now();
-        let bridge_api_data = loop {
-            let response = self
-                .api_client
-                .get(&url)
-                .send()
-                .await
-                .map_err(to_retriable_da_error)?;
-            let bridge_api_data = response
-                .json::<BridgeAPIResponse>()
-                .await
-                .map_err(to_retriable_da_error)?;
-            if bridge_api_data.error.is_none() {
-                break bridge_api_data;
-            }
-            if current_timestamp.elapsed().as_secs() > self.config.timeout as u64 {
-                return Err(to_non_retriable_da_error(anyhow!(
-                    "Inclusion check timeout exceeded"
-                )));
-            }
-            tokio::time::sleep(tokio::time::Duration::from_secs(std::cmp::min(
-                self.config.timeout as u64,
-                60,
-            )))
-            .await;
-        };
+
+        let response = self
+            .api_client
+            .get(&url)
+            .timeout(Duration::from_secs(self.config.timeout as u64))
+            .send()
+            .await
+            .map_err(to_retriable_da_error)?;
+
+        let bridge_api_data = response
+            .json::<BridgeAPIResponse>()
+            .await
+            .map_err(to_retriable_da_error)?;
 
         let attestation_data: MerkleProofInput = MerkleProofInput {
             data_root_proof: bridge_api_data.data_root_proof.unwrap(),
