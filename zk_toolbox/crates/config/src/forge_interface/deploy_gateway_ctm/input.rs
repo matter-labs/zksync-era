@@ -47,6 +47,8 @@ pub struct DeployGatewayCTMInput {
     latest_protocol_version: U256,
 
     force_deployments_data: String,
+
+    expected_rollup_l2_da_validator: Address,
 }
 
 impl ZkToolboxConfig for DeployGatewayCTMInput {}
@@ -110,6 +112,8 @@ impl DeployGatewayCTMInput {
             genesis_batch_commitment: genesis_config.genesis_commitment.unwrap(),
 
             latest_protocol_version: genesis_config.protocol_version.unwrap().pack(),
+
+            expected_rollup_l2_da_validator: contracts_config.ecosystem_contracts.expected_rollup_l2_da_validator.unwrap(),
 
             force_deployments_data: contracts_config
                 .ecosystem_contracts

@@ -62,7 +62,7 @@ impl ContractsConfig {
             .deployed_addresses
             .transparent_proxy_admin_addr;
         self.ecosystem_contracts.l1_bytecodes_supplier_addr =
-            Some(deploy_l1_output.deployed_addresses.bytecodes_supplier);
+            Some(deploy_l1_output.deployed_addresses.state_transition.bytecodes_supplier_addr);
         self.ecosystem_contracts.stm_deployment_tracker_proxy_addr = Some(
             deploy_l1_output
                 .deployed_addresses
@@ -74,6 +74,9 @@ impl ContractsConfig {
                 .contracts_config
                 .force_deployments_data
                 .clone(),
+        );
+        self.ecosystem_contracts.expected_rollup_l2_da_validator = Some(
+            deploy_l1_output.expected_rollup_l2_da_validator_addr
         );
         self.l1.default_upgrade_addr = deploy_l1_output
             .deployed_addresses
@@ -195,6 +198,8 @@ pub struct ToolboxEcosystemContracts {
     pub native_token_vault_addr: Option<Address>,
     // `Option` to be able to parse configs from previous protocol version
     pub l1_bytecodes_supplier_addr: Option<Address>,
+
+    pub expected_rollup_l2_da_validator: Option<Address>
 }
 
 impl ZkToolboxConfig for ToolboxEcosystemContracts {}

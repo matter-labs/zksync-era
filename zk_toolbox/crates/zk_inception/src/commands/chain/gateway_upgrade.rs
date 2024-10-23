@@ -138,7 +138,7 @@ pub async fn run(args: GatewayUpgradeArgs, shell: &Shell) -> anyhow::Result<()> 
     // contracts_config.bridges.shared.l1_address = gateway_ecosystem_preparation_output.deployed_addresses.bridges.shared_bridge_proxy_addr;
 }
 
-fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
+pub fn encode_ntv_asset_id(l1_chain_id: U256, addr: Address) -> H256 {
     let encoded_data = encode(&[
         ethers::abi::Token::Uint(l1_chain_id),
         ethers::abi::Token::Address(L2_NATIVE_TOKEN_VAULT_ADDRESS),

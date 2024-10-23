@@ -7,7 +7,7 @@ use zksync_system_constants::{
     BOOTLOADER_UTILITIES_ADDRESS, CODE_ORACLE_ADDRESS, COMPRESSOR_ADDRESS, CREATE2_FACTORY_ADDRESS,
     EVENT_WRITER_ADDRESS, L2_ASSET_ROUTER_ADDRESS, L2_BRIDGEHUB_ADDRESS,
     L2_GENESIS_UPGRADE_ADDRESS, L2_MESSAGE_ROOT_ADDRESS, L2_NATIVE_TOKEN_VAULT_ADDRESS,
-    P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS,
+    P256VERIFY_PRECOMPILE_ADDRESS, PUBDATA_CHUNK_PUBLISHER_ADDRESS, SLOAD_CONTRACT_ADDRESS,
 };
 
 use crate::{
@@ -27,7 +27,7 @@ use crate::{
 pub const TX_NONCE_INCREMENT: U256 = U256([1, 0, 0, 0]); // 1
 pub const DEPLOYMENT_NONCE_INCREMENT: U256 = U256([0, 0, 1, 0]); // 2^128
 
-static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 30] = [
+static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 31] = [
     (
         "",
         "AccountCodeStorage",
@@ -200,6 +200,12 @@ static SYSTEM_CONTRACT_LIST: [(&str, &str, Address, ContractLanguage); 30] = [
         L2_NATIVE_TOKEN_VAULT_ADDRESS,
         ContractLanguage::Sol,
     ),
+    (
+        "",
+        "SloadContract",
+        SLOAD_CONTRACT_ADDRESS,
+        ContractLanguage::Sol,
+    )
 ];
 
 static SYSTEM_CONTRACTS: Lazy<Vec<DeployedContract>> = Lazy::new(|| {

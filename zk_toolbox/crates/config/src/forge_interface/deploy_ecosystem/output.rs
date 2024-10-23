@@ -19,6 +19,7 @@ pub struct DeployL1Output {
     pub owner_address: Address,
     pub contracts_config: DeployL1ContractsConfigOutput,
     pub deployed_addresses: DeployL1DeployedAddressesOutput,
+    pub expected_rollup_l2_da_validator_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -34,8 +35,8 @@ pub struct DeployL1DeployedAddressesOutput {
     pub state_transition: L1StateTransitionOutput,
     pub rollup_l1_da_validator_addr: Address,
     pub validium_l1_da_validator_addr: Address,
+    pub l1_rollup_da_manager: Address,
     pub native_token_vault_addr: Address,
-    pub bytecodes_supplier: Address,
 }
 
 impl ZkToolboxConfig for DeployL1Output {}
@@ -79,6 +80,7 @@ pub struct L1StateTransitionOutput {
     pub genesis_upgrade_addr: Address,
     pub default_upgrade_addr: Address,
     pub diamond_proxy_addr: Address,
+    pub bytecodes_supplier_addr: Address,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
