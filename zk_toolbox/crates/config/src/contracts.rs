@@ -134,8 +134,11 @@ impl ContractsConfig {
         self.l1.access_control_restriction_addr =
             Some(register_chain_output.access_control_restriction_addr);
         self.l1.chain_proxy_admin_addr = Some(register_chain_output.chain_proxy_admin_addr);
-        self.l2.legacy_shared_bridge_addr =
-            Some(register_chain_output.l2_legacy_shared_bridge_addr);
+        self.l2.legacy_shared_bridge_addr = if register_chain_output.l2_legacy_shared_bridge_addr != Address::zero() {
+            Some(register_chain_output.l2_legacy_shared_bridge_addr)
+        } else {
+            None
+        };
 
         self.user_facing_diamond_proxy = Some(register_chain_output.diamond_proxy_addr);
     }
