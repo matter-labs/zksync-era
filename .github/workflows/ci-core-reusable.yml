@@ -307,7 +307,7 @@ jobs:
       - name: Shut down Era server (sends the kill command to all era zksync_server proccesses)
         run: |
           # Find the PID using ports 3071 or 3075
-          PIDS=$(lsof -ti :3071 -ti :3075)
+          PIDS=$(sudo lsof -ti :3071 -ti :3075 || true)
 
           # If any PIDs are found, kill them
           if [ -n "$PIDS" ]; then
@@ -318,6 +318,9 @@ jobs:
           else
               echo "No processes found on ports 3071 or 3075."
           fi
+
+          # Ensure the script always exits successfully
+          exit 0
 
       - name: Initialize gateway chain
         run: |
