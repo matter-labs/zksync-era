@@ -85,15 +85,14 @@ pub fn get_link_to_code(shell: &Shell) -> String {
     }
 }
 
-pub fn resolve_link_to_code(shell: &Shell, link_to_code: String) -> anyhow::Result<PathBuf> {
+pub fn resolve_link_to_code(
+    shell: &Shell,
+    base_path: PathBuf,
+    link_to_code: String,
+) -> anyhow::Result<PathBuf> {
     if link_to_code.is_empty() {
         let spinner = Spinner::new(MSG_CLONING_ERA_REPO_SPINNER);
-        let link_to_code = git::clone(
-            shell,
-            shell.current_dir(),
-            ZKSYNC_ERA_GIT_REPO,
-            "zksync-era",
-        )?;
+        let link_to_code = git::clone(shell, base_path, ZKSYNC_ERA_GIT_REPO, "zksync-era")?;
         spinner.finish();
         Ok(link_to_code)
     } else {

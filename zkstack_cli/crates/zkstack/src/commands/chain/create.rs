@@ -4,7 +4,8 @@ use anyhow::Context;
 use common::{logger, spinner::Spinner};
 use config::{
     create_local_configs_dir, create_wallets, get_default_era_chain_id,
-    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig,
+    traits::SaveConfigWithBasePath, ChainConfig, EcosystemConfig, LOCAL_ARTIFACTS_PATH,
+    LOCAL_DB_PATH,
 };
 use xshell::Shell;
 use zksync_basic_types::L2ChainId;
@@ -99,7 +100,9 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
         (L2ChainId::from(args.chain_id), None)
     };
     let internal_id = args.number_of_chains;
-    let link_to_code = resolve_link_to_code(shell, args.link_to_code.clone())?;
+    let link_to_code = resolve_link_to_code(shell, chain_path.clone(), args.link_to_code.clone())?;
+    let rocks_db_path = chain_path.join(LOCAL_DB_PATH);
+    let artifacts = chain_path.join(LOCAL_ARTIFACTS_PATH);
 
     let chain_config = ChainConfig {
         id: internal_id,
@@ -107,9 +110,9 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
         chain_id,
         prover_version: args.prover_version,
         l1_network: args.l1_network,
-        link_to_code,
-        rocks_db_path: ecosystem_config.get_chain_rocks_db_path(&default_chain_name),
-        artifacts: ecosystem_config.get_chain_artifacts_path(&default_chain_name),
+        link_to_code: link_to_code.clone(),
+        rocks_db_path,
+        artifacts,
         configs: chain_configs_path.clone(),
         external_node_config_path: None,
         l1_batch_commit_data_generator_mode: args.l1_batch_commit_data_generator_mode,
@@ -122,7 +125,7 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
     create_wallets(
         shell,
         &chain_config.configs,
-        &ecosystem_config.link_to_code,
+        &link_to_code,
         internal_id,
         args.wallet_creation,
         args.wallet_path,
