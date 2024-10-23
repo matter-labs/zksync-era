@@ -155,7 +155,7 @@ impl Task for TeeProver {
                     }
                 }
                 Err(err) => {
-                    METRICS.network_errors_counter.inc_by(1);
+                    METRICS.network_errors_counter.inc();
                     if !err.is_retriable() || retries > config.max_retries {
                         return Err(err.into());
                     }
