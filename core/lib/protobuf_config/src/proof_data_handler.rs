@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use zksync_config::configs;
 use zksync_protobuf::{repr::ProtoRepr, required};
+use zksync_types::L1BatchNumber;
 
 use crate::proto::prover as proto;
 
@@ -15,8 +16,13 @@ impl ProtoRepr for proto::ProofDataHandler {
                 .and_then(|x| Ok((*x).try_into()?))
                 .context("proof_generation_timeout_in_secs")?,
             tee_config: configs::TeeConfig {
-                tee_support: configs::TeeConfig::default_tee_support(),
-                first_tee_processed_batch: configs::TeeConfig::default_first_tee_processed_batch(),
+                tee_support: self
+                    .tee_support
+                    .unwrap_or_else(configs::TeeConfig::default_tee_support),
+                first_tee_processed_batch: self
+                    .first_tee_processed_batch
+                    .map(|x| L1BatchNumber(x as u32))
+                    .unwrap_or_else(configs::TeeConfig::default_first_tee_processed_batch),
             },
         })
     }
