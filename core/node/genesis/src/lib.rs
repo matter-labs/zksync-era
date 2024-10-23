@@ -207,7 +207,6 @@ pub async fn insert_genesis_batch(
     .await?;
     tracing::info!("chain_schema_genesis is complete");
 
-    let allow_evm_emulation = genesis_params.base_system_contracts.evm_emulator.is_some();
     let deduped_log_queries =
         get_deduped_log_queries(&get_storage_logs(genesis_params.system_contracts()));
 
