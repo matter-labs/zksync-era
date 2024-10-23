@@ -384,7 +384,7 @@ mod tests {
         let entries = filter_write_instructions(&storage_logs);
         let sorted_keys = SortedKeys::new(entries.iter().map(|entry| entry.key));
 
-        let db = RocksDBWrapper::new(&Path::new("chains/era/db/main/tree")).unwrap();
+        let db = RocksDBWrapper::new(&Path::new("/db/lightweight-new")).unwrap();
         tree_updater.load_ancestors(&sorted_keys, &db);
 
         // let manifest = Manifest::new(42, &());
