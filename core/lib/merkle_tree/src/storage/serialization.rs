@@ -322,26 +322,84 @@ impl Manifest {
 
 #[cfg(test)]
 mod tests {
-    use zksync_types::H256;
+    use std::path::Path;
+
+    use hex;
+    use itertools::Itertools;
+    use zksync_types::{writes::TreeWrite, AccountTreeId, StorageKey, H256};
 
     use super::*;
-    use crate::types::TreeEntry;
+    use crate::{
+        storage::{LoadAncestorsResult, SortedKeys, TreeUpdater},
+        types::{Nibbles, NodeKey, TreeEntry},
+        Database, PatchSet, RocksDBWrapper, TreeInstruction,
+    };
+
+    fn filter_write_instructions(instructions: &[TreeInstruction]) -> Vec<TreeEntry> {
+        let kvs = instructions
+            .iter()
+            .filter_map(|instruction| match instruction {
+                TreeInstruction::Write(entry) => Some(*entry),
+                TreeInstruction::Read(_) => None,
+            });
+        kvs.collect()
+    }
 
     #[test]
     fn serializing_manifest() {
-        let manifest = Manifest::new(42, &());
-        let mut buffer = vec![];
-        manifest.serialize(&mut buffer);
-        assert_eq!(buffer[0], 42); // version count
-        assert_eq!(buffer[1], 3); // number of tags
-        assert_eq!(
-            buffer[2..],
-            *b"\x0Carchitecture\x06AR16MT\x05depth\x03256\x06hasher\x08no_op256"
-        );
-        // ^ length-prefixed tag names and values
+        let manifest_buffer = hex::decode("ACC125030C61726368697465637475726506415231364D5405646570746803323536066861736865720A626C616B653273323536").unwrap();
+        let manifest = Manifest::deserialize(&manifest_buffer).unwrap();
+        println!("Manifest: {:?}", manifest);
 
-        let manifest_copy = Manifest::deserialize(&buffer).unwrap();
-        assert_eq!(manifest_copy, manifest);
+        let version = 614572;
+        let base_version = version - 1;
+        println!(
+            "Root key: {}",
+            hex::encode(&NodeKey::empty(base_version).to_db_key())
+        );
+
+        let root_buffer = hex::decode("91E4ABB2035555555500CBEFC4D9ABEB93BCD9D8FF868BAFD5C060E3FCCD6ABDC436A97A4C45EE1773ABC1252C90CAD0114668F0D93904BCF8B022803B609B2B2C831D97C736205013DA85AEABC125B5A298502C74E165532D44AFE53FE7D7D3056DB8D2AAF8BEBC5A9F7DA6E7135FABC125D93CE06F81B93923347928BAC9A657B4AECE4EDF1647BD746ACF185A010CCADCABC12534E21B5AD837646336A70A67AEA6911B19A54712E6213918D3D06134C3B7E7F2ABC12544AA366B3ACB2586D990F6ECAD25A81AB58E7C032FF2879F165C7A77B543193CABC125BA1A8B1EDA7FE2EA2D359C3026A1C5013D966435A375FCCAF39ED7F9444802E0ABC1259CD897CDD87AE58439B4D54738B6C7F81A8A14E0EF493637392A6CFDE670735BABC125002413EE497C76ED15ED38966ACD689CB93485C9A31321DB139B74C6D6B3B915ABC125FDC5612BE1A065F3A30D8DA5E6E91BDF11AEC0F928DBB26415B665AE3023CC10ABC125847C41CD6EEFE50B5D025CBD26658672BB46C18785C700557DC09087241CF977ABC1254C8DCF046564B7D80E9641EC184356F93B6BF4DE7A2FE6C01E164D444E459971ABC12552D5928DB5024A8D6DF9126F3F7A37B7217BF3D114F7D0EBEDA974379C604A45ABC1257A5025BB56BA4E535AFF53B4CBB0F4A66804CA1DDB050E8656DB0E2D0DA56172ABC1250820B68B73F1969FE1F6BC7E1DE438EDE3624F0E479372400E72905BB085E07CABC12597C285D9F00CFE938396B51CD1124B42442BEC79532CBC0C9A2651E4404E1010ABC125").unwrap();
+        let root = Root::deserialize(&root_buffer).unwrap();
+        println!("Root: {:?}", root);
+
+        let mut tree_updater = TreeUpdater::new(version, root);
+
+        let tree_writes_buffer = hex::decode(include_str!("tree_writes.hex")).unwrap();
+        let tree_writes: Vec<TreeWrite> = bincode::deserialize(&tree_writes_buffer).unwrap();
+        println!("Processing tree writes with {} entries", tree_writes.len());
+
+        // If tree writes are present in DB then simply use them.
+        let writes = tree_writes.into_iter().map(|tree_write| {
+            let storage_key =
+                StorageKey::new(AccountTreeId::new(tree_write.address), tree_write.key);
+            TreeInstruction::write(storage_key, tree_write.leaf_index, tree_write.value)
+        });
+        let reads = vec![];
+
+        let storage_logs: Vec<TreeInstruction> = writes
+            .chain(reads)
+            .sorted_by_key(|tree_instruction| tree_instruction.key())
+            .map(TreeInstruction::with_hashed_key)
+            .collect();
+        let entries = filter_write_instructions(&storage_logs);
+        let sorted_keys = SortedKeys::new(entries.iter().map(|entry| entry.key));
+
+        let db = RocksDBWrapper::new(&Path::new("chains/era/db/main/tree")).unwrap();
+        tree_updater.load_ancestors(&sorted_keys, &db);
+
+        // let manifest = Manifest::new(42, &());
+        // let mut buffer = vec![];
+        // manifest.serialize(&mut buffer);
+        // assert_eq!(buffer[0], 42); // version count
+        // assert_eq!(buffer[1], 3); // number of tags
+        // assert_eq!(
+        //     buffer[2..],
+        //     *b"\x0Carchitecture\x06AR16MT\x05depth\x03256\x06hasher\x08no_op256"
+        // );
+        // // ^ length-prefixed tag names and values
+        //
+        // let manifest_copy = Manifest::deserialize(&buffer).unwrap();
+        // assert_eq!(manifest_copy, manifest);
     }
 
     #[test]

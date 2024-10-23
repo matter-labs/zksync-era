@@ -39,3 +39,6 @@ serde_with = { workspace = true, features = ["hex"] }
 tempfile.workspace = true
 test-casing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
+hex.workspace = true
+bincode.workspace = true
+itertools.workspace = true

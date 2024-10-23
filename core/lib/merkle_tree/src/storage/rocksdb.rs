@@ -3,6 +3,7 @@
 use std::{any::Any, cell::RefCell, path::Path, sync::Arc};
 
 use anyhow::Context as _;
+use itertools::Itertools;
 use rayon::prelude::*;
 use thread_local::ThreadLocal;
 use zksync_storage::{
@@ -204,9 +205,16 @@ impl Database for RocksDBWrapper {
     }
 
     fn tree_nodes(&self, keys: &NodeKeys) -> Vec<Option<Node>> {
+        println!("Trying {} tree nodes", keys.iter().len());
         let raw_nodes = self.raw_nodes(keys).into_iter().zip(keys);
 
         let nodes = raw_nodes.map(|(maybe_node, (key, is_leaf))| {
+            println!(
+                "Loading raw node: key={}, is_leaf={}, found={:?}",
+                hex::encode(key.to_db_key()),
+                is_leaf,
+                maybe_node.is_some(),
+            );
             maybe_node
                 .map(|raw_node| Self::deserialize_node(&raw_node, key, *is_leaf))
                 .transpose()
