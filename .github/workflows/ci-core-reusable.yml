@@ -309,7 +309,7 @@ jobs:
 
           ci_run zk_inception chain deploy-and-bridge-zk --chain era --only-funding-tx --verbose
       
-      - name: Shut down Era server (sends the kill command to all zksync_server proccesses)
+      - name: Shut down Era server (sends the kill command to all era zksync_server proccesses)
         run: |
           # Find all processes in the same group as ERA_PID
           PIDS=$(pgrep -g $(ps -o pgid= $ERA_PID))
@@ -329,6 +329,9 @@ jobs:
           else
               echo "No processes found in the same group as ERA_PID: $ERA_PID"
           fi
+
+          # Ensure the script exits successfully even if the processes were terminated
+          exit 0
 
       - name: Initialize gateway chain
         run: |
