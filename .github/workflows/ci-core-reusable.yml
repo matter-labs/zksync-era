@@ -228,6 +228,16 @@ jobs:
       - name: Start Era server
         run: |
           ci_run zk_inception server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
+
+          # Capture the PID of the last background process
+          ERA_PID=$!
+
+          # Export the PID as an environment variable to use in later steps
+          echo "ERA_PID=$ERA_PID" >> $GITHUB_ENV
+
+          # Log the PID for debugging purposes
+          echo "Started zk_inception server with PID: $ERA_PID"
+
           ci_run sleep 20  # Wait for server to start
       
       - name: Deploy and bridge ZK token on Era chain
@@ -301,7 +311,24 @@ jobs:
       
       - name: Shut down Era server (sends the kill command to all zksync_server proccesses)
         run: |
-          pkill -f zksync_server || echo "No zksync_server process found"
+          # Find all processes in the same group as ERA_PID
+          PIDS=$(pgrep -g $(ps -o pgid= $ERA_PID))
+
+          # Convert newline-separated PIDs to an array
+          PIDS_ARRAY=()
+          while IFS= read -r PID; do
+              PIDS_ARRAY+=("$PID")
+          done <<< "$PIDS"
+
+          # If there are any PIDs found, kill them
+          if [ ${#PIDS_ARRAY[@]} -gt 0 ]; then
+              echo "Killing PIDs: ${PIDS_ARRAY[*]}"
+              for PID in "${PIDS_ARRAY[@]}"; do
+                  kill -2 "$PID"  # Sends SIGINT to gracefully terminate each related process
+              done
+          else
+              echo "No processes found in the same group as ERA_PID: $ERA_PID"
+          fi
 
       - name: Initialize gateway chain
         run: |
