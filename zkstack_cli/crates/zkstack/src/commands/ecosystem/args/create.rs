@@ -53,7 +53,7 @@ impl EcosystemCreateArgs {
         // Make the only chain as a default one
         self.chain.set_as_default = Some(true);
 
-        let chains_path = PathBuf::from(ecosystem_name.clone()).join("chains");
+        let chains_path = PathBuf::from("chains");
 
         let era_chain_id = get_default_era_chain_id();
 
