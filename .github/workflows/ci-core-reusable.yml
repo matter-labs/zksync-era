@@ -22,6 +22,11 @@ jobs:
           submodules: "recursive"
           fetch-depth: 0
 
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lsof
+
       - name: Setup environment
         run: |
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
@@ -302,19 +307,18 @@ jobs:
       
       - name: Shut down Era server (sends the kill command to all era zksync_server proccesses)
         run: |
-          # Check if ports 3071 or 3075 are occupied
-          for PORT in 3071 3075; do
-              nc -z localhost $PORT
-              if [ $? -eq 0 ]; then
-                  PID=$(lsof -ti :$PORT)
-                  if [ -n "$PID" ]; then
-                      echo "Killing process on port $PORT with PID: $PID"
-                      kill -9 "$PID" || true
-                  fi
-              else
-                  echo "Port $PORT is not occupied."
-              fi
-          done
+          # Find the PID using ports 3071 or 3075
+          PIDS=$(lsof -ti :3071 -ti :3075)
+
+          # If any PIDs are found, kill them
+          if [ -n "$PIDS" ]; then
+              echo "Killing process(es) on ports 3071 or 3075 with PID(s): $PIDS"
+              for PID in $PIDS; do
+                  kill -9 "$PID" || true  # Use SIGKILL to ensure termination
+              done
+          else
+              echo "No processes found on ports 3071 or 3075."
+          fi
 
       - name: Initialize gateway chain
         run: |
