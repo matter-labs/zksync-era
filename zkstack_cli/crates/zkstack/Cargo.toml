@@ -55,4 +55,5 @@ anyhow.workspace = true
 clap_complete.workspace = true
 dirs.workspace = true
 ethers.workspace = true
+xshell.workspace = true
 zksync_protobuf_build.workspace = true

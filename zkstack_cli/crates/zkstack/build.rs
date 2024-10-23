@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context};
 use ethers::contract::Abigen;
+use xshell::{cmd, Shell};
 
 const COMPLETION_DIR: &str = "completion";
 
@@ -13,6 +14,11 @@ fn main() -> anyhow::Result<()> {
         .map_err(|_| anyhow!("Failed ABI generation"))?
         .write_to_file(outdir.join("consensus_registry_abi.rs"))
         .context("Failed to write ABI to file")?;
+
+    if let Err(e) = build_dependencies() {
+        println!("cargo:error=It was not possible to install projects dependencies");
+        println!("cargo:error={}", e);
+    }
 
     if let Err(e) = configure_shell_autocompletion() {
         println!("cargo:warning=It was not possible to install autocomplete scripts. Please generate them manually with `zkstack autocomplete`");
@@ -129,4 +135,15 @@ impl ShellAutocomplete for clap_complete::Shell {
 
         Ok(())
     }
+}
+
+fn build_dependencies() -> anyhow::Result<()> {
+    let shell = Shell::new()?;
+    let code_dir = Path::new("../");
+
+    let _dir_guard = shell.push_dir(code_dir);
+
+    cmd!(shell, "yarn install")
+        .run()
+        .context("Failed to install dependencies")
 }
