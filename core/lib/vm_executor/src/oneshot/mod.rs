@@ -18,7 +18,7 @@ use zksync_multivm::{
     interface::{
         executor::{OneshotExecutor, TransactionValidator},
         storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
-        tracer::{ValidationError, ValidationParams},
+        tracer::{ValidationError, ValidationParams, ValidationTraces},
         ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
         StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode, VmInterface,
     },
@@ -145,7 +145,7 @@ where
         env: OneshotEnv,
         tx: L2Tx,
         validation_params: ValidationParams,
-    ) -> anyhow::Result<Result<(), ValidationError>> {
+    ) -> anyhow::Result<Result<ValidationTraces, ValidationError>> {
         anyhow::ensure!(
             env.system.execution_mode == TxExecutionMode::VerifyExecute,
             "Unexpected execution mode for tx validation: {:?} (expected `VerifyExecute`)",
@@ -154,10 +154,11 @@ where
         let execution_latency_histogram = self.execution_latency_histogram;
 
         tokio::task::spawn_blocking(move || {
-            let (validation_tracer, mut validation_result) =
+            let (validation_tracer, mut validation_result, validation_traces) =
                 ValidationTracer::<HistoryDisabled>::new(
                     validation_params,
                     env.system.version.into(),
+                    env.l1_batch.clone(),
                 );
             let tracers = vec![validation_tracer.into_tracer_pointer()];
 
@@ -178,7 +179,7 @@ where
             match (exec_result.result, validation_result) {
                 (_, Err(violated_rule)) => Err(ValidationError::ViolatedRule(violated_rule)),
                 (ExecutionResult::Halt { reason }, _) => Err(ValidationError::FailedTx(reason)),
-                _ => Ok(()),
+                _ => Ok(validation_traces.lock().unwrap().clone()),
             }
         })
         .await

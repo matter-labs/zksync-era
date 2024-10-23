@@ -4,12 +4,18 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use tokio::sync::RwLock;
-use zksync_config::configs::{api::Web3JsonRpcConfig, chain::StateKeeperConfig};
+use zksync_config::configs::{
+    api::Web3JsonRpcConfig,
+    chain::{StateKeeperConfig, TimestampAsserterConfig},
+};
 use zksync_dal::{
     transactions_dal::L2TxSubmissionResult, Connection, ConnectionPool, Core, CoreDal,
 };
 use zksync_multivm::{
-    interface::{OneshotTracingParams, TransactionExecutionMetrics, VmExecutionResultAndLogs},
+    interface::{
+        tracer::TimestampAsserterParams, OneshotTracingParams, TransactionExecutionMetrics,
+        VmExecutionResultAndLogs,
+    },
     utils::{derive_base_fee_and_gas_per_pubdata, get_max_batch_gas_limit},
 };
 use zksync_node_fee_model::{ApiFeeInputProvider, BatchFeeModelInputProvider};
@@ -197,6 +203,13 @@ impl TxSenderBuilder {
             executor_options,
             storage_caches,
             missed_storage_invocation_limit,
+            self.config
+                .timestamp_asserter_address
+                .map(|address| TimestampAsserterParams {
+                    address,
+                    min_range_sec: self.config.timestamp_asserter_min_range_sec,
+                    min_time_till_end_sec: self.config.timestamp_asserter_min_time_till_end_sec,
+                }),
         );
 
         TxSender(Arc::new(TxSenderInner {
@@ -226,6 +239,9 @@ pub struct TxSenderConfig {
     pub validation_computational_gas_limit: u32,
     pub chain_id: L2ChainId,
     pub whitelisted_tokens_for_aa: Vec<Address>,
+    pub timestamp_asserter_address: Option<Address>,
+    pub timestamp_asserter_min_range_sec: u32,
+    pub timestamp_asserter_min_time_till_end_sec: u32,
 }
 
 impl TxSenderConfig {
@@ -234,6 +250,8 @@ impl TxSenderConfig {
         web3_json_config: &Web3JsonRpcConfig,
         fee_account_addr: Address,
         chain_id: L2ChainId,
+        timestamp_asserter_addr: Option<Address>,
+        timestamp_asserter_config: TimestampAsserterConfig,
     ) -> Self {
         Self {
             fee_account_addr,
@@ -245,6 +263,10 @@ impl TxSenderConfig {
                 .validation_computational_gas_limit,
             chain_id,
             whitelisted_tokens_for_aa: web3_json_config.whitelisted_tokens_for_aa.clone(),
+            timestamp_asserter_address: timestamp_asserter_addr,
+            timestamp_asserter_min_range_sec: timestamp_asserter_config.min_range_sec,
+            timestamp_asserter_min_time_till_end_sec: timestamp_asserter_config
+                .min_time_till_end_sec,
         }
     }
 }
@@ -360,7 +382,7 @@ impl TxSender {
         let submission_res_handle = self
             .0
             .tx_sink
-            .submit_tx(&tx, execution_output.metrics)
+            .submit_tx(&tx, execution_output.metrics, validation_result.unwrap())
             .await?;
 
         match submission_res_handle {

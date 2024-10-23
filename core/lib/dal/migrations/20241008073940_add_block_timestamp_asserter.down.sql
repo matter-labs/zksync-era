@@ -1,0 +1,2 @@
+ALTER TABLE transactions DROP COLUMN timestamp_asserter_range_start;
+ALTER TABLE transactions DROP COLUMN timestamp_asserter_range_end;

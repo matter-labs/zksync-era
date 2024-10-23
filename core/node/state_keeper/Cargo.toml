@@ -31,6 +31,8 @@ zksync_node_test_utils.workspace = true
 zksync_vm_executor.workspace = true
 zksync_system_constants.workspace = true
 zksync_base_token_adjuster.workspace = true
+chrono = { workspace = true, features = ["serde"] }
+
 
 anyhow.workspace = true
 async-trait.workspace = true

@@ -1,4 +1,8 @@
-use std::{collections::HashSet, marker::PhantomData, sync::Arc};
+use std::{
+    collections::HashSet,
+    marker::PhantomData,
+    sync::{Arc, Mutex},
+};
 
 use once_cell::sync::OnceCell;
 use zksync_system_constants::{
@@ -9,6 +13,10 @@ use zksync_types::{
     vm::VmVersion, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
 };
 use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};
+use zksync_vm_interface::{
+    tracer::{TimestampAsserterParams, ValidationTraces},
+    L1BatchEnv,
+};
 
 use self::types::{NewTrustedValidationItems, ValidationTracerMode};
 use crate::{
@@ -43,8 +51,11 @@ pub struct ValidationTracer<H> {
     trusted_address_slots: HashSet<(Address, U256)>,
     computational_gas_used: u32,
     computational_gas_limit: u32,
+    timestamp_asserter_params: Option<TimestampAsserterParams>,
     vm_version: VmVersion,
+    l1_batch_env: L1BatchEnv,
     pub result: Arc<OnceCell<ViolatedValidationRule>>,
+    pub traces: Arc<Mutex<ValidationTraces>>,
     _marker: PhantomData<fn(H) -> H>,
 }
 
@@ -54,8 +65,14 @@ impl<H> ValidationTracer<H> {
     pub fn new(
         params: ValidationParams,
         vm_version: VmVersion,
-    ) -> (Self, Arc<OnceCell<ViolatedValidationRule>>) {
+        l1_batch_env: L1BatchEnv,
+    ) -> (
+        Self,
+        Arc<OnceCell<ViolatedValidationRule>>,
+        Arc<Mutex<ValidationTraces>>,
+    ) {
         let result = Arc::new(OnceCell::new());
+        let traces = Arc::new(Mutex::new(ValidationTraces::default()));
         (
             Self {
                 validation_mode: ValidationTracerMode::NoValidation,
@@ -69,11 +86,15 @@ impl<H> ValidationTracer<H> {
                 trusted_address_slots: params.trusted_address_slots,
                 computational_gas_used: 0,
                 computational_gas_limit: params.computational_gas_limit,
+                timestamp_asserter_params: params.timestamp_asserter_params.clone(),
                 vm_version,
                 result: result.clone(),
+                traces: traces.clone(),
                 _marker: Default::default(),
+                l1_batch_env,
             },
             result,
+            traces,
         )
     }
 
@@ -142,6 +163,11 @@ impl<H> ValidationTracer<H> {
             return true;
         }
 
+        // Allow to read any storage slot from the timesttamp asserter contract
+        if self.timestamp_asserter_params.as_ref().map(|x| x.address) == Some(msg_sender) {
+            return true;
+        }
+
         false
     }
 
@@ -189,6 +215,7 @@ impl<H> ValidationTracer<H> {
             trusted_addresses: self.trusted_addresses.clone(),
             trusted_address_slots: self.trusted_address_slots.clone(),
             computational_gas_limit: self.computational_gas_limit,
+            timestamp_asserter_params: self.timestamp_asserter_params.clone(),
         }
     }
 }

@@ -10423,6 +10423,7 @@ dependencies = [
 name = "zksync_mempool"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "tracing",
  "zksync_types",
 ]
@@ -11122,6 +11123,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
+ "chrono",
  "futures 0.3.30",
  "hex",
  "itertools 0.10.5",

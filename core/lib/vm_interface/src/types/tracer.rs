@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fmt};
+use std::{cmp, collections::HashSet, fmt};
 
 use zksync_types::{Address, U256};
 
@@ -57,6 +57,19 @@ pub struct ValidationParams {
     pub trusted_address_slots: HashSet<(Address, U256)>,
     /// Number of computational gas that validation step is allowed to use.
     pub computational_gas_limit: u32,
+    /// Parameters of the timestamp asserter if configured
+    pub timestamp_asserter_params: Option<TimestampAsserterParams>,
+}
+
+#[derive(Debug, Clone)]
+pub struct TimestampAsserterParams {
+    /// Address of the timestamp asserter. This contract is allowed to touch block.timestamp regardless
+    /// of the calling context.
+    pub address: Address,
+    /// Minimum difference in seconds between the range start and range end
+    pub min_range_sec: u32,
+    /// Minimum time between current block.timestamp and the end of the asserted range
+    pub min_time_till_end_sec: u32,
 }
 
 /// Rules that can be violated when validating a transaction.
@@ -70,6 +83,10 @@ pub enum ViolatedValidationRule {
     TouchedDisallowedContext,
     /// The transaction used too much gas during validation.
     TookTooManyComputationalGas(u32),
+    /// The transaction failed block.timestamp assertion because the range is too short
+    TimestampAssertionShortRange,
+    /// The transaction failed block.timestamp assertion because the block.timestamp is too close to the range end
+    TimestampAssertionCloseToRangeEnd,
 }
 
 impl fmt::Display for ViolatedValidationRule {
@@ -91,6 +108,12 @@ impl fmt::Display for ViolatedValidationRule {
                     "Took too many computational gas, allowed limit: {gas_limit}"
                 )
             }
+            ViolatedValidationRule::TimestampAssertionShortRange => {
+                write!(f, "block.timestamp range is too short")
+            }
+            ViolatedValidationRule::TimestampAssertionCloseToRangeEnd => {
+                write!(f, "block.timestamp is too close to the range end")
+            }
         }
     }
 }
@@ -102,6 +125,29 @@ pub enum ValidationError {
     FailedTx(Halt),
     /// Transaction violated one of account validation rules.
     ViolatedRule(ViolatedValidationRule),
+}
+
+/// Traces the validation of a transaction, providing visibility into the aspects the transaction interacts with.
+/// For instance, the `timestamp_asserter_range` represent the range within which the transaction might make
+/// assertions on `block.timestamp`. This information is crucial for the caller, as expired transactions should
+/// be excluded from the mempool.
+#[derive(Debug, Clone, Default)]
+pub struct ValidationTraces {
+    /// Represents a range from-to. Each field is a number of seconds since the epoch.
+    pub timestamp_asserter_range: Option<(i64, i64)>,
+}
+
+impl ValidationTraces {
+    /// Merges two ranges together by taking the maximum of the starts and the minimum of the ends
+    /// resulting into the narrowest possible time window
+    pub fn apply_range(&mut self, new_range: (i64, i64)) {
+        if let Some(mut range) = self.timestamp_asserter_range {
+            range.0 = cmp::max(range.0, new_range.0);
+            range.1 = cmp::min(range.1, new_range.1);
+        } else {
+            self.timestamp_asserter_range = Some(new_range);
+        }
+    }
 }
 
 impl fmt::Display for ValidationError {

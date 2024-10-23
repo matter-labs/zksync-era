@@ -416,3 +416,19 @@ impl Transaction {
         })
     }
 }
+
+#[derive(
+    Clone,
+    Serialize,
+    Deserialize,
+    Debug,
+    Default,
+    Eq,
+    PartialEq,
+    Hash,
+    Copy
+)]
+pub struct TransactionTimeRangeConstraint {
+    /// Represents a range from-to. Each field is a number of seconds since the epoch.
+    pub timestamp_asserter_range: Option<(i64, i64)>,
+}
