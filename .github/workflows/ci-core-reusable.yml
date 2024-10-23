@@ -243,15 +243,6 @@ jobs:
           echo "ZK_L1_ADDRESS=$zkL1Address" >> $GITHUB_ENV
           echo "Extracted ZK L1 Address: $zkL1Address"
       
-      - name: Gracefully shut down Era server
-        run: |
-          ERA_SERVER_PID=$(netstat -tuln | grep :3075 | awk '{print $7}' | cut -d'/' -f1)
-          if [ -n "$ERA_SERVER_PID" ]; then
-              kill -2 $ERA_SERVER_PID
-              echo "Gracefully shutting down Era server with PID: $ERA_SERVER_PID"
-              sleep 5  # Wait for the shutdown to complete
-          fi
-
       - name: Read Custom Token address and set as environment variable
         run: |
           CUSTOM_TOKEN_ADDRESS=$(awk -F": " '/tokens:/ {found_tokens=1} found_tokens && /DAI:/ {found_dai=1} found_dai && /address:/ {print $2; exit}' ./configs/erc20.yaml)
@@ -281,6 +272,8 @@ jobs:
           --prover-db-name=zksync_prover_localhost_validium \
           --chain validium
 
+          ci_run zk_inception chain deploy-and-bridge-zk --chain era --only-funding-tx --verbose
+
       - name: Create and initialize chain with Custom Token
         run: |
           ci_run zk_inception chain create \
@@ -303,6 +296,17 @@ jobs:
           --prover-db-url=postgres://postgres:notsecurepassword@localhost:5432 \
           --prover-db-name=zksync_prover_localhost_custom_token \
           --chain custom_token
+
+          ci_run zk_inception chain deploy-and-bridge-zk --chain era --only-funding-tx --verbose
+      
+      - name: Gracefully shut down Era server
+        run: |
+          ERA_SERVER_PID=$(netstat -tuln | grep :3075 | awk '{print $7}' | cut -d'/' -f1)
+          if [ -n "$ERA_SERVER_PID" ]; then
+              kill -2 $ERA_SERVER_PID
+              echo "Gracefully shutting down Era server with PID: $ERA_SERVER_PID"
+              sleep 5  # Wait for the shutdown to complete
+          fi
 
       - name: Initialize gateway chain
         run: |

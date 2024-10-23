@@ -1,6 +1,7 @@
 use std::{fs, fs::File, io::BufReader, path::PathBuf};
 
 use anyhow::Context;
+use clap::Parser;
 use common::{
     config::global_config,
     forge::{Forge, ForgeScriptArgs},
@@ -15,7 +16,7 @@ use ethers::{
     utils::hex,
 };
 use lazy_static::lazy_static;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use xshell::Shell;
 use zksync_basic_types::{H256, U256, U64};
 use zksync_types::L2ChainId;
@@ -25,6 +26,17 @@ use crate::{
     messages::{MSG_CHAIN_NOT_INITIALIZED, MSG_L1_SECRETS_MUST_BE_PRESENTED},
     utils::forge::{check_the_balance, fill_forge_private_key},
 };
+
+#[derive(Debug, Serialize, Deserialize, Parser)]
+pub struct DeployAndBridgeZKArgs {
+    /// All ethereum environment related arguments
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub forge_args: ForgeScriptArgs,
+
+    #[clap(long)]
+    pub only_funding_tx: bool,
+}
 
 #[derive(Debug, Deserialize)]
 struct JsonData {
@@ -42,7 +54,8 @@ lazy_static! {
             "function run() public",
             "function supplyEraWallet(address addr, uint256 amount) public",
             "function finalizeZkTokenWithdrawal(uint256 chainId, uint256 l2BatchNumber, uint256 l2MessageIndex, uint16 l2TxNumberInBatch, bytes memory message, bytes32[] memory merkleProof) public",
-            "function saveL1Address() public"
+            "function saveL1Address() public",
+            "function fundChainGovernor() public"
         ])
         .unwrap(),
     );
@@ -60,7 +73,7 @@ fn find_latest_json_file(directory: &str) -> Option<PathBuf> {
         })
 }
 
-pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
+pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<()> {
     // Setup
     let ecosystem_config = EcosystemConfig::from_file(shell)?;
 
@@ -101,9 +114,25 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
     .for_network(L2::from(L2ChainId(chain_config.chain_id.0)))
     .build();
 
+    if args.only_funding_tx {
+        let _hash = call_script(
+            shell,
+            args.forge_args.clone(),
+            &DEPLOY_AND_BRIDGE_ZK_TOKEN_INTERFACE
+                .encode("fundChainGovernor", ())
+                .unwrap(),
+            &ecosystem_config,
+            chain_config.get_wallets_config()?.governor_private_key(),
+            l1_url.clone(),
+        )
+        .await?;
+
+        return Ok(());
+    }
+
     let _hash = call_script(
         shell,
-        args.clone(),
+        args.forge_args.clone(),
         &DEPLOY_AND_BRIDGE_ZK_TOKEN_INTERFACE
             .encode(
                 "supplyEraWallet",
@@ -130,7 +159,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let _tx_hash = call_script_era(
         shell,
-        args.clone(),
+        args.forge_args.clone(),
         &calldata,
         &ecosystem_config,
         chain_config.get_wallets_config()?.governor_private_key(),
@@ -183,7 +212,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let _tx_hash = call_script(
         shell,
-        args.clone(),
+        args.forge_args.clone(),
         &calldata,
         &ecosystem_config,
         chain_config.get_wallets_config()?.governor_private_key(),
@@ -199,7 +228,7 @@ pub async fn run(args: ForgeScriptArgs, shell: &Shell) -> anyhow::Result<()> {
 
     let _tx_hash = call_script(
         shell,
-        args,
+        args.forge_args,
         &calldata,
         &ecosystem_config,
         chain_config.get_wallets_config()?.governor_private_key(),

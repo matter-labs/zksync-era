@@ -3,6 +3,7 @@ use args::build_transactions::BuildTransactionsArgs;
 pub(crate) use args::create::ChainCreateArgsFinal;
 use clap::Subcommand;
 pub(crate) use create::create_chain_inner;
+use deploy_and_bridge_zk::DeployAndBridgeZKArgs;
 use migrate_from_gateway::MigrateFromGatewayArgs;
 use migrate_to_gateway::MigrateToGatewayArgs;
 use xshell::Shell;
@@ -60,7 +61,7 @@ pub enum ChainCommands {
     /// Migrate chain from gateway
     MigrateFromGateway(MigrateFromGatewayArgs),
     /// Deploy ZK token on Era and bridge it to L1
-    DeployAndBridgeZK(ForgeScriptArgs),
+    DeployAndBridgeZK(DeployAndBridgeZKArgs),
 }
 
 pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()> {
