@@ -39,8 +39,6 @@ pub struct GatewayEcosystemUpgradeContractsOutput {
     pub diamond_init_max_pubdata_per_batch: u64,
     pub diamond_init_minimal_l2_gas_price: u64,
     pub diamond_init_priority_tx_max_pubdata: u64,
-    // FIXME delete it
-    pub expected_l2_gateway_upgrade: Address,
     pub expected_rollup_l2_da_validator: Address,
     pub expected_validium_l2_da_validator: Address,
 
@@ -58,7 +56,6 @@ pub struct GatewayEcosystemUpgradeContractsOutput {
 pub struct GatewayEcosystemUpgradeDeployedAddresses {
     // TODO: also deploy new chainadmin / access control restriction for the ecosystem
     pub native_token_vault_addr: Address,
-    pub permanent_rollup_restriction: Address,
     pub rollup_l1_da_validator_addr: Address,
     pub validator_timelock_addr: Address,
     pub validium_l1_da_validator_addr: Address,

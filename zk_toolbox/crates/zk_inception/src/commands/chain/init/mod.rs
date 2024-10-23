@@ -6,7 +6,7 @@ use types::{BaseToken, L1BatchCommitmentMode};
 use xshell::Shell;
 
 use crate::{
-    accept_ownership::{accept_admin, set_da_validator_pair},
+    accept_ownership::{accept_admin, make_permanent_rollup, set_da_validator_pair},
     commands::chain::{
         args::init::{
             configs::{InitConfigsArgs, InitConfigsArgsFinal},
@@ -180,6 +180,21 @@ pub async fn init(
     )
     .await?;
     spinner.finish();
+
+    if !validium_mode {
+        println!("Making permanent rollup!");
+        make_permanent_rollup(
+            shell,
+            ecosystem_config,
+            contracts_config.l1.chain_admin_addr,
+            chain_config.get_wallets_config()?.governor_private_key(),
+            contracts_config.l1.diamond_proxy_addr,
+            &init_args.forge_args.clone(),
+            init_args.l1_rpc_url.clone(),    
+        )
+        .await?;
+        println!("Done");
+    }
 
     // Setup legacy bridge - shouldn't be used for new chains (run by L1 Governor)
     if let Some(true) = chain_config.legacy_bridge {

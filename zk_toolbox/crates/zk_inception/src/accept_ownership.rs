@@ -28,6 +28,7 @@ lazy_static! {
             "function governanceAcceptOwner(address governor, address target) public",
             "function chainAdminAcceptAdmin(address admin, address target) public",
             "function setDAValidatorPair(address chainAdmin, address target, address l1DaValidator, address l2DaValidator) public",
+            "function makePermanentRollup(address chainAdmin, address target) public",
             "function governanceExecuteCalls(bytes calldata callsToExecute, address target) public",
             "function adminExecuteUpgrade(bytes memory diamondCut, address adminAddr, address accessControlRestriction, address chainDiamondProxy)",
             "function adminScheduleUpgrade(address adminAddr, address accessControlRestriction, uint256 newProtocolVersion, uint256 timestamp)",
@@ -136,6 +137,44 @@ pub async fn set_da_validator_pair(
         .with_calldata(&calldata);
     accept_ownership(shell, governor, forge).await
 }
+
+
+#[allow(clippy::too_many_arguments)]
+pub async fn make_permanent_rollup(
+    shell: &Shell,
+    ecosystem_config: &EcosystemConfig,
+    chain_admin_addr: Address,
+    governor: Option<H256>,
+    diamond_proxy_address: Address,
+    forge_args: &ForgeScriptArgs,
+    l1_rpc_url: String,
+) -> anyhow::Result<()> {
+    // resume doesn't properly work here.
+    let mut forge_args = forge_args.clone();
+    forge_args.resume = false;
+
+    let calldata = ACCEPT_ADMIN
+        .encode(
+            "makePermanentRollup",
+            (
+                chain_admin_addr,
+                diamond_proxy_address,
+            ),
+        )
+        .unwrap();
+    let foundry_contracts_path = ecosystem_config.path_to_l1_foundry();
+    let forge = Forge::new(&foundry_contracts_path)
+        .script(
+            &ACCEPT_GOVERNANCE_SCRIPT_PARAMS.script(),
+            forge_args.clone(),
+        )
+        .with_ffi()
+        .with_rpc_url(l1_rpc_url)
+        .with_broadcast()
+        .with_calldata(&calldata);
+    accept_ownership(shell, governor, forge).await
+}
+
 
 #[allow(clippy::too_many_arguments)]
 pub async fn governance_execute_calls(
