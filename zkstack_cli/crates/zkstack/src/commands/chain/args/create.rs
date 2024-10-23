@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::{Display, EnumIter, IntoEnumIterator};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
+use xshell::Shell;
 use zksync_basic_types::{L2ChainId, H160};
 
 use crate::{
@@ -25,6 +26,7 @@ use crate::{
         MSG_WALLET_CREATION_PROMPT, MSG_WALLET_CREATION_VALIDATOR_ERR, MSG_WALLET_PATH_HELP,
         MSG_WALLET_PATH_INVALID_ERR, MSG_WALLET_PATH_PROMPT,
     },
+    utils::link_to_code::get_link_to_code,
 };
 
 // We need to duplicate it for using enum inside the arguments
@@ -74,10 +76,12 @@ pub struct ChainCreateArgs {
 impl ChainCreateArgs {
     pub fn fill_values_with_prompt(
         self,
+        shell: &Shell,
         number_of_chains: u32,
         l1_network: Option<L1Network>,
         possible_erc20: Vec<Erc20Token>,
         chains_path: Option<PathBuf>,
+        link_to_code: Option<String>,
         era_chain_id: L2ChainId,
     ) -> anyhow::Result<ChainCreateArgsFinal> {
         let mut chain_name = self
@@ -104,6 +108,8 @@ impl ChainCreateArgs {
                 PromptSelect::new(MSG_L1_NETWORK_PROMPT, L1Network::iter()).ask()
             })
         });
+
+        let link_to_code = link_to_code.unwrap_or_else(|| get_link_to_code(shell));
 
         let wallet_creation = if let Some(wallet) = self.wallet_creation {
             if wallet == WalletCreation::Localhost && l1_network != L1Network::Localhost {
@@ -243,6 +249,7 @@ impl ChainCreateArgs {
             era_chain_id,
             number_of_chains,
             l1_network,
+            link_to_code,
         })
     }
 }
@@ -262,6 +269,7 @@ pub struct ChainCreateArgsFinal {
     pub era_chain_id: L2ChainId,
     pub number_of_chains: u32,
     pub l1_network: L1Network,
+    pub link_to_code: String,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]

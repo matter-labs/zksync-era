@@ -15,6 +15,7 @@ use crate::{
         MSG_ARGS_VALIDATOR_ERR, MSG_CHAIN_CREATED, MSG_CREATING_CHAIN,
         MSG_CREATING_CHAIN_CONFIGURATIONS_SPINNER, MSG_SELECTED_CONFIG,
     },
+    utils::link_to_code::resolve_link_to_code,
 };
 
 pub fn run(args: ChainCreateArgs, shell: &Shell) -> anyhow::Result<()> {
@@ -42,17 +43,24 @@ fn create(
         .map(|ecosystem| ecosystem.l1_network.clone());
 
     let chains_path = ecosystem.as_ref().map(|ecosystem| ecosystem.chains.clone());
+
     let era_chain_id = ecosystem
         .as_ref()
         .map(|ecosystem| ecosystem.era_chain_id)
         .unwrap_or(get_default_era_chain_id());
 
+    let link_to_code = ecosystem
+        .as_ref()
+        .map(|ecosystem| ecosystem.link_to_code.clone().display().to_string());
+
     let args = args
         .fill_values_with_prompt(
+            shell,
             number_of_chains,
             l1_network,
             possible_erc20,
             chains_path,
+            link_to_code,
             era_chain_id,
         )
         .context(MSG_ARGS_VALIDATOR_ERR)?;
@@ -64,9 +72,11 @@ fn create(
     let name = args.chain_name.clone();
     let set_as_default = args.set_as_default;
     create_chain_inner(args, shell)?;
-    if set_as_default {
-        ecosystem_config.default_chain = name;
-        ecosystem_config.save_with_base_path(shell, ".")?;
+    if let Some(ecosystem) = ecosystem {
+        if set_as_default {
+            ecosystem.default_chain = name;
+            ecosystem.save_with_base_path(shell, ".")?;
+        }
     }
     spinner.finish();
 
@@ -89,6 +99,7 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
         (L2ChainId::from(args.chain_id), None)
     };
     let internal_id = args.number_of_chains;
+    let link_to_code = resolve_link_to_code(shell, args.link_to_code.clone())?;
 
     let chain_config = ChainConfig {
         id: internal_id,
@@ -96,7 +107,7 @@ pub(crate) fn create_chain_inner(args: ChainCreateArgsFinal, shell: &Shell) -> a
         chain_id,
         prover_version: args.prover_version,
         l1_network: args.l1_network,
-        link_to_code: ecosystem_config.link_to_code.clone(),
+        link_to_code,
         rocks_db_path: ecosystem_config.get_chain_rocks_db_path(&default_chain_name),
         artifacts: ecosystem_config.get_chain_artifacts_path(&default_chain_name),
         configs: chain_configs_path.clone(),
