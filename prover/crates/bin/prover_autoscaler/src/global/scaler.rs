@@ -8,6 +8,7 @@ use zksync_config::configs::prover_autoscaler::{Gpu, ProverAutoscalerScalerConfi
 
 use super::{queuer, watcher};
 use crate::{
+    agent::{ScaleDeploymentRequest, ScaleRequest},
     cluster_types::{Cluster, Clusters, Pod, PodStatus},
     metrics::AUTOSCALER_METRICS,
     task_wiring::Task,
@@ -47,6 +48,16 @@ static PROVER_DEPLOYMENT_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^circuit-prover-gpu(-(?<gpu>[ltvpa]\d+))?$").unwrap());
 static PROVER_POD_RE: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^circuit-prover-gpu(-(?<gpu>[ltvpa]\d+))?").unwrap());
+
+/// gpu_to_prover converts Gpu type to corresponding deployment name.
+fn gpu_to_prover(gpu: Gpu) -> String {
+    let s = "circuit-prover-gpu";
+    match gpu {
+        Gpu::Unknown => "".into(),
+        Gpu::L4 => s.into(),
+        _ => format!("{}-{}", s, gpu.to_string().to_lowercase()),
+    }
+}
 
 pub struct Scaler {
     /// namespace to Protocol Version configuration.
@@ -299,6 +310,47 @@ impl Scaler {
     }
 }
 
+fn diff(
+    namespace: &str,
+    provers: HashMap<GPUPoolKey, u32>,
+    clusters: &Clusters,
+    requests: &mut HashMap<String, ScaleRequest>,
+) {
+    provers
+        .into_iter()
+        .for_each(|(GPUPoolKey { cluster, gpu }, n)| {
+            let prover = gpu_to_prover(gpu);
+            clusters
+                .clusters
+                .get(&cluster)
+                .and_then(|c| c.namespaces.get(namespace))
+                .and_then(|ns| ns.deployments.get(&prover))
+                .map_or_else(
+                    || {
+                        tracing::error!(
+                            "Wasn't able to find deployment {} in cluster {}, namespace {}",
+                            prover,
+                            cluster,
+                            namespace
+                        )
+                    },
+                    |d| {
+                        if d.desired != n as i32 {
+                            requests
+                                .entry(cluster.clone())
+                                .or_default()
+                                .deployments
+                                .push(ScaleDeploymentRequest {
+                                    namespace: namespace.into(),
+                                    name: prover.clone(),
+                                    size: n as i32,
+                                });
+                        }
+                    },
+                );
+        })
+}
+
 /// is_namespace_running returns true if there are some pods running in it.
 fn is_namespace_running(namespace: &str, clusters: &Clusters) -> bool {
     clusters
@@ -309,7 +361,7 @@ fn is_namespace_running(namespace: &str, clusters: &Clusters) -> bool {
         .flat_map(|v| v.deployments.values())
         .map(
             |d| d.running + d.desired, // If there is something running or expected to run, we
-                                       // should consider the namespace.
+                                       // should re-evaluate the namespace.
         )
         .sum::<i32>()
         > 0
@@ -320,24 +372,32 @@ impl Task for Scaler {
     async fn invoke(&self) -> anyhow::Result<()> {
         let queue = self.queuer.get_queue().await.unwrap();
 
-        let guard = self.watcher.data.lock().await;
-        if let Err(err) = watcher::check_is_ready(&guard.is_ready) {
-            AUTOSCALER_METRICS.clusters_not_ready.inc();
-            tracing::warn!("Skipping Scaler run: {}", err);
-            return Ok(());
-        }
-
-        for (ns, ppv) in &self.namespaces {
-            let q = queue.queue.get(ppv).cloned().unwrap_or(0);
-            tracing::debug!("Running eval for namespace {ns} and PPV {ppv} found queue {q}");
-            if q > 0 || is_namespace_running(ns, &guard.clusters) {
-                let provers = self.run(ns, q, &guard.clusters);
-                for (k, num) in &provers {
-                    AUTOSCALER_METRICS.provers[&(k.cluster.clone(), ns.clone(), k.gpu)]
-                        .set(*num as u64);
-                }
-                // TODO: compare before and desired, send commands [cluster,namespace,deployment] -> provers
+        let mut scale_requests: HashMap<String, ScaleRequest> = HashMap::new();
+        {
+            let guard = self.watcher.data.lock().await; // Keeping the lock during all calls of run() for
+                                                        // consitency.
+            if let Err(err) = watcher::check_is_ready(&guard.is_ready) {
+                AUTOSCALER_METRICS.clusters_not_ready.inc();
+                tracing::warn!("Skipping Scaler run: {}", err);
+                return Ok(());
             }
+
+            for (ns, ppv) in &self.namespaces {
+                let q = queue.queue.get(ppv).cloned().unwrap_or(0);
+                tracing::debug!("Running eval for namespace {ns} and PPV {ppv} found queue {q}");
+                if q > 0 || is_namespace_running(ns, &guard.clusters) {
+                    let provers = self.run(ns, q, &guard.clusters);
+                    for (k, num) in &provers {
+                        AUTOSCALER_METRICS.provers[&(k.cluster.clone(), ns.clone(), k.gpu)]
+                            .set(*num as u64);
+                    }
+                    diff(ns, provers, &guard.clusters, &mut scale_requests);
+                }
+            }
+        } // Unlock self.watcher.data.
+
+        if let Err(err) = self.watcher.send_scale(scale_requests).await {
+            tracing::error!("Failed scale request: {}", err);
         }
 
         Ok(())
@@ -401,6 +461,7 @@ mod tests {
                         },
                     )]
                     .into(),
+                    ..Default::default()
                 },
             ),
             [(
@@ -467,6 +528,7 @@ mod tests {
                         )
                     ]
                     .into(),
+                    ..Default::default()
                 },
             ),
             [
@@ -552,6 +614,7 @@ mod tests {
                         )
                     ]
                     .into(),
+                    ..Default::default()
                 },
             ),
             [
@@ -662,6 +725,7 @@ mod tests {
                         )
                     ]
                     .into(),
+                    ..Default::default()
                 },
             ),
             [
