@@ -30,6 +30,16 @@ zkstackup  --local
 
 This command installs `zkstack` from the current repository.
 
+#### Manual installation
+
+Run from the repository root:
+
+```bash
+cargo install --path zkstack_cli/crates/zkstack --force --locked
+```
+
+And make sure that `.cargo/bin` is included into `PATH`.
+
 ### Foundry Integration
 
 Foundry is used for deploying smart contracts. Pass flags for Foundry integration with the `-a` option, e.g.,

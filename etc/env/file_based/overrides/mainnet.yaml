@@ -1,5 +1,6 @@
 state_keeper:
-  block_commit_deadline_ms: 3600000
+  # Default batch seal time deadline: 8 hours
+  block_commit_deadline_ms: 28000000
   minimal_l2_gas_price: 45250000
 eth:
   sender:
