@@ -69,13 +69,13 @@ impl Watcher {
             let guard = self.data.lock().await;
             id_requests = requests
                 .into_iter()
-                .filter_map(|(cluster, sr)| {
+                .filter_map(|(cluster, scale_request)| {
                     guard.clusters.agent_ids.get(&cluster).map_or_else(
                         || {
                             tracing::error!("Failed to find id for cluster {}", cluster);
                             None
                         },
-                        |id| Some((*id, sr)),
+                        |id| Some((*id, scale_request)),
                     )
                 })
                 .collect();
@@ -123,7 +123,7 @@ impl Watcher {
                     let (id, res) = h??;
 
                     let errors: Vec<_> = res
-                        .unwrap()
+                        .expect("failed to do request to Agent")
                         .scale_result
                         .iter()
                         .filter_map(|e| {
