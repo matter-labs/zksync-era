@@ -6,7 +6,6 @@ use reqwest::{
     header::{HeaderMap, HeaderValue, CONTENT_TYPE},
     Method,
 };
-
 use tokio::sync::Mutex;
 use url::Url;
 use zksync_utils::http_with_retries::send_request_with_retries;
