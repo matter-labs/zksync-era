@@ -49,7 +49,7 @@ da_client:
       wait_for_finalization: false
 ```
 
-2. Add `eigenda-proxy` to the `docker-compose.yml` file:
+2. OLD: Add `eigenda-proxy` to the `docker-compose.yml` file:
 
 ```yaml
 eigenda-proxy:
@@ -59,11 +59,19 @@ eigenda-proxy:
   command: ./eigenda-proxy --addr 0.0.0.0 --port 4242 --memstore.enabled --eigenda-max-blob-length "2MiB"
 ```
 
+2. NEW (temporary): Add eigenda proxy layer to the default components in `core/bin/zksync_server/src/node_builder.rs`:
+
+````rs
+.add_gas_adjuster_layer()?
+.add_eigenda_proxy_layer()?;
+```
+(line 696)
+
 3. (optional) for using pubdata with 2MiB (as per specification), modify `etc/env/file_based/general.yaml`:
 
 ```yaml
 max_pubdata_per_batch: 2097152
-```
+````
 
 ## Local Setup
 
