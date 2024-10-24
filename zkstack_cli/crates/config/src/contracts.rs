@@ -1,4 +1,4 @@
-use ethers::types::{Address, Bytes, H256};
+use ethers::types::{Address, H256};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -80,27 +80,18 @@ impl ContractsConfig {
         &mut self,
         output: &deploy_l2_contracts::output::Output,
     ) {
-        if let Some(addr) = output.l2_shared_bridge_proxy {
-            self.bridges.shared.l2_address = Some(addr);
-            self.bridges.erc20.l2_address = Some(addr);
-            self.l2.shared_bridge_proxy_constructor_data = output.l2_shared_bridge_proxy_constructor_data.clone();
+        if let Some(spec) = &output.l2_shared_bridge_proxy {
+            self.bridges.shared.l2_address = Some(spec.address);
+            self.bridges.erc20.l2_address = Some(spec.address);
         }
-        if let Some(addr) = output.l2_shared_bridge_implementation {
-            self.l2.shared_bridge_implementation = Some(addr);
-            self.l2.shared_bridge_implementation_constructor_data = output.l2_shared_bridge_implementation_constructor_data.clone();
+        if let Some(spec) = &output.l2_consensus_registry_proxy {
+            self.l2.consensus_registry = Some(spec.address);
         }
-        if let Some(addr) = output.l2_consensus_registry_implementation {
-            self.l2.consensus_registry_implementation = Some(addr);
+        if let Some(spec) = &output.l2_force_deploy_upgrader {
+            self.l2.default_l2_upgrader = spec.address;
         }
-        if let Some(addr) = output.l2_consensus_registry_proxy {
-            self.l2.consensus_registry = Some(addr);
-            self.l2.consensus_registry_proxy_constructor_data = output.l2_consensus_registry_proxy_constructor_data.clone();
-        }
-        if let Some(addr) = output.l2_force_deploy_upgrader {
-            self.l2.default_l2_upgrader = addr;
-        }
-        if let Some(addr) = output.l2_multicall3 {
-            self.l2.multicall3 = Some(addr);
+        if let Some(spec) = &output.l2_multicall3 {
+            self.l2.multicall3 = Some(spec.address);
         }
     }
 }
@@ -152,11 +143,6 @@ pub struct L1Contracts {
 pub struct L2Contracts {
     pub testnet_paymaster_addr: Address,
     pub default_l2_upgrader: Address,
-    pub shared_bridge_implementation: Option<Address>,
-    pub shared_bridge_implementation_constructor_data: Option<Bytes>,
-    pub shared_bridge_proxy_constructor_data: Option<Bytes>,
     pub consensus_registry: Option<Address>,
-    pub consensus_registry_implementation: Option<Address>,
-    pub consensus_registry_proxy_constructor_data: Option<Bytes>,
     pub multicall3: Option<Address>,
 }

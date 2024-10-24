@@ -30,6 +30,7 @@ pub struct Verifier {
     pub verifier_url: url::Url,
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ContractSpec {
     pub name: String,
     pub address: ethers::types::Address,
@@ -37,13 +38,13 @@ pub struct ContractSpec {
 }
 
 impl Verifier {
-    pub async fn verify_l2_contract(&self, shell: &Shell, c: ContractSpec) -> anyhow::Result<()> {
+    pub async fn verify_l2_contract(&self, shell: &Shell, spec: &ContractSpec) -> anyhow::Result<()> {
         let _dir_guard = shell.push_dir(self.link_to_code.join("contracts/l2-contracts"));
         let rpc_url = self.rpc_url.to_string();
         let verifier_url = self.verifier_url.to_string();
-        let address = format!("{:#x}",&c.address);
-        let name = c.name.clone();
-        let constructor_args = c.constructor_args.to_string();
+        let address = format!("{:#x}",&spec.address);
+        let name = spec.name.clone();
+        let constructor_args = spec.constructor_args.to_string();
         Ok(Cmd::new(cmd!(shell, "forge verify-contract --zksync --verifier z-ksync --rpc-url {rpc_url} --verifier-url {verifier_url} {address} {name} --constructor-args {constructor_args}")).run()?)
     }
 }

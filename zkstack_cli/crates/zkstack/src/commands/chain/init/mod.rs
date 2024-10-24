@@ -137,14 +137,14 @@ pub async fn init(
     }
 
     // Deploy L2 contracts: L2SharedBridge, L2DefaultUpgrader, ... (run by L1 Governor)
-    deploy_l2_contracts::Contracts::all()
+    let output = deploy_l2_contracts::Contracts::all()
         .build_and_deploy(
             shell,
             init_args.forge_args.clone(),
             &chain_config,
             &ecosystem_config,
-            &mut contracts_config,
         ).await.context("build_and_deploy()")?;
+    contracts_config.set_l2_contracts(&output);
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 
     // Setup legacy bridge - shouldn't be used for new chains (run by L1 Governor)
