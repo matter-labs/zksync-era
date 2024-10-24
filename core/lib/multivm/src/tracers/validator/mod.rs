@@ -137,11 +137,15 @@ impl<H> ValidationTracer<H> {
         }
 
         // The user is allowed to touch its own slots or slots semantically related to him.
+        let from = u256_to_h256(key.saturating_sub(Self::MAX_ALLOWED_SLOT_OFFSET.into()));
+        let to = u256_to_h256(key);
         let valid_users_slot = address == self.user_address
-            || u256_to_account_address(&key) == self.user_address
+            // we don't allow dirty bytes in front of the address
+            || key < U256::from(2).pow(160.into())
+                && u256_to_account_address(&key) == self.user_address
             || self
                 .auxilary_allowed_slots
-                .range(u256_to_h256(key - Self::MAX_ALLOWED_SLOT_OFFSET)..=u256_to_h256(key))
+                .range(from..=to)
                 .next()
                 .is_some();
         if valid_users_slot {
