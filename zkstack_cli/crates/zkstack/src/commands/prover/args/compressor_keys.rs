@@ -1,5 +1,7 @@
 use clap::Parser;
+use clap::ValueEnum;
 use common::Prompt;
+use strum::EnumIter;
 
 use crate::messages::MSG_SETUP_COMPRESSOR_KEY_PATH_PROMPT;
 
@@ -7,6 +9,15 @@ use crate::messages::MSG_SETUP_COMPRESSOR_KEY_PATH_PROMPT;
 pub struct CompressorKeysArgs {
     #[clap(long)]
     pub path: Option<String>,
+    #[clap(long, default_value = "plonk")]
+    pub compressor_type: CompressorType,
+}
+
+#[derive(Debug, Clone, ValueEnum, EnumIter, strum::Display, PartialEq, Eq, Default)]
+pub enum CompressorType {
+    Fflonk,
+    #[default]
+    Plonk,
 }
 
 impl CompressorKeysArgs {
@@ -17,6 +28,9 @@ impl CompressorKeysArgs {
                 .ask()
         });
 
-        CompressorKeysArgs { path: Some(path) }
+        CompressorKeysArgs {
+            path: Some(path),
+            ..self
+        }
     }
 }

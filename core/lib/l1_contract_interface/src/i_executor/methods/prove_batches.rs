@@ -1,4 +1,7 @@
-use crypto_codegen::serialize_proof;
+use fflonk::{
+    bellman::{bn256, bn256::Fr, CurveAffine, Engine, PrimeField, PrimeFieldRepr},
+    FflonkSnarkVerifierCircuitProof,
+};
 use zksync_prover_interface::outputs::L1BatchProofForL1;
 use zksync_types::{commitment::L1BatchWithMetadata, ethabi::Token, U256};
 
@@ -28,13 +31,21 @@ impl Tokenize for &ProveBatches {
             assert_eq!(self.proofs.len(), 1);
             assert_eq!(self.l1_batches.len(), 1);
 
-            let L1BatchProofForL1 {
-                aggregation_result_coords,
-                scheduler_proof,
-                ..
-            } = self.proofs.first().unwrap();
+            let (proof, aggregation_result_coords) = match self.proofs.first().unwrap() {
+                L1BatchProofForL1::Fflonk(proof) => {
+                    let scheduler_proof = proof.scheduler_proof.clone();
 
-            let (_, proof) = serialize_proof(scheduler_proof);
+                    let serialized_proof = serialize_evm(&scheduler_proof);
+                    (serialized_proof, proof.aggregation_result_coords)
+                }
+                L1BatchProofForL1::Plonk(_proof) => {
+                    unreachable!("Plonk proof support is not enabled yet")
+                    // todo: this produces type conflicts. Uncomment and check the work of the code after dependencies are merged to main
+                    // let (_, serialized_proof) = serialize_proof(&proof.scheduler_proof);
+                    //
+                    // (serialized_proof, proof.aggregation_result_coords)
+                }
+            };
 
             let aggregation_result_coords = if self.l1_batches[0]
                 .header
@@ -65,4 +76,55 @@ impl Tokenize for &ProveBatches {
             ]
         }
     }
+}
+
+fn serialize_fe_for_ethereum(field_element: &Fr) -> U256 {
+    let mut be_bytes = [0u8; 32];
+    field_element
+        .into_repr()
+        .write_be(&mut be_bytes[..])
+        .expect("get new root BE bytes");
+    U256::from_big_endian(&be_bytes[..])
+}
+
+fn serialize_g1_for_ethereum(point: &<bn256::Bn256 as Engine>::G1Affine) -> (U256, U256) {
+    if <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::is_zero(point) {
+        return (U256::zero(), U256::zero());
+    }
+
+    let (x, y) = <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::into_xy_unchecked(*point);
+    let _ = <<bn256::Bn256 as Engine>::G1Affine as CurveAffine>::from_xy_checked(x, y).unwrap();
+
+    let mut buffer = [0u8; 32];
+    x.into_repr().write_be(&mut buffer[..]).unwrap();
+    let x = U256::from_big_endian(&buffer);
+
+    let mut buffer = [0u8; 32];
+    y.into_repr().write_be(&mut buffer[..]).unwrap();
+    let y = U256::from_big_endian(&buffer);
+
+    (x, y)
+}
+
+fn serialize_evm(proof: &FflonkSnarkVerifierCircuitProof) -> Vec<U256> {
+    let mut serialized_proof = vec![];
+    for input in proof.inputs.iter() {
+        serialized_proof.push(serialize_fe_for_ethereum(input));
+    }
+
+    for c in proof.commitments.iter() {
+        let (x, y) = serialize_g1_for_ethereum(c);
+        serialized_proof.push(x);
+        serialized_proof.push(y);
+    }
+
+    for el in proof.evaluations.iter() {
+        serialized_proof.push(serialize_fe_for_ethereum(el));
+    }
+
+    for el in proof.lagrange_basis_inverses.iter() {
+        serialized_proof.push(serialize_fe_for_ethereum(el));
+    }
+
+    serialized_proof
 }

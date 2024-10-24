@@ -22,6 +22,8 @@ use super::{
     init_bellman_cuda::run as init_bellman_cuda,
     setup_keys,
 };
+use crate::commands::prover::args::compressor_keys::CompressorType;
+use crate::consts::{FFLONK_COMPACT_CRS_KEY, FFLONK_CRS_KEY, PLONK_CRS_KEY};
 use crate::{
     commands::prover::args::init::ProofStorageFileBacked,
     consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
@@ -55,8 +57,30 @@ pub(crate) async fn run(args: ProverInitArgs, shell: &Shell) -> anyhow::Result<(
     let public_object_store_config = get_object_store_config(shell, args.public_store)?;
 
     if let Some(args) = args.compressor_key_args {
-        let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;
-        download_compressor_key(shell, &mut general_config, &path)?;
+        match args.compressor_type {
+            CompressorType::Fflonk => {
+                download_compressor_key(
+                    shell,
+                    &mut general_config,
+                    FFLONK_CRS_KEY,
+                    &args.clone().path.context(MSG_SETUP_KEY_PATH_ERROR)?,
+                )?;
+                download_compressor_key(
+                    shell,
+                    &mut general_config,
+                    FFLONK_COMPACT_CRS_KEY,
+                    &args.path.context(MSG_SETUP_KEY_PATH_ERROR)?,
+                )?;
+            }
+            CompressorType::Plonk => {
+                download_compressor_key(
+                    shell,
+                    &mut general_config,
+                    PLONK_CRS_KEY,
+                    &args.path.context(MSG_SETUP_KEY_PATH_ERROR)?,
+                )?;
+            }
+        }
     }
 
     if let Some(args) = args.setup_keys {

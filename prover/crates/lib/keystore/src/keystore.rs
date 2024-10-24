@@ -6,17 +6,21 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
+use circuit_definitions::circuit_definitions::aux_layer::{
+    ZkSyncCompressionProof, ZkSyncCompressionVerificationKey,
+};
 use circuit_definitions::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     circuit_definitions::{
-        aux_layer::ZkSyncSnarkWrapperVK,
+        aux_layer::{compression_modes::CompressionTreeHasherForWrapper, ZkSyncSnarkWrapperVK},
         base_layer::ZkSyncBaseLayerVerificationKey,
         recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionLayerVerificationKey},
     },
     zkevm_circuits::scheduler::aux::BaseLayerCircuitType,
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use shivini::cs::GpuProverSetupData;
 use zkevm_test_harness::data_source::{in_memory_data_source::InMemoryDataSource, SetupDataSource};
 use zksync_basic_types::basic_fri_types::AggregationRound;
 use zksync_prover_fri_types::ProverServiceDataKey;
@@ -31,6 +35,7 @@ pub enum ProverServiceDataType {
     VerificationKey,
     SetupData,
     FinalizationHints,
+    CompressionWrapper,
     SnarkVerificationKey,
 }
 
@@ -122,6 +127,9 @@ impl Keystore {
             ProverServiceDataType::SnarkVerificationKey => self
                 .basedir
                 .join(format!("snark_verification_{}_key.json", name)),
+            ProverServiceDataType::CompressionWrapper => {
+                self.basedir.join("compression_wrapper_setup_data.bin")
+            }
         }
     }
 
@@ -301,6 +309,31 @@ impl Keystore {
         bincode::deserialize::<GoldilocksGpuProverSetupData>(&buffer).with_context(|| {
             format!("Failed deserializing setup-data at path: {filepath:?} for circuit: {key:?}")
         })
+    }
+
+    pub fn load_compression_wrapper_setup_data(
+        &self,
+    ) -> anyhow::Result<GpuProverSetupData<CompressionTreeHasherForWrapper>> {
+        let filepath = self.get_file_path(
+            // todo: this is a stub and I believe it should be reworked
+            ProverServiceDataKey::snark(),
+            ProverServiceDataType::CompressionWrapper,
+        );
+
+        let mut file = File::open(filepath.clone())
+            .with_context(|| format!("Failed reading setup-data from path: {filepath:?}"))?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).with_context(|| {
+            format!("Failed reading setup-data to buffer from path: {filepath:?}")
+        })?;
+        tracing::info!(
+            "loading compression wrapper setup data from path: {:?}",
+            filepath
+        );
+        bincode::deserialize::<GpuProverSetupData<CompressionTreeHasherForWrapper>>(&buffer)
+            .with_context(|| {
+                format!("Failed deserializing compression wrapper setup data at path: {filepath:?}")
+            })
     }
 
     pub fn is_setup_data_present(&self, key: &ProverServiceDataKey) -> bool {
@@ -513,5 +546,37 @@ impl Keystore {
             mapping.insert(key, setup_data);
         }
         Ok(mapping)
+    }
+
+    pub fn save_setup_data_for_fflonk(
+        &self,
+        setup_data: GpuProverSetupData<CompressionTreeHasherForWrapper>,
+    ) -> anyhow::Result<()> {
+        let filepath = self.basedir.join("compression_wrapper_setup_data.bin");
+        tracing::info!(
+            "saving FFLONK compression wrapper setup data to: {:?}",
+            filepath
+        );
+        let serialized_setup_data = bincode::serialize(&setup_data)?;
+        fs::write(filepath.clone(), serialized_setup_data)
+            .with_context(|| format!("Failed saving setup data at path: {filepath:?}"))
+    }
+
+    pub fn load_example_compression_proof(&self) -> anyhow::Result<ZkSyncCompressionProof> {
+        let mut path = self.basedir.clone();
+        // after this step should go to /data dir
+        path.pop();
+        let bytes = fs::read(path.join("compression/compression_proof.bin"))?;
+
+        bincode::deserialize(&bytes).map_err(|e| anyhow!(e))
+    }
+
+    pub fn load_compression_vk(&self) -> anyhow::Result<ZkSyncCompressionVerificationKey> {
+        let mut path = self.basedir.clone();
+
+        path.pop();
+        let bytes = fs::read(path.join("compression/compression_vk.bin"))?;
+
+        bincode::deserialize(&bytes).map_err(|e| anyhow!(e))
     }
 }

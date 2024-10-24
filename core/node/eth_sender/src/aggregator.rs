@@ -515,8 +515,11 @@ pub async fn load_wrapped_fri_proofs_for_range(
     allowed_versions: &[ProtocolSemanticVersion],
 ) -> Option<L1BatchProofForL1> {
     for version in allowed_versions {
-        match blob_store.get((l1_batch_number, *version)).await {
-            Ok(proof) => return Some(proof),
+        match blob_store
+            .get::<L1BatchProofForL1>((l1_batch_number, *version))
+            .await
+        {
+            Ok(proof) => return Some(proof.into()),
             Err(ObjectStoreError::KeyNotFound(_)) => (), // do nothing, proof is not ready yet
             Err(err) => panic!(
                 "Failed to load proof for batch {}: {}",
