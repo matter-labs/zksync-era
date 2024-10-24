@@ -54,12 +54,6 @@ access it at `http://127.0.0.1:3000/` under credentials `admin/admin`.
 > If you don't see any data displayed on the Grafana dashboards - try setting the timeframe to "Last 30 minutes". You
 > will also have to have `jq` installed on your system.
 
-## (Re)deploy db and contracts
-
-```
-zkstack dev contracts
-```
-
 ## Ecosystem Configuration
 
 Ecosystem configuration can be found in:
