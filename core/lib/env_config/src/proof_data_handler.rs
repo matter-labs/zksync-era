@@ -28,6 +28,7 @@ mod tests {
             tee_config: TeeConfig {
                 tee_support: true,
                 first_tee_processed_batch: L1BatchNumber(1337),
+                tee_proof_generation_timeout_in_secs: 600,
             },
         }
     }
@@ -39,6 +40,7 @@ mod tests {
             PROOF_DATA_HANDLER_HTTP_PORT="3320"
             PROOF_DATA_HANDLER_TEE_SUPPORT="true"
             PROOF_DATA_HANDLER_FIRST_TEE_PROCESSED_BATCH="1337"
+            PROOF_DATA_HANDLER_TEE_PROOF_GENERATION_TIMEOUT_IN_SECS="600"
         "#;
         let mut lock = MUTEX.lock();
         lock.set_env(config);
