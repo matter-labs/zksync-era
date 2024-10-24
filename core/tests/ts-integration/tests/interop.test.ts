@@ -1,5 +1,5 @@
 /**
- * This suite contains tests checking default ERC-20 contract behavior.
+ * This suite contains tests checking interop behavior.
  */
 
 import * as fs from 'fs';
@@ -8,9 +8,9 @@ import { TestMaster } from '../src/index';
 import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers-interop-support';
-import { Wallet } from 'ethers';
 import * as ethers from 'ethers';
-import { scaledGasPrice, deployContract } from '../src/helpers';
+import { Wallet } from 'ethers';
+import { scaledGasPrice, deployContract, waitForBlockToBeFinalizedOnL1 } from '../src/helpers';
 
 import {
     L2_ASSET_ROUTER_ADDRESS,
@@ -20,472 +20,694 @@ import {
     L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
     BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI,
     ETH_ADDRESS_IN_CONTRACTS,
-    L2_LOG_STRING
+    L2_LOG_STRING,
+    ARTIFACTS_PATH
 } from '../src/constants';
 import { RetryProvider } from '../src/retry-provider';
-// import { waitForBlockToBeFinalizedOnL1, waitUntilBlockFinalized } from '../src/helpers';
 
-export function readContract(path: string, fileName: string, contractName?: string) {
+// Read contract ABIs
+function readContract(path: string, fileName: string, contractName?: string) {
     contractName = contractName || fileName;
     return JSON.parse(fs.readFileSync(`${path}/${fileName}.sol/${contractName}.json`, { encoding: 'utf-8' }));
 }
 
-const bridgehubInterface = readContract(
-    '../../../contracts/l1-contracts/artifacts/contracts/bridgehub',
-    'Bridgehub'
-).abi;
+const ArtifactBridgeHub = readContract(`${ARTIFACTS_PATH}bridgehub`, 'Bridgehub');
+const ArtifactNativeTokenVault = readContract(`${ARTIFACTS_PATH}bridge/ntv`, 'L2NativeTokenVault');
+const ArtifactMintableERC20 = readContract(
+    '../../../contracts/l1-contracts/artifacts-zk/contracts/dev-contracts',
+    'TestnetERC20Token'
+);
+const l1AssetRouterInterface = readContract(`${ARTIFACTS_PATH}/bridge/asset-router`, 'L1AssetRouter').abi;
+const ArtifactSwap = readContract('./artifacts-zk/contracts/Swap', 'Swap');
 
+const richPk = '0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110';
 
-const ntvInterface = readContract(
-    '../../../contracts/l1-contracts/artifacts/contracts/bridge/ntv',
-    'L2NativeTokenVault'
-).abi;
-
-const l1Erc20ABI = [
-    'function mint(address to, uint256 amount)',
-    'function approve(address spender, uint256 value)',
-    'function balanceOf(address account) view returns (uint256)',
-    'function allowance(address owner, address spender) view returns (uint256)'
-];
-
+// Constants
 const INTEROP_TX_TYPE = 253;
-const INTEROP_TX_TYPE_BIG_INT = 253n;
 
 describe('Interop checks', () => {
     let testMaster: TestMaster;
-    let alice: zksync.Wallet;
-    let bob: zksync.Wallet;
-    let aliceOtherChain: zksync.Wallet;
-    let bobOtherChain: zksync.Wallet;
-    let richWallet: zksync.Wallet;
-    let l2ProviderOtherChain: RetryProvider;
-    let l2Wallet: Wallet;
-    let sendingChainId = 271;
-    // let secondChainId = 272;
-    let secondChainId = 505;
-    let l1Bridgehub: ethers.Contract;
-    let tokenDetails: Token;
-    let assetId: string;
-    let zkAssetId: string;
-    let bridgehub: ethers.Contract;
-    let l2NativeTokenVault: ethers.Contract;
-    let l2NativeTokenVaultOtherChain: ethers.Contract;
-    let tokenAddressOtherChain: string;
+
+    // L1 Variables
+    let l1_provider: ethers.Provider;
+    let l1_wallet: zksync.Wallet;
+    let l1EthersWallet: Wallet;
+    let veryRichWallet: zksync.Wallet;
+
+    let tokenA_details: Token = {
+        name: 'Token A',
+        symbol: 'AA',
+        decimals: 18n,
+        l1Address: '',
+        l2Address: '',
+        l2AddressSecondChain: ''
+    };
+    let tokenB_details: Token = {
+        name: 'Token B',
+        symbol: 'BB',
+        decimals: 18n,
+        l1Address: '',
+        l2Address: '',
+        l2AddressSecondChain: ''
+    };
+
+    // Common Variables
     const timeout = 10000;
 
-    let tokenErc20OtherChain: zksync.Contract;
-    let zkErc20: zksync.Contract;
-    let swap: ethers.Contract;
-    const richPk = '0x7726827caac94a7f9e1b160f7ea819f172f7b6f9d2a97f992c38edeab82d4110';
+    // Interop1 (Main Chain) Variables
+    let interop1_provider: zksync.Provider;
+    let interop1_wallet: zksync.Wallet;
+    let interop1_rich_wallet: zksync.Wallet;
+    let interop1_bridgehub_contract: zksync.Contract;
+    let interop1_nativeTokenVault_contract: zksync.Contract;
+    let interop1_tokenA_contract: zksync.Contract;
+
+    // Interop2 (Second Chain) Variables
+    let interop2_provider: zksync.Provider;
+    let interop2_wallet: zksync.Wallet;
+    let interop2_rich_wallet: zksync.Wallet;
+    let interop2_nativeTokenVault_contract: zksync.Contract;
+    let interop2_swap_contract: zksync.Contract;
+    let interop2_tokenB_contract: zksync.Contract;
 
     beforeAll(async () => {
         testMaster = TestMaster.getInstance(__filename);
-        alice = testMaster.mainAccount();
-        bob = testMaster.newEmptyAccount();
-        // const url = alice._providerL2!().getRpcUrl();
-        const url = testMaster.environment().l2NodeUrl;
-        // const url2 = 'http://localhost:3050';
-        const url2 = 'http://localhost:3050';
-        console.log('kl todo url', url);
+        const test_wallet_pk = testMaster.newEmptyAccount().privateKey;
+        const mainAccount = testMaster.mainAccount();
 
-        l2ProviderOtherChain = new RetryProvider(
-            {
-                url: url2,
-                timeout: 1200 * 1000
-            },
+        // Initialize the providers
+        l1_provider = mainAccount.providerL1!;
+        interop1_provider = mainAccount.provider;
+        // Setup Interop1 Provider and Wallet
+        l1_wallet = new zksync.Wallet(mainAccount.privateKey, interop1_provider, l1_provider);
+        veryRichWallet = new zksync.Wallet(richPk, interop1_provider, l1_provider);
+        l1EthersWallet = new Wallet(mainAccount.privateKey, l1_provider);
+
+        // Initialize Test Master and L1 Wallet
+        interop1_wallet = new zksync.Wallet(test_wallet_pk, interop1_provider, l1_provider);
+        interop1_rich_wallet = new zksync.Wallet(mainAccount.privateKey, interop1_provider, l1_provider);
+        console.log('PK', test_wallet_pk);
+
+        // Setup Interop2 Provider and Wallet
+        interop2_provider = new RetryProvider(
+            { url: 'http://localhost:3050', timeout: 1200 * 1000 },
             undefined,
             testMaster.reporter
         );
-        aliceOtherChain = new zksync.Wallet(alice.privateKey, l2ProviderOtherChain, alice.providerL1!);
-        bobOtherChain = new zksync.Wallet(bob.privateKey, l2ProviderOtherChain, bob.providerL1!);
-        richWallet = new zksync.Wallet(richPk, alice._providerL2(), alice._providerL1());
+        interop2_wallet = new zksync.Wallet(test_wallet_pk, interop2_provider, l1_provider);
+        interop2_rich_wallet = new zksync.Wallet(mainAccount.privateKey, interop2_provider, l1_provider);
 
-        const l2Provider = new ethers.JsonRpcProvider(url);
+        // Initialize Contracts on Interop1
+        interop1_bridgehub_contract = new zksync.Contract(L2_BRIDGEHUB_ADDRESS, ArtifactBridgeHub.abi, interop1_wallet);
+        interop1_nativeTokenVault_contract = new zksync.Contract(
+            L2_NATIVE_TOKEN_VAULT_ADDRESS,
+            ArtifactNativeTokenVault.abi,
+            interop1_wallet
+        );
 
-        l2Wallet = new Wallet(alice.privateKey, l2Provider);
-        const l1Wallet = new Wallet(alice.privateKey, alice.providerL1!);
-        const bridgeContracts = await alice.getL1BridgeContracts();
-        const l1BridgehubAddress = await bridgeContracts.shared.BRIDGE_HUB();
-        l1Bridgehub = new ethers.Contract(l1BridgehubAddress, bridgehubInterface, l1Wallet);
-        const chainAddress = await l1Bridgehub.getHyperchain(secondChainId);
+        // Initialize Contracts on Interop2
+        interop2_nativeTokenVault_contract = new zksync.Contract(
+            L2_NATIVE_TOKEN_VAULT_ADDRESS,
+            ArtifactNativeTokenVault.abi,
+            interop2_wallet
+        );
 
-        tokenDetails = testMaster.environment().erc20Token;
-
-        console.log('kl alice pk', alice.privateKey);
-        console.log('alice address', alice.getAddress());
-        console.log('bob address', bob.getAddress());
-    });
-
-    test('Can perform a deposit', async () => {
-        const amount = 100_000_000_000_000n; // 1 wei is enough. // ethers.parseEther('100')
-        const gasPrice = await scaledGasPrice(alice);
-
+        console.log(`Test wallet 1 address: ${interop1_wallet.address}`);
+        console.log(`Test wallet 2 address: ${interop1_wallet.address}`)
         console.log(
-            'main wallet eth balance',
-            await alice._providerL1!().getBalance(await testMaster.mainAccount().getAddress())
+            `[rich wallet] l1_wallet address: ${l1_wallet.address} with ${ethers.formatEther(
+                await l1_provider.getBalance(l1_wallet.address)
+            )} ETH`
         );
-        const transactionResponse = await richWallet._signerL1!().sendTransaction({
-            to: aliceOtherChain.address,
-            value: ethers.parseEther('100') //amount*10n
-        });
+        console.log('--------------------');
 
-        const receipt = await transactionResponse.wait();
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        console.log('kl todo first transfer');
-
-        const transactionResponse1 = await richWallet._signerL1!().sendTransaction({
-            to: bobOtherChain.address,
-            value: ethers.parseEther('100') //amount*10n
-        });
-        const receipt1 = await transactionResponse1.wait();
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        console.log('kl todo second transfer');
-
-        // 5. Send the eth tx transaction
-
-        // 5. Send the token tx transaction
-        const l1Erc20Contract = new ethers.Contract(tokenDetails.l1Address, l1Erc20ABI, alice._signerL1!());
-        const baseMintPromise = l1Erc20Contract.mint(aliceOtherChain.address, amount);
-
-        const receipt2 = await baseMintPromise;
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        console.log('kl todo first mint');
-
-        const baseMintPromise2 = l1Erc20Contract.mint(bobOtherChain.address, amount);
-
-        const receipt3 = await baseMintPromise2;
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-
-        // console.log('kl todo receipt', receipt2);
-        console.log('kl alice eth balance', await alice._providerL1!().getBalance(aliceOtherChain.address));
-        console.log('bob eth balance', await alice._providerL1!().getBalance(bobOtherChain.address));
-
-        await expect(
-            await alice.deposit({
-                token: tokenDetails.l1Address,
-                amount,
-                approveERC20: true,
-                approveBaseERC20: true,
-                approveOverrides: {
-                    gasPrice
-                },
-                overrides: {
-                    gasPrice
-                }
+        await (
+            await veryRichWallet._signerL1!().sendTransaction({
+                to: interop1_rich_wallet.address,
+                value: ethers.parseEther('100') //amount*10n
             })
-        ).toBeAccepted([]);
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        console.log('kl todo first deposit');
+        ).wait();
 
-        await expect(
-            await bobOtherChain.deposit({
-                token: tokenDetails.l1Address,
-                amount,
-                approveERC20: true,
-                approveBaseERC20: true,
-                approveOverrides: {
-                    gasPrice
-                },
-                overrides: {
-                    gasPrice
-                }
+        await (
+            await veryRichWallet._signerL1!().sendTransaction({
+                to: interop2_rich_wallet.address,
+                value: ethers.parseEther('100') //amount*10n
             })
-        ).toBeAccepted([]);
+        ).wait();
 
-        console.log('second deposit');
-
-        await expect(
-            await bobOtherChain.deposit({
-                token: ETH_ADDRESS_IN_CONTRACTS,
-                amount,
-                approveERC20: true,
-                approveBaseERC20: true,
-                approveOverrides: {
-                    gasPrice
-                }
+        await (
+            await veryRichWallet._signerL1!().sendTransaction({
+                to: interop1_wallet.address,
+                value: ethers.parseEther('100') //amount*10n
             })
-        ).toBeAccepted([]);
+        ).wait();
 
-        await expect(
-            await bobOtherChain.deposit({
-                token: ETH_ADDRESS_IN_CONTRACTS,
-                amount,
-                to: await aliceOtherChain.getAddress(),
-                approveERC20: true,
-                approveBaseERC20: true,
-                approveOverrides: {
-                    gasPrice
-                }
+        await (
+            await veryRichWallet._signerL1!().sendTransaction({
+                to: interop2_wallet.address,
+                value: ethers.parseEther('100') //amount*10n
             })
-        ).toBeAccepted([]);
-
-        console.log('after third deposit');
-
-        bridgehub = new ethers.Contract(L2_BRIDGEHUB_ADDRESS, bridgehubInterface, l2Wallet);
-        l2NativeTokenVault = new ethers.Contract(L2_NATIVE_TOKEN_VAULT_ADDRESS, ntvInterface, l2Wallet);
-        l2NativeTokenVaultOtherChain = new ethers.Contract(
-            L2_NATIVE_TOKEN_VAULT_ADDRESS,
-            ntvInterface,
-            aliceOtherChain
-        );
-        assetId = await l2NativeTokenVault.assetId(tokenDetails.l2Address);
-        tokenAddressOtherChain = await l2NativeTokenVaultOtherChain.tokenAddress(assetId);
-        console.log('kl todo tokenAddressOtherChain', tokenAddressOtherChain);
-        tokenErc20OtherChain = new zksync.Contract(tokenAddressOtherChain, zksync.utils.IERC20, aliceOtherChain);
-
-        const ZkSyncERC20 = await readContract(
-            '../../../contracts/l1-contracts/artifacts-zk/contracts/dev-contracts',
-            'TestnetERC20Token'
-        );
-        // const contractFactory = new zksync.ContractFactory(ZkSyncERC20.abi, ZkSyncERC20.bytecode, alice);
-
-        zkErc20 = await deployContract(bobOtherChain, ZkSyncERC20, ['ZKsync', 'ZK', 18]);
-        const zkErc20Alice = new ethers.Contract(await zkErc20.getAddress(), ZkSyncERC20.abi, aliceOtherChain);
-        //zkErc20.connect(alice)
-        // console.log(zkErc20Alice.interface)
-        console.log('zkErc20 deployed');
-
-        const ZkSyncSwap = await readContract('./artifacts-zk/contracts/Swap', 'Swap');
-
-        swap = await deployContract(bobOtherChain, ZkSyncSwap, [tokenAddressOtherChain, await zkErc20.getAddress()]);
-        await new Promise((resolve) => setTimeout(resolve, timeout));
-        await (await zkErc20.mint(await swap.getAddress(), ethers.parseEther('1000'))).wait();
-        await (await zkErc20.mint(await alice.getAddress(), ethers.parseEther('1000'))).wait();
-        let allowance = await zkErc20.allowance(await alice.getAddress(), L2_NATIVE_TOKEN_VAULT_ADDRESS);
-        console.log('allowance', allowance);
-        if (allowance < ethers.parseEther('100')) {
-            await (await zkErc20Alice.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, ethers.parseEther('100'))).wait();
-        }
-        allowance = await zkErc20.allowance(await alice.getAddress(), L2_NATIVE_TOKEN_VAULT_ADDRESS);
-        console.log('allowance after', allowance);
-
-        console.log('kl todo zkErc20', await zkErc20.getAddress(), await swap.getAddress());
-        if ((await l2NativeTokenVaultOtherChain.assetId(await zkErc20.getAddress())) == ethers.ZeroHash) {
-            const registerTx = await l2NativeTokenVaultOtherChain.registerToken(await zkErc20.getAddress());
-            const receiptRegister = await registerTx.wait();
-            // console.log('kl todo receiptRegister', receiptRegister);
-        }
-        await delay(timeout);
+        ).wait();
     });
 
-    test('Can send and receive interop tx', async () => {
+    test('Can perform an ETH deposit', async () => {
+        // Fund accounts
+        const gasPrice = await scaledGasPrice(interop1_rich_wallet);
+        const fundAmount = ethers.parseEther('10');
+        console.log('Funding test wallet at interop1');
+        await (
+            await interop1_rich_wallet.deposit({
+                token: ETH_ADDRESS_IN_CONTRACTS,
+                amount: fundAmount,
+                to: interop1_wallet.address,
+                approveERC20: true,
+                approveBaseERC20: true,
+                approveOverrides: { gasPrice },
+                overrides: { gasPrice }
+            })
+        ).wait();
+        console.log('Funding test wallet at interop2');
+        await (
+            await interop2_rich_wallet.deposit({
+                token: ETH_ADDRESS_IN_CONTRACTS,
+                amount: fundAmount,
+                to: interop2_wallet.address,
+                approveERC20: true,
+                approveBaseERC20: true,
+                approveOverrides: { gasPrice },
+                overrides: { gasPrice }
+            })
+        ).wait();
+        console.log('Test wallet funded');
+    });
 
-        const tokenBalanceBefore = await tokenErc20OtherChain.balanceOf(aliceOtherChain.address);
-        console.log('kl todo tokenBalanceBefore', tokenBalanceBefore, performance.now());
-        await sendTransferTx();
-        await delay(timeout);
-        const tokenBalanceAfterTransfer = await tokenErc20OtherChain.balanceOf(aliceOtherChain.address);
-        console.log('kl todo tokenBalanceAfter transfer', tokenBalanceAfterTransfer, performance.now());
+    test('Can deploy token contracts', async () => {
+        // Deploy token A on interop1 and register
+        console.log('Deploying token A on Interop1');
+        const interop1_tokenA_contract_deployment = await deployContract(interop1_wallet, ArtifactMintableERC20, [
+            tokenA_details.name,
+            tokenA_details.symbol,
+            tokenA_details.decimals
+        ]);
+        tokenA_details.l2Address = await interop1_tokenA_contract_deployment.getAddress();
+        console.log('Registering token A on Interop1');
+        await (await interop1_nativeTokenVault_contract.registerToken(tokenA_details.l2Address)).wait();
+        await (await interop1_tokenA_contract_deployment.mint(await interop1_wallet.getAddress(), 1000)).wait();
+        await (await interop1_tokenA_contract_deployment.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 1000)).wait();
+        console.log('Token A registered on Interop1');
+        tokenA_details.assetId = await interop1_nativeTokenVault_contract.assetId(tokenA_details.l2Address);
+        tokenA_details.l2AddressSecondChain = await interop2_nativeTokenVault_contract.tokenAddress(
+            tokenA_details.assetId
+        );
+        interop1_tokenA_contract = new zksync.Contract(
+            tokenA_details.l2Address,
+            ArtifactMintableERC20.abi,
+            interop1_wallet
+        );
+        console.log('Token A info:', tokenA_details);
 
-        const tokenAllowanceBefore = await tokenErc20OtherChain.allowance(await alice.getAddress(), await swap.getAddress());
-        console.log('kl todo tokenAllowanceBefore', tokenAllowanceBefore, performance.now());
-        await sendSwapApproveTx()
-        await delay(timeout*5);
-        const tokenAllowanceAfter = await tokenErc20OtherChain.allowance(await alice.getAddress(), await swap.getAddress());
-        console.log('kl todo tokenAllowanceAfter', tokenAllowanceAfter, performance.now());
-        expect(tokenAllowanceAfter).toBeGreaterThan(tokenAllowanceBefore);
-
-        const zkTokenBalanceBeforeSwap = await zkErc20.balanceOf(await alice.getAddress());
-        await sendSwapTx();
-        await delay(timeout);
-        const tokenBalanceAfterSwap = await tokenErc20OtherChain.balanceOf(await alice.getAddress());
-        const zkTokenBalanceAfterSwap = await zkErc20.balanceOf(await alice.getAddress());
-        console.log('kl todo zk token balance change', zkTokenBalanceAfterSwap - zkTokenBalanceBeforeSwap);
-        console.log("kl todo tokenBalanceAfterSwap", tokenBalanceAfterSwap, tokenBalanceAfterSwap - tokenBalanceAfterTransfer)
-
-
-        // zkAssetId = await l2NativeTokenVaultOtherChain.assetId(await zkErc20.getAddress());
-        // await sendTransferBackTx();
+        // Deploy token B on interop2 and register
+        console.log('Deploying token B on Interop2');
+        const interop2_tokenB_contract_deployment = await deployContract(interop2_wallet, ArtifactMintableERC20, [
+            tokenB_details.name,
+            tokenB_details.symbol,
+            tokenB_details.decimals
+        ]);
+        tokenB_details.l2AddressSecondChain = await interop2_tokenB_contract_deployment.getAddress();
+        await (await interop2_tokenB_contract_deployment.mint(await interop1_wallet.getAddress(), ethers.parseEther('100'))).wait();
+        await (await interop2_tokenB_contract_deployment.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS,  ethers.parseEther('100'))).wait();
+        console.log('Registering token B on Interop2');
+        await (await interop2_nativeTokenVault_contract.registerToken(tokenB_details.l2AddressSecondChain)).wait();
+        console.log('Token B registered on Interop2');
         // await delay(timeout);
-        // const zkTokenAddress = await l2NativeTokenVault.tokenAddress(zkAssetId);
-        // console.log('zk assetId, tokenAddress', zkAssetId, zkTokenAddress);
-
-        // tokenAddressOtherChain = await l2NativeTokenVaultOtherChain.tokenAddress(assetId);
-        // tokenErc20OtherChain = new zksync.Contract(tokenAddressOtherChain, zksync.utils.IERC20, aliceOtherChain);
-        // const tokenBalanceAfter = await tokenErc20OtherChain.balanceOf(aliceOtherChain.address);
-        // console.log('kl todo token assetId', assetId);
-        // console.log('kl todo tokenAddressOtherChain', tokenAddressOtherChain);
-        // console.log('kl todo aliceOtherChain', aliceOtherChain.address);
-        // console.log('kl todo tokenBalanceBefore', tokenBalanceBefore);
-        // console.log('kl todo tokenBalanceAfter', tokenBalanceAfter);
-        // expect(tokenBalanceAfter).toBeGreaterThan(tokenBalanceBefore);
+        tokenB_details.assetId = await interop2_nativeTokenVault_contract.assetId(tokenB_details.l2AddressSecondChain);
+        tokenB_details.l2Address = await interop1_nativeTokenVault_contract.tokenAddress(
+            tokenB_details.assetId
+        );
+        interop2_tokenB_contract = new zksync.Contract(
+            tokenB_details.l2AddressSecondChain,
+            ArtifactMintableERC20.abi,
+            interop2_wallet
+        );
+        console.log('Token B info:', tokenB_details);
     });
 
-    async function sendTransferTx() {
+    test('Withdraw and deposit tokens via L1', async () => {
+        const bridgeContracts = await interop1_wallet.getL1BridgeContracts();
+        const assetRouter = bridgeContracts.shared;
+        // console.log("assetRouter", assetRouter)
+        const l1AssetRouter = new ethers.Contract(
+            await assetRouter.getAddress(),
+            l1AssetRouterInterface,
+            l1EthersWallet
+        );
+        // console.log("ntv", await l1AssetRouter.)
+        const l1NativeTokenVault = new ethers.Contract(
+            await l1AssetRouter.nativeTokenVault(),
+            ArtifactNativeTokenVault.abi,
+            l1EthersWallet
+        );
+
+        const withdrawA = interop1_wallet.withdraw({
+            token: tokenA_details.l2Address,
+            amount: 100
+        });
+        await expect(withdrawA).toBeAccepted();
+        const withdrawalATx = await withdrawA;
+        const l2TxAReceipt = await interop1_wallet.provider.getTransactionReceipt(withdrawalATx.hash);
+        await withdrawalATx.waitFinalize();
+        await waitForBlockToBeFinalizedOnL1(interop1_wallet, l2TxAReceipt!.blockNumber);
+
+        await interop1_wallet.finalizeWithdrawalParams(withdrawalATx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
+        await expect(interop1_rich_wallet.finalizeWithdrawal(withdrawalATx.hash)).toBeAccepted();
+
+        const withdrawB = interop2_wallet.withdraw({
+            token: tokenB_details.l2AddressSecondChain!,
+            amount: 100
+        });
+
+        await expect(withdrawB).toBeAccepted();
+        const withdrawBTx = await withdrawB;
+        const l2TxBReceipt = await interop2_wallet.provider.getTransactionReceipt(withdrawBTx.hash);
+        await withdrawBTx.waitFinalize();
+        await waitForBlockToBeFinalizedOnL1(interop2_wallet, l2TxBReceipt!.blockNumber);
+
+        await interop2_wallet.finalizeWithdrawalParams(withdrawBTx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
+        await expect(interop2_rich_wallet.finalizeWithdrawal(withdrawBTx.hash)).toBeAccepted();
+
+        tokenA_details.l1Address = await l1NativeTokenVault.tokenAddress(tokenA_details.assetId);
+        tokenB_details.l1Address = await l1NativeTokenVault.tokenAddress(tokenB_details.assetId);
+
+        await expect(
+            interop1_wallet.deposit({
+                token: tokenB_details.l1Address,
+                amount: 50,
+                approveERC20: true
+            })
+        ).toBeAccepted();
+
+        await expect(
+            interop2_wallet.deposit({
+                token: tokenA_details.l1Address,
+                amount: 50,
+                approveERC20: true
+            })
+        ).toBeAccepted();
+
+        tokenA_details.l2AddressSecondChain = await interop2_nativeTokenVault_contract.tokenAddress(
+            tokenA_details.assetId
+        );
+        tokenB_details.l2Address = await interop1_nativeTokenVault_contract.tokenAddress(
+            tokenB_details.assetId
+        );
+
+        console.log(tokenA_details);
+        console.log(tokenB_details);
+    });
+
+    test('Deploy swap contract', async () => {
+        // Deploy Swap Contracts on Interop2
+        console.log('Deploying Swap Contract on Interop2');
+        const interop2_swap_contract_deployment = await deployContract(interop2_wallet, ArtifactSwap, [
+            tokenA_details.l2AddressSecondChain!,
+            tokenB_details.l2AddressSecondChain!
+        ]);
+        const interop2_swap_contract_address = await interop2_swap_contract_deployment.getAddress();
+        interop2_swap_contract = new zksync.Contract(interop2_swap_contract_address, ArtifactSwap.abi, interop2_wallet);
+        console.log(`Swap Contract deployed to: ${interop2_swap_contract_address}`);
+
+        // Mint token B on Interop2 for swap contract
+        console.log('Minting token B on Interop2 for Swap Contract...');
+        await (
+            await interop2_tokenB_contract.mint(await interop2_swap_contract.getAddress(), ethers.parseEther('1000'))
+        ).wait();
+        console.log(
+            `Swap contract token B balance: ${ethers.formatEther(
+                await getTokenBalance({
+                    provider: interop2_provider,
+                    tokenAddress: tokenB_details.l2AddressSecondChain!,
+                    address: interop2_swap_contract_address
+                })
+            )} BB`
+        );
+
+        // Mint token A on Interop1 for test wallet
+        console.log('Minting token A on Interop1 for test wallet...');
+        await (await interop1_tokenA_contract.mint(interop1_wallet.address, ethers.parseEther('500'))).wait();
+        console.log('[SETUP COMPLETED]');
+    });
+
+    test('Can transfer token A from Interop1 to Interop2', async () => {
+        console.log('\n\n[TEST STARTED] - Can transfer token A from Interop1 to Interop2.');
+        const interop1_tokenA_balance_before = await getTokenBalance({
+            provider: interop1_provider,
+            tokenAddress: tokenA_details.l2Address,
+            address: interop1_wallet.address
+        });
+        console.log(
+            `Test wallet token A Interop 1 balance before transfer: ${ethers.formatEther(
+                interop1_tokenA_balance_before
+            )} AA`
+        );
+
+        // Send Transfer Transaction
+        await from_interop1_transfer_tokenA();
+
+        const interop1_tokenA_balance_after = await getTokenBalance({
+            provider: interop1_provider,
+            tokenAddress: tokenA_details.l2Address,
+            address: interop1_wallet.address
+        });
+        console.log(
+            `Test wallet token A Interop 1 balance after transfer: ${ethers.formatEther(
+                interop1_tokenA_balance_after
+            )} AA`
+        );
+
+        // Update token A address on Interop2
+        // tokenA_details.addresses.interop2 = await interop2_nativeTokenVault_contract.tokenAddress(tokenA_details.assetId);
+        // if (tokenA_details.addresses.interop2 === ethers.ZeroHash) throw new Error("Token A resolves to zero address on Interop2");
+
+        const interop2_tokenA_balance_after = await getTokenBalance({
+            provider: interop2_provider,
+            tokenAddress: tokenA_details.l2AddressSecondChain!,
+            address: interop2_wallet.address
+        });
+        console.log(
+            `Test wallet token A Interop 2 balance after transfer: ${ethers.formatEther(
+                interop2_tokenA_balance_after
+            )} AA`
+        );
+    });
+
+    test('Can perform cross chain swap', async () => {
+        console.log('\n\n[TEST STARTED] - Can perform cross chain swap.');
+
+        console.log('Approving token A allowance for Swap Contract on Interop2 from Interop1...');
+        const allowanceBefore = await getTokenAllowance({
+            provider: interop2_provider,
+            tokenAddress: tokenA_details.l2AddressSecondChain!,
+            fromAddress: await interop1_wallet.getAddress(),
+            toAddress: await interop2_swap_contract.getAddress()
+        });
+        console.log('Allowance before', allowanceBefore);
+        await from_interop1_approveSwapAllowance();
+        const allowanceAfter = await getTokenAllowance({
+            provider: interop2_provider,
+            tokenAddress: tokenA_details.l2AddressSecondChain!,
+            fromAddress: await interop1_wallet.getAddress(),
+            toAddress: await interop2_swap_contract.getAddress()
+        });
+        console.log('Allowance after', allowanceAfter);
+
+        await delay(5 * timeout);
+
+        const interop2_tokenB_balance_before = await getTokenBalance({
+            provider: interop2_provider,
+            tokenAddress: tokenB_details.l2AddressSecondChain!,
+            address: interop2_wallet.address
+        });
+        console.log(
+            `Test wallet token B Interop2 balance before swap: ${ethers.formatEther(interop2_tokenB_balance_before)} BB`
+        );
+
+        // Send Swap Transaction
+        console.log('Swapping token A to token B...');
+        await from_interop1_swap_a_to_b();
+
+        await delay(timeout);
+
+        const interop2_tokenB_balance_after = await getTokenBalance({
+            provider: interop2_provider,
+            tokenAddress: tokenB_details.l2AddressSecondChain!,
+            address: interop2_wallet.address
+        });
+        console.log(
+            `Test wallet token B Interop2 balance after swap: ${ethers.formatEther(interop2_tokenB_balance_after)} BB`
+        );
+    });
+
+    test('Can transfer token B from Interop2 to Interop1', async () => {
+        console.log('\n\n[TEST STARTED] - Can transfer token B from Interop2 to Interop1.');
+
+        console.log('Transferring token B from Interop2 to Interop1...');
+        const interop1_tokenB_balance_before = await getTokenBalance({
+            provider: interop1_provider,
+            tokenAddress: tokenB_details.l2Address,
+            address: interop1_wallet.address
+        });
+        console.log(
+            `Test wallet token B Interop1 balance after transfer: ${ethers.formatEther(
+                interop1_tokenB_balance_before
+            )} BB`
+        );
+        await delay(1000)
+        await from_interop2_transfer_tokenB();
+
+        // Update token B address on Interop1
+        // tokenB_details.addresses.interop1 = await interop1_nativeTokenVault_contract.tokenAddress(
+        //     tokenB_details.assetId
+        // );
+        // if (tokenB_details.addresses.interop1 === ethers.ZeroHash)
+        //     throw new Error('Token B resolves to zero address on Interop1');
+
+        const interop1_tokenB_balance_after = await getTokenBalance({
+            provider: interop1_provider,
+            tokenAddress: tokenB_details.l2Address,
+            address: interop1_wallet.address
+        });
+        console.log(
+            `Test wallet token B Interop1 balance after transfer: ${ethers.formatEther(
+                interop1_tokenB_balance_after
+            )} BB`
+        );
+    });
+
+    /**
+     * Sends a transfer transaction from Interop1 to Interop2.
+     */
+    async function from_interop1_transfer_tokenA() {
         const amount = ethers.parseEther('0.1');
         const mintValue = ethers.parseEther('0.2');
-        const secondBridgeCalldata = ethers.concat([
+        const bridgeCalldata = ethers.concat([
             '0x01',
             new ethers.AbiCoder().encode(
                 ['bytes32', 'bytes'],
-                [assetId, new ethers.AbiCoder().encode(['uint256', 'address'], [amount, await alice.getAddress()])]
+                [
+                    tokenA_details.assetId,
+                    new ethers.AbiCoder().encode(['uint256', 'address'], [amount, interop1_wallet.address])
+                ]
             )
         ]);
-        const tx1 = await requestL2TransactionTwoBridges(mintValue, secondBridgeCalldata);
-        const receipt1 = await tx1.wait();
-        // await waitForBlockToBeFinalizedOnL1(alice, receipt1!.blockNumber);
-        // await delay(timeout);
 
-        await readAndBroadcastInteropTx(tx1.hash, alice, aliceOtherChain);
-    }
+        await (await interop1_tokenA_contract.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, amount)).wait();
+        const tx = await from_interop1_requestL2TransactionTwoBridges(mintValue, bridgeCalldata);
+        await tx.wait();
 
-    async function sendSwapApproveTx() {
-        const amount = ethers.parseEther('0.1');
-        const mintValue = ethers.parseEther('0.2');
-        const l2Calldata = tokenErc20OtherChain.interface.encodeFunctionData('approve', [
-            await swap.getAddress(),
-            amount
-        ]);
-        const tx1 = await requestL2TransactionDirect(mintValue, tokenAddressOtherChain, 0n, l2Calldata);
-        const receipt1 = await tx1.wait();
-        // await waitForBlockToBeFinalizedOnL1(alice, receipt1!.blockNumber);
         await delay(timeout);
 
-        await readAndBroadcastInteropTx(tx1.hash, alice, aliceOtherChain);
+        await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
     }
 
-    async function sendSwapTx() {
-        const mintValue = ethers.parseEther('0.2');
-        const amount = ethers.parseEther('0.1');
-
-        const l2Calldata = swap.interface.encodeFunctionData('swap', [amount]);
-        const tx1 = await requestL2TransactionDirect(mintValue, await swap.getAddress(), 0n, l2Calldata);
-        await readAndBroadcastInteropTx(tx1, alice, aliceOtherChain);
-    }
-
-    async function sendNTVApprove() {
+    /**
+     * Sends an approve transaction from Interop1 to Interop2.
+     */
+    async function from_interop1_approveSwapAllowance() {
         const amount = ethers.parseEther('0.1');
         const mintValue = ethers.parseEther('0.2');
-        const l2Calldata = tokenErc20OtherChain.interface.encodeFunctionData('approve', [
-            L2_NATIVE_TOKEN_VAULT_ADDRESS,
+
+        // Use the token contract on Interop2 (Second Chain)
+        const l2Calldata = interop1_tokenA_contract.interface.encodeFunctionData('approve', [
+            await interop2_swap_contract.getAddress(),
             amount
         ]);
-        const tx1 = await requestL2TransactionDirect(mintValue, await zkErc20.getAddress(), 0n, l2Calldata);
-        const receipt1 = await tx1.wait();
-        // await waitForBlockToBeFinalizedOnL1(alice, receipt1!.blockNumber);
+
+        // Create an interop transaction from Interop1 to Interop2
+        const tx = await from_interop1_requestL2TransactionDirect(
+            mintValue,
+            tokenA_details.l2AddressSecondChain!,
+            BigInt(0),
+            l2Calldata
+        );
+        await tx.wait();
+
         await delay(timeout);
 
-        await readAndBroadcastInteropTx(tx1.hash, alice, aliceOtherChain);
+        // Read and broadcast the interop transaction from Interop1 to Interop2
+        await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
     }
 
-    async function sendTransferBackTx() {
+    /**
+     * Sends a swap transaction from Interop1 to Interop2.
+     */
+    async function from_interop1_swap_a_to_b() {
         const amount = ethers.parseEther('0.1');
         const mintValue = ethers.parseEther('0.2');
-        const secondBridgeCalldata = ethers.concat([
+
+        // Prepare calldata using the Swap contract on Interop2
+        const l2Calldata = interop2_swap_contract.interface.encodeFunctionData('swap', [amount]);
+
+        // Create interop transaction from Interop1 to Interop2
+        const tx = await from_interop1_requestL2TransactionDirect(
+            mintValue,
+            await interop2_swap_contract.getAddress(),
+            BigInt(0),
+            l2Calldata
+        );
+        await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
+    }
+
+    /**
+     * Sends a transfer transaction from Interop2 to Interop1.
+     */
+    async function from_interop2_transfer_tokenB() {
+        const amount = ethers.parseEther('0.2'); // swap ratio is 1:2 (A:B)
+        const mintValue = ethers.parseEther('0.2');
+        const bridgeCalldata = ethers.concat([
             '0x01',
             new ethers.AbiCoder().encode(
                 ['bytes32', 'bytes'],
-                [zkAssetId, new ethers.AbiCoder().encode(['uint256', 'address'], [amount, await alice.getAddress()])]
+                [
+                    tokenB_details.assetId,
+                    new ethers.AbiCoder().encode(['uint256', 'address'], [amount, interop1_wallet.address])
+                ]
             )
         ]);
 
         const input = {
-            chainId: sendingChainId.toString(),
+            chainId: (await interop1_provider.getNetwork()).chainId,
             mintValue,
             l2Value: 0,
             l2GasLimit: 30000000,
             l2GasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
-            refundRecipient: alice.address,
+            refundRecipient: interop1_wallet.address,
             secondBridgeAddress: L2_ASSET_ROUTER_ADDRESS,
             secondBridgeValue: 0,
-            secondBridgeCalldata: secondBridgeCalldata
+            secondBridgeCalldata: bridgeCalldata
         };
-        console.log('kl wrapped tx', input);
+        const l2Calldata = interop1_bridgehub_contract.interface.encodeFunctionData('requestL2TransactionTwoBridges', [input]);
 
-        const data = bridgehub.interface.encodeFunctionData('requestL2TransactionTwoBridges', [input]);
-
-        const tx1 = await requestL2TransactionDirect(mintValue * 60n + 1n, L2_BRIDGEHUB_ADDRESS, mintValue, data);
-        await readAndBroadcastInteropTx(tx1.hash, alice, aliceOtherChain);
+        // Create interop transaction from Interop1 to Interop2
+        const tx = await from_interop1_requestL2TransactionDirect(
+            mintValue * 2n,
+            L2_BRIDGEHUB_ADDRESS,
+            mintValue,
+            l2Calldata
+        );
+        await readAndBroadcastInteropTx(tx.hash, interop1_provider, interop2_provider);
     }
 
-    async function requestL2TransactionTwoBridges(mintValue: bigint, secondBridgeCalldata: string) {
+    /**
+     * Requests an L2 transaction involving two bridges on Interop1.
+     * @param mintValue - The value to mint.
+     * @param secondBridgeCalldata - The calldata for the second bridge.
+     * @returns The transaction response.
+     */
+    async function from_interop1_requestL2TransactionTwoBridges(mintValue: bigint, secondBridgeCalldata: string) {
+        console.log('requestL2TransactionTwoBridges from Interop1 to Interop2');
         const input = {
-            chainId: secondChainId.toString(),
+            chainId: (await interop2_provider.getNetwork()).chainId,
             mintValue,
             l2Value: 0,
             l2GasLimit: 30000000,
             l2GasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
-            refundRecipient: alice.address,
+            refundRecipient: interop1_wallet.address,
             secondBridgeAddress: L2_ASSET_ROUTER_ADDRESS,
             secondBridgeValue: 0,
-            secondBridgeCalldata: secondBridgeCalldata
+            secondBridgeCalldata
         };
 
-        let request = await bridgehub.requestL2TransactionTwoBridges.populateTransaction(input);
+        const request = await interop1_bridgehub_contract.requestL2TransactionTwoBridges.populateTransaction(input);
         request.value = mintValue;
-        request.from = l2Wallet.address;
+        request.from = interop1_wallet.address;
 
-        const tx1 = await bridgehub.requestL2TransactionTwoBridges(input, {
+        const tx = await interop1_bridgehub_contract.requestL2TransactionTwoBridges(input, {
             value: request.value,
             gasLimit: 30000000
         });
-
-        const receipt1 = await tx1.wait();
-        // await waitForBlockToBeFinalizedOnL1(alice, receipt1!.blockNumber);
-        return tx1;
+        await tx.wait();
+        return tx;
     }
 
-
-    async function requestL2TransactionDirect(
+    /**
+     * Requests a direct L2 transaction on Interop1.
+     * @param mintValue - The value to mint.
+     * @param l2Contract - The target L2 contract address.
+     * @param l2Value - The value to send with the transaction.
+     * @param l2Calldata - The calldata for the transaction.
+     * @returns The transaction response.
+     */
+    async function from_interop1_requestL2TransactionDirect(
         mintValue: bigint,
         l2Contract: string,
         l2Value: bigint,
         l2Calldata: string
     ) {
         const input = {
-            chainId: secondChainId.toString(),
+            chainId: (await interop2_provider.getNetwork()).chainId,
             mintValue,
             l2Contract,
             l2Value,
             l2Calldata,
-            l2GasLimit: 30000000,
+            l2GasLimit: 600000000,
             l2GasPerPubdataByteLimit: REQUIRED_L2_GAS_PRICE_PER_PUBDATA,
             factoryDeps: [],
-            refundRecipient: await alice.getAddress()
+            refundRecipient: interop1_wallet.address
         };
-        let request = await bridgehub.requestL2TransactionDirect.populateTransaction(input);
+
+        const request = await interop1_bridgehub_contract.requestL2TransactionDirect.populateTransaction(input);
         request.value = mintValue;
-        request.from = l2Wallet.address;
-        const tx1 = await bridgehub.requestL2TransactionDirect(input, {
+        request.from = interop1_wallet.address;
+
+        const tx = await interop1_bridgehub_contract.requestL2TransactionDirect(input, {
             value: request.value,
             gasLimit: 30000000
         });
-        const receipt1 = await tx1.wait();
-        // await waitForBlockToBeFinalizedOnL1(alice, receipt1!.blockNumber);
-        return tx1;
+
+        await tx.wait();
+        return tx;
     }
 
+    /**
+     * Reads and broadcasts an interop transaction between Interop1 and Interop2.
+     * @param tx - The original transaction response.
+     * @param sender_chain_provider - The sender wallet (Interop1).
+     * @param receiver_chain_provider - The receiver wallet (Interop2).
+     */
     async function readAndBroadcastInteropTx(
         txHash: string,
-        senderWallet: zksync.Wallet,
-        receiverWallet: zksync.Wallet
+        sender_chain_provider: zksync.Provider,
+        receiver_chain_provider: zksync.Provider
     ) {
-        let { l1BatchNumber, l2MessageIndex, l2TxNumberInBlock, message, proof } = {
-            l1BatchNumber: 0,
-            l2MessageIndex: 0,
-            l2TxNumberInBlock: 0,
-            message: '',
-            proof: ['']
-        };
+        console.log('*Reading and broadcasting interop tx*');
+        let { l1BatchNumber, l2TxNumberInBlock, message } = { l1BatchNumber: 0, l2TxNumberInBlock: 0, message: '' };
+
         try {
-            let {
+            // console.log("Reading interop message");
+            // `getFinalizeWithdrawalParamsWithoutProof` is only available for wallet instance but not provider
+            const sender_chain_utilityWallet = new zksync.Wallet(
+                zksync.Wallet.createRandom().privateKey,
+                sender_chain_provider
+            );
+            const {
                 l1BatchNumber: l1BatchNumberRead,
                 l2TxNumberInBlock: l2TxNumberInBlockRead,
                 message: messageRead
-            } = await senderWallet.getFinalizeWithdrawalParamsWithoutProof(txHash, 0);
+            } = await sender_chain_utilityWallet.getFinalizeWithdrawalParamsWithoutProof(txHash, 0);
+            // console.log("Finished reading interop message");
+
             l1BatchNumber = l1BatchNumberRead || 0;
             l2TxNumberInBlock = l2TxNumberInBlockRead || 0;
             message = messageRead || '';
-            // proof = proofRead || [];
-            if (message === '') {
-                return;
-            }
+
+            if (!message) return;
         } catch (e) {
-            // console.log('kl todo error in interop message', e);
+            console.log('Error reading interop message:', e); // note no error here, since we run out of txs sometime
             return;
         }
 
-        let decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode(
+        // Decode the interop message
+        const decodedRequest = ethers.AbiCoder.defaultAbiCoder().decode(
             [BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI],
             '0x' + message.slice(2)
         );
@@ -514,53 +736,60 @@ describe('Interop checks', () => {
             reservedDynamic: decodedRequest[0][15]
         };
 
+        // Construct log for Merkle proof
         const log = {
             l2ShardId: 0,
             isService: true,
             txNumberInBatch: l2TxNumberInBlock,
             sender: L2_TO_L1_MESSENGER_SYSTEM_CONTRACT_ADDR,
-            key: ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [alice.address])),
+            key: ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['address'], [interop1_wallet.address])),
             value: ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(['bytes'], [message]))
         };
 
         const leafHash = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode([L2_LOG_STRING], [log]));
+
         const proof1 =
             ethers.ZeroHash +
             ethers.AbiCoder.defaultAbiCoder()
-                // .encode(['uint256', 'uint256', 'uint256', 'uint256', 'uint256'], [1, 2, 3, 4, 5])
                 .encode(
                     ['uint256', 'uint256', 'uint256', 'bytes32'],
-                    [(await senderWallet._providerL2().getNetwork()).chainId, l1BatchNumber, l2MessageIndex, leafHash]
+                    [(await sender_chain_provider.getNetwork()).chainId, l1BatchNumber, l2TxNumberInBlock, leafHash]
                 )
                 .slice(2);
 
-        /// sending the interop tx
-
-        const nonce = Math.floor(Math.random() * 1000000);
-
+        // Construct the interop transaction
         const interopTx = {
             type: INTEROP_TX_TYPE,
-            from: '0x' + xl2Input.from.toString(16).padStart(40, '0'),
-            to: '0x' + xl2Input.to.toString(16).padStart(40, '0'),
-            chainId: (await receiverWallet._providerL2().getNetwork()).chainId,
+            from: `0x${xl2Input.from.toString(16).padStart(40, '0')}`,
+            to: `0x${xl2Input.to.toString(16).padStart(40, '0')}`,
+            chainId: (await receiver_chain_provider.getNetwork()).chainId,
             data: xl2Input.data,
-            nonce: nonce,
+            nonce: Math.floor(Math.random() * 1000000),
             customData: {
                 paymaster_params: { paymaster: ethers.ZeroAddress, paymasterInput: '0x' },
                 merkleProof: proof1,
-                fullFee: '0xf000000000000000', //"0x"+xl2Input.reserved[0].toString(16).slice(0, xl2Input.reserved[0].toString(16).length -2),
+                fullFee: '0xf000000000000000',
                 toMint:
                     (xl2Input.reserved[0].toString(16).length % 2 == 0 ? '0x' : '0x0') +
                     xl2Input.reserved[0].toString(16),
-                refundRecipient: await alice.getAddress()
+                refundRecipient: await interop1_wallet.getAddress()
             },
             maxFeePerGas: xl2Input.maxFeePerGas,
             maxPriorityFeePerGas: xl2Input.maxPriorityFeePerGas,
             gasLimit: xl2Input.gasLimit,
-            value: xl2Input.value // ethers.parseEther('2')
+            value: xl2Input.value
         };
+        const hexTx = zksync.utils.serializeEip712(interopTx);
+
+        const receiverChainId = (await receiver_chain_provider.getNetwork()).chainId;
+        const interop1ChainId = (await interop1_provider.getNetwork()).chainId;
+        // console.log("kl tod inteorp tx", interopTx)
+        console.log(`Broadcasting interop tx to ${receiverChainId === interop1ChainId ? 'Interop1' : 'Interop2'}`);
+        const broadcastTx = await receiver_chain_provider.broadcastTransaction(hexTx);
+        await delay(timeout * 2);
+
         const interopTxAsCanonicalTx = {
-            txType: INTEROP_TX_TYPE_BIG_INT,
+            txType: 253n,
             from: interopTx.from,
             to: interopTx.to,
             gasLimit: interopTx.gasLimit,
@@ -570,32 +799,56 @@ describe('Interop checks', () => {
             paymaster: interopTx.customData.paymaster_params.paymaster,
             nonce: interopTx.nonce,
             value: interopTx.value,
-            reserved: [interopTx.customData.toMint, interopTx.customData.refundRecipient, '0x00', '0x00'], ///
+            reserved: [interopTx.customData.toMint, interopTx.customData.refundRecipient, '0x00', '0x00'],
             data: interopTx.data,
             signature: '0x',
             factoryDeps: [],
             paymasterInput: '0x',
             reservedDynamic: proof1
         };
-        const hexTx = zksync.utils.serializeEip712(interopTx);
-
-        const tx = await l2ProviderOtherChain.broadcastTransaction(hexTx);
-
-
         const encodedTx = ethers.AbiCoder.defaultAbiCoder().encode(
             [BRIDGEHUB_L2_CANONICAL_TRANSACTION_ABI],
             [interopTxAsCanonicalTx]
         );
         const interopTxHash = ethers.keccak256(ethers.getBytes(encodedTx));
-        // console.log('hash', interopTxHash);
-        // const receipt = await tx.wait();
+        console.log('interopTxHash', interopTxHash);
 
-        // await waitUntilBlockFinalized(aliceOtherChain, tx.blockNumber!);
-        await delay(timeout*2);
-
-        await readAndBroadcastInteropTx(interopTxHash, receiverWallet, senderWallet);
+        // Recursively read and broadcast
+        await readAndBroadcastInteropTx(interopTxHash, receiver_chain_provider, sender_chain_provider);
     }
 
+    async function getTokenBalance({
+        provider,
+        tokenAddress,
+        address
+    }: {
+        provider: zksync.Provider;
+        tokenAddress: string;
+        address: string;
+    }) {
+        const tokenContract = new zksync.Contract(tokenAddress, ArtifactMintableERC20.abi, provider);
+        return await tokenContract.balanceOf(address);
+    }
+
+    async function getTokenAllowance({
+        provider,
+        tokenAddress,
+        fromAddress,
+        toAddress
+    }: {
+        provider: zksync.Provider;
+        tokenAddress: string;
+        fromAddress: string;
+        toAddress: string;
+    }) {
+        const tokenContract = new zksync.Contract(tokenAddress, ArtifactMintableERC20.abi, provider);
+        return await tokenContract.allowance(fromAddress, toAddress);
+    }
+
+    /**
+     * Utility function to delay execution for a specified time.
+     * @param ms - Milliseconds to delay.
+     */
     function delay(ms: number) {
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
