@@ -7,7 +7,7 @@ use crate::utils::events::L1MessengerL2ToL1Log;
 pub(crate) struct PubdataInput {
     pub(crate) user_logs: Vec<L1MessengerL2ToL1Log>,
     pub(crate) l2_to_l1_messages: Vec<Vec<u8>>,
-    pub(crate) published_bytecodes: Vec<Vec<u8>>,
+    pub(crate) published_bytecodes: Vec<(Vec<u8>, u8)>,
     pub(crate) state_diffs: Vec<StateDiffRecord>,
 }
 
@@ -38,9 +38,10 @@ impl PubdataInput {
         }
 
         // Encoding bytecodes
-        // Format: `[(numberOfBytecodes as u32) || (bytecodes[1].len() as u32) || bytecodes[1] || ... || (bytecodes[n].len() as u32) || bytecodes[n]]`
+        // Format: `[(numberOfBytecodes as u32) || (bytecode_version as u8) || (bytecodes[1].len() as u32) || bytecodes[1] || ... || (bytecode_version as u8) || (bytecodes[n].len() as u32) || bytecodes[n]]`
         l1_messenger_pubdata.extend((published_bytecodes.len() as u32).to_be_bytes());
-        for bytecode in published_bytecodes {
+        for (bytecode, bytecode_version) in published_bytecodes {
+            l1_messenger_pubdata.extend(vec![bytecode_version as u8]);
             l1_messenger_pubdata.extend((bytecode.len() as u32).to_be_bytes());
             l1_messenger_pubdata.extend(bytecode);
         }
@@ -85,7 +86,7 @@ mod tests {
 
         let l2_to_l1_messages = vec![hex::decode("deadbeef").unwrap()];
 
-        let published_bytecodes = vec![hex::decode("aaaabbbb").unwrap()];
+        let published_bytecodes = vec![(hex::decode("aaaabbbb").unwrap(), 0)];
 
         // For covering more cases, we have two state diffs:
         // One with enumeration index present (and so it is a repeated write) and the one without it.

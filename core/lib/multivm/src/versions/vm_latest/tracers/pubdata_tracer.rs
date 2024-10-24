@@ -6,7 +6,7 @@ use zk_evm_1_5_0::{
     tracing::{BeforeExecutionData, VmLocalStateData},
 };
 use zksync_types::{writes::StateDiffRecord, AccountTreeId, StorageKey, L1_MESSENGER_ADDRESS};
-use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
+use zksync_utils::{bytecode::BytecodeMarker, h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
     interface::{
@@ -112,7 +112,7 @@ impl<S: WriteStorage> PubdataTracer<S> {
     fn get_total_published_bytecodes<H: HistoryMode>(
         &self,
         state: &ZkSyncVmState<S, H>,
-    ) -> Vec<Vec<u8>> {
+    ) -> Vec<(Vec<u8>, u8)> {
         let (all_generated_events, _) = collect_events_and_l1_system_logs_after_timestamp(
             state,
             &self.l1_batch_env,
@@ -125,15 +125,21 @@ impl<S: WriteStorage> PubdataTracer<S> {
         bytecode_publication_requests
             .iter()
             .map(|bytecode_publication_request| {
-                state
-                    .decommittment_processor
-                    .known_bytecodes
-                    .inner()
-                    .get(&h256_to_u256(bytecode_publication_request.bytecode_hash))
-                    .unwrap()
-                    .iter()
-                    .flat_map(u256_to_bytes_be)
-                    .collect()
+                (
+                    state
+                        .decommittment_processor
+                        .known_bytecodes
+                        .inner()
+                        .get(&h256_to_u256(bytecode_publication_request.bytecode_hash))
+                        .unwrap()
+                        .iter()
+                        .flat_map(u256_to_bytes_be)
+                        .collect(),
+                    match BytecodeMarker::new(bytecode_publication_request.bytecode_hash).unwrap() {
+                        BytecodeMarker::EraVm => BytecodeMarker::EraVm as u8,
+                        BytecodeMarker::Evm => BytecodeMarker::Evm as u8, // TODO cleanup
+                    },
+                )
             })
             .collect()
     }
