@@ -28,6 +28,8 @@ use crate::{
     vm_latest::HistoryEnabled,
 };
 
+mod tests;
+
 type ReferenceVm<S = InMemoryStorage> = vm_latest::Vm<StorageView<S>, HistoryEnabled>;
 type ShadowedFastVm<S = InMemoryStorage> = crate::vm_instance::ShadowedFastVm<S>;
 
@@ -196,7 +198,6 @@ impl Harness {
         assert!(!exec_result.result.is_failed(), "{:#?}", exec_result);
 
         self.new_block(vm, &[deploy_tx.tx.hash(), load_test_tx.hash()]);
-        vm.finish_batch();
     }
 }
 

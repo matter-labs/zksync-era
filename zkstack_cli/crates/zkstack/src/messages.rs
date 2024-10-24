@@ -15,6 +15,8 @@ pub(super) const MSG_SELECTED_CONFIG: &str = "Selected config";
 pub(super) const MSG_CHAIN_NOT_INITIALIZED: &str =
     "Chain not initialized. Please create a chain first";
 pub(super) const MSG_ARGS_VALIDATOR_ERR: &str = "Invalid arguments";
+pub(super) const MSG_DEV_ARG_HELP: &str =
+    "Use defaults for all options and flags. Suitable for local development";
 
 /// Autocomplete message
 pub(super) fn msg_generate_autocomplete_file(filename: &str) -> String {
@@ -61,8 +63,6 @@ pub(super) fn msg_path_to_zksync_does_not_exist_err(path: &str) -> String {
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
 pub(super) const MSG_NO_PORT_REALLOCATION_HELP: &str = "Do not reallocate ports";
 pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
-pub(super) const MSG_DEV_ARG_HELP: &str =
-    "Deploy ecosystem  using all defaults. Suitable for local development";
 pub(super) const MSG_OBSERVABILITY_HELP: &str = "Enable Grafana";
 pub(super) const MSG_OBSERVABILITY_PROMPT: &str = "Do you want to setup observability? (Grafana)";
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
@@ -156,6 +156,7 @@ pub(super) const MSG_BASE_TOKEN_ADDRESS_HELP: &str = "Base token address";
 pub(super) const MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP: &str = "Base token nominator";
 pub(super) const MSG_BASE_TOKEN_PRICE_DENOMINATOR_HELP: &str = "Base token denominator";
 pub(super) const MSG_SET_AS_DEFAULT_HELP: &str = "Set as default chain";
+pub(super) const MSG_EVM_EMULATOR_HELP: &str = "Enable EVM emulator";
 pub(super) const MSG_CHAIN_NAME_PROMPT: &str = "What do you want to name the chain?";
 pub(super) const MSG_CHAIN_ID_PROMPT: &str = "What's the chain id?";
 pub(super) const MSG_WALLET_CREATION_PROMPT: &str = "Select how do you want to create the wallet";
@@ -170,6 +171,7 @@ pub(super) const MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT: &str =
 pub(super) const MSG_BASE_TOKEN_PRICE_DENOMINATOR_PROMPT: &str =
     "What is the base token price denominator?";
 pub(super) const MSG_SET_AS_DEFAULT_PROMPT: &str = "Set this chain as default?";
+pub(super) const MSG_EVM_EMULATOR_PROMPT: &str = "Enable EVM emulator?";
 pub(super) const MSG_WALLET_PATH_INVALID_ERR: &str = "Invalid path";
 pub(super) const MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR: &str = "Number is not zero";
 pub(super) const MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR: &str =
@@ -184,6 +186,9 @@ pub(super) const MSG_WALLET_CREATION_VALIDATOR_ERR: &str =
     "Localhost wallet is not supported for external networks";
 pub(super) const MSG_WALLET_TOKEN_MULTIPLIER_SETTER_NOT_FOUND: &str =
     "Token Multiplier Setter not found. Specify it in a wallet config";
+pub(super) const MSG_EVM_EMULATOR_HASH_MISSING_ERR: &str =
+    "Impossible to initialize a chain with EVM emulator: the template genesis config \
+     does not contain EVM emulator hash";
 
 /// Chain genesis related messages
 pub(super) const MSG_L1_SECRETS_MUST_BE_PRESENTED: &str = "L1 secret must be presented";

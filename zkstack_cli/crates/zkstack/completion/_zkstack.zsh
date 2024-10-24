@@ -81,6 +81,7 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-nominator=[Base token nominator]:BASE_TOKEN_PRICE_NOMINATOR: ' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR: ' \
 '--set-as-default=[Set as default chain]' \
+'--evm-emulator=[Enable EVM emulator]' \
 '--start-containers=[Start reth and postgres containers after creation]' \
 '--chain=[Chain to use]:CHAIN: ' \
 '--legacy-bridge[]' \
@@ -131,12 +132,10 @@ _arguments "${_arguments_options[@]}" : \
 '--observability=[Enable Grafana]' \
 '--chain=[Chain to use]:CHAIN: ' \
 '--resume[]' \
-'-u[Use default database urls and names]' \
-'--use-default[Use default database urls and names]' \
 '-d[]' \
 '--dont-drop[]' \
 '--ecosystem-only[Initialize ecosystem only and skip chain initialization (chain can be initialized later with \`chain init\` subcommand)]' \
-'--dev[Deploy ecosystem  using all defaults. Suitable for local development]' \
+'--dev[Use defaults for all options and flags. Suitable for local development]' \
 '--no-port-reallocation[Do not reallocate ports]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
@@ -243,6 +242,7 @@ in-file\:"Specify file with wallets"))' \
 '--base-token-price-nominator=[Base token nominator]:BASE_TOKEN_PRICE_NOMINATOR: ' \
 '--base-token-price-denominator=[Base token denominator]:BASE_TOKEN_PRICE_DENOMINATOR: ' \
 '--set-as-default=[Set as default chain]' \
+'--evm-emulator=[Enable EVM emulator]' \
 '--chain=[Chain to use]:CHAIN: ' \
 '--legacy-bridge[]' \
 '-v[Verbose mode]' \
@@ -286,11 +286,10 @@ _arguments "${_arguments_options[@]}" : \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL: ' \
 '--chain=[Chain to use]:CHAIN: ' \
 '--resume[]' \
-'-u[Use default database urls and names]' \
-'--use-default[Use default database urls and names]' \
 '-d[]' \
 '--dont-drop[]' \
 '--no-port-reallocation[Do not reallocate ports]' \
+'--dev[Use defaults for all options and flags. Suitable for local development]' \
 '-v[Verbose mode]' \
 '--verbose[Verbose mode]' \
 '--ignore-prerequisites[Ignores prerequisites checks]' \
@@ -312,8 +311,8 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-name=[Server database name]:SERVER_DB_NAME: ' \
 '--l1-rpc-url=[L1 RPC URL]:L1_RPC_URL: ' \
 '--chain=[Chain to use]:CHAIN: ' \
-'-u[Use default database urls and names]' \
-'--use-default[Use default database urls and names]' \
+'-d[Use default database urls and names]' \
+'--dev[Use default database urls and names]' \
 '-d[]' \
 '--dont-drop[]' \
 '--no-port-reallocation[Do not reallocate ports]' \
@@ -357,8 +356,8 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL: ' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME: ' \
 '--chain=[Chain to use]:CHAIN: ' \
-'-u[Use default database urls and names]' \
-'--use-default[Use default database urls and names]' \
+'-d[Use default database urls and names]' \
+'--dev[Use default database urls and names]' \
 '-d[]' \
 '--dont-drop[]' \
 '-v[Verbose mode]' \
@@ -381,8 +380,8 @@ _arguments "${_arguments_options[@]}" : \
 '--server-db-url=[Server database url without database name]:SERVER_DB_URL: ' \
 '--server-db-name=[Server database name]:SERVER_DB_NAME: ' \
 '--chain=[Chain to use]:CHAIN: ' \
-'-u[Use default database urls and names]' \
-'--use-default[Use default database urls and names]' \
+'-d[Use default database urls and names]' \
+'--dev[Use default database urls and names]' \
 '-d[]' \
 '--dont-drop[]' \
 '-v[Verbose mode]' \

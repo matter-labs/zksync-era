@@ -94,7 +94,7 @@ fn create_proof_processing_router(
             ),
         );
 
-    if config.tee_support {
+    if config.tee_config.tee_support {
         let get_tee_proof_gen_processor =
             TeeRequestProcessor::new(blob_store, connection_pool, config.clone(), l2_chain_id);
         let submit_tee_proof_processor = get_tee_proof_gen_processor.clone();

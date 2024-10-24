@@ -1,8 +1,8 @@
 use zksync_test_account::TxType;
 
-use super::{read_test_contract, tester::VmTesterBuilder, TestedVm};
+use super::{default_pubdata_builder, read_test_contract, tester::VmTesterBuilder, TestedVm};
 use crate::{
-    interface::{TxExecutionMode, VmEvent, VmExecutionMode, VmInterfaceExt},
+    interface::{InspectExecutionMode, TxExecutionMode, VmEvent, VmInterfaceExt},
     utils::bytecode,
 };
 
@@ -30,10 +30,10 @@ pub(crate) fn test_bytecode_publishing<VM: TestedVm>() {
         compressed_bytecode
     );
 
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed(), "Transaction wasn't successful");
 
-    vm.vm.execute(VmExecutionMode::Batch);
+    vm.vm.finish_batch(default_pubdata_builder());
 
     let state = vm.vm.get_current_execution_state();
     let long_messages = VmEvent::extract_long_l2_to_l1_messages(&state.events);
