@@ -15,6 +15,8 @@ pub(super) const MSG_SELECTED_CONFIG: &str = "Selected config";
 pub(super) const MSG_CHAIN_NOT_INITIALIZED: &str =
     "Chain not initialized. Please create a chain first";
 pub(super) const MSG_ARGS_VALIDATOR_ERR: &str = "Invalid arguments";
+pub(super) const MSG_DEV_ARG_HELP: &str =
+    "Use defaults for all options and flags. Suitable for local development";
 
 /// Autocomplete message
 pub(super) fn msg_generate_autocomplete_file(filename: &str) -> String {
@@ -61,8 +63,6 @@ pub(super) fn msg_path_to_zksync_does_not_exist_err(path: &str) -> String {
 pub(super) const MSG_L1_RPC_URL_HELP: &str = "L1 RPC URL";
 pub(super) const MSG_NO_PORT_REALLOCATION_HELP: &str = "Do not reallocate ports";
 pub(super) const MSG_GENESIS_ARGS_HELP: &str = "Genesis options";
-pub(super) const MSG_DEV_ARG_HELP: &str =
-    "Deploy ecosystem  using all defaults. Suitable for local development";
 pub(super) const MSG_OBSERVABILITY_HELP: &str = "Enable Grafana";
 pub(super) const MSG_OBSERVABILITY_PROMPT: &str = "Do you want to setup observability? (Grafana)";
 pub(super) const MSG_DEPLOY_ECOSYSTEM_PROMPT: &str =
