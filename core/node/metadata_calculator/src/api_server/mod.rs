@@ -182,6 +182,16 @@ struct TreeNodesResponse {
     nodes: HashMap<HexNodeKey, ApiRawNode>,
 }
 
+#[derive(Debug, Deserialize)]
+struct StaleKeysRequest {
+    l1_batch_number: L1BatchNumber,
+}
+
+#[derive(Debug, Serialize)]
+struct StaleKeysResponse {
+    stale_keys: Vec<HexNodeKey>,
+}
+
 /// Server-side tree API error.
 #[derive(Debug)]
 enum TreeApiServerError {
@@ -466,6 +476,17 @@ impl AsyncTreeReader {
         Json(response)
     }
 
+    async fn get_stale_keys_handler(
+        State(this): State<Self>,
+        Json(request): Json<StaleKeysRequest>,
+    ) -> Json<StaleKeysResponse> {
+        let latency = API_METRICS.latency[&MerkleTreeApiMethod::GetStaleKeys].start();
+        let stale_keys = this.clone().raw_stale_keys(request.l1_batch_number).await;
+        let stale_keys = stale_keys.into_iter().map(HexNodeKey).collect();
+        latency.observe();
+        Json(StaleKeysResponse { stale_keys })
+    }
+
     async fn create_api_server(
         self,
         bind_address: &SocketAddr,
@@ -477,6 +498,10 @@ impl AsyncTreeReader {
             .route("/", routing::get(Self::info_handler))
             .route("/proofs", routing::post(Self::get_proofs_handler))
             .route("/debug/nodes", routing::post(Self::get_nodes_handler))
+            .route(
+                "/debug/stale-keys",
+                routing::post(Self::get_stale_keys_handler),
+            )
             .with_state(self);
 
         let listener = tokio::net::TcpListener::bind(bind_address)

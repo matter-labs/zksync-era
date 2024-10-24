@@ -84,6 +84,18 @@ async fn merkle_tree_api() {
     let raw_nodes_response: serde_json::Value = raw_nodes_response.json().await.unwrap();
     assert_raw_nodes_response(&raw_nodes_response);
 
+    let raw_stale_keys_response = api_client
+        .inner
+        .post(format!("http://{local_addr}/debug/stale-keys"))
+        .json(&serde_json::json!({ "l1_batch_number": 1 }))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    let raw_stale_keys_response: serde_json::Value = raw_stale_keys_response.json().await.unwrap();
+    assert_raw_stale_keys_response(&raw_stale_keys_response);
+
     // Stop the calculator and the tree API server.
     stop_sender.send_replace(true);
     api_server_task.await.unwrap().unwrap();
@@ -109,6 +121,16 @@ fn assert_raw_nodes_response(response: &serde_json::Value) {
         node.len() == 2 && node.contains_key("internal") && node.contains_key("raw"),
         "{node:#?}"
     );
+}
+
+fn assert_raw_stale_keys_response(response: &serde_json::Value) {
+    let response = response.as_object().expect("not an object");
+    let stale_keys = response["stale_keys"].as_array().expect("not an array");
+    assert!(!stale_keys.is_empty()); // At least the root is always obsoleted
+    for stale_key in stale_keys {
+        let stale_key = stale_key.as_str().expect("not a string");
+        stale_key.parse::<NodeKey>().unwrap();
+    }
 }
 
 #[tokio::test]

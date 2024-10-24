@@ -13,6 +13,7 @@ use crate::{
         ValueHash, TREE_DEPTH,
     },
     BlockOutput, HashTree, MerkleTree, MerkleTreePruner, MerkleTreePrunerHandle, NoVersionError,
+    PruneDatabase,
 };
 
 impl TreeInstruction<StorageKey> {
@@ -458,6 +459,12 @@ impl ZkSyncTreeReader {
                 })
             })
             .collect()
+    }
+
+    /// Returns raw stale keys obsoleted in the specified version of the tree.
+    pub fn raw_stale_keys(&self, l1_batch_number: L1BatchNumber) -> Vec<NodeKey> {
+        let version = u64::from(l1_batch_number.0);
+        self.0.db.stale_keys(version)
     }
 
     /// Verifies consistency of the tree at the specified L1 batch number.
