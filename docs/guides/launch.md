@@ -153,7 +153,6 @@ Ensure that the necessary containers have been started and are functioning corre
 zkstack containers
 ```
 
-
 ### Failed To Remove Volumes
 
 #### Problem
@@ -164,7 +163,7 @@ failed to remove path `/home/<user>/workspace/current/zksync-era/volumes`: Permi
 
 #### Description
 
-This issue may occur because the process doesn't have the necessary permissions to delete certain files or directories. 
+This issue may occur because the process doesn't have the necessary permissions to delete certain files or directories.
 
 #### Solution
 
