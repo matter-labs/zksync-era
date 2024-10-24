@@ -95,7 +95,7 @@ async fn main() -> anyhow::Result<()> {
             // TODO: maybe get cluster name from curl -H "Metadata-Flavor: Google"
             // http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name
             let watcher = Watcher::new(client.clone(), cluster, agent_config.namespaces);
-            let scaler = Scaler { client };
+            let scaler = Scaler::new(client, agent_config.dry_run);
             tasks.push(tokio::spawn(watcher.clone().run()));
             tasks.push(tokio::spawn(agent::run_server(
                 agent_config.http_port,

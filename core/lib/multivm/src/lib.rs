@@ -20,6 +20,7 @@ pub use crate::{
 };
 
 mod glue;
+pub mod pubdata_builders;
 pub mod tracers;
 pub mod utils;
 mod versions;

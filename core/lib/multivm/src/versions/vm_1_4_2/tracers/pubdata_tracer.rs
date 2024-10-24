@@ -10,6 +10,7 @@ use zksync_utils::{h256_to_u256, u256_to_bytes_be, u256_to_h256};
 
 use crate::{
     interface::{
+        pubdata::L1MessengerL2ToL1Log,
         storage::{StoragePtr, WriteStorage},
         tracer::{TracerExecutionStatus, TracerExecutionStopReason},
         L1BatchEnv, VmEvent, VmExecutionMode,
@@ -17,7 +18,7 @@ use crate::{
     tracers::dynamic::vm_1_4_1::DynTracer,
     utils::events::{
         extract_bytecode_publication_requests_from_l1_messenger,
-        extract_l2tol1logs_from_l1_messenger, L1MessengerL2ToL1Log,
+        extract_l2tol1logs_from_l1_messenger,
     },
     vm_1_4_2::{
         bootloader_state::{utils::apply_pubdata_to_memory, BootloaderState},

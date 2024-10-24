@@ -14,7 +14,9 @@ use super::{
     get_complex_upgrade_abi, get_empty_storage, read_complex_upgrade, read_test_contract,
     tester::VmTesterBuilder, TestedVm,
 };
-use crate::interface::{ExecutionResult, Halt, TxExecutionMode, VmExecutionMode, VmInterfaceExt};
+use crate::interface::{
+    ExecutionResult, Halt, InspectExecutionMode, TxExecutionMode, VmInterfaceExt,
+};
 
 /// In this test we ensure that the requirements for protocol upgrade transactions are enforced by the bootloader:
 /// - This transaction must be the only one in block
@@ -71,9 +73,9 @@ pub(crate) fn test_protocol_upgrade_is_first<VM: TestedVm>() {
     vm.vm.push_transaction(normal_l1_transaction.clone());
     vm.vm.push_transaction(another_protocol_upgrade_transaction);
 
-    vm.vm.execute(VmExecutionMode::OneTx);
-    vm.vm.execute(VmExecutionMode::OneTx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert_eq!(
         result.result,
         ExecutionResult::Halt {
@@ -87,8 +89,8 @@ pub(crate) fn test_protocol_upgrade_is_first<VM: TestedVm>() {
     vm.vm.push_transaction(normal_l1_transaction.clone());
     vm.vm.push_transaction(protocol_upgrade_transaction.clone());
 
-    vm.vm.execute(VmExecutionMode::OneTx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert_eq!(
         result.result,
         ExecutionResult::Halt {
@@ -101,8 +103,8 @@ pub(crate) fn test_protocol_upgrade_is_first<VM: TestedVm>() {
     vm.vm.push_transaction(protocol_upgrade_transaction);
     vm.vm.push_transaction(normal_l1_transaction);
 
-    vm.vm.execute(VmExecutionMode::OneTx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    vm.vm.execute(InspectExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed());
 }
 
@@ -137,7 +139,7 @@ pub(crate) fn test_force_deploy_upgrade<VM: TestedVm>() {
 
     vm.vm.push_transaction(transaction);
 
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "The force upgrade was not successful"
@@ -186,7 +188,7 @@ pub(crate) fn test_complex_upgrader<VM: TestedVm>() {
     );
 
     vm.vm.push_transaction(transaction);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !result.result.is_failed(),
         "The force upgrade was not successful"

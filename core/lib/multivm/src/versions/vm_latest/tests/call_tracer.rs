@@ -5,7 +5,7 @@ use zksync_types::{Address, Execute};
 
 use super::TestedLatestVm;
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterface},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterface},
     tracers::CallTracer,
     versions::testonly::{
         read_max_depth_contract, read_test_contract, ContractToDeploy, VmTesterBuilder,
@@ -43,7 +43,7 @@ fn test_max_depth() {
     vm.vm.push_transaction(tx);
     let res = vm
         .vm
-        .inspect(&mut call_tracer.into(), VmExecutionMode::OneTx);
+        .inspect(&mut call_tracer.into(), InspectExecutionMode::OneTx);
     assert!(result.get().is_some());
     assert!(res.result.is_failed());
 }
@@ -79,7 +79,7 @@ fn test_basic_behavior() {
     vm.vm.push_transaction(tx);
     let res = vm
         .vm
-        .inspect(&mut call_tracer.into(), VmExecutionMode::OneTx);
+        .inspect(&mut call_tracer.into(), InspectExecutionMode::OneTx);
 
     let call_tracer_result = result.get().unwrap();
 

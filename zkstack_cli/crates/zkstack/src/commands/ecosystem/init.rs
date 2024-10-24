@@ -341,10 +341,10 @@ async fn init_chains(
     };
     // Set default values for dev mode
     let mut deploy_paymaster = init_args.deploy_paymaster;
-    let mut genesis_args = init_args.genesis_args.clone();
+    let mut genesis_args = init_args.get_genesis_args().clone();
     if final_init_args.dev {
         deploy_paymaster = Some(true);
-        genesis_args.use_default = true;
+        genesis_args.dev = true;
     }
     // Can't initialize multiple chains with the same DB
     if list_of_chains.len() > 1 {
@@ -359,10 +359,13 @@ async fn init_chains(
 
         let chain_init_args = chain::args::init::InitArgs {
             forge_args: final_init_args.forge_args.clone(),
-            genesis_args: genesis_args.clone(),
+            server_db_url: genesis_args.server_db_url.clone(),
+            server_db_name: genesis_args.server_db_name.clone(),
+            dont_drop: genesis_args.dont_drop,
             deploy_paymaster,
             l1_rpc_url: Some(final_init_args.ecosystem.l1_rpc_url.clone()),
             no_port_reallocation: final_init_args.no_port_reallocation,
+            dev: final_init_args.dev,
         };
         let final_chain_init_args = chain_init_args.fill_values_with_prompt(&chain_config);
 

@@ -6,6 +6,7 @@ use tokio::sync::mpsc;
 use zksync_multivm::{
     interface::{
         executor::{BatchExecutor, BatchExecutorFactory},
+        pubdata::PubdataBuilder,
         storage::{ReadStorage, StoragePtr, StorageView, StorageViewStats},
         utils::DivergenceHandler,
         BatchTransactionExecutionResult, BytecodeCompressionError, CompressedBytecodeInfo,
@@ -13,12 +14,13 @@ use zksync_multivm::{
         VmInterface, VmInterfaceHistoryEnabled,
     },
     is_supported_by_fast_vm,
+    pubdata_builders::pubdata_params_to_builder,
     tracers::CallTracer,
     vm_fast,
     vm_latest::HistoryEnabled,
     FastVmInstance, LegacyVmInstance, MultiVMTracer,
 };
-use zksync_types::{vm::FastVmMode, Transaction};
+use zksync_types::{commitment::PubdataParams, vm::FastVmMode, Transaction};
 
 use super::{
     executor::{Command, MainBatchExecutor},
@@ -116,6 +118,7 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
         storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
+        pubdata_params: PubdataParams,
     ) -> Box<dyn BatchExecutor<S>> {
         // Since we process `BatchExecutor` commands one-by-one (the next command is never enqueued
         // until a previous command is processed), capacity 1 is enough for the commands channel.
@@ -130,8 +133,14 @@ impl<S: ReadStorage + Send + 'static, Tr: BatchTracer> BatchExecutorFactory<S>
             _tracer: PhantomData::<Tr>,
         };
 
-        let handle =
-            tokio::task::spawn_blocking(move || executor.run(storage, l1_batch_params, system_env));
+        let handle = tokio::task::spawn_blocking(move || {
+            executor.run(
+                storage,
+                l1_batch_params,
+                system_env,
+                pubdata_params_to_builder(pubdata_params),
+            )
+        });
         Box::new(MainBatchExecutor::new(handle, commands_sender))
     }
 }
@@ -183,8 +192,8 @@ impl<S: ReadStorage, Tr: BatchTracer> BatchVm<S, Tr> {
         dispatch_batch_vm!(self.start_new_l2_block(l2_block));
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        dispatch_batch_vm!(self.finish_batch())
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
+        dispatch_batch_vm!(self.finish_batch(pubdata_builder))
     }
 
     fn make_snapshot(&mut self) {
@@ -260,6 +269,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> anyhow::Result<StorageView<S>> {
         tracing::info!("Starting executing L1 batch #{}", &l1_batch_params.number);
 
@@ -310,7 +320,7 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
                     }
                 }
                 Command::FinishBatch(resp) => {
-                    let vm_block_result = self.finish_batch(&mut vm)?;
+                    let vm_block_result = self.finish_batch(&mut vm, pubdata_builder)?;
                     if resp.send(vm_block_result).is_err() {
                         break;
                     }
@@ -365,10 +375,14 @@ impl<S: ReadStorage + 'static, Tr: BatchTracer> CommandReceiver<S, Tr> {
         latency.observe();
     }
 
-    fn finish_batch(&self, vm: &mut BatchVm<S, Tr>) -> anyhow::Result<FinishedL1Batch> {
+    fn finish_batch(
+        &self,
+        vm: &mut BatchVm<S, Tr>,
+        pubdata_builder: Rc<dyn PubdataBuilder>,
+    ) -> anyhow::Result<FinishedL1Batch> {
         // The vm execution was paused right after the last transaction was executed.
         // There is some post-processing work that the VM needs to do before the block is fully processed.
-        let result = vm.finish_batch();
+        let result = vm.finish_batch(pubdata_builder);
         anyhow::ensure!(
             !result.block_tip_execution_result.result.is_failed(),
             "VM must not fail when finalizing block: {:#?}",
