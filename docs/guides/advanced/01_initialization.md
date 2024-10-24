@@ -43,6 +43,25 @@ Then, running `zkstack ecosystem init`:.
 
 #### Postgres
 
+First - postgres database: you'll be able to see something like
+
+```
+DATABASE_URL = postgres://postgres:notsecurepassword@localhost/zksync_local
+```
+
+After which we setup the schema (lots of lines with `Applied XX`).
+
+You can try connecting to postgres now, to see what's inside:
+
+```shell
+psql postgres://postgres:notsecurepassword@localhost/zksync_local
+```
+
+(and then commands like `\dt` to see the tables, `\d TABLE_NAME` to see the schema, and `select * from XX` to see the
+contents).
+
+As our network has just started, the database would be quite empty.
+
 You can see the schema for the database in [dal/README.md](../../../core/lib/dal/README.md) TODO: add the link to the
 document with DB schema.
 
