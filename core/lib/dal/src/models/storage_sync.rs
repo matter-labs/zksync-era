@@ -139,7 +139,11 @@ impl SyncBlock {
             operator_address: self.fee_account_address,
             transactions,
             last_in_batch: self.last_in_batch,
-            pubdata_params: Some(self.pubdata_params),
+            pubdata_params: if self.protocol_version.is_pre_gateway() {
+                Some(self.pubdata_params)
+            } else {
+                None
+            },
         }
     }
 }
