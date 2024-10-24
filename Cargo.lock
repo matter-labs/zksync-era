@@ -4023,6 +4023,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "kzgpad-rs"
+version = "0.1.0"
+source = "git+https://github.com/Layr-Labs/kzgpad-rs.git?tag=v0.1.0#b5f8c8d3d6482407dc118cb1f51597a017a1cc89"
+dependencies = [
+ "rand 0.8.5",
+]
+
+[[package]]
 name = "lalrpop"
 version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10169,15 +10177,18 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "kzgpad-rs",
  "prost 0.13.3",
  "rand 0.8.5",
  "rlp",
+ "rustls 0.23.13",
  "sha3 0.10.8",
  "tokio",
  "tonic",
  "tonic-build",
  "tonic-web",
  "tracing",
+ "zksync_config",
 ]
 
 [[package]]

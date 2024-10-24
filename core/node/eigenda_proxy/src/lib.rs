@@ -2,6 +2,7 @@ mod common;
 mod disperser;
 
 use std::net::SocketAddr;
+
 use anyhow::Context as _;
 use axum::{
     routing::{get, put},
@@ -9,6 +10,7 @@ use axum::{
 };
 use tokio::sync::watch;
 mod blob_info;
+mod eigenda_client;
 mod errors;
 mod memstore;
 
