@@ -1,82 +1,73 @@
 # Development guide
 
-This document covers development-related actions in ZKsync.
+This document outlines the steps for setting up and working with ZKsync.
 
-## Initializing the project
+## Installing the local ZK Stack CLI
 
-To setup the main toolkit, `zk`, simply run:
-
-```
-zk
-```
-
-You may also configure autocompletion for your shell via:
-
-```
-zk completion install
-```
-
-Once all the dependencies were installed, project can be initialized:
-
-```
-zk init
-```
-
-This command will do the following:
-
-- Generate `$ZKSYNC_HOME/etc/env/target/dev.env` file with settings for the applications.
-- Initialize docker containers with `reth` Ethereum node for local development.
-- Download and unpack files for cryptographical backend.
-- Generate required smart contracts.
-- Compile all the smart contracts.
-- Deploy smart contracts to the local Ethereum network.
-- Create “genesis block” for server.
-
-Initializing may take pretty long, but many steps (such as downloading & unpacking keys and initializing containers) are
-required to be done only once.
-
-Usually, it is a good idea to do `zk init` once after each merge to the `main` branch (as application setup may change).
-
-Additionally, there is a subcommand `zk clean` to remove previously generated data. Examples:
-
-```
-zk clean --all # Remove generated configs, database and backups.
-zk clean --config # Remove configs only.
-zk clean --database # Remove database.
-zk clean --backups # Remove backups.
-zk clean --database --backups # Remove database *and* backups, but not configs.
-```
-
-**When do you need it?**
-
-1. If you have an initialized database and want to run `zk init`, you have to remove the database first.
-2. If after getting new functionality from the `main` branch your code stopped working and `zk init` doesn't help, you
-   may try removing `$ZKSYNC_HOME/etc/env/target/dev.env` and running `zk init` once again. This may help if the
-   application configuration has changed.
-
-If you don’t need all of the `zk init` functionality, but just need to start/stop containers, use the following
+To set up the local toolkit, begin by installing `zkstackup`. From the project's root directory, run the following
 commands:
 
-```
-zk up   # Set up `reth` and `postgres` containers
-zk down # Shut down `reth` and `postgres` containers
-```
-
-## Reinitializing
-
-When actively changing something that affects infrastructure (for example, contracts code), you normally don't need the
-whole `init` functionality, as it contains many external steps (e.g. deploying ERC20 tokens) which don't have to be
-redone.
-
-For this case, there is an additional command:
-
-```
-zk reinit
+```bash
+cd ./zkstack_cli/zkstackup
+./install --local
 ```
 
-This command does the minimal subset of `zk init` actions required to "reinitialize" the network. It assumes that
-`zk init` was called in the current environment before. If `zk reinit` doesn't work for you, you may want to run
-`zk init` instead.
+This installs `zkstackup` in your user binaries directory (e.g., `$HOME/.local/bin/`) and adds it to your `PATH`.
+
+After installation, open a new terminal or reload your shell profile. From the project's root directory, you can now
+run:
+
+```bash
+zkstackup --local
+```
+
+This command installs `zkstack` from the current source directory.
+
+> NOTE: Whenever you want to update you local installation with your changes, just rerun:
+>
+> ```bash
+> zkstackup --local
+> ```
+>
+> You might find convenient to add this alias to your shell profile:
+>
+> `alias zkstackup='zkstackup --path /path/to/zksync-era'`
+
+## Configure Ecosystem
+
+The root directory includes configuration files for an ecosystem with a single chain, `era`. To initialize the
+ecosystem, first start the required containers:
+
+```bash
+zkstack containers
+```
+
+Next, run:
+
+```bash
+zkstack ecosystem init
+```
+
+These commands will guide you through the configuration options for setting up the ecosystem.
+
+Initialization may take some time, but key steps (such as downloading and unpacking keys or setting up containers) only
+need to be completed once.
+
+## Cleanup
+
+To clean up the local ecosystem (e.g., removing containers and clearing the contract cache), run:
+
+```bash
+zkstack dev clean all
+```
+
+## Re-initialization
+
+You can reinitialize the ecosystem afterward by running:
+
+```bash
+zkstack ecosystem init
+```
 
 ## Committing changes
 
@@ -85,64 +76,59 @@ the workspace initialization process. These hooks will not allow to commit the c
 
 Currently the following criteria are checked:
 
-- Rust code should always be formatted via `cargo fmt`.
-- Other code should always be formatted via `zk fmt`.
-- Dummy Prover should not be staged for commit (see below for the explanation).
-
-## Using Dummy Prover
-
-By default, the chosen prover is a "dummy" one, meaning that it doesn't actually compute proofs but rather uses mocks to
-avoid expensive computations in the development environment.
-
-To switch dummy prover to real prover, one must change `dummy_verifier` to `false` in `contracts.toml` for your env
-(most likely, `etc/env/base/contracts.toml`) and run `zk init` to redeploy smart contracts.
+- Code must be formatted via `zkstack dev fmt`.
+- Code must be linted via `zkstack dev lint`.
 
 ## Testing
 
-- Running the `rust` unit-tests:
+You can run tests using `zkstack dev test` subcommand. Just run:
 
-  ```
-  zk test rust
-  ```
+```bash
+zkstack dev test --help`
+```
 
-- Running a specific `rust` unit-test:
-
-  ```
-  zk test rust --package <package_name> --lib <mod>::tests::<test_fn_name>
-  # e.g. zk test rust --package zksync_core --lib eth_sender::tests::resend_each_block
-  ```
-
-- Running the integration test:
-
-  ```
-  zk server           # Has to be run in the 1st terminal
-  zk test i server    # Has to be run in the 2nd terminal
-  ```
-
-- Running the benchmarks:
-
-  ```
-  zk f cargo bench
-  ```
-
-- Running the loadtest:
-
-  ```
-  zk server # Has to be run in the 1st terminal
-  zk prover # Has to be run in the 2nd terminal if you want to use real prover, otherwise it's not required.
-  zk run loadtest # Has to be run in the 3rd terminal
-  ```
+to see all the options.
 
 ## Contracts
 
-### Re-build contracts
+### Build contracts
 
-```
-zk contract build
+Run:
+
+```bash
+zkstack dev contracts --help
 ```
 
-### Publish source code on etherscan
+to see all the options.
 
+### Publish source code on Etherscan
+
+#### Verifier Options
+
+Most commands interacting with smart contracts support the same verification options as Foundry's `forge` command. Just
+double check if the following options are available in the subcommand:
+
+```bash
+--verifier                  -- Verifier to use
+--verifier-api-key          -- Verifier API key
+--verifier-url              -- Verifier URL, if using a custom provider
 ```
-zk contract publish
+
+#### Using Foundry
+
+You can use `foundry` to verify the source code of the contracts.
+
+```bash
+forge verify-contract
 ```
+
+Verifies a smart contract on a chosen verification provider.
+
+You must provide:
+
+- The contract address
+- The contract name or the path to the contract.
+- In case of Etherscan verification, you must also provide:
+  - Your Etherscan API key, either by passing it as an argument or setting `ETHERSCAN_API_KEY`
+
+For more information check [Foundry's documentation](https://book.getfoundry.sh/reference/forge/forge-verify-contract).

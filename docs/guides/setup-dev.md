@@ -45,9 +45,9 @@ cargo install cargo-nextest
 # SQL tools
 cargo install sqlx-cli --version 0.8.1
 
-# Foundry
-curl -L https://foundry.paradigm.xyz | bash
-foundryup --branch master
+# Foundry ZKsync
+curl -L https://raw.githubusercontent.com/matter-labs/foundry-zksync/main/install-foundry-zksync | bash
+foundryup-zksync --branch master
 
 # Non CUDA (GPU) setup, can be skipped if the machine has a CUDA installed for provers
 # Don't do that if you intend to run provers on your machine. Check the prover docs for a setup instead.
@@ -60,7 +60,7 @@ cd zksync-era
 git submodule update --init --recursive
 ```
 
-Don't forget to [add env variables](#Environment) and look at [tips](#tips).
+Don't forget to look at [tips](#tips).
 
 ## Supported operating systems
 
@@ -72,7 +72,7 @@ Additionally, if you are going to use WSL 2, make sure that your project is loca
 accessing NTFS partitions from within WSL is very slow.
 
 If you're using MacOS with an ARM processor (e.g. M1/M2), make sure that you are working in the _native_ environment
-(e.g. your terminal and IDE don't run in Rosetta, and your toolchain is native). Trying to work with ZKsync code via
+(e.g., your terminal and IDE don't run in Rosetta, and your toolchain is native). Trying to work with ZKsync code via
 Rosetta may cause problems that are hard to spot and debug, so make sure to check everything before you start.
 
 If you are a NixOS user or would like to have a reproducible environment, skip to the section about `nix`.
@@ -208,7 +208,7 @@ sudo apt-get install postgresql
 
 ### Cargo nextest
 
-[cargo-nextest](https://nexte.st/) is the next-generation test runner for Rust projects. `zk test rust` uses
+[cargo-nextest](https://nexte.st/) is the next-generation test runner for Rust projects. `zkstack dev test rust` uses
 `cargo nextest` by default.
 
 ```bash
@@ -236,10 +236,10 @@ enable nix-ld.
 
 Go to the zksync folder and run `nix develop`. After it finishes, you are in a shell that has all the dependencies.
 
-## Foundry
+## Foundry ZKsync
 
-[Foundry](https://book.getfoundry.sh/getting-started/installation) can be utilized for deploying smart contracts. For
-commands related to deployment, you can pass flags for Foundry integration.
+[Foundry ZKsync](https://foundry-book.zksync.io/getting-started/installation) can be utilized for deploying smart
+contracts. For commands related to deployment, you can pass flags for Foundry integration.
 
 ## Non-GPU setup
 
@@ -264,17 +264,6 @@ RUSTFLAGS as env var, or pass it in `config.toml` (either project level or globa
 ```toml
 [build]
 rustflags = ["--cfg=no_cuda"]
-```
-
-## Environment
-
-Edit the lines below and add them to your shell profile file (e.g. `~/.bash_profile`, `~/.zshrc`):
-
-```bash
-# Add path here:
-export ZKSYNC_HOME=/path/to/zksync
-
-export PATH=$ZKSYNC_HOME/bin:$PATH
 ```
 
 ## Tips
