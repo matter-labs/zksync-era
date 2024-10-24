@@ -5,7 +5,7 @@ use zksync_prover_dal::{Connection, Prover, ProverDal};
 
 use crate::{metrics::PROVER_FRI_METRICS, task_wiring::Task};
 
-/// `ProofCompressorJobRequeuer` is a task that requeues compressor jobs that have not made progress in a given unit of time.
+/// `ProofCompressorJobRequeuer` is a task_wiring that requeues compressor jobs that have not made progress in a given unit of time.
 #[derive(Debug)]
 pub struct ProofCompressorJobRequeuer {
     /// max attempts before giving up on the job

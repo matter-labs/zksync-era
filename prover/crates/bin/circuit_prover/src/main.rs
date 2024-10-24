@@ -8,8 +8,15 @@ use anyhow::Context as _;
 use clap::Parser;
 use tokio_util::sync::CancellationToken;
 use zksync_circuit_prover::{
-    Backoff, CircuitProver, FinalizationHintsCache, SetupDataCache, WitnessVectorGenerator,
+    Backoff,
+    CircuitProver,
+    FinalizationHintsCache,
+    SetupDataCache,
+    // WitnessVectorGenerator,
     PROVER_BINARY_METRICS,
+};
+use zksync_circuit_prover_service::{
+    job_runner::light_wvg_runner, witness_vector_generator::WitnessVectorGeneratorJobPicker,
 };
 use zksync_config::{
     configs::{FriProverConfig, ObservabilityConfig},
@@ -18,9 +25,29 @@ use zksync_config::{
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_object_store::{ObjectStore, ObjectStoreFactory};
 use zksync_prover_dal::{ConnectionPool, Prover};
-use zksync_prover_fri_types::PROVER_PROTOCOL_SEMANTIC_VERSION;
+use zksync_prover_fri_types::{get_current_pod_name, PROVER_PROTOCOL_SEMANTIC_VERSION};
 use zksync_prover_keystore::keystore::Keystore;
 use zksync_utils::wait_for_tasks::ManagedTasks;
+
+// #[command(name = "circuit_prover")]
+// #[command(about = "CLI for running circuit provers")]
+// struct Cli {
+//     /// Path to file configuration
+//     #[arg(short = 'c', long)]
+//     config_path: Option<PathBuf>,
+//     /// Path to file secrets
+//     #[arg(short = 's', long)]
+//     secrets_path: Option<PathBuf>,
+//     /// Number of light witness vector generators to run.
+//     /// Corresponds to 1 CPU thread & ~2GB of RAM.
+//     #[arg(short = 'l', long, default_value = 1)]
+//     light_wvg_count: usize,
+//     /// Number of heavy witness vector generators to run.
+//     /// Corresponds to 1 CPU thread & ~9GB of RAM.
+//     #[arg(short = 'h', long, default_value = 1)]
+//     heavy_wvg_count: usize,
+//     // TODO: add Max VRAM allocation
+// }
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
@@ -29,10 +56,14 @@ struct Cli {
     pub(crate) config_path: Option<PathBuf>,
     #[arg(long)]
     pub(crate) secrets_path: Option<PathBuf>,
-    /// Number of WVG jobs to run in parallel.
-    /// Default value is 1.
-    #[arg(long, default_value_t = 1)]
-    pub(crate) witness_vector_generator_count: usize,
+    /// Number of light witness vector generators to run in parallel.
+    /// Corresponds to 1 CPU thread & ~2GB of RAM.
+    #[arg(short = 'l', long, default_value_t = 1)]
+    light_wvg_count: usize,
+    /// Number of heavy witness vector generators to run in parallel.
+    /// Corresponds to 1 CPU thread & ~9GB of RAM.
+    #[arg(short = 'h', long, default_value_t = 1)]
+    heavy_wvg_count: usize,
     /// Max VRAM to allocate. Useful if you want to limit the size of VRAM used.
     /// None corresponds to allocating all available VRAM.
     #[arg(long)]
@@ -50,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
         .install()
         .context("failed to install observability")?;
 
-    let wvg_count = opt.witness_vector_generator_count as u32;
+    let wvg_count = opt.light_wvg_count as u32 + opt.heavy_wvg_count as u32;
 
     let (connection_pool, object_store, setup_data_cache, hints) = load_resources(
         opt.secrets_path,
@@ -68,22 +99,37 @@ async fn main() -> anyhow::Result<()> {
 
     let mut tasks = vec![];
 
-    let (sender, receiver) = tokio::sync::mpsc::channel(5);
+    let (witness_vector_sender, witness_vector_receiver) = tokio::sync::mpsc::channel(5);
 
-    tracing::info!("Starting {wvg_count} Witness Vector Generators.");
+    tracing::info!(
+        "Starting {} light WVGs and {} heavy WVGs.",
+        opt.light_wvg_count,
+        opt.heavy_wvg_count
+    );
 
-    for _ in 0..wvg_count {
-        let wvg = WitnessVectorGenerator::new(
-            object_store.clone(),
-            connection_pool.clone(),
-            PROVER_PROTOCOL_SEMANTIC_VERSION,
-            sender.clone(),
-            hints.clone(),
-        );
-        tasks.push(tokio::spawn(
-            wvg.run(cancellation_token.clone(), backoff.clone()),
-        ));
-    }
+    let light_wvg_runner = light_wvg_runner(
+        connection_pool.clone(),
+        object_store.clone(),
+        get_current_pod_name(),
+        PROVER_PROTOCOL_SEMANTIC_VERSION,
+        hints.clone(),
+        opt.light_wvg_count,
+        witness_vector_sender.clone(),
+    );
+
+    tasks.extend(light_wvg_runner.run());
+
+    let heavy_wvg_runner = zksync_circuit_prover_service::job_runner::heavy_wvg_runner(
+        connection_pool.clone(),
+        object_store.clone(),
+        get_current_pod_name(),
+        PROVER_PROTOCOL_SEMANTIC_VERSION,
+        hints,
+        opt.heavy_wvg_count,
+        witness_vector_sender,
+    );
+
+    tasks.extend(heavy_wvg_runner.run());
 
     // NOTE: Prover Context is the way VRAM is allocated. If it is dropped, the claim on VRAM allocation is dropped as well.
     // It has to be kept until prover dies. Whilst it may be kept in prover struct, during cancellation, prover can `drop`, but the thread doing the processing can still be alive.
@@ -92,7 +138,7 @@ async fn main() -> anyhow::Result<()> {
         connection_pool,
         object_store,
         PROVER_PROTOCOL_SEMANTIC_VERSION,
-        receiver,
+        witness_vector_receiver,
         opt.max_allocation,
         setup_data_cache,
     )

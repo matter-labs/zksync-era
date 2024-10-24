@@ -36,7 +36,7 @@ use crate::{
     witness::WitnessStorage,
 };
 
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number))]
+#[tracing::instrument(skip_all, fields(l1_batch = % block_number))]
 pub(super) async fn generate_witness(
     block_number: L1BatchNumber,
     object_store: Arc<dyn ObjectStore>,
@@ -163,7 +163,7 @@ pub(super) async fn generate_witness(
             let permit = semaphore
                 .acquire_owned()
                 .await
-                .expect("failed to get permit for running save circuit task");
+                .expect("failed to get permit for running save circuit task_wiring");
 
             save_circuit_handles.push(tokio::task::spawn(async move {
                 let (circuit_id, circuit_url) =
@@ -241,7 +241,7 @@ pub(super) async fn generate_witness(
     )
 }
 
-#[tracing::instrument(skip_all, fields(l1_batch = %block_number, circuit_id = %circuit_id))]
+#[tracing::instrument(skip_all, fields(l1_batch = % block_number, circuit_id = % circuit_id))]
 async fn save_recursion_queue(
     block_number: L1BatchNumber,
     circuit_id: u8,

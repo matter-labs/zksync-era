@@ -8,7 +8,7 @@ use crate::{
     task_wiring::Task,
 };
 
-/// `WitnessGeneratorJobRequeuer` s a task that requeues witness generator jobs that have not made progress in a given unit of time.
+/// `WitnessGeneratorJobRequeuer` s a task_wiring that requeues witness generator jobs that have not made progress in a given unit of time.
 #[derive(Debug)]
 pub struct WitnessGeneratorJobRequeuer {
     /// max attempts before giving up on the job
