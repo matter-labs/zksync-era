@@ -103,6 +103,17 @@ to see all the options.
 
 ### Publish source code on Etherscan
 
+#### Verifier Options
+
+Most commands interacting with smart contracts support the same verification options as Foundry's `forge` command. Just
+double check if the following options are available in the subcommand:
+
+```bash
+--verifier                  -- Verifier to use
+--verifier-api-key          -- Verifier API key
+--verifier-url              -- Verifier URL, if using a custom provider
+```
+
 #### Using Foundry
 
 You can use `foundry` to verify the source code of the contracts.
@@ -114,6 +125,7 @@ forge verify-contract
 Verifies a smart contract on a chosen verification provider.
 
 You must provide:
+
 - The contract address
 - The contract name or the path to the contract.
 - In case of Etherscan verification, you must also provide:
