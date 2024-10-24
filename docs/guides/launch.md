@@ -90,19 +90,13 @@ zkstack server
 
 ## Running prover server
 
-Running on machine without GPU
+Running on a machine with GPU
 
 ```bash
 zkstack prover run
 ```
 
-TODO: check the new way to do this
-
-Running on machine with GPU
-
-```bash
-zk f cargo +nightly run --features gpu --release --bin zksync_prover
-```
+> NOTE: Running on machine without GPU is currently not supported by `zkstack`.
 
 ## Running the verification key generator
 
