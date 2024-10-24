@@ -1,5 +1,21 @@
 # Changelog
 
+## [25.1.0](https://github.com/matter-labs/zksync-era/compare/core-v25.0.0...core-v25.1.0) (2024-10-24)
+
+
+### Features
+
+* gateway preparation ([#3006](https://github.com/matter-labs/zksync-era/issues/3006)) ([16f2757](https://github.com/matter-labs/zksync-era/commit/16f275756cd28024a6b11ac1ac327eb5b8b446e1))
+* Implement gas relay mode and inclusion data for data attestation ([#3070](https://github.com/matter-labs/zksync-era/issues/3070)) ([561fc1b](https://github.com/matter-labs/zksync-era/commit/561fc1bddfc79061dab9d8d150baa06acfa90692))
+* **proof-data-handler:** add first processed batch option ([#3112](https://github.com/matter-labs/zksync-era/issues/3112)) ([1eb69d4](https://github.com/matter-labs/zksync-era/commit/1eb69d467802d07f3fc6502de97ff04a69f952fc))
+
+
+### Bug Fixes
+
+* **consensus:** better logging of errors ([#3170](https://github.com/matter-labs/zksync-era/issues/3170)) ([a5028da](https://github.com/matter-labs/zksync-era/commit/a5028da65608898ad41c6a4fd5c6ec4c28a45703))
+* **consensus:** payload encoding protected by protocol_version ([#3168](https://github.com/matter-labs/zksync-era/issues/3168)) ([8089b78](https://github.com/matter-labs/zksync-era/commit/8089b78b3f2cdbe8d0a23e9b8412a8022d78ada2))
+* update logging in cbt l1 behaviour ([#3149](https://github.com/matter-labs/zksync-era/issues/3149)) ([d0f61b0](https://github.com/matter-labs/zksync-era/commit/d0f61b0552dcacc2e8e33fdbcae6f1e5fbb43820))
+
 ## [25.0.0](https://github.com/matter-labs/zksync-era/compare/core-v24.29.0...core-v25.0.0) (2024-10-23)
 
 
