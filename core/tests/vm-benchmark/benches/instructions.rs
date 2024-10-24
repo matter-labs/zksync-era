@@ -92,7 +92,7 @@ struct Comparison {
 
 impl Comparison {
     fn percent_difference(a: u64, b: u64) -> f64 {
-        ((b as f64) - (a as f64)) / (a as f64) * 100.0
+        ((b as i64) - (a as i64)) as f64 / (a as f64) * 100.0
     }
 
     fn new(output: &BenchmarkOutput) -> Option<Self> {
