@@ -101,10 +101,22 @@ zkstack dev contracts --help
 
 to see all the options.
 
-### Publish source code on etherscan
+### Publish source code on Etherscan
 
-TODO: check the new way to do this
+#### Using Foundry
 
+You can use `foundry` to verify the source code of the contracts.
+
+```bash
+forge verify-contract
 ```
-zk contract publish
-```
+
+Verifies a smart contract on a chosen verification provider.
+
+You must provide:
+- The contract address
+- The contract name or the path to the contract.
+- In case of Etherscan verification, you must also provide:
+  - Your Etherscan API key, either by passing it as an argument or setting `ETHERSCAN_API_KEY`
+
+For more information check [Foundry's documentation](https://book.getfoundry.sh/reference/forge/forge-verify-contract).
