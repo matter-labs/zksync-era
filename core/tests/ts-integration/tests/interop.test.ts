@@ -5,6 +5,7 @@
 import * as fs from 'fs';
 
 import { TestMaster } from '../src/index';
+import { Token } from '../src/types';
 
 import * as zksync from 'zksync-ethers-interop-support';
 import * as ethers from 'ethers';
@@ -53,21 +54,21 @@ describe('Interop checks', () => {
     let l1EthersWallet: Wallet;
     let veryRichWallet: zksync.Wallet;
 
-    let tokenA_details: {
-        assetId: string;
-        addresses: {
-            interop1: string;
-            interop2: string;
-            l1: string;
-        };
+    let tokenA_details: Token = {
+        name: 'Token A',
+        symbol: 'AA',
+        decimals: 18n,
+        l1Address: '',
+        l2Address: '',
+        l2AddressSecondChain: ''
     };
-    let tokenB_details: {
-        assetId: string;
-        addresses: {
-            interop1: string;
-            interop2: string;
-            l1: string;
-        };
+    let tokenB_details: Token = {
+        name: 'Token B',
+        symbol: 'BB',
+        decimals: 18n,
+        l1Address: '',
+        l2Address: '',
+        l2AddressSecondChain: ''
     };
 
     // Common Variables
@@ -140,24 +141,6 @@ describe('Interop checks', () => {
         );
         console.log('--------------------');
 
-        // Token Details
-        tokenA_details = {
-            assetId: '',
-            addresses: {
-                interop1: '',
-                interop2: '',
-                l1: ''
-            }
-        };
-        tokenB_details = {
-            assetId: '',
-            addresses: {
-                interop1: '',
-                interop2: '',
-                l1: ''
-            }
-        };
-
         await (
             await veryRichWallet._signerL1!().sendTransaction({
                 to: interop1_rich_wallet.address,
@@ -222,22 +205,22 @@ describe('Interop checks', () => {
         // Deploy token A on interop1 and register
         console.log('Deploying token A on Interop1');
         const interop1_tokenA_contract_deployment = await deployContract(interop1_wallet, ArtifactMintableERC20, [
-            'Token A',
-            'AA',
-            18
+            tokenA_details.name,
+            tokenA_details.symbol,
+            tokenA_details.decimals
         ]);
-        tokenA_details.addresses.interop1 = await interop1_tokenA_contract_deployment.getAddress();
+        tokenA_details.l2Address = await interop1_tokenA_contract_deployment.getAddress();
         console.log('Registering token A on Interop1');
-        await (await interop1_nativeTokenVault_contract.registerToken(tokenA_details.addresses.interop1)).wait();
+        await (await interop1_nativeTokenVault_contract.registerToken(tokenA_details.l2Address)).wait();
         await (await interop1_tokenA_contract_deployment.mint(await interop1_wallet.getAddress(), 1000)).wait();
         await (await interop1_tokenA_contract_deployment.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS, 1000)).wait();
         console.log('Token A registered on Interop1');
-        tokenA_details.assetId = await interop1_nativeTokenVault_contract.assetId(tokenA_details.addresses.interop1);
-        tokenA_details.addresses.interop2 = await interop2_nativeTokenVault_contract.tokenAddress(
+        tokenA_details.assetId = await interop1_nativeTokenVault_contract.assetId(tokenA_details.l2Address);
+        tokenA_details.l2AddressSecondChain = await interop2_nativeTokenVault_contract.tokenAddress(
             tokenA_details.assetId
         );
         interop1_tokenA_contract = new zksync.Contract(
-            tokenA_details.addresses.interop1,
+            tokenA_details.l2Address,
             ArtifactMintableERC20.abi,
             interop1_wallet
         );
@@ -246,23 +229,23 @@ describe('Interop checks', () => {
         // Deploy token B on interop2 and register
         console.log('Deploying token B on Interop2');
         const interop2_tokenB_contract_deployment = await deployContract(interop2_wallet, ArtifactMintableERC20, [
-            'Token B',
-            'BB',
-            18
+            tokenB_details.name,
+            tokenB_details.symbol,
+            tokenB_details.decimals
         ]);
-        tokenB_details.addresses.interop2 = await interop2_tokenB_contract_deployment.getAddress();
+        tokenB_details.l2AddressSecondChain = await interop2_tokenB_contract_deployment.getAddress();
         await (await interop2_tokenB_contract_deployment.mint(await interop1_wallet.getAddress(), ethers.parseEther('100'))).wait();
         await (await interop2_tokenB_contract_deployment.approve(L2_NATIVE_TOKEN_VAULT_ADDRESS,  ethers.parseEther('100'))).wait();
         console.log('Registering token B on Interop2');
-        await (await interop2_nativeTokenVault_contract.registerToken(tokenB_details.addresses.interop2)).wait();
+        await (await interop2_nativeTokenVault_contract.registerToken(tokenB_details.l2AddressSecondChain)).wait();
         console.log('Token B registered on Interop2');
         // await delay(timeout);
-        tokenB_details.assetId = await interop2_nativeTokenVault_contract.assetId(tokenB_details.addresses.interop2);
-        tokenB_details.addresses.interop1 = await interop1_nativeTokenVault_contract.tokenAddress(
+        tokenB_details.assetId = await interop2_nativeTokenVault_contract.assetId(tokenB_details.l2AddressSecondChain);
+        tokenB_details.l2Address = await interop1_nativeTokenVault_contract.tokenAddress(
             tokenB_details.assetId
         );
         interop2_tokenB_contract = new zksync.Contract(
-            tokenB_details.addresses.interop2,
+            tokenB_details.l2AddressSecondChain,
             ArtifactMintableERC20.abi,
             interop2_wallet
         );
@@ -286,7 +269,7 @@ describe('Interop checks', () => {
         );
 
         const withdrawA = interop1_wallet.withdraw({
-            token: tokenA_details.addresses.interop1,
+            token: tokenA_details.l2Address,
             amount: 100
         });
         await expect(withdrawA).toBeAccepted();
@@ -299,7 +282,7 @@ describe('Interop checks', () => {
         await expect(interop1_rich_wallet.finalizeWithdrawal(withdrawalATx.hash)).toBeAccepted();
 
         const withdrawB = interop2_wallet.withdraw({
-            token: tokenB_details.addresses.interop2,
+            token: tokenB_details.l2AddressSecondChain!,
             amount: 100
         });
 
@@ -312,12 +295,12 @@ describe('Interop checks', () => {
         await interop2_wallet.finalizeWithdrawalParams(withdrawBTx.hash); // kl todo finalize the Withdrawals with the params here. Alternatively do in the SDK.
         await expect(interop2_rich_wallet.finalizeWithdrawal(withdrawBTx.hash)).toBeAccepted();
 
-        tokenA_details.addresses.l1 = await l1NativeTokenVault.tokenAddress(tokenA_details.assetId);
-        tokenB_details.addresses.l1 = await l1NativeTokenVault.tokenAddress(tokenB_details.assetId);
+        tokenA_details.l1Address = await l1NativeTokenVault.tokenAddress(tokenA_details.assetId);
+        tokenB_details.l1Address = await l1NativeTokenVault.tokenAddress(tokenB_details.assetId);
 
         await expect(
             interop1_wallet.deposit({
-                token: tokenB_details.addresses.l1,
+                token: tokenB_details.l1Address,
                 amount: 50,
                 approveERC20: true
             })
@@ -325,16 +308,16 @@ describe('Interop checks', () => {
 
         await expect(
             interop2_wallet.deposit({
-                token: tokenA_details.addresses.l1,
+                token: tokenA_details.l1Address,
                 amount: 50,
                 approveERC20: true
             })
         ).toBeAccepted();
 
-        tokenA_details.addresses.interop2 = await interop2_nativeTokenVault_contract.tokenAddress(
+        tokenA_details.l2AddressSecondChain = await interop2_nativeTokenVault_contract.tokenAddress(
             tokenA_details.assetId
         );
-        tokenB_details.addresses.interop1 = await interop1_nativeTokenVault_contract.tokenAddress(
+        tokenB_details.l2Address = await interop1_nativeTokenVault_contract.tokenAddress(
             tokenB_details.assetId
         );
 
@@ -346,8 +329,8 @@ describe('Interop checks', () => {
         // Deploy Swap Contracts on Interop2
         console.log('Deploying Swap Contract on Interop2');
         const interop2_swap_contract_deployment = await deployContract(interop2_wallet, ArtifactSwap, [
-            tokenA_details.addresses.interop2,
-            tokenB_details.addresses.interop2
+            tokenA_details.l2AddressSecondChain!,
+            tokenB_details.l2AddressSecondChain!
         ]);
         const interop2_swap_contract_address = await interop2_swap_contract_deployment.getAddress();
         interop2_swap_contract = new zksync.Contract(interop2_swap_contract_address, ArtifactSwap.abi, interop2_wallet);
@@ -362,7 +345,7 @@ describe('Interop checks', () => {
             `Swap contract token B balance: ${ethers.formatEther(
                 await getTokenBalance({
                     provider: interop2_provider,
-                    tokenAddress: tokenB_details.addresses.interop2,
+                    tokenAddress: tokenB_details.l2AddressSecondChain!,
                     address: interop2_swap_contract_address
                 })
             )} BB`
@@ -378,7 +361,7 @@ describe('Interop checks', () => {
         console.log('\n\n[TEST STARTED] - Can transfer token A from Interop1 to Interop2.');
         const interop1_tokenA_balance_before = await getTokenBalance({
             provider: interop1_provider,
-            tokenAddress: tokenA_details.addresses.interop1,
+            tokenAddress: tokenA_details.l2Address,
             address: interop1_wallet.address
         });
         console.log(
@@ -392,7 +375,7 @@ describe('Interop checks', () => {
 
         const interop1_tokenA_balance_after = await getTokenBalance({
             provider: interop1_provider,
-            tokenAddress: tokenA_details.addresses.interop1,
+            tokenAddress: tokenA_details.l2Address,
             address: interop1_wallet.address
         });
         console.log(
@@ -407,7 +390,7 @@ describe('Interop checks', () => {
 
         const interop2_tokenA_balance_after = await getTokenBalance({
             provider: interop2_provider,
-            tokenAddress: tokenA_details.addresses.interop2,
+            tokenAddress: tokenA_details.l2AddressSecondChain!,
             address: interop2_wallet.address
         });
         console.log(
@@ -423,7 +406,7 @@ describe('Interop checks', () => {
         console.log('Approving token A allowance for Swap Contract on Interop2 from Interop1...');
         const allowanceBefore = await getTokenAllowance({
             provider: interop2_provider,
-            tokenAddress: tokenA_details.addresses.interop2,
+            tokenAddress: tokenA_details.l2AddressSecondChain!,
             fromAddress: await interop1_wallet.getAddress(),
             toAddress: await interop2_swap_contract.getAddress()
         });
@@ -431,7 +414,7 @@ describe('Interop checks', () => {
         await from_interop1_approveSwapAllowance();
         const allowanceAfter = await getTokenAllowance({
             provider: interop2_provider,
-            tokenAddress: tokenA_details.addresses.interop2,
+            tokenAddress: tokenA_details.l2AddressSecondChain!,
             fromAddress: await interop1_wallet.getAddress(),
             toAddress: await interop2_swap_contract.getAddress()
         });
@@ -441,7 +424,7 @@ describe('Interop checks', () => {
 
         const interop2_tokenB_balance_before = await getTokenBalance({
             provider: interop2_provider,
-            tokenAddress: tokenB_details.addresses.interop2,
+            tokenAddress: tokenB_details.l2AddressSecondChain!,
             address: interop2_wallet.address
         });
         console.log(
@@ -456,7 +439,7 @@ describe('Interop checks', () => {
 
         const interop2_tokenB_balance_after = await getTokenBalance({
             provider: interop2_provider,
-            tokenAddress: tokenB_details.addresses.interop2,
+            tokenAddress: tokenB_details.l2AddressSecondChain!,
             address: interop2_wallet.address
         });
         console.log(
@@ -470,7 +453,7 @@ describe('Interop checks', () => {
         console.log('Transferring token B from Interop2 to Interop1...');
         const interop1_tokenB_balance_before = await getTokenBalance({
             provider: interop1_provider,
-            tokenAddress: tokenB_details.addresses.interop1,
+            tokenAddress: tokenB_details.l2Address,
             address: interop1_wallet.address
         });
         console.log(
@@ -490,7 +473,7 @@ describe('Interop checks', () => {
 
         const interop1_tokenB_balance_after = await getTokenBalance({
             provider: interop1_provider,
-            tokenAddress: tokenB_details.addresses.interop1,
+            tokenAddress: tokenB_details.l2Address,
             address: interop1_wallet.address
         });
         console.log(
@@ -542,7 +525,7 @@ describe('Interop checks', () => {
         // Create an interop transaction from Interop1 to Interop2
         const tx = await from_interop1_requestL2TransactionDirect(
             mintValue,
-            tokenA_details.addresses.interop2,
+            tokenA_details.l2AddressSecondChain!,
             BigInt(0),
             l2Calldata
         );
