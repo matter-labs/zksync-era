@@ -139,7 +139,7 @@ impl InitParameters {
                 expected_root_hash = Some(recovery.l1_batch_root_hash);
             }
             (Some(recovery), Some(pruned_l2_block)) => {
-                // Main case: we have both recovery and some pruning on top of it.
+                // We have both recovery and some pruning on top of it.
                 l2_block = pruned_l2_block.max(recovery.l2_block_number);
                 l1_batch = pruning_info
                     .last_hard_pruned_l1_batch
