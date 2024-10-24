@@ -14,6 +14,7 @@ pub enum Target {
     Ts,
     Rs,
     Contracts,
+    Autocompletion,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

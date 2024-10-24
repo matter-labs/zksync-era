@@ -293,6 +293,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-compression"
+version = "0.4.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd066d0b4ef8ecb03a55319dc13aa6910616d0f44008a045bb1835af830abff5"
+dependencies = [
+ "futures-core",
+ "memchr",
+ "pin-project-lite",
+ "tokio",
+ "zstd",
+ "zstd-safe",
+]
+
+[[package]]
 name = "async-executor"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6124,6 +6138,7 @@ version = "0.12.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8f4955649ef5c38cc7f9e8aa41761d48fb9677197daea9984dc54f56aad5e63"
 dependencies = [
+ "async-compression",
  "base64 0.22.1",
  "bytes",
  "encoding_rs",
@@ -8557,13 +8572,16 @@ version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e9cd434a998747dd2c4276bc96ee2e0c7a2eadf3cae88e52be55a05fa9053f5"
 dependencies = [
+ "async-compression",
  "bitflags 2.6.0",
  "bytes",
+ "futures-core",
  "http 1.1.0",
  "http-body 1.0.1",
  "http-body-util",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
  "tower-layer",
  "tower-service",
 ]
@@ -10341,14 +10359,17 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "backon",
  "base58",
  "blake2 0.10.6",
  "blake2b_simd",
+ "bytes",
  "flate2",
  "futures 0.3.30",
  "hex",
  "jsonrpsee 0.23.2",
  "parity-scale-codec",
+ "reqwest 0.12.7",
  "scale-encode",
  "serde",
  "serde_json",
@@ -10533,7 +10554,7 @@ dependencies = [
 
 [[package]]
 name = "zksync_external_node"
-version = "24.29.0"
+version = "25.0.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -11003,7 +11024,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "bigdecimal",
  "test-casing",
  "tokio",
  "tracing",
@@ -11012,7 +11032,6 @@ dependencies = [
  "zksync_dal",
  "zksync_eth_client",
  "zksync_types",
- "zksync_utils",
  "zksync_web3_decl",
 ]
 
@@ -11238,6 +11257,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tower 0.4.13",
+ "tower-http",
  "tracing",
  "vise",
  "zksync_basic_types",
@@ -11605,7 +11625,6 @@ dependencies = [
  "once_cell",
  "prost 0.12.6",
  "rlp",
- "secp256k1",
  "serde",
  "serde_json",
  "serde_with",
@@ -11614,7 +11633,6 @@ dependencies = [
  "tokio",
  "tracing",
  "zksync_basic_types",
- "zksync_config",
  "zksync_contracts",
  "zksync_crypto_primitives",
  "zksync_mini_merkle_tree",
@@ -11786,6 +11804,24 @@ dependencies = [
  "vise",
  "zksync_config",
  "zksync_types",
+]
+
+[[package]]
+name = "zstd"
+version = "0.13.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcf2b778a664581e31e389454a7072dab1647606d44f7feea22cd5abb9c9f3f9"
+dependencies = [
+ "zstd-safe",
+]
+
+[[package]]
+name = "zstd-safe"
+version = "7.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54a3ab4db68cea366acc5c897c7b4d4d1b8994a9cd6e6f841f8964566a419059"
+dependencies = [
+ "zstd-sys",
 ]
 
 [[package]]

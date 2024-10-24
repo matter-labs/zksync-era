@@ -40,7 +40,9 @@ jobs:
           ci_run zkstack dev db setup --prover-url=${{ env.prover_url }} --core-url=${{ env.core_url }}
 
       - name: Formatting
-        run: ci_run bash -c "cd prover && cargo fmt --check"
+        run: |
+          ci_run git config --global --add safe.directory /usr/src/zksync
+          ci_run zkstack dev fmt --check rustfmt
 
   unit-tests:
     runs-on: [ matterlabs-ci-runner-highmem-long ]
