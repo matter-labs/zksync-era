@@ -1,9 +1,8 @@
 use assert_matches::assert_matches;
 use zksync_types::U256;
-use zksync_vm_interface::InspectExecutionMode;
 
 use super::{get_bootloader, tester::VmTesterBuilder, TestedVm, BASE_SYSTEM_CONTRACTS};
-use crate::interface::{ExecutionResult, Halt, TxExecutionMode, VmInterfaceExt};
+use crate::interface::{ExecutionResult, Halt, TxExecutionMode};
 
 pub(crate) fn test_dummy_bootloader<VM: TestedVm>() {
     let mut base_system_contracts = BASE_SYSTEM_CONTRACTS.clone();
@@ -15,7 +14,7 @@ pub(crate) fn test_dummy_bootloader<VM: TestedVm>() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<VM>();
 
-    let result = vm.vm.execute(InspectExecutionMode::Bootloader);
+    let result = vm.vm.finish_batch_without_pubdata();
     assert!(!result.result.is_failed());
 
     let correct_first_cell = U256::from_str_radix("123123123", 16).unwrap();
@@ -34,7 +33,7 @@ pub(crate) fn test_bootloader_out_of_gas<VM: TestedVm>() {
         .with_execution_mode(TxExecutionMode::VerifyExecute)
         .build::<VM>();
 
-    let res = vm.vm.execute(InspectExecutionMode::Bootloader);
+    let res = vm.vm.finish_batch_without_pubdata();
 
     assert_matches!(
         res.result,

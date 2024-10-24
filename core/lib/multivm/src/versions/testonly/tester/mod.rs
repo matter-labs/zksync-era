@@ -193,6 +193,8 @@ pub(crate) trait TestedVm:
         pubdata_builder: Rc<dyn PubdataBuilder>,
     ) -> VmExecutionResultAndLogs;
 
+    fn finish_batch_without_pubdata(&mut self) -> VmExecutionResultAndLogs;
+
     fn insert_bytecodes(&mut self, bytecodes: &[&[u8]]);
 
     /// Includes bytecodes that have failed to decommit. Should exclude base system contract bytecodes (default AA / EVM emulator).

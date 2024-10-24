@@ -98,6 +98,14 @@ impl TestedVm for TestedLatestVm {
         )
     }
 
+    fn finish_batch_without_pubdata(&mut self) -> VmExecutionResultAndLogs {
+        self.inspect_inner(
+            &mut TracerDispatcher::default(),
+            VmExecutionMode::Batch,
+            None,
+        )
+    }
+
     fn insert_bytecodes(&mut self, bytecodes: &[&[u8]]) {
         let bytecodes = bytecodes
             .iter()

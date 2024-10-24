@@ -5,7 +5,7 @@ use zksync_utils::h256_to_u256;
 use zksync_vm2::interface::{Event, HeapId, StateInterface};
 use zksync_vm_interface::{
     pubdata::PubdataBuilder, storage::ReadStorage, CurrentExecutionState, L2BlockEnv,
-    VmExecutionResultAndLogs, VmInterface,
+    VmExecutionMode, VmExecutionResultAndLogs, VmInterface,
 };
 
 use super::Vm;
@@ -107,6 +107,10 @@ impl TestedVm for Vm<ImmutableStorageView<InMemoryStorage>> {
         self.enforce_state_diffs(diffs);
         self.finish_batch(pubdata_builder)
             .block_tip_execution_result
+    }
+
+    fn finish_batch_without_pubdata(&mut self) -> VmExecutionResultAndLogs {
+        self.inspect_inner(&mut Default::default(), VmExecutionMode::Batch)
     }
 
     fn insert_bytecodes(&mut self, bytecodes: &[&[u8]]) {

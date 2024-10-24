@@ -535,7 +535,7 @@ impl<S: ReadStorage, Tr: Tracer + Default> Vm<S, Tr> {
         }
     }
 
-    fn inspect_inner(
+    pub(crate) fn inspect_inner(
         &mut self,
         tracer: &mut Tr,
         execution_mode: VmExecutionMode,

@@ -57,6 +57,13 @@ impl TestedVm for ShadowedFastVm {
         })
     }
 
+    fn finish_batch_without_pubdata(&mut self) -> VmExecutionResultAndLogs {
+        self.get_custom_mut("finish_batch_without_pubdata", |r| match r {
+            ShadowMut::Main(vm) => vm.finish_batch_without_pubdata(),
+            ShadowMut::Shadow(vm) => vm.finish_batch_without_pubdata(),
+        })
+    }
+
     fn insert_bytecodes(&mut self, bytecodes: &[&[u8]]) {
         self.get_mut("insert_bytecodes", |r| match r {
             ShadowMut::Main(vm) => vm.insert_bytecodes(bytecodes),
