@@ -78,14 +78,12 @@ running `zkstack chain init` command.
 
 ## Running server using Google cloud storage object store instead of default In memory store
 
-TODO: check the new way to do this
-
 Get the `service_account.json` file containing the GCP credentials from kubernetes secret for relevant
 environment(stage2/ testnet2) add that file to the default location `~/gcloud/service_account.json` or update
 `object_store.toml` with the file location
 
 ```bash
-zkstack server
+zkstack prover init --bucket-base-url={url} --credentials-file={path/to/service_account.json}
 ```
 
 ## Running prover server
