@@ -3,6 +3,7 @@ use std::num::NonZeroUsize;
 use rand::{distributions::Distribution, Rng};
 use secrecy::Secret;
 use zksync_basic_types::{
+    api_key::APIKey,
     basic_fri_types::CircuitIdRoundTuple,
     commitment::L1BatchCommitmentMode,
     network::Network,
@@ -17,7 +18,12 @@ use zksync_crypto_primitives::K256PrivateKey;
 
 use crate::{
     configs::{
-        self, da_client::DAClientConfig::Avail, external_price_api_client::ForcedPriceClientConfig,
+        self,
+        da_client::{
+            avail::{AvailClientConfig, AvailDefaultConfig},
+            DAClientConfig::Avail,
+        },
+        external_price_api_client::ForcedPriceClientConfig,
     },
     AvailConfig,
 };
@@ -935,11 +941,12 @@ impl Distribution<configs::en_config::ENConfig> for EncodeDist {
 impl Distribution<configs::da_client::DAClientConfig> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::da_client::DAClientConfig {
         Avail(AvailConfig {
-            api_node_url: self.sample(rng),
             bridge_api_url: self.sample(rng),
-            app_id: self.sample(rng),
             timeout: self.sample(rng),
-            max_retries: self.sample(rng),
+            config: AvailClientConfig::FullClient(AvailDefaultConfig {
+                api_node_url: self.sample(rng),
+                app_id: self.sample(rng),
+            }),
         })
     }
 }
@@ -948,6 +955,7 @@ impl Distribution<configs::secrets::DataAvailabilitySecrets> for EncodeDist {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> configs::secrets::DataAvailabilitySecrets {
         configs::secrets::DataAvailabilitySecrets::Avail(configs::da_client::avail::AvailSecrets {
             seed_phrase: Some(SeedPhrase(Secret::new(self.sample(rng)))),
+            gas_relay_api_key: Some(APIKey(Secret::new(self.sample(rng)))),
         })
     }
 }
