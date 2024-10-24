@@ -44,7 +44,6 @@ pub async fn run_server(
 
     tracing::debug!("Starting eigenda proxy on {bind_address}");
 
-    // TODO: app should receive an impl instead of a struct
     let app = create_eigenda_proxy_router(client);
 
     let listener = tokio::net::TcpListener::bind(bind_address)
@@ -83,22 +82,3 @@ fn create_eigenda_proxy_router(client: ClientType) -> Router {
         );
     router
 }
-
-// fn create_eigenda_proxy_router(eigenda_client: EigenDAClient) -> Router {
-//     let get_blob_id_processor = RequestProcessor::new(eigenda_client);
-//     let pub_blob_id_processor = get_blob_id_processor.clone();
-//     let router = Router::new()
-//         .route(
-//             "/get/:l1_batch_number",
-//             get(move |blob_id: Path<String>| async move {
-//                 get_blob_id_processor.get_blob_id(blob_id).await
-//             }),
-//         )
-//         .route(
-//             "/put/",
-//             post(move |blob_id: Path<String>| async move {
-//                 pub_blob_id_processor.put_blob_id(blob_id).await
-//             }),
-//         );
-//     router
-// }

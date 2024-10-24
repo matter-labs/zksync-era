@@ -236,21 +236,20 @@ mod test {
 
     #[tokio::test]
     async fn test_memstore_expiration() {
-        let blob_expiration = Duration::from_millis(100);
         let config = MemStoreConfig {
             max_blob_size_bytes: 1024,
-            blob_expiration: 100,
+            blob_expiration: 2,
             put_latency: 1,
             get_latency: 1,
             api_node_url: String::default(), // unused for this test
             custom_quorum_numbers: None,     // unused for this test
             account_id: None,                // unused for this test
         };
-        let store = MemStore::new(config);
+        let store = MemStore::new(config.clone());
 
         let blob = vec![0u8; 100];
         let cert = store.clone().put_blob(blob.clone()).await.unwrap();
-        tokio::time::sleep(blob_expiration * 2).await;
+        tokio::time::sleep(Duration::from_secs(config.blob_expiration * 2)).await;
         let result = store.get_blob(cert).await;
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), MemStoreError::BlobNotFound);
