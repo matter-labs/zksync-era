@@ -24,7 +24,7 @@ If you want to use memstore:
 ```yaml
 da_client:
   eigen_da:
-    memstore:
+    mem_store:
       api_node_url: 0.0.0.0:4242 # TODO: This should be removed once eigenda proxy is no longer used
       max_blob_size_bytes: 2097152
       blob_expiration: 100000
