@@ -69,10 +69,6 @@ jobs:
             --tag europe-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }} \
             us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
 
-      - name: Remove prover-gpu-fri-gar image to free space
-        run: |
-          docker image rm us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/prover-fri-gpu-gar:2.0-${{ inputs.protocol_version }}-${{ inputs.image_tag_suffix }}
-
       - name: Move Setup data from prover-gpu-fri-gar to circuit-prover-gpu-gar
         run: |
           mv -v docker/prover-gpu-fri-gar/*.bin docker/circuit-prover-gpu-gar/
