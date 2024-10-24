@@ -255,9 +255,7 @@ impl StoreRunner {
                         Err(InsertCertificateError::Canceled(err)) => {
                             return Err(ctx::Error::Canceled(err))
                         }
-                        Err(InsertCertificateError::Inner(err)) => {
-                            return Err(ctx::Error::Internal(anyhow::Error::from(err)))
-                        }
+                        Err(err) => Err(err).context("insert_block_certificate()")?,
                     }
                 }
 
