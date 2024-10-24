@@ -10,6 +10,7 @@ on:
 
 env:
   RUST_BACKTRACE: 1
+  PASSED_ENV_VARS: RUST_BACKTRACE
 
 jobs:
   lint:

@@ -180,17 +180,26 @@ impl ProtoFmt for Payload {
                 .context("operator_address")?,
             transactions,
             last_in_batch: *required(&r.last_in_batch).context("last_in_batch")?,
-            pubdata_params: read_optional_repr(&r.pubdata_params).context("pubdata_params")?,
+            pubdata_params: read_optional_repr(&r.pubdata_params)
+                .context("pubdata_params")?
+                .unwrap_or_default(),
         };
-        anyhow::ensure!(this.pubdata_params.is_none() == this.protocol_version.is_pre_gateway());
+        if this.protocol_version.is_pre_gateway() {
+            anyhow::ensure!(
+                this.pubdata_params == PubdataParams::default(),
+                "pubdata_params should have the default value in pre-gateway protocol_version"
+            );
+        }
+        if this.pubdata_params == PubdataParams::default() {
+            anyhow::ensure!(
+                r.pubdata_params.is_none(),
+                "default pubdata_params should be encoded as None"
+            );
+        }
         Ok(this)
     }
 
     fn build(&self) -> Self::Proto {
-        assert!(
-            self.protocol_version.is_pre_gateway() == self.pubdata_params.is_none(),
-            "pubdata_params should be None iff protocol_version is pre-gateway"
-        );
         let mut x = Self::Proto {
             protocol_version: Some((self.protocol_version as u16).into()),
             hash: Some(self.hash.as_bytes().into()),
@@ -205,7 +214,11 @@ impl ProtoFmt for Payload {
             transactions: vec![],
             transactions_v25: vec![],
             last_in_batch: Some(self.last_in_batch),
-            pubdata_params: self.pubdata_params.as_ref().map(ProtoRepr::build),
+            pubdata_params: if self.pubdata_params == PubdataParams::default() {
+                None
+            } else {
+                Some(ProtoRepr::build(&self.pubdata_params))
+            },
         };
         match self.protocol_version {
             v if v >= ProtocolVersionId::Version25 => {
