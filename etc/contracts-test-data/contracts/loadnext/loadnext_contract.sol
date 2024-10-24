@@ -4,22 +4,12 @@ pragma solidity ^0.8.0;
 pragma abicoder v2;
 
 contract LoadnextContract {
-    uint internal constant COMPENSATE_READS = 155;
-    uint internal constant COMPENSATE_REPEATED_WRITES = 3; // observed: 3.2
-    uint internal constant COMPENSATE_INITIAL_WRITES = 0; // observed: 0.1
-    uint internal constant COMPENSATE_EVENTS = 6;
-
     event Event(uint val);
     uint[] readArray;
     uint[] writeArray;
 
-    function saturatingSubtract(uint a, uint b) internal pure returns (uint) {
-        return b > a ? 0 : a - b;
-    }
-
     constructor(uint reads) {
-        uint _reads = reads < COMPENSATE_READS ? COMPENSATE_READS : reads;
-        for (uint i = 0; i < _reads; i++) {
+        for (uint i = 0; i < reads; i++) {
             readArray.push(i);
         }
     }
@@ -46,36 +36,24 @@ contract LoadnextContract {
                 );
         }
 
-        // apply compensation from observed baseline
-        uint _reads = saturatingSubtract(reads, COMPENSATE_READS);
-        uint _repeatedWrites = saturatingSubtract(
-            repeatedWrites,
-            COMPENSATE_REPEATED_WRITES
-        );
-        uint _initialWrites = saturatingSubtract(
-            initialWrites,
-            COMPENSATE_INITIAL_WRITES
-        );
-        uint _events = saturatingSubtract(events, COMPENSATE_EVENTS);
-
-        require(_repeatedWrites <= readArray.length);
+        require(repeatedWrites <= readArray.length);
         uint sum = 0;
 
         // Somehow use result of storage read for compiler to not optimize this place.
-        for (uint i = 0; i < _repeatedWrites; i++) {
+        for (uint i = 0; i < repeatedWrites; i++) {
             uint value = readArray[i];
             sum += value;
             readArray[i] = value + 1;
         }
-        for (uint i = _repeatedWrites; i < _reads; i++) {
+        for (uint i = repeatedWrites; i < reads; i++) {
             sum += readArray[i];
         }
 
-        for (uint i = 0; i < _initialWrites; i++) {
+        for (uint i = 0; i < initialWrites; i++) {
             writeArray.push(i);
         }
 
-        for (uint i = 0; i < _events; i++) {
+        for (uint i = 0; i < events; i++) {
             emit Event(i);
         }
 
