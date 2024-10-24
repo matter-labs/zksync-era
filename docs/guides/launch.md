@@ -73,6 +73,9 @@ Run server:
 zkstack server
 ```
 
+The server's configuration files can be found in `/chains/<chain_name>/configs` directory. These files are created when
+running `zkstack chain init` command.
+
 ## Running server using Google cloud storage object store instead of default In memory store
 
 TODO: check the new way to do this
