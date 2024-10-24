@@ -222,7 +222,11 @@ impl EN {
         let mut next = attester::BatchNumber(0);
         loop {
             let status = loop {
-                match self.fetch_attestation_status(ctx).await {
+                match self
+                    .fetch_attestation_status(ctx)
+                    .await
+                    .wrap("fetch_attestation_status()")
+                {
                     Err(err) => tracing::warn!("{err:#}"),
                     Ok(status) => {
                         if status.genesis != cfg.genesis.hash() {
@@ -439,7 +443,7 @@ impl EN {
             });
             while end.map_or(true, |end| queue.next() < end) {
                 let block = recv.recv(ctx).await?.join(ctx).await?;
-                queue.send(block).await?;
+                queue.send(block).await.context("queue.send()")?;
             }
             Ok(())
         })
@@ -448,7 +452,8 @@ impl EN {
         if first < queue.next() {
             self.pool
                 .wait_for_payload(ctx, queue.next().prev().unwrap())
-                .await?;
+                .await
+                .wrap("wait_for_payload()")?;
         }
         Ok(())
     }
