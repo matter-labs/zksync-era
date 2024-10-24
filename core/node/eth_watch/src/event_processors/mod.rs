@@ -55,6 +55,9 @@ pub(super) trait EventProcessor: 'static + fmt::Debug + Send + Sync {
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
+        // Note, that for a chain that settles on top of L1,
+        // l1_client and sl_client point to the same network.
+        l1_client: &dyn EthClient,
         sl_client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<usize, EventProcessorError>;

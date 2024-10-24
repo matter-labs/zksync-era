@@ -4,9 +4,9 @@ use zksync_types::{fee::Fee, Execute};
 use crate::{
     interface::{TxExecutionMode, VmInterface},
     vm_latest::{
-        constants::{BOOTLOADER_HEAP_PAGE, TX_DESCRIPTION_OFFSET, TX_GAS_LIMIT_OFFSET},
+        constants::{get_tx_description_offset, BOOTLOADER_HEAP_PAGE, TX_GAS_LIMIT_OFFSET},
         tests::tester::VmTesterBuilder,
-        HistoryDisabled,
+        HistoryDisabled, MultiVMSubversion,
     },
 };
 
@@ -39,7 +39,7 @@ fn test_tx_gas_limit_offset() {
         .memory
         .read_slot(
             BOOTLOADER_HEAP_PAGE as usize,
-            TX_DESCRIPTION_OFFSET + TX_GAS_LIMIT_OFFSET,
+            get_tx_description_offset(MultiVMSubversion::latest()) + TX_GAS_LIMIT_OFFSET,
         )
         .value;
     assert_eq!(gas_limit_from_memory, gas_limit);

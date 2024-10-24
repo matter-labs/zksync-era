@@ -2,7 +2,7 @@ use zk_evm_1_3_3::aux_structures::MemoryPage;
 pub use zk_evm_1_3_3::zkevm_opcode_defs::system_params::{
     ERGS_PER_CIRCUIT, INITIAL_STORAGE_WRITE_PUBDATA_BYTES, MAX_PUBDATA_PER_BLOCK,
 };
-use zksync_system_constants::{L1_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT, MAX_NEW_FACTORY_DEPS};
+use zksync_system_constants::{L1_GAS_PER_PUBDATA_BYTE, MAX_L2_TX_GAS_LIMIT};
 
 use crate::vm_virtual_blocks::old_vm::utils::heap_page_from_base;
 
@@ -41,6 +41,8 @@ pub(crate) const MAX_POSTOP_SLOTS: usize = PAYMASTER_CONTEXT_SLOTS + 7;
 /// Slots used to store the current L2 transaction's hash and the hash recommended
 /// to be used for signing the transaction's content.
 const CURRENT_L2_TX_HASHES_SLOTS: usize = 2;
+
+pub(crate) const MAX_NEW_FACTORY_DEPS: usize = 32;
 
 /// Slots used to store the calldata for the KnownCodesStorage to mark new factory
 /// dependencies as known ones. Besides the slots for the new factory dependencies themselves

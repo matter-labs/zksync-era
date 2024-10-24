@@ -42,6 +42,7 @@ impl EventProcessor for PriorityOpsEventProcessor {
     async fn process_events(
         &mut self,
         storage: &mut Connection<'_, Core>,
+        _l1_client: &dyn EthClient,
         sl_client: &dyn EthClient,
         events: Vec<Log>,
     ) -> Result<usize, EventProcessorError> {

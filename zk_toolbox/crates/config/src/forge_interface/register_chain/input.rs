@@ -70,7 +70,8 @@ impl RegisterChainL1Config {
                 force_deployments_data: contracts
                     .ecosystem_contracts
                     .force_deployments_data
-                    .clone(),
+                    .clone()
+                    .expect("force_deployment_data"),
             },
             deployed_addresses: DeployedAddresses {
                 state_transition: StateTransition {
@@ -83,10 +84,16 @@ impl RegisterChainL1Config {
                 },
                 bridges: Bridges {
                     shared_bridge_proxy_addr: contracts.bridges.shared.l1_address,
-                    l1_nullifier_proxy_addr: contracts.bridges.l1_nullifier_addr,
+                    l1_nullifier_proxy_addr: contracts
+                        .bridges
+                        .l1_nullifier_addr
+                        .expect("l1_nullifier_addr"),
                 },
                 validator_timelock_addr: contracts.ecosystem_contracts.validator_timelock_addr,
-                native_token_vault_addr: contracts.ecosystem_contracts.native_token_vault_addr,
+                native_token_vault_addr: contracts
+                    .ecosystem_contracts
+                    .native_token_vault_addr
+                    .expect("native_token_vault_addr"),
             },
             chain: ChainL1Config {
                 chain_chain_id: chain_config.chain_id,

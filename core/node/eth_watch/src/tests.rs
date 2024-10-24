@@ -159,6 +159,13 @@ impl EthClient for MockEthClient {
             .collect())
     }
 
+    async fn get_published_preimages(
+        &self,
+        _hashes: Vec<H256>,
+    ) -> EnrichedClientResult<Vec<Option<Vec<u8>>>> {
+        Ok(vec![])
+    }
+
     async fn scheduler_vk_hash(
         &self,
         _verifier_address: Address,
@@ -296,6 +303,7 @@ async fn create_test_watcher(
         connection_pool,
         std::time::Duration::from_nanos(1),
         SyncMerkleTree::from_hashes(std::iter::empty(), None),
+        None,
     )
     .await
     .unwrap();
@@ -402,6 +410,7 @@ async fn test_normal_operation_upgrade_timestamp() {
         connection_pool.clone(),
         std::time::Duration::from_nanos(1),
         SyncMerkleTree::from_hashes(std::iter::empty(), None),
+        None,
     )
     .await
     .unwrap();
@@ -739,9 +748,7 @@ fn upgrade_timestamp_log(eth_block: u64) -> Log {
 }
 
 fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
-    let abi::Transaction::L1 {
-        tx, factory_deps, ..
-    } = upgrade
+    let abi::Transaction::L1 { tx, .. } = upgrade
         .tx
         .map(|tx| Transaction::from(tx).try_into().unwrap())
         .unwrap_or(abi::Transaction::L1 {
@@ -754,7 +761,6 @@ fn upgrade_into_diamond_cut(upgrade: ProtocolUpgrade) -> Token {
     };
     ProposedUpgrade {
         l2_protocol_upgrade_tx: tx,
-        factory_deps,
         bootloader_hash: upgrade.bootloader_code_hash.unwrap_or_default().into(),
         default_account_hash: upgrade.default_account_code_hash.unwrap_or_default().into(),
         verifier: upgrade.verifier_address.unwrap_or_default(),

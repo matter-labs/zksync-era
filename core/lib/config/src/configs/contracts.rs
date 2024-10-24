@@ -1,13 +1,14 @@
 // External uses
 use serde::{Deserialize, Serialize};
 // Workspace uses
-use zksync_basic_types::Address;
+use zksync_basic_types::{Address, H256};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct EcosystemContracts {
     pub bridgehub_proxy_addr: Address,
     pub state_transition_proxy_addr: Address,
     pub transparent_proxy_admin_addr: Address,
+    pub l1_bytecodes_supplier_addr: Option<Address>,
 }
 
 impl EcosystemContracts {
@@ -16,6 +17,7 @@ impl EcosystemContracts {
             bridgehub_proxy_addr: Address::repeat_byte(0x14),
             state_transition_proxy_addr: Address::repeat_byte(0x15),
             transparent_proxy_admin_addr: Address::repeat_byte(0x15),
+            l1_bytecodes_supplier_addr: Some(Address::repeat_byte(0x16)),
         }
     }
 }
@@ -45,6 +47,7 @@ pub struct ContractsConfig {
     pub ecosystem_contracts: Option<EcosystemContracts>,
     // Used by the RPC API and by the node builder in wiring the BaseTokenRatioProvider layer.
     pub base_token_addr: Option<Address>,
+    pub base_token_asset_id: Option<H256>,
 
     // FIXME: maybe refactor
     pub user_facing_bridgehub_proxy_addr: Option<Address>,
@@ -75,6 +78,7 @@ impl ContractsConfig {
             l1_multicall3_addr: Address::repeat_byte(0x12),
             governance_addr: Address::repeat_byte(0x13),
             base_token_addr: Some(Address::repeat_byte(0x14)),
+            base_token_asset_id: Some(H256::repeat_byte(0x15)),
             ecosystem_contracts: Some(EcosystemContracts::for_tests()),
             user_facing_bridgehub_proxy_addr: Some(Address::repeat_byte(0x15)),
             user_facing_diamond_proxy_addr: Some(Address::repeat_byte(0x16)),

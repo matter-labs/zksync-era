@@ -1,7 +1,9 @@
 use zksync_config::{configs::gateway::GatewayChainConfig, ContractsConfig, EthWatchConfig};
 use zksync_contracts::chain_admin_contract;
 use zksync_eth_watch::{EthHttpQueryClient, EthWatch};
-use zksync_types::settlement::SettlementMode;
+use zksync_types::{
+    abi::ZkChainSpecificUpgradeData, settlement::SettlementMode, web3::contract, Address,
+};
 
 use crate::{
     implementations::resources::{
@@ -94,6 +96,10 @@ impl WiringLayer for EthWatchLayer {
             self.contracts_config.diamond_proxy_addr,
             self.contracts_config
                 .ecosystem_contracts
+                .as_ref()
+                .and_then(|a| a.l1_bytecodes_supplier_addr),
+            self.contracts_config
+                .ecosystem_contracts
                 .map(|a| a.state_transition_proxy_addr),
             self.contracts_config.chain_admin_addr,
             self.contracts_config.governance_addr,
@@ -106,6 +112,7 @@ impl WiringLayer for EthWatchLayer {
             EthHttpQueryClient::new(
                 gateway_client,
                 contracts_config.diamond_proxy_addr,
+                None,
                 Some(contracts_config.state_transition_proxy_addr),
                 contracts_config.chain_admin_addr,
                 contracts_config.governance_addr,
@@ -122,6 +129,16 @@ impl WiringLayer for EthWatchLayer {
             main_pool,
             self.eth_watch_config.poll_interval(),
             priority_tree,
+            ZkChainSpecificUpgradeData::from_partial_components(
+                self.contracts_config.base_token_asset_id,
+                self.contracts_config.l2_legacy_shared_bridge_addr,
+                // FIXME: the following is not correct,
+                Some(Address::zero()),
+                self.contracts_config.base_token_addr,
+                // FIXME: add support for ERC20 chains
+                Some(String::from("Ether")),
+                Some(String::from("ETH"))
+            ),
         )
         .await?;
 
