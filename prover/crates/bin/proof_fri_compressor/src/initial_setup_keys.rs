@@ -1,3 +1,4 @@
+use crate::PLONK_CRS_KEY;
 use std::{fs::create_dir_all, io::Cursor, path::Path, time::Duration};
 
 #[tracing::instrument(skip_all)]

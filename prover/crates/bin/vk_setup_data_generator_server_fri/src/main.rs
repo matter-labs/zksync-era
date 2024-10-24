@@ -257,10 +257,9 @@ fn generate_setup_keys(
 
 fn generate_fflonk_setup_keys(keystore: &Keystore) -> anyhow::Result<()> {
     let worker = franklin_crypto::boojum::worker::Worker::new();
-    let proof_bytes = std::fs::read("data/compression_proof.bin").unwrap();
-    let proof: ZkSyncCompressionProof = bincode::deserialize(&proof_bytes).unwrap();
-    let vk_bytes = std::fs::read("data/compression_vk.json").unwrap();
-    let vk: ZkSyncCompressionVerificationKey = serde_json::from_slice(&vk_bytes).unwrap();
+
+    let proof = keystore.load_example_compression_proof()?;
+    let vk = keystore.load_compression_vk()?;
     let input = CompressionInput::CompressionWrapper(Some(proof), vk, CompressionMode::Five);
 
     let setup_data = {

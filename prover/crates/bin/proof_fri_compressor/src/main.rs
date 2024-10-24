@@ -5,7 +5,9 @@ use std::{env, time::Duration};
 
 use anyhow::Context as _;
 use clap::Parser;
+use fflonk_gpu::bellman::plonk::generator::setup;
 use tokio::sync::{oneshot, watch};
+use zksync_config::configs::FriProofCompressorConfig;
 use zksync_core_leftovers::temp_config_store::{load_database_secrets, load_general_config};
 use zksync_env_config::object_store::ProverObjectStoreConfig;
 use zksync_object_store::ObjectStoreFactory;
@@ -23,6 +25,10 @@ use crate::{
 mod compressor;
 mod initial_setup_keys;
 mod metrics;
+
+pub const PLONK_CRS_KEY: &str = "setup_2^24.key";
+pub const FFLONK_CRS_KEY: &str = "setup_fflonk.key";
+pub const FFLONK_COMPACT_CRS_KEY: &str = "setup_fflonk_compact.key";
 
 #[derive(Debug, Parser)]
 #[command(author = "Matter Labs", version)]
@@ -96,12 +102,7 @@ async fn main() -> anyhow::Result<()> {
     })
     .expect("Error setting Ctrl+C handler"); // Setting handler should always succeed.
 
-    download_initial_setup_keys_if_not_present(
-        &config.universal_setup_path,
-        &config.universal_setup_download_url,
-    );
-    env::set_var("CRS_FILE", config.universal_setup_path.clone());
-    env::set_var("COMPACT_CRS_FILE", config.universal_setup_path.clone());
+    setup_crs_keys(&config);
 
     tracing::info!("Starting proof compressor");
 
@@ -124,4 +125,50 @@ async fn main() -> anyhow::Result<()> {
     stop_sender.send_replace(true);
     tasks.complete(Duration::from_secs(5)).await;
     Ok(())
+}
+
+#[cfg(feature = "fflonk")]
+fn setup_crs_keys(config: &FriProofCompressorConfig) {
+    let crs_path = format!("{}{}", config.universal_setup_path.clone(), FFLONK_CRS_KEY);
+
+    let crs_download_url = format!(
+        "{}{}",
+        config.universal_setup_download_url.clone(),
+        FFLONK_CRS_KEY
+    );
+    download_initial_setup_keys_if_not_present(&crs_path, &crs_download_url);
+
+    #[cfg(feature = "fflonk")]
+    download_initial_setup_keys_if_not_present(
+        &format!("{}{}", config.universal_setup_path, FFLONK_COMPACT_CRS_KEY),
+        &format!(
+            "{}{}",
+            config.universal_setup_download_url, FFLONK_COMPACT_CRS_KEY
+        ),
+    );
+
+    env::set_var(
+        "COMPACT_CRS_FILE",
+        format!(
+            "{}{}",
+            config.universal_setup_path.clone(),
+            FFLONK_COMPACT_CRS_KEY
+        ),
+    );
+
+    env::set_var("CRS_FILE", crs_path);
+}
+
+#[cfg(not(feature = "fflonk"))]
+fn setup_crs_keys(config: &FriProofCompressorConfig) {
+    let crs_path = format!("{}{}", config.universal_setup_path.clone(), PLONK_CRS_KEY);
+
+    let crs_download_url = format!(
+        "{}{}",
+        config.universal_setup_download_url.clone(),
+        PLONK_CRS_KEY
+    );
+
+    download_initial_setup_keys_if_not_present(&crs_path, &crs_download_url);
+    env::set_var("CRS_FILE", crs_path);
 }

@@ -6,7 +6,10 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Context as _;
+use anyhow::{anyhow, Context as _};
+use circuit_definitions::circuit_definitions::aux_layer::{
+    ZkSyncCompressionProof, ZkSyncCompressionVerificationKey,
+};
 use circuit_definitions::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     circuit_definitions::{
@@ -557,5 +560,23 @@ impl Keystore {
         let serialized_setup_data = bincode::serialize(&setup_data)?;
         fs::write(filepath.clone(), serialized_setup_data)
             .with_context(|| format!("Failed saving setup data at path: {filepath:?}"))
+    }
+
+    pub fn load_example_compression_proof(&self) -> anyhow::Result<ZkSyncCompressionProof> {
+        let mut path = self.basedir.clone();
+        // after this step should go to /data dir
+        path.pop();
+        let bytes = fs::read(path.join("compression/compression_proof.bin"))?;
+
+        bincode::deserialize(&bytes).map_err(|e| anyhow!(e))
+    }
+
+    pub fn load_compression_vk(&self) -> anyhow::Result<ZkSyncCompressionVerificationKey> {
+        let mut path = self.basedir.clone();
+
+        path.pop();
+        let bytes = fs::read(path.join("compression/compression_vk.bin"))?;
+
+        bincode::deserialize(&bytes).map_err(|e| anyhow!(e))
     }
 }

@@ -216,9 +216,10 @@ impl ProofCompressor {
             tracing::info!("Proof for compression {:?} is generated!", compression_mode);
 
             if step_idx + 1 == compression_steps.len() {
-                std::fs::write("compression_proof.bin", bincode::serialize(&proof).unwrap()) // todo: I believe this should be removed
-                    .unwrap();
-                std::fs::write("compression_vk.json", serde_json::to_string(&vk).unwrap()).unwrap(); // todo: this should be removed as well
+                // todo: probably there's a better way to deal with it
+                // std::fs::write("compression_proof.bin", bincode::serialize(&proof).unwrap())
+                //     .unwrap();
+                // std::fs::write("compression_vk.json", serde_json::to_string(&vk).unwrap()).unwrap();
                 input = CompressionInput::CompressionWrapper(
                     Some(proof),
                     vk,
