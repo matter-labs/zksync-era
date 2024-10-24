@@ -32,6 +32,7 @@ use std::{
 };
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use futures::future;
 use tokio::sync::{watch, Mutex, Semaphore};
 use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
@@ -51,12 +52,13 @@ mod tests;
 
 /// Handler of recovery life cycle events. This functionality is encapsulated in a trait to be able
 /// to control recovery behavior in tests.
+#[async_trait]
 trait HandleRecoveryEvent: fmt::Debug + Send + Sync {
     fn recovery_started(&mut self, _chunk_count: u64, _recovered_chunk_count: u64) {
         // Default implementation does nothing
     }
 
-    fn chunk_recovered(&self) {
+    async fn chunk_recovered(&self) {
         // Default implementation does nothing
     }
 }
@@ -79,6 +81,7 @@ impl<'a> RecoveryHealthUpdater<'a> {
     }
 }
 
+#[async_trait]
 impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
     fn recovery_started(&mut self, chunk_count: u64, recovered_chunk_count: u64) {
         self.chunk_count = chunk_count;
@@ -88,7 +91,7 @@ impl HandleRecoveryEvent for RecoveryHealthUpdater<'_> {
             .set(recovered_chunk_count);
     }
 
-    fn chunk_recovered(&self) {
+    async fn chunk_recovered(&self) {
         let recovered_chunk_count = self.recovered_chunk_count.fetch_add(1, Ordering::SeqCst) + 1;
         let chunks_left = self.chunk_count.saturating_sub(recovered_chunk_count);
         tracing::info!(
@@ -294,7 +297,7 @@ impl AsyncTreeRecovery {
             if Self::recover_key_chunk(&tree, init_params.l2_block, chunk, pool, stop_receiver)
                 .await?
             {
-                options.events.chunk_recovered();
+                options.events.chunk_recovered().await;
             }
             anyhow::Ok(())
         });
@@ -316,6 +319,11 @@ impl AsyncTreeRecovery {
                 "Root hash of recovered tree {actual_root_hash:?} differs from expected root hash {expected_root_hash:?}"
             );
         }
+
+        // Check pruning info one last time before finalizing the tree.
+        let mut storage = pool.connection_tagged("metadata_calculator").await?;
+        Self::check_pruning_info(&mut storage, init_params.l2_block).await?;
+        drop(storage);
 
         let tree = tree.finalize().await?;
         finalize_latency.observe();
@@ -371,6 +379,21 @@ impl AsyncTreeRecovery {
         Ok(output)
     }
 
+    async fn check_pruning_info(
+        storage: &mut Connection<'_, Core>,
+        snapshot_l2_block: L2BlockNumber,
+    ) -> anyhow::Result<()> {
+        let pruning_info = storage.pruning_dal().get_pruning_info().await?;
+        if let Some(last_hard_pruned_l2_block) = pruning_info.last_hard_pruned_l2_block {
+            anyhow::ensure!(
+                last_hard_pruned_l2_block == snapshot_l2_block,
+                "Additional data was pruned compared to tree recovery L2 block #{snapshot_l2_block}: {pruning_info:?}. \
+                 Continuing recovery is impossible; to recover the tree, drop its RocksDB directory, stop pruning and restart recovery"
+            );
+        }
+        Ok(())
+    }
+
     /// Returns `Ok(true)` if the chunk was recovered, `Ok(false)` if the recovery process was interrupted.
     async fn recover_key_chunk(
         tree: &Mutex<AsyncTreeRecovery>,
@@ -394,7 +417,9 @@ impl AsyncTreeRecovery {
             .storage_logs_dal()
             .get_tree_entries_for_l2_block(snapshot_l2_block, key_chunk.clone())
             .await?;
+        Self::check_pruning_info(&mut storage, snapshot_l2_block).await?;
         drop(storage);
+
         let entries_latency = entries_latency.observe();
         tracing::debug!(
             "Loaded {} entries for chunk {key_chunk:?} in {entries_latency:?}",

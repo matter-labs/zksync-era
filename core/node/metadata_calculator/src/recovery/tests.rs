@@ -207,12 +207,13 @@ impl TestEventListener {
     }
 }
 
+#[async_trait]
 impl HandleRecoveryEvent for TestEventListener {
     fn recovery_started(&mut self, _chunk_count: u64, recovered_chunk_count: u64) {
         assert_eq!(recovered_chunk_count, self.expected_recovered_chunks);
     }
 
-    fn chunk_recovered(&self) {
+    async fn chunk_recovered(&self) {
         let processed_chunk_count = self.processed_chunk_count.fetch_add(1, Ordering::SeqCst) + 1;
         if processed_chunk_count >= self.stop_threshold {
             self.stop_sender.send_replace(true);
@@ -490,4 +491,56 @@ async fn recovery_with_further_pruning(pruned_batches: u32) {
     let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
     let (calculator, _) = setup_calculator(temp_dir.path(), pool, true).await;
     assert_eq!(run_calculator(calculator).await, expected_root_hash);
+}
+
+#[derive(Debug)]
+struct PruningEventListener {
+    pool: ConnectionPool<Core>,
+    pruned_l1_batch: L1BatchNumber,
+}
+
+#[async_trait]
+impl HandleRecoveryEvent for PruningEventListener {
+    async fn chunk_recovered(&self) {
+        prune_storage(&self.pool, self.pruned_l1_batch).await;
+    }
+}
+
+#[tokio::test]
+async fn pruning_during_recovery_is_detected() {
+    let pool = ConnectionPool::<Core>::test_pool().await;
+    let temp_dir = TempDir::new().expect("failed get temporary directory for RocksDB");
+
+    let mut storage = pool.connection().await.unwrap();
+    insert_genesis_batch(&mut storage, &GenesisParams::mock())
+        .await
+        .unwrap();
+    let logs = gen_storage_logs(200..400, 5);
+    extend_db_state(&mut storage, logs).await;
+    drop(storage);
+    prune_storage(&pool, L1BatchNumber(1)).await;
+
+    let tree_path = temp_dir.path().join("recovery");
+    let config = MetadataCalculatorRecoveryConfig::default();
+    let (tree, _) = create_tree_recovery(&tree_path, L1BatchNumber(1), &config).await;
+    let (_stop_sender, stop_receiver) = watch::channel(false);
+    let recovery_options = RecoveryOptions {
+        chunk_count: 5,
+        concurrency_limit: 1,
+        events: Box::new(PruningEventListener {
+            pool: pool.clone(),
+            pruned_l1_batch: L1BatchNumber(3),
+        }),
+    };
+    let init_params = InitParameters::new(&pool, &config)
+        .await
+        .unwrap()
+        .expect("no init params");
+
+    let err = tree
+        .recover(init_params, recovery_options, &pool, &stop_receiver)
+        .await
+        .unwrap_err();
+    let err = format!("{err:#}").to_lowercase();
+    assert!(err.contains("continuing recovery is impossible"), "{err}");
 }
