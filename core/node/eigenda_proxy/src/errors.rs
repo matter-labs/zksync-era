@@ -6,7 +6,6 @@ use axum::{
 #[derive(Debug, PartialEq)]
 pub enum MemStoreError {
     BlobToLarge,
-    IncorrectString,
     BlobAlreadyExists,
     IncorrectCommitment,
     BlobNotFound,
@@ -21,8 +20,10 @@ pub enum EigenDAError {
     GetError,
 }
 
+#[derive(Debug)]
 pub(crate) enum RequestProcessorError {
     EigenDA(EigenDAError),
+    MemStore(MemStoreError),
 }
 
 impl IntoResponse for RequestProcessorError {
@@ -39,6 +40,23 @@ impl IntoResponse for RequestProcessorError {
                     ),
                     EigenDAError::PutError => (StatusCode::BAD_GATEWAY, "Put error".to_owned()),
                     EigenDAError::GetError => (StatusCode::BAD_GATEWAY, "Get error".to_owned()),
+                }
+            }
+            RequestProcessorError::MemStore(err) => {
+                tracing::error!("MemStore error: {:?}", err);
+                match err {
+                    MemStoreError::BlobToLarge => {
+                        (StatusCode::BAD_REQUEST, "Blob too large".to_owned())
+                    }
+                    MemStoreError::BlobAlreadyExists => {
+                        (StatusCode::BAD_REQUEST, "Blob already exists".to_owned())
+                    }
+                    MemStoreError::IncorrectCommitment => {
+                        (StatusCode::BAD_REQUEST, "Incorrect commitment".to_owned())
+                    }
+                    MemStoreError::BlobNotFound => {
+                        (StatusCode::NOT_FOUND, "Blob not found".to_owned())
+                    }
                 }
             }
         };

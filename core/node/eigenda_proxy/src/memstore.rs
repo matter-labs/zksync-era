@@ -20,6 +20,7 @@ struct MemStoreData {
     key_starts: HashMap<String, Instant>,
 }
 
+#[derive(Clone)]
 pub struct MemStore {
     config: MemStoreConfig,
     data: Arc<RwLock<MemStoreData>>,
@@ -41,7 +42,7 @@ impl MemStore {
         memstore
     }
 
-    async fn put(self: Arc<Self>, value: Vec<u8>) -> Result<Vec<u8>, MemStoreError> {
+    pub async fn put_blob(self: Arc<Self>, value: Vec<u8>) -> Result<Vec<u8>, MemStoreError> {
         tokio::time::sleep(Duration::from_millis(self.config.put_latency)).await;
         if value.len() as u64 > self.config.max_blob_size_bytes {
             return Err(MemStoreError::BlobToLarge.into());
@@ -115,7 +116,7 @@ impl MemStore {
         Ok(cert_bytes)
     }
 
-    async fn get(self: Arc<Self>, commit: Vec<u8>) -> Result<Vec<u8>, MemStoreError> {
+    pub async fn get_blob(self: Arc<Self>, commit: Vec<u8>) -> Result<Vec<u8>, MemStoreError> {
         tokio::time::sleep(Duration::from_millis(self.config.get_latency)).await;
         let blob_info: BlobInfo =
             decode(&commit).map_err(|_| MemStoreError::IncorrectCommitment)?;
@@ -182,8 +183,8 @@ mod test {
         let store = MemStore::new(config);
 
         let blob = vec![0u8; 100];
-        let cert = store.clone().put(blob.clone()).await.unwrap();
-        let blob2 = store.get(cert).await.unwrap();
+        let cert = store.clone().put_blob(blob.clone()).await.unwrap();
+        let blob2 = store.get_blob(cert).await.unwrap();
         assert_eq!(blob, blob2);
     }
 
@@ -202,10 +203,10 @@ mod test {
 
         let blob = vec![0u8; 100];
         let blob2 = vec![1u8; 100];
-        let cert = store.clone().put(blob.clone()).await.unwrap();
-        let cert2 = store.clone().put(blob2.clone()).await.unwrap();
-        let blob_result = store.clone().get(cert).await.unwrap();
-        let blob_result2 = store.get(cert2).await.unwrap();
+        let cert = store.clone().put_blob(blob.clone()).await.unwrap();
+        let cert2 = store.clone().put_blob(blob2.clone()).await.unwrap();
+        let blob_result = store.clone().get_blob(cert).await.unwrap();
+        let blob_result2 = store.get_blob(cert2).await.unwrap();
         assert_eq!(blob, blob_result);
         assert_eq!(blob2, blob_result2);
     }
@@ -225,10 +226,10 @@ mod test {
 
         let blob = vec![0u8; 100];
         let time_before_put = Instant::now();
-        let cert = store.clone().put(blob.clone()).await.unwrap();
+        let cert = store.clone().put_blob(blob.clone()).await.unwrap();
         assert!(time_before_put.elapsed() >= Duration::from_millis(config.put_latency));
         let time_before_get = Instant::now();
-        let blob2 = store.get(cert).await.unwrap();
+        let blob2 = store.get_blob(cert).await.unwrap();
         assert!(time_before_get.elapsed() >= Duration::from_millis(config.get_latency));
         assert_eq!(blob, blob2);
     }
@@ -248,9 +249,9 @@ mod test {
         let store = MemStore::new(config);
 
         let blob = vec![0u8; 100];
-        let cert = store.clone().put(blob.clone()).await.unwrap();
+        let cert = store.clone().put_blob(blob.clone()).await.unwrap();
         tokio::time::sleep(blob_expiration * 2).await;
-        let result = store.get(cert).await;
+        let result = store.get_blob(cert).await;
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), MemStoreError::BlobNotFound);
     }
