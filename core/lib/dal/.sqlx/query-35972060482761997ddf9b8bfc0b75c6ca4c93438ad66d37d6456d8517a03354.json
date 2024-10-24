@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL\n                AND confirmed_eth_tx_history_id IS NULL\n                AND is_gateway = $2\n                AND id <= (\n                    SELECT\n                        COALESCE(MAX(eth_tx_id), 0)\n                    FROM\n                        eth_txs_history\n                    JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n                    WHERE\n                        eth_txs_history.sent_at_block IS NOT NULL\n                        AND eth_txs.from_addr IS NOT DISTINCT FROM $1\n                        AND is_gateway = $2\n                )\n            ORDER BY\n                id\n            ",
+  "query": "\n            SELECT\n                *\n            FROM\n                eth_txs\n            WHERE\n                from_addr IS NOT DISTINCT FROM $1 -- can't just use equality as NULL != NULL\n                AND confirmed_eth_tx_history_id IS NULL\n                AND has_failed = FALSE\n                AND is_gateway = $2\n                AND id <= (\n                    SELECT\n                        COALESCE(MAX(eth_tx_id), 0)\n                    FROM\n                        eth_txs_history\n                    JOIN eth_txs ON eth_txs.id = eth_txs_history.eth_tx_id\n                    WHERE\n                        eth_txs_history.sent_at_block IS NOT NULL\n                        AND eth_txs.from_addr IS NOT DISTINCT FROM $1\n                        AND is_gateway = $2\n                )\n            ORDER BY\n                id\n            ",
   "describe": {
     "columns": [
       {
@@ -109,5 +109,5 @@
       true
     ]
   },
-  "hash": "868bfdc5d8ee5eab395fa690891751dfd285628a75a35b152bccb3c73e9cc057"
+  "hash": "35972060482761997ddf9b8bfc0b75c6ca4c93438ad66d37d6456d8517a03354"
 }
