@@ -1,7 +1,8 @@
-use std::mem;
+use std::{mem, rc::Rc};
 
 use zksync_types::{vm::VmVersion, ProtocolVersionId, Transaction};
 use zksync_vm2::interface::Tracer;
+use zksync_vm_interface::{pubdata::PubdataBuilder, InspectExecutionMode};
 
 use crate::{
     glue::history_mode::HistoryMode,
@@ -9,8 +10,8 @@ use crate::{
         storage::{ImmutableStorageView, ReadStorage, StoragePtr, StorageView},
         utils::ShadowVm,
         BytecodeCompressionResult, FinishedL1Batch, L1BatchEnv, L2BlockEnv, PushTransactionResult,
-        SystemEnv, VmExecutionMode, VmExecutionResultAndLogs, VmFactory, VmInterface,
-        VmInterfaceHistoryEnabled, VmMemoryMetrics,
+        SystemEnv, VmExecutionResultAndLogs, VmFactory, VmInterface, VmInterfaceHistoryEnabled,
+        VmMemoryMetrics,
     },
     tracers::TracerDispatcher,
     vm_latest::HistoryEnabled,
@@ -63,7 +64,7 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     fn inspect(
         &mut self,
         dispatcher: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         dispatch_legacy_vm!(self.inspect(&mut mem::take(dispatcher).into(), execution_mode))
     }
@@ -87,8 +88,8 @@ impl<S: ReadStorage, H: HistoryMode> VmInterface for LegacyVmInstance<S, H> {
     }
 
     /// Return the results of execution of all batch
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        dispatch_legacy_vm!(self.finish_batch())
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
+        dispatch_legacy_vm!(self.finish_batch(pubdata_builder))
     }
 }
 
@@ -206,6 +207,15 @@ impl<S: ReadStorage, H: HistoryMode> LegacyVmInstance<S, H> {
                 );
                 Self::Vm1_5_0(vm)
             }
+            VmVersion::VmGateway => {
+                let vm = crate::vm_latest::Vm::new_with_subversion(
+                    l1_batch_env,
+                    system_env,
+                    storage_view,
+                    crate::vm_latest::MultiVMSubversion::Gateway,
+                );
+                Self::Vm1_5_0(vm)
+            }
         }
     }
 
@@ -253,7 +263,7 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInsta
     fn inspect(
         &mut self,
         tracer: &mut Self::TracerDispatcher,
-        execution_mode: VmExecutionMode,
+        execution_mode: InspectExecutionMode,
     ) -> VmExecutionResultAndLogs {
         match self {
             Self::Fast(vm) => vm.inspect(&mut tracer.1, execution_mode),
@@ -283,8 +293,8 @@ impl<S: ReadStorage, Tr: Tracer + Default + 'static> VmInterface for FastVmInsta
         }
     }
 
-    fn finish_batch(&mut self) -> FinishedL1Batch {
-        dispatch_fast_vm!(self.finish_batch())
+    fn finish_batch(&mut self, pubdata_builder: Rc<dyn PubdataBuilder>) -> FinishedL1Batch {
+        dispatch_fast_vm!(self.finish_batch(pubdata_builder))
     }
 }
 

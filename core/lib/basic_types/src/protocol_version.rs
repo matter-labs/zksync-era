@@ -69,6 +69,7 @@ pub enum ProtocolVersionId {
     Version24,
     Version25,
     Version26,
+    Version27,
 }
 
 impl ProtocolVersionId {
@@ -122,6 +123,7 @@ impl ProtocolVersionId {
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version27 => VmVersion::VmGateway,
         }
     }
 
@@ -137,6 +139,10 @@ impl ProtocolVersionId {
 
     pub fn is_pre_shared_bridge(&self) -> bool {
         self <= &Self::Version22
+    }
+
+    pub fn is_pre_gateway(&self) -> bool {
+        self <= &Self::Version26
     }
 
     pub fn is_1_4_0(&self) -> bool {
@@ -278,6 +284,7 @@ impl From<ProtocolVersionId> for VmVersion {
             ProtocolVersionId::Version24 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version25 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
             ProtocolVersionId::Version26 => VmVersion::Vm1_5_0IncreasedBootloaderMemory,
+            ProtocolVersionId::Version27 => VmVersion::VmGateway,
         }
     }
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n                number,\n                timestamp,\n                l1_tx_count,\n                l2_tx_count,\n                bloom,\n                priority_ops_onchain_data,\n                hash,\n                commitment,\n                l2_to_l1_messages,\n                used_contract_hashes,\n                compressed_initial_writes,\n                compressed_repeated_writes,\n                l2_l1_merkle_root,\n                rollup_last_leaf_index,\n                zkporter_is_available,\n                bootloader_code_hash,\n                default_aa_code_hash,\n                evm_emulator_code_hash,\n                aux_data_hash,\n                pass_through_data_hash,\n                meta_parameters_hash,\n                protocol_version,\n                system_logs,\n                compressed_state_diffs,\n                events_queue_commitment,\n                bootloader_initial_content_commitment,\n                pubdata_input,\n                fee_address\n            FROM\n                l1_batches\n            LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n            WHERE\n                is_sealed\n                AND number = $1\n            ",
+  "query": "\n                SELECT\n                    number,\n                    timestamp,\n                    l1_tx_count,\n                    l2_tx_count,\n                    bloom,\n                    priority_ops_onchain_data,\n                    hash,\n                    commitment,\n                    l2_to_l1_messages,\n                    used_contract_hashes,\n                    compressed_initial_writes,\n                    compressed_repeated_writes,\n                    l2_l1_merkle_root,\n                    rollup_last_leaf_index,\n                    zkporter_is_available,\n                    bootloader_code_hash,\n                    default_aa_code_hash,\n                    evm_emulator_code_hash,\n                    aux_data_hash,\n                    pass_through_data_hash,\n                    meta_parameters_hash,\n                    protocol_version,\n                    compressed_state_diffs,\n                    system_logs,\n                    events_queue_commitment,\n                    bootloader_initial_content_commitment,\n                    pubdata_input,\n                    fee_address,\n                    aggregation_root,\n                    local_root,\n                    state_diff_hash,\n                    data_availability.inclusion_data\n                FROM\n                    l1_batches\n                LEFT JOIN commitments ON commitments.l1_batch_number = l1_batches.number\n                LEFT JOIN\n                    data_availability\n                    ON data_availability.l1_batch_number = l1_batches.number\n                WHERE\n                    number BETWEEN $1 AND $2\n                ORDER BY\n                    number\n                LIMIT\n                    $3\n                ",
   "describe": {
     "columns": [
       {
@@ -115,13 +115,13 @@
       },
       {
         "ordinal": 22,
-        "name": "system_logs",
-        "type_info": "ByteaArray"
+        "name": "compressed_state_diffs",
+        "type_info": "Bytea"
       },
       {
         "ordinal": 23,
-        "name": "compressed_state_diffs",
-        "type_info": "Bytea"
+        "name": "system_logs",
+        "type_info": "ByteaArray"
       },
       {
         "ordinal": 24,
@@ -142,10 +142,32 @@
         "ordinal": 27,
         "name": "fee_address",
         "type_info": "Bytea"
+      },
+      {
+        "ordinal": 28,
+        "name": "aggregation_root",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 29,
+        "name": "local_root",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 30,
+        "name": "state_diff_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 31,
+        "name": "inclusion_data",
+        "type_info": "Bytea"
       }
     ],
     "parameters": {
       "Left": [
+        "Int8",
+        "Int8",
         "Int8"
       ]
     },
@@ -172,13 +194,17 @@
       true,
       true,
       true,
+      true,
       false,
       true,
       true,
       true,
+      false,
       true,
-      false
+      true,
+      true,
+      true
     ]
   },
-  "hash": "b456147560b107640abdc10f7ac76b563ff2f0f3a818e8c8a02c2ef632d0b960"
+  "hash": "4bd1a4e612d10f2ca26068c140442f38816f163a3e3fba4fdbb81076b969e970"
 }

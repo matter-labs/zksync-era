@@ -2,7 +2,7 @@ use zksync_types::{Address, Execute, U256};
 
 use super::tester::VmTesterBuilder;
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterfaceExt},
+    interface::{InspectExecutionMode, TxExecutionMode, VmInterfaceExt},
     versions::testonly::TestedVm,
     vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
@@ -28,7 +28,7 @@ pub(crate) fn test_circuits<VM: TestedVm>() {
         None,
     );
     vm.vm.push_transaction(tx);
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!res.result.is_failed(), "{res:#?}");
 
     let s = res.statistics.circuit_statistic;

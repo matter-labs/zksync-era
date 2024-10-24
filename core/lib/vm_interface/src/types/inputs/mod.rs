@@ -3,7 +3,7 @@ use zksync_types::{
 };
 
 pub use self::{
-    execution_mode::VmExecutionMode,
+    execution_mode::{InspectExecutionMode, VmExecutionMode},
     l1_batch_env::L1BatchEnv,
     l2_block::{L2BlockEnv, StoredL2BlockEnv},
     system_env::{SystemEnv, TxExecutionMode},

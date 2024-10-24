@@ -130,7 +130,7 @@ impl TeeRequestProcessor {
         // This means we don't want to reject any execution, therefore we're using MAX as an allow all.
         let validation_computational_gas_limit = u32::MAX;
 
-        let (system_env, l1_batch_env) = l1_batch_params_provider
+        let (system_env, l1_batch_env, pubdata_params) = l1_batch_params_provider
             .load_l1_batch_env(
                 &mut connection,
                 l1_batch_number,
@@ -149,6 +149,7 @@ impl TeeRequestProcessor {
             l2_blocks_execution_data,
             l1_batch_env,
             system_env,
+            pubdata_params,
         }))
     }
 

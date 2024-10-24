@@ -1,7 +1,7 @@
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::{bail, Context};
-use clap::{Parser, ValueEnum};
+use clap::{Parser, ValueEnum, ValueHint};
 use common::{Prompt, PromptConfirm, PromptSelect};
 use config::forge_interface::deploy_ecosystem::output::Erc20Token;
 use serde::{Deserialize, Serialize};
@@ -53,7 +53,7 @@ pub struct ChainCreateArgs {
     prover_mode: Option<ProverMode>,
     #[clap(long, help = MSG_WALLET_CREATION_HELP, value_enum)]
     wallet_creation: Option<WalletCreation>,
-    #[clap(long, help = MSG_WALLET_PATH_HELP)]
+    #[clap(long, help = MSG_WALLET_PATH_HELP, value_hint = ValueHint::FilePath)]
     wallet_path: Option<PathBuf>,
     #[clap(long, help = MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP)]
     l1_batch_commit_data_generator_mode: Option<L1BatchCommitmentModeInternal>,

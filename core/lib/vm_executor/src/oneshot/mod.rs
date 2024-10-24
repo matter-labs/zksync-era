@@ -20,9 +20,9 @@ use zksync_multivm::{
         storage::{ReadStorage, StorageView, StorageWithOverrides},
         tracer::{ValidationError, ValidationParams},
         utils::{DivergenceHandler, ShadowVm},
-        Call, ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
-        StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode, VmFactory,
-        VmInterface,
+        Call, ExecutionResult, InspectExecutionMode, OneshotEnv, OneshotTracingParams,
+        OneshotTransactionExecutionResult, StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode,
+        VmFactory, VmInterface,
     },
     is_supported_by_fast_vm,
     tracers::{CallTracer, StorageInvocations, TracerDispatcher, ValidationTracer},
@@ -200,7 +200,7 @@ where
                     unreachable!("Fast VM is never used for validation yet");
                 };
                 vm.push_transaction(transaction);
-                vm.inspect(&mut tracers.into(), VmExecutionMode::OneTx)
+                vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx)
             });
             let validation_result = Arc::make_mut(&mut validation_result)
                 .take()

@@ -28,6 +28,13 @@ fn to_fetched_block(
             .context("Integer overflow converting block number")?,
     );
     let payload = Payload::decode(payload).context("Payload::decode()")?;
+    let pubdata_params = if payload.protocol_version.is_pre_gateway() {
+        payload.pubdata_params.unwrap_or_default()
+    } else {
+        payload
+            .pubdata_params
+            .context("Missing `pubdata_params` for post-gateway payload")?
+    };
     Ok(FetchedBlock {
         number,
         l1_batch_number: payload.l1_batch_number,
@@ -38,6 +45,7 @@ fn to_fetched_block(
         l1_gas_price: payload.l1_gas_price,
         l2_fair_gas_price: payload.l2_fair_gas_price,
         fair_pubdata_price: payload.fair_pubdata_price,
+        pubdata_params,
         virtual_blocks: payload.virtual_blocks,
         operator_address: payload.operator_address,
         transactions: payload

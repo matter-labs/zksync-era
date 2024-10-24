@@ -15,7 +15,7 @@ use super::{
 };
 use crate::{
     interface::{
-        ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterfaceExt, VmRevertReason,
+        ExecutionResult, InspectExecutionMode, TxExecutionMode, VmInterfaceExt, VmRevertReason,
     },
     utils::StorageWritesDeduplicator,
 };
@@ -65,7 +65,7 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
 
     vm.vm.push_transaction(deploy_tx.tx.clone());
 
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
 
     // The code hash of the deployed contract should be marked as republished.
     let known_codes_key = get_known_code_key(&deploy_tx.bytecode_hash);
@@ -89,7 +89,7 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
         TxType::L1 { serial_id: 0 },
     );
     vm.vm.push_transaction(tx);
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
     let storage_logs = res.logs.storage_logs;
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
 
@@ -104,7 +104,7 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
         TxType::L1 { serial_id: 0 },
     );
     vm.vm.push_transaction(tx.clone());
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
     let storage_logs = res.logs.storage_logs;
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
     // We changed one slot inside contract.
@@ -115,7 +115,7 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
     assert_eq!(res.repeated_storage_writes, 0);
 
     vm.vm.push_transaction(tx);
-    let storage_logs = vm.vm.execute(VmExecutionMode::OneTx).logs.storage_logs;
+    let storage_logs = vm.vm.execute(InspectExecutionMode::OneTx).logs.storage_logs;
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
     // We do the same storage write, it will be deduplicated, so still 4 initial write and 0 repeated.
     // But now the base pubdata spent has changed too.
@@ -130,7 +130,7 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
         TxType::L1 { serial_id: 1 },
     );
     vm.vm.push_transaction(tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     // Method is not payable tx should fail
     assert!(result.result.is_failed(), "The transaction should fail");
 
@@ -181,7 +181,7 @@ pub(crate) fn test_l1_tx_execution_high_gas_limit<VM: TestedVm>() {
 
     vm.vm.push_transaction(tx);
 
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
 
     assert!(res.result.is_failed(), "The transaction should've failed");
 }
@@ -216,7 +216,7 @@ pub(crate) fn test_l1_tx_execution_gas_estimation_with_low_gas<VM: TestedVm>() {
     data.gas_limit = 15_000.into();
 
     vm.vm.push_transaction(tx);
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
     assert_matches!(
         &res.result,
         ExecutionResult::Revert { output: VmRevertReason::General { msg, .. } }
