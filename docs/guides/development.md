@@ -31,7 +31,7 @@ This command installs `zkstack` from the current source directory.
 >
 > You might find convenient to add this alias to your shell profile:
 >
-> `alias zkstackup='zkstackup --path $ZKSYNC_HOME'`
+> `alias zkstackup='zkstackup --path /path/to/zksync-era'`
 
 ## Configure Ecosystem
 
