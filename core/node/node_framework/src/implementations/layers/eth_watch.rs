@@ -132,9 +132,12 @@ impl WiringLayer for EthWatchLayer {
             ZkChainSpecificUpgradeData::from_partial_components(
                 self.contracts_config.base_token_asset_id,
                 self.contracts_config.l2_legacy_shared_bridge_addr,
-                // FIXME: the following is not correct, but this is how it is done in
-                // contracts for now (also incorrect)
+                // FIXME: the following is not correct,
                 Some(Address::zero()),
+                self.contracts_config.base_token_addr,
+                // FIXME: add support for ERC20 chains
+                Some(String::from("Ether")),
+                Some(String::from("ETH"))
             ),
         )
         .await?;

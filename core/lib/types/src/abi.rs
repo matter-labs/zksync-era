@@ -408,6 +408,7 @@ pub struct GatewayUpgradeEncodedInput {
     pub ctm_deployer: Address,
     pub old_validator_timelock: Address,
     pub new_validator_timelock: Address,
+    pub wrapped_base_token_store: Address
 }
 
 impl GatewayUpgradeEncodedInput {
@@ -420,6 +421,7 @@ impl GatewayUpgradeEncodedInput {
             ParamType::Address,
             ParamType::Address,
             ParamType::Address,
+            ParamType::Address
         ])
     }
 
@@ -427,7 +429,7 @@ impl GatewayUpgradeEncodedInput {
     /// Returns an error if token doesn't match the `schema()`.
     pub fn decode(token: Token) -> anyhow::Result<Self> {
         let tokens = token.into_tuple().context("not a tuple")?;
-        anyhow::ensure!(tokens.len() == 6);
+        anyhow::ensure!(tokens.len() == 7);
         let mut t = tokens.into_iter();
         let mut next = || t.next().unwrap();
 
@@ -449,27 +451,37 @@ impl GatewayUpgradeEncodedInput {
             ctm_deployer: next().into_address().context("ctm_deployer")?,
             old_validator_timelock: next().into_address().context("old_validator_timelock")?,
             new_validator_timelock: next().into_address().context("new_validator_timelock")?,
+            wrapped_base_token_store: next().into_address().context("wrapped_base_token_store")?,
         })
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub struct ZkChainSpecificUpgradeData {
     pub base_token_asset_id: H256,
     pub l2_legacy_shared_bridge: Address,
-    pub l2_weth: Address,
+    pub predeployed_l2_weth_address: Address,
+    pub base_token_l1_address: Address,
+    pub base_token_name: String,
+    pub base_token_symbol: String
 }
 
 impl ZkChainSpecificUpgradeData {
     pub fn from_partial_components(
         base_token_asset_id: Option<H256>,
         l2_legacy_shared_bridge: Option<Address>,
-        l2_weth: Option<Address>,
+        predeployed_l2_weth_address: Option<Address>,
+        base_token_l1_address: Option<Address>,
+        base_token_name: Option<String>,
+        base_token_symbol: Option<String>
     ) -> Option<Self> {
         Some(Self {
             base_token_asset_id: base_token_asset_id?,
             l2_legacy_shared_bridge: l2_legacy_shared_bridge?,
-            l2_weth: l2_weth?,
+            predeployed_l2_weth_address: predeployed_l2_weth_address?,
+            base_token_l1_address: base_token_l1_address?,
+            base_token_name: base_token_name?,
+            base_token_symbol: base_token_symbol?
         })
     }
 
@@ -487,7 +499,10 @@ impl ZkChainSpecificUpgradeData {
         Token::Tuple(vec![
             Token::FixedBytes(self.base_token_asset_id.0.to_vec()),
             Token::Address(self.l2_legacy_shared_bridge),
-            Token::Address(self.l2_weth),
+            Token::Address(self.predeployed_l2_weth_address),
+            Token::Address(self.base_token_l1_address),
+            Token::String(self.base_token_name.clone()),
+            Token::String(self.base_token_symbol.clone())
         ])
     }
 
