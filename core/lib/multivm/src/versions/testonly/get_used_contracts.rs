@@ -15,7 +15,8 @@ use super::{
 };
 use crate::{
     interface::{
-        ExecutionResult, TxExecutionMode, VmExecutionMode, VmExecutionResultAndLogs, VmInterfaceExt,
+        ExecutionResult, InspectExecutionMode, TxExecutionMode, VmExecutionResultAndLogs,
+        VmInterfaceExt,
     },
     versions::testonly::ContractToDeploy,
 };
@@ -35,7 +36,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
     let account = &mut vm.rich_accounts[0];
     let tx = account.get_deploy_tx(&contract_code, None, TxType::L1 { serial_id: 0 });
     vm.vm.push_transaction(tx.tx.clone());
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(!result.result.is_failed());
 
     assert!(vm
@@ -70,7 +71,7 @@ pub(crate) fn test_get_used_contracts<VM: TestedVm>() {
 
     vm.vm.push_transaction(tx2.clone());
 
-    let res2 = vm.vm.execute(VmExecutionMode::OneTx);
+    let res2 = vm.vm.execute(InspectExecutionMode::OneTx);
 
     assert!(res2.result.is_failed());
 

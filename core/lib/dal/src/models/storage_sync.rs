@@ -1,7 +1,11 @@
+use std::str::FromStr;
+
 use zksync_contracts::BaseSystemContractsHashes;
 use zksync_db_connection::error::SqlxContext;
 use zksync_types::{
-    api::en, parse_h160, parse_h256, parse_h256_opt, Address, L1BatchNumber, L2BlockNumber,
+    api::en,
+    commitment::{L1BatchCommitmentMode, PubdataParams},
+    parse_h160, parse_h256, parse_h256_opt, Address, L1BatchNumber, L2BlockNumber,
     ProtocolVersionId, Transaction, H256,
 };
 
@@ -25,6 +29,8 @@ pub(crate) struct StorageSyncBlock {
     pub protocol_version: i32,
     pub virtual_blocks: i64,
     pub hash: Vec<u8>,
+    pub l2_da_validator_address: Vec<u8>,
+    pub pubdata_type: String,
 }
 
 pub(crate) struct SyncBlock {
@@ -40,6 +46,7 @@ pub(crate) struct SyncBlock {
     pub virtual_blocks: u32,
     pub hash: H256,
     pub protocol_version: ProtocolVersionId,
+    pub pubdata_params: PubdataParams,
 }
 
 impl TryFrom<StorageSyncBlock> for SyncBlock {
@@ -89,6 +96,12 @@ impl TryFrom<StorageSyncBlock> for SyncBlock {
                 .decode_column("virtual_blocks")?,
             hash: parse_h256(&block.hash).decode_column("hash")?,
             protocol_version: parse_protocol_version(block.protocol_version)?,
+            pubdata_params: PubdataParams {
+                pubdata_type: L1BatchCommitmentMode::from_str(&block.pubdata_type)
+                    .decode_column("Invalid pubdata type")?,
+                l2_da_validator_address: parse_h160(&block.l2_da_validator_address)
+                    .decode_column("l2_da_validator_address")?,
+            },
         })
     }
 }
@@ -109,6 +122,7 @@ impl SyncBlock {
             virtual_blocks: Some(self.virtual_blocks),
             hash: Some(self.hash),
             protocol_version: self.protocol_version,
+            pubdata_params: Some(self.pubdata_params),
         }
     }
 
@@ -125,6 +139,7 @@ impl SyncBlock {
             operator_address: self.fee_account_address,
             transactions,
             last_in_batch: self.last_in_batch,
+            pubdata_params: Some(self.pubdata_params),
         }
     }
 }

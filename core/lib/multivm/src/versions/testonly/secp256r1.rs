@@ -4,7 +4,7 @@ use zksync_types::{web3::keccak256, Execute, H256, U256};
 use zksync_utils::h256_to_u256;
 
 use super::{tester::VmTesterBuilder, TestedVm};
-use crate::interface::{ExecutionResult, TxExecutionMode, VmExecutionMode, VmInterfaceExt};
+use crate::interface::{ExecutionResult, InspectExecutionMode, TxExecutionMode, VmInterfaceExt};
 
 pub(crate) fn test_secp256r1<VM: TestedVm>() {
     // In this test, we aim to test whether a simple account interaction (without any fee logic)
@@ -55,7 +55,7 @@ pub(crate) fn test_secp256r1<VM: TestedVm>() {
 
     vm.vm.push_transaction(tx);
 
-    let execution_result = vm.vm.execute(VmExecutionMode::Batch);
+    let execution_result = vm.vm.execute(InspectExecutionMode::OneTx);
 
     let ExecutionResult::Success { output } = execution_result.result else {
         panic!("batch failed")

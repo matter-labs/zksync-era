@@ -9,7 +9,7 @@
 //! - Tests use [`VmTester`] built using [`VmTesterBuilder`] to create a VM instance. This allows to set up storage for the VM,
 //!   custom [`SystemEnv`] / [`L1BatchEnv`], deployed contracts, pre-funded accounts etc.
 
-use std::collections::HashSet;
+use std::{collections::HashSet, rc::Rc};
 
 use ethabi::Contract;
 use once_cell::sync::Lazy;
@@ -23,11 +23,14 @@ use zksync_types::{
     ProtocolVersionId, U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256, u256_to_h256};
-use zksync_vm_interface::{L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode};
+use zksync_vm_interface::{
+    pubdata::PubdataBuilder, L1BatchEnv, L2BlockEnv, SystemEnv, TxExecutionMode,
+};
 
 pub(super) use self::tester::{TestedVm, VmTester, VmTesterBuilder};
 use crate::{
-    interface::storage::InMemoryStorage, vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
+    interface::storage::InMemoryStorage, pubdata_builders::RollupPubdataBuilder,
+    vm_latest::constants::BATCH_COMPUTATIONAL_GAS_LIMIT,
 };
 
 pub(super) mod block_tip;
@@ -173,6 +176,10 @@ pub(super) fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
             max_virtual_blocks_to_create: 100,
         },
     }
+}
+
+pub(super) fn default_pubdata_builder() -> Rc<dyn PubdataBuilder> {
+    Rc::new(RollupPubdataBuilder::new(Address::zero()))
 }
 
 pub(super) fn make_address_rich(storage: &mut InMemoryStorage, address: Address) {
