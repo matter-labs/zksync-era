@@ -78,10 +78,10 @@ comprehensive understanding of their functionality and interactions.
   https://user-images.githubusercontent.com/128217157/236500717-165470ad-30b8-4ad6-97ed-fc29c8eb1fe0.png
   'explorer example'
 [conditional_sealer]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/seal_criteria/conditional_sealer.rs#20
+  https://github.com/matter-labs/zksync-era/blob/main/core/node/state_keeper/src/seal_criteria/conditional_sealer.rs
   'Conditional Sealer'
 [reasons_for_sealing]:
-  https://github.com/matter-labs/zksync-era/blob/main/core/lib/zksync_core/src/state_keeper/seal_criteria/mod.rs#L106
+  https://github.com/matter-labs/zksync-era/blob/main/core/node/state_keeper/src/seal_criteria/mod.rs
   'Reasons for Sealing'
 
 ## Deeper dive
