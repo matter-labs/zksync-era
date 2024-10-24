@@ -12,7 +12,7 @@ use zksync_system_constants::{
 use zksync_types::{
     vm::VmVersion, web3::keccak256, AccountTreeId, Address, StorageKey, H256, U256,
 };
-use zksync_utils::{be_bytes_to_safe_address, u256_to_account_address, u256_to_h256};
+use zksync_utils::{address_to_u256, be_bytes_to_safe_address, u256_to_h256};
 
 use self::types::{NewTrustedValidationItems, ValidationTracerMode};
 use crate::{
@@ -140,8 +140,7 @@ impl<H> ValidationTracer<H> {
         let from = u256_to_h256(key.saturating_sub(Self::MAX_ALLOWED_SLOT_OFFSET.into()));
         let to = u256_to_h256(key);
         let valid_users_slot = address == self.user_address
-            // we don't allow dirty bytes in front of the address
-            || key == address_to_u256(self.user_address)
+            || key == address_to_u256(&self.user_address)
             || self
                 .auxilary_allowed_slots
                 .range(from..=to)
