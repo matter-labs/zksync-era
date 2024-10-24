@@ -82,7 +82,7 @@ mod utils;
 pub mod unstable {
     pub use crate::{
         errors::DeserializeError,
-        types::{Manifest, Node, NodeKey, ProfiledTreeOperation, Root},
+        types::{Manifest, Node, NodeKey, ProfiledTreeOperation, RawNode, Root},
     };
 }
 

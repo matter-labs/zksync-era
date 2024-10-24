@@ -27,6 +27,7 @@ pub use self::{
     helpers::{AsyncTreeReader, LazyAsyncTreeReader, MerkleTreeInfo},
     pruning::MerkleTreePruningTask,
 };
+use crate::helpers::create_readonly_db;
 
 pub mod api_server;
 mod helpers;
@@ -262,5 +263,57 @@ impl MetadataCalculator {
         updater
             .loop_updating_tree(self.delayer, &self.pool, stop_receiver)
             .await
+    }
+}
+
+/// Configuration of [`TreeReaderTask`].
+#[derive(Debug, Clone)]
+pub struct MerkleTreeReaderConfig {
+    /// Filesystem path to the RocksDB instance that stores the tree.
+    pub db_path: String,
+    /// Maximum number of files concurrently opened by RocksDB. Useful to fit into OS limits; can be used
+    /// as a rudimentary way to control RAM usage of the tree.
+    pub max_open_files: Option<NonZeroU32>,
+    /// Chunk size for multi-get operations. Can speed up loading data for the Merkle tree on some environments,
+    /// but the effects vary wildly depending on the setup (e.g., the filesystem used).
+    pub multi_get_chunk_size: usize,
+    /// Capacity of RocksDB block cache in bytes. Reasonable values range from ~100 MiB to several GB.
+    pub block_cache_capacity: usize,
+    /// If specified, RocksDB indices and Bloom filters will be managed by the block cache, rather than
+    /// being loaded entirely into RAM on the RocksDB initialization. The block cache capacity should be increased
+    /// correspondingly; otherwise, RocksDB performance can significantly degrade.
+    pub include_indices_and_filters_in_block_cache: bool,
+}
+
+/// Alternative to [`MetadataCalculator`] that provides readonly access to the Merkle tree.
+#[derive(Debug)]
+pub struct TreeReaderTask {
+    config: MerkleTreeReaderConfig,
+    tree_reader: watch::Sender<Option<AsyncTreeReader>>,
+}
+
+impl TreeReaderTask {
+    /// Creates a new task with the provided configuration.
+    pub fn new(config: MerkleTreeReaderConfig) -> Self {
+        Self {
+            config,
+            tree_reader: watch::channel(None).0,
+        }
+    }
+
+    /// Returns a reference to the tree reader.
+    pub fn tree_reader(&self) -> LazyAsyncTreeReader {
+        LazyAsyncTreeReader(self.tree_reader.subscribe())
+    }
+
+    /// Runs this task. The task exits on error, or when the tree reader is successfully initialized.
+    pub async fn run(self, mut stop_receiver: watch::Receiver<bool>) -> anyhow::Result<()> {
+        let db = tokio::select! {
+            db_result = create_readonly_db(self.config) => db_result?,
+            _ = stop_receiver.changed() => return Ok(()),
+        };
+        let reader = AsyncTreeReader::new(db, MerkleTreeMode::Lightweight)?;
+        self.tree_reader.send_replace(Some(reader));
+        Ok(())
     }
 }

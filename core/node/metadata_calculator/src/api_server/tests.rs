@@ -72,9 +72,65 @@ async fn merkle_tree_api() {
     assert_eq!(err.version_count, 6);
     assert_eq!(err.missing_version, 10);
 
+    let raw_nodes_response = api_client
+        .inner
+        .post(format!("http://{local_addr}/debug/nodes"))
+        .json(&serde_json::json!({ "keys": ["0:", "0:0"] }))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    let raw_nodes_response: serde_json::Value = raw_nodes_response.json().await.unwrap();
+    assert_raw_nodes_response(&raw_nodes_response);
+
+    let raw_stale_keys_response = api_client
+        .inner
+        .post(format!("http://{local_addr}/debug/stale-keys"))
+        .json(&serde_json::json!({ "l1_batch_number": 1 }))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+    let raw_stale_keys_response: serde_json::Value = raw_stale_keys_response.json().await.unwrap();
+    assert_raw_stale_keys_response(&raw_stale_keys_response);
+
     // Stop the calculator and the tree API server.
     stop_sender.send_replace(true);
     api_server_task.await.unwrap().unwrap();
+}
+
+fn assert_raw_nodes_response(response: &serde_json::Value) {
+    let response = response.as_object().expect("not an object");
+    let response = response["nodes"].as_object().expect("not an object");
+    let root = response["0:"].as_object().expect("not an object");
+    assert!(
+        root.len() == 2 && root.contains_key("internal") && root.contains_key("raw"),
+        "{root:#?}"
+    );
+    let root = root["internal"].as_object().expect("not an object");
+    for key in root.keys() {
+        assert_eq!(key.len(), 1, "{key}");
+        let key = key.as_bytes()[0];
+        assert_matches!(key, b'0'..=b'9' | b'a'..=b'f');
+    }
+
+    let node = response["0:0"].as_object().expect("not an object");
+    assert!(
+        node.len() == 2 && node.contains_key("internal") && node.contains_key("raw"),
+        "{node:#?}"
+    );
+}
+
+fn assert_raw_stale_keys_response(response: &serde_json::Value) {
+    let response = response.as_object().expect("not an object");
+    let stale_keys = response["stale_keys"].as_array().expect("not an array");
+    assert!(!stale_keys.is_empty()); // At least the root is always obsoleted
+    for stale_key in stale_keys {
+        let stale_key = stale_key.as_str().expect("not a string");
+        stale_key.parse::<NodeKey>().unwrap();
+    }
 }
 
 #[tokio::test]

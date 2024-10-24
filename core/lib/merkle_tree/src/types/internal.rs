@@ -2,7 +2,9 @@
 //! some of these types are declared as public and can be even exported using the `unstable` module.
 //! Still, logically these types are private, so adding them to new public APIs etc. is a logical error.
 
-use std::{collections::HashMap, fmt, num::NonZeroU64};
+use std::{collections::HashMap, fmt, num::NonZeroU64, str::FromStr};
+
+use anyhow::Context;
 
 use crate::{
     hasher::{HashTree, InternalNodeCache},
@@ -276,6 +278,34 @@ impl fmt::Debug for Nibbles {
     }
 }
 
+impl FromStr for Nibbles {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        anyhow::ensure!(s.len() <= KEY_SIZE * 2, "too many nibbles");
+        let mut bytes = NibblesBytes::default();
+        for (i, byte) in s.bytes().enumerate() {
+            let nibble = match byte {
+                b'0'..=b'9' => byte - b'0',
+                b'A'..=b'F' => byte - b'A' + 10,
+                b'a'..=b'f' => byte - b'a' + 10,
+                _ => anyhow::bail!("unexpected nibble: {byte:?}"),
+            };
+
+            assert!(nibble < 16);
+            if i % 2 == 0 {
+                bytes[i / 2] = nibble * 16;
+            } else {
+                bytes[i / 2] += nibble;
+            }
+        }
+        Ok(Self {
+            nibble_count: s.len(),
+            bytes,
+        })
+    }
+}
+
 /// Versioned key in a radix-16 Merkle tree.
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NodeKey {
@@ -283,9 +313,28 @@ pub struct NodeKey {
     pub(crate) nibbles: Nibbles,
 }
 
-impl fmt::Debug for NodeKey {
+impl fmt::Display for NodeKey {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(formatter, "{}:{}", self.version, self.nibbles)
+    }
+}
+
+impl fmt::Debug for NodeKey {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, formatter)
+    }
+}
+
+impl FromStr for NodeKey {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (version, nibbles) = s
+            .split_once(':')
+            .context("node key does not contain `:` delimiter")?;
+        let version = version.parse().context("invalid key version")?;
+        let nibbles = nibbles.parse().context("invalid nibbles")?;
+        Ok(Self { version, nibbles })
     }
 }
 
@@ -331,19 +380,13 @@ impl NodeKey {
     }
 }
 
-impl fmt::Display for NodeKey {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}:{}", self.version, self.nibbles)
-    }
-}
-
 /// Leaf node of the tree.
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub struct LeafNode {
-    pub(crate) full_key: Key,
-    pub(crate) value_hash: ValueHash,
-    pub(crate) leaf_index: u64,
+    pub full_key: Key,
+    pub value_hash: ValueHash,
+    pub leaf_index: u64,
 }
 
 impl LeafNode {
@@ -364,7 +407,7 @@ impl LeafNode {
 /// Reference to a child in an [`InternalNode`].
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
-pub(crate) struct ChildRef {
+pub struct ChildRef {
     pub hash: ValueHash,
     pub version: u64,
     pub is_leaf: bool,
@@ -449,7 +492,7 @@ impl InternalNode {
         self.cache.get_or_insert(cache)
     }
 
-    pub(crate) fn children(&self) -> impl Iterator<Item = (u8, &ChildRef)> + '_ {
+    pub fn children(&self) -> impl Iterator<Item = (u8, &ChildRef)> + '_ {
         self.children.iter()
     }
 
@@ -508,6 +551,17 @@ impl From<InternalNode> for Node {
     fn from(node: InternalNode) -> Self {
         Self::Internal(node)
     }
+}
+
+/// Raw node fetched from a database.
+#[derive(Debug)]
+pub struct RawNode {
+    /// Bytes for a serialized node.
+    pub raw: Vec<u8>,
+    /// Leaf if a node can be deserialized into it.
+    pub leaf: Option<LeafNode>,
+    /// Internal node if a node can be deserialized into it.
+    pub internal: Option<InternalNode>,
 }
 
 /// Root node of the tree. Besides a [`Node`], contains the general information about the tree
@@ -614,15 +668,23 @@ mod tests {
     fn nibbles_and_node_key_display() {
         let nibbles = Nibbles::new(&TEST_KEY, 5);
         assert_eq!(nibbles.to_string(), "deadb");
+        let restored: Nibbles = nibbles.to_string().parse().unwrap();
+        assert_eq!(restored, nibbles);
 
         let nibbles = Nibbles::new(&TEST_KEY, 6);
         assert_eq!(nibbles.to_string(), "deadbe");
+        let restored: Nibbles = nibbles.to_string().parse().unwrap();
+        assert_eq!(restored, nibbles);
 
         let nibbles = Nibbles::new(&TEST_KEY, 9);
         assert_eq!(nibbles.to_string(), "deadbeef0");
+        let restored: Nibbles = nibbles.to_string().parse().unwrap();
+        assert_eq!(restored, nibbles);
 
         let node_key = nibbles.with_version(3);
         assert_eq!(node_key.to_string(), "3:deadbeef0");
+        let restored: NodeKey = node_key.to_string().parse().unwrap();
+        assert_eq!(restored, node_key);
     }
 
     #[test]

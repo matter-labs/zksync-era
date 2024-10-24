@@ -6,7 +6,7 @@ pub(crate) use self::internal::{
     ChildRef, Nibbles, NibblesBytes, StaleNodeKey, TreeTags, HASH_SIZE, KEY_SIZE, TREE_DEPTH,
 };
 pub use self::internal::{
-    InternalNode, LeafNode, Manifest, Node, NodeKey, ProfiledTreeOperation, Root,
+    InternalNode, LeafNode, Manifest, Node, NodeKey, ProfiledTreeOperation, RawNode, Root,
 };
 
 mod internal;
