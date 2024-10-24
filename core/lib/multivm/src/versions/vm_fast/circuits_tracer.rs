@@ -7,7 +7,7 @@ use crate::vm_latest::tracers::circuits_capacity::*;
 /// VM tracer tracking [`CircuitStatistic`]s. Statistics generally depend on the number of time some opcodes were invoked,
 /// and, for precompiles, invocation complexity (e.g., how many hashing cycles `keccak256` required).
 #[derive(Debug, Default, Clone, PartialEq)]
-pub struct CircuitsTracer {
+pub(super) struct CircuitsTracer {
     main_vm_cycles: u32,
     ram_permutation_cycles: u32,
     storage_application_cycles: u32,

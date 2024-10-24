@@ -39,6 +39,7 @@ pub(super) mod bytecode_publishing;
 pub(super) mod circuits;
 pub(super) mod code_oracle;
 pub(super) mod default_aa;
+pub(super) mod evm_emulator;
 pub(super) mod gas_limit;
 pub(super) mod get_used_contracts;
 pub(super) mod is_write_initial;
