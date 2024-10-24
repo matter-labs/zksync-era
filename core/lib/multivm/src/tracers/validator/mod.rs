@@ -141,8 +141,7 @@ impl<H> ValidationTracer<H> {
         let to = u256_to_h256(key);
         let valid_users_slot = address == self.user_address
             // we don't allow dirty bytes in front of the address
-            || key < U256::from(2).pow(160.into())
-                && u256_to_account_address(&key) == self.user_address
+            || key == address_to_u256(self.user_address)
             || self
                 .auxilary_allowed_slots
                 .range(from..=to)
