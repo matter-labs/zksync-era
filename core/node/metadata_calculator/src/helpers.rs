@@ -22,6 +22,7 @@ use zksync_health_check::{CheckHealth, Health, HealthStatus, ReactiveHealthCheck
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
     recovery::{MerkleTreeRecovery, PersistenceThreadHandle},
+    unstable::{NodeKey, RawNode},
     Database, Key, MerkleTreeColumnFamily, NoVersionError, RocksDBWrapper, TreeEntry,
     TreeEntryWithProof, TreeInstruction,
 };
@@ -363,6 +364,12 @@ impl AsyncTreeReader {
         keys: Vec<Key>,
     ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
         tokio::task::spawn_blocking(move || self.inner.entries_with_proofs(l1_batch_number, &keys))
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn raw_nodes(self, keys: Vec<NodeKey>) -> Vec<Option<RawNode>> {
+        tokio::task::spawn_blocking(move || self.inner.raw_nodes(&keys))
             .await
             .unwrap()
     }
