@@ -336,6 +336,7 @@ impl Distribution<configs::ExperimentalVmConfig> for EncodeDist {
         configs::ExperimentalVmConfig {
             playground: self.sample(rng),
             state_keeper_fast_vm_mode: gen_fast_vm_mode(rng),
+            api_fast_vm_mode: gen_fast_vm_mode(rng),
         }
     }
 }

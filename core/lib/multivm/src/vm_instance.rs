@@ -234,7 +234,7 @@ pub type ShadowedFastVm<S, Tr = ()> = ShadowVm<
 
 /// Fast VM variants.
 #[derive(Debug)]
-pub enum FastVmInstance<S: ReadStorage, Tr> {
+pub enum FastVmInstance<S: ReadStorage, Tr = ()> {
     /// Fast VM running in isolation.
     Fast(crate::vm_fast::Vm<ImmutableStorageView<S>, Tr>),
     /// Fast VM shadowed by the latest legacy VM.
