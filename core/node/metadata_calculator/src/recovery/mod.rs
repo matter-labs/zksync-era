@@ -265,7 +265,9 @@ impl AsyncTreeRecovery {
             .map(|chunk_id| uniform_hashed_keys_chunk(chunk_id, chunk_count))
             .collect();
         tracing::info!(
-            "Recovering Merkle tree from Postgres snapshot in {chunk_count} chunks with max concurrency {}",
+            "Recovering Merkle tree from Postgres snapshot in {chunk_count} chunks with max concurrency {}. \
+             Be aware that enabling node pruning during recovery will probably result in a recovery error; always disable pruning \
+             until recovery is complete",
             options.concurrency_limit
         );
 
