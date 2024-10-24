@@ -200,6 +200,12 @@ impl ProtoFmt for Payload {
     }
 
     fn build(&self) -> Self::Proto {
+        if self.protocol_version.is_pre_gateway() {
+            assert_eq!(
+                self.pubdata_params, PubdataParams::default(),
+                "BUG DETECTED: pubdata_params should have the default value in pre-gateway protocol_version"
+            );
+        }
         let mut x = Self::Proto {
             protocol_version: Some((self.protocol_version as u16).into()),
             hash: Some(self.hash.as_bytes().into()),
