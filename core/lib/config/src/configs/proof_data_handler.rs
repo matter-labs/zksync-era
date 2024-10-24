@@ -9,6 +9,8 @@ pub struct TeeConfig {
     pub tee_support: bool,
     /// All batches before this one are considered to be processed.
     pub first_tee_processed_batch: L1BatchNumber,
+    /// Timeout for proof generation in TEE in seconds.
+    pub tee_proof_generation_timeout_in_secs: u16,
 }
 
 impl Default for TeeConfig {
@@ -16,6 +18,8 @@ impl Default for TeeConfig {
         TeeConfig {
             tee_support: Self::default_tee_support(),
             first_tee_processed_batch: Self::default_first_tee_processed_batch(),
+            tee_proof_generation_timeout_in_secs:
+                Self::default_tee_proof_generation_timeout_in_secs(),
         }
     }
 }
@@ -27,6 +31,10 @@ impl TeeConfig {
 
     pub fn default_first_tee_processed_batch() -> L1BatchNumber {
         L1BatchNumber(0)
+    }
+
+    pub fn default_tee_proof_generation_timeout_in_secs() -> u16 {
+        600
     }
 }
 

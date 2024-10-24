@@ -28,6 +28,7 @@ async fn request_tee_proof_inputs() {
             tee_config: TeeConfig {
                 tee_support: true,
                 first_tee_processed_batch: L1BatchNumber(0),
+                tee_proof_generation_timeout_in_secs: 600,
             },
         },
         L1BatchCommitmentMode::Rollup,
@@ -86,6 +87,7 @@ async fn submit_tee_proof() {
             tee_config: TeeConfig {
                 tee_support: true,
                 first_tee_processed_batch: L1BatchNumber(0),
+                tee_proof_generation_timeout_in_secs: 600,
             },
         },
         L1BatchCommitmentMode::Rollup,
