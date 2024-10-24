@@ -276,8 +276,8 @@ jobs:
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode rollup \
           --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
-          --base-token-price-nominator 3 \
-          --base-token-price-denominator 2 \
+          --base-token-price-nominator 314 \
+          --base-token-price-denominator 1000 \
           --set-as-default false \
           --ignore-prerequisites
 
@@ -332,8 +332,8 @@ jobs:
           --wallet-creation localhost \
           --l1-batch-commit-data-generator-mode validium \
           --base-token-address ${{ env.CUSTOM_TOKEN_ADDRESS }} \
-          --base-token-price-nominator 3 \
-          --base-token-price-denominator 2 \
+          --base-token-price-nominator 314 \
+          --base-token-price-denominator 1000 \
           --set-as-default false \
           --ignore-prerequisites
 

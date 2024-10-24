@@ -27,6 +27,9 @@ pub async fn distribute_eth(
         if let Some(deployer) = chain_wallets.deployer {
             addresses.push(deployer.address)
         }
+        if let Some(setter) = chain_wallets.token_multiplier_setter {
+            addresses.push(setter.address)
+        }
         common::ethereum::distribute_eth(
             wallets.operator,
             addresses,
