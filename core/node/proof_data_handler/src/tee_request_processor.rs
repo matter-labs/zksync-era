@@ -47,7 +47,7 @@ impl TeeRequestProcessor {
     ) -> Result<Option<Json<TeeProofGenerationDataResponse>>, RequestProcessorError> {
         tracing::info!("Received request for proof generation data: {:?}", request);
 
-        let mut min_batch_number: Option<L1BatchNumber> = None;
+        let mut min_batch_number = self.config.tee_config.first_tee_processed_batch;
         let mut missing_range: Option<(L1BatchNumber, L1BatchNumber)> = None;
 
         let result = loop {
@@ -72,7 +72,7 @@ impl TeeRequestProcessor {
                         None => Some((l1_batch_number, l1_batch_number)),
                     };
                     self.unlock_batch(l1_batch_number, request.tee_type).await?;
-                    min_batch_number = Some(min_batch_number.unwrap_or(l1_batch_number) + 1);
+                    min_batch_number = l1_batch_number + 1;
                 }
                 Err(err) => {
                     self.unlock_batch(l1_batch_number, request.tee_type).await?;
@@ -156,7 +156,7 @@ impl TeeRequestProcessor {
     async fn lock_batch_for_proving(
         &self,
         tee_type: TeeType,
-        min_batch_number: Option<L1BatchNumber>,
+        min_batch_number: L1BatchNumber,
     ) -> Result<Option<L1BatchNumber>, RequestProcessorError> {
         self.pool
             .connection_tagged("tee_request_processor")
