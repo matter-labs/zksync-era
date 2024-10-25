@@ -12,7 +12,7 @@ use zksync_vm_interface::{
 use super::{validation_tracer::ValidationTracer, TracerExt, Vm};
 use crate::{
     interface::storage::{ImmutableStorageView, InMemoryStorage},
-    versions::testonly::{TestedVm, TestedVmForValidation},
+    versions::testonly::{validation_params, TestedVm, TestedVmForValidation},
 };
 
 mod account_validation_rules;
@@ -168,9 +168,10 @@ impl<T: TracerExt + Default + std::fmt::Debug + 'static> TestedVm
 
 impl TestedVmForValidation for Vm<ImmutableStorageView<InMemoryStorage>, ValidationTracer> {
     fn run_validation(&mut self, tx: L2Tx) -> Option<ViolatedValidationRule> {
+        let validation_params = validation_params(&tx, &self.system_env);
         self.push_transaction(tx.into());
 
-        let mut tracer = ValidationTracer::default();
+        let mut tracer = ValidationTracer::new(validation_params);
         self.stop_after_validation();
         self.inspect(&mut tracer, InspectExecutionMode::OneTx);
 

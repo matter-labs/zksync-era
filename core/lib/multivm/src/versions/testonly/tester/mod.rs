@@ -9,8 +9,10 @@ use zksync_types::{
     Address, L1BatchNumber, StorageKey, Transaction, H256, U256,
 };
 use zksync_vm_interface::{
-    pubdata::PubdataBuilder, tracer::ViolatedValidationRule, CurrentExecutionState,
-    InspectExecutionMode, VmExecutionResultAndLogs, VmInterfaceHistoryEnabled,
+    pubdata::PubdataBuilder,
+    tracer::{ValidationParams, ViolatedValidationRule},
+    CurrentExecutionState, InspectExecutionMode, VmExecutionResultAndLogs,
+    VmInterfaceHistoryEnabled,
 };
 
 pub(crate) use self::transaction_test_info::{ExpectedError, TransactionTestInfo, TxModifier};
@@ -233,4 +235,17 @@ pub(crate) trait TestedVm:
 
 pub(crate) trait TestedVmForValidation {
     fn run_validation(&mut self, tx: L2Tx) -> Option<ViolatedValidationRule>;
+}
+
+pub(crate) fn validation_params(tx: &L2Tx, system: &SystemEnv) -> ValidationParams {
+    let user_address = tx.common_data.initiator_address;
+    let paymaster_address = tx.common_data.paymaster_params.paymaster;
+    ValidationParams {
+        user_address,
+        paymaster_address,
+        trusted_slots: Default::default(),
+        trusted_addresses: Default::default(),
+        trusted_address_slots: Default::default(),
+        computational_gas_limit: system.default_validation_computational_gas_limit,
+    }
 }

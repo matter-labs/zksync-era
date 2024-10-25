@@ -17,5 +17,6 @@ mod refund;
 #[cfg(test)]
 mod tests;
 mod transaction_data;
+mod utils;
 pub mod validation_tracer;
 mod vm;

@@ -241,6 +241,9 @@ impl<S: ReadStorage, Tr: TracerExt + Default> Vm<S, Tr> {
                         gas_given,
                         gas_hidden: gas - gas_given,
                     });
+                    // As long as gasleft is allowed during account validation,
+                    // the VM must not be used in the sequencer because a malicious
+                    // account cause proving failure by checking if gasleft > 100k
                     self.inner.current_frame().set_gas(gas_given);
                 }
 

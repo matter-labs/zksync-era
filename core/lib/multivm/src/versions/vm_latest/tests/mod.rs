@@ -14,8 +14,8 @@ use zksync_types::{
     U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
-use zksync_vm_interface::pubdata::PubdataBuilder;
 use zksync_vm_interface::{
+    pubdata::PubdataBuilder,
     tracer::{ValidationParams, ViolatedValidationRule},
     VmInterface,
 };
@@ -27,7 +27,9 @@ use crate::{
         CurrentExecutionState, L2BlockEnv, VmExecutionMode, VmExecutionResultAndLogs,
     },
     tracers::ValidationTracer,
-    versions::testonly::{filter_out_base_system_contracts, TestedVm, TestedVmForValidation},
+    versions::testonly::{
+        filter_out_base_system_contracts, validation_params, TestedVm, TestedVmForValidation,
+    },
     vm_latest::{
         constants::BOOTLOADER_HEAP_PAGE,
         old_vm::{event_sink::InMemoryEventSink, history_recorder::HistoryRecorder},
@@ -199,19 +201,11 @@ impl TestedVm for TestedLatestVm {
 
 impl TestedVmForValidation for TestedLatestVm {
     fn run_validation(&mut self, tx: L2Tx) -> Option<ViolatedValidationRule> {
-        let user_address = tx.common_data.initiator_address;
-        let paymaster_address = tx.common_data.paymaster_params.paymaster;
+        let validation_params = validation_params(&tx, &self.system_env);
         self.push_transaction(tx.into());
 
         let (tracer, mut failures) = ValidationTracer::<HistoryEnabled>::new(
-            ValidationParams {
-                user_address,
-                paymaster_address,
-                trusted_slots: Default::default(),
-                trusted_addresses: Default::default(),
-                trusted_address_slots: Default::default(),
-                computational_gas_limit: 100_000,
-            },
+            validation_params,
             VmVersion::Vm1_5_0IncreasedBootloaderMemory,
         );
         self.inspect_inner(

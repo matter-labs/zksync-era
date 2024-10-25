@@ -35,6 +35,9 @@ contract ValidationRuleBreaker is IAccount {
             // I'm writing assertions because otherwise the compiler would optimize away the access
             require(BOOTLOADER_FORMAL_ADDRESS.balance != 0);
         } else if (typeOfRuleBreak == 2) {
+            // May not call an EOA
+            address(1234567890).call("");
+        } else if (typeOfRuleBreak == 3) {} else if (typeOfRuleBreak == 100) {
             // Gas may only be queried to pass everything into a far call
             gasleft();
         }
