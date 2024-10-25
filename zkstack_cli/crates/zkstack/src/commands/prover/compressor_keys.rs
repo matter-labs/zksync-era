@@ -1,4 +1,5 @@
 use anyhow::Context;
+use common::logger;
 use common::spinner::Spinner;
 use config::{get_link_to_prover, EcosystemConfig, GeneralConfig};
 use xshell::Shell;
@@ -22,25 +23,29 @@ pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Resu
 
     match args.compressor_type {
         CompressorType::Fflonk => {
+            let path = args.clone().path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+
             download_compressor_key(
                 shell,
                 &mut general_config,
                 FFLONK_CRS_KEY,
-                &args.clone().path.context(MSG_SETUP_KEY_PATH_ERROR)?,
+                &format!("{}{}", path, FFLONK_CRS_KEY),
             )?;
             download_compressor_key(
                 shell,
                 &mut general_config,
                 FFLONK_COMPACT_CRS_KEY,
-                &args.path.context(MSG_SETUP_KEY_PATH_ERROR)?,
+                &format!("{}{}", path, FFLONK_COMPACT_CRS_KEY),
             )?;
         }
         CompressorType::Plonk => {
+            let path = args.path.context(MSG_SETUP_KEY_PATH_ERROR)?;
+
             download_compressor_key(
                 shell,
                 &mut general_config,
                 PLONK_CRS_KEY,
-                &args.path.context(MSG_SETUP_KEY_PATH_ERROR)?,
+                &format!("{}{}", path, PLONK_CRS_KEY),
             )?;
         }
     }
@@ -70,6 +75,8 @@ pub(crate) fn download_compressor_key(
     url.push_str(key);
 
     let path = std::path::Path::new(path);
+
+    logger::info(format!("Downloading setup key {} by URL: {}", key, url));
 
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(600))
