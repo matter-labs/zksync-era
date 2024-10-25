@@ -105,7 +105,7 @@ jobs:
 
       - name: Loadtest configuration
         run: |
-          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 21000 || 16000 }} >> .env
+          echo EXPECTED_TX_COUNT=${{ matrix.vm_mode == 'NEW' && 30000 || 16000 }} >> .env
           echo ACCOUNTS_AMOUNT="100" >> .env
           echo MAX_INFLIGHT_TXS="10" >> .env
           echo SYNC_API_REQUESTS_LIMIT="15" >> .env
@@ -360,12 +360,16 @@ jobs:
 
       - name: Run servers
         run: |
+          # Override config for part of chains to test the default config as well
+          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain era
+          ci_run zkstack dev config-writer --path etc/env/file_based/overrides/tests/integration.yaml --chain validium
+          
           ci_run zkstack server --ignore-prerequisites --chain era &> ${{ env.SERVER_LOGS_DIR }}/rollup.log &
           ci_run zkstack server --ignore-prerequisites --chain validium &> ${{ env.SERVER_LOGS_DIR }}/validium.log &
           ci_run zkstack server --ignore-prerequisites --chain custom_token &> ${{ env.SERVER_LOGS_DIR }}/custom_token.log &
           ci_run zkstack server --ignore-prerequisites --chain consensus \
-          --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus \
-          &> ${{ env.SERVER_LOGS_DIR }}/consensus.log &
+            --components=api,tree,eth,state_keeper,housekeeper,commitment_generator,vm_runner_protective_reads,vm_runner_bwip,vm_playground,da_dispatcher,consensus \
+            &> ${{ env.SERVER_LOGS_DIR }}/consensus.log &
 
           ci_run sleep 5
 
