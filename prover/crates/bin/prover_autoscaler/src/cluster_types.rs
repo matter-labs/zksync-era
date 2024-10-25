@@ -40,6 +40,7 @@ pub struct Namespace {
     #[serde(serialize_with = "ordered_map")]
     pub deployments: HashMap<String, Deployment>,
     pub pods: HashMap<String, Pod>,
+    #[serde(default)]
     pub scale_errors: Vec<ScaleEvent>,
 }
 

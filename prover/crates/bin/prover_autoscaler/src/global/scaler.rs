@@ -421,7 +421,7 @@ impl Task for Scaler {
 mod tests {
     use super::*;
     use crate::{
-        cluster_types::{Deployment, Namespace, Pod},
+        cluster_types::{Deployment, Namespace, Pod, ScaleEvent},
         global::{queuer, watcher},
     };
 
@@ -763,6 +763,128 @@ mod tests {
             ]
             .into(),
             "Min 2 provers, 5 running"
+        );
+    }
+
+    #[tracing_test::traced_test]
+    #[test]
+    fn test_run_need_move() {
+        let scaler = Scaler::new(
+            watcher::Watcher::default(),
+            queuer::Queuer::default(),
+            ProverAutoscalerScalerConfig {
+                cluster_priorities: [("foo".into(), 0), ("bar".into(), 10)].into(),
+                min_provers: [("prover".into(), 2)].into(),
+                max_provers: [
+                    ("foo".into(), [(Gpu::L4, 100)].into()),
+                    ("bar".into(), [(Gpu::L4, 100)].into()),
+                ]
+                .into(),
+                long_pending_duration: ProverAutoscalerScalerConfig::default_long_pending_duration(
+                ),
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(
+            scaler.run(
+                &"prover".into(),
+                1400,
+                &Clusters {
+                    clusters: [
+                        (
+                            "foo".into(),
+                            Cluster {
+                                name: "foo".into(),
+                                namespaces: [(
+                                    "prover".into(),
+                                    Namespace {
+                                        deployments: [(
+                                            "circuit-prover-gpu".into(),
+                                            Deployment {
+                                                running: 3,
+                                                desired: 3,
+                                            },
+                                        )]
+                                        .into(),
+                                        pods: [
+                                            (
+                                                "circuit-prover-gpu-7c5f8fc747-gmtcr".into(),
+                                                Pod {
+                                                    status: "Running".into(),
+                                                    changed: Utc::now(),
+                                                    ..Default::default()
+                                                },
+                                            ),
+                                            (
+                                                "circuit-prover-gpu-7c5f8fc747-gmtc2".into(),
+                                                Pod {
+                                                    status: "Pending".into(),
+                                                    changed: Utc::now(),
+                                                    ..Default::default()
+                                                },
+                                            ),
+                                            (
+                                                "circuit-prover-gpu-7c5f8fc747-gmtc3".into(),
+                                                Pod {
+                                                    status: "Running".into(),
+                                                    changed: Utc::now(),
+                                                    ..Default::default()
+                                                },
+                                            )
+                                        ]
+                                        .into(),
+                                        scale_errors: vec![ScaleEvent {
+                                            name: "circuit-prover-gpu-7c5f8fc747-gmtc2.123456"
+                                                .into(),
+                                            time: Utc::now() - chrono::Duration::hours(1)
+                                        }],
+                                    },
+                                )]
+                                .into(),
+                            },
+                        ),
+                        (
+                            "bar".into(),
+                            Cluster {
+                                name: "bar".into(),
+                                namespaces: [(
+                                    "prover".into(),
+                                    Namespace {
+                                        deployments: [(
+                                            "circuit-prover-gpu".into(),
+                                            Deployment::default(),
+                                        )]
+                                        .into(),
+                                        ..Default::default()
+                                    },
+                                )]
+                                .into(),
+                            },
+                        )
+                    ]
+                    .into(),
+                    ..Default::default()
+                },
+            ),
+            [
+                (
+                    GPUPoolKey {
+                        cluster: "foo".into(),
+                        gpu: Gpu::L4,
+                    },
+                    2,
+                ),
+                (
+                    GPUPoolKey {
+                        cluster: "bar".into(),
+                        gpu: Gpu::L4,
+                    },
+                    1,
+                )
+            ]
+            .into(),
+            "Move 1 prover to bar"
         );
     }
 }
