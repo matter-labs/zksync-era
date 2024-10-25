@@ -139,7 +139,7 @@ impl SyncBlock {
             operator_address: self.fee_account_address,
             transactions,
             last_in_batch: self.last_in_batch,
-            pubdata_params: Some(self.pubdata_params),
+            pubdata_params: self.pubdata_params,
         }
     }
 }

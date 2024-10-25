@@ -2,7 +2,7 @@
 use anyhow::{anyhow, Context as _};
 use zksync_concurrency::net;
 use zksync_consensus_roles::{attester, node};
-use zksync_protobuf::{read_required, required, ProtoFmt, ProtoRepr};
+use zksync_protobuf::{read_optional_repr, read_required, required, ProtoFmt, ProtoRepr};
 use zksync_types::{
     abi,
     commitment::{L1BatchCommitmentMode, PubdataParams},
@@ -104,6 +104,31 @@ impl ProtoFmt for AttestationStatus {
     }
 }
 
+impl ProtoRepr for proto::PubdataParams {
+    type Type = PubdataParams;
+
+    fn read(&self) -> anyhow::Result<Self::Type> {
+        Ok(Self::Type {
+            l2_da_validator_address: required(&self.l2_da_validator_address)
+                .and_then(|a| parse_h160(a))
+                .context("l2_da_validator_address")?,
+            pubdata_type: required(&self.pubdata_type)
+                .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
+                .context("pubdata_type")?
+                .parse(),
+        })
+    }
+
+    fn build(this: &Self::Type) -> Self {
+        Self {
+            l2_da_validator_address: Some(this.l2_da_validator_address.as_bytes().into()),
+            pubdata_type: Some(
+                proto::L1BatchCommitDataGeneratorMode::new(&this.pubdata_type) as i32,
+            ),
+        }
+    }
+}
+
 impl ProtoFmt for Payload {
     type Proto = proto::Payload;
 
@@ -137,21 +162,7 @@ impl ProtoFmt for Payload {
             }
         }
 
-        let pubdata_params = if let Some(pubdata_params) = &r.pubdata_params {
-            Some(PubdataParams {
-                l2_da_validator_address: required(&pubdata_params.l2_da_validator_address)
-                    .and_then(|a| parse_h160(a))
-                    .context("l2_da_validator_address")?,
-                pubdata_type: required(&pubdata_params.pubdata_type)
-                    .and_then(|x| Ok(proto::L1BatchCommitDataGeneratorMode::try_from(*x)?))
-                    .context("pubdata_type")?
-                    .parse(),
-            })
-        } else {
-            None
-        };
-
-        Ok(Self {
+        let this = Self {
             protocol_version,
             hash: required(&r.hash)
                 .and_then(|h| parse_h256(h))
@@ -169,11 +180,32 @@ impl ProtoFmt for Payload {
                 .context("operator_address")?,
             transactions,
             last_in_batch: *required(&r.last_in_batch).context("last_in_batch")?,
-            pubdata_params,
-        })
+            pubdata_params: read_optional_repr(&r.pubdata_params)
+                .context("pubdata_params")?
+                .unwrap_or_default(),
+        };
+        if this.protocol_version.is_pre_gateway() {
+            anyhow::ensure!(
+                this.pubdata_params == PubdataParams::default(),
+                "pubdata_params should have the default value in pre-gateway protocol_version"
+            );
+        }
+        if this.pubdata_params == PubdataParams::default() {
+            anyhow::ensure!(
+                r.pubdata_params.is_none(),
+                "default pubdata_params should be encoded as None"
+            );
+        }
+        Ok(this)
     }
 
     fn build(&self) -> Self::Proto {
+        if self.protocol_version.is_pre_gateway() {
+            assert_eq!(
+                self.pubdata_params, PubdataParams::default(),
+                "BUG DETECTED: pubdata_params should have the default value in pre-gateway protocol_version"
+            );
+        }
         let mut x = Self::Proto {
             protocol_version: Some((self.protocol_version as u16).into()),
             hash: Some(self.hash.as_bytes().into()),
@@ -188,16 +220,11 @@ impl ProtoFmt for Payload {
             transactions: vec![],
             transactions_v25: vec![],
             last_in_batch: Some(self.last_in_batch),
-            pubdata_params: self
-                .pubdata_params
-                .map(|pubdata_params| proto::PubdataParams {
-                    l2_da_validator_address: Some(
-                        pubdata_params.l2_da_validator_address.as_bytes().into(),
-                    ),
-                    pubdata_type: Some(proto::L1BatchCommitDataGeneratorMode::new(
-                        &pubdata_params.pubdata_type,
-                    ) as i32),
-                }),
+            pubdata_params: if self.pubdata_params == PubdataParams::default() {
+                None
+            } else {
+                Some(ProtoRepr::build(&self.pubdata_params))
+            },
         };
         match self.protocol_version {
             v if v >= ProtocolVersionId::Version25 => {

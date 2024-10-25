@@ -48,7 +48,7 @@ pub struct Payload {
     pub operator_address: Address,
     pub transactions: Vec<Transaction>,
     pub last_in_batch: bool,
-    pub pubdata_params: Option<PubdataParams>,
+    pub pubdata_params: PubdataParams,
 }
 
 impl Payload {
