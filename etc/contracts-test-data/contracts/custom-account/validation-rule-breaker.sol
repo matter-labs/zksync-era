@@ -37,7 +37,9 @@ contract ValidationRuleBreaker is IAccount {
         } else if (typeOfRuleBreak == 2) {
             // May not call an EOA
             address(1234567890).call("");
-        } else if (typeOfRuleBreak == 3) {} else if (typeOfRuleBreak == 100) {
+        } else if (typeOfRuleBreak == 3) {
+            // TODO make test that calls upgradeable proxy
+        } else if (typeOfRuleBreak == 100) {
             // Gas may only be queried to pass everything into a far call
             gasleft();
         }
