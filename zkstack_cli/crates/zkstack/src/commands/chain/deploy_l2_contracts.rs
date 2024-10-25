@@ -188,12 +188,12 @@ async fn call_forge(
                 .to_string(),
         )
         .with_signature("deploy");
-    if broadcast {
-        forge = forge.with_broadcast();
-    }
     forge = fill_forge_private_key(forge, Some(&ecosystem_config.get_wallets()?.governor))?;
 
-    check_the_balance(&forge).await?;
+    if broadcast {
+        forge = forge.with_broadcast();
+        check_the_balance(&forge).await?;
+    }
     forge.run(shell)?;
     let out = &DEPLOY_L2_CONTRACTS_SCRIPT_PARAMS.output(&chain_config.link_to_code);
     Ok(deploy_l2_contracts::output::Output::read(shell, out)?)
