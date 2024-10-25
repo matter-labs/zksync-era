@@ -1,14 +1,15 @@
 use anyhow::Context;
-use common::logger;
-use common::spinner::Spinner;
+use common::{logger, spinner::Spinner};
 use config::{get_link_to_prover, EcosystemConfig, GeneralConfig};
 use xshell::Shell;
 
 use super::args::compressor_keys::{CompressorKeysArgs, CompressorType};
-use crate::consts::{FFLONK_COMPACT_CRS_KEY, FFLONK_CRS_KEY, PLONK_CRS_KEY};
-use crate::messages::{
-    MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER,
-    MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_SETUP_KEY_PATH_ERROR,
+use crate::{
+    consts::{FFLONK_COMPACT_CRS_KEY, FFLONK_CRS_KEY, PLONK_CRS_KEY},
+    messages::{
+        MSG_CHAIN_NOT_FOUND_ERR, MSG_DOWNLOADING_SETUP_COMPRESSOR_KEY_SPINNER,
+        MSG_PROOF_COMPRESSOR_CONFIG_NOT_FOUND_ERR, MSG_SETUP_KEY_PATH_ERROR,
+    },
 };
 
 pub(crate) async fn run(shell: &Shell, args: CompressorKeysArgs) -> anyhow::Result<()> {

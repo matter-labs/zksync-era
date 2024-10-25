@@ -22,11 +22,12 @@ use super::{
     init_bellman_cuda::run as init_bellman_cuda,
     setup_keys,
 };
-use crate::commands::prover::args::compressor_keys::CompressorType;
-use crate::consts::{FFLONK_COMPACT_CRS_KEY, FFLONK_CRS_KEY, PLONK_CRS_KEY};
 use crate::{
-    commands::prover::args::init::ProofStorageFileBacked,
-    consts::{PROVER_MIGRATIONS, PROVER_STORE_MAX_RETRIES},
+    commands::prover::args::{compressor_keys::CompressorType, init::ProofStorageFileBacked},
+    consts::{
+        FFLONK_COMPACT_CRS_KEY, FFLONK_CRS_KEY, PLONK_CRS_KEY, PROVER_MIGRATIONS,
+        PROVER_STORE_MAX_RETRIES,
+    },
     messages::{
         MSG_CHAIN_NOT_FOUND_ERR, MSG_FAILED_TO_DROP_PROVER_DATABASE_ERR,
         MSG_GENERAL_CONFIG_NOT_FOUND_ERR, MSG_INITIALIZING_DATABASES_SPINNER,

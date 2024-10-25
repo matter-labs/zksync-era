@@ -1,5 +1,4 @@
-use clap::Parser;
-use clap::ValueEnum;
+use clap::{Parser, ValueEnum};
 use common::Prompt;
 use strum::EnumIter;
 

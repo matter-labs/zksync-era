@@ -1,5 +1,6 @@
-use crate::PLONK_CRS_KEY;
 use std::{fs::create_dir_all, io::Cursor, path::Path, time::Duration};
+
+use crate::PLONK_CRS_KEY;
 
 #[tracing::instrument(skip_all)]
 fn download_initial_setup(key_download_url: &str) -> reqwest::Result<Vec<u8>> {

@@ -7,13 +7,13 @@ use std::{
 };
 
 use anyhow::{anyhow, Context as _};
-use circuit_definitions::circuit_definitions::aux_layer::{
-    ZkSyncCompressionProof, ZkSyncCompressionVerificationKey,
-};
 use circuit_definitions::{
     boojum::cs::implementations::setup::FinalizationHintsForProver,
     circuit_definitions::{
-        aux_layer::{compression_modes::CompressionTreeHasherForWrapper, ZkSyncSnarkWrapperVK},
+        aux_layer::{
+            compression_modes::CompressionTreeHasherForWrapper, ZkSyncCompressionProof,
+            ZkSyncCompressionVerificationKey, ZkSyncSnarkWrapperVK,
+        },
         base_layer::ZkSyncBaseLayerVerificationKey,
         recursion_layer::{ZkSyncRecursionLayerStorageType, ZkSyncRecursionLayerVerificationKey},
     },
@@ -562,21 +562,10 @@ impl Keystore {
             .with_context(|| format!("Failed saving setup data at path: {filepath:?}"))
     }
 
-    pub fn load_example_compression_proof(&self) -> anyhow::Result<ZkSyncCompressionProof> {
-        let mut path = self.basedir.clone();
-        // after this step should go to /data dir
-        path.pop();
-        let bytes = fs::read(path.join("compression/compression_proof.bin"))?;
-
-        bincode::deserialize(&bytes).map_err(|e| anyhow!(e))
-    }
-
     pub fn load_compression_vk(&self) -> anyhow::Result<ZkSyncCompressionVerificationKey> {
-        let mut path = self.basedir.clone();
-
-        path.pop();
-        let bytes = fs::read(path.join("compression/compression_vk.bin"))?;
-
-        bincode::deserialize(&bytes).map_err(|e| anyhow!(e))
+        Self::load_json_from_file(
+            self.get_base_path()
+                .join("verification_compression_wrapper_key.json"),
+        )
     }
 }

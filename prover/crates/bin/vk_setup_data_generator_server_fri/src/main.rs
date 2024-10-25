@@ -258,9 +258,8 @@ fn generate_setup_keys(
 fn generate_fflonk_setup_keys(keystore: &Keystore) -> anyhow::Result<()> {
     let worker = franklin_crypto::boojum::worker::Worker::new();
 
-    let proof = keystore.load_example_compression_proof()?;
     let vk = keystore.load_compression_vk()?;
-    let input = CompressionInput::CompressionWrapper(Some(proof), vk, CompressionMode::Five);
+    let input = CompressionInput::CompressionWrapper(None, vk, CompressionMode::Five);
 
     let setup_data = {
         let circuit = input.into_compression_wrapper_circuit();
