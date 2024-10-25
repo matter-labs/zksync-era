@@ -39,7 +39,7 @@ impl TeeConfig {
     }
 
     pub fn tee_proof_generation_timeout(&self) -> Duration {
-        Duration::from_secs(self.tee_proof_generation_timeout_in_secs as u64)
+        Duration::from_secs(self.tee_proof_generation_timeout_in_secs.into())
     }
 }
 
