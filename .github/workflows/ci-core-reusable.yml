@@ -313,7 +313,16 @@ jobs:
           if [ -n "$PIDS" ]; then
               echo "Killing process(es) on ports 3071 or 3075 with PID(s): $PIDS"
               for PID in $PIDS; do
-                  sudo kill -9 "$PID" || true  # Use SIGKILL to ensure termination
+                  # Attempt graceful shutdown
+                  sudo kill -2 "$PID" || true
+                  sleep 10
+
+                  # Check if still running, then force kill
+                  if sudo kill -0 "$PID" 2>/dev/null; then
+                      echo "Process $PID still running, forcing termination."
+                      sudo kill -9 "$PID" || true
+                  fi
+                  # sudo kill -9 "$PID" || true  # Use SIGKILL to ensure termination
               done
           else
               echo "No processes found on ports 3071 or 3075."

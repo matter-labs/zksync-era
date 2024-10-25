@@ -115,7 +115,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
     .build();
 
     if args.only_funding_tx {
-        let _hash = call_script(
+        call_script(
             shell,
             args.forge_args.clone(),
             &DEPLOY_AND_BRIDGE_ZK_TOKEN_INTERFACE
@@ -125,12 +125,12 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
             chain_config.get_wallets_config()?.governor_private_key(),
             l1_url.clone(),
         )
-        .await?;
+        .await;
 
         return Ok(());
     }
 
-    let _hash = call_script(
+    call_script(
         shell,
         args.forge_args.clone(),
         &DEPLOY_AND_BRIDGE_ZK_TOKEN_INTERFACE
@@ -146,7 +146,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
         chain_config.get_wallets_config()?.governor_private_key(),
         l1_url.clone(),
     )
-    .await?;
+    .await;
 
     println!("Pausing for 20 seconds after funding wallet...");
     tokio::time::sleep(tokio::time::Duration::from_secs(20)).await;
@@ -157,7 +157,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
         .encode("run", ())
         .unwrap();
 
-    let _tx_hash = call_script_era(
+    call_script_era(
         shell,
         args.forge_args.clone(),
         &calldata,
@@ -165,7 +165,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
         chain_config.get_wallets_config()?.governor_private_key(),
         era_provider.url().to_string(),
     )
-    .await?;
+    .await;
 
     println!("ZK Token Deployed and Withdrawn to L1!");
 
@@ -210,7 +210,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
         )
         .unwrap();
 
-    let _tx_hash = call_script(
+    call_script(
         shell,
         args.forge_args.clone(),
         &calldata,
@@ -218,7 +218,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
         chain_config.get_wallets_config()?.governor_private_key(),
         l1_url.clone(),
     )
-    .await?;
+    .await;
 
     println!("ZK Token withdrawal finalization started!");
 
@@ -226,7 +226,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
         .encode("saveL1Address", ())
         .unwrap();
 
-    let _tx_hash = call_script(
+    call_script(
         shell,
         args.forge_args,
         &calldata,
@@ -234,7 +234,7 @@ pub async fn run(args: DeployAndBridgeZKArgs, shell: &Shell) -> anyhow::Result<(
         chain_config.get_wallets_config()?.governor_private_key(),
         l1_url,
     )
-    .await?;
+    .await;
 
     println!("ZK Token L1 address saved!");
 
@@ -248,7 +248,7 @@ async fn call_script(
     config: &EcosystemConfig,
     private_key: Option<H256>,
     rpc_url: String,
-) -> anyhow::Result<H256> {
+) {
     let mut forge = Forge::new(&config.path_to_l1_foundry())
         .script(&ZK_PREPARATION.script(), forge_args.clone())
         .with_ffi()
@@ -257,12 +257,9 @@ async fn call_script(
         .with_calldata(data);
 
     // Governor private key is required for this script
-    forge = fill_forge_private_key(forge, private_key)?;
-    check_the_balance(&forge).await?;
-    forge.run(shell)?;
-
-    // Placeholder for actual output handling
-    Ok(H256::zero())
+    forge = fill_forge_private_key(forge, private_key).expect("private key signing failed");
+    let _ = check_the_balance(&forge).await;
+    let _ = forge.run(shell);
 }
 
 async fn call_script_era(
@@ -272,7 +269,7 @@ async fn call_script_era(
     config: &EcosystemConfig,
     private_key: Option<H256>,
     rpc_url: String,
-) -> anyhow::Result<H256> {
+) {
     let mut forge = Forge::new(&config.path_to_l1_foundry())
         .script(&ZK_PREPARATION.script(), forge_args.clone())
         .with_ffi()
@@ -283,12 +280,9 @@ async fn call_script_era(
         .with_calldata(data);
 
     // Governor private key is required for this script
-    forge = fill_forge_private_key(forge, private_key)?;
-    check_the_balance(&forge).await?;
-    forge.run(shell)?;
-
-    // Placeholder for actual output handling
-    Ok(H256::zero())
+    forge = fill_forge_private_key(forge, private_key).expect("private key signing failed");
+    let _ = check_the_balance(&forge).await;
+    let _ = forge.run(shell);
 }
 
 async fn await_for_tx_to_complete(l2_provider: &Provider<Http>, hash: H256) -> anyhow::Result<()> {
