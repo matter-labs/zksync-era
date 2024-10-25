@@ -6,8 +6,7 @@ pub(crate) use create::create_chain_inner;
 use xshell::Shell;
 
 use crate::commands::chain::{
-    args::create::ChainCreateArgs,
-    genesis::GenesisCommand, init::ChainInitCommand,
+    args::create::ChainCreateArgs, genesis::GenesisCommand, init::ChainInitCommand,
 };
 
 mod accept_chain_ownership;
@@ -74,28 +73,28 @@ pub(crate) async fn run(shell: &Shell, args: ChainCommands) -> anyhow::Result<()
         ChainCommands::Genesis(args) => genesis::run(args, shell).await,
         ChainCommands::RegisterChain(args) => register_chain::run(args, shell).await,
         ChainCommands::DeployL2Contracts(cmd) => {
-            cmd.run(shell,deploy_l2_contracts::Contracts::all()).await
+            cmd.run(shell, deploy_l2_contracts::Contracts::all()).await
         }
         ChainCommands::AcceptChainOwnership(args) => accept_chain_ownership::run(args, shell).await,
         ChainCommands::DeployConsensusRegistry(cmd) => {
             let mut c = deploy_l2_contracts::Contracts::default();
             c.consensus_registry = true;
-            cmd.run(shell,c).await
+            cmd.run(shell, c).await
         }
         ChainCommands::DeployMulticall3(cmd) => {
             let mut c = deploy_l2_contracts::Contracts::default();
             c.multicall3 = true;
-            cmd.run(shell,c).await
+            cmd.run(shell, c).await
         }
         ChainCommands::DeployUpgrader(cmd) => {
             let mut c = deploy_l2_contracts::Contracts::default();
             c.force_deploy_upgrader = true;
-            cmd.run(shell,c).await
+            cmd.run(shell, c).await
         }
         ChainCommands::InitializeBridges(cmd) => {
             let mut c = deploy_l2_contracts::Contracts::default();
             c.shared_bridge = true;
-            cmd.run(shell,c).await
+            cmd.run(shell, c).await
         }
         ChainCommands::DeployPaymaster(args) => deploy_paymaster::run(args, shell).await,
         ChainCommands::UpdateTokenMultiplierSetter(args) => {

@@ -143,7 +143,10 @@ pub async fn init(
             init_args.forge_args.clone(),
             &chain_config,
             &ecosystem_config,
-        ).await.context("build_and_deploy()")?;
+            /*broadcast=*/ true,
+        )
+        .await
+        .context("build_and_deploy()")?;
     contracts_config.set_l2_contracts(&output);
     contracts_config.save_with_base_path(shell, &chain_config.configs)?;
 

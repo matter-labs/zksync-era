@@ -1,5 +1,6 @@
-use crate::traits::ZkStackConfig;
 use common::contracts::ContractSpec;
+
+use crate::traits::ZkStackConfig;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Output {

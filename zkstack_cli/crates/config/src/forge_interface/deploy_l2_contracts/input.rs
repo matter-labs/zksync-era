@@ -1,7 +1,8 @@
 use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 use zksync_basic_types::L2ChainId;
-use crate::{traits::ZkStackConfig,ChainConfig};
+
+use crate::{traits::ZkStackConfig, ChainConfig};
 
 /// Fields corresponding to `contracts/l1-contracts/deploy-script-config-template/config-deploy-l2-config.toml`
 /// which are read by `contracts/l1-contracts/deploy-scripts/DeployL2Contracts.sol`.

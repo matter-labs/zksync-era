@@ -18,7 +18,8 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
         get_zksolc_path,
         &link_to_code,
         "zksolc",
-    ).await?;
+    )
+    .await?;
 
     download_binaries(
         shell,
@@ -26,7 +27,8 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
         get_zkvyper_path,
         &link_to_code,
         "zkvyper",
-    ).await?;
+    )
+    .await?;
 
     download_binaries(
         shell,
@@ -34,7 +36,8 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
         get_solc_path,
         &link_to_code,
         "solc",
-    ).await?;
+    )
+    .await?;
 
     download_binaries(
         shell,
@@ -42,7 +45,8 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
         get_era_vm_solc_path,
         &link_to_code,
         "solc",
-    ).await?;
+    )
+    .await?;
 
     download_binaries(
         shell,
@@ -50,7 +54,8 @@ pub(crate) async fn run(shell: &Shell, args: InitContractVerifierArgs) -> anyhow
         get_vyper_path,
         &link_to_code,
         "vyper",
-    ).await?;
+    )
+    .await?;
 
     Ok(())
 }
@@ -69,7 +74,8 @@ async fn download_binaries(
             &get_path(link_to_code, &release.version),
             name,
             &release.version,
-        ).await?;
+        )
+        .await?;
     }
     Ok(())
 }

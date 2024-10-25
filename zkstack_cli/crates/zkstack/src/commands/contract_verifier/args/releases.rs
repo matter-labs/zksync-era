@@ -125,8 +125,10 @@ async fn get_solc_releases(arch: Arch) -> anyhow::Result<Vec<Version>> {
             "https://raw.githubusercontent.com/ethereum/solc-bin/gh-pages/{arch_str}/list.json"
         ))
         .header("User-Agent", "zkstack")
-        .send().await?
-        .text().await?;
+        .send()
+        .await?
+        .text()
+        .await?;
 
     let solc_list: SolcList = serde_json::from_str(&response)?;
 

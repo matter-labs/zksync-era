@@ -235,6 +235,9 @@ pub(super) fn msg_explorer_db_name_prompt(chain_name: &str) -> String {
 /// Chain initialize bridges related messages
 pub(super) const MSG_DEPLOYING_L2_CONTRACT_SPINNER: &str = "Deploying l2 contracts";
 
+/// Verifying L2 contracts.
+pub(super) const MSG_VERIFYING_L2_CONTRACT_SPINNER: &str = "Verifying l2 contracts";
+
 /// Chain deploy paymaster related messages
 pub(super) const MSG_DEPLOYING_PAYMASTER: &str = "Deploying paymaster";
 

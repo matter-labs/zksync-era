@@ -4,8 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     consts::CONTRACTS_FILE,
     forge_interface::{
-        deploy_ecosystem::output::DeployL1Output,
-        deploy_l2_contracts,
+        deploy_ecosystem::output::DeployL1Output, deploy_l2_contracts,
         register_chain::output::RegisterChainOutput,
     },
     traits::{FileConfigWithDefaultName, ZkStackConfig},
@@ -76,10 +75,7 @@ impl ContractsConfig {
         self.l1.chain_admin_addr = register_chain_output.chain_admin_addr;
     }
 
-    pub fn set_l2_contracts(
-        &mut self,
-        output: &deploy_l2_contracts::output::Output,
-    ) {
+    pub fn set_l2_contracts(&mut self, output: &deploy_l2_contracts::output::Output) {
         if let Some(spec) = &output.l2_shared_bridge_proxy {
             self.bridges.shared.l2_address = Some(spec.address);
             self.bridges.erc20.l2_address = Some(spec.address);
