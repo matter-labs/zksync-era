@@ -4348,6 +4348,7 @@ dependencies = [
  "equivalent",
  "hashbrown 0.15.0",
  "serde",
+ "serde",
 ]
 
 [[package]]
@@ -11862,6 +11863,42 @@ dependencies = [
  "zksync_prover_interface",
  "zksync_solidity_vk_codegen",
  "zksync_types",
+]
+
+[[package]]
+name = "zksync_l1_recovery"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bincode",
+ "blake2 0.10.6",
+ "clap 4.5.18",
+ "ethabi",
+ "hex",
+ "indexmap 2.5.0",
+ "rand 0.8.5",
+ "reqwest 0.12.7",
+ "rocksdb",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "test-log",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "zkevm_circuits 0.150.5",
+ "zksync_basic_types",
+ "zksync_dal",
+ "zksync_eth_client",
+ "zksync_merkle_tree",
+ "zksync_protobuf",
+ "zksync_protobuf_build",
+ "zksync_storage",
+ "zksync_types",
+ "zksync_utils",
+ "zksync_web3_decl",
 ]
 
 [[package]]

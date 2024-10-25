@@ -1,0 +1,1048 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_initialOwner",
+        "type": "address"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_executionDelay",
+        "type": "uint32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_eraChainId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      }
+    ],
+    "name": "AddressAlreadyValidator",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      }
+    ],
+    "name": "ValidatorDoesNotExist",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "batchNumber",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "batchHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "commitment",
+        "type": "bytes32"
+      }
+    ],
+    "name": "BlockCommit",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "batchNumber",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "batchHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "commitment",
+        "type": "bytes32"
+      }
+    ],
+    "name": "BlockExecution",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalBatchesCommitted",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalBatchesVerified",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalBatchesExecuted",
+        "type": "uint256"
+      }
+    ],
+    "name": "BlocksRevert",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "previousLastVerifiedBatch",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "currentLastVerifiedBatch",
+        "type": "uint256"
+      }
+    ],
+    "name": "BlocksVerification",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "_newExecutionDelay",
+        "type": "uint256"
+      }
+    ],
+    "name": "NewExecutionDelay",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferStarted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "previousOwner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_addedValidator",
+        "type": "address"
+      }
+    ],
+    "name": "ValidatorAdded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "_removedValidator",
+        "type": "address"
+      }
+    ],
+    "name": "ValidatorRemoved",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "acceptOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_newValidator",
+        "type": "address"
+      }
+    ],
+    "name": "addValidator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "batchNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "batchHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint64",
+            "name": "indexRepeatedStorageChanges",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint256",
+            "name": "numberOfLayer1Txs",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "priorityOperationsHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "l2LogsTreeRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "commitment",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct IExecutor.StoredBatchInfo",
+        "name": "",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "batchNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "timestamp",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "indexRepeatedStorageChanges",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "newStateRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "numberOfLayer1Txs",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "priorityOperationsHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "bootloaderHeapInitialContentsHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "eventsQueueStateHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "systemLogs",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "pubdataCommitments",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct IExecutor.CommitBatchInfo[]",
+        "name": "_newBatchesData",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "commitBatches",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "batchNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "batchHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint64",
+            "name": "indexRepeatedStorageChanges",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint256",
+            "name": "numberOfLayer1Txs",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "priorityOperationsHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "l2LogsTreeRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "commitment",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct IExecutor.StoredBatchInfo",
+        "name": "",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "batchNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "timestamp",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint64",
+            "name": "indexRepeatedStorageChanges",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "newStateRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "numberOfLayer1Txs",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "priorityOperationsHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "bootloaderHeapInitialContentsHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "eventsQueueStateHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes",
+            "name": "systemLogs",
+            "type": "bytes"
+          },
+          {
+            "internalType": "bytes",
+            "name": "pubdataCommitments",
+            "type": "bytes"
+          }
+        ],
+        "internalType": "struct IExecutor.CommitBatchInfo[]",
+        "name": "_newBatchesData",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "commitBatchesSharedBridge",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "batchNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "batchHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint64",
+            "name": "indexRepeatedStorageChanges",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint256",
+            "name": "numberOfLayer1Txs",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "priorityOperationsHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "l2LogsTreeRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "commitment",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct IExecutor.StoredBatchInfo[]",
+        "name": "_newBatchesData",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "executeBatches",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "batchNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "batchHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint64",
+            "name": "indexRepeatedStorageChanges",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint256",
+            "name": "numberOfLayer1Txs",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "priorityOperationsHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "l2LogsTreeRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "commitment",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct IExecutor.StoredBatchInfo[]",
+        "name": "_newBatchesData",
+        "type": "tuple[]"
+      }
+    ],
+    "name": "executeBatchesSharedBridge",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "executionDelay",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_l2BatchNumber",
+        "type": "uint256"
+      }
+    ],
+    "name": "getCommittedBatchTimestamp",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getName",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pendingOwner",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "batchNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "batchHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint64",
+            "name": "indexRepeatedStorageChanges",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint256",
+            "name": "numberOfLayer1Txs",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "priorityOperationsHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "l2LogsTreeRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "commitment",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct IExecutor.StoredBatchInfo",
+        "name": "",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "batchNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "batchHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint64",
+            "name": "indexRepeatedStorageChanges",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint256",
+            "name": "numberOfLayer1Txs",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "priorityOperationsHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "l2LogsTreeRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "commitment",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct IExecutor.StoredBatchInfo[]",
+        "name": "",
+        "type": "tuple[]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256[]",
+            "name": "recursiveAggregationInput",
+            "type": "uint256[]"
+          },
+          {
+            "internalType": "uint256[]",
+            "name": "serializedProof",
+            "type": "uint256[]"
+          }
+        ],
+        "internalType": "struct IExecutor.ProofInput",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "name": "proveBatches",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "batchNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "batchHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint64",
+            "name": "indexRepeatedStorageChanges",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint256",
+            "name": "numberOfLayer1Txs",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "priorityOperationsHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "l2LogsTreeRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "commitment",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct IExecutor.StoredBatchInfo",
+        "name": "",
+        "type": "tuple"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint64",
+            "name": "batchNumber",
+            "type": "uint64"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "batchHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint64",
+            "name": "indexRepeatedStorageChanges",
+            "type": "uint64"
+          },
+          {
+            "internalType": "uint256",
+            "name": "numberOfLayer1Txs",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "priorityOperationsHash",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "l2LogsTreeRoot",
+            "type": "bytes32"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bytes32",
+            "name": "commitment",
+            "type": "bytes32"
+          }
+        ],
+        "internalType": "struct IExecutor.StoredBatchInfo[]",
+        "name": "",
+        "type": "tuple[]"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256[]",
+            "name": "recursiveAggregationInput",
+            "type": "uint256[]"
+          },
+          {
+            "internalType": "uint256[]",
+            "name": "serializedProof",
+            "type": "uint256[]"
+          }
+        ],
+        "internalType": "struct IExecutor.ProofInput",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "name": "proveBatchesSharedBridge",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_validator",
+        "type": "address"
+      }
+    ],
+    "name": "removeValidator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "revertBatches",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "revertBatchesSharedBridge",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "_executionDelay",
+        "type": "uint32"
+      }
+    ],
+    "name": "setExecutionDelay",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IStateTransitionManager",
+        "name": "_stateTransitionManager",
+        "type": "address"
+      }
+    ],
+    "name": "setStateTransitionManager",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "stateTransitionManager",
+    "outputs": [
+      {
+        "internalType": "contract IStateTransitionManager",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newOwner",
+        "type": "address"
+      }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "_chainId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "_validator",
+        "type": "address"
+      }
+    ],
+    "name": "validators",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

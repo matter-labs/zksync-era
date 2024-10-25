@@ -76,6 +76,7 @@ members = [
   "core/lib/crypto_primitives",
   "core/lib/external_price_api",
   "core/lib/test_contracts",
+  "core/node/l1_recovery",
   # Test infrastructure
   "core/tests/loadnext",
   "core/tests/vm-benchmark",
@@ -120,6 +121,8 @@ ctrlc = "3.1"
 dashmap = "5.5.3"
 derive_more = "1.0.0"
 envy = "0.4"
+indexmap = { version = "2.0.2", features = ["serde"] }
+zkevm_circuits = "=0.150.5"
 ethabi = "18.0.0"
 flate2 = "1.0.28"
 fraction = "0.15.3"
@@ -175,7 +178,7 @@ structopt = "0.3.20"
 strum = "0.26"
 tempfile = "3.0.2"
 test-casing = "0.1.2"
-test-log = "0.2.15"
+test-log = { version = "0.2.15", features = ["trace"] }
 thiserror = "1"
 thread_local = "1.1"
 tikv-jemallocator = "0.5"
@@ -321,3 +324,4 @@ zksync_contract_verification_server = { version = "0.1.0", path = "core/node/con
 zksync_node_api_server = { version = "0.1.0", path = "core/node/api_server" }
 zksync_base_token_adjuster = { version = "0.1.0", path = "core/node/base_token_adjuster" }
 zksync_logs_bloom_backfill = { version = "0.1.0", path = "core/node/logs_bloom_backfill" }
+zksync_l1_recovery = { version = "0.1.0", path = "core/node/l1_recovery" }

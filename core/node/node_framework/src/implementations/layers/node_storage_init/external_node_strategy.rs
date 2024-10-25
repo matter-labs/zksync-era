@@ -101,6 +101,7 @@ impl WiringLayer for ExternalNodeInitStrategyLayer {
         let strategy = NodeInitializationStrategy {
             genesis,
             snapshot_recovery,
+            l1_recovery: None,
             block_reverter,
         };
 

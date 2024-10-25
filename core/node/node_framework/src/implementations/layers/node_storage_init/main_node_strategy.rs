@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use zksync_config::{ContractsConfig, GenesisConfig};
-use zksync_node_storage_init::{main_node::MainNodeGenesis, NodeInitializationStrategy};
+use zksync_node_storage_init::{
+    main_node::{L1Recovery, MainNodeGenesis},
+    InitializeStorage, NodeInitializationStrategy,
+};
 
 use super::NodeInitializationStrategyResource;
 use crate::{
@@ -17,6 +20,7 @@ use crate::{
 #[derive(Debug)]
 pub struct MainNodeInitStrategyLayer {
     pub genesis: GenesisConfig,
+    pub l1_recovery_enabled: bool,
     pub contracts: ContractsConfig,
 }
 
@@ -48,13 +52,19 @@ impl WiringLayer for MainNodeInitStrategyLayer {
         let genesis = Arc::new(MainNodeGenesis {
             contracts: self.contracts,
             genesis: self.genesis,
-            l1_client,
-            pool,
+            l1_client: l1_client.clone(),
+            pool: pool.clone(),
         });
+        let l1_recovery: Option<Arc<dyn InitializeStorage>> = if self.l1_recovery_enabled {
+            Some(Arc::new(L1Recovery { l1_client, pool }))
+        } else {
+            None
+        };
         let strategy = NodeInitializationStrategy {
             genesis,
             snapshot_recovery: None,
             block_reverter: None,
+            l1_recovery,
         };
 
         Ok(Output {
