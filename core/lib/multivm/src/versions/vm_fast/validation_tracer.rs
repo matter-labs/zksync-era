@@ -2,14 +2,12 @@ use std::collections::HashSet;
 
 use zk_evm_1_3_1::address_to_u256;
 use zksync_types::{
-    ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS, H160,
+    Address, ACCOUNT_CODE_STORAGE_ADDRESS, BOOTLOADER_ADDRESS, CONTRACT_DEPLOYER_ADDRESS,
     KECCAK256_PRECOMPILE_ADDRESS, L2_BASE_TOKEN_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS,
     SYSTEM_CONTEXT_ADDRESS, U256,
 };
-use zksync_utils::{u256_to_account_address, u256_to_bytes_be};
 use zksync_vm2::interface::{
-    CallframeInterface, GlobalStateInterface, Opcode::*, OpcodeType, ReturnType::*, StateInterface,
-    Tracer,
+    CallframeInterface, GlobalStateInterface, Opcode::*, OpcodeType, ReturnType::*, Tracer,
 };
 use zksync_vm_interface::tracer::{ValidationParams, ViolatedValidationRule};
 
@@ -45,8 +43,12 @@ pub struct ValidationTracer {
     add_return_value_to_allowed_slots: bool,
 
     slots_obtained_via_keccak: HashSet<U256>,
+    trusted_addresses: HashSet<Address>,
 
-    user_address: H160,
+    user_address: Address,
+    trusted_storage: HashSet<(Address, U256)>,
+    /// These location's values are added to [Self::trusted_addresses] to support upgradeable proxies.
+    storage_containing_trusted_addresses: HashSet<(Address, U256)>,
 
     validation_error: Option<ViolatedValidationRule>,
 }
@@ -77,7 +79,12 @@ impl Tracer for ValidationTracer {
                     state.current_frame().read_contract_code(word).0[3 - part as usize];
                 let slot = state.read_register((instruction >> 16) as u8 & 0b1111).0;
 
-                if !self.is_valid_storage_read(
+                if self
+                    .storage_containing_trusted_addresses
+                    .contains(&(address, slot))
+                {
+                    self.trusted_addresses.insert(address);
+                } else if !self.is_valid_storage_read(
                     address,
                     caller,
                     slot,
@@ -87,8 +94,6 @@ impl Tracer for ValidationTracer {
                         address, slot,
                     ))
                 }
-
-                // todo maybe allow some slot
             }
 
             _ => {}
@@ -155,20 +160,38 @@ impl TracerExt for ValidationTracer {
 
 impl ValidationTracer {
     pub fn new(params: ValidationParams) -> Self {
-        let ValidationParams { user_address, .. } = params;
+        let ValidationParams {
+            user_address,
+            trusted_slots,
+            trusted_addresses,
+            trusted_address_slots,
+            ..
+        } = params;
         Self {
             user_address,
+            trusted_storage: trusted_slots,
+            trusted_addresses,
+            storage_containing_trusted_addresses: trusted_address_slots,
+
             ..Self::default()
         }
     }
 
-    fn is_valid_storage_read(&self, address: H160, caller: H160, slot: U256, value: U256) -> bool {
+    fn is_valid_storage_read(
+        &self,
+        address: Address,
+        caller: Address,
+        slot: U256,
+        value: U256,
+    ) -> bool {
         // allow reading own slots
         address == self.user_address
         // allow reading slot <own address>
         || slot == address_to_u256(&self.user_address)
         || self.slots_obtained_via_keccak.contains(&slot)
-        // todo trusted slots
+        // some storage locations are always allowed
+        || self.trusted_addresses.contains(&address)
+        || self.trusted_storage.contains(&(address, slot))
         // certain system contracts are allowed to transfer ETH
         || address == L2_BASE_TOKEN_ADDRESS
             && (caller == MSG_VALUE_SIMULATOR_ADDRESS
