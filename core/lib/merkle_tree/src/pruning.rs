@@ -506,4 +506,59 @@ mod tests {
         println!("Keys are pruned after each update");
         test_keys_are_removed_by_pruning_when_overwritten_in_multiple_batches(true);
     }
+
+    #[test]
+    fn pruning_with_truncation() {
+        let mut tree = MerkleTree::new(PatchSet::default()).unwrap();
+        let kvs: Vec<_> = (0_u64..100)
+            .map(|i| TreeEntry::new(Key::from(i), i + 1, ValueHash::zero()))
+            .collect();
+        tree.extend(kvs).unwrap();
+
+        let overridden_kvs = vec![TreeEntry::new(
+            Key::from(0),
+            1,
+            ValueHash::repeat_byte(0xaa),
+        )];
+        tree.extend(overridden_kvs).unwrap();
+
+        let stale_keys = tree.db.stale_keys(1);
+        assert!(
+            stale_keys.iter().any(|key| !key.is_empty()),
+            "{stale_keys:?}"
+        );
+
+        // Revert `overridden_kvs`.
+        tree.truncate_recent_versions(1).unwrap();
+        assert_eq!(tree.latest_version(), Some(0));
+        let future_stale_keys = tree.db.stale_keys(1);
+        assert!(future_stale_keys.is_empty());
+
+        // Add a new version without the key. To make the matter more egregious, the inserted key
+        // differs from all existing keys, starting from the first nibble.
+        let new_key = Key::from_big_endian(&[0xaa; 32]);
+        let new_kvs = vec![TreeEntry::new(new_key, 101, ValueHash::repeat_byte(0xaa))];
+        tree.extend(new_kvs).unwrap();
+        assert_eq!(tree.latest_version(), Some(1));
+
+        let stale_keys = tree.db.stale_keys(1);
+        assert_eq!(stale_keys.len(), 1);
+        assert!(
+            stale_keys[0].is_empty() && stale_keys[0].version == 0,
+            "{stale_keys:?}"
+        );
+
+        let (mut pruner, _) = MerkleTreePruner::new(tree.db);
+        let prunable_version = pruner.last_prunable_version().unwrap();
+        assert_eq!(prunable_version, 1);
+        let stats = pruner
+            .prune_up_to(prunable_version)
+            .unwrap()
+            .expect("tree was not pruned");
+        assert_eq!(stats.target_retained_version, 1);
+        assert_eq!(stats.pruned_key_count, 1); // only the root node should have been pruned
+
+        let tree = MerkleTree::new(pruner.db).unwrap();
+        tree.verify_consistency(1, false).unwrap();
+    }
 }
