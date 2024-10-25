@@ -4,13 +4,14 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyhow::Context as _;
 use chrono::Utc;
 use ethabi::{Contract, Token};
 use lazy_static::lazy_static;
 use regex::Regex;
 use tokio::time;
 use zksync_config::ContractVerifierConfig;
-use zksync_dal::{Connection, ConnectionPool, Core, CoreDal};
+use zksync_dal::{ConnectionPool, Core, CoreDal};
 use zksync_queued_job_processor::{async_trait, JobProcessor};
 use zksync_types::{
     contract_verification_api::{
@@ -47,7 +48,7 @@ enum ConstructorArgs {
     Ignore,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ContractVerifier {
     config: ContractVerifierConfig,
     connection_pool: ConnectionPool<Core>,
@@ -62,25 +63,28 @@ impl ContractVerifier {
     }
 
     async fn verify(
-        storage: &mut Connection<'_, Core>,
+        &self,
         mut request: VerificationRequest,
-        config: ContractVerifierConfig,
     ) -> Result<VerificationInfo, ContractVerifierError> {
-        let artifacts = Self::compile(request.clone(), config).await?;
+        let artifacts = Self::compile(request.clone(), &self.config).await?;
 
         // Bytecode should be present because it is checked when accepting request.
+        let mut storage = self
+            .connection_pool
+            .connection_tagged("contract_verifier")
+            .await?;
         let (deployed_bytecode, creation_tx_calldata) = storage
             .contract_verification_dal()
             .get_contract_info_for_verification(request.req.contract_address)
-            .await
-            .map_err(|err| {
-                tracing::error!("{err}");
-                ContractVerifierError::InternalError
-            })?
-            .ok_or_else(|| {
-                tracing::warn!("Contract is missing in DB for already accepted verification request. Contract address: {:#?}", request.req.contract_address);
-                ContractVerifierError::InternalError
+            .await?
+            .with_context(|| {
+                format!(
+                    "Contract is missing in DB for already accepted verification request. Contract address: {:#?}",
+                    request.req.contract_address
+                )
             })?;
+        drop(storage);
+
         let constructor_args = Self::decode_constructor_arguments_from_calldata(
             creation_tx_calldata,
             request.req.contract_address,
@@ -116,7 +120,7 @@ impl ContractVerifier {
 
     async fn compile_zksolc(
         request: VerificationRequest,
-        config: ContractVerifierConfig,
+        config: &ContractVerifierConfig,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         // Users may provide either just contract name or
         // source file name and contract name joined with ":".
@@ -195,20 +199,22 @@ impl ContractVerifier {
                 let bytecode = hex::decode(bytecode_str).unwrap();
                 let abi = contract["abi"].clone();
                 if !abi.is_array() {
-                    tracing::error!(
+                    let err = anyhow::anyhow!(
                         "zksolc returned unexpected value for ABI: {}",
                         serde_json::to_string_pretty(&abi).unwrap()
                     );
-                    return Err(ContractVerifierError::InternalError);
+                    return Err(err.into());
                 }
 
                 Ok(CompilationArtifacts { bytecode, abi })
             }
             ZkSolcOutput::YulSingleFile(output) => {
                 let re = Regex::new(r"Contract `.*` bytecode: 0x([\da-f]+)").unwrap();
-                let cap = re.captures(&output).unwrap();
-                let bytecode_str = cap.get(1).unwrap().as_str();
-                let bytecode = hex::decode(bytecode_str).unwrap();
+                let cap = re
+                    .captures(&output)
+                    .context("Yul output doesn't match regex")?;
+                let bytecode_str = cap.get(1).context("no matches in Yul output")?.as_str();
+                let bytecode = hex::decode(bytecode_str).context("invalid Yul output bytecode")?;
                 Ok(CompilationArtifacts {
                     bytecode,
                     abi: serde_json::Value::Array(Vec::new()),
@@ -219,7 +225,7 @@ impl ContractVerifier {
 
     async fn compile_zkvyper(
         request: VerificationRequest,
-        config: ContractVerifierConfig,
+        config: &ContractVerifierConfig,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         // Users may provide either just contract name or
         // source file name and contract name joined with ":".
@@ -264,17 +270,17 @@ impl ContractVerifier {
         let file_name = format!("{contract_name}.vy");
         let object = output
             .as_object()
-            .cloned()
-            .ok_or(ContractVerifierError::InternalError)?;
+            .context("Vyper output is not an object")?;
         for (path, artifact) in object {
             let path = Path::new(&path);
             if path.file_name().unwrap().to_str().unwrap() == file_name {
                 let bytecode_str = artifact["bytecode"]
                     .as_str()
-                    .ok_or(ContractVerifierError::InternalError)?;
+                    .context("bytecode is not a string")?;
                 let bytecode_without_prefix =
                     bytecode_str.strip_prefix("0x").unwrap_or(bytecode_str);
-                let bytecode = hex::decode(bytecode_without_prefix).unwrap();
+                let bytecode =
+                    hex::decode(bytecode_without_prefix).context("failed decoding bytecode")?;
                 return Ok(CompilationArtifacts {
                     abi: artifact["abi"].clone(),
                     bytecode,
@@ -287,7 +293,7 @@ impl ContractVerifier {
 
     pub async fn compile(
         request: VerificationRequest,
-        config: ContractVerifierConfig,
+        config: &ContractVerifierConfig,
     ) -> Result<CompilationArtifacts, ContractVerifierError> {
         match request.req.source_code_data.compiler_type() {
             CompilerType::Solc => Self::compile_zksolc(request, config).await,
@@ -444,10 +450,14 @@ impl ContractVerifier {
     }
 
     async fn process_result(
-        storage: &mut Connection<'_, Core>,
+        &self,
         request_id: usize,
         verification_result: Result<VerificationInfo, ContractVerifierError>,
     ) -> anyhow::Result<()> {
+        let mut storage = self
+            .connection_pool
+            .connection_tagged("contract_verifier")
+            .await?;
         match verification_result {
             Ok(info) => {
                 storage
@@ -457,7 +467,14 @@ impl ContractVerifier {
                 tracing::info!("Successfully processed request with id = {request_id}");
             }
             Err(error) => {
-                let error_message = error.to_string();
+                let error_message = match &error {
+                    ContractVerifierError::Internal(err) => {
+                        // Do not expose the error externally, but log it.
+                        tracing::warn!(request_id, "internal error processing request: {err}");
+                        "internal error".to_owned()
+                    }
+                    _ => error.to_string(),
+                };
                 let compilation_errors = match error {
                     ContractVerifierError::CompilationError(compilation_errors) => {
                         compilation_errors
@@ -528,18 +545,13 @@ impl JobProcessor for ContractVerifier {
         job: VerificationRequest,
         started_at: Instant,
     ) -> tokio::task::JoinHandle<anyhow::Result<()>> {
-        let connection_pool = self.connection_pool.clone();
-        let config = self.config.clone();
+        let this = self.clone();
         tokio::task::spawn(async move {
             tracing::info!("Started to process request with id = {}", job.id);
 
-            // FIXME: long-living connection
-            let mut connection = connection_pool
-                .connection_tagged("contract_verifier")
-                .await?;
             let job_id = job.id;
-            let verification_result = Self::verify(&mut connection, job, config).await;
-            Self::process_result(&mut connection, job_id, verification_result).await?;
+            let verification_result = this.verify(job).await;
+            this.process_result(job_id, verification_result).await?;
 
             API_CONTRACT_VERIFIER_METRICS
                 .request_processing_time

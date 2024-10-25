@@ -1,5 +1,6 @@
 use std::{collections::HashMap, io::Write, path::PathBuf, process::Stdio};
 
+use anyhow::Context as _;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +17,7 @@ pub enum ZkSolcInput {
 
 #[derive(Debug)]
 pub enum ZkSolcOutput {
+    // FIXME: incorrect abstraction boundary
     StandardJson(serde_json::Value),
     YulSingleFile(String),
 }
@@ -136,26 +138,24 @@ impl ZkSolc {
                     .arg("--standard-json")
                     .stdin(Stdio::piped())
                     .spawn()
-                    .map_err(|_err| ContractVerifierError::InternalError)?;
+                    .context("failed spawning zksolc")?;
                 let stdin = child.stdin.as_mut().unwrap();
-                let content = serde_json::to_vec(&input).unwrap();
+                let content = serde_json::to_vec(&input)
+                    .context("cannot encode standard JSON input for zksolc")?;
                 stdin
                     .write_all(&content)
                     .await
-                    .map_err(|_err| ContractVerifierError::InternalError)?;
+                    .context("failed writing standard JSON to zksolc stdin")?;
                 stdin
                     .flush()
                     .await
-                    .map_err(|_err| ContractVerifierError::InternalError)?;
+                    .context("failed flushing standard JSON to zksolc")?;
 
-                let output = child
-                    .wait_with_output()
-                    .await
-                    .map_err(|_err| ContractVerifierError::InternalError)?;
+                let output = child.wait_with_output().await.context("zksolc failed")?;
                 if output.status.success() {
                     Ok(ZkSolcOutput::StandardJson(
                         serde_json::from_slice(&output.stdout)
-                            .expect("Compiler output must be valid JSON"),
+                            .context("zksolc output is not valid JSON")?,
                     ))
                 } else {
                     Err(ContractVerifierError::CompilerError(
@@ -170,9 +170,9 @@ impl ZkSolc {
                     .suffix(".yul")
                     .rand_bytes(0)
                     .tempfile()
-                    .map_err(|_err| ContractVerifierError::InternalError)?;
+                    .context("cannot create temporary Yul file")?;
                 file.write_all(source_code.as_bytes())
-                    .map_err(|_err| ContractVerifierError::InternalError)?;
+                    .context("failed writing Yul file")?;
                 let child = command
                     .arg(file.path().to_str().unwrap())
                     .arg("--optimization")
@@ -180,14 +180,11 @@ impl ZkSolc {
                     .arg("--yul")
                     .arg("--bin")
                     .spawn()
-                    .map_err(|_err| ContractVerifierError::InternalError)?;
-                let output = child
-                    .wait_with_output()
-                    .await
-                    .map_err(|_err| ContractVerifierError::InternalError)?;
+                    .context("failed spawning zksolc")?;
+                let output = child.wait_with_output().await.context("zksolc failed")?;
                 if output.status.success() {
                     Ok(ZkSolcOutput::YulSingleFile(
-                        String::from_utf8(output.stdout).expect("Couldn't parse string"),
+                        String::from_utf8(output.stdout).context("zksolc output is not UTF-8")?,
                     ))
                 } else {
                     Err(ContractVerifierError::CompilerError(
