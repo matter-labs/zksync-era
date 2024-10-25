@@ -15,7 +15,7 @@ import { TestContextOwner, TestMaster } from '../src';
 import * as zksync from 'zksync-ethers';
 import * as ethers from 'ethers';
 import { DataAvailabityMode, Token } from '../src/types';
-import { SYSTEM_CONTEXT_ADDRESS, getTestContract } from '../src/helpers';
+import { SYSTEM_CONTEXT_ADDRESS, getTestContract, waitForNewL1Batch, anyTransaction } from '../src/helpers';
 import { loadConfig, shouldLoadConfigFromFile } from 'utils/build/file-configs';
 import { logsTestPath } from 'utils/build/logs';
 import { sleep } from 'utils/build';
@@ -248,23 +248,16 @@ testFees('Test fees', function () {
     });
 
     test('Test gas price expected value', async () => {
-        const receiver = ethers.Wallet.createRandom().address;
         const l1GasPrice = 2_000_000_000n; /// set to 2 gwei
         await mainNodeSpawner.killAndSpawnMainNode({
             newL1GasPrice: l1GasPrice,
             newPubdataPrice: l1GasPrice
         });
 
-        const doTxToReceiver = () =>
-            alice.sendTransaction({
-                to: receiver,
-                value: BigInt(1)
-            });
+        // wait for new batch so gas price is updated with new config set above
+        await waitForNewL1Batch(alice);
 
-        //wait 1 miniblock so the multiplier gets updated
-        await doTxToReceiver().then((tx) => tx.wait(1));
-
-        const receipt = await doTxToReceiver().then((tx) => tx.wait());
+        const receipt = await anyTransaction(alice);
 
         const feeParams = await alice._providerL2().getFeeParams();
         const feeConfig = feeParams.V2.config;
@@ -285,10 +278,6 @@ testFees('Test fees', function () {
         const expectedConvertedGasPrice =
             (expectedETHGasPrice * conversionRatio.numerator) / conversionRatio.denominator;
 
-        console.log('feeParams', feeParams);
-        console.log('receipt', receipt);
-        console.log('gas price', await alice._providerL2().getGasPrice());
-        console.log(await alice._providerL2().getFeeParams());
         expect(receipt.gasPrice).toBe(BigInt(expectedConvertedGasPrice));
     });
 
