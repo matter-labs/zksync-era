@@ -1,24 +1,16 @@
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use rlp::decode;
-use tokio::{sync::Mutex, time::interval};
+use tokio::sync::Mutex;
 use tonic::transport::{Channel, ClientTlsConfig};
-use zksync_config::configs::da_client::eigen_da::{DisperserConfig, EigenDAConfig, MemStoreConfig};
-use zksync_da_client::DataAvailabilityClient;
-
+use zksync_config::configs::da_client::eigen_da::{DisperserConfig, EigenDAConfig};
 use zksync_da_client::{
-    types::{self, DAError, InclusionData},
-    // DataAvailabilityClient,
+    types::{self},
+    DataAvailabilityClient,
 };
 
 use super::{
-    blob_info::BlobInfo,
     disperser::{self, disperser_client::DisperserClient, BlobStatusRequest, DisperseBlobRequest},
-    errors::EigenDAError,
     memstore::MemStore,
 };
 
@@ -129,7 +121,8 @@ impl DataAvailabilityClient for EigenDAClient {
                     disperser::BlobStatus::Confirmed => {
                         if remote_client.config.wait_for_finalization {
                             Err(to_retriable_error(anyhow::anyhow!(
-                            "Blob is confirmed but not finalized")))
+                                "Blob is confirmed but not finalized"
+                            )))
                         } else {
                             Ok(Some(types::InclusionData {
                                 data: blob_status_reply
@@ -140,7 +133,7 @@ impl DataAvailabilityClient for EigenDAClient {
                                     .inclusion_proof,
                             }))
                         }
-                    },
+                    }
                     disperser::BlobStatus::Failed => {
                         Err(to_non_retriable_error(anyhow::anyhow!("Blob has failed")))
                     }
@@ -197,6 +190,8 @@ fn to_non_retriable_error(error: anyhow::Error) -> types::DAError {
 
 #[cfg(test)]
 mod test {
+    use zksync_config::configs::da_client::eigen_da::MemStoreConfig;
+
     use super::*;
 
     #[tokio::test]
