@@ -11,7 +11,9 @@ use zksync_config::{
     },
     PostgresConfig,
 };
-use zksync_metadata_calculator::{MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig};
+use zksync_metadata_calculator::{
+    MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
+};
 use zksync_node_api_server::web3::Namespace;
 use zksync_node_framework::{
     implementations::layers::{
@@ -25,7 +27,7 @@ use zksync_node_framework::{
         logs_bloom_backfill::LogsBloomBackfillLayer,
         main_node_client::MainNodeClientLayer,
         main_node_fee_params_fetcher::MainNodeFeeParamsFetcherLayer,
-        metadata_calculator::MetadataCalculatorLayer,
+        metadata_calculator::{MetadataCalculatorLayer, TreeApiServerLayer},
         node_storage_init::{
             external_node_strategy::{ExternalNodeInitStrategyLayer, SnapshotRecoveryConfig},
             NodeStorageInitializerLayer,
@@ -385,6 +387,29 @@ impl ExternalNodeBuilder {
         Ok(self)
     }
 
+    fn add_isolated_tree_api_layer(mut self) -> anyhow::Result<Self> {
+        let reader_config = MerkleTreeReaderConfig {
+            db_path: self.config.required.merkle_tree_path.clone(),
+            max_open_files: self.config.optional.merkle_tree_max_open_files,
+            multi_get_chunk_size: self.config.optional.merkle_tree_multi_get_chunk_size,
+            block_cache_capacity: self.config.optional.merkle_tree_block_cache_size(),
+            include_indices_and_filters_in_block_cache: self
+                .config
+                .optional
+                .merkle_tree_include_indices_and_filters_in_block_cache,
+        };
+        let api_config = MerkleTreeApiConfig {
+            port: self
+                .config
+                .tree_component
+                .api_port
+                .context("should contain tree api port")?,
+        };
+        self.node
+            .add_layer(TreeApiServerLayer::new(reader_config, api_config));
+        Ok(self)
+    }
+
     fn add_tx_sender_layer(mut self) -> anyhow::Result<Self> {
         let postgres_storage_config = PostgresStorageCachesConfig {
             factory_deps_cache_size: self.config.optional.factory_deps_cache_size() as u64,
@@ -607,11 +632,11 @@ impl ExternalNodeBuilder {
                     self = self.add_metadata_calculator_layer(with_tree_api)?;
                 }
                 Component::TreeApi => {
-                    anyhow::ensure!(
-                        components.contains(&Component::Tree),
-                        "Merkle tree API cannot be started without a tree component"
-                    );
-                    // Do nothing, will be handled by the `Tree` component.
+                    if components.contains(&Component::Tree) {
+                        // Do nothing, will be handled by the `Tree` component.
+                    } else {
+                        self = self.add_isolated_tree_api_layer()?;
+                    }
                 }
                 Component::TreeFetcher => {
                     self = self.add_tree_data_fetcher_layer()?;
