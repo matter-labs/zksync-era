@@ -164,7 +164,7 @@ impl TeeRequestProcessor {
             .tee_proof_generation_dal()
             .lock_batch_for_proving(
                 tee_type,
-                self.config.proof_generation_timeout(),
+                self.config.tee_config.tee_proof_generation_timeout(),
                 min_batch_number,
             )
             .await

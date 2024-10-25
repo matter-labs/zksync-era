@@ -681,6 +681,7 @@ impl Distribution<configs::ProofDataHandlerConfig> for EncodeDist {
             tee_config: configs::TeeConfig {
                 tee_support: self.sample(rng),
                 first_tee_processed_batch: L1BatchNumber(rng.gen()),
+                tee_proof_generation_timeout_in_secs: self.sample(rng),
             },
         }
     }
