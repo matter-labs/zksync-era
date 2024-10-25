@@ -1,15 +1,19 @@
 use std::{path::PathBuf, str::FromStr};
 
 use anyhow::{bail, Context};
-use clap::{Parser, ValueEnum};
+use clap::{Parser, ValueEnum, ValueHint};
 use common::{Prompt, PromptConfirm, PromptSelect};
-use config::forge_interface::deploy_ecosystem::output::Erc20Token;
+use config::{
+    forge_interface::deploy_ecosystem::output::Erc20Token, traits::ReadConfigWithBasePath,
+    EcosystemConfig,
+};
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
 use strum::{Display, EnumIter, IntoEnumIterator};
 use types::{BaseToken, L1BatchCommitmentMode, L1Network, ProverMode, WalletCreation};
 use xshell::Shell;
 use zksync_basic_types::{L2ChainId, H160};
+use zksync_config::GenesisConfig;
 
 use crate::{
     defaults::L2_CHAIN_ID,
@@ -19,6 +23,7 @@ use crate::{
         MSG_BASE_TOKEN_PRICE_DENOMINATOR_PROMPT, MSG_BASE_TOKEN_PRICE_NOMINATOR_HELP,
         MSG_BASE_TOKEN_PRICE_NOMINATOR_PROMPT, MSG_BASE_TOKEN_SELECTION_PROMPT, MSG_CHAIN_ID_HELP,
         MSG_CHAIN_ID_PROMPT, MSG_CHAIN_ID_VALIDATOR_ERR, MSG_CHAIN_NAME_PROMPT,
+        MSG_EVM_EMULATOR_HASH_MISSING_ERR, MSG_EVM_EMULATOR_HELP, MSG_EVM_EMULATOR_PROMPT,
         MSG_L1_BATCH_COMMIT_DATA_GENERATOR_MODE_PROMPT, MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP,
         MSG_L1_NETWORK_HELP, MSG_L1_NETWORK_PROMPT, MSG_NUMBER_VALIDATOR_GREATHER_THAN_ZERO_ERR,
         MSG_NUMBER_VALIDATOR_NOT_ZERO_ERR, MSG_PROVER_MODE_HELP, MSG_PROVER_VERSION_PROMPT,
@@ -55,7 +60,7 @@ pub struct ChainCreateArgs {
     prover_mode: Option<ProverMode>,
     #[clap(long, help = MSG_WALLET_CREATION_HELP, value_enum)]
     wallet_creation: Option<WalletCreation>,
-    #[clap(long, help = MSG_WALLET_PATH_HELP)]
+    #[clap(long, help = MSG_WALLET_PATH_HELP, value_hint = ValueHint::FilePath)]
     wallet_path: Option<PathBuf>,
     #[clap(long, help = MSG_L1_COMMIT_DATA_GENERATOR_MODE_HELP)]
     l1_batch_commit_data_generator_mode: Option<L1BatchCommitmentModeInternal>,
@@ -71,6 +76,8 @@ pub struct ChainCreateArgs {
     pub(crate) legacy_bridge: bool,
     #[clap(long, help = MSG_L1_NETWORK_HELP, value_enum)]
     pub l1_network: Option<L1Network>,
+    #[arg(long, help = MSG_EVM_EMULATOR_HELP, default_missing_value = "true", num_args = 0..=1)]
+    evm_emulator: Option<bool>,
 }
 
 impl ChainCreateArgs {
@@ -229,6 +236,25 @@ impl ChainCreateArgs {
             }
         };
 
+        let default_genesis_config = GenesisConfig::read_with_base_path(
+            shell,
+            EcosystemConfig::default_configs_path(&PathBuf::from(link_to_code.clone())),
+        )
+        .context("failed reading genesis config")?;
+        let has_evm_emulation_support = default_genesis_config.evm_emulator_hash.is_some();
+        let evm_emulator = self.evm_emulator.unwrap_or_else(|| {
+            if !has_evm_emulation_support {
+                false
+            } else {
+                PromptConfirm::new(MSG_EVM_EMULATOR_PROMPT)
+                    .default(false)
+                    .ask()
+            }
+        });
+        if !has_evm_emulation_support && evm_emulator {
+            bail!(MSG_EVM_EMULATOR_HASH_MISSING_ERR);
+        }
+
         let set_as_default = self.set_as_default.unwrap_or_else(|| {
             if number_of_chains == 0 {
                 return true;
@@ -253,6 +279,7 @@ impl ChainCreateArgs {
             number_of_chains,
             l1_network,
             link_to_code,
+            evm_emulator,
         })
     }
 }
@@ -273,6 +300,7 @@ pub struct ChainCreateArgsFinal {
     pub number_of_chains: u32,
     pub l1_network: L1Network,
     pub link_to_code: String,
+    pub evm_emulator: bool,
 }
 
 #[derive(Debug, Clone, EnumIter, Display, PartialEq, Eq)]

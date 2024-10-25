@@ -29,7 +29,6 @@ jobs:
       - name: Start services
         run: |
           run_retried docker-compose -f ${RUNNER_COMPOSE_FILE} pull
-          mkdir -p ./volumes/postgres ./volumes/reth/data
           docker-compose -f ${RUNNER_COMPOSE_FILE} --profile runner up -d --wait
           ci_run sccache --start-server
 

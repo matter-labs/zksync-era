@@ -5,7 +5,7 @@ use std::{collections::HashMap, str};
 use crate::{
     errors::{DeserializeError, DeserializeErrorKind, ErrorContext},
     types::{
-        ChildRef, InternalNode, Key, LeafNode, Manifest, Node, Root, TreeTags, ValueHash,
+        ChildRef, InternalNode, Key, LeafNode, Manifest, Node, RawNode, Root, TreeTags, ValueHash,
         HASH_SIZE, KEY_SIZE,
     },
 };
@@ -15,7 +15,7 @@ use crate::{
 const LEB128_SIZE_ESTIMATE: usize = 3;
 
 impl LeafNode {
-    pub(super) fn deserialize(bytes: &[u8]) -> Result<Self, DeserializeError> {
+    pub(super) fn deserialize(bytes: &[u8], strict: bool) -> Result<Self, DeserializeError> {
         if bytes.len() < KEY_SIZE + HASH_SIZE {
             return Err(DeserializeErrorKind::UnexpectedEof.into());
         }
@@ -26,6 +26,10 @@ impl LeafNode {
         let leaf_index = leb128::read::unsigned(&mut bytes).map_err(|err| {
             DeserializeErrorKind::Leb128(err).with_context(ErrorContext::LeafIndex)
         })?;
+        if strict && !bytes.is_empty() {
+            return Err(DeserializeErrorKind::Leftovers.into());
+        }
+
         Ok(Self {
             full_key,
             value_hash,
@@ -105,7 +109,7 @@ impl ChildRef {
 }
 
 impl InternalNode {
-    pub(super) fn deserialize(bytes: &[u8]) -> Result<Self, DeserializeError> {
+    pub(super) fn deserialize(bytes: &[u8], strict: bool) -> Result<Self, DeserializeError> {
         if bytes.len() < 4 {
             let err = DeserializeErrorKind::UnexpectedEof;
             return Err(err.with_context(ErrorContext::ChildrenMask));
@@ -134,6 +138,9 @@ impl InternalNode {
             }
             bitmap >>= 2;
         }
+        if strict && !bytes.is_empty() {
+            return Err(DeserializeErrorKind::Leftovers.into());
+        }
         Ok(this)
     }
 
@@ -161,8 +168,36 @@ impl InternalNode {
     }
 }
 
+impl RawNode {
+    pub(crate) fn deserialize(bytes: &[u8]) -> Self {
+        Self {
+            raw: bytes.to_vec(),
+            leaf: LeafNode::deserialize(bytes, true).ok(),
+            internal: InternalNode::deserialize(bytes, true).ok(),
+        }
+    }
+
+    pub(crate) fn deserialize_root(bytes: &[u8]) -> Self {
+        let root = Root::deserialize(bytes, true).ok();
+        let node = root.and_then(|root| match root {
+            Root::Empty => None,
+            Root::Filled { node, .. } => Some(node),
+        });
+        let (leaf, internal) = match node {
+            None => (None, None),
+            Some(Node::Leaf(leaf)) => (Some(leaf), None),
+            Some(Node::Internal(node)) => (None, Some(node)),
+        };
+        Self {
+            raw: bytes.to_vec(),
+            leaf,
+            internal,
+        }
+    }
+}
+
 impl Root {
-    pub(super) fn deserialize(mut bytes: &[u8]) -> Result<Self, DeserializeError> {
+    pub(super) fn deserialize(mut bytes: &[u8], strict: bool) -> Result<Self, DeserializeError> {
         let leaf_count = leb128::read::unsigned(&mut bytes).map_err(|err| {
             DeserializeErrorKind::Leb128(err).with_context(ErrorContext::LeafCount)
         })?;
@@ -172,11 +207,11 @@ impl Root {
                 // Try both the leaf and internal node serialization; in some cases, a single leaf
                 // may still be persisted as an internal node. Since serialization of an internal node with a single child
                 // is always shorter than that a leaf, the order (first leaf, then internal node) is chosen intentionally.
-                LeafNode::deserialize(bytes)
+                LeafNode::deserialize(bytes, strict)
                     .map(Node::Leaf)
-                    .or_else(|_| InternalNode::deserialize(bytes).map(Node::Internal))?
+                    .or_else(|_| InternalNode::deserialize(bytes, strict).map(Node::Internal))?
             }
-            _ => Node::Internal(InternalNode::deserialize(bytes)?),
+            _ => Node::Internal(InternalNode::deserialize(bytes, strict)?),
         };
         Ok(Self::new(leaf_count, node))
     }
@@ -440,7 +475,7 @@ mod tests {
         assert_eq!(buffer[64], 42); // leaf index
         assert_eq!(buffer.len(), 65);
 
-        let leaf_copy = LeafNode::deserialize(&buffer).unwrap();
+        let leaf_copy = LeafNode::deserialize(&buffer, true).unwrap();
         assert_eq!(leaf_copy, leaf);
     }
 
@@ -471,7 +506,7 @@ mod tests {
         let child_count = bitmap.count_ones();
         assert_eq!(child_count, 2);
 
-        let node_copy = InternalNode::deserialize(&buffer).unwrap();
+        let node_copy = InternalNode::deserialize(&buffer, true).unwrap();
         assert_eq!(node_copy, node);
     }
 
@@ -482,7 +517,7 @@ mod tests {
         root.serialize(&mut buffer);
         assert_eq!(buffer, [0]);
 
-        let root_copy = Root::deserialize(&buffer).unwrap();
+        let root_copy = Root::deserialize(&buffer, true).unwrap();
         assert_eq!(root_copy, root);
     }
 
@@ -494,7 +529,7 @@ mod tests {
         root.serialize(&mut buffer);
         assert_eq!(buffer[0], 1);
 
-        let root_copy = Root::deserialize(&buffer).unwrap();
+        let root_copy = Root::deserialize(&buffer, true).unwrap();
         assert_eq!(root_copy, root);
     }
 
@@ -506,7 +541,7 @@ mod tests {
         root.serialize(&mut buffer);
         assert_eq!(buffer[0], 2);
 
-        let root_copy = Root::deserialize(&buffer).unwrap();
+        let root_copy = Root::deserialize(&buffer, true).unwrap();
         assert_eq!(root_copy, root);
     }
 }

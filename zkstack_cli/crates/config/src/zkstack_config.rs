@@ -40,6 +40,7 @@ impl ZkStackConfig {
                 link_to_code,
                 artifacts,
                 shell: shell.clone().into(),
+                evm_emulator: chain_internal.evm_emulator,
             };
 
             Ok(ZkStackConfig::ChainConfig(chain))

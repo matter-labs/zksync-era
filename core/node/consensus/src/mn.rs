@@ -10,7 +10,7 @@ use zksync_dal::consensus_dal;
 
 use crate::{
     config, registry,
-    storage::{ConnectionPool, InsertCertificateError, Store},
+    storage::{ConnectionPool, Store},
 };
 
 /// Task running a consensus validator for the main node.
@@ -179,10 +179,7 @@ async fn run_attestation_controller(
                 .wrap("connection()")?
                 .insert_batch_certificate(ctx, &qc)
                 .await
-                .map_err(|err| match err {
-                    InsertCertificateError::Canceled(err) => ctx::Error::Canceled(err),
-                    InsertCertificateError::Inner(err) => ctx::Error::Internal(err.into()),
-                })?;
+                .wrap("insert_batch_certificate()")?;
         }
     }
     .await;

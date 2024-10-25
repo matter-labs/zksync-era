@@ -1,10 +1,10 @@
-use std::path::PathBuf;
-
 use clap::Parser;
+use clap::ValueHint;
 use common::{Prompt, PromptConfirm, PromptSelect};
 use config::get_default_era_chain_id;
 use serde::{Deserialize, Serialize};
 use slugify_rs::slugify;
+use std::path::PathBuf;
 use strum::IntoEnumIterator;
 use types::{L1Network, WalletCreation};
 use xshell::Shell;
@@ -24,7 +24,7 @@ pub struct EcosystemCreateArgs {
     pub ecosystem_name: Option<String>,
     #[clap(long, help = MSG_L1_NETWORK_HELP, value_enum)]
     pub l1_network: Option<L1Network>,
-    #[clap(long, help = MSG_LINK_TO_CODE_HELP)]
+    #[clap(long, help = MSG_LINK_TO_CODE_HELP, value_hint = ValueHint::DirPath)]
     pub link_to_code: Option<String>,
     #[clap(flatten)]
     #[serde(flatten)]

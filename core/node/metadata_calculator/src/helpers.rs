@@ -22,6 +22,7 @@ use zksync_health_check::{CheckHealth, Health, HealthStatus, ReactiveHealthCheck
 use zksync_merkle_tree::{
     domain::{TreeMetadata, ZkSyncTree, ZkSyncTreeReader},
     recovery::{MerkleTreeRecovery, PersistenceThreadHandle},
+    unstable::{NodeKey, RawNode},
     Database, Key, MerkleTreeColumnFamily, NoVersionError, RocksDBWrapper, TreeEntry,
     TreeEntryWithProof, TreeInstruction,
 };
@@ -35,7 +36,7 @@ use zksync_types::{
 use super::{
     metrics::{LoadChangesStage, TreeUpdateStage, METRICS},
     pruning::PruningHandles,
-    MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
+    MerkleTreeReaderConfig, MetadataCalculatorConfig, MetadataCalculatorRecoveryConfig,
 };
 
 /// General information about the Merkle tree.
@@ -176,6 +177,40 @@ fn create_db_sync(config: &MetadataCalculatorConfig) -> anyhow::Result<RocksDBWr
     Ok(db)
 }
 
+pub(super) async fn create_readonly_db(
+    config: MerkleTreeReaderConfig,
+) -> anyhow::Result<RocksDBWrapper> {
+    tokio::task::spawn_blocking(move || {
+        let MerkleTreeReaderConfig {
+            db_path,
+            max_open_files,
+            multi_get_chunk_size,
+            block_cache_capacity,
+            include_indices_and_filters_in_block_cache,
+        } = config;
+
+        tracing::info!(
+            "Initializing Merkle tree database at `{db_path}` (max open files: {max_open_files:?}) with {multi_get_chunk_size} multi-get chunk size, \
+             {block_cache_capacity}B block cache (indices & filters included: {include_indices_and_filters_in_block_cache:?})"
+        );
+        let mut db = RocksDB::with_options(
+            db_path.as_ref(),
+            RocksDBOptions {
+                block_cache_capacity: Some(block_cache_capacity),
+                include_indices_and_filters_in_block_cache,
+                max_open_files,
+                ..RocksDBOptions::default()
+            }
+        )?;
+        if cfg!(test) {
+            db = db.with_sync_writes();
+        }
+        Ok(RocksDBWrapper::from(db))
+    })
+    .await
+    .context("panicked creating Merkle tree RocksDB")?
+}
+
 /// Wrapper around the "main" tree implementation used by [`MetadataCalculator`].
 ///
 /// Async methods provided by this wrapper are not cancel-safe! This is probably not an issue;
@@ -307,6 +342,13 @@ pub struct AsyncTreeReader {
 }
 
 impl AsyncTreeReader {
+    pub(super) fn new(db: RocksDBWrapper, mode: MerkleTreeMode) -> anyhow::Result<Self> {
+        Ok(Self {
+            inner: ZkSyncTreeReader::new(db)?,
+            mode,
+        })
+    }
+
     fn downgrade(&self) -> WeakAsyncTreeReader {
         WeakAsyncTreeReader {
             db: self.inner.db().clone().into_inner().downgrade(),
@@ -363,6 +405,18 @@ impl AsyncTreeReader {
         keys: Vec<Key>,
     ) -> Result<Vec<TreeEntryWithProof>, NoVersionError> {
         tokio::task::spawn_blocking(move || self.inner.entries_with_proofs(l1_batch_number, &keys))
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn raw_nodes(self, keys: Vec<NodeKey>) -> Vec<Option<RawNode>> {
+        tokio::task::spawn_blocking(move || self.inner.raw_nodes(&keys))
+            .await
+            .unwrap()
+    }
+
+    pub(crate) async fn raw_stale_keys(self, l1_batch_number: L1BatchNumber) -> Vec<NodeKey> {
+        tokio::task::spawn_blocking(move || self.inner.raw_stale_keys(l1_batch_number))
             .await
             .unwrap()
     }
