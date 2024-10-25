@@ -27,7 +27,7 @@ use zksync_multivm::{
     is_supported_by_fast_vm,
     tracers::{CallTracer, StorageInvocations, TracerDispatcher, ValidationTracer},
     utils::adjust_pubdata_price_for_tx,
-    vm_fast::TracerExt,
+    vm_fast::{self, TracerExt},
     vm_latest::{HistoryDisabled, HistoryEnabled},
     zk_evm_latest::ethereum_types::U256,
     FastVmInstance, HistoryMode, LegacyVmInstance, MultiVMTracer,
@@ -189,15 +189,14 @@ where
         };
 
         tokio::task::spawn_blocking(move || {
-            let (validation_tracer, mut validation_result) =
-                ValidationTracer::<HistoryDisabled>::new(
-                    validation_params,
-                    sandbox.env.system.version.into(),
-                );
-            let tracers = vec![validation_tracer.into_tracer_pointer()];
+            let version = sandbox.env.system.version.into();
 
             sandbox.execute_in_vm_with_tracer(|vm, transaction| match vm {
                 Vm::Legacy(vm) => {
+                    let (validation_tracer, mut validation_result) =
+                        ValidationTracer::<HistoryDisabled>::new(validation_params, version);
+                    let tracers = vec![validation_tracer.into_tracer_pointer()];
+
                     vm.push_transaction(transaction);
                     let exec_result = vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx);
 
@@ -220,7 +219,7 @@ where
                     vm.stop_after_validation();
                     vm.push_transaction(transaction);
                     let mut tracer =
-                        zksync_multivm::vm_fast::validation_tracer::ValidationTracer::default();
+                        vm_fast::validation_tracer::ValidationTracer::new(validation_params);
                     let result_and_logs = vm.inspect(&mut tracer, InspectExecutionMode::OneTx);
                     if let Some(violation) = tracer.validation_error() {
                         return Err(ValidationError::ViolatedRule(violation));
