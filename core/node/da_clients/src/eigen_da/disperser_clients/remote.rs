@@ -1,13 +1,16 @@
-use std::{str::FromStr, sync::Arc};
+use std::{str::FromStr, sync::Arc, time::Duration};
 
 use anyhow::anyhow;
 use byteorder::{BigEndian, ByteOrder};
 use secp256k1::{Message, PublicKey, Secp256k1, SecretKey};
 use tiny_keccak::{Hasher, Keccak};
-use tokio::sync::Mutex;
+use tokio::{
+    sync::Mutex,
+    time::{interval, Instant},
+};
 use tonic::transport::Channel;
 use zksync_config::configs::da_client::eigen_da::DisperserConfig;
-use zksync_da_client::types::{self};
+use zksync_da_client::types::{self, DAError, DispatchResponse};
 
 use super::disperser::{
     self, authenticated_reply::Payload, disperser_client::DisperserClient, AuthenticatedReply,
@@ -49,6 +52,19 @@ fn sign(challenge: u32, private_key: &SecretKey) -> Vec<u8> {
 }
 
 impl RemoteClient {
+    fn result_to_status(&self, result: i32) -> disperser::BlobStatus {
+        match result {
+            0 => disperser::BlobStatus::Unknown,
+            1 => disperser::BlobStatus::Processing,
+            2 => disperser::BlobStatus::Confirmed,
+            3 => disperser::BlobStatus::Failed,
+            4 => disperser::BlobStatus::Finalized,
+            5 => disperser::BlobStatus::InsufficientSignatures,
+            6 => disperser::BlobStatus::Dispersing,
+            _ => disperser::BlobStatus::Unknown,
+        }
+    }
+
     async fn authentication(
         &self,
         blob_data: Vec<u8>,
@@ -109,50 +125,161 @@ impl RemoteClient {
         Ok(reply)
     }
 
+    async fn disperse_authenticated(
+        &self,
+        blob_data: Vec<u8>,
+    ) -> Result<types::DispatchResponse, types::DAError> {
+        let secp = Secp256k1::new();
+        let secret_key =
+            SecretKey::from_str(self.config.account_id.clone().unwrap_or_default().as_str())
+                .unwrap();
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+        let account_id = "0x".to_string() + &hex::encode(public_key.serialize_uncompressed());
+
+        let request_id = self
+            .authentication(
+                blob_data,
+                self.config
+                    .custom_quorum_numbers
+                    .clone()
+                    .unwrap_or_default(),
+                account_id,
+                &secret_key,
+            )
+            .await
+            .unwrap()
+            .request_id;
+
+        Ok(types::DispatchResponse {
+            blob_id: hex::encode(request_id),
+        })
+    }
+
+    async fn disperse_non_authenticated(
+        &self,
+        blob_data: Vec<u8>,
+    ) -> Result<types::DispatchResponse, types::DAError> {
+        if blob_data.len() > self.config.blob_size_limit as usize {
+            return Err(DAError {
+                error: anyhow!("Blob too large"),
+                is_retriable: false,
+            });
+        }
+
+        let reply = self
+            .disperser
+            .lock()
+            .await
+            .disperse_blob(DisperseBlobRequest {
+                data: blob_data,
+                custom_quorum_numbers: self
+                    .config
+                    .custom_quorum_numbers
+                    .clone()
+                    .unwrap_or_default(),
+                account_id: self.config.account_id.clone().unwrap_or_default(),
+            })
+            .await
+            .map_err(|e| DAError {
+                error: anyhow!(e),
+                is_retriable: true,
+            })?
+            .into_inner();
+
+        if self.result_to_status(reply.result) == disperser::BlobStatus::Failed {
+            return Err(DAError {
+                error: anyhow!("Disperse failed"),
+                is_retriable: true,
+            });
+        };
+
+        let mut interval = interval(Duration::from_secs(self.config.status_query_interval));
+        let start_time = Instant::now();
+        while Instant::now() - start_time < Duration::from_secs(self.config.status_query_timeout) {
+            let blob_status_reply = self
+                .disperser
+                .lock()
+                .await
+                .get_blob_status(BlobStatusRequest {
+                    request_id: reply.request_id.clone(),
+                })
+                .await
+                .map_err(|e| DAError {
+                    error: anyhow!(e),
+                    is_retriable: true,
+                })?
+                .into_inner();
+
+            let blob_status = blob_status_reply.status();
+            match blob_status {
+                disperser::BlobStatus::Unknown => {
+                    interval.tick().await;
+                }
+                disperser::BlobStatus::Processing => {
+                    interval.tick().await;
+                }
+                disperser::BlobStatus::Confirmed => {
+                    if self.config.wait_for_finalization {
+                        interval.tick().await;
+                    } else {
+                        match blob_status_reply.info {
+                            Some(_) => {
+                                let blob_id = hex::encode(reply.request_id);
+                                return Ok(DispatchResponse { blob_id });
+                            }
+                            None => {
+                                return Err(DAError {
+                                    error: anyhow!("Failed to get blob info"),
+                                    is_retriable: false,
+                                });
+                            }
+                        }
+                    }
+                }
+                disperser::BlobStatus::Failed => {
+                    return Err(DAError {
+                        error: anyhow!("Failed to disperse blob"),
+                        is_retriable: false,
+                    });
+                }
+                disperser::BlobStatus::InsufficientSignatures => {
+                    return Err(DAError {
+                        error: anyhow!("Insufficient signatures"),
+                        is_retriable: false,
+                    });
+                }
+                disperser::BlobStatus::Dispersing => {
+                    interval.tick().await;
+                }
+                disperser::BlobStatus::Finalized => match blob_status_reply.info {
+                    Some(_) => {
+                        let blob_id = hex::encode(reply.request_id);
+                        return Ok(DispatchResponse { blob_id });
+                    }
+                    None => {
+                        return Err(DAError {
+                            error: anyhow!("Failed to get blob info"),
+                            is_retriable: false,
+                        });
+                    }
+                },
+            }
+        }
+
+        return Err(DAError {
+            error: anyhow!("Timeout"),
+            is_retriable: false,
+        });
+    }
+
     pub async fn disperse_blob(
         &self,
         blob_data: Vec<u8>,
     ) -> Result<types::DispatchResponse, types::DAError> {
-        let config = self.config.clone();
-        let custom_quorum_numbers = config.custom_quorum_numbers.unwrap_or_default();
-        let account_id = config.account_id.unwrap_or_default();
         let authenticated_dispersal = false; // config.authenticated_dispersal;
         match authenticated_dispersal {
-            true => {
-                let secp = Secp256k1::new();
-                let secret_key = SecretKey::from_str(account_id.as_str()).unwrap();
-                let public_key = PublicKey::from_secret_key(&secp, &secret_key);
-                let account_id =
-                    "0x".to_string() + &hex::encode(public_key.serialize_uncompressed());
-
-                let request_id = self
-                    .authentication(blob_data, custom_quorum_numbers, account_id, &secret_key)
-                    .await
-                    .unwrap()
-                    .request_id;
-
-                Ok(types::DispatchResponse {
-                    blob_id: hex::encode(request_id),
-                })
-            }
-            false => {
-                let request_id = self
-                    .disperser
-                    .lock()
-                    .await
-                    .disperse_blob(DisperseBlobRequest {
-                        data: blob_data,
-                        custom_quorum_numbers,
-                        account_id,
-                    })
-                    .await
-                    .unwrap()
-                    .into_inner()
-                    .request_id;
-                Ok(types::DispatchResponse {
-                    blob_id: hex::encode(request_id),
-                })
-            }
+            true => self.disperse_authenticated(blob_data).await,
+            false => self.disperse_non_authenticated(blob_data).await,
         }
     }
 
