@@ -14,11 +14,7 @@ use zksync_types::{
     U256,
 };
 use zksync_utils::{bytecode::hash_bytecode, bytes_to_be_words, h256_to_u256};
-use zksync_vm_interface::{
-    pubdata::PubdataBuilder,
-    tracer::{ValidationParams, ViolatedValidationRule},
-    VmInterface,
-};
+use zksync_vm_interface::{pubdata::PubdataBuilder, tracer::ViolatedValidationRule, VmInterface};
 
 use super::{HistoryEnabled, ToTracerPointer, Vm};
 use crate::{
