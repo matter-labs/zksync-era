@@ -4,7 +4,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::Context as _;
 use chrono::Utc;
 use ethabi::{Contract, Token};
 use lazy_static::lazy_static;
@@ -72,8 +71,12 @@ impl ContractVerifier {
         // Bytecode should be present because it is checked when accepting request.
         let (deployed_bytecode, creation_tx_calldata) = storage
             .contract_verification_dal()
-            .get_contract_info_for_verification(request.req.contract_address).await
-            .unwrap()
+            .get_contract_info_for_verification(request.req.contract_address)
+            .await
+            .map_err(|err| {
+                tracing::error!("{err}");
+                ContractVerifierError::InternalError
+            })?
             .ok_or_else(|| {
                 tracing::warn!("Contract is missing in DB for already accepted verification request. Contract address: {:#?}", request.req.contract_address);
                 ContractVerifierError::InternalError
@@ -182,11 +185,9 @@ impl ContractVerifier {
 
                 let contracts = output["contracts"]
                     .get(file_name.as_str())
-                    .cloned()
                     .ok_or(ContractVerifierError::MissingSource(file_name))?;
                 let contract = contracts
                     .get(&contract_name)
-                    .cloned()
                     .ok_or(ContractVerifierError::MissingContract(contract_name))?;
                 let bytecode_str = contract["evm"]["bytecode"]["object"].as_str().ok_or(
                     ContractVerifierError::AbstractContract(request.req.contract_name),
@@ -446,15 +447,14 @@ impl ContractVerifier {
         storage: &mut Connection<'_, Core>,
         request_id: usize,
         verification_result: Result<VerificationInfo, ContractVerifierError>,
-    ) {
+    ) -> anyhow::Result<()> {
         match verification_result {
             Ok(info) => {
                 storage
                     .contract_verification_dal()
                     .save_verification_info(info)
-                    .await
-                    .unwrap();
-                tracing::info!("Successfully processed request with id = {}", request_id);
+                    .await?;
+                tracing::info!("Successfully processed request with id = {request_id}");
             }
             Err(error) => {
                 let error_message = error.to_string();
@@ -467,11 +467,11 @@ impl ContractVerifier {
                 storage
                     .contract_verification_dal()
                     .save_verification_error(request_id, error_message, compilation_errors, None)
-                    .await
-                    .unwrap();
-                tracing::info!("Request with id = {} was failed", request_id);
+                    .await?;
+                tracing::info!("Request with id = {request_id} was failed");
             }
         }
+        Ok(())
     }
 }
 
@@ -485,25 +485,29 @@ impl JobProcessor for ContractVerifier {
     const BACKOFF_MULTIPLIER: u64 = 1;
 
     async fn get_next_job(&self) -> anyhow::Result<Option<(Self::JobId, Self::Job)>> {
-        let mut connection = self.connection_pool.connection().await.unwrap();
-
-        // Time overhead for all operations except for compilation.
+        /// Time overhead for all operations except for compilation.
         const TIME_OVERHEAD: Duration = Duration::from_secs(10);
 
+        let mut connection = self
+            .connection_pool
+            .connection_tagged("contract_verifier")
+            .await?;
         // Considering that jobs that reach compilation timeout will be executed in
         // `compilation_timeout` + `non_compilation_time_overhead` (which is significantly less than `compilation_timeout`),
         // we re-pick up jobs that are being executed for a bit more than `compilation_timeout`.
         let job = connection
             .contract_verification_dal()
             .get_next_queued_verification_request(self.config.compilation_timeout() + TIME_OVERHEAD)
-            .await
-            .context("get_next_queued_verification_request()")?;
-
+            .await?;
         Ok(job.map(|job| (job.id, job)))
     }
 
     async fn save_failure(&self, job_id: usize, _started_at: Instant, error: String) {
-        let mut connection = self.connection_pool.connection().await.unwrap();
+        let mut connection = self
+            .connection_pool
+            .connection_tagged("contract_verifier")
+            .await
+            .unwrap();
 
         connection
             .contract_verification_dal()
@@ -529,11 +533,13 @@ impl JobProcessor for ContractVerifier {
         tokio::task::spawn(async move {
             tracing::info!("Started to process request with id = {}", job.id);
 
-            let mut connection = connection_pool.connection().await.unwrap();
-
+            // FIXME: long-living connection
+            let mut connection = connection_pool
+                .connection_tagged("contract_verifier")
+                .await?;
             let job_id = job.id;
             let verification_result = Self::verify(&mut connection, job, config).await;
-            Self::process_result(&mut connection, job_id, verification_result).await;
+            Self::process_result(&mut connection, job_id, verification_result).await?;
 
             API_CONTRACT_VERIFIER_METRICS
                 .request_processing_time

@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ContractVerifierError {
     #[error("Internal error")]
     InternalError,
