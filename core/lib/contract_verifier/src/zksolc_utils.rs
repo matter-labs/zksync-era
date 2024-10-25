@@ -1,25 +1,24 @@
 use std::{collections::HashMap, io::Write, path::PathBuf, process::Stdio};
 
 use anyhow::Context as _;
+use regex::Regex;
 use semver::Version;
 use serde::{Deserialize, Serialize};
+use zksync_types::contract_verification_api::CompilationArtifacts;
 
 use crate::error::ContractVerifierError;
 
 #[derive(Debug)]
 pub enum ZkSolcInput {
-    StandardJson(StandardJson),
+    StandardJson {
+        input: StandardJson,
+        contract_name: String,
+        file_name: String,
+    },
     YulSingleFile {
         source_code: String,
         is_system: bool,
     },
-}
-
-#[derive(Debug)]
-pub enum ZkSolcOutput {
-    // FIXME: incorrect abstraction boundary
-    StandardJson(serde_json::Value),
-    YulSingleFile(String),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -99,13 +98,13 @@ impl ZkSolc {
     pub async fn async_compile(
         &self,
         input: ZkSolcInput,
-    ) -> Result<ZkSolcOutput, ContractVerifierError> {
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
         use tokio::io::AsyncWriteExt;
         let mut command = tokio::process::Command::new(&self.zksolc_path);
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
 
         match &input {
-            ZkSolcInput::StandardJson(input) => {
+            ZkSolcInput::StandardJson { input, .. } => {
                 if !self.is_post_1_5_0() {
                     if input.settings.is_system {
                         command.arg("--system-mode");
@@ -133,7 +132,11 @@ impl ZkSolc {
             }
         }
         match input {
-            ZkSolcInput::StandardJson(input) => {
+            ZkSolcInput::StandardJson {
+                input,
+                contract_name,
+                file_name,
+            } => {
                 let mut child = command
                     .arg("--standard-json")
                     .stdin(Stdio::piped())
@@ -153,10 +156,9 @@ impl ZkSolc {
 
                 let output = child.wait_with_output().await.context("zksolc failed")?;
                 if output.status.success() {
-                    Ok(ZkSolcOutput::StandardJson(
-                        serde_json::from_slice(&output.stdout)
-                            .context("zksolc output is not valid JSON")?,
-                    ))
+                    let output = serde_json::from_slice(&output.stdout)
+                        .context("zksolc output is not valid JSON")?;
+                    Self::parse_standard_json_output(&output, contract_name, file_name)
                 } else {
                     Err(ContractVerifierError::CompilerError(
                         "zksolc".to_string(),
@@ -183,9 +185,9 @@ impl ZkSolc {
                     .context("failed spawning zksolc")?;
                 let output = child.wait_with_output().await.context("zksolc failed")?;
                 if output.status.success() {
-                    Ok(ZkSolcOutput::YulSingleFile(
-                        String::from_utf8(output.stdout).context("zksolc output is not UTF-8")?,
-                    ))
+                    let output =
+                        String::from_utf8(output.stdout).context("zksolc output is not UTF-8")?;
+                    Self::parse_single_file_yul_output(&output)
                 } else {
                     Err(ContractVerifierError::CompilerError(
                         "zksolc".to_string(),
@@ -194,6 +196,64 @@ impl ZkSolc {
                 }
             }
         }
+    }
+
+    fn parse_standard_json_output(
+        output: &serde_json::Value,
+        contract_name: String,
+        file_name: String,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        if let Some(errors) = output.get("errors") {
+            let errors = errors.as_array().unwrap().clone();
+            if errors
+                .iter()
+                .any(|err| err["severity"].as_str().unwrap() == "error")
+            {
+                let error_messages = errors
+                    .into_iter()
+                    .map(|err| err["formattedMessage"].clone())
+                    .collect();
+                return Err(ContractVerifierError::CompilationError(
+                    serde_json::Value::Array(error_messages),
+                ));
+            }
+        }
+
+        let contracts = output["contracts"]
+            .get(&file_name)
+            .ok_or(ContractVerifierError::MissingSource(file_name))?;
+        let Some(contract) = contracts.get(&contract_name) else {
+            return Err(ContractVerifierError::MissingContract(contract_name));
+        };
+        let bytecode_str = contract["evm"]["bytecode"]["object"]
+            .as_str()
+            .ok_or(ContractVerifierError::AbstractContract(contract_name))?;
+        let bytecode = hex::decode(bytecode_str).unwrap();
+        let abi = contract["abi"].clone();
+        if !abi.is_array() {
+            let err = anyhow::anyhow!(
+                "zksolc returned unexpected value for ABI: {}",
+                serde_json::to_string_pretty(&abi).unwrap()
+            );
+            return Err(err.into());
+        }
+
+        Ok(CompilationArtifacts { bytecode, abi })
+    }
+
+    fn parse_single_file_yul_output(
+        output: &str,
+    ) -> Result<CompilationArtifacts, ContractVerifierError> {
+        let re = Regex::new(r"Contract `.*` bytecode: 0x([\da-f]+)").unwrap();
+        let cap = re
+            .captures(output)
+            .context("Yul output doesn't match regex")?;
+        let bytecode_str = cap.get(1).context("no matches in Yul output")?.as_str();
+        let bytecode = hex::decode(bytecode_str).context("invalid Yul output bytecode")?;
+        Ok(CompilationArtifacts {
+            bytecode,
+            abi: serde_json::Value::Array(Vec::new()),
+        })
     }
 
     pub fn is_post_1_5_0(&self) -> bool {
