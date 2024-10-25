@@ -4,16 +4,35 @@ use std::{
     time::{Duration, Instant},
 };
 
+use anyhow::Error;
 use rand::{rngs::OsRng, Rng, RngCore};
 use rlp::decode;
 use sha3::{Digest, Keccak256};
 use tokio::time::interval;
 use zksync_config::configs::da_client::eigen_da::MemStoreConfig;
+use zksync_da_client::types::{DAError, DispatchResponse, InclusionData};
 
-use super::{
-    blob_info::{self, BlobInfo},
-    errors::MemStoreError,
-};
+use super::blob_info::BlobInfo;
+use crate::eigen_da::{client::to_retriable_error, disperser_clients::blob_info};
+
+#[derive(Debug, PartialEq)]
+pub enum MemStoreError {
+    BlobToLarge,
+    BlobAlreadyExists,
+    IncorrectCommitment,
+    BlobNotFound,
+}
+
+impl Into<Error> for MemStoreError {
+    fn into(self) -> Error {
+        match self {
+            MemStoreError::BlobToLarge => Error::msg("Blob too large"),
+            MemStoreError::BlobAlreadyExists => Error::msg("Blob already exists"),
+            MemStoreError::IncorrectCommitment => Error::msg("Incorrect commitment"),
+            MemStoreError::BlobNotFound => Error::msg("Blob not found"),
+        }
+    }
+}
 
 #[derive(Debug)]
 struct MemStoreData {
@@ -43,7 +62,7 @@ impl MemStore {
         memstore
     }
 
-    pub async fn put_blob(self: Arc<Self>, value: Vec<u8>) -> Result<Vec<u8>, MemStoreError> {
+    async fn put_blob(self: Arc<Self>, value: Vec<u8>) -> Result<Vec<u8>, MemStoreError> {
         tokio::time::sleep(Duration::from_millis(self.config.put_latency)).await;
         if value.len() as u64 > self.config.max_blob_size_bytes {
             return Err(MemStoreError::BlobToLarge.into());
@@ -117,7 +136,20 @@ impl MemStore {
         Ok(cert_bytes)
     }
 
-    pub async fn get_blob(self: Arc<Self>, commit: Vec<u8>) -> Result<Vec<u8>, MemStoreError> {
+    pub async fn store_blob(
+        self: Arc<Self>,
+        blob_data: Vec<u8>,
+    ) -> Result<DispatchResponse, DAError> {
+        let request_id = self
+            .put_blob(blob_data)
+            .await
+            .map_err(|err| to_retriable_error(err.into()))?;
+        Ok(DispatchResponse {
+            blob_id: hex::encode(request_id),
+        })
+    }
+
+    async fn get_blob(self: Arc<Self>, commit: Vec<u8>) -> Result<Vec<u8>, MemStoreError> {
         tokio::time::sleep(Duration::from_millis(self.config.get_latency)).await;
         let blob_info: BlobInfo =
             decode(&commit).map_err(|_| MemStoreError::IncorrectCommitment)?;
@@ -137,6 +169,18 @@ impl MemStore {
         }
         // TODO: verify commitment?
         // TODO: decode blob?
+    }
+
+    pub async fn get_inclusion_data(
+        self: Arc<Self>,
+        blob_id: &str,
+    ) -> anyhow::Result<Option<InclusionData>, DAError> {
+        let request_id = hex::decode(blob_id).unwrap();
+        let data = self
+            .get_blob(request_id)
+            .await
+            .map_err(|err| to_retriable_error(err.into()))?;
+        Ok(Some(InclusionData { data }))
     }
 
     async fn prune_expired(self: Arc<Self>) {

@@ -3,28 +3,16 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use tokio::sync::Mutex;
 use tonic::transport::{Channel, ClientTlsConfig};
-use zksync_config::configs::da_client::eigen_da::{DisperserConfig, EigenDAConfig};
+use zksync_config::configs::da_client::eigen_da::EigenDAConfig;
 use zksync_da_client::{
     types::{self},
     DataAvailabilityClient,
 };
 
-use super::{
-    disperser::{self, disperser_client::DisperserClient, BlobStatusRequest, DisperseBlobRequest},
-    memstore::MemStore,
+use super::disperser_clients::{
+    disperser::disperser_client::DisperserClient, memstore::MemStore, remote::RemoteClient,
+    Disperser,
 };
-
-#[derive(Clone, Debug)]
-enum Disperser {
-    Remote(RemoteClient),
-    Memory(Arc<MemStore>),
-}
-
-#[derive(Clone, Debug)]
-struct RemoteClient {
-    pub disperser: Arc<Mutex<DisperserClient<Channel>>>,
-    pub config: DisperserConfig,
-}
 
 #[derive(Clone, Debug)]
 pub struct EigenDAClient {
@@ -61,37 +49,8 @@ impl DataAvailabilityClient for EigenDAClient {
         blob_data: Vec<u8>,
     ) -> Result<types::DispatchResponse, types::DAError> {
         match &self.disperser {
-            Disperser::Remote(remote_disperser) => {
-                let config = remote_disperser.config.clone();
-                let custom_quorum_numbers = config.custom_quorum_numbers.unwrap_or_default();
-                let account_id = config.account_id.unwrap_or_default();
-                let request_id = remote_disperser
-                    .disperser
-                    .lock()
-                    .await
-                    .disperse_blob(DisperseBlobRequest {
-                        data: blob_data,
-                        custom_quorum_numbers,
-                        account_id,
-                    })
-                    .await
-                    .unwrap()
-                    .into_inner()
-                    .request_id;
-                Ok(types::DispatchResponse {
-                    blob_id: hex::encode(request_id),
-                })
-            }
-            Disperser::Memory(memstore) => {
-                let request_id = memstore
-                    .clone()
-                    .put_blob(blob_data)
-                    .await
-                    .map_err(|err| to_retriable_error(err.into()))?;
-                Ok(types::DispatchResponse {
-                    blob_id: hex::encode(request_id),
-                })
-            }
+            Disperser::Remote(remote_disperser) => remote_disperser.disperse_blob(blob_data).await,
+            Disperser::Memory(memstore) => memstore.clone().store_blob(blob_data).await,
         }
     }
 
@@ -100,68 +59,8 @@ impl DataAvailabilityClient for EigenDAClient {
         blob_id: &str,
     ) -> anyhow::Result<Option<types::InclusionData>, types::DAError> {
         match &self.disperser {
-            Disperser::Remote(remote_client) => {
-                let request_id = hex::decode(blob_id).unwrap();
-                let blob_status_reply = remote_client
-                    .disperser
-                    .lock()
-                    .await
-                    .get_blob_status(BlobStatusRequest { request_id })
-                    .await
-                    .unwrap()
-                    .into_inner();
-                let blob_status = blob_status_reply.status();
-                match blob_status {
-                    disperser::BlobStatus::Unknown => Err(to_retriable_error(anyhow::anyhow!(
-                        "Blob status is unknown"
-                    ))),
-                    disperser::BlobStatus::Processing => Err(to_retriable_error(anyhow::anyhow!(
-                        "Blob is being processed"
-                    ))),
-                    disperser::BlobStatus::Confirmed => {
-                        if remote_client.config.wait_for_finalization {
-                            Err(to_retriable_error(anyhow::anyhow!(
-                                "Blob is confirmed but not finalized"
-                            )))
-                        } else {
-                            Ok(Some(types::InclusionData {
-                                data: blob_status_reply
-                                    .info
-                                    .unwrap()
-                                    .blob_verification_proof
-                                    .unwrap()
-                                    .inclusion_proof,
-                            }))
-                        }
-                    }
-                    disperser::BlobStatus::Failed => {
-                        Err(to_non_retriable_error(anyhow::anyhow!("Blob has failed")))
-                    }
-                    disperser::BlobStatus::InsufficientSignatures => Err(to_non_retriable_error(
-                        anyhow::anyhow!("Insufficient signatures for blob"),
-                    )),
-                    disperser::BlobStatus::Dispersing => Err(to_retriable_error(anyhow::anyhow!(
-                        "Blob is being dispersed"
-                    ))),
-                    disperser::BlobStatus::Finalized => Ok(Some(types::InclusionData {
-                        data: blob_status_reply
-                            .info
-                            .unwrap()
-                            .blob_verification_proof
-                            .unwrap()
-                            .inclusion_proof,
-                    })),
-                }
-            }
-            Disperser::Memory(memstore) => {
-                let request_id = hex::decode(blob_id).unwrap();
-                let data = memstore
-                    .clone()
-                    .get_blob(request_id)
-                    .await
-                    .map_err(|err| to_retriable_error(err.into()))?;
-                Ok(Some(types::InclusionData { data }))
-            }
+            Disperser::Remote(remote_client) => remote_client.get_inclusion_data(blob_id).await,
+            Disperser::Memory(memstore) => memstore.clone().get_inclusion_data(blob_id).await,
         }
     }
 
@@ -174,14 +73,14 @@ impl DataAvailabilityClient for EigenDAClient {
     }
 }
 
-fn to_retriable_error(error: anyhow::Error) -> types::DAError {
+pub fn to_retriable_error(error: anyhow::Error) -> types::DAError {
     types::DAError {
         error,
         is_retriable: true,
     }
 }
 
-fn to_non_retriable_error(error: anyhow::Error) -> types::DAError {
+pub fn to_non_retriable_error(error: anyhow::Error) -> types::DAError {
     types::DAError {
         error,
         is_retriable: false,
@@ -190,7 +89,7 @@ fn to_non_retriable_error(error: anyhow::Error) -> types::DAError {
 
 #[cfg(test)]
 mod test {
-    use zksync_config::configs::da_client::eigen_da::MemStoreConfig;
+    use zksync_config::configs::da_client::eigen_da::{DisperserConfig, MemStoreConfig};
 
     use super::*;
 
