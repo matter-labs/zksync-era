@@ -150,15 +150,9 @@ mod tests {
 
             DA_BRIDGE_API_URL="localhost:54321"
             DA_TIMEOUT="2"
-<<<<<<< HEAD
-            DA_MAX_RETRIES="3"
-
-            DA_SECRETS_SEED_PHRASE="bottom drive obey lake curtain smoke basket hold race lonely fit walk"
-=======
 
             DA_API_NODE_URL="localhost:12345"
             DA_APP_ID="1"
->>>>>>> 89eadd353c4fb84bb815ae56b29f4ff3467b80f3
         "#;
 
         lock.set_env(config);
