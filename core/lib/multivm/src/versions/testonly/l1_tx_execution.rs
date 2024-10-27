@@ -1,3 +1,4 @@
+use assert_matches::assert_matches;
 use ethabi::Token;
 use zksync_contracts::l1_messenger_contract;
 use zksync_system_constants::{BOOTLOADER_ADDRESS, L1_MESSENGER_ADDRESS};
@@ -5,13 +6,17 @@ use zksync_test_account::TxType;
 use zksync_types::{
     get_code_key, get_known_code_key,
     l2_to_l1_log::{L2ToL1Log, UserL2ToL1Log},
-    Execute, ExecuteTransactionCommon, U256,
+    Address, Execute, ExecuteTransactionCommon, U256,
 };
 use zksync_utils::{h256_to_u256, u256_to_h256};
 
-use super::{read_test_contract, tester::VmTesterBuilder, TestedVm, BASE_SYSTEM_CONTRACTS};
+use super::{
+    read_test_contract, tester::VmTesterBuilder, ContractToDeploy, TestedVm, BASE_SYSTEM_CONTRACTS,
+};
 use crate::{
-    interface::{TxExecutionMode, VmExecutionMode, VmInterfaceExt},
+    interface::{
+        ExecutionResult, InspectExecutionMode, TxExecutionMode, VmInterfaceExt, VmRevertReason,
+    },
     utils::StorageWritesDeduplicator,
 };
 
@@ -60,7 +65,7 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
 
     vm.vm.push_transaction(deploy_tx.tx.clone());
 
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
 
     // The code hash of the deployed contract should be marked as republished.
     let known_codes_key = get_known_code_key(&deploy_tx.bytecode_hash);
@@ -84,7 +89,7 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
         TxType::L1 { serial_id: 0 },
     );
     vm.vm.push_transaction(tx);
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
     let storage_logs = res.logs.storage_logs;
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
 
@@ -99,7 +104,7 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
         TxType::L1 { serial_id: 0 },
     );
     vm.vm.push_transaction(tx.clone());
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
     let storage_logs = res.logs.storage_logs;
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
     // We changed one slot inside contract.
@@ -110,7 +115,7 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
     assert_eq!(res.repeated_storage_writes, 0);
 
     vm.vm.push_transaction(tx);
-    let storage_logs = vm.vm.execute(VmExecutionMode::OneTx).logs.storage_logs;
+    let storage_logs = vm.vm.execute(InspectExecutionMode::OneTx).logs.storage_logs;
     let res = StorageWritesDeduplicator::apply_on_empty_state(&storage_logs);
     // We do the same storage write, it will be deduplicated, so still 4 initial write and 0 repeated.
     // But now the base pubdata spent has changed too.
@@ -125,7 +130,7 @@ pub(crate) fn test_l1_tx_execution<VM: TestedVm>() {
         TxType::L1 { serial_id: 1 },
     );
     vm.vm.push_transaction(tx);
-    let result = vm.vm.execute(VmExecutionMode::OneTx);
+    let result = vm.vm.execute(InspectExecutionMode::OneTx);
     // Method is not payable tx should fail
     assert!(result.result.is_failed(), "The transaction should fail");
 
@@ -176,7 +181,45 @@ pub(crate) fn test_l1_tx_execution_high_gas_limit<VM: TestedVm>() {
 
     vm.vm.push_transaction(tx);
 
-    let res = vm.vm.execute(VmExecutionMode::OneTx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
 
     assert!(res.result.is_failed(), "The transaction should've failed");
+}
+
+pub(crate) fn test_l1_tx_execution_gas_estimation_with_low_gas<VM: TestedVm>() {
+    let counter_contract = read_test_contract();
+    let counter_address = Address::repeat_byte(0x11);
+    let mut vm = VmTesterBuilder::new()
+        .with_empty_in_memory_storage()
+        .with_base_system_smart_contracts(BASE_SYSTEM_CONTRACTS.clone())
+        .with_execution_mode(TxExecutionMode::EstimateFee)
+        .with_custom_contracts(vec![ContractToDeploy::new(
+            counter_contract,
+            counter_address,
+        )])
+        .with_rich_accounts(1)
+        .build::<VM>();
+
+    let account = &mut vm.rich_accounts[0];
+    let mut tx = account.get_test_contract_transaction(
+        counter_address,
+        false,
+        None,
+        false,
+        TxType::L1 { serial_id: 0 },
+    );
+    let ExecuteTransactionCommon::L1(data) = &mut tx.common_data else {
+        unreachable!();
+    };
+    // This gas limit is chosen so that transaction starts getting executed by the bootloader, but then runs out of gas
+    // before its execution result is posted.
+    data.gas_limit = 15_000.into();
+
+    vm.vm.push_transaction(tx);
+    let res = vm.vm.execute(InspectExecutionMode::OneTx);
+    assert_matches!(
+        &res.result,
+        ExecutionResult::Revert { output: VmRevertReason::General { msg, .. } }
+            if msg.contains("reverted with empty reason")
+    );
 }

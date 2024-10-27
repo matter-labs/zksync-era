@@ -1,4 +1,5 @@
 pub mod args;
+pub mod autocomplete;
 pub mod chain;
 pub mod consensus;
 pub mod containers;

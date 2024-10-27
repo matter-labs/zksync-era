@@ -3,7 +3,7 @@
 use std::fmt;
 
 use async_trait::async_trait;
-use zksync_types::{l2::L2Tx, Transaction};
+use zksync_types::{commitment::PubdataParams, l2::L2Tx, Transaction};
 
 use crate::{
     storage::{ReadStorage, StorageView},
@@ -20,6 +20,7 @@ pub trait BatchExecutorFactory<S: Send + 'static>: 'static + Send + fmt::Debug {
         storage: S,
         l1_batch_params: L1BatchEnv,
         system_env: SystemEnv,
+        pubdata_params: PubdataParams,
     ) -> Box<dyn BatchExecutor<S>>;
 }
 

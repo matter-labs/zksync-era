@@ -14,7 +14,11 @@ pub fn up(shell: &Shell, docker_compose_file: &str, detach: bool) -> anyhow::Res
 }
 
 pub fn down(shell: &Shell, docker_compose_file: &str) -> anyhow::Result<()> {
-    Ok(Cmd::new(cmd!(shell, "docker compose -f {docker_compose_file} down")).run()?)
+    Ok(Cmd::new(cmd!(
+        shell,
+        "docker compose -f {docker_compose_file} down -v"
+    ))
+    .run()?)
 }
 
 pub fn run(shell: &Shell, docker_image: &str, docker_args: Vec<String>) -> anyhow::Result<()> {

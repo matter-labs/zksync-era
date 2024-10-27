@@ -1,6 +1,6 @@
 //! Primitive Merkle tree API used internally to fetch proofs.
 
-use std::{fmt, future::Future, net::SocketAddr, pin::Pin};
+use std::{collections::HashMap, fmt, future::Future, net::SocketAddr, pin::Pin};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -10,12 +10,16 @@ use axum::{
     response::{IntoResponse, Response},
     routing, Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use tokio::sync::watch;
 use zksync_crypto_primitives::hasher::blake2::Blake2Hasher;
 use zksync_health_check::{CheckHealth, Health, HealthStatus};
-use zksync_merkle_tree::NoVersionError;
-use zksync_types::{L1BatchNumber, H256, U256};
+use zksync_merkle_tree::{
+    unstable::{NodeKey, RawNode},
+    NoVersionError, ValueHash,
+};
+use zksync_types::{web3, L1BatchNumber, H256, U256};
+use zksync_utils::u256_to_h256;
 
 use self::metrics::{MerkleTreeApiMethod, API_METRICS};
 use crate::{AsyncTreeReader, LazyAsyncTreeReader, MerkleTreeInfo};
@@ -75,6 +79,117 @@ impl TreeEntryWithProof {
         }
         .verify(&Blake2Hasher, trusted_root_hash)
     }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+struct HexNodeKey(NodeKey);
+
+impl Serialize for HexNodeKey {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for HexNodeKey {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct HexNodeKeyVisitor;
+
+        impl de::Visitor<'_> for HexNodeKeyVisitor {
+            type Value = HexNodeKey;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("hex-encoded versioned key like `123:c0ffee`")
+            }
+
+            fn visit_str<E: de::Error>(self, v: &str) -> Result<Self::Value, E> {
+                v.parse().map(HexNodeKey).map_err(de::Error::custom)
+            }
+        }
+
+        deserializer.deserialize_str(HexNodeKeyVisitor)
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct ApiLeafNode {
+    full_key: H256,
+    value_hash: H256,
+    leaf_index: u64,
+}
+
+#[derive(Debug, Serialize)]
+struct ApiChildRef {
+    hash: ValueHash,
+    version: u64,
+    is_leaf: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(transparent)]
+struct ApiInternalNode(HashMap<char, ApiChildRef>);
+
+#[derive(Debug, Serialize)]
+struct ApiRawNode {
+    raw: web3::Bytes,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    leaf: Option<ApiLeafNode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    internal: Option<ApiInternalNode>,
+}
+
+impl From<RawNode> for ApiRawNode {
+    fn from(node: RawNode) -> Self {
+        Self {
+            raw: web3::Bytes(node.raw),
+            leaf: node.leaf.map(|leaf| ApiLeafNode {
+                full_key: u256_to_h256(leaf.full_key),
+                value_hash: leaf.value_hash,
+                leaf_index: leaf.leaf_index,
+            }),
+            internal: node.internal.map(|internal| {
+                ApiInternalNode(
+                    internal
+                        .children()
+                        .map(|(nibble, child_ref)| {
+                            let nibble = if nibble < 10 {
+                                b'0' + nibble
+                            } else {
+                                b'a' + nibble - 10
+                            };
+                            (
+                                char::from(nibble),
+                                ApiChildRef {
+                                    hash: child_ref.hash,
+                                    version: child_ref.version,
+                                    is_leaf: child_ref.is_leaf,
+                                },
+                            )
+                        })
+                        .collect(),
+                )
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct TreeNodesRequest {
+    keys: Vec<HexNodeKey>,
+}
+
+#[derive(Debug, Serialize)]
+struct TreeNodesResponse {
+    nodes: HashMap<HexNodeKey, ApiRawNode>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StaleKeysRequest {
+    l1_batch_number: L1BatchNumber,
+}
+
+#[derive(Debug, Serialize)]
+struct StaleKeysResponse {
+    stale_keys: Vec<HexNodeKey>,
 }
 
 /// Server-side tree API error.
@@ -343,6 +458,35 @@ impl AsyncTreeReader {
         Ok(Json(response))
     }
 
+    async fn get_nodes_handler(
+        State(this): State<Self>,
+        Json(request): Json<TreeNodesRequest>,
+    ) -> Json<TreeNodesResponse> {
+        let latency = API_METRICS.latency[&MerkleTreeApiMethod::GetNodes].start();
+        let keys: Vec<_> = request.keys.iter().map(|key| key.0).collect();
+        let nodes = this.clone().raw_nodes(keys).await;
+        let nodes = request
+            .keys
+            .into_iter()
+            .zip(nodes)
+            .filter_map(|(key, node)| Some((key, node?.into())))
+            .collect();
+        let response = TreeNodesResponse { nodes };
+        latency.observe();
+        Json(response)
+    }
+
+    async fn get_stale_keys_handler(
+        State(this): State<Self>,
+        Json(request): Json<StaleKeysRequest>,
+    ) -> Json<StaleKeysResponse> {
+        let latency = API_METRICS.latency[&MerkleTreeApiMethod::GetStaleKeys].start();
+        let stale_keys = this.clone().raw_stale_keys(request.l1_batch_number).await;
+        let stale_keys = stale_keys.into_iter().map(HexNodeKey).collect();
+        latency.observe();
+        Json(StaleKeysResponse { stale_keys })
+    }
+
     async fn create_api_server(
         self,
         bind_address: &SocketAddr,
@@ -353,6 +497,11 @@ impl AsyncTreeReader {
         let app = Router::new()
             .route("/", routing::get(Self::info_handler))
             .route("/proofs", routing::post(Self::get_proofs_handler))
+            .route("/debug/nodes", routing::post(Self::get_nodes_handler))
+            .route(
+                "/debug/stale-keys",
+                routing::post(Self::get_stale_keys_handler),
+            )
             .with_state(self);
 
         let listener = tokio::net::TcpListener::bind(bind_address)
@@ -369,8 +518,8 @@ impl AsyncTreeReader {
                 }
                 tracing::info!("Stop signal received, Merkle tree API server is shutting down");
             })
-                .await
-                .context("Merkle tree API server failed")?;
+            .await
+            .context("Merkle tree API server failed")?;
 
             tracing::info!("Merkle tree API server shut down");
             Ok(())

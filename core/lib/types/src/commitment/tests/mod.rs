@@ -55,3 +55,8 @@ fn post_boojum_1_5_0() {
 fn post_boojum_1_5_0_with_evm() {
     run_test("post_boojum_1_5_0_test_with_evm");
 }
+
+#[test]
+fn post_gateway() {
+    run_test("post_gateway_test");
+}

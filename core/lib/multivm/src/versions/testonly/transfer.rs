@@ -3,8 +3,10 @@ use zksync_contracts::{load_contract, read_bytecode};
 use zksync_types::{utils::storage_key_for_eth_balance, Address, Execute, U256};
 use zksync_utils::u256_to_h256;
 
-use super::{get_empty_storage, tester::VmTesterBuilder, ContractToDeploy, TestedVm};
-use crate::interface::{TxExecutionMode, VmExecutionMode, VmInterfaceExt};
+use super::{
+    default_pubdata_builder, get_empty_storage, tester::VmTesterBuilder, ContractToDeploy, TestedVm,
+};
+use crate::interface::{InspectExecutionMode, TxExecutionMode, VmInterfaceExt};
 
 enum TestOptions {
     Send(U256),
@@ -72,13 +74,16 @@ fn test_send_or_transfer<VM: TestedVm>(test_option: TestOptions) {
     );
 
     vm.vm.push_transaction(tx);
-    let tx_result = vm.vm.execute(VmExecutionMode::OneTx);
+    let tx_result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !tx_result.result.is_failed(),
         "Transaction wasn't successful"
     );
 
-    let batch_result = vm.vm.execute(VmExecutionMode::Batch);
+    let batch_result = vm
+        .vm
+        .finish_batch(default_pubdata_builder())
+        .block_tip_execution_result;
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
 
     let new_recipient_balance = vm.get_eth_balance(recipient_address);
@@ -161,7 +166,7 @@ fn test_reentrancy_protection_send_or_transfer<VM: TestedVm>(test_option: TestOp
     );
 
     vm.vm.push_transaction(tx1);
-    let tx1_result = vm.vm.execute(VmExecutionMode::OneTx);
+    let tx1_result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         !tx1_result.result.is_failed(),
         "Transaction 1 wasn't successful"
@@ -178,13 +183,16 @@ fn test_reentrancy_protection_send_or_transfer<VM: TestedVm>(test_option: TestOp
     );
 
     vm.vm.push_transaction(tx2);
-    let tx2_result = vm.vm.execute(VmExecutionMode::OneTx);
+    let tx2_result = vm.vm.execute(InspectExecutionMode::OneTx);
     assert!(
         tx2_result.result.is_failed(),
         "Transaction 2 should have failed, but it succeeded"
     );
 
-    let batch_result = vm.vm.execute(VmExecutionMode::Batch);
+    let batch_result = vm
+        .vm
+        .finish_batch(default_pubdata_builder())
+        .block_tip_execution_result;
     assert!(!batch_result.result.is_failed(), "Batch wasn't successful");
 }
 
