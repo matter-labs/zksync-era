@@ -296,7 +296,9 @@ impl SystemContractsRepo {
                         "artifacts-zk/contracts-preprocessed/{0}{1}.sol/{1}.json",
                         directory, name
                     )))
-                    .expect("One of the outputs should exists")
+                    .unwrap_or_else(|| {
+                        panic!("One of the outputs should exists for {directory}{name}");
+                    })
                 }
             }
             ContractLanguage::Yul => {

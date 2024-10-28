@@ -12,7 +12,7 @@ pub fn build_test_contracts(shell: Shell, link_to_code: PathBuf) -> anyhow::Resu
 
 pub fn build_l1_contracts(shell: Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
     let _dir_guard = shell.push_dir(link_to_code.join("contracts/l1-contracts"));
-    Ok(Cmd::new(cmd!(shell, "forge build")).run()?)
+    Ok(Cmd::new(cmd!(shell, "yarn build")).run()?)
 }
 
 pub fn build_l1_da_contracts(shell: Shell, link_to_code: PathBuf) -> anyhow::Result<()> {
