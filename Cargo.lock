@@ -4023,14 +4023,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "kzgpad-rs"
-version = "0.1.0"
-source = "git+https://github.com/Layr-Labs/kzgpad-rs.git?tag=v0.1.0#b5f8c8d3d6482407dc118cb1f51597a017a1cc89"
-dependencies = [
- "rand 0.8.5",
-]
-
-[[package]]
 name = "lalrpop"
 version = "0.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5485,28 +5477,7 @@ dependencies = [
  "petgraph",
  "prettyplease",
  "prost 0.12.6",
- "prost-types 0.12.6",
- "regex",
- "syn 2.0.77",
- "tempfile",
-]
-
-[[package]]
-name = "prost-build"
-version = "0.13.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c1318b19085f08681016926435853bbf7858f9c082d0999b80550ff5d9abe15"
-dependencies = [
- "bytes",
- "heck 0.5.0",
- "itertools 0.13.0",
- "log",
- "multimap",
- "once_cell",
- "petgraph",
- "prettyplease",
- "prost 0.13.3",
- "prost-types 0.13.3",
+ "prost-types",
  "regex",
  "syn 2.0.77",
  "tempfile",
@@ -5549,7 +5520,7 @@ dependencies = [
  "miette",
  "once_cell",
  "prost 0.12.6",
- "prost-types 0.12.6",
+ "prost-types",
  "serde",
  "serde-value",
 ]
@@ -5564,15 +5535,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "prost-types"
-version = "0.13.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4759aa0d3a6232fb8dbdb97b61de2c20047c68aca932c7ed76da9d788508d670"
-dependencies = [
- "prost 0.13.3",
-]
-
-[[package]]
 name = "protox"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5582,7 +5544,7 @@ dependencies = [
  "miette",
  "prost 0.12.6",
  "prost-reflect",
- "prost-types 0.12.6",
+ "prost-types",
  "protox-parse",
  "thiserror",
 ]
@@ -5595,7 +5557,7 @@ checksum = "7b4581f441c58863525a3e6bec7b8de98188cf75239a56c725a3e7288450a33f"
 dependencies = [
  "logos",
  "miette",
- "prost-types 0.12.6",
+ "prost-types",
  "thiserror",
 ]
 
@@ -8307,40 +8269,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tonic-build"
-version = "0.12.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9557ce109ea773b399c9b9e5dca39294110b74f1f342cb347a80d1fce8c26a11"
-dependencies = [
- "prettyplease",
- "proc-macro2 1.0.86",
- "prost-build 0.13.3",
- "prost-types 0.13.3",
- "quote 1.0.37",
- "syn 2.0.77",
-]
-
-[[package]]
-name = "tonic-web"
-version = "0.12.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5299dd20801ad736dccb4a5ea0da7376e59cd98f213bf1c3d478cf53f4834b58"
-dependencies = [
- "base64 0.22.1",
- "bytes",
- "http 1.1.0",
- "http-body 1.0.1",
- "http-body-util",
- "pin-project",
- "tokio-stream",
- "tonic",
- "tower-http",
- "tower-layer",
- "tower-service",
- "tracing",
-]
-
-[[package]]
 name = "tower"
 version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10182,27 +10110,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "zksync_eigenda_proxy"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "hex",
- "kzgpad-rs",
- "prost 0.13.3",
- "rand 0.8.5",
- "rlp",
- "rustls 0.23.13",
- "sha3 0.10.8",
- "tokio",
- "tonic",
- "tonic-build",
- "tonic-web",
- "tracing",
- "zksync_config",
-]
-
-[[package]]
 name = "zksync_env_config"
 version = "0.1.0"
 dependencies = [
@@ -10778,7 +10685,6 @@ dependencies = [
  "zksync_da_dispatcher",
  "zksync_dal",
  "zksync_db_connection",
- "zksync_eigenda_proxy",
  "zksync_eth_client",
  "zksync_eth_sender",
  "zksync_eth_watch",
@@ -11003,7 +10909,7 @@ dependencies = [
  "heck 0.5.0",
  "prettyplease",
  "proc-macro2 1.0.86",
- "prost-build 0.12.6",
+ "prost-build",
  "prost-reflect",
  "protox",
  "quote 1.0.37",
