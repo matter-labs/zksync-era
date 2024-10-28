@@ -39,7 +39,7 @@ To completely reset the dev environment:
 ### Run observability stack
 
 If you want to run [Dockprom](https://github.com/stefanprodan/dockprom/) stack (Prometheus, Grafana) alongside other
-containers - add `--run-observability` parameter during initialisation.
+containers - add `--observability` parameter during initialisation.
 
 ```bash
 zkstack containers --observability
