@@ -247,6 +247,17 @@ impl<'a> Connection<'a> {
             .await??)
     }
 
+    pub(crate) async fn batch_to_attest(
+        &mut self,
+        ctx: &ctx::Ctx,
+    ) -> ctx::Result<attester::BatchNumber> {
+        let n = self.next_block(ctx).await?;
+        Ok(ctx
+            .wait(self.0.consensus_dal().batch_of_block(n))
+            .await??
+            .context("unknown batch")?)
+    }
+
     /// (Re)initializes consensus genesis to start at the last L2 block in storage.
     /// Noop if `spec` matches the current genesis.
     pub(crate) async fn adjust_global_config(

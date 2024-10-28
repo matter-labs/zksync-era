@@ -149,11 +149,17 @@ impl EN {
             s.spawn_bg(async { Ok(runner.run(ctx).await?) });
 
             let attestation = Arc::new(attestation::Controller::new(attester));
-            s.spawn_bg(self.run_attestation_controller(
-                ctx,
-                global_config.clone(),
-                attestation.clone(),
-            ));
+            s.spawn_bg({
+                let attestation = attestation.clone();
+                let global_config = global_config.clone();
+                async {
+                    // Hardcoded panic on failure.
+                    self.run_attestation_controller(ctx, global_config, attestation)
+                        .await
+                        .unwrap();
+                    Ok(())
+                }
+            });
 
             let executor = executor::Executor {
                 config: config::executor(&cfg, &secrets, &global_config, build_version)?,
@@ -214,9 +220,15 @@ impl EN {
     async fn run_attestation_controller(
         &self,
         ctx: &ctx::Ctx,
-        cfg: consensus_dal::GlobalConfig,
+        mut cfg: consensus_dal::GlobalConfig,
         attestation: Arc<attestation::Controller>,
     ) -> ctx::Result<()> {
+        // Hardcoded registry address.
+        cfg.registry_address = Some(
+            "0xd35b99bdad58baa6b912022c77d1f409001442a4"
+                .parse()
+                .unwrap(),
+        );
         const POLL_INTERVAL: time::Duration = time::Duration::seconds(5);
         let registry = registry::Registry::new(cfg.genesis.clone(), self.pool.clone()).await;
         let mut next = attester::BatchNumber(0);
@@ -228,7 +240,16 @@ impl EN {
                     .wrap("fetch_attestation_status()")
                 {
                     Err(err) => tracing::warn!("{err:#}"),
-                    Ok(status) => {
+                    Ok(mut status) => {
+                        // Hardcoded batch selection.
+                        status.next_batch_to_attest = self
+                            .pool
+                            .connection(ctx)
+                            .await
+                            .wrap("connection()")?
+                            .batch_to_attest(ctx)
+                            .await
+                            .wrap("batch_to_attest()")?;
                         if status.genesis != cfg.genesis.hash() {
                             return Err(anyhow::format_err!("genesis mismatch").into());
                         }
