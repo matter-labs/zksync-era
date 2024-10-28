@@ -174,7 +174,6 @@ pub(super) fn mock_l2_block_header(l2_block_number: L2BlockNumber) -> L2BlockHea
         l1_tx_count: 0,
         l2_tx_count: 0,
         fee_account_address: Address::repeat_byte(1),
-        pubdata_params: Default::default(),
         base_fee_per_gas: 0,
         gas_per_pubdata_limit: 0,
         batch_fee_input: Default::default(),
@@ -183,6 +182,7 @@ pub(super) fn mock_l2_block_header(l2_block_number: L2BlockNumber) -> L2BlockHea
         virtual_blocks: 0,
         gas_limit: 0,
         logs_bloom: Default::default(),
+        pubdata_params: Default::default(),
     }
 }
 

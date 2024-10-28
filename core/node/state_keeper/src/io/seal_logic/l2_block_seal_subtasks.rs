@@ -333,12 +333,11 @@ impl L2BlockSealSubtask for InsertTokensSubtask {
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<()> {
         let is_fictive = command.is_l2_block_fictive();
+        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractAddedTokens, is_fictive);
         let token_deployer_address = command
             .l2_legacy_shared_bridge_addr
             .unwrap_or(L2_NATIVE_TOKEN_VAULT_ADDRESS);
-        let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::ExtractAddedTokens, is_fictive);
         let added_tokens = extract_added_tokens(token_deployer_address, &command.l2_block.events);
-
         progress.observe(added_tokens.len());
 
         let progress = L2_BLOCK_METRICS.start(L2BlockSealStage::InsertTokens, is_fictive);
@@ -550,7 +549,6 @@ mod tests {
                 virtual_blocks: Default::default(),
                 protocol_version: ProtocolVersionId::latest(),
             },
-            pubdata_params: PubdataParams::default(),
             first_tx_index: 0,
             fee_account_address: Default::default(),
             fee_input: Default::default(),
@@ -559,6 +557,7 @@ mod tests {
             protocol_version: Some(ProtocolVersionId::latest()),
             l2_legacy_shared_bridge_addr: Default::default(),
             pre_insert_txs: false,
+            pubdata_params: PubdataParams::default(),
         };
 
         // Run.
@@ -614,7 +613,6 @@ mod tests {
             l2_tx_count: 1,
             fee_account_address: l2_block_seal_command.fee_account_address,
             base_fee_per_gas: l2_block_seal_command.base_fee_per_gas,
-            pubdata_params: l2_block_seal_command.pubdata_params,
             batch_fee_input: l2_block_seal_command.fee_input,
             base_system_contracts_hashes: l2_block_seal_command.base_system_contracts_hashes,
             protocol_version: l2_block_seal_command.protocol_version,
@@ -622,6 +620,7 @@ mod tests {
             virtual_blocks: l2_block_seal_command.l2_block.virtual_blocks,
             gas_limit: get_max_batch_gas_limit(VmVersion::latest()),
             logs_bloom: Default::default(),
+            pubdata_params: l2_block_seal_command.pubdata_params,
         };
         connection
             .protocol_versions_dal()

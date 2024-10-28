@@ -38,6 +38,7 @@ jobs:
           echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
           echo CI=1 >> $GITHUB_ENV
           echo $(pwd)/bin >> $GITHUB_PATH
+          echo $HOME/.local/bin >> $GITHUB_PATH
           echo CI=1 >> .env
           echo IN_DOCKER=1 >> .env
 
@@ -73,39 +74,39 @@ jobs:
           tar -C ./contracts -zxf system-contracts.tar.gz
 
       - name: Install Apt dependencies
+        if: env.BUILD_CONTRACTS == 'true'
         shell: bash
         run: |
           sudo apt-get update && sudo apt-get install -y libssl-dev pkg-config
 
       - name: Install Node
+        if: env.BUILD_CONTRACTS == 'true'
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3
         with:
           node-version: 20
           cache: 'npm'
 
       - name: Install Yarn
+        if: env.BUILD_CONTRACTS == 'true'
         run: npm install -g yarn
 
       - name: Setup rust
+        if: env.BUILD_CONTRACTS == 'true'
         uses: actions-rust-lang/setup-rust-toolchain@1fbea72663f6d4c03efaab13560c8a24cfd2a7cc # v1.9.0
         with:
           toolchain: nightly-2024-08-01
 
-      - name: Install cargo-nextest from crates.io
-        uses: baptiste0928/cargo-install@904927dbe77864e0f2281519fe9d5bd097a220b3 # v3.1.1
-        with:
-          crate: cargo-nextest
-
-      - name: Install sqlx-cli from crates.io
-        uses: baptiste0928/cargo-install@904927dbe77864e0f2281519fe9d5bd097a220b3 # v3.1.1
-        with:
-          crate: sqlx-cli
-          tag: 0.8.1
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@8f1998e9878d786675189ef566a2e4bf24869773 # v1.2.0
+      - name: Install foundry-zksync
+        if: env.BUILD_CONTRACTS == 'true'
+        run: |
+          mkdir ./foundry-zksync
+          curl -LO https://github.com/matter-labs/foundry-zksync/releases/download/nightly-15bec2f861b3b4c71e58f85e2b2c9dd722585aa8/foundry_nightly_linux_amd64.tar.gz
+          tar zxf foundry_nightly_linux_amd64.tar.gz -C ./foundry-zksync
+          chmod +x ./foundry-zksync/forge ./foundry-zksync/cast
+          echo "$PWD/foundry-zksync" >> $GITHUB_PATH
 
       - name: Pre-download compilers
+        if: env.BUILD_CONTRACTS == 'true'
         shell: bash
         run: |
           # Download needed versions of vyper compiler
@@ -123,18 +124,18 @@ jobs:
             chmod +x "./hardhat-nodejs/compilers-v2/$compiler/${compiler}-v${version}"
           done
 
-      - name: init
-        shell: bash
+      - name: Install zkstack
+        if: env.BUILD_CONTRACTS == 'true'
         run: |
-          mkdir -p ./volumes/postgres
-          docker compose up -d postgres
-          zkt || true
+          ./zkstack_cli/zkstackup/install --path ./zkstack_cli/zkstackup/zkstackup
+          zkstackup --local || true
 
       - name: build contracts
+        if: env.BUILD_CONTRACTS == 'true'
         shell: bash
         run: |
           cp etc/tokens/{test,localhost}.json
-          zk_supervisor contracts
+          zkstack dev contracts
 
       - name: Upload contracts
         uses: actions/upload-artifact@50769540e7f4bd5e21e526ee35c689e35e0d6874 # v4.4.0
@@ -143,129 +144,129 @@ jobs:
           path: |
             ./contracts
 
-  build-images:
-    name: Build and Push Docker Images
-    needs: prepare-contracts
-    runs-on: ${{ fromJSON('["matterlabs-ci-runner-high-performance", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
-    strategy:
-      matrix:
-        components:
-          - contract-verifier
-          - verified-sources-fetcher
-        platforms:
-          - linux/amd64
-
-    steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-        with:
-          submodules: "recursive"
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
-
-      - name: Setup env
-        shell: bash
-        run: |
-          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
-          echo CI=1 >> $GITHUB_ENV
-          echo $(pwd)/bin >> $GITHUB_PATH
-          echo CI=1 >> .env
-          echo IN_DOCKER=1 >> .env
-
-      - name: Download setup key
-        shell: bash
-        run: |
-          run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
-
-      - name: Set env vars
-        shell: bash
-        run: |
-          echo PLATFORM=$(echo ${{ matrix.platforms }} | tr '/' '-') >> $GITHUB_ENV
-          echo IMAGE_TAG_SHA=$(git rev-parse --short HEAD) >> $GITHUB_ENV
-          # Support for custom tag suffix
-          if [ -n "${{ inputs.image_tag_suffix }}" ]; then
-            echo IMAGE_TAG_SHA_TS="${{ inputs.image_tag_suffix }}" >> $GITHUB_ENV
-          else
-            echo IMAGE_TAG_SHA_TS=$(git rev-parse --short HEAD)-$(date +%s) >> $GITHUB_ENV
-          fi
-
-      - name: Download contracts
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
-        with:
-          name: contacts-verifier
-          path: |
-            ./contracts
-
-      - name: login to Docker registries
-        if: ${{ inputs.action == 'push' }}
-        shell: bash
-        run: |
-          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          gcloud auth configure-docker us-docker.pkg.dev -q
-
-      - name: Build and push
-        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
-        with:
-          context: .
-          push: ${{ inputs.action == 'push' }}
-          file: docker/${{ matrix.components }}/Dockerfile
-          build-args: |
-            SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
-            SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
-            SCCACHE_GCS_RW_MODE=READ_WRITE
-            RUSTC_WRAPPER=sccache
-          tags: |
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest
-            matterlabs/${{ matrix.components }}:latest
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest2.0
-            matterlabs/${{ matrix.components }}:latest2.0
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA }}
-            matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA }}
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA }}
-            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA }}
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
-            matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
-            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
-            matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
-            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
-            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
-
-  create_manifest:
-    name: Create release manifest
-    runs-on: matterlabs-ci-runner
-    needs: build-images
-    if: ${{ inputs.action == 'push' }}
-    strategy:
-      matrix:
-        component:
-          - name: contract-verifier
-            platform: linux/amd64
-          - name: verified-sources-fetcher
-            platform: linux/amd64
-    env:
-      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
-    steps:
-      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
-
-      - name: login to Docker registries
-        run: |
-          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
-          gcloud auth configure-docker us-docker.pkg.dev -q
-
-      - name: Create Docker manifest
-        run: |
-          docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
-          platforms=${{ matrix.component.platform }}
-          for repo in "${docker_repositories[@]}"; do
-            platform_tags=""
-            for platform in ${platforms//,/ }; do
-              platform=$(echo $platform | tr '/' '-')
-              platform_tags+=" --amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}"
-            done
-            for manifest in "${repo}:${IMAGE_TAG_SUFFIX}" "${repo}:2.0-${IMAGE_TAG_SUFFIX}" "${repo}:latest" "${repo}:latest2.0"; do
-              docker manifest create ${manifest} ${platform_tags}
-              docker manifest push ${manifest}
-            done
-          done
+#  build-images:
+#    name: Build and Push Docker Images
+#    needs: prepare-contracts
+#    runs-on: ${{ fromJSON('["matterlabs-ci-runner-high-performance", "matterlabs-ci-runner-arm"]')[contains(matrix.platforms, 'arm')] }}
+#    strategy:
+#      matrix:
+#        components:
+#          - contract-verifier
+#          - verified-sources-fetcher
+#        platforms:
+#          - linux/amd64
+#
+#    steps:
+#      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+#        with:
+#          submodules: "recursive"
+#
+#      - name: Set up Docker Buildx
+#        uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # v3.6.1
+#
+#      - name: Setup env
+#        shell: bash
+#        run: |
+#          echo ZKSYNC_HOME=$(pwd) >> $GITHUB_ENV
+#          echo CI=1 >> $GITHUB_ENV
+#          echo $(pwd)/bin >> $GITHUB_PATH
+#          echo CI=1 >> .env
+#          echo IN_DOCKER=1 >> .env
+#
+#      - name: Download setup key
+#        shell: bash
+#        run: |
+#          run_retried curl -LO https://storage.googleapis.com/matterlabs-setup-keys-us/setup-keys/setup_2\^26.key
+#
+#      - name: Set env vars
+#        shell: bash
+#        run: |
+#          echo PLATFORM=$(echo ${{ matrix.platforms }} | tr '/' '-') >> $GITHUB_ENV
+#          echo IMAGE_TAG_SHA=$(git rev-parse --short HEAD) >> $GITHUB_ENV
+#          # Support for custom tag suffix
+#          if [ -n "${{ inputs.image_tag_suffix }}" ]; then
+#            echo IMAGE_TAG_SHA_TS="${{ inputs.image_tag_suffix }}" >> $GITHUB_ENV
+#          else
+#            echo IMAGE_TAG_SHA_TS=$(git rev-parse --short HEAD)-$(date +%s) >> $GITHUB_ENV
+#          fi
+#
+#      - name: Download contracts
+#        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+#        with:
+#          name: contacts-verifier
+#          path: |
+#            ./contracts
+#
+#      - name: login to Docker registries
+#        if: ${{ inputs.action == 'push' }}
+#        shell: bash
+#        run: |
+#          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+#          gcloud auth configure-docker us-docker.pkg.dev -q
+#
+#      - name: Build and push
+#        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
+#        with:
+#          context: .
+#          push: ${{ inputs.action == 'push' }}
+#          file: docker/${{ matrix.components }}/Dockerfile
+#          build-args: |
+#            SCCACHE_GCS_BUCKET=matterlabs-infra-sccache-storage
+#            SCCACHE_GCS_SERVICE_ACCOUNT=gha-ci-runners@matterlabs-infra.iam.gserviceaccount.com
+#            SCCACHE_GCS_RW_MODE=READ_WRITE
+#            RUSTC_WRAPPER=sccache
+#          tags: |
+#            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest
+#            matterlabs/${{ matrix.components }}:latest
+#            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:latest2.0
+#            matterlabs/${{ matrix.components }}:latest2.0
+#            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA }}
+#            matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA }}
+#            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA }}
+#            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA }}
+#            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+#            matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+#            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
+#            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
+#            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}
+#            matterlabs/${{ matrix.components }}:2.0-${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+#            us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}
+#            matterlabs/${{ matrix.components }}:${{ env.IMAGE_TAG_SHA_TS }}-${{ env.PLATFORM }}
+#
+#  create_manifest:
+#    name: Create release manifest
+#    runs-on: matterlabs-ci-runner
+#    needs: build-images
+#    if: ${{ inputs.action == 'push' }}
+#    strategy:
+#      matrix:
+#        component:
+#          - name: contract-verifier
+#            platform: linux/amd64
+#          - name: verified-sources-fetcher
+#            platform: linux/amd64
+#    env:
+#      IMAGE_TAG_SUFFIX: ${{ inputs.image_tag_suffix }}
+#    steps:
+#      - uses: actions/checkout@a5ac7e51b41094c92402da3b24376905380afc29 # v4
+#
+#      - name: login to Docker registries
+#        run: |
+#          docker login -u ${{ secrets.DOCKERHUB_USER }} -p ${{ secrets.DOCKERHUB_TOKEN }}
+#          gcloud auth configure-docker us-docker.pkg.dev -q
+#
+#      - name: Create Docker manifest
+#        run: |
+#          docker_repositories=("matterlabs/${{ matrix.component.name }}" "us-docker.pkg.dev/matterlabs-infra/matterlabs-docker/${{ matrix.component.name }}")
+#          platforms=${{ matrix.component.platform }}
+#          for repo in "${docker_repositories[@]}"; do
+#            platform_tags=""
+#            for platform in ${platforms//,/ }; do
+#              platform=$(echo $platform | tr '/' '-')
+#              platform_tags+=" --amend ${repo}:${IMAGE_TAG_SUFFIX}-${platform}"
+#            done
+#            for manifest in "${repo}:${IMAGE_TAG_SUFFIX}" "${repo}:2.0-${IMAGE_TAG_SUFFIX}" "${repo}:latest" "${repo}:latest2.0"; do
+#              docker manifest create ${manifest} ${platform_tags}
+#              docker manifest push ${manifest}
+#            done
+#          done

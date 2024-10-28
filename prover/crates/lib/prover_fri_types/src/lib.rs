@@ -28,8 +28,8 @@ pub mod keys;
 pub mod queue;
 
 // THESE VALUES SHOULD BE UPDATED ON ANY PROTOCOL UPGRADE OF PROVERS
-pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version24;
-pub const PROVER_PROTOCOL_PATCH: VersionPatch = VersionPatch(2);
+pub const PROVER_PROTOCOL_VERSION: ProtocolVersionId = ProtocolVersionId::Version25;
+pub const PROVER_PROTOCOL_PATCH: VersionPatch = VersionPatch(0);
 pub const PROVER_PROTOCOL_SEMANTIC_VERSION: ProtocolSemanticVersion = ProtocolSemanticVersion {
     minor: PROVER_PROTOCOL_VERSION,
     patch: PROVER_PROTOCOL_PATCH,

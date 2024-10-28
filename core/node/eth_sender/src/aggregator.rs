@@ -14,7 +14,7 @@ use zksync_types::{
     helpers::unix_timestamp_ms,
     l1::L1Tx,
     protocol_version::{L1VerifierConfig, ProtocolSemanticVersion},
-    pubdata_da::PubdataDA,
+    pubdata_da::PubdataSendingMode,
     L1BatchNumber, ProtocolVersionId,
 };
 
@@ -39,7 +39,7 @@ pub struct Aggregator {
     /// means no wait is needed: nonces will still provide the correct ordering of
     /// transactions.
     operate_4844_mode: bool,
-    pubdata_da: PubdataDA,
+    pubdata_da: PubdataSendingMode,
     commitment_mode: L1BatchCommitmentMode,
     priority_merkle_tree: MiniMerkleTree<L1Tx>,
 }
@@ -52,7 +52,7 @@ impl Aggregator {
         commitment_mode: L1BatchCommitmentMode,
         connection: &mut Connection<'_, Core>,
     ) -> anyhow::Result<Self> {
-        let pubdata_da = config.pubdata_sending_mode.into();
+        let pubdata_da = config.pubdata_sending_mode;
 
         let priority_tree_start_index = config.priority_tree_start_index.unwrap_or(0);
         let priority_op_hashes = connection
@@ -543,7 +543,7 @@ impl Aggregator {
         }
     }
 
-    pub fn pubdata_da(&self) -> PubdataDA {
+    pub fn pubdata_da(&self) -> PubdataSendingMode {
         self.pubdata_da
     }
 

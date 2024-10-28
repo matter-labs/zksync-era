@@ -19,8 +19,9 @@ use zksync_multivm::{
         executor::{OneshotExecutor, TransactionValidator},
         storage::{ReadStorage, StoragePtr, StorageView, WriteStorage},
         tracer::{ValidationError, ValidationParams},
-        ExecutionResult, OneshotEnv, OneshotTracingParams, OneshotTransactionExecutionResult,
-        StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode, VmExecutionMode, VmInterface,
+        ExecutionResult, InspectExecutionMode, OneshotEnv, OneshotTracingParams,
+        OneshotTransactionExecutionResult, StoredL2BlockEnv, TxExecutionArgs, TxExecutionMode,
+        VmInterface,
     },
     tracers::{CallTracer, StorageInvocations, ValidationTracer},
     utils::adjust_pubdata_price_for_tx,
@@ -40,7 +41,11 @@ use zksync_utils::{h256_to_u256, u256_to_h256};
 
 pub use self::{
     block::{BlockInfo, ResolvedBlockInfo},
-    env::{CallOrExecute, EstimateGas, OneshotEnvParameters},
+    contracts::{
+        BaseSystemContractsProvider, CallOrExecute, ContractsKind, EstimateGas,
+        MultiVMBaseSystemContracts,
+    },
+    env::OneshotEnvParameters,
     mock::MockOneshotExecutor,
 };
 
@@ -165,7 +170,7 @@ where
             );
             let exec_result = executor.apply(|vm, transaction| {
                 vm.push_transaction(transaction);
-                vm.inspect(&mut tracers.into(), VmExecutionMode::OneTx)
+                vm.inspect(&mut tracers.into(), InspectExecutionMode::OneTx)
             });
             let validation_result = Arc::make_mut(&mut validation_result)
                 .take()
