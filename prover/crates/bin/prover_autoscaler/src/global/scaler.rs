@@ -21,7 +21,7 @@ struct GPUPool {
     name: String,
     gpu: Gpu,
     provers: HashMap<PodStatus, u32>, // TODO: consider using i64 everywhere to avoid type casts.
-    preemtions: u64,
+    scale_errors: usize,
     max_pool_size: u32,
 }
 
@@ -140,12 +140,23 @@ impl Scaler {
                     .and_then(|inner_map| inner_map.get(&gpu))
                     .copied()
                     .unwrap_or(0),
+                scale_errors: namespace_value
+                    .scale_errors
+                    .iter()
+                    .filter(|v| v.time < Utc::now() - chrono::Duration::hours(1)) // TODO Move the duration into config.
+                    .count(),
                 ..Default::default()
             });
 
             // Initialize pool only if we have ready deployments.
             e.provers.insert(PodStatus::Running, 0);
         }
+
+        let recent_scale_errors = namespace_value
+            .scale_errors
+            .iter()
+            .filter(|v| v.time < Utc::now() - chrono::Duration::minutes(4)) // TODO Move the duration into config. This should be at least x2 or run interval.
+            .count();
 
         for ppg in namespace_value
             .pods
@@ -158,10 +169,12 @@ impl Scaler {
                 ..Default::default()
             });
             let mut status = PodStatus::from_str(&ppg.pod.status).unwrap_or_default();
-            if status == PodStatus::Pending
-                && ppg.pod.changed < Utc::now() - self.long_pending_duration
-            {
-                status = PodStatus::LongPending;
+            if status == PodStatus::Pending {
+                if ppg.pod.changed < Utc::now() - self.long_pending_duration {
+                    status = PodStatus::LongPending;
+                } else if recent_scale_errors > 0 {
+                    status = PodStatus::NeedToMove;
+                }
             }
             tracing::info!(
                 "pod {}: status: {}, real status: {}",
@@ -172,7 +185,7 @@ impl Scaler {
             e.provers.entry(status).and_modify(|n| *n += 1).or_insert(1);
         }
 
-        tracing::info!("From pods {:?}", gp_map.sorted_debug());
+        tracing::debug!("From pods {:?}", gp_map.sorted_debug());
 
         gp_map.into_values().collect()
     }
@@ -195,7 +208,7 @@ impl Scaler {
                     a.sum_by_pod_status(PodStatus::LongPending)
                         .cmp(&b.sum_by_pod_status(PodStatus::LongPending)),
                 ) // Sort by long Pending pods.
-                .then(a.preemtions.cmp(&b.preemtions)) // Sort by preemtions in the cluster.
+                .then(a.scale_errors.cmp(&b.scale_errors)) // Sort by scale_errors in the cluster.
                 .then(
                     self.cluster_priorities
                         .get(&a.name)
@@ -455,6 +468,7 @@ mod tests {
                                         },
                                     )]
                                     .into(),
+                                    ..Default::default()
                                 },
                             )]
                             .into(),
@@ -521,6 +535,7 @@ mod tests {
                                             },
                                         )]
                                         .into(),
+                                        ..Default::default()
                                     },
                                 )]
                                 .into(),
@@ -681,6 +696,7 @@ mod tests {
                                             )
                                         ]
                                         .into(),
+                                        ..Default::default()
                                     },
                                 )]
                                 .into(),
@@ -718,6 +734,7 @@ mod tests {
                                             )
                                         ]
                                         .into(),
+                                        ..Default::default()
                                     },
                                 )]
                                 .into(),

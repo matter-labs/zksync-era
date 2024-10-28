@@ -25,6 +25,7 @@ use zksync_types::{
     l2::{error::TxCheckError::TxDuplication, L2Tx},
     transaction_request::CallOverrides,
     utils::storage_key_for_eth_balance,
+    vm::FastVmMode,
     AccountTreeId, Address, L2ChainId, Nonce, ProtocolVersionId, Transaction, H160, H256,
     MAX_NEW_FACTORY_DEPS, U256,
 };
@@ -89,6 +90,7 @@ pub async fn build_tx_sender(
 /// Oneshot executor options used by the API server sandbox.
 #[derive(Debug)]
 pub struct SandboxExecutorOptions {
+    pub(crate) fast_vm_mode: FastVmMode,
     /// Env parameters to be used when estimating gas.
     pub(crate) estimate_gas: OneshotEnvParameters<EstimateGas>,
     /// Env parameters to be used when performing `eth_call` requests.
@@ -114,6 +116,7 @@ impl SandboxExecutorOptions {
                 .context("failed loading base contracts for calls / tx execution")?;
 
         Ok(Self {
+            fast_vm_mode: FastVmMode::Old,
             estimate_gas: OneshotEnvParameters::new(
                 Arc::new(estimate_gas_contracts),
                 chain_id,
@@ -127,6 +130,11 @@ impl SandboxExecutorOptions {
                 validation_computational_gas_limit,
             ),
         })
+    }
+
+    /// Sets the fast VM mode used by this executor.
+    pub fn set_fast_vm_mode(&mut self, fast_vm_mode: FastVmMode) {
+        self.fast_vm_mode = fast_vm_mode;
     }
 
     pub(crate) async fn mock() -> Self {
